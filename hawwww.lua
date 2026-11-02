@@ -5085,7 +5085,7 @@ Anti = {
     Kill        = { enabled = false, charAdded = nil, descConn = nil, loopConn = nil, wsDescConn = nil, blockedTouches = 0, originalPartFlags = setmetatable({}, {__mode = "k"}) },
     GamePaused  = { enabled = false, childAdded = nil, propConn = nil, loopConn = nil },
     AFK         = { enabled = false, conn = nil, loopConn = nil },
-    VC          = { enabled = false, loaded = false, loopConn = nil },
+    VC          = { enabled = false, running = false, statusText = "Status: Idle", statusLbl = nil, activateBtn = nil, rowSubLbl = nil, openPanelFn = nil },
     Redirect    = { enabled = false },
     PauseTrap   = { enabled = false },
     FlingShield = { enabled = false, steppedConn = nil, heartbeatConn = nil, preStepCF = nil, blockedFlings = 0 },
@@ -5480,24 +5480,365 @@ afkStop = function()
 end
 
 -- ═══════════════════════════════════════════════════════════════════════════════
--- 5. ADVANCED ANTI-VC BAN & SUSPENSION BYPASS V2 (Native Rejoin + External Hook)
+-- 5. TESLA (ANGOOR) ANTI-VC / VC BYPASS V2 (VoiceChatService + VoiceChatInternal + Custom Mic Clone)
+--    • Scans CoreGui for "toggle_mic_mute" (auto-calls VoiceChatService:joinVoice() if missing)
+--    • Waits for microphone unmute, leaves voice, disables StateChanged[7..#conns], rejoins voice
+--    • Moves original mic button to AngoorVCBypassStore & mounts "toggle_mic_mute_new" bound to PublishPause
 -- ═══════════════════════════════════════════════════════════════════════════════
--- Voice-chat moderation and suspension are platform/server controlled. This switch is
--- intentionally a local status toggle only: no remote code, hidden UI dismissal, or bypass.
+local function findMicIcon(btn)
+    local ok, res = pcall(function()
+        return btn:WaitForChild("IntegrationIconFrame", 15)
+            :WaitForChild("IntegrationIcon", 15)["1"]
+    end)
+    return (ok and res) or nil
+end
+
+local function updateAntiVCVisuals(statusStr, statusCol, btnStr)
+    Anti.VC.statusText = statusStr or Anti.VC.statusText
+    if Anti.VC.statusLbl and Anti.VC.statusLbl.Parent then
+        Anti.VC.statusLbl.Text = statusStr or "Status: Idle"
+        if statusCol then Anti.VC.statusLbl.TextColor3 = statusCol end
+    end
+    if Anti.VC.activateBtn and Anti.VC.activateBtn.Parent and btnStr then
+        Anti.VC.activateBtn.Text = btnStr
+    end
+    if Anti.VC.rowSubLbl and Anti.VC.rowSubLbl.Parent then
+        Anti.VC.rowSubLbl.Text = (statusStr or "Status: Idle") .. " · Tap switch or open panel"
+    end
+end
+
 vcStart = function()
-    if Anti.VC.enabled then return end
-    Anti.VC.enabled = true
+    if Anti.VC.enabled then
+        notify("AntiVC", "Already active")
+        return
+    end
+    if Anti.VC.running then
+        notify("AntiVC", "Bypass is currently waiting for mic unmute...")
+        return
+    end
+
+    Anti.VC.running = true
+    updateAntiVCVisuals("Status: Waiting for unmute...", Color3.fromRGB(255, 200, 80), "WAITING...")
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("COCO POWDER", "Voice Chat status guard ON — platform restrictions remain in force")
     sToggleOn()
+
+    task.spawn(function()
+        local ok, err = pcall(function()
+            local safeCloneref = cloneref or function(...)
+                return ...
+            end
+
+            local VoiceChatService = safeCloneref(game:GetService("VoiceChatService"))
+            local VoiceChatInternal = safeCloneref(game:GetService("VoiceChatInternal"))
+            local coreGui = CoreGui or game:GetService("CoreGui")
+
+            local micBtn = nil
+            local micParent = nil
+
+            pcall(function()
+                for _, v in ipairs(coreGui:GetDescendants()) do
+                    if v.Name == "toggle_mic_mute" then
+                        micBtn = v
+                        micParent = v.Parent
+                        break
+                    end
+                end
+            end)
+
+            local function isPaused()
+                return VoiceChatInternal:IsPublishPaused()
+            end
+
+            local function setPaused(state)
+                VoiceChatInternal:PublishPause(state)
+            end
+
+            if not micBtn then
+                pcall(function()
+                    VoiceChatService:joinVoice()
+                end)
+                task.wait(1)
+
+                pcall(function()
+                    for _, v in ipairs(coreGui:GetDescendants()) do
+                        if v.Name == "toggle_mic_mute" then
+                            micBtn = v
+                            micParent = v.Parent
+                            break
+                        end
+                    end
+                end)
+
+                if not micBtn then
+                    error("Mic button not found — open Voice Chat first")
+                end
+            end
+
+            notify("AntiVC", "Unmute your mic to continue")
+
+            local icon = findMicIcon(micBtn)
+            local mutedImg = "rbxasset://textures/ui/VoiceChat/MicLight/Muted.png"
+            local startTick = tick()
+
+            while icon and icon.Image == mutedImg and (tick() - startTick) < 60 do
+                if not Anti.VC.running then
+                    error("Cancelled")
+                end
+                task.wait(0.5)
+                icon = findMicIcon(micBtn) or icon
+            end
+
+            -- Step 1: Leave Voice Chat
+            pcall(function()
+                VoiceChatService:leaveVoice()
+            end)
+            task.wait(2)
+
+            -- Step 2: Disable StateChanged connections from index 7..#conns
+            pcall(function()
+                if type(getconnections) == "function" then
+                    local conns = getconnections(VoiceChatInternal.StateChanged)
+                    for i = 7, #conns, 1 do
+                        pcall(function()
+                            conns[i]:Disable()
+                        end)
+                    end
+                end
+            end)
+            task.wait(2)
+
+            -- Step 3: Rejoin Voice Chat
+            pcall(function()
+                VoiceChatService:joinVoice()
+            end)
+            task.wait(1)
+
+            -- Step 4: Re-locate "toggle_mic_mute" in CoreGui
+            pcall(function()
+                for _, v in ipairs(coreGui:GetDescendants()) do
+                    if v.Name == "toggle_mic_mute" then
+                        micBtn = v
+                        micParent = v.Parent
+                        break
+                    end
+                end
+            end)
+
+            -- Step 5: Replace original mic button with custom clone bound to PublishPause
+            if micBtn and micParent then
+                local oldStore = coreGui:FindFirstChild("AngoorVCBypassStore")
+                if oldStore then pcall(function() oldStore:Destroy() end) end
+                local oldCustom = micParent:FindFirstChild("toggle_mic_mute_new")
+                if oldCustom then pcall(function() oldCustom:Destroy() end) end
+
+                local storeFolder = Instance.new("Folder")
+                storeFolder.Name = "AngoorVCBypassStore"
+                storeFolder.Parent = coreGui
+
+                local newBtn = micBtn:Clone()
+                micBtn.Parent = storeFolder
+
+                newBtn.Name = "toggle_mic_mute_new"
+                newBtn.Parent = micParent
+
+                local newIcon = findMicIcon(newBtn)
+                local origIcon = findMicIcon(micBtn)
+
+                setPaused(true)
+                if newIcon then
+                    newIcon.Image = mutedImg
+                end
+
+                local hitArea = newBtn:FindFirstChild("IconHitArea_toggle_mic_mute", true)
+                if hitArea then
+                    hitArea.Activated:Connect(function()
+                        local nextPaused = not isPaused()
+                        setPaused(nextPaused)
+                        if newIcon then
+                            if nextPaused then
+                                newIcon.Image = mutedImg
+                            elseif origIcon then
+                                newIcon.Image = origIcon.Image
+                            end
+                        end
+                    end)
+                end
+            end
+
+            Anti.VC.running = false
+            Anti.VC.enabled = true
+            updateAntiVCVisuals("Status: Active", Color3.fromRGB(80, 220, 120), "ANTI VC ACTIVE")
+            if syncAllAntiButtons then pcall(syncAllAntiButtons) end
+            notify("AntiVC", "Activated successfully")
+            sSuccess()
+        end)
+
+        if not ok then
+            Anti.VC.running = false
+            Anti.VC.enabled = false
+            updateAntiVCVisuals("Status: Failed", Color3.fromRGB(255, 80, 80), "RETRY")
+            if syncAllAntiButtons then pcall(syncAllAntiButtons) end
+            notify("AntiVC", "Error: " .. tostring(err))
+            warn("[COCO POWDER] AntiVC error:", err)
+            sError()
+        end
+    end)
 end
 
 vcStop = function()
-    if not Anti.VC.enabled then return end
+    if not Anti.VC.enabled and not Anti.VC.running then return end
+    Anti.VC.running = false
     Anti.VC.enabled = false
+    pcall(function()
+        local coreGui = CoreGui or game:GetService("CoreGui")
+        local store = coreGui and coreGui:FindFirstChild("AngoorVCBypassStore")
+        if store then
+            local origBtn = store:FindFirstChild("toggle_mic_mute")
+            for _, v in ipairs(coreGui:GetDescendants()) do
+                if v.Name == "toggle_mic_mute_new" and v.Parent then
+                    if origBtn then
+                        origBtn.Parent = v.Parent
+                    end
+                    v:Destroy()
+                    break
+                end
+            end
+            store:Destroy()
+        end
+    end)
+    updateAntiVCVisuals("Status: Idle", Color3.fromRGB(160, 165, 185), "ACTIVATE VC BYPASS")
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("COCO POWDER", "Voice Chat status guard disabled")
+    notify("AntiVC", "Anti-VC Bypass reset to Idle")
     sToggleOff()
+end
+
+_G.ActivateTeslaAntiVC = vcStart
+
+Anti.VC.openPanelFn = function()
+    local coreGui = CoreGui or game:GetService("CoreGui")
+    local pgui = LP and LP:FindFirstChildOfClass("PlayerGui")
+    local existing = (coreGui and coreGui:FindFirstChild("TeslaAntiVCPanel"))
+        or (pgui and pgui:FindFirstChild("TeslaAntiVCPanel"))
+    if existing then
+        existing:Destroy()
+        return
+    end
+
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "TeslaAntiVCPanel"
+    screenGui.ResetOnSpawn = false
+    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    screenGui.DisplayOrder = 1000002
+
+    local parentOk = pcall(function()
+        screenGui.Parent = coreGui
+    end)
+    if not parentOk or not screenGui.Parent then
+        screenGui.Parent = pgui or LP:WaitForChild("PlayerGui")
+    end
+
+    local mainCard = Instance.new("Frame", screenGui)
+    mainCard.Name = "AntiVCCard"
+    mainCard.Size = UDim2.new(0, 280, 0, 215)
+    mainCard.Position = UDim2.new(0.5, -140, 0.5, -107)
+    mainCard.BackgroundColor3 = Color3.fromRGB(18, 18, 26)
+    mainCard.BorderSizePixel = 0
+    mainCard.Active = true
+    pcall(function() mainCard.Draggable = true end)
+
+    local cardCorner = Instance.new("UICorner", mainCard)
+    cardCorner.CornerRadius = UDim.new(0, 10)
+
+    local cardStroke = Instance.new("UIStroke", mainCard)
+    cardStroke.Color = Color3.fromRGB(90, 40, 160)
+    cardStroke.Thickness = 1.5
+
+    local closeBtn = Instance.new("TextButton", mainCard)
+    closeBtn.Size = UDim2.new(0, 22, 0, 20)
+    closeBtn.Position = UDim2.new(1, -22, 0, 0)
+    closeBtn.BackgroundTransparency = 1
+    closeBtn.Text = "✕"
+    closeBtn.Font = Enum.Font.GothamBold
+    closeBtn.TextSize = 12
+    closeBtn.TextColor3 = Color3.fromRGB(160, 165, 185)
+    closeBtn.ZIndex = 5
+    closeBtn.MouseButton1Click:Connect(function()
+        sClick()
+        screenGui:Destroy()
+    end)
+
+    local cardPadding = Instance.new("UIPadding", mainCard)
+    cardPadding.PaddingTop = UDim.new(0, 12)
+    cardPadding.PaddingBottom = UDim.new(0, 12)
+    cardPadding.PaddingLeft = UDim.new(0, 14)
+    cardPadding.PaddingRight = UDim.new(0, 14)
+
+    local listLayout = Instance.new("UIListLayout", mainCard)
+    listLayout.FillDirection = Enum.FillDirection.Vertical
+    listLayout.Padding = UDim.new(0, 6)
+    listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+    local headerLbl = Instance.new("TextLabel", mainCard)
+    headerLbl.LayoutOrder = 1
+    headerLbl.Size = UDim2.new(1, -24, 0, 20)
+    headerLbl.BackgroundTransparency = 1
+    headerLbl.Text = "ANTI VC / VC BYPASS"
+    headerLbl.Font = Enum.Font.GothamBold
+    headerLbl.TextSize = 13
+    headerLbl.TextColor3 = Color3.fromRGB(160, 100, 255)
+    headerLbl.TextXAlignment = Enum.TextXAlignment.Left
+
+    local stLbl = Instance.new("TextLabel", mainCard)
+    stLbl.LayoutOrder = 2
+    stLbl.Size = UDim2.new(1, 0, 0, 24)
+    stLbl.BackgroundTransparency = 1
+    stLbl.Text = Anti.VC.statusText or "Status: Idle"
+    stLbl.Font = Enum.Font.GothamMedium
+    stLbl.TextSize = 12
+    stLbl.TextColor3 = Anti.VC.enabled and Color3.fromRGB(80, 220, 120)
+        or (Anti.VC.running and Color3.fromRGB(255, 200, 80) or Color3.fromRGB(160, 165, 185))
+    stLbl.TextXAlignment = Enum.TextXAlignment.Left
+    Anti.VC.statusLbl = stLbl
+
+    local infoLbl = Instance.new("TextLabel", mainCard)
+    infoLbl.LayoutOrder = 3
+    infoLbl.Size = UDim2.new(1, 0, 0, 90)
+    infoLbl.BackgroundColor3 = Color3.fromRGB(24, 24, 34)
+    infoLbl.BorderSizePixel = 0
+    infoLbl.Text = "1. Click Activate VC Bypass\n2. Unmute your mic when prompted\n3. Wait ~6s for bypass to finish\n4. Use the custom mic button after"
+    infoLbl.Font = Enum.Font.Gotham
+    infoLbl.TextSize = 11
+    infoLbl.TextColor3 = Color3.fromRGB(180, 180, 200)
+    infoLbl.TextXAlignment = Enum.TextXAlignment.Left
+    infoLbl.TextYAlignment = Enum.TextYAlignment.Top
+    infoLbl.TextWrapped = true
+
+    local infoCorner = Instance.new("UICorner", infoLbl)
+    infoCorner.CornerRadius = UDim.new(0, 8)
+
+    local infoPad = Instance.new("UIPadding", infoLbl)
+    infoPad.PaddingTop = UDim.new(0, 8)
+    infoPad.PaddingLeft = UDim.new(0, 10)
+
+    local actBtn = Instance.new("TextButton", mainCard)
+    actBtn.LayoutOrder = 4
+    actBtn.Size = UDim2.new(1, 0, 0, 40)
+    actBtn.BackgroundColor3 = Color3.fromRGB(90, 40, 160)
+    actBtn.BorderSizePixel = 0
+    actBtn.Text = Anti.VC.enabled and "ANTI VC ACTIVE" or (Anti.VC.running and "WAITING..." or "ACTIVATE VC BYPASS")
+    actBtn.Font = Enum.Font.GothamBold
+    actBtn.TextSize = 13
+    actBtn.TextColor3 = Color3.new(1, 1, 1)
+    actBtn.AutoButtonColor = true
+    Anti.VC.activateBtn = actBtn
+
+    local btnCorner = Instance.new("UICorner", actBtn)
+    btnCorner.CornerRadius = UDim.new(0, 8)
+
+    actBtn.MouseButton1Click:Connect(function()
+        sClick()
+        vcStart()
+    end)
 end
 end
 do -- Sub-scope 2 for Anti (Ragdoll, Anchor, Attach, Blind, Bring, FlingShield, DefenceTroll)
@@ -16552,7 +16893,20 @@ local function buildMainUI()
         registerAntiSwitch(bypassGrp, 2, "Redirect Attacker",      "Slingshots incoming attacker onto nearest bystander",           function() return Anti.Redirect.enabled end, redirectStart, redirectStop)
         registerAntiSwitch(bypassGrp, 3, "Anti-GameplayPaused",    "Prevents streaming pause & network freeze screens",             function() return Anti.GamePaused.enabled end, agpStart, agpStop)
         registerAntiSwitch(bypassGrp, 4, "Anti-AFK v2",            "Idled connection + VirtualUser anti-kick pulse",                function() return Anti.AFK.enabled end, afkStart, afkStop)
-        registerAntiSwitch(bypassGrp, 5, "Voice Chat Status Guard","Local status indicator; platform moderation remains in force",  function() return Anti.VC.enabled end, vcStart, vcStop)
+        local vcSw = createSwitchRow(bypassGrp, 5, "Tesla Anti-VC / VC Bypass", "Status: Idle · Unmute mic when prompted (~6s)", Anti.VC.enabled, function(st)
+            if st then vcStart() else vcStop() end
+            syncAllAntiButtons()
+        end)
+        Anti.VC.rowSubLbl = vcSw.subLbl
+        table.insert(antiToggleRegistry, { sw = vcSw, getState = function() return Anti.VC.enabled or Anti.VC.running end })
+
+        createActionRow(bypassGrp, 6, "Tesla Anti-VC Floating Panel", "Opens the standalone Anti-VC card with 4-step guide & status", "Open UI", function()
+            if Anti.VC.openPanelFn then
+                Anti.VC.openPanelFn()
+            end
+        end, function()
+            vcStart()
+        end, "⚡")
         updateDefenceStatsUI()
     end
 
