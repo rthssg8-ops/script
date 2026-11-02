@@ -983,12 +983,14 @@ local streamAndTeleportToTarget
 local markIntentionalTeleport
 
 -- ═══════════════════════════════════════════════════════════════════════════════
--- ⚡ ZERO-DELAY WELD & OMNIPRESENT TARGET CATCH-UP ENGINE (FROM V34/V35 OYEE HOYE)
---   • Uses direct `TargetPart.CFrame * localOffset` + `PhysicsRepRootPart` &
---     `PhysicsRepRootRef` replication lock so your player attaches to the EXACT
---     target with 0.00ms delay and never attaches somewhere else!
---   • Automatically catches up to targets anywhere on the map (unstreamed chunks,
---     teleporters, houses, skyboxes, underground rooms, vehicles, or seats)!
+-- ⚡ ZERO-DELAY WELD & OMNIPRESENT TARGET CATCH-UP ENGINE (LINE-BY-LINE AUDITED)
+--   • Eliminated PhysicsRepRootPart double-transform bug (which sent players to 2x
+--     world coordinates / random places on the map when setting Root.CFrame)
+--   • Uses upright root yaw (`getFlatYawCFrame`) + exact anatomical anchor points
+--     so head-nods or torso tilts during animations never swing your character away
+--   • Eliminated stale `WorldPivot` false-nearest trap so Auto-Nearest ALWAYS locks
+--     onto real streamed-in players near you, while unstreamed targets are swept
+--     and caught up to anywhere on the map!
 -- ═══════════════════════════════════════════════════════════════════════════════
 local computeDynamicHeightWeld = function() return 0, 1.0, 1.0 end
 
@@ -1035,6 +1037,39 @@ local function breakAllSeatsAndExternalJoints(char, hum, root)
             end
         end
     end)
+end
+
+-- Build server sweep points (Spawns, Seats, VehicleSeats, Map Models) for catching up to unstreamed players
+local CachedSweepPoints = {}
+local LastSweepBuildTick = 0
+local function getServerSweepPoints()
+    local now = tick()
+    if #CachedSweepPoints > 0 and (now - LastSweepBuildTick) < 8.0 then
+        return CachedSweepPoints
+    end
+    LastSweepBuildTick = now
+    local pts = {}
+    pcall(function()
+        for _, obj in ipairs(workspace:GetDescendants()) do
+            if obj:IsA("SpawnLocation") or obj:IsA("Seat") or obj:IsA("VehicleSeat") then
+                if not isLethalVoidCF(obj.CFrame) then
+                    pts[#pts + 1] = obj.CFrame
+                end
+            end
+        end
+    end)
+    for _, child in ipairs(workspace:GetChildren()) do
+        if child:IsA("Model") and child ~= LP.Character and not Players:GetPlayerFromCharacter(child) then
+            local okP, pCF = pcall(function() return child:GetPivot() end)
+            if okP and pCF and pCF.Position.Magnitude > 10 and pCF.Position.Magnitude < 100000 and not isLethalVoidCF(pCF) then
+                pts[#pts + 1] = pCF
+            end
+        elseif child:IsA("BasePart") and child.Position.Magnitude > 50 and child.Position.Magnitude < 100000 and not isLethalVoidCF(child.CFrame) then
+            pts[#pts + 1] = child.CFrame
+        end
+    end
+    CachedSweepPoints = pts
+    return pts
 end
 
 local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbacks, TargetPlayer, RefMode, PresetKey)
@@ -1109,30 +1144,64 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
     end
     ensureAnim(true)
 
+    local cachedCharParts = {}
+    local charDescConn = nil
+    for _, v in ipairs(Character:GetDescendants()) do
+        if v:IsA("BasePart") then
+            v.CanCollide = false
+            v.CanTouch = false
+            v.Massless = true
+            v.Anchored = false
+            cachedCharParts[#cachedCharParts + 1] = v
+        elseif v:IsA("SeatWeld") or v.Name == "SeatWeld" then
+            pcall(function() v:Destroy() end)
+        end
+    end
+    charDescConn = Character.DescendantAdded:Connect(function(v)
+        if v:IsA("BasePart") then
+            v.CanCollide = false
+            v.CanTouch = false
+            v.Massless = true
+            v.Anchored = false
+            cachedCharParts[#cachedCharParts + 1] = v
+        elseif v:IsA("SeatWeld") or v.Name == "SeatWeld" then
+            pcall(function() v:Destroy() end)
+        end
+    end)
+
     local function applyPhaseNoclip()
         if not Character or not Character.Parent then return end
-        for _, v in ipairs(Character:GetDescendants()) do
-            if v:IsA("BasePart") then
-                v.CanCollide = false
-                v.CanTouch = false
-                v.Massless = true
-                v.Anchored = false
-            elseif v:IsA("SeatWeld") or v.Name == "SeatWeld" then
-                pcall(function() v:Destroy() end)
+        for i = 1, #cachedCharParts do
+            local p = cachedCharParts[i]
+            if p and p.Parent then
+                p.CanCollide = false
+                p.CanTouch = false
+                p.Massless = true
+                p.Anchored = false
             end
         end
         if Humanoid and Humanoid.Sit then
+            breakAllSeatsAndExternalJoints(Character, Humanoid, Root)
             pcall(function() Humanoid.Sit = false end)
         end
     end
     applyPhaseNoclip()
+
+    if sethiddenproperty and Root then
+        pcall(function()
+            sethiddenproperty(Root, "PhysicsRepRootPart", nil)
+            sethiddenproperty(Root, "PhysicsRepRootRef", nil)
+            sethiddenproperty(Root, "NetworkIsSleeping", false)
+        end)
+    end
 
     local Weld = { destroyed = false }
     local Conn = nil
     local StepConn = nil
     local RenderConn = nil
     local clock = 0
-    local lastStreamReqTick = 0
+    local missingFrames = 0
+    local sweepIndex = 0
 
     function Weld:Destroy(skipReturn)
         if self.destroyed then return end
@@ -1142,6 +1211,8 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
         if Conn then Conn:Disconnect(); Conn = nil end
         if StepConn then StepConn:Disconnect(); StepConn = nil end
         if RenderConn then RenderConn:Disconnect(); RenderConn = nil end
+        if charDescConn then charDescConn:Disconnect(); charDescConn = nil end
+        table.clear(cachedCharParts)
         pcall(function() LP.ReplicationFocus = nil end)
         if Root and sethiddenproperty then
             pcall(function() sethiddenproperty(Root, "PhysicsRepRootPart", nil) end)
@@ -1168,85 +1239,88 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
         end
     end
 
-    -- Exact CFrame & PhysicsRepRootPart Lock from oyee hoye.lua (Zero-Delay across Stepped, RenderStepped, and Heartbeat)
-    local function computeLocalOffset()
+    -- Compute exact, level, upright world attachment CFrame directly on the target character
+    local function computeAttachCFrame()
+        if not TargetPart or not TargetPart.Parent then return nil end
+        local tChar = TargetChar or TargetPart.Parent
+        local tRoot = (tChar and (tChar:FindFirstChild("HumanoidRootPart") or tChar:FindFirstChild("Torso") or tChar:FindFirstChild("UpperTorso") or tChar:FindFirstChild("LowerTorso"))) or TargetPart
+        if not tRoot or not tRoot.Parent then tRoot = TargetPart end
+
+        local anchorPos = tRoot.Position
+        if RefMode == "head" then
+            local tHead = (TargetPart.Name == "Head" and TargetPart) or (tChar and tChar:FindFirstChild("Head"))
+            if tHead and tHead:IsA("BasePart") and tHead.Parent and (tHead.Position - tRoot.Position).Magnitude <= 10 then
+                anchorPos = tHead.Position
+            else
+                anchorPos = tRoot.Position + Vector3.new(0, 1.5, 0)
+            end
+        end
+
+        -- Use upright horizontal yaw from tRoot so animated head nods or torso bends never swing our character away!
+        local baseTargetCF = getFlatYawCFrame(tRoot.CFrame, anchorPos)
+
         local customAdjust = CFrame.new(V.X or 0, V.Y or 0, (V.Z or 1.3) - 1.3)
         local localOffset = Offset * customAdjust
         if Osc and Osc.period and Osc.period > 0 then
             local phase = (math.sin(clock * (2 * math.pi) / Osc.period) + 1) * 0.5
             localOffset = localOffset * CFrame.new(0, 0, -Osc.distance * phase)
         end
-        return localOffset
+        return baseTargetCF * localOffset
     end
 
     local function lockToTargetNow()
         if Weld.destroyed then return end
         if not Root or not Root.Parent then return end
-        local localOffset = computeLocalOffset()
+        if not TargetPart or not TargetPart.Parent then return end
 
-        if TargetPart and TargetPart.Parent then
-            local tVel = TargetPart.AssemblyLinearVelocity
-            if isLethalVoidCF(TargetPart.CFrame, tVel) then return end
-            local attachCF = TargetPart.CFrame * localOffset
-            Root.Anchored = false
-            Root.CFrame = attachCF
-            Root.AssemblyLinearVelocity = Vector3.zero
-            Root.AssemblyAngularVelocity = Vector3.zero
-            markIntentionalTeleport(attachCF)
-            if sethiddenproperty then
-                pcall(function()
-                    sethiddenproperty(Root, "PhysicsRepRootPart", TargetPart)
-                    if InstanceHandleNew then
-                        sethiddenproperty(Root, "PhysicsRepRootRef", InstanceHandleNew(TargetPart))
+        local tVel = TargetPart.AssemblyLinearVelocity
+        if isLethalVoidCF(TargetPart.CFrame, tVel) then return end
+
+        local attachCF = computeAttachCFrame()
+        if not attachCF then return end
+
+        if sethiddenproperty then
+            pcall(function()
+                sethiddenproperty(Root, "PhysicsRepRootPart", nil)
+                sethiddenproperty(Root, "PhysicsRepRootRef", nil)
+                sethiddenproperty(Root, "NetworkIsSleeping", false)
+            end)
+        end
+
+        Root.Anchored = false
+        Root.CFrame = attachCF
+        Root.AssemblyLinearVelocity = Vector3.zero
+        Root.AssemblyAngularVelocity = Vector3.zero
+        pcall(function()
+            Root.Velocity = Vector3.zero
+            Root.RotVelocity = Vector3.zero
+        end)
+        markIntentionalTeleport(attachCF)
+
+        -- Also sync Coca Reanim real character root if reanimated
+        local zApi = _G._AngoorZenApi
+        if zApi and type(zApi.is_reanimated) == "function" and type(zApi.get_real_character) == "function" then
+            local okR, isReanim = pcall(zApi.is_reanimated)
+            if okR and isReanim then
+                local okC, realChar = pcall(zApi.get_real_character)
+                local realRoot = okC and realChar and realChar:FindFirstChild("HumanoidRootPart")
+                if realRoot and realRoot ~= Root and realRoot.Parent then
+                    if sethiddenproperty then
+                        pcall(function()
+                            sethiddenproperty(realRoot, "PhysicsRepRootPart", nil)
+                            sethiddenproperty(realRoot, "NetworkIsSleeping", false)
+                        end)
                     end
-                    sethiddenproperty(Root, "NetworkIsSleeping", false)
-                end)
-            end
-            -- Also sync Coca Reanim real character root if reanimated
-            local zApi = _G._AngoorZenApi
-            if zApi and type(zApi.is_reanimated) == "function" and type(zApi.get_real_character) == "function" then
-                local okR, isReanim = pcall(zApi.is_reanimated)
-                if okR and isReanim then
-                    local okC, realChar = pcall(zApi.get_real_character)
-                    local realRoot = okC and realChar and realChar:FindFirstChild("HumanoidRootPart")
-                    if realRoot and realRoot ~= Root and realRoot.Parent then
-                        realRoot.Anchored = false
-                        realRoot.CFrame = attachCF
-                        realRoot.AssemblyLinearVelocity = Vector3.zero
-                        realRoot.AssemblyAngularVelocity = Vector3.zero
-                        if sethiddenproperty then
-                            pcall(function()
-                                sethiddenproperty(realRoot, "PhysicsRepRootPart", TargetPart)
-                                if InstanceHandleNew then
-                                    sethiddenproperty(realRoot, "PhysicsRepRootRef", InstanceHandleNew(TargetPart))
-                                end
-                            end)
-                        end
-                    end
+                    realRoot.Anchored = false
+                    realRoot.CFrame = attachCF
+                    realRoot.AssemblyLinearVelocity = Vector3.zero
+                    realRoot.AssemblyAngularVelocity = Vector3.zero
                 end
-            end
-        elseif TargetPlayer and TargetPlayer.Parent == Players then
-            -- Target is in an unstreamed area across the map: immediately teleport to their pivot/cached CFrame to catch up!
-            local hiddenCF = getBestTargetCFrame(TargetPlayer)
-            if hiddenCF and not isLethalVoidCF(hiddenCF) then
-                local nowT = tick()
-                if nowT - lastStreamReqTick >= 0.15 then
-                    lastStreamReqTick = nowT
-                    task.spawn(function()
-                        pcall(function() LP:RequestStreamAroundAsync(hiddenCF.Position, 1) end)
-                    end)
-                end
-                local catchupCF = hiddenCF * localOffset
-                Root.Anchored = false
-                Root.CFrame = catchupCF
-                Root.AssemblyLinearVelocity = Vector3.zero
-                Root.AssemblyAngularVelocity = Vector3.zero
-                markIntentionalTeleport(catchupCF)
             end
         end
     end
 
-    -- Stage 0: Immediate Frame-0 Lock (zero startup delay!)
+    -- Stage 0: Immediate Frame-0 Lock (0.00ms startup delay!)
     lockToTargetNow()
 
     -- Stage 1: Stepped pass ensures we phase through walls, doors, roofs, and seats inside any hiding spot + pre-physics lock
@@ -1256,7 +1330,7 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
         lockToTargetNow()
     end)
 
-    -- Stage 2: RenderStepped & Camera RenderStep pass for zero visual lag
+    -- Stage 2: RenderStepped & Pre/Post-Camera RenderStep passes for 0.00ms visual lock
     RenderConn = RunService.RenderStepped:Connect(function()
         if Weld.destroyed then return end
         lockToTargetNow()
@@ -1275,7 +1349,7 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
         end)
     end)
 
-    -- Stage 3: Heartbeat pass (omnipresent target re-acquisition, catch-up, void protection, and replication lock)
+    -- Stage 3: Heartbeat pass (omnipresent target re-acquisition, active map catch-up, and void protection)
     Conn = RunService.Heartbeat:Connect(function(dt)
         -- 1. Check if our own character died or respawned
         if not Character.Parent or Character ~= LP.Character or not Root.Parent or not Humanoid.Parent or Humanoid.Health <= 0 then
@@ -1336,11 +1410,13 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
         local speedMult = math.clamp(V.Speed or 1.0, 0.2, 6.0)
         clock = clock + (dt * speedMult)
 
-        -- 4. OMNIPRESENT RE-LOCK & CATCH-UP: If TargetPart streamed out because target teleported to a hiding spot,
-        --    entered a house/locker/vehicle, or switched character model, dynamically re-acquire or teleport right to them!
-        if not TargetPart or not TargetPart.Parent or (TargetPlayer and findPlayerCharacterAnywhere(TargetPlayer) ~= TargetChar) then
+        -- 4. OMNIPRESENT RE-LOCK & CATCH-UP ANYWHERE ON THE MAP:
+        --    If TargetPart is unstreamed (target is far away, teleported, or entered a room/vehicle),
+        --    first check verified cache/pivot, and if their WorldPivot was stale, sweep server locations to catch up!
+        local latestChar = TargetPlayer and findPlayerCharacterAnywhere(TargetPlayer) or TargetChar
+        if not TargetPart or not TargetPart.Parent or (latestChar and latestChar ~= TargetChar) then
             if TargetPlayer then
-                local newChar = findPlayerCharacterAnywhere(TargetPlayer)
+                local newChar = latestChar
                 local newHum  = newChar and newChar:FindFirstChildOfClass("Humanoid")
                 if newHum and newHum.Health <= 0 then
                     WeldIntent.waitingForSpawn = true
@@ -1352,20 +1428,57 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
                     TargetChar = newChar
                     TargetHum  = newHum
                     TargetPart = newPart
+                    missingFrames = 0
                 else
-                    -- Target is in an unstreamed hiding spot anywhere on the map!
-                    -- Immediately teleport right to their model pivot / cached location so our player catches up and streams them in!
-                    lockToTargetNow()
+                    missingFrames = missingFrames + 1
+                    local catchupCF = nil
+                    local cached = PlayerLocationCache[TargetPlayer.UserId]
+                    if cached and cached.verified and cached.cf and (tick() - (cached.time or 0) < 4.0) and not isLethalVoidCF(cached.cf) then
+                        catchupCF = cached.cf
+                    elseif missingFrames <= 18 then
+                        -- Try character's replicated pivot for the first ~0.3s
+                        if newChar then
+                            local okP, piv = pcall(function() return newChar:GetPivot() end)
+                            if okP and piv and piv.Position.Magnitude > 0.5 and not isLethalVoidCF(piv) then
+                                catchupCF = piv
+                            end
+                        end
+                    else
+                        -- Target's WorldPivot was stale! Actively sweep server spawns/seats/models every 6 frames to stream them in!
+                        local pts = getServerSweepPoints()
+                        if #pts > 0 then
+                            if missingFrames % 6 == 1 then
+                                sweepIndex = (sweepIndex % #pts) + 1
+                            end
+                            catchupCF = pts[sweepIndex]
+                        end
+                    end
+
+                    if catchupCF and not isLethalVoidCF(catchupCF) then
+                        if missingFrames % 6 == 1 then
+                            local reqPos = catchupCF.Position
+                            task.spawn(function()
+                                pcall(function() LP:RequestStreamAroundAsync(reqPos, 1) end)
+                            end)
+                        end
+                        local stepCF = getFlatYawCFrame(catchupCF) * Offset
+                        Root.Anchored = false
+                        Root.CFrame = stepCF
+                        Root.AssemblyLinearVelocity = Vector3.zero
+                        Root.AssemblyAngularVelocity = Vector3.zero
+                        markIntentionalTeleport(stepCF)
+                    end
                     return
                 end
             else
                 Weld:Destroy(false)
                 return
             end
+        else
+            missingFrames = 0
         end
 
-        -- 5. VOID PROTECTION: Only detach if the target is genuinely plummeting in the lethal void killzone,
-        --    NOT when they are inside underground rooms, secret bunkers, houses, or skyboxes!
+        -- 5. VOID PROTECTION: Only detach if the target is genuinely plummeting in the lethal void killzone
         local tVel = TargetPart.AssemblyLinearVelocity
         if isLethalVoidCF(TargetPart.CFrame, tVel) then
             Weld:Destroy(false)
@@ -1374,11 +1487,13 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
         end
 
         -- Keep server streaming focused on the target so they can never outrun our client stream
-        pcall(function() LP.ReplicationFocus = TargetPart end)
+        if LP.ReplicationFocus ~= TargetPart then
+            pcall(function() LP.ReplicationFocus = TargetPart end)
+        end
 
-        -- Cache target location & update safe standing CFrame
+        -- Cache verified streamed target location & update safe standing CFrame
         if TargetPlayer then
-            PlayerLocationCache[TargetPlayer.UserId] = { cf = TargetPart.CFrame, time = tick() }
+            PlayerLocationCache[TargetPlayer.UserId] = { cf = TargetPart.CFrame, time = tick(), verified = true }
             WeldIntent.waitingForSpawn = false
         end
         if not isLethalVoidCF(TargetPart.CFrame, tVel) then
@@ -1414,69 +1529,69 @@ local function unweld(skipReturn)
 end
 
 -- ═══════════════════════════════════════════════════════════════════════════════
--- 🔞 WELD & TROLL PRESETS (EXACT OFFSETS FROM OYEE HOYE V34/V35 + FULL PRESET SET)
+-- 🔞 WELD & TROLL PRESETS (AUDITED ANATOMICAL OFFSETS — ZERO WRONG-PLACE OFFSET)
 -- ═══════════════════════════════════════════════════════════════════════════════
-local BANG_FALLBACKS_R15 = { 128342454196913, 4555808220, 109168916859109, 116235062592344, 85194549268064, 5918726674, 10714010337, 5915714366, 3333499508, 507771019 }
-local BANG_FALLBACKS_R6  = { 128342454196913, 4555808220, 109168916859109, 148840371, 178130996, 182436842, 180435571, 182435998 }
+local BANG_FALLBACKS_R15 = { 116235062592344, 128342454196913, 4555808220, 109168916859109, 85194549268064, 5918726674, 10714010337, 5915714366, 3333499508, 507771019 }
+local BANG_FALLBACKS_R6  = { 116235062592344, 128342454196913, 4555808220, 109168916859109, 148840371, 178130996, 182436842, 180435571, 182435998 }
 local GOON_FALLBACKS_R15 = { 136828069054505, 116235062592344, 698251653, 5918726674 }
 local GOON_FALLBACKS_R6  = { 136828069054505, 72042024, 178130996, 148840371 }
 
 local WELD_PRESETS = {
-    facebang  = { offset = CFrame.new(0, 2.5, -3.8) * CFrame.Angles(0, math.rad(180), 0),
-                  anim15 = 128342454196913, anim6 = 128342454196913,
+    facebang  = { offset = CFrame.new(0, 0.35, -1.95) * CFrame.Angles(0, math.rad(180), 0),
+                  anim15 = 116235062592344, anim6 = 116235062592344,
                   animFallbacks = BANG_FALLBACKS_R15, animFallbacks6 = BANG_FALLBACKS_R6,
-                  osc = {distance = 2.9, period = 0.22}, refMode = "head", label = "Face Bang" },
-    backshots = { offset = CFrame.new(0, 0, 3.2),
-                  anim15 = 128342454196913, anim6 = 128342454196913,
+                  osc = {distance = 1.4, period = 0.20}, refMode = "head", label = "Face Bang" },
+    backshots = { offset = CFrame.new(0, 0, 1.95),
+                  anim15 = 116235062592344, anim6 = 116235062592344,
                   animFallbacks = BANG_FALLBACKS_R15, animFallbacks6 = BANG_FALLBACKS_R6,
-                  osc = {distance = 2.9, period = 0.22}, refMode = "torso", label = "Backshots" },
-    bang      = { offset = CFrame.new(0, 0, 3.2),
-                  anim15 = 128342454196913, anim6 = 128342454196913,
+                  osc = {distance = 1.4, period = 0.20}, refMode = "torso", label = "Backshots" },
+    bang      = { offset = CFrame.new(0, 0, 1.95),
+                  anim15 = 116235062592344, anim6 = 116235062592344,
                   animFallbacks = BANG_FALLBACKS_R15, animFallbacks6 = BANG_FALLBACKS_R6,
-                  osc = {distance = 2.9, period = 0.22}, refMode = "torso", label = "Bang" },
-    goon      = { offset = CFrame.new(0, 0, -1.5) * CFrame.Angles(0, math.rad(180), 0),
+                  osc = {distance = 1.4, period = 0.20}, refMode = "torso", label = "Bang" },
+    goon      = { offset = CFrame.new(0, 0, -1.45) * CFrame.Angles(0, math.rad(180), 0),
                   anim15 = 136828069054505, anim6 = 136828069054505,
                   animFallbacks = GOON_FALLBACKS_R15, animFallbacks6 = GOON_FALLBACKS_R6,
                   osc = nil, refMode = "torso", label = "Goon" },
-    headsit   = { offset = CFrame.new(0, 1.2, 0),
-                  anim15 = 2506281703, anim6 = 2506281703,
+    headsit   = { offset = CFrame.new(0, 1.25, 0),
+                  anim15 = 2506281703, anim6 = 178130996,
                   animFallbacks = {2510238627, 507768375, 180426354},
-                  animFallbacks6 = {2510238627, 507768375, 178130996, 180426354},
+                  animFallbacks6 = {178130996, 2510238627, 507768375, 180426354},
                   osc = nil, refMode = "head", label = "Headsit" },
-    kiss      = { offset = CFrame.new(0, 0, -1.1) * CFrame.Angles(0, math.rad(180), 0),
-                  anim15 = 81124524945738, anim6 = 81124524945738,
+    kiss      = { offset = CFrame.new(0, 0, -1.05) * CFrame.Angles(0, math.rad(180), 0),
+                  anim15 = 81124524945738, anim6 = 180435571,
                   animFallbacks = {3576686446, 3019619673, 15849372443},
-                  animFallbacks6 = {3576686446, 3019619673, 180435571},
+                  animFallbacks6 = {128777973, 180435571, 3576686446},
                   osc = nil, refMode = "torso", label = "Kiss" },
-    backpack  = { offset = CFrame.new(0, 0, 1.05) * CFrame.Angles(0, math.rad(180), 0),
-                  anim15 = 2506281703, anim6 = 2506281703,
-                  animFallbacks = {2510238627, 507768375, 180426354},
-                  animFallbacks6 = {2510238627, 507768375, 178130996, 180426354},
+    backpack  = { offset = CFrame.new(0, 0.35, 1.05),
+                  anim15 = 109031585977967, anim6 = 178130996,
+                  animFallbacks = {2506281703, 2510238627, 507768375, 180426354},
+                  animFallbacks6 = {178130996, 2510238627, 180426354},
                   osc = nil, refMode = "torso", label = "Backpack" },
-    headpat   = { offset = CFrame.new(0, 0, -1.9) * CFrame.Angles(0, math.rad(180), 0),
-                  anim15 = 114313599861536, anim6 = 114313599861536,
+    headpat   = { offset = CFrame.new(0, 0, -1.85) * CFrame.Angles(0, math.rad(180), 0),
+                  anim15 = 114313599861536, anim6 = 128777973,
                   animFallbacks = {114022540397953, 3344650532, 507770239},
                   animFallbacks6 = {128777973, 180435571},
                   osc = nil, refMode = "torso", label = "Headpat" },
-    propose   = { offset = CFrame.new(0, 0, -3.5) * CFrame.Angles(0, math.rad(180), 0),
-                  anim15 = 70639053125611, anim6 = 70639053125611,
+    propose   = { offset = CFrame.new(0, -0.5, -2.4) * CFrame.Angles(0, math.rad(180), 0),
+                  anim15 = 70639053125611, anim6 = 178130996,
                   animFallbacks = {107416091886634, 4555816777, 3333474484},
                   animFallbacks6 = {178130996, 129423030},
                   osc = nil, refMode = "torso", label = "Propose" },
-    lawl      = { offset = CFrame.new(0, 0, -2.5) * CFrame.Angles(0, math.rad(180), 0),
+    lawl      = { offset = CFrame.new(0, 0, -2.4) * CFrame.Angles(0, math.rad(180), 0),
                   anim15 = 507770818, anim6 = 129423131,
                   animFallbacks = {507770239, 33796059, 5918726674},
                   animFallbacks6 = {129423131, 33796059, 180435571},
                   osc = nil, refMode = "torso", label = "Lawl" },
-    hug       = { offset = CFrame.new(0, 0, -1.4) * CFrame.Angles(0, math.rad(180), 0),
-                  anim15 = 95247520541805, anim6 = 95247520541805,
+    hug       = { offset = CFrame.new(0, 0, -1.15) * CFrame.Angles(0, math.rad(180), 0),
+                  anim15 = 95247520541805, anim6 = 180435571,
                   animFallbacks = {117991975031893, 3338010159, 4940563117},
                   animFallbacks6 = {180435571, 128777973},
                   osc = nil, refMode = "torso", label = "Hug" },
-    chootlelo = { offset = CFrame.new(0, 0, -3.2) * CFrame.Angles(0, math.rad(180), 0),
-                  anim15 = 128342454196913, anim6 = 128342454196913,
+    chootlelo = { offset = CFrame.new(0, -0.15, -1.95) * CFrame.Angles(0, math.rad(180), 0),
+                  anim15 = 116235062592344, anim6 = 116235062592344,
                   animFallbacks = BANG_FALLBACKS_R15, animFallbacks6 = BANG_FALLBACKS_R6,
-                  osc = {distance = 2.5, period = 0.20}, refMode = "torso", label = "Choot Lelo" },
+                  osc = {distance = 1.4, period = 0.19}, refMode = "torso", label = "Choot Lelo" },
 }
 
 -- Add "chase" preset to WELD_PRESETS so users can also use pure Follow-Everywhere mode
@@ -1503,87 +1618,105 @@ getFlatYawCFrame = function(cf, posOverride)
     return CFrame.new(pos) * CFrame.Angles(0, yYaw, 0)
 end
 
--- Locate a player's character even if the game parents characters to a custom folder in Workspace
+-- Locate a player's character cleanly (throttled fallback scan so it never lags Heartbeat)
+local CustomCharLookupCache = {} -- [userId] = { model = Model?, nextCheck = number }
 findPlayerCharacterAnywhere = function(plr)
     if not plr then return nil end
     if plr.Character and plr.Character.Parent then
         return plr.Character
     end
-    for _, child in ipairs(workspace:GetDescendants()) do
-        if child:IsA("Model") and child ~= LP.Character then
-            local okP, ownerP = pcall(function() return Players:GetPlayerFromCharacter(child) end)
-            if okP and ownerP == plr then
-                return child
-            end
+    local uid = plr.UserId
+    local now = os.clock()
+    local cached = CustomCharLookupCache[uid]
+    if cached then
+        if cached.model and cached.model.Parent then
+            return cached.model
+        end
+        if now < (cached.nextCheck or 0) then
+            return plr.Character
         end
     end
     local byName = workspace:FindFirstChild(plr.Name, true)
     if byName and byName:IsA("Model") and byName ~= LP.Character then
         local hum = byName:FindFirstChildOfClass("Humanoid")
-        local torso = byName:FindFirstChild("HumanoidRootPart") or byName:FindFirstChild("UpperTorso") or byName:FindFirstChild("Torso") or byName:FindFirstChild("Head")
-        if hum and torso and hum.Health > 0 then
+        local root = byName:FindFirstChild("HumanoidRootPart") or byName:FindFirstChild("UpperTorso") or byName:FindFirstChild("Torso")
+        if hum and root and hum.Health > 0 then
+            CustomCharLookupCache[uid] = { model = byName, nextCheck = now + 0.4 }
             return byName
         end
     end
+    CustomCharLookupCache[uid] = { model = nil, nextCheck = now + 0.4 }
     return plr.Character
 end
 
--- Deep fallback reference part resolver: works even when HumanoidRootPart or Head is missing/renamed/seated,
--- and protects against games that leave a dummy HumanoidRootPart anchored at spawn while moving Torso/UpperTorso!
+-- Deep reference part resolver: strictly prioritizes HumanoidRootPart so stretched/reanimated limbs
+-- (such as Sky Destroyer limbs at ±25,000,000) NEVER pull your weld away from the target's actual body!
 pickTargetRef = function(char, mode)
-    if not char then return nil end
-    local torso = char:FindFirstChild("UpperTorso")
-        or char:FindFirstChild("LowerTorso")
+    if not char or not char.Parent then return nil end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
         or char:FindFirstChild("Torso")
-    local hrp = char:FindFirstChild("HumanoidRootPart") or char.PrimaryPart
-    if hrp and torso and hrp:IsA("BasePart") and torso:IsA("BasePart") then
-        if (hrp.Position - torso.Position).Magnitude > 12 then
-            hrp = torso
-        end
-    end
+        or char:FindFirstChild("UpperTorso")
+        or char:FindFirstChild("LowerTorso")
+        or char.PrimaryPart
     if mode == "head" then
-        local h = char:FindFirstChild("Head") or char:FindFirstChild("head", true)
+        local h = char:FindFirstChild("Head")
         if h and h:IsA("BasePart") then
-            if not torso or (h.Position - torso.Position).Magnitude <= 12 then
+            if not hrp or (h.Position - hrp.Position).Magnitude <= 10 then
                 return h
             end
         end
     end
-    local best = hrp or torso or char:FindFirstChild("Head")
-    if best and best:IsA("BasePart") then return best end
+    if hrp and hrp:IsA("BasePart") then return hrp end
+    local headFallback = char:FindFirstChild("Head")
+    if headFallback and headFallback:IsA("BasePart") and headFallback.Position.Magnitude < 100000 then
+        return headFallback
+    end
     local hum = char:FindFirstChildOfClass("Humanoid")
     if hum and hum.SeatPart and hum.SeatPart:IsA("BasePart") then
         return hum.SeatPart
     end
-    return char:FindFirstChildWhichIsA("BasePart", true)
+    return nil
 end
 
--- Resolve a player's CFrame even when their Character's BaseParts are 100% streamed out by StreamingEnabled!
-getBestTargetCFrame = function(plr)
+-- Returns a CFrame ONLY if the player's real Character BasePart is currently streamed in!
+local function getVerifiedStreamedCFrame(plr)
     if not plr then return nil end
     local char = findPlayerCharacterAnywhere(plr)
-    if char then
+    if char and char.Parent then
         local part = pickTargetRef(char, "torso")
         if part and part.Parent then
             local cf = part.CFrame
             if not isLethalVoidCF(cf, part.AssemblyLinearVelocity) then
-                PlayerLocationCache[plr.UserId] = { cf = cf, time = tick() }
+                PlayerLocationCache[plr.UserId] = { cf = cf, time = tick(), verified = true }
                 return cf
             end
         end
-        -- Even when all BaseParts are streamed out in StreamingEnabled, Model:GetPivot() is replicated!
+    end
+    return nil
+end
+
+-- Resolve a player's best known CFrame (verified streamed BasePart first -> verified cache -> Model:GetPivot() fallback)
+getBestTargetCFrame = function(plr)
+    if not plr then return nil end
+    local streamedCF = getVerifiedStreamedCFrame(plr)
+    if streamedCF then return streamedCF end
+
+    local cached = PlayerLocationCache[plr.UserId]
+    if cached and cached.verified and cached.cf and (tick() - (cached.time or 0) < 8.0) and not isLethalVoidCF(cached.cf) then
+        return cached.cf
+    end
+
+    local char = findPlayerCharacterAnywhere(plr)
+    if char and char.Parent then
         local okPivot, pivotCF = pcall(function() return char:GetPivot() end)
-        if okPivot and pivotCF and pivotCF.Position.Magnitude > 0.5 and not isLethalVoidCF(pivotCF) then
-            PlayerLocationCache[plr.UserId] = { cf = pivotCF, time = tick() }
+        if okPivot and pivotCF and pivotCF.Position.Magnitude > 0.5 and pivotCF.Position.Magnitude < 100000 and not isLethalVoidCF(pivotCF) then
             return pivotCF
         end
         local okWP, wpCF = pcall(function() return char.WorldPivot end)
-        if okWP and wpCF and wpCF.Position.Magnitude > 0.5 and not isLethalVoidCF(wpCF) then
-            PlayerLocationCache[plr.UserId] = { cf = wpCF, time = tick() }
+        if okWP and wpCF and wpCF.Position.Magnitude > 0.5 and wpCF.Position.Magnitude < 100000 and not isLethalVoidCF(wpCF) then
             return wpCF
         end
     end
-    local cached = PlayerLocationCache[plr.UserId]
     if cached and cached.cf and not isLethalVoidCF(cached.cf) then
         return cached.cf
     end
@@ -1607,17 +1740,23 @@ local function ensureStreamFocusAt(cfOrPos)
     end)
 end
 
--- Continuous background scanner that caches every player's position & pivot across the server
-RunService.Heartbeat:Connect(function()
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= LP then
-            pcall(function() getBestTargetCFrame(p) end)
+-- Throttled background scanner that records verified streamed player positions across the server
+do
+    local lastScanTick = 0
+    RunService.Heartbeat:Connect(function()
+        local now = os.clock()
+        if now - lastScanTick < 0.20 then return end
+        lastScanTick = now
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= LP then
+                pcall(function() getVerifiedStreamedCFrame(p) end)
+            end
         end
-    end
-end)
+    end)
+end
 
--- Active Stream-Piercer & Server Hiding-Spot Seeker (from oyee hoye.lua):
--- Teleports local player directly to the target's coordinates (or sweeps server interiors/spawns/seats if unknown)
+-- Active Stream-Piercer & Server Hiding-Spot Seeker:
+-- Teleports local player directly to the target's coordinates (or sweeps server interiors/spawns/seats if unstreamed)
 -- and forces Roblox StreamingEnabled to load the target's character and reference part.
 streamAndTeleportToTarget = function(targetPlr, refMode, maxWaitSeconds, customSideOffset)
     if not targetPlr or targetPlr.Parent ~= Players then return nil, nil end
@@ -1627,7 +1766,6 @@ streamAndTeleportToTarget = function(targetPlr, refMode, maxWaitSeconds, customS
     local myRoot = myChar and (myChar:FindFirstChild("HumanoidRootPart") or myChar:FindFirstChildWhichIsA("BasePart"))
     local myHum  = myChar and myChar:FindFirstChildOfClass("Humanoid")
 
-    -- Prepare local character for phase-teleporting into any locked/hidden room
     if myChar then
         breakAllSeatsAndExternalJoints(myChar, myHum, myRoot)
         for _, v in ipairs(myChar:GetDescendants()) do
@@ -1645,7 +1783,7 @@ streamAndTeleportToTarget = function(targetPlr, refMode, maxWaitSeconds, customS
     if tRef and tRef.Parent then
         pcall(function() LP.ReplicationFocus = tRef end)
         if myRoot then
-            local destCF = tRef.CFrame * stepOffset
+            local destCF = getFlatYawCFrame(tRef.CFrame) * stepOffset
             markIntentionalTeleport(destCF)
             myRoot.AssemblyLinearVelocity = Vector3.zero
             myRoot.AssemblyAngularVelocity = Vector3.zero
@@ -1654,9 +1792,9 @@ streamAndTeleportToTarget = function(targetPlr, refMode, maxWaitSeconds, customS
         return tChar, tRef
     end
 
-    -- Target is hiding in an unstreamed chunk! Step 1: Teleport to their Model:GetPivot() or cached location
+    -- Step 1: Try verified cache / character pivot for up to 0.45s
     local started = tick()
-    while tick() - started < (maxWaitSeconds * 0.65) do
+    while tick() - started < math.min(0.45, maxWaitSeconds * 0.4) do
         if targetPlr.Parent ~= Players then return nil, nil end
         tChar = findPlayerCharacterAnywhere(targetPlr)
         tRef  = tChar and pickTargetRef(tChar, refMode or "torso")
@@ -1667,12 +1805,12 @@ streamAndTeleportToTarget = function(targetPlr, refMode, maxWaitSeconds, customS
         local targetCF = getBestTargetCFrame(targetPlr)
         if targetCF then
             task.spawn(function()
-                pcall(function() LP:RequestStreamAroundAsync(targetCF.Position, 1.5) end)
+                pcall(function() LP:RequestStreamAroundAsync(targetCF.Position, 1.0) end)
             end)
             myChar = LP.Character
             myRoot = myChar and (myChar:FindFirstChild("HumanoidRootPart") or myChar:FindFirstChildWhichIsA("BasePart"))
             if myRoot then
-                local destCF = targetCF * stepOffset
+                local destCF = getFlatYawCFrame(targetCF) * stepOffset
                 markIntentionalTeleport(destCF)
                 myRoot.AssemblyLinearVelocity = Vector3.zero
                 myRoot.AssemblyAngularVelocity = Vector3.zero
@@ -1688,37 +1826,19 @@ streamAndTeleportToTarget = function(targetPlr, refMode, maxWaitSeconds, customS
     tRef  = tChar and pickTargetRef(tChar, refMode or "torso")
     if tRef and tRef.Parent then return tChar, tRef end
 
-    -- Step 2: If target was already hiding in an unknown unstreamed chunk with no replicated pivot,
-    -- rapidly sweep server seats, spawns, and distant structures to stream in their hiding spot!
-    local probePoints = {}
-    pcall(function()
-        for _, obj in ipairs(workspace:GetDescendants()) do
-            if obj:IsA("SpawnLocation") or obj:IsA("Seat") or obj:IsA("VehicleSeat") then
-                if not isLethalVoidCF(obj.CFrame) then
-                    table.insert(probePoints, obj.CFrame)
-                end
-            end
-        end
-    end)
-    for _, child in ipairs(workspace:GetChildren()) do
-        if child:IsA("Model") and child ~= LP.Character then
-            local okP, pCF = pcall(function() return child:GetPivot() end)
-            if okP and pCF and pCF.Position.Magnitude > 10 and not isLethalVoidCF(pCF) then
-                table.insert(probePoints, pCF)
-            end
-        elseif child:IsA("BasePart") and child.Position.Magnitude > 50 and not isLethalVoidCF(child.CFrame) then
-            table.insert(probePoints, child.CFrame)
-        end
-    end
-
+    -- Step 2: Sweep server spawns, seats, and map structures to stream in the target's actual location!
+    local probePoints = getServerSweepPoints()
     for idx, probeCF in ipairs(probePoints) do
-        if tick() - started > maxWaitSeconds or idx > 28 then break end
+        if tick() - started > maxWaitSeconds or idx > 32 then break end
         tChar = findPlayerCharacterAnywhere(targetPlr)
         tRef  = tChar and pickTargetRef(tChar, refMode or "torso")
-        if tRef and tRef.Parent then return tChar, tRef end
+        if tRef and tRef.Parent then
+            pcall(function() LP.ReplicationFocus = tRef end)
+            return tChar, tRef
+        end
 
-        local knownCF = getBestTargetCFrame(targetPlr)
-        local hopCF = knownCF or probeCF
+        local verifiedNow = getVerifiedStreamedCFrame(targetPlr)
+        local hopCF = verifiedNow or probeCF
         task.spawn(function()
             pcall(function() LP:RequestStreamAroundAsync(hopCF.Position, 1) end)
         end)
@@ -1728,6 +1848,7 @@ streamAndTeleportToTarget = function(targetPlr, refMode, maxWaitSeconds, customS
             markIntentionalTeleport(hopCF)
             myRoot.CFrame = hopCF + Vector3.new(0, 3, 0)
             myRoot.AssemblyLinearVelocity = Vector3.zero
+            myRoot.AssemblyAngularVelocity = Vector3.zero
         end
         RunService.Heartbeat:Wait()
     end
@@ -1744,7 +1865,25 @@ local function getNearestPlayer(speaker)
     local myPos  = myRoot and myRoot.Position or Vector3.zero
     local bestPlr, bestDist = nil, math.huge
 
-    -- 1. First pass: alive players with a known or streamed CFrame
+    -- 1. First pass: strictly prioritize players whose real Character BasePart is currently streamed in!
+    --    (Prevents unstreamed players' stale spawn WorldPivots from ever fooling Auto-Nearest!)
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= speaker then
+            local c = findPlayerCharacterAnywhere(p)
+            local h = c and c:FindFirstChildOfClass("Humanoid")
+            local streamedCF = getVerifiedStreamedCFrame(p)
+            if streamedCF and (not h or h.Health > 0) then
+                local d = (streamedCF.Position - myPos).Magnitude
+                if d < bestDist then
+                    bestDist = d
+                    bestPlr = p
+                end
+            end
+        end
+    end
+    if bestPlr then return bestPlr, bestDist end
+
+    -- 2. Second pass: if no players are streamed in near us, check known/cached player positions
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= speaker then
             local c = findPlayerCharacterAnywhere(p)
@@ -1759,7 +1898,8 @@ local function getNearestPlayer(speaker)
             end
         end
     end
-    -- 2. Fallback: even if all players are hiding in unstreamed chunks, still return a valid server player!
+
+    -- 3. Fallback: even if all players are hiding in unstreamed chunks, still return a valid server player!
     if not bestPlr then
         for _, p in ipairs(Players:GetPlayers()) do
             if p ~= speaker then
@@ -1791,7 +1931,7 @@ end
 local WeldUsernameBoxRef = nil
 
 local function resolveActiveTarget()
-    -- 1. Check explicitly locked selectedPlayer first if WeldUsernameBox matches or is empty
+    -- 1. Check live text inside WeldUsernameBox on the Weld tab first
     if WeldUsernameBoxRef and WeldUsernameBoxRef.Parent then
         local rawBox = (WeldUsernameBoxRef.Text or ""):gsub("^%s*@+%s*", ""):gsub("^%s+", ""):gsub("%s+$", "")
         if rawBox ~= "" then
@@ -1822,7 +1962,6 @@ end
 
 local function resolvePlayer(target, speaker)
     speaker = speaker or LP
-    -- Never reject a target just because their Character is currently unstreamed/hiding!
     if typeof(target) == "Instance" and target:IsA("Player") then
         if target.Parent == Players and target ~= speaker then return target end
     elseif target ~= nil and tostring(target) ~= "" then
@@ -10381,10 +10520,8 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
             markIntentionalTeleport(desiredCF)
             for _, entry in ipairs(collectLocalRoots()) do
                 if typeof(sethiddenproperty) == "function" then
-                    pcall(sethiddenproperty, entry.root, "PhysicsRepRootPart", targetRoot)
-                    if InstanceHandleNew then
-                        pcall(sethiddenproperty, entry.root, "PhysicsRepRootRef", InstanceHandleNew(targetRoot))
-                    end
+                    pcall(sethiddenproperty, entry.root, "PhysicsRepRootPart", nil)
+                    pcall(sethiddenproperty, entry.root, "PhysicsRepRootRef", nil)
                     pcall(sethiddenproperty, entry.root, "NetworkIsSleeping", false)
                 end
                 entry.root.CFrame = desiredCF
@@ -10730,6 +10867,747 @@ _G.AngoorReanimLoaded = true
 _G.CocaReanimLoaded = true
 
     buildCocaReanimTab = buildAngoorReanimTab
+end
+
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- 💥 COCA SKY DESTROYER ENGINE (3D LAYERED CLOTHING & GLITCH WALKER MESH ENGINE)
+--   • Requirement: Equip either a "Glitch Walker Body" or any "3D Layered Clothing" item.
+--   • Reanimates your character locally while stretching real character limbs to
+--     ±10,000,000 X and ±25,000,000 Z across Ground, Sky Dome, or 4-Tier Cube Matrix.
+-- ═══════════════════════════════════════════════════════════════════════════════
+local CocaSkyDestroyer = {}
+do
+    _G._HaloCoverGroundActive     = false
+    _G._HaloCoverSkyActive        = false
+    _G._HaloCoverCubeMatrixActive = false
+    _G._HaloCoverFlashActive      = false
+    _G._HaloCoverFlashPhase       = true
+    _G._HaloCoverGroundHeight     = 1.5   -- studs above detected ground (-25 to 100)
+    _G._HaloCoverSkyHeight        = 3.0   -- studs above player Y (-25 to 250)
+    _G._HaloCoverCubeSpacing      = 0.5   -- vertical gap between cube tiers (0.1 to 150)
+    _G._HaloCoverFlashSpeed       = 0.08  -- strobe interval in seconds (0.02 to 0.5)
+
+    local GroundMatrix = {
+        Head          = Vector3.new(101, 0, -2152),
+        UpperTorso    = Vector3.new(101, 0, -2150002),
+        LowerTorso    = Vector3.new(101, 0, -2150002),
+        Torso         = Vector3.new(101, 0, -2150002),
+        LeftUpperArm  = Vector3.new(0, 0, 0),
+        LeftLowerArm  = Vector3.new(0, 0, 0),
+        LeftHand      = Vector3.new(0, 0, 0),
+        ["Left Arm"]  = Vector3.new(0, 0, 0),
+        RightUpperArm = Vector3.new(999999, 0, 0),
+        RightLowerArm = Vector3.new(0, 0, 0),
+        RightHand     = Vector3.new(0, 0, 0),
+        ["Right Arm"] = Vector3.new(999999, 0, 0),
+        LeftUpperLeg  = Vector3.new(-10000000, 0, 25000000),
+        LeftLowerLeg  = Vector3.new(-10000000, 0, -25000000),
+        LeftFoot      = Vector3.new(-10000000, 0, -25000000),
+        ["Left Leg"]  = Vector3.new(-10000000, 0, 25000000),
+        RightUpperLeg = Vector3.new(10000000, 0, 25000000),
+        RightLowerLeg = Vector3.new(10000000, 0, -25000000),
+        RightFoot     = Vector3.new(10000000, 0, -25000000),
+        ["Right Leg"] = Vector3.new(10000000, 0, 25000000),
+    }
+
+    local SkyMatrix = {
+        Head          = Vector3.new(101, 3, -2152),
+        UpperTorso    = Vector3.new(101, 15, -2150002),
+        LowerTorso    = Vector3.new(101, -3.2, -2150002),
+        Torso         = Vector3.new(101, 15, -2150002),
+        LeftUpperArm  = Vector3.new(0, 0, 0),
+        LeftLowerArm  = Vector3.new(0, 0, 0),
+        LeftHand      = Vector3.new(0, 0, 0),
+        ["Left Arm"]  = Vector3.new(0, 0, 0),
+        RightUpperArm = Vector3.new(999999, 0, 0),
+        RightLowerArm = Vector3.new(0, 0, 0),
+        RightHand     = Vector3.new(0, 0, 0),
+        ["Right Arm"] = Vector3.new(999999, 0, 0),
+        LeftUpperLeg  = Vector3.new(-10000000, 15, 25000000),
+        LeftLowerLeg  = Vector3.new(-10000000, 15, -25000000),
+        LeftFoot      = Vector3.new(-10000000, 0, -25000000),
+        ["Left Leg"]  = Vector3.new(-10000000, 15, 25000000),
+        RightUpperLeg = Vector3.new(10000000, 15, 25000000),
+        RightLowerLeg = Vector3.new(10000000, 15, -25000000),
+        RightFoot     = Vector3.new(10000000, 0, -25000000),
+        ["Right Leg"] = Vector3.new(10000000, 15, 25000000),
+    }
+
+    local CubeTierMatrix = {
+        LeftFoot      = { x = -10000000, tier = 0, z = -25000000 },
+        LeftLowerLeg  = { x = -10000000, tier = 0, z =  25000000 },
+        RightFoot     = { x =  10000000, tier = 0, z = -25000000 },
+        RightLowerLeg = { x =  10000000, tier = 0, z =  25000000 },
+        ["Left Leg"]  = { x = -10000000, tier = 0, z = -25000000 },
+        ["Right Leg"] = { x =  10000000, tier = 0, z =  25000000 },
+        LeftUpperLeg  = { x = -10000000, tier = 1, z =  25000000 },
+        RightUpperLeg = { x =  10000000, tier = 1, z =  25000000 },
+        LowerTorso    = { x =       101, tier = 1, z = -25000000 },
+        Torso         = { x =       101, tier = 2, z = -25000000 },
+        UpperTorso    = { x =       101, tier = 2, z = -25000000 },
+        LeftLowerArm  = { x = -10000000, tier = 2, z = -25000000 },
+        LeftHand      = { x = -10000000, tier = 2, z =  25000000 },
+        RightLowerArm = { x =  10000000, tier = 2, z = -25000000 },
+        RightHand     = { x =  10000000, tier = 2, z =  25000000 },
+        LeftUpperArm  = { x = -10000000, tier = 3, z =  25000000 },
+        RightUpperArm = { x =  10000000, tier = 3, z =  25000000 },
+        ["Left Arm"]  = { x = -10000000, tier = 3, z =  25000000 },
+        ["Right Arm"] = { x =  10000000, tier = 3, z =  25000000 },
+        Head          = { x =       101, tier = 3, z =     -2152 },
+    }
+
+    local function getGroundVector(partName, baseHeight)
+        local offset = GroundMatrix[partName]
+        if offset then
+            return Vector3.new(offset.X, baseHeight + offset.Y, offset.Z)
+        end
+        return nil
+    end
+
+    local function getSkyVector(partName, skyHeight)
+        local offset = SkyMatrix[partName]
+        if offset then
+            return Vector3.new(offset.X, skyHeight + offset.Y, offset.Z)
+        end
+        return nil
+    end
+
+    local function getCubeVector(partName, baseHeight, cubeSpacing)
+        local entry = CubeTierMatrix[partName]
+        if entry then
+            return Vector3.new(entry.x, baseHeight + entry.tier * cubeSpacing, entry.z)
+        end
+        return nil
+    end
+
+    local ReanimState = {
+        reanimated = false,
+        is_processing = false,
+        real_char = nil,
+        clone_char = nil,
+        connections = {},
+    }
+
+    local R6_R15_LIMBS = {
+        "Head", "UpperTorso", "LowerTorso",
+        "LeftUpperArm", "LeftLowerArm", "LeftHand",
+        "RightUpperArm", "RightLowerArm", "RightHand",
+        "LeftUpperLeg", "LeftLowerLeg", "LeftFoot",
+        "RightUpperLeg", "RightLowerLeg", "RightFoot",
+        "Torso", "Left Arm", "Right Arm", "Left Leg", "Right Leg",
+        "HumanoidRootPart",
+    }
+
+    local function setCharacterTransparency(char, transparency)
+        if not char then return end
+        for _, desc in ipairs(char:GetDescendants()) do
+            if desc:IsA("BasePart") or desc:IsA("Decal") then
+                desc.Transparency = transparency
+            end
+        end
+    end
+
+    local function cloneCharacterRig(realChar)
+        local archivableMap = { [realChar] = realChar.Archivable }
+        realChar.Archivable = true
+        for _, desc in ipairs(realChar:GetDescendants()) do
+            archivableMap[desc] = desc.Archivable
+            desc.Archivable = true
+        end
+
+        local clone = realChar:Clone()
+        for _, desc in ipairs(clone:GetDescendants()) do
+            if desc:IsA("BillboardGui") or desc:IsA("SurfaceGui") or desc:IsA("Highlight") or desc:IsA("ParticleEmitter") then
+                desc:Destroy()
+            end
+        end
+
+        for _, desc in ipairs(realChar:GetDescendants()) do
+            if desc:IsA("Motor6D") and desc.Part0 and desc.Part1 then
+                local part1 = clone:FindFirstChild(desc.Part1.Name, true)
+                if part1 and not part1:FindFirstChild(desc.Name) then
+                    local part0 = clone:FindFirstChild(desc.Part0.Name, true)
+                    if part0 then
+                        local m6d = Instance.new("Motor6D")
+                        m6d.Name = desc.Name
+                        m6d.Part0 = part0
+                        m6d.Part1 = part1
+                        m6d.C0 = desc.C0
+                        m6d.C1 = desc.C1
+                        m6d.Parent = part1
+                    end
+                end
+            end
+        end
+
+        for inst, wasArchivable in pairs(archivableMap) do
+            if inst and inst.Parent then
+                inst.Archivable = wasArchivable
+            end
+        end
+
+        clone.Name = "Reanimation"
+        clone.Parent = workspace
+        local animate = clone:FindFirstChild("Animate")
+        if animate then animate.Disabled = true end
+
+        local cloneHum = clone:FindFirstChildOfClass("Humanoid")
+        if cloneHum then
+            cloneHum.RequiresNeck = false
+            cloneHum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.Viewer
+            cloneHum.NameDisplayDistance = 100
+            cloneHum.HealthDisplayDistance = 100
+            cloneHum.DisplayName = ""
+            cloneHum.AutoRotate = true
+        end
+
+        local ff = clone:FindFirstChildWhichIsA("ForceField")
+        if ff then ff:Destroy() end
+        return clone
+    end
+
+    local function computeSkyDestroyerPosition(partName, groundY, skyY, useGround, useSky, useCubes)
+        if partName == "HumanoidRootPart" then
+            return nil
+        end
+        if useCubes then
+            return getCubeVector(partName, groundY, _G._HaloCoverCubeSpacing or 0.5)
+        elseif useGround and useSky then
+            if partName == "LowerTorso" then
+                return Vector3.new(101, groundY + (skyY - groundY) * 0.5, -25000000)
+            elseif partName:find("Leg") then
+                return getGroundVector(partName, groundY)
+            else
+                return getSkyVector(partName, skyY)
+            end
+        elseif useGround then
+            return getGroundVector(partName, groundY)
+        elseif useSky then
+            return getSkyVector(partName, skyY)
+        end
+        return nil
+    end
+
+    local skyRayParams = RaycastParams.new()
+    skyRayParams.FilterType = Enum.RaycastFilterType.Exclude
+
+    local function sampleEnvironmentState(realChar, cloneChar)
+        local flashActive = _G._HaloCoverFlashActive == true
+        local flashPhase  = _G._HaloCoverFlashPhase ~= false
+        local groundOn    = _G._HaloCoverGroundActive == true
+        local skyOn       = _G._HaloCoverSkyActive == true
+        local cubesOn     = _G._HaloCoverCubeMatrixActive == true
+
+        if flashActive and not groundOn and not skyOn and not cubesOn then
+            groundOn = true
+            skyOn = true
+        end
+
+        local useGround = groundOn and (not flashActive or flashPhase)
+        local useSky    = skyOn    and (not flashActive or flashPhase)
+        local useCubes  = cubesOn  and (not flashActive or flashPhase)
+
+        local groundY = 3
+        local skyY = 15
+        local cloneHRP = cloneChar and cloneChar:FindFirstChild("HumanoidRootPart")
+        if cloneHRP then
+            local pos = cloneHRP.Position
+            skyRayParams.FilterDescendantsInstances = { realChar, cloneChar }
+            local hit = workspace:Raycast(pos + Vector3.new(0, 5, 0), Vector3.new(0, -100, 0), skyRayParams)
+            local floorY = (hit and hit.Position.Y) or (pos.Y - 3)
+            groundY = floorY + (_G._HaloCoverGroundHeight or 1.5)
+            skyY    = pos.Y  + (_G._HaloCoverSkyHeight or 3)
+        end
+
+        return groundY, skyY, useGround, useSky, useCubes
+    end
+
+    function CocaSkyDestroyer.reanimate(enable)
+        if ReanimState.is_processing then return end
+        ReanimState.is_processing = true
+
+        local ok, err = pcall(function()
+            if enable then
+                if ReanimState.reanimated then return end
+                local realChar = LP.Character
+                if not (realChar and realChar.Parent) then return end
+                local realHum = realChar:FindFirstChildOfClass("Humanoid")
+                local realHRP = realChar:FindFirstChild("HumanoidRootPart")
+                if not (realHum and realHRP) then return end
+
+                if not realHum:GetAttribute("ZenDefaultHipHeight") then
+                    realHum:SetAttribute("ZenDefaultHipHeight", realHum.HipHeight)
+                end
+
+                local nameDist = (realHum.NameDisplayDistance > 0 and realHum.NameDisplayDistance) or 100
+                local healthDist = (realHum.HealthDisplayDistance > 0 and realHum.HealthDisplayDistance) or 100
+
+                pcall(function()
+                    for _, state in ipairs({
+                        Enum.HumanoidStateType.Dead, Enum.HumanoidStateType.FallingDown,
+                        Enum.HumanoidStateType.Ragdoll, Enum.HumanoidStateType.GettingUp,
+                        Enum.HumanoidStateType.Freefall, Enum.HumanoidStateType.Flying,
+                        Enum.HumanoidStateType.Landed, Enum.HumanoidStateType.Running,
+                        Enum.HumanoidStateType.Climbing, Enum.HumanoidStateType.Swimming,
+                    }) do
+                        realHum:SetStateEnabled(state, false)
+                    end
+                    realHum.AutoRotate = false
+                    realHum.PlatformStand = true
+                    realHum.RequiresNeck = false
+                    realHum.BreakJointsOnDeath = false
+                    realHum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+                    realHum.NameDisplayDistance = 0
+                    realHum.HealthDisplayDistance = 0
+                    realHum:ChangeState(Enum.HumanoidStateType.Physics)
+                end)
+
+                local cloneChar = cloneCharacterRig(realChar)
+                local cloneHum = cloneChar:FindFirstChildOfClass("Humanoid")
+                ReanimState.real_char = realChar
+                ReanimState.clone_char = cloneChar
+                setCharacterTransparency(cloneChar, 1)
+
+                local physProps = PhysicalProperties.new(0.001, 0, 0, 0, 0)
+                for _, part in ipairs(realChar:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        pcall(function()
+                            part.CanCollide = false
+                            part.CanTouch = false
+                            part.CanQuery = false
+                            part.Massless = true
+                            part.CustomPhysicalProperties = physProps
+                        end)
+                    elseif part:IsA("BillboardGui") or part:IsA("SurfaceGui") then
+                        part:Destroy()
+                    end
+                end
+
+                local limbPairs = {}
+                for _, limbName in ipairs(R6_R15_LIMBS) do
+                    local realPart = realChar:FindFirstChild(limbName)
+                    local fakePart = cloneChar:FindFirstChild(limbName)
+                    if realPart and fakePart and realPart:IsA("BasePart") and fakePart:IsA("BasePart") then
+                        table.insert(limbPairs, { name = limbName, real = realPart, fake = fakePart })
+                    end
+                end
+
+                for _, acc in ipairs(realChar:GetDescendants()) do
+                    if acc:IsA("Accessory") then
+                        local realHandle = acc:FindFirstChild("Handle")
+                        local cloneAcc = cloneChar:FindFirstChild(acc.Name)
+                        local fakeHandle = cloneAcc and cloneAcc:FindFirstChild("Handle")
+                        if realHandle and fakeHandle and realHandle:IsA("BasePart") and fakeHandle:IsA("BasePart") then
+                            for _, joint in ipairs(acc:GetDescendants()) do
+                                if joint:IsA("Weld") or joint:IsA("WeldConstraint") or joint:IsA("Motor6D") then
+                                    joint.Enabled = false
+                                end
+                            end
+                            table.insert(limbPairs, { name = acc.Name, real = realHandle, fake = fakeHandle })
+                        end
+                    end
+                end
+
+                for i = 1, #limbPairs do
+                    pcall(function()
+                        local ncc = Instance.new("NoCollisionConstraint")
+                        ncc.Name = "ZenNCC_Clone"
+                        ncc.Part0 = limbPairs[i].real
+                        ncc.Part1 = limbPairs[i].fake
+                        ncc.Parent = limbPairs[i].real
+                    end)
+                end
+
+                local savedGuis = {}
+                local playerGui = LP:FindFirstChildWhichIsA("PlayerGui")
+                if playerGui then
+                    for _, g in ipairs(playerGui:GetChildren()) do
+                        if g:IsA("ScreenGui") and g.ResetOnSpawn then
+                            savedGuis[g] = true
+                            g.ResetOnSpawn = false
+                        end
+                    end
+                end
+
+                LP.Character = cloneChar
+                if workspace.CurrentCamera and cloneHum then
+                    workspace.CurrentCamera.CameraSubject = cloneHum
+                end
+                for g in pairs(savedGuis) do
+                    if g and g.Parent then g.ResetOnSpawn = true end
+                end
+
+                local cloneAnim = cloneChar:FindFirstChild("Animate")
+                if cloneAnim then cloneAnim.Disabled = false end
+                if cloneHum then cloneHum:ChangeState(Enum.HumanoidStateType.Running) end
+
+                pcall(function()
+                    for _, desc in ipairs(realChar:GetDescendants()) do
+                        if desc:IsA("Motor6D") then
+                            desc.Enabled = false
+                        end
+                    end
+                end)
+
+                pcall(function()
+                    settings().Physics.PhysicsEnvironmentalThrottle = Enum.EnviromentalPhysicsThrottle.Disabled
+                    settings().Physics.AllowSleep = false
+                    if sethiddenproperty then
+                        sethiddenproperty(LP, "SimulationRadius", 1000)
+                        sethiddenproperty(LP, "MaxSimulationRadius", 1000)
+                    end
+                end)
+
+                local realAnim = realChar:FindFirstChild("Animate")
+                if realAnim then pcall(function() realAnim.Disabled = true end) end
+                for _, track in ipairs(realHum:GetPlayingAnimationTracks()) do
+                    if not IsCocoBeaconTrack[track] then
+                        track:Stop(0)
+                    end
+                end
+
+                ReanimState.connections.stepped = RunService.Stepped:Connect(function()
+                    if not (realChar.Parent and cloneChar.Parent) then return end
+                    if realHum.Parent then
+                        pcall(function() realHum:ChangeState(Enum.HumanoidStateType.Physics) end)
+                    end
+                    local groundY, skyY, useGround, useSky, useCubes = sampleEnvironmentState(realChar, cloneChar)
+                    for i = 1, #limbPairs do
+                        local pair = limbPairs[i]
+                        local real_, fake_ = pair.real, pair.fake
+                        if real_ and fake_ and real_.Parent and fake_.Parent then
+                            real_.CanCollide = false
+                            local targetVec = computeSkyDestroyerPosition(pair.name, groundY, skyY, useGround, useSky, useCubes)
+                            if targetVec then
+                                real_.CFrame = CFrame.new(targetVec)
+                            else
+                                real_.CFrame = fake_.CFrame
+                            end
+                        end
+                    end
+                end)
+
+                ReanimState.connections.hb = RunService.Heartbeat:Connect(function()
+                    if not (realChar.Parent and cloneChar.Parent) then
+                        CocaSkyDestroyer.reanimate(false)
+                        return
+                    end
+                    local cloneHRP = cloneChar:FindFirstChild("HumanoidRootPart")
+                    local linVel = (cloneHRP and cloneHRP.AssemblyLinearVelocity) or Vector3.zero
+                    local angVel = (cloneHRP and cloneHRP.AssemblyAngularVelocity) or Vector3.zero
+                    local groundY, skyY, useGround, useSky, useCubes = sampleEnvironmentState(realChar, cloneChar)
+
+                    for i = 1, #limbPairs do
+                        local pair = limbPairs[i]
+                        local real_, fake_ = pair.real, pair.fake
+                        if real_ and fake_ and real_.Parent and fake_.Parent then
+                            real_.Anchored = false
+                            real_.CanCollide = false
+                            local targetVec = computeSkyDestroyerPosition(pair.name, groundY, skyY, useGround, useSky, useCubes)
+                            if targetVec then
+                                real_.CFrame = CFrame.new(targetVec)
+                                real_.AssemblyLinearVelocity = Vector3.zero
+                                real_.AssemblyAngularVelocity = Vector3.zero
+                            else
+                                real_.CFrame = fake_.CFrame
+                                local v = fake_.AssemblyLinearVelocity or linVel
+                                real_.AssemblyLinearVelocity = (v.Magnitude > 0.05 and v) or Vector3.new(0, -0.01, 0)
+                                real_.AssemblyAngularVelocity = fake_.AssemblyAngularVelocity or angVel
+                            end
+                        end
+                    end
+                end)
+
+                ReanimState.connections.render = RunService.RenderStepped:Connect(function()
+                    if not (realChar.Parent and cloneChar.Parent) then return end
+                    if cloneHum and cloneHum.Parent then
+                        cloneHum.DisplayName = ""
+                        cloneHum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.Viewer
+                        cloneHum.NameDisplayDistance = nameDist
+                        cloneHum.HealthDisplayDistance = healthDist
+                    end
+                    local groundY, skyY, useGround, useSky, useCubes = sampleEnvironmentState(realChar, cloneChar)
+                    for i = 1, #limbPairs do
+                        local pair = limbPairs[i]
+                        local real_, fake_ = pair.real, pair.fake
+                        if real_ and fake_ and real_.Parent and fake_.Parent then
+                            local targetVec = computeSkyDestroyerPosition(pair.name, groundY, skyY, useGround, useSky, useCubes)
+                            if targetVec then
+                                real_.CFrame = CFrame.new(targetVec)
+                            else
+                                real_.CFrame = fake_.CFrame
+                            end
+                        end
+                    end
+                end)
+
+                ReanimState.reanimated = true
+            else
+                if not ReanimState.reanimated then return end
+                for k, conn in pairs(ReanimState.connections) do
+                    if conn then pcall(function() conn:Disconnect() end) end
+                    ReanimState.connections[k] = nil
+                end
+
+                local clone = ReanimState.clone_char
+                local realChar = ReanimState.real_char
+                if realChar and realChar.Parent then
+                    local realHum = realChar:FindFirstChildWhichIsA("Humanoid")
+                    local realHRP = realChar:FindFirstChild("HumanoidRootPart")
+                    local cloneHRP = clone and clone:FindFirstChild("HumanoidRootPart")
+                    local restoreCF = (cloneHRP and cloneHRP.CFrame) or (realHRP and realHRP.CFrame)
+
+                    if realHRP and restoreCF then
+                        markIntentionalTeleport(restoreCF)
+                        realHRP.CFrame = restoreCF
+                        realHRP.AssemblyLinearVelocity = Vector3.zero
+                        realHRP.AssemblyAngularVelocity = Vector3.zero
+                    end
+
+                    for _, part in ipairs(realChar:GetDescendants()) do
+                        if part:IsA("NoCollisionConstraint") then
+                            pcall(function() part:Destroy() end)
+                        elseif part:IsA("Motor6D") or part:IsA("Weld") or part:IsA("WeldConstraint") then
+                            pcall(function() part.Enabled = true end)
+                        elseif part:IsA("BasePart") then
+                            pcall(function()
+                                part.Massless = false
+                                part.CanTouch = true
+                                part.CanQuery = true
+                                part.CustomPhysicalProperties = nil
+                                part.AssemblyLinearVelocity = Vector3.zero
+                                part.AssemblyAngularVelocity = Vector3.zero
+                                part.Transparency = (part.Name == "HumanoidRootPart") and 1 or 0
+                                part.CanCollide = (part.Name == "UpperTorso" or part.Name == "LowerTorso" or part.Name == "Torso")
+                            end)
+                        end
+                    end
+
+                    if realHum then
+                        pcall(function()
+                            for _, state in ipairs({
+                                Enum.HumanoidStateType.Dead, Enum.HumanoidStateType.FallingDown,
+                                Enum.HumanoidStateType.Ragdoll, Enum.HumanoidStateType.GettingUp,
+                                Enum.HumanoidStateType.Freefall, Enum.HumanoidStateType.Flying,
+                                Enum.HumanoidStateType.Landed, Enum.HumanoidStateType.Running,
+                                Enum.HumanoidStateType.Climbing, Enum.HumanoidStateType.Swimming,
+                            }) do
+                                realHum:SetStateEnabled(state, true)
+                            end
+                            realHum.AutoRotate = true
+                            realHum.PlatformStand = false
+                            realHum.Sit = false
+                            realHum.RequiresNeck = true
+                            realHum:ChangeState(Enum.HumanoidStateType.GettingUp)
+                            realHum:ChangeState(Enum.HumanoidStateType.Running)
+                        end)
+                    end
+
+                    LP.Character = realChar
+                    if workspace.CurrentCamera and realHum then
+                        workspace.CurrentCamera.CameraSubject = realHum
+                    end
+                end
+
+                if clone and clone.Parent then clone:Destroy() end
+                ReanimState.clone_char = nil
+                ReanimState.real_char = nil
+                ReanimState.reanimated = false
+            end
+        end)
+
+        ReanimState.is_processing = false
+        if not ok then warn("[Coca Sky Destroyer] Reanimation error:", err) end
+    end
+
+    function CocaSkyDestroyer.is_reanimated()
+        return ReanimState.reanimated == true
+    end
+
+    function CocaSkyDestroyer.get_real_character()
+        return ReanimState.real_char
+    end
+
+    function CocaSkyDestroyer.get_clone()
+        return ReanimState.clone_char
+    end
+
+    local isTransitioning = false
+    local flashThread = nil
+
+    local function ensureReanimated()
+        if isTransitioning then
+            while isTransitioning do task.wait(0.05) end
+            return
+        end
+        if not CocaSkyDestroyer.is_reanimated() then
+            isTransitioning = true
+            CocaSkyDestroyer.reanimate(true)
+            task.wait(0.15)
+            isTransitioning = false
+        end
+    end
+
+    local function checkAndStopReanimation()
+        task.wait(0.05)
+        if not _G._HaloCoverGroundActive
+            and not _G._HaloCoverSkyActive
+            and not _G._HaloCoverCubeMatrixActive
+            and not _G._HaloCoverFlashActive
+            and CocaSkyDestroyer.is_reanimated()
+            and not isTransitioning
+        then
+            isTransitioning = true
+            CocaSkyDestroyer.reanimate(false)
+            isTransitioning = false
+        end
+        if CocaSkyDestroyer.syncUIFn then pcall(CocaSkyDestroyer.syncUIFn) end
+        if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
+    end
+
+    local function startFlashLoop()
+        _G._HaloCoverFlashActive = true
+        if not flashThread then
+            flashThread = task.spawn(function()
+                while _G._HaloCoverFlashActive do
+                    _G._HaloCoverFlashPhase = not _G._HaloCoverFlashPhase
+                    task.wait(_G._HaloCoverFlashSpeed or 0.08)
+                end
+                _G._HaloCoverFlashPhase = true
+                flashThread = nil
+            end)
+        end
+    end
+
+    local function stopFlashLoop()
+        _G._HaloCoverFlashActive = false
+        _G._HaloCoverFlashPhase = true
+        flashThread = nil
+    end
+
+    function _G.SetCoverGround(enabled, elevation)
+        if elevation ~= nil then _G._HaloCoverGroundHeight = elevation end
+        task.spawn(function()
+            if enabled then
+                ensureReanimated()
+                _G._HaloCoverGroundActive = true
+                notify("💥 COCA SKY DESTROYER", "Cover Ground ACTIVE! (Reanimated)")
+                sToggleOn()
+            else
+                _G._HaloCoverGroundActive = false
+                notify("💥 COCA SKY DESTROYER", "Cover Ground disabled")
+                sToggleOff()
+                checkAndStopReanimation()
+            end
+            if CocaSkyDestroyer.syncUIFn then pcall(CocaSkyDestroyer.syncUIFn) end
+            if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
+        end)
+    end
+
+    function _G.SetCoverSky(enabled, elevation)
+        if elevation ~= nil then _G._HaloCoverSkyHeight = elevation end
+        task.spawn(function()
+            if enabled then
+                ensureReanimated()
+                _G._HaloCoverSkyActive = true
+                notify("💥 COCA SKY DESTROYER", "Cover Sky Dome ACTIVE! (Reanimated)")
+                sToggleOn()
+            else
+                _G._HaloCoverSkyActive = false
+                notify("💥 COCA SKY DESTROYER", "Cover Sky disabled")
+                sToggleOff()
+                checkAndStopReanimation()
+            end
+            if CocaSkyDestroyer.syncUIFn then pcall(CocaSkyDestroyer.syncUIFn) end
+            if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
+        end)
+    end
+
+    function _G.SetCoverCubeMatrix(enabled, spacing)
+        if spacing ~= nil then _G._HaloCoverCubeSpacing = spacing end
+        task.spawn(function()
+            if enabled then
+                ensureReanimated()
+                _G._HaloCoverCubeMatrixActive = true
+                notify("💥 COCA SKY DESTROYER", "4-Tier Cube / Box Matrix ACTIVE! (Reanimated)")
+                sToggleOn()
+            else
+                _G._HaloCoverCubeMatrixActive = false
+                notify("💥 COCA SKY DESTROYER", "Cube / Box Matrix disabled")
+                sToggleOff()
+                checkAndStopReanimation()
+            end
+            if CocaSkyDestroyer.syncUIFn then pcall(CocaSkyDestroyer.syncUIFn) end
+            if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
+        end)
+    end
+
+    function _G.SetCoverFlash(enabled, speed)
+        if speed ~= nil then _G._HaloCoverFlashSpeed = speed end
+        task.spawn(function()
+            if enabled then
+                ensureReanimated()
+                startFlashLoop()
+                notify("💥 COCA SKY DESTROYER", "Cover Flash Strobe ACTIVE!")
+                sToggleOn()
+            else
+                stopFlashLoop()
+                notify("💥 COCA SKY DESTROYER", "Cover Flash Strobe disabled")
+                sToggleOff()
+                checkAndStopReanimation()
+            end
+            if CocaSkyDestroyer.syncUIFn then pcall(CocaSkyDestroyer.syncUIFn) end
+            if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
+        end)
+    end
+
+    function _G.startSkyDestroyer()
+        task.spawn(function()
+            ensureReanimated()
+            _G._HaloCoverGroundActive = true
+            _G._HaloCoverSkyActive = true
+            if CocaSkyDestroyer.syncUIFn then pcall(CocaSkyDestroyer.syncUIFn) end
+            if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
+            notify("💥 COCA SKY DESTROYER", "Sky + Ground Destroyer ACTIVE!")
+            sSuccess()
+        end)
+    end
+
+    function _G.stopSkyDestroyer()
+        _G._HaloCoverGroundActive = false
+        _G._HaloCoverSkyActive = false
+        _G._HaloCoverCubeMatrixActive = false
+        stopFlashLoop()
+        task.spawn(function()
+            checkAndStopReanimation()
+            notify("💥 COCA SKY DESTROYER", "Sky Destroyer stopped & character restored")
+            sToggleOff()
+        end)
+    end
+
+    function CocaSkyDestroyer.isAnyActive()
+        return _G._HaloCoverGroundActive or _G._HaloCoverSkyActive or _G._HaloCoverCubeMatrixActive or _G._HaloCoverFlashActive
+    end
+
+    LP.CharacterAdded:Connect(function(newChar)
+        if ReanimState.reanimated and newChar == ReanimState.clone_char then return end
+        ReanimState.reanimated = false
+        ReanimState.real_char = nil
+        ReanimState.clone_char = nil
+        for k, conn in pairs(ReanimState.connections) do
+            if conn then pcall(function() conn:Disconnect() end) end
+            ReanimState.connections[k] = nil
+        end
+        if CocaSkyDestroyer.isAnyActive() then
+            task.wait(0.6)
+            if CocaSkyDestroyer.isAnyActive() then
+                task.spawn(ensureReanimated)
+            end
+        end
+    end)
+
+    _G.CocaSkyDestroyer = CocaSkyDestroyer
 end
 
 local function buildMainUI()
@@ -12214,6 +13092,7 @@ local function buildMainUI()
     local animPage      = createCategory("Animation Copy",    "🎭", 8,   "Live 1:1 target animation mirroring & 6-mode alignment", "Anim Copy")
     local animationPage = createCategory("Animation Library", "🎬", 36,  "36 official catalog animation packs & playback controls", "Anim Packs")
     local cocaReanimPage= createCategory("Coca Reanim",       "🦴", 8,   "Coca Reanim keyframe player, custom scripts, state anims & limb hider", "Coca Reanim")
+    local skyPage       = createCategory("Coca Sky Destroyer","💥", 9,   "3D Layered Clothing & Glitch Walker Sky, Ground & Cube Matrix Destroyer", "Coca Sky")
     local emotePage     = createCategory("Emotes",            "💃", 195, "Searchable catalog emotes, viral dances, poses & custom IDs", "Emotes")
     local weldPage      = createCategory("Weld & Troll",      "⚡", 15,  "Dynamic height-adaptive welds, jerk troll, void throws & pins", "Weld & Troll")
     local targetPage    = createCategory("Target",            "🎯", 1,   "Omnipresent hidden-player seeker & server-wide lock", "Target")
@@ -12244,8 +13123,13 @@ local function buildMainUI()
     local ActivePills = {}
     do
     local PILL_CATALOG = {
-        { key = "animcopy",  pillLabel = "AnimCopy",  width = 112 },
-        { key = "jerktroll", pillLabel = "JerkTroll", width = 108 },
+        { key = "animcopy",     pillLabel = "AnimCopy",   width = 112 },
+        { key = "jerktroll",    pillLabel = "JerkTroll",  width = 108 },
+        { key = "skydestroyer", pillLabel = "SkyDestroy", width = 114 },
+        { key = "coverground",  pillLabel = "CovGround",  width = 110 },
+        { key = "coversky",     pillLabel = "CoverSky",   width = 104 },
+        { key = "covercube",    pillLabel = "CubeMatrix", width = 114 },
+        { key = "coverflash",   pillLabel = "SkyFlash",   width = 102 },
         { key = "headpat",   pillLabel = "Pat",       width = 82  },
         { key = "headsit",   pillLabel = "Headsit",   width = 104 },
         { key = "bang",      pillLabel = "Bang",      width = 88  },
@@ -12284,6 +13168,11 @@ local function buildMainUI()
     local PillOrderList = {}
 
     isActionKeyActive = function(key)
+        if key == "skydestroyer" then return (CocaSkyDestroyer and CocaSkyDestroyer.isAnyActive()) == true end
+        if key == "coverground" then return _G._HaloCoverGroundActive == true end
+        if key == "coversky" then return _G._HaloCoverSkyActive == true end
+        if key == "covercube" then return _G._HaloCoverCubeMatrixActive == true end
+        if key == "coverflash" then return _G._HaloCoverFlashActive == true end
         if key == "animcopy" then return (AnimCopySys and AnimCopySys.active == true) end
         if key == "jerktroll" then return (EmoteHub and EmoteHub.jerkActive == true) end
         if key == "rewind" then return RewindSys.rewinding == true end
@@ -12360,6 +13249,30 @@ local function buildMainUI()
     end
 
     togglePresetOrAction = function(key)
+        if key == "skydestroyer" then
+            if CocaSkyDestroyer and CocaSkyDestroyer.isAnyActive() then
+                _G.stopSkyDestroyer()
+            else
+                _G.startSkyDestroyer()
+            end
+            return
+        end
+        if key == "coverground" then
+            _G.SetCoverGround(not _G._HaloCoverGroundActive)
+            return
+        end
+        if key == "coversky" then
+            _G.SetCoverSky(not _G._HaloCoverSkyActive)
+            return
+        end
+        if key == "covercube" then
+            _G.SetCoverCubeMatrix(not _G._HaloCoverCubeMatrixActive)
+            return
+        end
+        if key == "coverflash" then
+            _G.SetCoverFlash(not _G._HaloCoverFlashActive)
+            return
+        end
         if key == "jerktroll" then
             EmoteHub:StartJerk()
             syncAllActiveIndicators()
@@ -13787,6 +14700,234 @@ local function buildMainUI()
         _G.CocaReanimHostContainer = cocaReanimHost
         if type(buildCocaReanimTab) == "function" then
             pcall(buildCocaReanimTab, cocaReanimHost)
+        end
+    end
+
+    -- ═══════════════════════════════════════════════════════════════════════════
+    -- DEDICATED CATEGORY: 💥 COCA SKY DESTROYER (Cover Sky, Ground, Cube Matrix & Flash)
+    -- ═══════════════════════════════════════════════════════════════════════════
+    do
+        local reqCard = Instance.new("Frame")
+        reqCard.Name = "CocaSkyRequirementCard"
+        reqCard.Size = UDim2.new(1, 0, 0, 62)
+        reqCard.BackgroundColor3 = T.Panel
+        reqCard.BorderSizePixel = 0
+        reqCard.LayoutOrder = 1
+        reqCard.ZIndex = 7
+        reqCard.Parent = skyPage
+        Instance.new("UICorner", reqCard).CornerRadius = UDim.new(0, 12)
+
+        local reqStroke = Instance.new("UIStroke")
+        reqStroke.Color = T.Accent
+        reqStroke.Thickness = 1.2
+        reqStroke.Transparency = 0.25
+        reqStroke.Parent = reqCard
+        table.insert(UI.themeDynamicStrokes, reqStroke)
+
+        local reqTitle = Instance.new("TextLabel")
+        reqTitle.Size = UDim2.new(1, -24, 0, 16)
+        reqTitle.Position = UDim2.new(0, 12, 0, 8)
+        reqTitle.BackgroundTransparency = 1
+        reqTitle.Text = "⚡ REQUIREMENT  ·  VISIBLE TO ALL PLAYERS IN SERVER"
+        reqTitle.TextColor3 = T.Neon
+        reqTitle.Font = Enum.Font.GothamBold
+        reqTitle.TextSize = 10
+        reqTitle.TextXAlignment = Enum.TextXAlignment.Left
+        reqTitle.ZIndex = 8
+        reqTitle.Parent = reqCard
+        table.insert(UI.themeDynamicTexts, reqTitle)
+
+        local reqDesc = Instance.new("TextLabel")
+        reqDesc.Size = UDim2.new(1, -24, 0, 32)
+        reqDesc.Position = UDim2.new(0, 12, 0, 24)
+        reqDesc.BackgroundTransparency = 1
+        reqDesc.RichText = true
+        reqDesc.TextWrapped = true
+        reqDesc.Text = "Requires equipping a <b>Glitch Walker Body</b> or any <b>3D Layered Clothing</b> item. Stretches your real mesh to ±10,000,000 X and ±25,000,000 Z across the map!"
+        reqDesc.TextColor3 = T.Text
+        reqDesc.Font = Enum.Font.Gotham
+        reqDesc.TextSize = 9.5
+        reqDesc.TextXAlignment = Enum.TextXAlignment.Left
+        reqDesc.TextYAlignment = Enum.TextYAlignment.Top
+        reqDesc.ZIndex = 8
+        reqDesc.Parent = reqCard
+
+        createSectionTitle(skyPage, 2, "Master Coca Sky Destroyer Controls")
+        local masterSkyGrp = createGroupCard(skyPage, 3)
+
+        local masterSkyRow = createActionRow(
+            masterSkyGrp,
+            1,
+            "Coca Sky Destroyer (Ground + Sky Dome)",
+            "Reanimates your rig & blankets both the Ground and Sky simultaneously",
+            "Start",
+            function()
+                togglePresetOrAction("skydestroyer")
+            end,
+            function()
+                toggleFloatingPill("skydestroyer")
+            end,
+            ActivePills["skydestroyer"] and "✓" or "⦿"
+        )
+        masterSkyRow.defaultLabel = "Start"
+        presetActionRows["skydestroyer"] = masterSkyRow
+
+        createActionRow(
+            masterSkyGrp,
+            2,
+            "Stop All & Restore Original Character",
+            "Disables all Sky Destroyer matrices & exits Reanimation state cleanly",
+            "Restore",
+            function()
+                _G.stopSkyDestroyer()
+            end
+        )
+
+        createSectionTitle(skyPage, 4, "Cover Sky, Ground & 3D Cube Matrix Modes")
+        local modesSkyGrp = createGroupCard(skyPage, 5)
+
+        local swGround = createSwitchRow(
+            modesSkyGrp,
+            1,
+            "Cover Ground",
+            "Blanket the ground with 3D Layered Clothing mesh",
+            _G._HaloCoverGroundActive,
+            function(st)
+                _G.SetCoverGround(st)
+            end
+        )
+
+        local swSky = createSwitchRow(
+            modesSkyGrp,
+            2,
+            "Cover Sky",
+            "Spread 3D Layered Clothing across the sky dome",
+            _G._HaloCoverSkyActive,
+            function(st)
+                _G.SetCoverSky(st)
+            end
+        )
+
+        local swCube = createSwitchRow(
+            modesSkyGrp,
+            3,
+            "Cube / Box Matrix (4-Tier 3D Box)",
+            "Deform layered clothing into 3D cube rooms & horizontal lines",
+            _G._HaloCoverCubeMatrixActive,
+            function(st)
+                _G.SetCoverCubeMatrix(st)
+            end
+        )
+
+        local swFlash = createSwitchRow(
+            modesSkyGrp,
+            4,
+            "Cover Flash (Strobe Mode)",
+            "Rapidly strobe active Sky/Ground/Cube meshes on & off",
+            _G._HaloCoverFlashActive,
+            function(st)
+                _G.SetCoverFlash(st)
+            end
+        )
+
+        createSectionTitle(skyPage, 6, "Elevation, Cube Spacing & Strobe Tuners")
+        local tuneSkyGrp = createGroupCard(skyPage, 7)
+
+        local groundElevRow, skyElevRow, cubeSpaceRow, flashSpdRow
+
+        groundElevRow = createActionRow(
+            tuneSkyGrp,
+            1,
+            "Ground Elevation (-25 to 100 studs)",
+            "Adjust ground blanket height above floor · Tap [↺] to reset (1.5)",
+            string.format("%.1f st", _G._HaloCoverGroundHeight or 1.5),
+            function(pillBtn)
+                local cur = _G._HaloCoverGroundHeight or 1.5
+                local nxt = cur + 2.5
+                if nxt > 50 then nxt = -10 end
+                _G._HaloCoverGroundHeight = nxt
+                pillBtn.Text = string.format("%.1f st", nxt)
+                notify("💥 GROUND ELEVATION", string.format("Ground Elevation: %.1f studs", nxt))
+            end,
+            function()
+                _G._HaloCoverGroundHeight = 1.5
+                if groundElevRow and groundElevRow.pillBtn then
+                    groundElevRow.pillBtn.Text = "1.5 st"
+                end
+                notify("💥 GROUND ELEVATION", "Reset Ground Elevation to 1.5 studs")
+            end,
+            "↺"
+        )
+
+        skyElevRow = createActionRow(
+            tuneSkyGrp,
+            2,
+            "Sky Elevation (-25 to 250 studs)",
+            "Adjust sky dome height above player · Tap [↺] to reset (3.0)",
+            string.format("%.1f st", _G._HaloCoverSkyHeight or 3.0),
+            function(pillBtn)
+                local cur = _G._HaloCoverSkyHeight or 3.0
+                local nxt = cur + 5.0
+                if nxt > 120 then nxt = -10 end
+                _G._HaloCoverSkyHeight = nxt
+                pillBtn.Text = string.format("%.1f st", nxt)
+                notify("💥 SKY ELEVATION", string.format("Sky Elevation: %.1f studs", nxt))
+            end,
+            function()
+                _G._HaloCoverSkyHeight = 3.0
+                if skyElevRow and skyElevRow.pillBtn then
+                    skyElevRow.pillBtn.Text = "3.0 st"
+                end
+                notify("💥 SKY ELEVATION", "Reset Sky Elevation to 3.0 studs")
+            end,
+            "↺"
+        )
+
+        local cubeSteps = { 0.5, 1.5, 4.0, 10.0, 25.0, 60.0 }
+        local cubeIdx = 1
+        cubeSpaceRow = createActionRow(
+            tuneSkyGrp,
+            3,
+            "Cube Matrix Tier Spacing (0.1 to 150)",
+            "Vertical gap between 4-tier cube layers · Tap [⦿] to pin Cube Pill",
+            string.format("%.1f st", _G._HaloCoverCubeSpacing or 0.5),
+            function(pillBtn)
+                cubeIdx = (cubeIdx % #cubeSteps) + 1
+                _G._HaloCoverCubeSpacing = cubeSteps[cubeIdx]
+                pillBtn.Text = string.format("%.1f st", _G._HaloCoverCubeSpacing)
+                notify("💥 CUBE SPACING", string.format("Cube Tier Spacing: %.1f studs", _G._HaloCoverCubeSpacing))
+            end,
+            function()
+                toggleFloatingPill("covercube")
+            end,
+            ActivePills["covercube"] and "✓" or "⦿"
+        )
+
+        local flashSteps = { 0.03, 0.06, 0.08, 0.14, 0.25 }
+        local flashIdx = 3
+        flashSpdRow = createActionRow(
+            tuneSkyGrp,
+            4,
+            "Flash Strobe Interval (0.02s to 0.50s)",
+            "Cycle strobe speed interval · Tap [⦿] to pin Flash Pill",
+            string.format("%.2fs", _G._HaloCoverFlashSpeed or 0.08),
+            function(pillBtn)
+                flashIdx = (flashIdx % #flashSteps) + 1
+                _G._HaloCoverFlashSpeed = flashSteps[flashIdx]
+                pillBtn.Text = string.format("%.2fs", _G._HaloCoverFlashSpeed)
+                notify("💥 FLASH SPEED", string.format("Strobe Interval: %.2fs", _G._HaloCoverFlashSpeed))
+            end,
+            function()
+                toggleFloatingPill("coverflash")
+            end,
+            ActivePills["coverflash"] and "✓" or "⦿"
+        )
+
+        CocaSkyDestroyer.syncUIFn = function()
+            if swGround then swGround.setState(_G._HaloCoverGroundActive == true, false) end
+            if swSky then swSky.setState(_G._HaloCoverSkyActive == true, false) end
+            if swCube then swCube.setState(_G._HaloCoverCubeMatrixActive == true, false) end
+            if swFlash then swFlash.setState(_G._HaloCoverFlashActive == true, false) end
         end
     end
 
