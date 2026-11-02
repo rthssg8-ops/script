@@ -105,7 +105,7 @@ local gui = nil
 
 -- Prefer PlayerGui: it is the most portable ScreenGui parent across executor environments.
 -- gethui/CoreGui are fallbacks only, since some executor wrappers expose an unusable container.
-local GuiParent = nil
+local GuiParent, cleanupOldGuis = nil, nil
 do
 local function getGuiContainer()
     local pgui = LP:FindFirstChildOfClass("PlayerGui") or LP:FindFirstChild("PlayerGui")
@@ -133,7 +133,7 @@ if not GuiParent then
     return
 end
 
-local function cleanupOldGuis(container)
+cleanupOldGuis = function(container)
     if not container then return end
     pcall(function()
         for _, child in ipairs(container:GetChildren()) do
@@ -961,6 +961,7 @@ end
 local stopWeld -- forward declaration
 local findPlayerCharacterAnywhere
 local pickTargetRef
+local getFlatYawCFrame
 local getBestTargetCFrame
 local streamAndTeleportToTarget
 local markIntentionalTeleport
@@ -1604,7 +1605,7 @@ end
 
 -- Compute a clean, level, upright Side-by-Side CFrame relative to a target part/character
 -- (Extracts ONLY horizontal Yaw so even if target is doing a flipped/tilted dance, you stand upright beside them!)
-local function getFlatYawCFrame(cf, posOverride)
+getFlatYawCFrame = function(cf, posOverride)
     if not cf then return CFrame.new() end
     local pos = posOverride or cf.Position
     local look = cf.LookVector
@@ -4660,9 +4661,6 @@ local ragdollStart, ragdollStop, anchorStart, anchorStop, attachStart, attachSto
 local bringStart, bringStop, flingShieldStart, flingShieldStop, redirectStart, redirectStop, pauseTrapStart, pauseTrapStop
 local defenceTrollStart, defenceTrollStop, enableAllAntiSystems, disableAllAntiSystems
 do -- Scoped block for internal Anti helper functions (frees 35+ top-level local registers)
-local contactTimers = {}
-local deflectCooldowns = {}
-local attackerLastPos = {}
 -- 1. ADVANCED ANTI-VOID V2 (Predictive Velocity Catch + Safety Platform + Death Block)
 -- ═══════════════════════════════════════════════════════════════════════════════
 local function avEnsureSafetyFloor(pos)
@@ -5025,6 +5023,9 @@ vcStop = function()
 end
 end
 do -- Sub-scope 2 for Anti (Ragdoll, Anchor, Attach, Blind, Bring, FlingShield, DefenceTroll)
+local contactTimers = {}
+local deflectCooldowns = {}
+local attackerLastPos = {}
 
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- 6. ADVANCED ANTI-RAGDOLL / ANTI-SIT / ANTI-STUN / ANTI-TRIP V2
@@ -7078,14 +7079,19 @@ local function buildMainUI()
 
     -- Compute responsive Dual-Card dimensions (Left Categories Card + Gap + Right Main Card)
     local function computeDualLayout(sw, sh, showSide)
-        local gap = showSide and 12 or 0
-        local sideW = showSide and math.clamp(math.floor(sw * 0.19), 148, 178) or 0
-        local mainW = math.clamp(math.floor(sw * 0.36), 276, 344)
-        if sw < 540 and showSide then
-            sideW = 136
-            mainW = math.clamp(sw - sideW - gap - 20, 236, 300)
+        local isPortrait = (sw < 560) or (sh > sw)
+        local gap = showSide and (isPortrait and 8 or 12) or 0
+        local sideW = showSide and math.clamp(math.floor(sw * 0.20), 144, 178) or 0
+        local mainW = math.clamp(math.floor(sw * 0.38), 284, 356)
+        if isPortrait then
+            if showSide then
+                sideW = math.clamp(math.floor(sw * 0.33), 138, 156)
+                mainW = math.clamp(sw - sideW - gap - 16, 240, 330)
+            else
+                mainW = math.clamp(sw - 20, 260, 380)
+            end
         end
-        local cardH = math.clamp(math.floor(sh * 0.58), 336, 420)
+        local cardH = math.clamp(math.floor(sh * (isPortrait and 0.62 or 0.58)), 356, 460)
         return sideW, gap, mainW, cardH
     end
 
@@ -7637,9 +7643,26 @@ local function buildMainUI()
     end
 
     -- 4 Sleek Rounded Square Buttons in Right Header:
-    -- [🔍] Instant Feature Search | [☰] Toggle Left Categories Dock | [—] Minimize to CP Pill | [⚙] Settings / Unload
+    -- [🔍] Instant Feature Search | [≡] Vector 3-Bar Dock Toggle (No Android Tofu!) | [—] Minimize | [⚙] Settings
     local btnSearchToggle = makeHeaderIconBtn(-134, "🔍", "Search Features")
-    local btnDockToggle   = makeHeaderIconBtn(-102, "☰",  "Toggle Categories Dock")
+    local btnDockToggle   = makeHeaderIconBtn(-102, "",   "Toggle Categories Dock")
+    do
+        for barIdx = 1, 3 do
+            local bar = Instance.new("Frame")
+            bar.Name = "DockBar_" .. tostring(barIdx)
+            bar.Size = UDim2.new(0, barIdx == 2 and 10 or 13, 0, 2)
+            bar.AnchorPoint = Vector2.new(0.5, 0.5)
+            bar.Position = UDim2.new(0.5, 0, 0, 9 + (barIdx - 1) * 5)
+            bar.BackgroundColor3 = barIdx == 2 and T.Neon or T.Text
+            bar.BorderSizePixel = 0
+            bar.ZIndex = 10
+            bar.Parent = btnDockToggle
+            Instance.new("UICorner", bar).CornerRadius = UDim.new(1, 0)
+            if barIdx == 2 then
+                table.insert(UI.themeDynamicFills, bar)
+            end
+        end
+    end
     local btnMin          = makeHeaderIconBtn(-70,  "—",  "Minimize UI")
     local btnSettings     = makeHeaderIconBtn(-38,  "⚙",  "Settings & Unload")
     rightHeaderTitle.Size = UDim2.new(1, -150, 0, 20)
@@ -7921,16 +7944,28 @@ local function buildMainUI()
         end)
     end
 
-    -- Live FPS & Protection Counter in Left Header Pill (zero overhead when UI is minimized)
+    -- Live FPS & Protection Counter in Left Header Pill (ignores initial startup hitch so it never flashes '1 FPS')
     do
         local lastTime = os.clock()
         local frameCount = 0
-        local lastShownFps = -1
+        local lastShownFps = 60
+        local warmupDone = false
         RunService.RenderStepped:Connect(function()
             frameCount = frameCount + 1
             local now = os.clock()
-            if now - lastTime >= 1.0 then
-                local fps = math.clamp(math.floor(frameCount / (now - lastTime)), 1, 240)
+            local elapsed = now - lastTime
+            if elapsed > 2.2 then
+                frameCount = 0
+                lastTime = now
+                return
+            end
+            if elapsed >= 0.85 then
+                local rawFps = math.floor((frameCount / elapsed) + 0.5)
+                if not warmupDone then
+                    warmupDone = true
+                    rawFps = math.max(30, rawFps)
+                end
+                local fps = math.clamp(rawFps, 12, 240)
                 frameCount = 0
                 lastTime = now
                 if UI.open and UI.sidebarVisible and fps ~= lastShownFps and hudText and hudText.Parent then
@@ -8052,11 +8087,12 @@ local function buildMainUI()
         table.insert(quickTabBtns, { btn = qb, stroke = qStroke, cat = item.cat, label = item.label })
     end
 
-    local function createCategory(catName, iconGlyph, countDefault, subtitleText)
+    local function createCategory(catName, iconGlyph, countDefault, subtitleText, shortDisplayLabel)
         table.insert(UI.catOrder, catName)
         local orderIdx = #UI.catOrder
         UI.catMeta[catName] = {
             title = catName,
+            shortTitle = shortDisplayLabel or catName,
             subtitle = subtitleText or "",
             icon = iconGlyph,
             count = countDefault or 0,
@@ -8113,21 +8149,21 @@ local function buildMainUI()
         iconLbl.Parent = iconBox
 
         local titleLbl = Instance.new("TextLabel")
-        titleLbl.Size = UDim2.new(1, -64, 1, 0)
-        titleLbl.Position = UDim2.new(0, 38, 0, 0)
+        titleLbl.Size = UDim2.new(1, -54, 1, 0)
+        titleLbl.Position = UDim2.new(0, 35, 0, 0)
         titleLbl.BackgroundTransparency = 1
-        titleLbl.Text = catName
+        titleLbl.Text = shortDisplayLabel or catName
         titleLbl.TextColor3 = Color3.fromRGB(210, 202, 224)
         titleLbl.Font = Enum.Font.GothamMedium
-        titleLbl.TextSize = 11
+        titleLbl.TextSize = 10
         titleLbl.TextXAlignment = Enum.TextXAlignment.Left
         titleLbl.TextTruncate = Enum.TextTruncate.AtEnd
         titleLbl.ZIndex = 9
         titleLbl.Parent = rowBtn
 
         local countLbl = Instance.new("TextLabel")
-        countLbl.Size = UDim2.new(0, 24, 1, 0)
-        countLbl.Position = UDim2.new(1, -30, 0, 0)
+        countLbl.Size = UDim2.new(0, 22, 1, 0)
+        countLbl.Position = UDim2.new(1, -26, 0, 0)
         countLbl.BackgroundTransparency = 1
         countLbl.Text = tostring(countDefault or "")
         countLbl.TextColor3 = T.Muted
@@ -8486,18 +8522,20 @@ local function buildMainUI()
     -- ═══════════════════════════════════════════════════════════════════════════
     -- CREATE CATEGORIES IN LEFT DOCK (Animation Copy, Animation Library and Emotes are separate pages)
     -- ═══════════════════════════════════════════════════════════════════════════
-    local genPage    = createCategory("General",       "⚙", 7,   "Prefix, alerts, session behavior & detachable windows")
-    local adminPage  = createCategory("Admin Panel",   "👑", 0,   "Owner & Premium control center: freeze, ban & overhead tags")
-    local animPage   = createCategory("Animation Copy", "🎭", 8, "Live local animation mirroring and target alignment")
-    local animationPage = createCategory("Animation Library", "🎬", 36, "Animation packs, playback controls and custom animation IDs")
-    local emotePage  = createCategory("Emotes", "💃", 195, "Searchable catalog emotes, dances, poses and custom IDs")
-    local weldPage   = createCategory("Weld & Troll",  "⚡", 15,  "Dynamic height-adaptive welds, jerk troll, void throws & pins")
-    local targetPage = createCategory("Target",        "🎯", 1,   "Omnipresent hidden-player seeker & server-wide lock")
-    local movePage   = createCategory("Performance", "🚀", 11, "60Hz Chrono-Rewind, WalkSpeed 500 & 4-Phase Flight")
-    local antiPage   = createCategory("Privacy",     "🛡", 14, "Defence Troll Matrix V2 & 13 multi-layer physics shields")
-    local chatPage   = createCategory("Logging",     "💬", 4,  "Automated target roast engine & custom chat broadcaster")
-    local appearPage = createCategory("Appearance",  "🎨", 6,  "Novoline color themes, glass opacity & layout controls")
-    local toolsPage  = createCategory("Keybinds & Tools", "⌨", 20, "Custom PC troll hotkeys, Click TP tool & session utilities")
+    local genPage       = createCategory("General",           "⚙",  7,   "Session behavior, auto-reweld & detachable mini-windows", "General")
+    local adminPage     = createCategory("Admin Panel",       "👑", 0,   "Owner & Premium control center: freeze, ban & overhead tags", "Admin")
+    local animPage      = createCategory("Animation Copy",    "🎭", 8,   "Live 1:1 target animation mirroring & 6-mode alignment", "Anim Copy")
+    local animationPage = createCategory("Animation Library", "🎬", 36,  "36 official catalog animation packs & playback controls", "Anim Packs")
+    local emotePage     = createCategory("Emotes",            "💃", 195, "Searchable catalog emotes, viral dances, poses & custom IDs", "Emotes")
+    local weldPage      = createCategory("Weld & Troll",      "⚡", 15,  "Dynamic height-adaptive welds, jerk troll, void throws & pins", "Weld & Troll")
+    local targetPage    = createCategory("Target",            "🎯", 1,   "Omnipresent hidden-player seeker & server-wide lock", "Target")
+    local movePage      = createCategory("Performance",       "🚀", 11,  "60Hz Chrono-Rewind, WalkSpeed 500 & 4-Phase Flight", "Move & Fly")
+    local antiPage      = createCategory("Privacy",           "🛡", 16,  "Defence Troll Matrix V3 & 16 multi-layer physics shields", "Anti Shield")
+    local chatPage      = createCategory("Logging",           "💬", 4,   "Automated target roast engine & custom chat broadcaster", "Chat & Roast")
+    local appearPage    = createCategory("Appearance",        "🎨", 7,   "Novoline color themes, cosmic nebula & layout controls", "Themes & UI")
+    local toolsPage     = createCategory("Keybinds & Tools",  "⌨",  20,  "Custom PC troll hotkeys, Click TP tool & session utilities", "Keybinds")
+    -- Make default category visible immediately so right card is never blank during startup
+    showCategory("Weld & Troll")
 
     -- Forward declarations for cross-category synchronization
     local refreshCard
@@ -8513,7 +8551,7 @@ local function buildMainUI()
     -- ═══════════════════════════════════════════════════════════════════════════
     -- FLOATING QUICK PILLS & PRESET ACTION SYSTEM
     -- ═══════════════════════════════════════════════════════════════════════════
-    local isActionKeyActive, updatePinBadgeVisual
+    local isActionKeyActive, updatePinBadgeVisual, PILL_META
     local presetActionRows = {} -- key -> { pillBtn, pillStroke, circleBtn, circleStroke, defaultLabel }
     local ActivePills = {}
     do
@@ -8538,7 +8576,7 @@ local function buildMainUI()
         { key = "deflect",   pillLabel = "Deflect",   width = 100 },
         { key = "rewind",    pillLabel = "Rewind",    width = 96  },
     }
-    local PILL_META = {}
+    PILL_META = {}
     for _, item in ipairs(PILL_CATALOG) do PILL_META[item.key] = item end
 
     local PILL_BG_OFF       = Color3.fromRGB(18, 14, 25)
@@ -9234,8 +9272,51 @@ local function buildMainUI()
         avatarPlaceholder.ZIndex = 8
         avatarPlaceholder.Parent = avatarFrame
 
+        local quickCardTpBtn = Instance.new("TextButton")
+        quickCardTpBtn.Name = "QuickCardTP"
+        quickCardTpBtn.Size = UDim2.new(0, 44, 0, 22)
+        quickCardTpBtn.Position = UDim2.new(1, -52, 0, 10)
+        quickCardTpBtn.BackgroundColor3 = T.PanelLt
+        quickCardTpBtn.Text = "TP ⚡"
+        quickCardTpBtn.TextColor3 = T.Neon
+        quickCardTpBtn.Font = Enum.Font.GothamBold
+        quickCardTpBtn.TextSize = 9
+        quickCardTpBtn.AutoButtonColor = false
+        quickCardTpBtn.ZIndex = 10
+        quickCardTpBtn.Parent = card
+        Instance.new("UICorner", quickCardTpBtn).CornerRadius = UDim.new(1, 0)
+        local qtpStroke = Instance.new("UIStroke")
+        qtpStroke.Color = T.Border
+        qtpStroke.Thickness = 1
+        qtpStroke.Transparency = 0.3
+        qtpStroke.Parent = quickCardTpBtn
+        styleBtn(quickCardTpBtn, T.PanelLt, 0.14)
+        table.insert(UI.themeDynamicTexts, quickCardTpBtn)
+        quickCardTpBtn.MouseButton1Click:Connect(function()
+            playClick()
+            local tgt = resolveActiveTarget()
+            if not tgt or tgt.Parent ~= Players then
+                notify("COCO POWDER", "No target player in server!")
+                sError()
+                return
+            end
+            task.spawn(function()
+                local _, tRef = streamAndTeleportToTarget(tgt, "root", 1.8, CFrame.new(3.2, 0, 0))
+                local destCF = (tRef and tRef.Parent and getFlatYawCFrame(tRef.CFrame) * CFrame.new(3.2, 0, 0))
+                    or (getBestTargetCFrame(tgt) and getFlatYawCFrame(getBestTargetCFrame(tgt)) * CFrame.new(3.2, 0, 0))
+                if destCF then
+                    markIntentionalTeleport(destCF)
+                    safeReturnFromVoid(LP.Character, destCF)
+                    notify("COCO POWDER", "Teleported beside @" .. tgt.Name .. "!")
+                    sSuccess()
+                else
+                    notify("COCO POWDER", "Streaming target chunk...")
+                end
+            end)
+        end)
+
         local nameLbl = Instance.new("TextLabel")
-        nameLbl.Size = UDim2.new(1, -82, 0, 18)
+        nameLbl.Size = UDim2.new(1, -132, 0, 18)
         nameLbl.Position = UDim2.new(0, 74, 0, 10)
         nameLbl.BackgroundTransparency = 1
         nameLbl.Text = "Auto: Nearest Player"
@@ -9338,26 +9419,36 @@ local function buildMainUI()
             gb.BorderSizePixel = 0
             gb.Text = item.label
             gb.TextColor3 = T.Text
-            gb.Font = Enum.Font.GothamMedium
-            gb.TextSize = 11
+            gb.Font = Enum.Font.GothamBold
+            gb.TextSize = 10
             gb.AutoButtonColor = false
             gb.LayoutOrder = idx
             gb.ZIndex = 9
             gb.Parent = quickGridFrame
-            Instance.new("UICorner", gb).CornerRadius = UDim.new(0, 8)
-            styleBtn(gb, T.Panel, 0.10)
+            Instance.new("UICorner", gb).CornerRadius = UDim.new(0, 9)
+            styleBtn(gb, T.Panel, 0.12)
 
             local gStroke = Instance.new("UIStroke")
             gStroke.Color = T.Border
             gStroke.Thickness = 1.1
-            gStroke.Transparency = 0.25
+            gStroke.Transparency = 0.22
             gStroke.Parent = gb
+
+            local gDot = Instance.new("Frame")
+            gDot.Name = "StatusDot"
+            gDot.Size = UDim2.new(0, 5, 0, 5)
+            gDot.Position = UDim2.new(1, -9, 0, 5)
+            gDot.BackgroundColor3 = T.Border
+            gDot.BorderSizePixel = 0
+            gDot.ZIndex = 10
+            gDot.Parent = gb
+            Instance.new("UICorner", gDot).CornerRadius = UDim.new(1, 0)
 
             gb.MouseButton1Click:Connect(function()
                 playClick()
                 togglePresetOrAction(item.key)
             end)
-            quickGridBtns[item.key] = { btn = gb, stroke = gStroke, label = item.label }
+            quickGridBtns[item.key] = { btn = gb, stroke = gStroke, dot = gDot, label = item.label }
         end
 
         -- Full-Width Red "Stop All" Button (Matches image_7b109c.png!)
@@ -9593,7 +9684,7 @@ local function buildMainUI()
 
         local lastAvatarId = nil
         refreshCard = function()
-            -- Sync quick grid button active highlights only when changed
+            -- Sync quick grid button active highlights & status dot only when changed
             for k, item in pairs(quickGridBtns) do
                 if item and item.btn and item.btn.Parent then
                     local act = isActionKeyActive(k)
@@ -9601,11 +9692,14 @@ local function buildMainUI()
                         item.lastAct = act
                         local col = act and T.Accent2 or T.Panel
                         BtnColors[item.btn] = col
-                        item.btn.BackgroundColor3 = col
+                        TweenService:Create(item.btn, TI_FAST, { BackgroundColor3 = col }):Play()
                         item.btn.TextColor3 = act and Color3.new(1, 1, 1) or T.Text
                         if item.stroke then
                             item.stroke.Color = act and T.Neon or T.Border
-                            item.stroke.Transparency = act and 0.08 or 0.25
+                            item.stroke.Transparency = act and 0.05 or 0.22
+                        end
+                        if item.dot then
+                            item.dot.BackgroundColor3 = act and T.Success or T.Border
                         end
                     end
                 end
@@ -10691,16 +10785,15 @@ local function buildMainUI()
         local spdGrp = createGroupCard(movePage, 4)
 
         local currentSpeed, currentJump = 32, 75
-        do -- Sub-scope for WalkSpeed, Jump, Noclip, Spider-Walk, Air-Walk & Phase Dash
-        local defaultWalkSpeed, defaultJumpPower = 16, 50
-        local MIN_SPEED, MAX_SPEED = 16, 500
-        local MAX_JUMP, JUMP_STEP = 350, 25
-
         local function getMoveCharacter()
             local ch = LP.Character
             if not ch then return nil, nil, nil end
             return ch, ch:FindFirstChildOfClass("Humanoid"), ch:FindFirstChild("HumanoidRootPart")
         end
+        do -- Sub-scope for WalkSpeed, Jump, Noclip, Spider-Walk, Air-Walk & Phase Dash
+        local defaultWalkSpeed, defaultJumpPower = 16, 50
+        local MIN_SPEED, MAX_SPEED = 16, 500
+        local MAX_JUMP, JUMP_STEP = 350, 25
 
         local speedSwitchRef
         local speedPresetRow
