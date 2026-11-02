@@ -1139,7 +1139,7 @@ do
             local desiredY = faceRelY + (scaleBasedY * 0.72) + ((1.65 * myM.scaleY + livePelvisComp) * 0.28)
             autoDeltaY = desiredY - 2.5
 
-        elseif key == "bang" or key == "backshots" or key == "chootlelo" then
+        elseif key == "bang" or key == "backshots" or key == "chootlelo" or key == "goon" then
             -- Target landmark is the target's anatomical Pelvis / LowerTorso / Hips
             local tgHipRelY = -0.65 * tgM.scaleY
             if tgM.lTorso and tgM.lTorso.Parent then
@@ -1232,7 +1232,7 @@ end
 
 local function stepBangMotorPose(char, hum, presetKey, phaseWave)
     if not char or not hum then return end
-    if presetKey ~= "bang" and presetKey ~= "facebang" and presetKey ~= "backshots" and presetKey ~= "chootlelo" then
+    if presetKey ~= "bang" and presetKey ~= "facebang" and presetKey ~= "backshots" and presetKey ~= "chootlelo" and presetKey ~= "goon" then
         return
     end
     local r15 = (hum.RigType == Enum.HumanoidRigType.R15) or (char:FindFirstChild("LowerTorso") ~= nil)
@@ -1333,7 +1333,7 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
     local targetUid  = TargetPlayer and TargetPlayer.UserId or nil
     local targetName = TargetPlayer and TargetPlayer.Name or "Target"
     local targetDisp = (TargetPlayer and TargetPlayer.DisplayName) or targetName
-    local isBangPreset = (PresetKey == "bang" or PresetKey == "facebang" or PresetKey == "backshots" or PresetKey == "chootlelo")
+    local isBangPreset = (PresetKey == "bang" or PresetKey == "facebang" or PresetKey == "backshots" or PresetKey == "chootlelo" or PresetKey == "goon")
 
     pcall(function() workspace.FallenPartsDestroyHeight = -50000 end)
     pcall(function() Humanoid.Sit = false end)
@@ -1349,8 +1349,8 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
     local function scrubBangTrackWindow(tr, speedMult)
         if not tr or not isBangPreset then return end
         pcall(function()
-            if ActiveAnimDigits == "85194549268064" then
-                -- Primary Bang Animation ID (85194549268064)
+            if ActiveAnimDigits == "116235062592344" or ActiveAnimDigits == "136828069054505" or ActiveAnimDigits == "85194549268064" then
+                -- Primary Tesla Bang (116235062592344) & Tesla Goon (136828069054505) Animation IDs
                 tr:AdjustSpeed(math.clamp(speedMult, 0.2, 6.0))
             elseif ActiveAnimDigits == "5918726674" then
                 -- Fallback R15 Bang: loop pelvic-thrust keyframe window [0.42 .. 0.86]
@@ -1617,7 +1617,12 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
                     end
                     ensureAnim(false)
                     if isBangPreset then
-                        stepBangMotorPose(Character, Humanoid, PresetKey, phase)
+                        local nativeTeslaPlaying = (ActiveAnimDigits == "116235062592344" or ActiveAnimDigits == "136828069054505") and AnimTrack and AnimTrack.IsPlaying and (Humanoid.RigType == Enum.HumanoidRigType.R15)
+                        if nativeTeslaPlaying then
+                            restoreBangMotors(Character)
+                        else
+                            stepBangMotorPose(Character, Humanoid, PresetKey, phase)
+                        end
                     end
                     return
                 end
@@ -1693,7 +1698,12 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
         end
         ensureAnim(false)
         if isBangPreset then
-            stepBangMotorPose(Character, Humanoid, PresetKey, phase)
+            local nativeTeslaPlaying = (ActiveAnimDigits == "116235062592344" or ActiveAnimDigits == "136828069054505") and AnimTrack and AnimTrack.IsPlaying and (Humanoid.RigType == Enum.HumanoidRigType.R15)
+            if nativeTeslaPlaying then
+                restoreBangMotors(Character)
+            else
+                stepBangMotorPose(Character, Humanoid, PresetKey, phase)
+            end
         end
         if not Humanoid.PlatformStand then Humanoid.PlatformStand = true end
     end)
@@ -1714,26 +1724,33 @@ local function unweld(skipReturn)
 end
 
 -- ═══════════════════════════════════════════════════════════════════════════════
--- 🔞 UNIVERSAL R15 & R6 BANG & WELD PRESET MATRIX
---   • Primary Bang Animation ID: 85194549268064
---   • R15 Fallbacks: 5918726674, 10714010337 (Billy Bounce), 4555808220 (Ride), 5915714366 (Panini),
+-- 🔞 UNIVERSAL R15 & R6 BANG, GOON & WELD PRESET MATRIX (TESLA EDITION)
+--   • Primary Bang Animation ID: 116235062592344 (Tesla Bang)
+--   • Primary Goon Animation ID: 136828069054505 (Tesla Goon)
+--   • R15 Fallbacks: 116235062592344, 85194549268064, 5918726674, 10714010337, 4555808220, 5915714366,
 --     128342454196913, 109168916859109, 3333499508, 507771019
---   • R6 Fallbacks: 148840371, 182436842, 180435571, 182435998, 178130996
+--   • R6 Fallbacks: 116235062592344, 178130996, 148840371, 182436842, 180435571, 182435998
 -- ═══════════════════════════════════════════════════════════════════════════════
-local BANG_FALLBACKS_R15 = { 85194549268064, 5918726674, 10714010337, 4555808220, 5915714366, 128342454196913, 109168916859109, 3333499508, 507771019 }
-local BANG_FALLBACKS_R6  = { 85194549268064, 148840371, 182436842, 180435571, 182435998, 178130996 }
+local BANG_FALLBACKS_R15 = { 116235062592344, 85194549268064, 5918726674, 10714010337, 4555808220, 5915714366, 128342454196913, 109168916859109, 3333499508, 507771019 }
+local BANG_FALLBACKS_R6  = { 116235062592344, 178130996, 148840371, 182436842, 180435571, 182435998 }
+local GOON_FALLBACKS_R15 = { 136828069054505, 116235062592344, 698251653, 5918726674 }
+local GOON_FALLBACKS_R6  = { 136828069054505, 72042024, 178130996, 148840371 }
 
 local WELD_PRESETS = {
     bang      = { offset = CFrame.new(0, 0, 2.85),
-                  anim15 = 85194549268064, anim6 = 85194549268064,
+                  anim15 = 116235062592344, anim6 = 116235062592344,
                   animFallbacks = BANG_FALLBACKS_R15, animFallbacks6 = BANG_FALLBACKS_R6,
                   osc = {distance = 2.6, period = 0.20}, refMode = "torso", label = "Bang" },
+    goon      = { offset = CFrame.new(0, 0, -1.6) * CFrame.Angles(0, math.rad(180), 0),
+                  anim15 = 136828069054505, anim6 = 136828069054505,
+                  animFallbacks = GOON_FALLBACKS_R15, animFallbacks6 = GOON_FALLBACKS_R6,
+                  osc = {distance = 0.6, period = 0.22}, refMode = "torso", label = "Goon" },
     facebang  = { offset = CFrame.new(0, 2.5, -3.8) * CFrame.Angles(0, math.rad(180), 0),
-                  anim15 = 85194549268064, anim6 = 85194549268064,
+                  anim15 = 116235062592344, anim6 = 116235062592344,
                   animFallbacks = BANG_FALLBACKS_R15, animFallbacks6 = BANG_FALLBACKS_R6,
                   osc = {distance = 2.9, period = 0.22}, refMode = "head", label = "Face Bang" },
     backshots = { offset = CFrame.new(0, 0, 3.2),
-                  anim15 = 85194549268064, anim6 = 85194549268064,
+                  anim15 = 116235062592344, anim6 = 116235062592344,
                   animFallbacks = BANG_FALLBACKS_R15, animFallbacks6 = BANG_FALLBACKS_R6,
                   osc = {distance = 2.9, period = 0.22}, refMode = "torso", label = "Backshots" },
     headsit   = { offset = CFrame.new(0, 1.2, 0),
@@ -1772,7 +1789,7 @@ local WELD_PRESETS = {
                   animFallbacks6 = {180435571, 128777973},
                   osc = nil, refMode = "torso", label = "Hug" },
     chootlelo = { offset = CFrame.new(0, -0.35, -1.55) * CFrame.Angles(0, math.rad(180), 0),
-                  anim15 = 85194549268064, anim6 = 85194549268064,
+                  anim15 = 116235062592344, anim6 = 116235062592344,
                   animFallbacks = BANG_FALLBACKS_R15, animFallbacks6 = BANG_FALLBACKS_R6,
                   osc = {distance = 2.4, period = 0.19}, refMode = "torso", label = "Choot Lelo" },
 }
@@ -3282,6 +3299,9 @@ do
     -- 💃 MASSIVE CATALOG & UGC EMOTES LIBRARY (195+ Verified Emotes & Dances)
     -- ═══════════════════════════════════════════════════════════════════════════
     EmoteHub.CatalogEmotes = {
+        -- Tesla Signature Animations
+        { name = "Goon (Tesla)",                 id = "136828069054505", cat = "Trending" },
+        { name = "Bang (Tesla)",                 id = "116235062592344", cat = "Trending" },
         -- Trending & Viral Internet Dances
         { name = "Floss Dance",                  id = "5917459365",  cat = "Dances" },
         { name = "Hype Dance",                   id = "3695333486",  cat = "Dances" },
@@ -8977,6 +8997,7 @@ local function buildMainUI()
         { key = "headpat",   pillLabel = "Pat",       width = 82  },
         { key = "headsit",   pillLabel = "Headsit",   width = 104 },
         { key = "bang",      pillLabel = "Bang",      width = 88  },
+        { key = "goon",      pillLabel = "Goon",      width = 88  },
         { key = "facebang",  pillLabel = "Facebang",  width = 112 },
         { key = "backshots", pillLabel = "Backshots", width = 114 },
         { key = "kiss",      pillLabel = "Kiss",      width = 82  },
@@ -9525,6 +9546,7 @@ local function buildMainUI()
         winRowRefs["weld_mini"] = createActionRow(winGrp, 3, "Weld & Troll Deck", "Open last time · AnimCopy, Facebang, Backshots & Void", "Open", function()
             spawnOrToggleMiniWindow("weld_mini", "⚡ Weld & Troll", {
                 { label = "🎭 Copy Anim (Side)", cb = function() togglePresetOrAction("animcopy") end },
+                { label = "Goon Target (Tesla)", cb = function() togglePresetOrAction("goon") end },
                 { label = "Facebang Target",     cb = function() togglePresetOrAction("facebang") end },
                 { label = "Backshots Target",    cb = function() togglePresetOrAction("backshots") end },
                 { label = "Headsit Target",      cb = function() togglePresetOrAction("headsit") end },
@@ -9801,7 +9823,7 @@ local function buildMainUI()
         -- 3-Column Quick Weld Grid (Face Bang, Backshots, Headsit, Kiss, Backpack, Headpat, Propose, Lawl, Hug, Choot Lelo, AnimCopy, Chase)
         local quickGridFrame = Instance.new("Frame")
         quickGridFrame.Name = "QuickWeldGrid"
-        quickGridFrame.Size = UDim2.new(1, 0, 0, 154)
+        quickGridFrame.Size = UDim2.new(1, 0, 0, 194)
         quickGridFrame.BackgroundTransparency = 1
         quickGridFrame.LayoutOrder = 4
         quickGridFrame.ZIndex = 8
@@ -9814,6 +9836,8 @@ local function buildMainUI()
         gridLayout.Parent = quickGridFrame
 
         local QUICK_GRID_ITEMS = {
+            { key = "bang",      label = "Bang"       },
+            { key = "goon",      label = "Goon"       },
             { key = "facebang",  label = "Face Bang"  },
             { key = "backshots", label = "Backshots"  },
             { key = "headsit",   label = "Headsit"    },
@@ -10303,17 +10327,18 @@ local function buildMainUI()
         createActionRow(sigGrp, 3, "Give 'Jerk Off' Backpack Tool", "Spawns equippable Jerk Troll tool in your Backpack", "Get Tool", function()
             EmoteHub:GiveJerkTool()
         end)
-        addPresetRow(sigGrp, 4, "bang",      "Bang (Universal R15/R6)", "Custom Bang Animation ID (85194549268064) + pelvis lock")
-        addPresetRow(sigGrp, 5, "facebang",  "Facebang",  "Head-locked oscillation with live height solver & Bang anim")
-        addPresetRow(sigGrp, 6, "backshots", "Backshots", "Pelvis-locked oscillation with scale alignment & Bang anim")
-        addPresetRow(sigGrp, 7, "headsit",   "Headsit",   "Seated lock flush on top of target head")
-        addPresetRow(sigGrp, 8, "headpat",   "Headpat",   "Gentle upper-body patting weld above target")
-        addPresetRow(sigGrp, 9, "kiss",      "Kiss",      "Front face-to-face close alignment lock")
-        addPresetRow(sigGrp, 10, "backpack",  "Backpack",  "Rear upper-back piggyback ride lock")
-        addPresetRow(sigGrp, 11, "propose",   "Propose",    "Kneeling front showcase pose lock")
-        addPresetRow(sigGrp, 12, "lawl",      "Lawl",       "Front laughing taunt lock")
-        addPresetRow(sigGrp, 13, "hug",       "Hug",        "Close torso embrace lock")
-        addPresetRow(sigGrp, 14, "chootlelo", "Choot Lelo", "Close lower-torso rapid oscillation lock & Bang anim")
+        addPresetRow(sigGrp, 4, "bang",      "Bang (Universal R15/R6)", "Custom Tesla Bang Animation ID (116235062592344) + pelvis lock")
+        addPresetRow(sigGrp, 5, "goon",      "Goon (Tesla)",            "Custom Tesla Goon Animation ID (136828069054505) + target lock")
+        addPresetRow(sigGrp, 6, "facebang",  "Facebang",  "Head-locked oscillation with live height solver & Bang anim")
+        addPresetRow(sigGrp, 7, "backshots", "Backshots", "Pelvis-locked oscillation with scale alignment & Bang anim")
+        addPresetRow(sigGrp, 8, "headsit",   "Headsit",   "Seated lock flush on top of target head")
+        addPresetRow(sigGrp, 9, "headpat",   "Headpat",   "Gentle upper-body patting weld above target")
+        addPresetRow(sigGrp, 10, "kiss",      "Kiss",      "Front face-to-face close alignment lock")
+        addPresetRow(sigGrp, 11, "backpack",  "Backpack",  "Rear upper-back piggyback ride lock")
+        addPresetRow(sigGrp, 12, "propose",   "Propose",    "Kneeling front showcase pose lock")
+        addPresetRow(sigGrp, 13, "lawl",      "Lawl",       "Front laughing taunt lock")
+        addPresetRow(sigGrp, 14, "hug",       "Hug",        "Close torso embrace lock")
+        addPresetRow(sigGrp, 15, "chootlelo", "Choot Lelo", "Close lower-torso rapid oscillation lock & Bang anim")
 
         createSectionTitle(weldPage, 4, "Pursuit, Void & Time Weapons")
         local voidGrp = createGroupCard(weldPage, 5)
@@ -11457,81 +11482,342 @@ local function buildMainUI()
             local mobileFlyUp, mobileFlyDown = false, false
             local mobileFlyHUD = nil
             local mobilePhaseLbl = nil
+        -- Tesla Deo Flight Animations (Moving: 99148979036185 | 16 Idle Hover Presets)
         local FLY_STYLES = {
             {
-                name = "SUPERHERO ⚡",
-                maxForwardPitch = 58,
-                maxBankRoll = 36,
-                hoverAmplitude = 1.65,
-                hoverFreq = 2.5,
-                r15 = {
-                    takeoff = { 616115533, 10921294559, 616008936 },
-                    float   = { 616006778, 10921132962, 616111295 },
-                    soar    = { 616108001, 10921291831, 616010382 },
-                    land    = { 616104706, 656115606, 507765000 },
-                },
-                r6 = {
-                    takeoff = { 125750702, 180436148 },
-                    float   = { 180436148, 180435571 },
-                    soar    = { 180436148, 125750702 },
-                    land    = { 180436148, 180435571 },
-                },
-            },
-            {
-                name = "NINJA / ANIME 🗡️",
-                maxForwardPitch = 64,
-                maxBankRoll = 42,
-                hoverAmplitude = 1.35,
-                hoverFreq = 3.1,
-                r15 = {
-                    takeoff = { 656117878, 10921159222, 616115533 },
-                    float   = { 656117400, 616006778, 10921132962 },
-                    soar    = { 656118852, 10921157929, 616108001 },
-                    land    = { 656115606, 616104706, 507765000 },
-                },
-                r6 = {
-                    takeoff = { 125750702, 180436148 },
-                    float   = { 180436148, 180435571 },
-                    soar    = { 180436148, 180426354 },
-                    land    = { 180436148, 180435571 },
-                },
-            },
-            {
-                name = "ARCANE GOD ✨",
-                maxForwardPitch = 36,
-                maxBankRoll = 28,
-                hoverAmplitude = 2.10,
-                hoverFreq = 2.0,
-                r15 = {
-                    takeoff = { 707829716, 616008936, 10921137402 },
-                    float   = { 707742142, 10921147841, 616006778 },
-                    soar    = { 616005863, 10921136539, 707853694 },
-                    land    = { 707829716, 616003713, 507765000 },
-                },
-                r6 = {
-                    takeoff = { 125750702, 180436148 },
-                    float   = { 180436148, 180435571 },
-                    soar    = { 180436148, 180435571 },
-                    land    = { 180436148, 180435571 },
-                },
-            },
-            {
-                name = "CLASSIC GLIDE 🕊️",
-                maxForwardPitch = 30,
-                maxBankRoll = 22,
+                name = "COCKY ⚡",
+                idleId = 121210361161914,
+                moveId = 99148979036185,
+                maxForwardPitch = 18,
+                maxBankRoll = 20,
                 hoverAmplitude = 1.15,
                 hoverFreq = 2.2,
                 r15 = {
-                    takeoff = { 616008936, 10921137402, 507765000 },
-                    float   = { 616006778, 10921132962, 507766666 },
-                    soar    = { 616010382, 10921135644, 616005863 },
-                    land    = { 616003713, 507765000, 616104706 },
+                    takeoff = { 121210361161914, 121210361161914, 616115533 },
+                    float   = { 121210361161914, 121210361161914, 616006778 },
+                    soar    = { 99148979036185, 121210361161914, 616108001 },
+                    land    = { 121210361161914, 121210361161914, 616104706 },
                 },
                 r6 = {
-                    takeoff = { 125750702, 180436148 },
-                    float   = { 180436148, 180435571 },
-                    soar    = { 180436148, 180426354 },
-                    land    = { 180436148, 180435571 },
+                    takeoff = { 121210361161914, 125750702, 180436148 },
+                    float   = { 121210361161914, 180436148, 180435571 },
+                    soar    = { 99148979036185, 180436148, 125750702 },
+                    land    = { 121210361161914, 180436148, 180435571 },
+                },
+            },
+            {
+                name = "AURA ✨",
+                idleId = 125294976115462,
+                moveId = 99148979036185,
+                maxForwardPitch = 18,
+                maxBankRoll = 20,
+                hoverAmplitude = 1.15,
+                hoverFreq = 2.2,
+                r15 = {
+                    takeoff = { 125294976115462, 121210361161914, 616115533 },
+                    float   = { 125294976115462, 121210361161914, 616006778 },
+                    soar    = { 99148979036185, 125294976115462, 616108001 },
+                    land    = { 125294976115462, 121210361161914, 616104706 },
+                },
+                r6 = {
+                    takeoff = { 125294976115462, 125750702, 180436148 },
+                    float   = { 125294976115462, 180436148, 180435571 },
+                    soar    = { 99148979036185, 180436148, 125750702 },
+                    land    = { 125294976115462, 180436148, 180435571 },
+                },
+            },
+            {
+                name = "RELAXED 🌊",
+                idleId = 132783162476851,
+                moveId = 99148979036185,
+                maxForwardPitch = 18,
+                maxBankRoll = 20,
+                hoverAmplitude = 1.15,
+                hoverFreq = 2.2,
+                r15 = {
+                    takeoff = { 132783162476851, 121210361161914, 616115533 },
+                    float   = { 132783162476851, 121210361161914, 616006778 },
+                    soar    = { 99148979036185, 132783162476851, 616108001 },
+                    land    = { 132783162476851, 121210361161914, 616104706 },
+                },
+                r6 = {
+                    takeoff = { 132783162476851, 125750702, 180436148 },
+                    float   = { 132783162476851, 180436148, 180435571 },
+                    soar    = { 99148979036185, 180436148, 125750702 },
+                    land    = { 132783162476851, 180436148, 180435571 },
+                },
+            },
+            {
+                name = "LAID-BACK 😎",
+                idleId = 130754299055067,
+                moveId = 99148979036185,
+                maxForwardPitch = 18,
+                maxBankRoll = 20,
+                hoverAmplitude = 1.15,
+                hoverFreq = 2.2,
+                r15 = {
+                    takeoff = { 130754299055067, 121210361161914, 616115533 },
+                    float   = { 130754299055067, 121210361161914, 616006778 },
+                    soar    = { 99148979036185, 130754299055067, 616108001 },
+                    land    = { 130754299055067, 121210361161914, 616104706 },
+                },
+                r6 = {
+                    takeoff = { 130754299055067, 125750702, 180436148 },
+                    float   = { 130754299055067, 180436148, 180435571 },
+                    soar    = { 99148979036185, 180436148, 125750702 },
+                    land    = { 130754299055067, 180436148, 180435571 },
+                },
+            },
+            {
+                name = "CHILL ❄️",
+                idleId = 125815409725539,
+                moveId = 99148979036185,
+                maxForwardPitch = 18,
+                maxBankRoll = 20,
+                hoverAmplitude = 1.15,
+                hoverFreq = 2.2,
+                r15 = {
+                    takeoff = { 125815409725539, 121210361161914, 616115533 },
+                    float   = { 125815409725539, 121210361161914, 616006778 },
+                    soar    = { 99148979036185, 125815409725539, 616108001 },
+                    land    = { 125815409725539, 121210361161914, 616104706 },
+                },
+                r6 = {
+                    takeoff = { 125815409725539, 125750702, 180436148 },
+                    float   = { 125815409725539, 180436148, 180435571 },
+                    soar    = { 99148979036185, 180436148, 125750702 },
+                    land    = { 125815409725539, 180436148, 180435571 },
+                },
+            },
+            {
+                name = "CASUAL 🕊️",
+                idleId = 130104867308995,
+                moveId = 99148979036185,
+                maxForwardPitch = 18,
+                maxBankRoll = 20,
+                hoverAmplitude = 1.15,
+                hoverFreq = 2.2,
+                r15 = {
+                    takeoff = { 130104867308995, 121210361161914, 616115533 },
+                    float   = { 130104867308995, 121210361161914, 616006778 },
+                    soar    = { 99148979036185, 130104867308995, 616108001 },
+                    land    = { 130104867308995, 121210361161914, 616104706 },
+                },
+                r6 = {
+                    takeoff = { 130104867308995, 125750702, 180436148 },
+                    float   = { 130104867308995, 180436148, 180435571 },
+                    soar    = { 99148979036185, 180436148, 125750702 },
+                    land    = { 130104867308995, 180436148, 180435571 },
+                },
+            },
+            {
+                name = "SMUG 😏",
+                idleId = 83065143783783,
+                moveId = 99148979036185,
+                maxForwardPitch = 18,
+                maxBankRoll = 20,
+                hoverAmplitude = 1.15,
+                hoverFreq = 2.2,
+                r15 = {
+                    takeoff = { 83065143783783, 121210361161914, 616115533 },
+                    float   = { 83065143783783, 121210361161914, 616006778 },
+                    soar    = { 99148979036185, 83065143783783, 616108001 },
+                    land    = { 83065143783783, 121210361161914, 616104706 },
+                },
+                r6 = {
+                    takeoff = { 83065143783783, 125750702, 180436148 },
+                    float   = { 83065143783783, 180436148, 180435571 },
+                    soar    = { 99148979036185, 180436148, 125750702 },
+                    land    = { 83065143783783, 180436148, 180435571 },
+                },
+            },
+            {
+                name = "INTIMIDATING 🔥",
+                idleId = 113644780745425,
+                moveId = 99148979036185,
+                maxForwardPitch = 18,
+                maxBankRoll = 20,
+                hoverAmplitude = 1.15,
+                hoverFreq = 2.2,
+                r15 = {
+                    takeoff = { 113644780745425, 121210361161914, 616115533 },
+                    float   = { 113644780745425, 121210361161914, 616006778 },
+                    soar    = { 99148979036185, 113644780745425, 616108001 },
+                    land    = { 113644780745425, 121210361161914, 616104706 },
+                },
+                r6 = {
+                    takeoff = { 113644780745425, 125750702, 180436148 },
+                    float   = { 113644780745425, 180436148, 180435571 },
+                    soar    = { 99148979036185, 180436148, 125750702 },
+                    land    = { 113644780745425, 180436148, 180435571 },
+                },
+            },
+            {
+                name = "ANNOYED 💢",
+                idleId = 93326430026112,
+                moveId = 99148979036185,
+                maxForwardPitch = 18,
+                maxBankRoll = 20,
+                hoverAmplitude = 1.15,
+                hoverFreq = 2.2,
+                r15 = {
+                    takeoff = { 93326430026112, 121210361161914, 616115533 },
+                    float   = { 93326430026112, 121210361161914, 616006778 },
+                    soar    = { 99148979036185, 93326430026112, 616108001 },
+                    land    = { 93326430026112, 121210361161914, 616104706 },
+                },
+                r6 = {
+                    takeoff = { 93326430026112, 125750702, 180436148 },
+                    float   = { 93326430026112, 180436148, 180435571 },
+                    soar    = { 99148979036185, 180436148, 125750702 },
+                    land    = { 93326430026112, 180436148, 180435571 },
+                },
+            },
+            {
+                name = "DEMONIC 😈",
+                idleId = 98789048056989,
+                moveId = 99148979036185,
+                maxForwardPitch = 18,
+                maxBankRoll = 20,
+                hoverAmplitude = 1.15,
+                hoverFreq = 2.2,
+                r15 = {
+                    takeoff = { 98789048056989, 121210361161914, 616115533 },
+                    float   = { 98789048056989, 121210361161914, 616006778 },
+                    soar    = { 99148979036185, 98789048056989, 616108001 },
+                    land    = { 98789048056989, 121210361161914, 616104706 },
+                },
+                r6 = {
+                    takeoff = { 98789048056989, 125750702, 180436148 },
+                    float   = { 98789048056989, 180436148, 180435571 },
+                    soar    = { 99148979036185, 180436148, 125750702 },
+                    land    = { 98789048056989, 180436148, 180435571 },
+                },
+            },
+            {
+                name = "AGGRESSIVE ⚔️",
+                idleId = 95062290362918,
+                moveId = 99148979036185,
+                maxForwardPitch = 18,
+                maxBankRoll = 20,
+                hoverAmplitude = 1.15,
+                hoverFreq = 2.2,
+                r15 = {
+                    takeoff = { 95062290362918, 121210361161914, 616115533 },
+                    float   = { 95062290362918, 121210361161914, 616006778 },
+                    soar    = { 99148979036185, 95062290362918, 616108001 },
+                    land    = { 95062290362918, 121210361161914, 616104706 },
+                },
+                r6 = {
+                    takeoff = { 95062290362918, 125750702, 180436148 },
+                    float   = { 95062290362918, 180436148, 180435571 },
+                    soar    = { 99148979036185, 180436148, 125750702 },
+                    land    = { 95062290362918, 180436148, 180435571 },
+                },
+            },
+            {
+                name = "CONQUEST 👑",
+                idleId = 91850736796162,
+                moveId = 99148979036185,
+                maxForwardPitch = 18,
+                maxBankRoll = 20,
+                hoverAmplitude = 1.15,
+                hoverFreq = 2.2,
+                r15 = {
+                    takeoff = { 91850736796162, 121210361161914, 616115533 },
+                    float   = { 91850736796162, 121210361161914, 616006778 },
+                    soar    = { 99148979036185, 91850736796162, 616108001 },
+                    land    = { 91850736796162, 121210361161914, 616104706 },
+                },
+                r6 = {
+                    takeoff = { 91850736796162, 125750702, 180436148 },
+                    float   = { 91850736796162, 180436148, 180435571 },
+                    soar    = { 99148979036185, 180436148, 125750702 },
+                    land    = { 91850736796162, 180436148, 180435571 },
+                },
+            },
+            {
+                name = "VILTRUMITE 🦸",
+                idleId = 124574039035034,
+                moveId = 99148979036185,
+                maxForwardPitch = 18,
+                maxBankRoll = 20,
+                hoverAmplitude = 1.15,
+                hoverFreq = 2.2,
+                r15 = {
+                    takeoff = { 124574039035034, 121210361161914, 616115533 },
+                    float   = { 124574039035034, 121210361161914, 616006778 },
+                    soar    = { 99148979036185, 124574039035034, 616108001 },
+                    land    = { 124574039035034, 121210361161914, 616104706 },
+                },
+                r6 = {
+                    takeoff = { 124574039035034, 125750702, 180436148 },
+                    float   = { 124574039035034, 180436148, 180435571 },
+                    soar    = { 99148979036185, 180436148, 125750702 },
+                    land    = { 124574039035034, 180436148, 180435571 },
+                },
+            },
+            {
+                name = "TRACK-SUIT 🧥",
+                idleId = 125313210961391,
+                moveId = 99148979036185,
+                maxForwardPitch = 18,
+                maxBankRoll = 20,
+                hoverAmplitude = 1.15,
+                hoverFreq = 2.2,
+                r15 = {
+                    takeoff = { 125313210961391, 121210361161914, 616115533 },
+                    float   = { 125313210961391, 121210361161914, 616006778 },
+                    soar    = { 99148979036185, 125313210961391, 616108001 },
+                    land    = { 125313210961391, 121210361161914, 616104706 },
+                },
+                r6 = {
+                    takeoff = { 125313210961391, 125750702, 180436148 },
+                    float   = { 125313210961391, 180436148, 180435571 },
+                    soar    = { 99148979036185, 180436148, 125750702 },
+                    land    = { 125313210961391, 180436148, 180435571 },
+                },
+            },
+            {
+                name = "BALD-MARK 💥",
+                idleId = 10921259953,
+                moveId = 99148979036185,
+                maxForwardPitch = 18,
+                maxBankRoll = 20,
+                hoverAmplitude = 1.15,
+                hoverFreq = 2.2,
+                r15 = {
+                    takeoff = { 10921259953, 121210361161914, 616115533 },
+                    float   = { 10921259953, 121210361161914, 616006778 },
+                    soar    = { 99148979036185, 10921259953, 616108001 },
+                    land    = { 10921259953, 121210361161914, 616104706 },
+                },
+                r6 = {
+                    takeoff = { 10921259953, 125750702, 180436148 },
+                    float   = { 10921259953, 180436148, 180435571 },
+                    soar    = { 99148979036185, 180436148, 125750702 },
+                    land    = { 10921259953, 180436148, 180435571 },
+                },
+            },
+            {
+                name = "ALT-MARK ⚡",
+                idleId = 133330377145015,
+                moveId = 99148979036185,
+                maxForwardPitch = 18,
+                maxBankRoll = 20,
+                hoverAmplitude = 1.15,
+                hoverFreq = 2.2,
+                r15 = {
+                    takeoff = { 133330377145015, 121210361161914, 616115533 },
+                    float   = { 133330377145015, 121210361161914, 616006778 },
+                    soar    = { 99148979036185, 133330377145015, 616108001 },
+                    land    = { 133330377145015, 121210361161914, 616104706 },
+                },
+                r6 = {
+                    takeoff = { 133330377145015, 125750702, 180436148 },
+                    float   = { 133330377145015, 180436148, 180435571 },
+                    soar    = { 99148979036185, 180436148, 125750702 },
+                    land    = { 133330377145015, 180436148, 180435571 },
                 },
             },
         }
@@ -12477,18 +12763,21 @@ local function buildMainUI()
                     local desiredGyroCF = baseYawCF * CFrame.Angles(targetPitch, 0, targetRoll)
                     bg.CFrame = bg.CFrame:Lerp(desiredGyroCF, math.clamp(dt * 12, 0.08, 1.0))
 
-                    -- Switch/maintain replicated Roblox AnimationTrack & procedural joint choreography safely
+                    -- Switch/maintain replicated Tesla Flight AnimationTracks (Moving: 99148979036185 | Idle: 16 Tesla Presets)
                     pcall(function()
-                        if newPhase == "TAKEOFF" then
-                            switchFlyAnimPhase(ch, hum, "takeoff", 1.15)
-                        elseif newPhase == "LANDING" then
-                            switchFlyAnimPhase(ch, hum, "land", 1.0)
-                        elseif newPhase == "SOAR" then
-                            switchFlyAnimPhase(ch, hum, "soar", math.clamp(0.85 + speedNorm * 0.45, 0.85, 1.65))
+                        if moving or newPhase == "SOAR" then
+                            switchFlyAnimPhase(ch, hum, "soar", 1.0)
                         else
-                            switchFlyAnimPhase(ch, hum, "float", 0.65)
+                            switchFlyAnimPhase(ch, hum, "float", 1.0)
                         end
-                        stepProceduralFlyPose(ch, hum, newPhase, now - phaseStartTime, hoverClock, speedNorm, dt)
+                        local activeTr = ActiveFlyPhaseKey and ActiveFlyTracks[ActiveFlyPhaseKey]
+                        local r15TrackPlaying = isR15(LP) and activeTr and activeTr.IsPlaying
+                        if r15TrackPlaying then
+                            -- Let the native Tesla R15 Fly animations (99148979036185 & Idle Presets) play cleanly without Motor6D C0 overrides
+                            restoreAllFlyJoints(ch)
+                        else
+                            stepProceduralFlyPose(ch, hum, newPhase, now - phaseStartTime, hoverClock, speedNorm, dt)
+                        end
                     end)
                 end)
             end
