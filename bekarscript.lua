@@ -783,10 +783,11 @@ do
         end
         addCand(animId)
         for _, f in ipairs(fallbacks or {}) do addCand(f) end
-        -- Pass 1: Strict keyframe length verification (skips sanitized/unowned IDs immediately)
-        for _, id in ipairs(cands) do
+        -- Pass 1: Prioritize primary animation ID (e.g. 85194549268064) with streaming tolerance, then verify fallbacks
+        for idx, id in ipairs(cands) do
             for attempt = 1, ANIM_MAX_ATTEMPTS do
-                local track, anim, ok, cleanId = tryPlayOnce(Animator, id, hum, priority, false)
+                local allowStream = (idx == 1 and attempt == ANIM_MAX_ATTEMPTS)
+                local track, anim, ok, cleanId = tryPlayOnce(Animator, id, hum, priority, allowStream)
                 if ok then return track, anim, cleanId end
                 if anim then pcall(function() anim:Destroy() end) end
                 if attempt < ANIM_MAX_ATTEMPTS then task.wait(0.03) end
@@ -1348,15 +1349,18 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
     local function scrubBangTrackWindow(tr, speedMult)
         if not tr or not isBangPreset then return end
         pcall(function()
-            if ActiveAnimDigits == "5918726674" then
-                -- Official Roblox Dolphin Dance (R15 Bang): loop pelvic-thrust keyframe window [0.42 .. 0.86]
+            if ActiveAnimDigits == "85194549268064" then
+                -- Primary Bang Animation ID (85194549268064)
+                tr:AdjustSpeed(math.clamp(speedMult, 0.2, 6.0))
+            elseif ActiveAnimDigits == "5918726674" then
+                -- Fallback R15 Bang: loop pelvic-thrust keyframe window [0.42 .. 0.86]
                 tr:AdjustSpeed(math.clamp(speedMult * 1.35, 0.35, 7.0))
                 local tp = tr.TimePosition
                 if tp < 0.40 or tp > 0.86 then
                     tr.TimePosition = 0.44
                 end
             elseif ActiveAnimDigits == "148840371" then
-                -- Official Roblox Classic R6 Bang: loop thrust keyframe window [0.15 .. 0.68]
+                -- Fallback Classic R6 Bang: loop thrust keyframe window [0.15 .. 0.68]
                 tr:AdjustSpeed(math.clamp(speedMult * 1.45, 0.35, 7.0))
                 local tp = tr.TimePosition
                 if tp < 0.14 or tp > 0.68 then
@@ -1711,26 +1715,25 @@ end
 
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- 🔞 UNIVERSAL R15 & R6 BANG & WELD PRESET MATRIX
---   • R15 Primary Bang ID: 5918726674 (Official Roblox Dolphin Dance thrust window [0.42..0.86])
---   • R15 Universal Fallbacks: 10714010337 (Billy Bounce), 4555808220 (Ride), 5915714366 (Panini),
+--   • Primary Bang Animation ID: 85194549268064
+--   • R15 Fallbacks: 5918726674, 10714010337 (Billy Bounce), 4555808220 (Ride), 5915714366 (Panini),
 --     128342454196913, 109168916859109, 3333499508, 507771019
---   • R6 Primary Bang ID: 148840371 (Official Roblox Classic R6 Bang thrust window [0.15..0.68])
---   • R6 Universal Fallbacks: 182436842, 180435571, 182435998, 178130996
+--   • R6 Fallbacks: 148840371, 182436842, 180435571, 182435998, 178130996
 -- ═══════════════════════════════════════════════════════════════════════════════
-local BANG_FALLBACKS_R15 = { 10714010337, 4555808220, 5915714366, 128342454196913, 109168916859109, 3333499508, 507771019 }
-local BANG_FALLBACKS_R6  = { 182436842, 180435571, 182435998, 178130996 }
+local BANG_FALLBACKS_R15 = { 85194549268064, 5918726674, 10714010337, 4555808220, 5915714366, 128342454196913, 109168916859109, 3333499508, 507771019 }
+local BANG_FALLBACKS_R6  = { 85194549268064, 148840371, 182436842, 180435571, 182435998, 178130996 }
 
 local WELD_PRESETS = {
     bang      = { offset = CFrame.new(0, 0, 2.85),
-                  anim15 = 5918726674, anim6 = 148840371,
+                  anim15 = 85194549268064, anim6 = 85194549268064,
                   animFallbacks = BANG_FALLBACKS_R15, animFallbacks6 = BANG_FALLBACKS_R6,
                   osc = {distance = 2.6, period = 0.20}, refMode = "torso", label = "Bang" },
     facebang  = { offset = CFrame.new(0, 2.5, -3.8) * CFrame.Angles(0, math.rad(180), 0),
-                  anim15 = 5918726674, anim6 = 148840371,
+                  anim15 = 85194549268064, anim6 = 85194549268064,
                   animFallbacks = BANG_FALLBACKS_R15, animFallbacks6 = BANG_FALLBACKS_R6,
                   osc = {distance = 2.9, period = 0.22}, refMode = "head", label = "Face Bang" },
     backshots = { offset = CFrame.new(0, 0, 3.2),
-                  anim15 = 5918726674, anim6 = 148840371,
+                  anim15 = 85194549268064, anim6 = 85194549268064,
                   animFallbacks = BANG_FALLBACKS_R15, animFallbacks6 = BANG_FALLBACKS_R6,
                   osc = {distance = 2.9, period = 0.22}, refMode = "torso", label = "Backshots" },
     headsit   = { offset = CFrame.new(0, 1.2, 0),
@@ -1769,7 +1772,7 @@ local WELD_PRESETS = {
                   animFallbacks6 = {180435571, 128777973},
                   osc = nil, refMode = "torso", label = "Hug" },
     chootlelo = { offset = CFrame.new(0, -0.35, -1.55) * CFrame.Angles(0, math.rad(180), 0),
-                  anim15 = 5918726674, anim6 = 148840371,
+                  anim15 = 85194549268064, anim6 = 85194549268064,
                   animFallbacks = BANG_FALLBACKS_R15, animFallbacks6 = BANG_FALLBACKS_R6,
                   osc = {distance = 2.4, period = 0.19}, refMode = "torso", label = "Choot Lelo" },
 }
@@ -10300,7 +10303,7 @@ local function buildMainUI()
         createActionRow(sigGrp, 3, "Give 'Jerk Off' Backpack Tool", "Spawns equippable Jerk Troll tool in your Backpack", "Get Tool", function()
             EmoteHub:GiveJerkTool()
         end)
-        addPresetRow(sigGrp, 4, "bang",      "Bang (Universal R15/R6)", "Verified Roblox Bang ID (5918726674 / 148840371) + pelvis lock")
+        addPresetRow(sigGrp, 4, "bang",      "Bang (Universal R15/R6)", "Custom Bang Animation ID (85194549268064) + pelvis lock")
         addPresetRow(sigGrp, 5, "facebang",  "Facebang",  "Head-locked oscillation with live height solver & Bang anim")
         addPresetRow(sigGrp, 6, "backshots", "Backshots", "Pelvis-locked oscillation with scale alignment & Bang anim")
         addPresetRow(sigGrp, 7, "headsit",   "Headsit",   "Seated lock flush on top of target head")
