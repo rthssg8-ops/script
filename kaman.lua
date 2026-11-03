@@ -1009,35 +1009,35 @@ end
 
 local BANG_ANIM_ID = 116235062592344
 
--- Calibrated offsets for BANG_ANIM_ID (116235062592344) with Tesla Height Adjustment (Y = 1.2 for Face Bang, Y = 0 for Backshots):
+-- Exact Tesla File (root.70.60, root.70.61, root.70.62) Height & Distance Adjustments for All Features:
 WELD_PRESETS = {
-    facebang  = { offset = CFrame.new(0, 1.2, -1.25) * CFrame.Angles(0, math.rad(180), 0),
+    facebang  = { offset = CFrame.new(0, 1.2, -3.0) * CFrame.Angles(0, math.rad(180), 0),
                   anim15 = BANG_ANIM_ID, anim6 = BANG_ANIM_ID,
                   animFallbacks = {128342454196913, 5918726674, 148840371, 4555808220, 109168916859109},
-                  osc = {distance = 1.15, period = 0.16}, refMode = "head", label = "Face Bang" },
-    backshots = { offset = CFrame.new(0, 0, 1.25),
+                  osc = {distance = 2.5, period = 0.20}, refMode = "head", label = "Face Bang" },
+    backshots = { offset = CFrame.new(0, 0, 2.5),
                   anim15 = BANG_ANIM_ID, anim6 = BANG_ANIM_ID,
                   animFallbacks = {128342454196913, 5918726674, 148840371, 4555808220, 109168916859109},
-                  osc = {distance = 1.15, period = 0.16}, refMode = "torso", label = "Backshots" },
-    headsit   = { offset = CFrame.new(0, 1.2, 0),
+                  osc = {distance = 2.0, period = 0.20}, refMode = "torso", label = "Backshots" },
+    headsit   = { offset = CFrame.new(0, 1.5, 0),
                   anim15 = 2506281703, anim6 = 2506281703,
                   animFallbacks = {2510238627, 507768375, 180426354},
                   osc = nil, refMode = "head", label = "Headsit" },
-    kiss      = { offset = CFrame.new(0, 0, -1.1) * CFrame.Angles(0, math.rad(180), 0),
+    kiss      = { offset = CFrame.new(0, 0, -1.2) * CFrame.Angles(0, math.rad(180), 0),
                   anim15 = 81124524945738, anim6 = 81124524945738,
                   animFallbacks = {3576686446, 3019619673, 15849372443},
                   osc = nil, refMode = "torso", label = "Kiss" },
-    backpack  = { offset = CFrame.new(0, 0, 1.05) * CFrame.Angles(0, math.rad(180), 0),
+    backpack  = { offset = CFrame.new(0, 0.5, 1.1) * CFrame.Angles(0, math.rad(180), 0),
                   anim15 = 2506281703, anim6 = 2506281703,
                   animFallbacks = {2510238627, 507768375, 180426354},
                   osc = nil, refMode = "torso", label = "Backpack" },
-    headpat   = { offset = CFrame.new(0, 0, -1.9) * CFrame.Angles(0, math.rad(180), 0),
+    headpat   = { offset = CFrame.new(0, 0, -2.5) * CFrame.Angles(0, math.rad(180), 0),
                   anim15 = 114313599861536, anim6 = 114313599861536,
                   animFallbacks = {}, osc = nil, refMode = "torso", label = "Headpat" },
-    propose   = { offset = CFrame.new(0, 0, -3.5) * CFrame.Angles(0, math.rad(180), 0),
+    propose   = { offset = CFrame.new(0, -1.0, -2.5) * CFrame.Angles(0, math.rad(180), 0),
                   anim15 = 70639053125611, anim6 = 70639053125611,
                   animFallbacks = {}, osc = nil, refMode = "torso", label = "Propose" },
-    hug       = { offset = CFrame.new(0, 0, -1.4) * CFrame.Angles(0, math.rad(180), 0),
+    hug       = { offset = CFrame.new(0, 0, -1.2) * CFrame.Angles(0, math.rad(180), 0),
                   anim15 = 95247520541805, anim6 = 95247520541805,
                   animFallbacks = {}, osc = nil, refMode = "torso", label = "Hug" },
 }
@@ -1045,7 +1045,7 @@ WELD_PRESETS = {
 WELD_PRESETS.bang = WELD_PRESETS.backshots
 
 WELD_PRESETS.chase = {
-    offset = CFrame.new(0, 0, 2.2),
+    offset = CFrame.new(0, 0, 1.5),
     anim15 = nil,
     anim6  = nil,
     animFallbacks = {},
