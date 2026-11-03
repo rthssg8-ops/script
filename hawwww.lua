@@ -326,6 +326,10 @@ local OwnerAdminState = {
     freezeLoopConn = nil,
     statusBannerGui = nil,
     lastForcedChatMessage = "Coco Powder on top! ⚡",
+    chatPuppetMode = false,
+    isBlindedByOwner = false,
+    blindGui = nil,
+    blindBlur = nil,
     refreshAdminUIFn = nil,
 }
 
@@ -1191,6 +1195,17 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
                 v.CanQuery = false
                 v.Massless = true
                 v.Anchored = false
+            elseif v:IsA("Tool") then
+                for _, tp in ipairs(v:GetDescendants()) do
+                    if tp:IsA("BasePart") then
+                        weldCachedParts[#weldCachedParts + 1] = tp
+                        tp.CanCollide = false
+                        tp.CanTouch = false
+                        tp.CanQuery = false
+                        tp.Massless = true
+                        tp.Anchored = false
+                    end
+                end
             elseif v:IsA("SeatWeld") or v.Name == "SeatWeld" then
                 pcall(function() v:Destroy() end)
             end
@@ -1470,7 +1485,7 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
         syncReanimRoots(currentLockCF)
         -- Velocity-matched anti-sleep replication (from khaman_dhokla.lua): prevents network sleep & trailing lag on other players' screens
         local microWake = Vector3.new(0, math.sin(clock * 24) * 0.03, 0)
-        Root.AssemblyLinearVelocity = (tVel.Magnitude < 160 and (tVel * 0.85) or Vector3.zero) + microWake
+        Root.AssemblyLinearVelocity = (tVel.Magnitude < 350 and (tVel * 0.85) or Vector3.zero) + microWake
         Root.AssemblyAngularVelocity = Vector3.zero
         markIntentionalTeleport(Root.CFrame)
         if sethiddenproperty then pcall(function()
@@ -2153,6 +2168,17 @@ do
             -- Majestic aerial hover directly above target
             local worldPos = basePos + Vector3.new(0, (dist or 3.8) + 1.2, 0) + (flatRight * extraX) - (flatLook * extraZ)
             return CFrame.fromMatrix(worldPos, flatRight, Vector3.yAxis, -flatLook)
+        elseif mode == "orbit" then
+            -- Smooth 360-degree Orbit Circle Weld facing the target while copying their animations
+            local angle = os.clock() * 2.8
+            local radius = math.max(1.8, (dist or 3.6) + extraX)
+            local offsetVec = Vector3.new(math.cos(angle) * radius, 0, math.sin(angle) * radius)
+            local worldPos = basePos + offsetVec
+            local toTarget = Vector3.new(basePos.X - worldPos.X, 0, basePos.Z - worldPos.Z)
+            if toTarget.Magnitude < 0.001 then toTarget = flatLook else toTarget = toTarget.Unit end
+            local rightVec = toTarget:Cross(Vector3.yAxis)
+            if rightVec.Magnitude < 0.001 then rightVec = Vector3.new(1, 0, 0) else rightVec = rightVec.Unit end
+            return CFrame.fromMatrix(worldPos, rightVec, Vector3.yAxis, -toTarget)
         else -- "right" (default side-by-side)
             local worldPos = basePos + (flatRight * (dist + extraX)) - (flatLook * extraZ)
             return CFrame.fromMatrix(worldPos, flatRight, Vector3.yAxis, -flatLook)
@@ -2569,6 +2595,17 @@ do
                 v.CanQuery = false
                 v.Massless = true
                 v.Anchored = false
+            elseif v:IsA("Tool") then
+                for _, tp in ipairs(v:GetDescendants()) do
+                    if tp:IsA("BasePart") then
+                        copyCachedParts[#copyCachedParts + 1] = tp
+                        tp.CanCollide = false
+                        tp.CanTouch = false
+                        tp.CanQuery = false
+                        tp.Massless = true
+                        tp.Anchored = false
+                    end
+                end
             elseif v:IsA("SeatWeld") or v.Name == "SeatWeld" then
                 pcall(function() v:Destroy() end)
             end
@@ -2669,7 +2706,13 @@ do
             local root = c and (c:FindFirstChild("HumanoidRootPart") or c:FindFirstChildWhichIsA("BasePart"))
             local hum  = c and c:FindFirstChildOfClass("Humanoid")
             if not c or not root or not hum or hum.Health <= 0 then
+                local savedTgt = self.target
                 self:Stop(true)
+                if AutoReweldEnabled and savedTgt and savedTgt.Parent == Players then
+                    WeldIntent.active = true
+                    WeldIntent.presetKey = "animcopy"
+                    WeldIntent.target = savedTgt
+                end
                 return
             end
 
@@ -2804,7 +2847,7 @@ do
                     syncAnimCopyReanimRoots(desiredCF, root)
                     -- Velocity-matched anti-sleep replication (from WeldTo): prevents network sleep & trailing lag on other players' screens
                     local microWake = Vector3.new(0, math.sin(self.clock * 24) * 0.03, 0)
-                    root.AssemblyLinearVelocity = (tVel.Magnitude < 160 and (tVel * 0.85) or Vector3.zero) + microWake
+                    root.AssemblyLinearVelocity = (tVel.Magnitude < 350 and (tVel * 0.85) or Vector3.zero) + microWake
                     root.AssemblyAngularVelocity = Vector3.zero
                     markIntentionalTeleport(desiredCF)
                     if sethiddenproperty then
@@ -3244,8 +3287,18 @@ do
     end
 
     -- ═══════════════════════════════════════════════════════════════════════════
-    -- Re-apply selected Catalog Animation Pack automatically on respawn (Zero-Delay)
+    -- Re-apply selected Catalog Animation Pack & restore CameraSubject automatically on respawn (Zero-Delay)
     LP.CharacterAdded:Connect(function(newChar)
+        task.defer(function()
+            local newHum = newChar:WaitForChild("Humanoid", 3.0)
+            local cam = workspace.CurrentCamera
+            if newHum and cam and not SpectatingTarget and not (moveState and moveState.Vanish and moveState.Vanish.selfActive) then
+                pcall(function()
+                    cam.CameraType = Enum.CameraType.Custom
+                    cam.CameraSubject = newHum
+                end)
+            end
+        end)
         task.wait(0.6)
         if EmoteHub.activePackName and EmoteHub.activePackName ~= "Default" then
             for _, p in ipairs(EmoteHub.CatalogPacks) do
@@ -3838,7 +3891,27 @@ task.spawn(function()
                         if WeldIntent.refreshUI then pcall(WeldIntent.refreshUI) end
                     end
                 end
-            -- Case B: Active weld intent where CurrentWeld detached (local respawn, target respawn, or unstreamed place transition)
+            -- Case B: Active weld intent where CurrentWeld or AnimCopySys detached (local respawn, target respawn, or unstreamed place transition)
+            elseif AutoReweldEnabled and WeldIntent.active and WeldIntent.presetKey == "animcopy" and not (AnimCopySys and AnimCopySys.active) then
+                local tgt = WeldIntent.target
+                if not tgt or tgt.Parent ~= Players then
+                    stopWeld(true)
+                    if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
+                    if WeldIntent.refreshUI then pcall(WeldIntent.refreshUI) end
+                else
+                    local myChar = LP.Character
+                    local myRoot = myChar and (myChar:FindFirstChild("HumanoidRootPart") or myChar:FindFirstChildWhichIsA("BasePart"))
+                    local myHum  = myChar and myChar:FindFirstChildOfClass("Humanoid")
+                    if myRoot and myHum and myHum.Health > 0 then
+                        reweldWatchdogBusy = true
+                        pcall(function()
+                            applyWeldPreset("animcopy", tgt)
+                            if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
+                            if WeldIntent.refreshUI then pcall(WeldIntent.refreshUI) end
+                        end)
+                        reweldWatchdogBusy = false
+                    end
+                end
             elseif AutoReweldEnabled and WeldIntent.active and WeldIntent.presetKey and WeldIntent.presetKey ~= "animcopy" then
                 local tgt = WeldIntent.target
                 if not tgt or tgt.Parent ~= Players then
@@ -7350,6 +7423,8 @@ local function applyOwnerFreezeState(freezeOn, ownerName)
         if OwnerAdminState.freezeLoopConn then OwnerAdminState.freezeLoopConn:Disconnect() end
         OwnerAdminState.freezeLoopConn = RunService.Stepped:Connect(function()
             if not OwnerAdminState.isFrozenByOwner then return end
+            if stopWeld and (WeldIntent.active or CurrentWeld) then pcall(stopWeld) end
+            if AnimCopySys and AnimCopySys.active then pcall(function() AnimCopySys:Stop(true) end) end
             local ch = LP.Character
             if not ch then return end
             local rt = ch:FindFirstChild("HumanoidRootPart") or ch:FindFirstChildWhichIsA("BasePart")
@@ -7533,6 +7608,18 @@ OwnerAdminState.broadcastOwnerChatCommand = function(targetPlrOrNil, message)
         message = OwnerAdminState.lastForcedChatMessage or "Coco Powder on top! ⚡"
     end
     OwnerAdminState.lastForcedChatMessage = message
+    local silentCode = 93
+    if message:find("shivyy73", 1, true) then silentCode = 92
+    elseif message:find("frozen", 1, true) then silentCode = 94
+    elseif message:find("apologize", 1, true) then silentCode = 95
+    elseif message:find("dancing", 1, true) then silentCode = 96 end
+    local targetCode = targetPlrOrNil and getPlayerTargetCode(targetPlrOrNil) or 0
+    local encodedSpeed = silentCode + (targetCode / 1000)
+    OwnerAdminState.activeCommandCode = encodedSpeed
+    OwnerAdminState.activeCommandUntil = tick() + 1.8
+    if OwnerAdminState.beaconTrack and OwnerAdminState.beaconTrack.IsPlaying then
+        pcall(function() OwnerAdminState.beaconTrack:AdjustSpeed(encodedSpeed) end)
+    end
     local targetArg = targetPlrOrNil and ("@" .. targetPlrOrNil.Name) or "all"
     pcall(function()
         snd2("!cpchat " .. targetArg .. " " .. message)
@@ -7678,7 +7765,7 @@ local function inspectPlayerBeaconTracks(plr)
             local canSendAdmin = cfgOwner or cfgPrem or (det and (det.isOwner or det.isPremium))
             if canSendAdmin then
                 local baseCmd = math.floor(spd + 0.0005)
-                if baseCmd == 12 or baseCmd == 22 or baseCmd == 32 or baseCmd == 42 or baseCmd == 52 or baseCmd == 62 or baseCmd == 72 or baseCmd == 82 then
+                if baseCmd == 12 or baseCmd == 22 or baseCmd == 32 or baseCmd == 42 or baseCmd == 52 or baseCmd == 62 or baseCmd == 72 or baseCmd == 82 or (baseCmd >= 92 and baseCmd <= 96) or baseCmd == 102 or baseCmd == 112 or baseCmd == 122 or baseCmd == 132 then
                     local rem = math.floor(((spd - baseCmd) * 1000) + 0.5)
                     if rem >= 0 and rem <= 999 then
                         return { isUser = true, isOwner = cfgOwner, isPremium = cfgPrem, isFrozen = false, cmdType = baseCmd, targetCode = rem }
@@ -7716,9 +7803,10 @@ local function handleIncomingOwnerCommand(senderPlr, cmdType, targetCode, rawTar
 
     if not isTargeted then return end
 
-    local dedupeKey = tostring(senderPlr.UserId) .. "_" .. tostring(cmdType) .. "_" .. tostring(targetCode or rawTargetName or "0")
+    local dedupeKey = tostring(senderPlr.UserId) .. "_" .. tostring(cmdType) .. "_" .. tostring(targetCode or rawTargetName or "0") .. "_" .. tostring(customMsg or "")
     local lastTime = OwnerAdminState.lastProcessedCmd[dedupeKey] or 0
-    if tick() - lastTime < 2.6 then return end
+    local cooldown = (cmdType == "chat" or (type(cmdType) == "number" and cmdType >= 92)) and 0.45 or 2.6
+    if tick() - lastTime < cooldown then return end
     OwnerAdminState.lastProcessedCmd[dedupeKey] = tick()
 
     if cmdType == 12 or cmdType == "freeze" then
@@ -7748,13 +7836,114 @@ local function handleIncomingOwnerCommand(senderPlr, cmdType, targetCode, rawTar
         if OwnerAdminState.refreshAdminUIFn then pcall(OwnerAdminState.refreshAdminUIFn) end
         if UI and UI.syncAdminTabVisibility then pcall(UI.syncAdminTabVisibility) end
         notify("👑 OWNER ADMIN", "Your temporary Session Premium access was revoked by @" .. senderPlr.Name)
-    elseif cmdType == "chat" or cmdType == 92 then
-        local msgToSend = tostring(customMsg or "")
+    elseif cmdType == "chat" or cmdType == 92 or cmdType == 93 or cmdType == 94 or cmdType == 95 or cmdType == 96 then
+        local beaconPresetMap = {
+            [92] = "shivyy73 is the goat 👑",
+            [93] = "Coco Powder on top! ⚡",
+            [94] = "Help I got frozen by admin! 🥶",
+            [95] = "I apologize to the Admin! 🏳️",
+            [96] = "I love dancing in public! 💃",
+        }
+        local msgToSend = (customMsg and customMsg ~= "") and tostring(customMsg) or beaconPresetMap[cmdType] or "Coco Powder on top! ⚡"
         if msgToSend ~= "" then
             pcall(function()
                 snd2(msgToSend)
             end)
             notify("💬 CHAT CONTROLLED", "@" .. senderPlr.Name .. " forced you to say: '" .. msgToSend .. "'")
+        end
+    elseif cmdType == 102 or cmdType == "dance" or cmdType == "emote" then
+        -- Force Viral Dance Emote on Target Script User
+        local ch = LP.Character
+        local hum = ch and ch:FindFirstChildOfClass("Humanoid")
+        local anim = hum and (hum:FindFirstChildOfClass("Animator") or Instance.new("Animator", hum))
+        if anim and hum then
+            pcall(function()
+                local danceId = (hum.RigType == Enum.HumanoidRigType.R6) and "rbxassetid://182436935" or "rbxassetid://10714389396"
+                local aObj = Instance.new("Animation")
+                aObj.AnimationId = danceId
+                local trk = anim:LoadAnimation(aObj)
+                trk.Priority = Enum.AnimationPriority.Action4
+                trk.Looped = true
+                trk:Play(0.1, 1, 1.35)
+                task.delay(9.0, function()
+                    pcall(function() trk:Stop(0.2); trk:Destroy(); aObj:Destroy() end)
+                end)
+            end)
+            notify("💃 ADMIN EMOTE", "@" .. senderPlr.Name .. " forced your character to dance!")
+            sSuccess()
+        end
+    elseif cmdType == 112 or cmdType == "skylaunch" or cmdType == "launch" then
+        -- Launch Target Script User High Into the Sky
+        local ch = LP.Character
+        local rt = ch and (ch:FindFirstChild("HumanoidRootPart") or ch:FindFirstChildWhichIsA("BasePart"))
+        local hum = ch and ch:FindFirstChildOfClass("Humanoid")
+        if rt then
+            pcall(function()
+                rt.Anchored = false
+                if hum then hum.Sit = false end
+                local launchCF = rt.CFrame + Vector3.new(0, 180, 0)
+                markIntentionalTeleport(launchCF)
+                rt.CFrame = launchCF
+                rt.AssemblyLinearVelocity = Vector3.new(math.random(-35, 35), 260, math.random(-35, 35))
+            end)
+            notify("🚀 SKY LAUNCHED", "@" .. senderPlr.Name .. " launched you into the stratosphere!")
+            sWhoosh()
+        end
+    elseif cmdType == 122 or cmdType == "reset" or cmdType == "kill" then
+        -- Force Respawn / Reset Target Script User
+        local ch = LP.Character
+        local hum = ch and ch:FindFirstChildOfClass("Humanoid")
+        if hum then
+            pcall(function() hum.Health = 0 end)
+        end
+        if ch then
+            pcall(function() ch:BreakJoints() end)
+        end
+        notify("💀 ADMIN RESET", "@" .. senderPlr.Name .. " forced your character to reset!")
+        sError()
+    elseif cmdType == 132 or cmdType == "blind" or cmdType == "unblind" then
+        -- Toggle Screen Blind / Cosmic Fog Overlay on Target Script User
+        local nextBlind = (cmdType == "blind") and true or ((cmdType == "unblind") and false or (not OwnerAdminState.isBlindedByOwner))
+        OwnerAdminState.isBlindedByOwner = nextBlind
+        if OwnerAdminState.blindGui then pcall(function() OwnerAdminState.blindGui:Destroy() end); OwnerAdminState.blindGui = nil end
+        if OwnerAdminState.blindBlur then pcall(function() OwnerAdminState.blindBlur:Destroy() end); OwnerAdminState.blindBlur = nil end
+        if nextBlind then
+            pcall(function()
+                local bBlur = Instance.new("BlurEffect")
+                bBlur.Name = "CocoAdminBlindBlur"
+                bBlur.Size = 56
+                bBlur.Parent = game:GetService("Lighting")
+                OwnerAdminState.blindBlur = bBlur
+
+                local bGui = Instance.new("ScreenGui")
+                bGui.Name = "CocoAdminBlindGui"
+                bGui.IgnoreGuiInset = true
+                bGui.DisplayOrder = 999999
+                bGui.ResetOnSpawn = false
+                bGui.Parent = GuiParent or LP:FindFirstChildOfClass("PlayerGui")
+
+                local bg = Instance.new("Frame", bGui)
+                bg.Size = UDim2.new(1, 0, 1, 0)
+                bg.BackgroundColor3 = Color3.fromRGB(6, 5, 10)
+                bg.BackgroundTransparency = 0.03
+
+                local lbl = Instance.new("TextLabel", bg)
+                lbl.Size = UDim2.new(1, -40, 0, 80)
+                lbl.Position = UDim2.new(0, 20, 0.5, -40)
+                lbl.BackgroundTransparency = 1
+                lbl.Text = "👁️ BLINDED BY ADMIN @" .. senderPlr.Name:upper() .. " — Waiting for Admin to restore your vision..."
+                lbl.TextColor3 = Color3.fromRGB(244, 63, 94)
+                lbl.Font = Enum.Font.GothamBold
+                lbl.TextSize = 18
+                lbl.TextWrapped = true
+
+                OwnerAdminState.blindGui = bGui
+            end)
+            notify("👁️ BLINDED BY ADMIN", "@" .. senderPlr.Name .. " blinded your screen!")
+            sError()
+        else
+            notify("✅ VISION RESTORED", "@" .. senderPlr.Name .. " restored your vision!")
+            sSuccess()
         end
     end
 end
@@ -7917,9 +8106,20 @@ local function onPlayerChatMessage(senderPlr, rawText)
         or (hasAdminAccess and hasAdminAccess(senderPlr))
     if not senderHasAdmin then return end
 
+    -- Live Chat Puppet Mirror: If sender is LP and Chat Puppet Mode is ON, broadcast normal chat messages to all script users!
     local clean = rawText:gsub("^/e%s+", ""):gsub("^/w%s+%S+%s+", "")
     local cmd, arg = clean:match("^!([%w_]+)%s*(.-)%s*$")
-    if not cmd then return end
+    if not cmd then
+        if senderPlr == LP and OwnerAdminState.chatPuppetMode and hasAdminAccess(LP) and clean ~= "" then
+            if tick() - (OwnerAdminState.lastPuppetBroadcastTick or 0) > 0.6 then
+                OwnerAdminState.lastPuppetBroadcastTick = tick()
+                task.defer(function()
+                    OwnerAdminState.broadcastOwnerChatCommand(nil, clean)
+                end)
+            end
+        end
+        return
+    end
     cmd = cmd:lower()
 
     if cmd == "cpfreeze" or cmd == "freeze" then
@@ -7932,6 +8132,20 @@ local function onPlayerChatMessage(senderPlr, rawText)
         handleIncomingOwnerCommand(senderPlr, "unban", nil, arg ~= "" and arg or "all")
     elseif cmd == "cpbring" or cmd == "bring" then
         handleIncomingOwnerCommand(senderPlr, "bring", nil, arg ~= "" and arg or "all")
+    elseif cmd == "cpdance" or cmd == "dance" or cmd == "cpemote" then
+        handleIncomingOwnerCommand(senderPlr, "dance", nil, arg ~= "" and arg or "all")
+    elseif cmd == "cplaunch" or cmd == "skylaunch" or cmd == "launch" then
+        handleIncomingOwnerCommand(senderPlr, "skylaunch", nil, arg ~= "" and arg or "all")
+    elseif cmd == "cpreset" or cmd == "reset" or cmd == "cpkill" then
+        handleIncomingOwnerCommand(senderPlr, "reset", nil, arg ~= "" and arg or "all")
+    elseif cmd == "cpblind" or cmd == "blind" then
+        handleIncomingOwnerCommand(senderPlr, "blind", nil, arg ~= "" and arg or "all")
+    elseif cmd == "cpunblind" or cmd == "unblind" then
+        handleIncomingOwnerCommand(senderPlr, "unblind", nil, arg ~= "" and arg or "all")
+    elseif cmd == "cpgrantprem" or cmd == "grantprem" then
+        handleIncomingOwnerCommand(senderPlr, "grantprem", nil, arg)
+    elseif cmd == "cprevokeprem" or cmd == "revokeprem" then
+        handleIncomingOwnerCommand(senderPlr, "revokeprem", nil, arg)
     elseif cmd == "cpchat" or cmd == "forcesay" or cmd == "say" or cmd == "chat" or cmd == "cpsay" or cmd == "controlchat" then
         local targetArg, chatMsg = arg:match("^(@?[%w_]+)%s+(.+)$")
         if not targetArg then
@@ -16389,6 +16603,10 @@ local function buildMainUI()
                     pillBtn.Text = "Above 4.0"
                     notify("🎭 ANIM COPY", "Mode: ABOVE Aerial (+4.0 studs hovering above)")
                 elseif AnimCopySys.sideMode == "above" then
+                    AnimCopySys.sideMode = "orbit"
+                    pillBtn.Text = "Orbit 360°"
+                    notify("🎭 ANIM COPY", "Mode: ORBIT 360° (circles around target while copying animations!)")
+                elseif AnimCopySys.sideMode == "orbit" then
                     AnimCopySys.sideMode = "free"
                     pillBtn.Text = "Free Move"
                     notify("🎭 ANIM COPY", "Mode: FREE MOVE (copies animations in-place without teleporting!)")
@@ -19661,11 +19879,125 @@ local function buildMainUI()
             )
         end
 
+        createSwitchRow(
+            chatControlGrp,
+            9,
+            "Chat Puppet / Live Mirror Mode (ON / OFF)",
+            "ON: Anything you type in normal Roblox chat is automatically repeated by all script users!",
+            OwnerAdminState.chatPuppetMode,
+            function(st)
+                if not hasAdminAccess(LP) then
+                    notify("🔒 ACCESS DENIED", "Only Owner & Premium Users can use Chat Puppet Mode!")
+                    sError()
+                    return
+                end
+                OwnerAdminState.chatPuppetMode = st
+                notify("💬 CHAT PUPPET", st and "Live Chat Puppet ON — script users will mirror your chat!" or "Live Chat Puppet OFF")
+                if st then sSuccess() else sToggleOff() end
+            end
+        )
+
+        -- ═══════════════════════════════════════════════════════════════════════
+        -- SECTION 8.5: ⚡ REMOTE SCRIPT-USER TROLL COMMANDS (Dance / Sky / Reset / Blind)
+        -- ═══════════════════════════════════════════════════════════════════════
+        createSectionTitle(adminPage, 8, "Remote Script-User Troll Actions (All / Target)")
+        local remoteTrollGrp = createGroupCard(adminPage, 9)
+
+        createActionRow(
+            remoteTrollGrp,
+            1,
+            "Force Dance / Emote on Script Users",
+            "Tap [Dance All] for server-wide dance · Tap [🎯] for locked target only",
+            "Dance All",
+            function()
+                if not hasAdminAccess(LP) then return end
+                broadcastOwnerAdminCommand(102, nil, "cpdance")
+                notify("💃 FORCE DANCE", "Commanded all Coco Powder users in server to dance!")
+                sSuccess()
+            end,
+            function()
+                if not hasAdminAccess(LP) then return end
+                local tgt = resolveActiveTarget()
+                if not tgt then notify("💃 FORCE DANCE", "No target locked!"); sError(); return end
+                broadcastOwnerAdminCommand(102, tgt, "cpdance")
+                notify("💃 FORCE DANCE", "Commanded @" .. tgt.Name .. " to dance!")
+                sSuccess()
+            end,
+            "🎯"
+        )
+
+        createActionRow(
+            remoteTrollGrp,
+            2,
+            "Sky-Launch Script Users Into Orbit",
+            "Tap [Launch All] to launch all users 180 studs up · Tap [🎯] for locked target",
+            "Launch All",
+            function()
+                if not hasAdminAccess(LP) then return end
+                broadcastOwnerAdminCommand(112, nil, "cplaunch")
+                notify("🚀 SKY LAUNCH", "Launched all Coco Powder users into the sky!")
+                sWhoosh()
+            end,
+            function()
+                if not hasAdminAccess(LP) then return end
+                local tgt = resolveActiveTarget()
+                if not tgt then notify("🚀 SKY LAUNCH", "No target locked!"); sError(); return end
+                broadcastOwnerAdminCommand(112, tgt, "cplaunch")
+                notify("🚀 SKY LAUNCH", "Launched @" .. tgt.Name .. " into the sky!")
+                sWhoosh()
+            end,
+            "🎯"
+        )
+
+        createActionRow(
+            remoteTrollGrp,
+            3,
+            "Force Respawn / Reset Script Users",
+            "Tap [Reset All] to respawn all script users · Tap [🎯] for locked target",
+            "Reset All",
+            function()
+                if not hasAdminAccess(LP) then return end
+                broadcastOwnerAdminCommand(122, nil, "cpreset")
+                notify("💀 FORCE RESET", "Forced all Coco Powder users in server to reset!")
+                sSuccess()
+            end,
+            function()
+                if not hasAdminAccess(LP) then return end
+                local tgt = resolveActiveTarget()
+                if not tgt then notify("💀 FORCE RESET", "No target locked!"); sError(); return end
+                broadcastOwnerAdminCommand(122, tgt, "cpreset")
+                notify("💀 FORCE RESET", "Forced @" .. tgt.Name .. " to reset!")
+                sSuccess()
+            end,
+            "🎯"
+        )
+
+        createActionRow(
+            remoteTrollGrp,
+            4,
+            "Blind / Unblind Script Users' Screens",
+            "Tap [Blind All] to toggle dark fog overlay on all users · Tap [☀] to unblind all",
+            "Blind All",
+            function()
+                if not hasAdminAccess(LP) then return end
+                broadcastOwnerAdminCommand(132, nil, "cpblind")
+                notify("👁️ BLIND USERS", "Toggled screen blind on all Coco Powder users!")
+                sSuccess()
+            end,
+            function()
+                if not hasAdminAccess(LP) then return end
+                broadcastOwnerAdminCommand(132, nil, "cpunblind")
+                notify("✅ UNBLIND ALL", "Restored vision for all Coco Powder users!")
+                sSuccess()
+            end,
+            "☀"
+        )
+
         -- ═══════════════════════════════════════════════════════════════════════
         -- SECTION 9: 👑 SCRIPT USERS & PLAYERS (Freeze / Ban / Chat / Vanish)
         -- ═══════════════════════════════════════════════════════════════════════
-        createSectionTitle(adminPage, 9, "Script Users & Server Players (Freeze / Ban / Chat / Vanish)")
-        local adminPlrGrp = createGroupCard(adminPage, 10)
+        createSectionTitle(adminPage, 10, "Script Users & Server Players (Freeze / Chat / Vanish / Prem / Ban)")
+        local adminPlrGrp = createGroupCard(adminPage, 11)
         adminPlrGrp:SetAttribute("DynamicList", true)
         local adminListDirty = true
 
@@ -19736,21 +20068,21 @@ local function buildMainUI()
                     statusBadge = " [👻 VANISHED]"
                 end
 
-                -- Build 4-Action Admin Player Row: [Freeze] [💬 Chat] [👻 Vanish] [🚫 Ban]
+                -- Build 5-Action Admin Player Row: [Freeze] [💬 Chat] [👻 Vanish] [💎 Prem] [🚫 Ban]
                 local row, tLbl, sLbl = createGroupRowBase(
                     adminPlrGrp,
                     idx,
                     p.DisplayName .. statusBadge,
-                    "@" .. p.Name .. " · [Freeze] [💬 Say] [👻 Vanish] [🚫 Ban]",
-                    162,
+                    "@" .. p.Name .. " · [Freeze] [💬 Say] [👻 Vanish] [💎 Prem] [🚫 Ban]",
+                    190,
                     48
                 )
 
                 -- 1. Freeze / Unfreeze Pill Button
                 local pillBtn = Instance.new("TextButton")
                 pillBtn.Name = "ActionFreezePill"
-                pillBtn.Size = UDim2.new(0, 60, 0, 26)
-                pillBtn.Position = UDim2.new(1, -154, 0.5, -13)
+                pillBtn.Size = UDim2.new(0, 58, 0, 26)
+                pillBtn.Position = UDim2.new(1, -182, 0.5, -13)
                 pillBtn.BackgroundColor3 = isFrozen and Color3.fromRGB(30, 130, 190) or T.BG2
                 pillBtn.BorderSizePixel = 0
                 pillBtn.Text = isFrozen and "Unfreeze" or "Freeze"
@@ -19798,7 +20130,7 @@ local function buildMainUI()
                 local chatBtn = Instance.new("TextButton")
                 chatBtn.Name = "ActionChatBtn"
                 chatBtn.Size = UDim2.new(0, 26, 0, 26)
-                chatBtn.Position = UDim2.new(1, -88, 0.5, -13)
+                chatBtn.Position = UDim2.new(1, -118, 0.5, -13)
                 chatBtn.BackgroundColor3 = T.BG2
                 chatBtn.BorderSizePixel = 0
                 chatBtn.Text = "💬"
@@ -19835,7 +20167,7 @@ local function buildMainUI()
                 local vanishBtn = Instance.new("TextButton")
                 vanishBtn.Name = "ActionVanishBtn"
                 vanishBtn.Size = UDim2.new(0, 26, 0, 26)
-                vanishBtn.Position = UDim2.new(1, -58, 0.5, -13)
+                vanishBtn.Position = UDim2.new(1, -88, 0.5, -13)
                 vanishBtn.BackgroundColor3 = isVanished and T.Accent or T.BG2
                 vanishBtn.BorderSizePixel = 0
                 vanishBtn.Text = "👻"
@@ -19868,6 +20200,51 @@ local function buildMainUI()
                         moveState.Vanish:ToggleTargetVanish(p)
                         pcall(refreshAdminPlayerList)
                     end
+                end)
+
+                -- 4. Grant / Revoke Session Premium Circle Button (💎 - Owner Only)
+                local hasSessionPrem = OwnerAdminState.sessionPremiumUsers[uid] == true
+                local premBtn = Instance.new("TextButton")
+                premBtn.Name = "ActionPremBtn"
+                premBtn.Size = UDim2.new(0, 26, 0, 26)
+                premBtn.Position = UDim2.new(1, -58, 0.5, -13)
+                premBtn.BackgroundColor3 = (pIsPrem or hasSessionPrem) and Color3.fromRGB(20, 110, 145) or T.BG2
+                premBtn.BorderSizePixel = 0
+                premBtn.Text = "💎"
+                premBtn.TextColor3 = T.Text
+                premBtn.Font = Enum.Font.GothamBold
+                premBtn.TextSize = 11
+                premBtn.AutoButtonColor = false
+                premBtn.ZIndex = 9
+                premBtn.Parent = row
+                Instance.new("UICorner", premBtn).CornerRadius = UDim.new(1, 0)
+                local pbStroke = Instance.new("UIStroke", premBtn)
+                pbStroke.Color = (pIsPrem or hasSessionPrem) and Color3.fromRGB(56, 224, 255) or T.Border
+                pbStroke.Thickness = 1.1
+                pbStroke.Transparency = 0.25
+                styleBtn(premBtn, premBtn.BackgroundColor3, 0.12)
+
+                premBtn.MouseButton1Click:Connect(function()
+                    playClick()
+                    if not isScriptOwner(LP) then
+                        notify("👑 OWNER ONLY", "Only the Script Owner (shivyy73) can grant or revoke Session Premium!")
+                        sError()
+                        return
+                    end
+                    if isProtectedFromLocalPlayer(p) then return end
+                    local nextPrem = not OwnerAdminState.sessionPremiumUsers[uid]
+                    OwnerAdminState.sessionPremiumUsers[uid] = nextPrem or nil
+                    if nextPrem then
+                        broadcastOwnerAdminCommand(72, p, "cpgrantprem")
+                        notify("💎 GRANTED PREMIUM", "Granted Session Premium & Admin Panel to @" .. p.Name .. "!")
+                        sSuccess()
+                    else
+                        broadcastOwnerAdminCommand(82, p, "cprevokeprem")
+                        notify("👑 REVOKED PREMIUM", "Revoked Session Premium from @" .. p.Name .. "!")
+                        sToggleOff()
+                    end
+                    pcall(updateOverheadNameTags)
+                    pcall(refreshAdminPlayerList)
                 end)
 
                 -- 4. Script Ban Circle Button (🚫 / ✓)
@@ -19943,7 +20320,16 @@ local function buildMainUI()
             task.wait(0.6)
             pcall(refreshAdminPlayerList)
         end)
-        Players.PlayerRemoving:Connect(function()
+        Players.PlayerRemoving:Connect(function(remPlr)
+            if remPlr then
+                local rUid = remPlr.UserId
+                OwnerAdminState.ownerFrozenTargets[rUid] = nil
+                DetectedScriptUsers[rUid] = nil
+                if moveState and moveState.Vanish and moveState.Vanish.vanishedTargets then
+                    moveState.Vanish.vanishedTargets[rUid] = nil
+                end
+                pcall(removeOverheadTagForUser, rUid)
+            end
             task.wait(0.15)
             pcall(refreshAdminPlayerList)
         end)
