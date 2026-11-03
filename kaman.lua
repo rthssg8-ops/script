@@ -1,26 +1,25 @@
 --[[═══════════════════════════════════════════════════════════════════════════════
-  🔴 COCO POWDER — V34 "OMNIPRESENT SEEKER & VOID-SAFE" EDITION
+  🟨 KHAMAN DHOKLA — V36 "GOLDEN TADKA OMNIPRESENT & ZERO-BUG" EDITION
   Tabs: WELD | TARGET | CHAT | ANTI | MOVE
-  Toggle: RightShift (or floating CP launcher)
+  Toggle: RightShift (or floating KD Dhokla cube launcher)
+  Theme: Authentic Khaman Dhokla (Steamed Golden Besan Sponge, Roasted Rai Mustard
+         Seeds, Crisp Curry Leaf & Green Chili Chutney Accents, Grated Coconut Text)
   Compatibility: Universal R6 & R15 Cross-Rig Architecture (Delta / Android / PC)
-  Upgrades:
-    • Omnipresent Hidden-Player Seeker: Finds & teleports to hiding players anywhere
-      in the server (unstreamed chunks, secret rooms, houses, skyboxes, underground
-      bunkers, vehicles, lockers, or custom Workspace character folders)
-    • Continuous Teleport-Everywhere Pursuit: Automatically streams & follows target
-      through teleporters, doors, interiors, and map transitions with full Noclip,
-      Anti-Seat trap, and Kill-Brick immunity (CanTouch = false)
-    • Complete Void-Stuck Fix: Multi-frame Anchored Snapback & Safe Ground Tracker
-    • Upgraded Void Throw v2 (Sub-Floor Bury + Deep-Void Sinkhole + Horizon Catapult):
-      Forces full physical collision & 100-density kinetic mass transfer across Stepped &
-      Heartbeat, plus PhysicsRepRootPart void-sinkhole dragging so targets get stuck in
-      the Void or die reliably
-    • High-Precision 6s–10s Chrono-Rewind System: 60Hz frame-accurate circular buffer
-      recording exact CFrame trajectory, velocity, camera angles, Humanoid states,
-      playing AnimationTracks (scrubbed in reverse!), equipped tools, and actions
+  Key Upgrades & Bug Fixes:
+    • Bang Animation Upgraded to rbxassetid://116235062592344 (R15 & R6 + Auto-Loop
+      Guard & Asynchronous Non-Blocking Track Loader so Welding connects on Frame 1!)
+    • Instant Zero-Lag Player Connection: Dual RenderStepped + Heartbeat CFrame lock,
+      velocity-matched anti-sleep replication, automatic SeatWeld / Grab breaker,
+      and Humanoid.RootPart fallback for custom-rig games
+    • Safe Return & Re-Weld Race Condition Fixed: Switching targets or presets no
+      longer triggers background anchor snapbacks that fight the new weld connection
+    • Throttled Smart Stream-Piercer: Eliminates workspace:GetDescendants() frame
+      freezes and RequestStreamAroundAsync spam while finding hidden players anywhere
+    • Lua Pattern & Scope Fixes: Fixed hoisted moveState/deflectBusy upvalues, fixed
+      Anti-Blind ScreenGui pattern matching, and added live Fling/Void Throw HUD
 ═══════════════════════════════════════════════════════════════════════════════]]
 
-print("[COCO POWDER] V35 Omnipresent Seeker & Advanced Anti-Shield Edition bootstrapping...")
+print("[KHAMAN DHOKLA] V36 Golden Tadka Omnipresent & Zero-Bug Edition bootstrapping...")
 
 if not game:IsLoaded() then
     local ok = pcall(function() game.Loaded:Wait() end)
@@ -47,7 +46,7 @@ while not LP and tick() - playerWaitStarted < 12 do
     LP = Players.LocalPlayer
 end
 if not LP then
-    warn("[COCO POWDER] Startup stopped: LocalPlayer was unavailable after 12 seconds. Execute after joining a game.")
+    warn("[KHAMAN DHOKLA] Startup stopped: LocalPlayer was unavailable after 12 seconds. Execute after joining a game.")
     return
 end
 
@@ -77,7 +76,7 @@ end
 
 local GuiParent = getGuiContainer()
 if not GuiParent then
-    warn("[COCO POWDER] GUI container missing. Re-execute after joining a game.")
+    warn("[KHAMAN DHOKLA] GUI container missing. Re-execute after joining a game.")
     return
 end
 
@@ -85,7 +84,9 @@ local function cleanupOldGuis(container)
     if not container then return end
     pcall(function()
         for _, child in ipairs(container:GetChildren()) do
-            if child.Name:match("^CocoPowder") then child:Destroy() end
+            if child.Name:match("^KhamanDhokla") or child.Name:match("^CocoPowder") then
+                child:Destroy()
+            end
         end
     end)
 end
@@ -117,24 +118,24 @@ workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
 end)
 
 local T = {
-    -- Sleek obsidian dark-glass palette with subtle violet & emerald accents
-    BG      = Color3.fromRGB(13, 15, 20),
-    BG2     = Color3.fromRGB(18, 21, 28),
-    Panel   = Color3.fromRGB(24, 28, 37),
-    PanelLt = Color3.fromRGB(34, 39, 52),
-    Border  = Color3.fromRGB(62, 70, 92),
-    Accent  = Color3.fromRGB(138, 92, 246),
-    Accent2 = Color3.fromRGB(99, 60, 214),
-    Neon    = Color3.fromRGB(216, 198, 255),
-    Success = Color3.fromRGB(34, 197, 94),
-    Danger  = Color3.fromRGB(239, 68, 68),
-    Warning = Color3.fromRGB(245, 158, 11),
-    Pink    = Color3.fromRGB(192, 132, 252),
-    Purple  = Color3.fromRGB(147, 88, 242),
-    Text    = Color3.fromRGB(243, 244, 246),
-    Muted   = Color3.fromRGB(148, 156, 172),
-    Dark    = Color3.fromRGB(9, 11, 15),
-    Active  = Color3.fromRGB(45, 52, 68),
+    -- Authentic Khaman Dhokla Palette: Steamed Golden Besan Sponge, Roasted Mustard Tadka & Green Chutney
+    BG      = Color3.fromRGB(34, 26, 8),     -- Deep Roasted Tadka & Besan Base
+    BG2     = Color3.fromRGB(48, 36, 11),    -- Warm Golden-Brown Dhokla Crust
+    Panel   = Color3.fromRGB(66, 50, 14),    -- Spongy Khaman Interior Card
+    PanelLt = Color3.fromRGB(88, 67, 19),    -- Fluffy Steamed Besan Highlight
+    Border  = Color3.fromRGB(212, 162, 28),  -- Bright Turmeric Gold Rim
+    Accent  = Color3.fromRGB(250, 204, 21),  -- Signature Khaman Dhokla Golden Yellow
+    Accent2 = Color3.fromRGB(217, 138, 10),  -- Tangy Kesari Tadka Amber (Buttons/Active)
+    Neon    = Color3.fromRGB(254, 243, 148), -- Fresh Lemon-Turmeric Sponge Glow
+    Success = Color3.fromRGB(42, 196, 88),   -- Fresh Coriander & Green Chili Chutney
+    Danger  = Color3.fromRGB(239, 68, 68),   -- Spicy Red Chili Tadka
+    Warning = Color3.fromRGB(245, 168, 18),  -- Sweet Tamarind Chutney
+    Pink    = Color3.fromRGB(252, 211, 77),  -- Soft Besan Cream
+    Purple  = Color3.fromRGB(234, 179, 8),   -- Golden Mustard Glow
+    Text    = Color3.fromRGB(255, 252, 235), -- Fresh Grated Coconut White
+    Muted   = Color3.fromRGB(224, 201, 138), -- Toasted Sesame & Soft Besan Text
+    Dark    = Color3.fromRGB(20, 15, 4),     -- Black Mustard Seed (Rai)
+    Active  = Color3.fromRGB(112, 85, 22),   -- Warm Active Sponge Cell
 }
 
 local function sfx(id, vol, pitch)
@@ -163,7 +164,7 @@ local updateDefenceStatsUI = nil
 local function notify(title, text)
     pcall(function()
         StarterGui:SetCore("SendNotification", {
-            Title = title or "COCO POWDER",
+            Title = title or "KHAMAN DHOKLA",
             Text = text or "",
             Duration = 3,
             Icon = "rbxassetid://10850257404"
@@ -276,6 +277,58 @@ local recoverCharacterState
 local safeReturnFromVoid
 local syncAllActiveIndicators
 
+-- Hoisted shared movement & defence state so RewindSys, WeldTo, and Anti modules share exact upvalues
+local moveState = {
+    speed = false,
+    jump = false,
+    infiniteJump = false,
+    noclip = false,
+    fly = false,
+    flyConn = nil,
+    jumpConn = nil,
+    noclipConn = nil,
+    speedLoopConn = nil,
+    lastTeleportTick = 0,
+}
+-- deflectBusy, contactTimers, deflectCooldowns, attackerLastPos are hoisted above RewindSys
+local RescueGeneration = 0
+
+-- Universal RootPart resolver: handles games that rename HumanoidRootPart or use custom rigs
+local function getRootPart(char)
+    if not char then return nil end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if hrp and hrp:IsA("BasePart") then return hrp end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if hum and hum.RootPart and hum.RootPart:IsA("BasePart") then return hum.RootPart end
+    if char.PrimaryPart and char.PrimaryPart:IsA("BasePart") then return char.PrimaryPart end
+    local torso = char:FindFirstChild("UpperTorso") or char:FindFirstChild("LowerTorso") or char:FindFirstChild("Torso") or char:FindFirstChild("Head")
+    if torso and torso:IsA("BasePart") then return torso end
+    return char:FindFirstChildWhichIsA("BasePart")
+end
+
+-- Break any active SeatWeld or hostile grab joint on local character before teleporting/welding
+local function breakLocalSeatAndTrapWelds(char)
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if hum then
+        pcall(function()
+            if hum.SeatPart then
+                for _, w in ipairs(hum.SeatPart:GetChildren()) do
+                    if w:IsA("Weld") or w:IsA("WeldConstraint") or w.Name == "SeatWeld" then
+                        w:Destroy()
+                    end
+                end
+            end
+            hum.Sit = false
+        end)
+    end
+    for _, desc in ipairs(char:GetDescendants()) do
+        if desc:IsA("SeatWeld") or desc.Name == "SeatWeld" then
+            pcall(function() desc:Destroy() end)
+        end
+    end
+end
+
 local StateManager = {}
 
 function StateManager:StopAllAnimations()
@@ -288,7 +341,7 @@ end
 
 function StateManager:ResetPhysics(character)
     if not character then return end
-    local root = character:FindFirstChild("HumanoidRootPart")
+    local root = getRootPart(character)
     if root then
         if sethiddenproperty then
             pcall(function() sethiddenproperty(root, "PhysicsRepRootPart", nil) end)
@@ -341,13 +394,13 @@ function StateManager:StopFling(skipReturn)
     if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
 end
 
-function StateManager:Cleanup(keepTarget)
+function StateManager:Cleanup(keepTarget, skipReturn)
     if CurrentWeld then
-        pcall(function() CurrentWeld:Destroy() end)
+        pcall(function() CurrentWeld:Destroy(skipReturn) end)
         CurrentWeld = nil
     end
     self:StopAllAnimations()
-    self:StopFling()
+    self:StopFling(skipReturn)
     if OriginalCameraSubject then
         pcall(function()
             local currentCam = workspace.CurrentCamera
@@ -358,9 +411,9 @@ function StateManager:Cleanup(keepTarget)
         end)
         OriginalCameraSubject = nil
     end
-    if LP.Character then
+    if LP.Character and not skipReturn then
         self:ResetPhysics(LP.Character)
-        local root = LP.Character:FindFirstChild("HumanoidRootPart")
+        local root = getRootPart(LP.Character)
         if root and not isSafePlayableCF(root.CFrame) then
             safeReturnFromVoid(LP.Character, LastKnownSafeCF)
         end
@@ -368,7 +421,7 @@ function StateManager:Cleanup(keepTarget)
     if not keepTarget then CurrentTarget = nil end
 end
 
-local ANIM_VERIFY_TIME = 0.15
+local ANIM_VERIFY_TIME = 0.28
 local ANIM_MAX_ATTEMPTS = 2
 
 local function forcePhysicsState(hum)
@@ -377,21 +430,38 @@ local function forcePhysicsState(hum)
     pcall(function() hum:ChangeState(Enum.HumanoidStateType.Physics) end)
 end
 
+local function normalizeAnimAssetId(animId)
+    local raw = tostring(animId or ""):gsub("%s+", "")
+    local digits = raw:match("(%d+)$")
+    return digits or raw
+end
+
 local function tryPlayOnce(Animator, animId, hum, priority)
+    local cleanId = normalizeAnimAssetId(animId)
+    if cleanId == "" then return nil, nil, false end
     local anim = Instance.new("Animation")
-    anim.AnimationId = "rbxassetid://" .. tostring(animId)
+    anim.AnimationId = "rbxassetid://" .. cleanId
     local okLoad, track = pcall(function() return Animator:LoadAnimation(anim) end)
+    if (not okLoad or not track) and hum then
+        okLoad, track = pcall(function() return hum:LoadAnimation(anim) end)
+    end
     if not okLoad or not track then anim:Destroy(); return nil, nil, false end
-    local pri = priority or Enum.AnimationPriority.Action4
-    pcall(function() track.Priority = pri end)
+    pcall(function()
+        track.Priority = priority or Enum.AnimationPriority.Action4
+    end)
+    pcall(function()
+        if not track.Priority then track.Priority = Enum.AnimationPriority.Action end
+    end)
     pcall(function() track.Looped = true end)
-    pcall(function() track:AdjustSpeed(1) end)
+    pcall(function() track:AdjustSpeed(math.clamp(V.Speed or 1.0, 0.2, 6.0)) end)
     forcePhysicsState(hum)
-    local okPlay = pcall(function() track:Play(0.1) end)
+    local okPlay = pcall(function() track:Play(0.08, 1, math.clamp(V.Speed or 1.0, 0.2, 6.0)) end)
     if not okPlay then
         pcall(function() track:Stop(0) end); pcall(function() track:Destroy() end)
+        anim:Destroy()
         return nil, nil, false
     end
+    table.insert(PlayedAnims, track)
     local started = tick()
     while tick() - started < ANIM_VERIFY_TIME do
         local playing = false
@@ -400,6 +470,7 @@ local function tryPlayOnce(Animator, animId, hum, priority)
         task.wait(0.02)
     end
     pcall(function() track:Stop(0) end); pcall(function() track:Destroy() end)
+    anim:Destroy()
     return nil, nil, false
 end
 
@@ -412,7 +483,7 @@ local function loadPlayableAnim(Animator, animId, fallbacks, hum, priority)
             local track, anim, ok = tryPlayOnce(Animator, id, hum, priority)
             if ok then return track, anim end
             if anim then pcall(function() anim:Destroy() end) end
-            if attempt < ANIM_MAX_ATTEMPTS then task.wait(0.04) end
+            if attempt < ANIM_MAX_ATTEMPTS then task.wait(0.03) end
         end
     end
     return nil, nil
@@ -456,7 +527,7 @@ end
 recoverCharacterState = function(char, safeCF)
     char = char or (LP and LP.Character)
     if not char then return end
-    local root = char:FindFirstChild("HumanoidRootPart")
+    local root = getRootPart(char)
     local hum  = char:FindFirstChildOfClass("Humanoid")
     if root then
         if sethiddenproperty then
@@ -501,12 +572,12 @@ recoverCharacterState = function(char, safeCF)
     end
 end
 
--- Multi-frame anchored void rescue: guarantees the server & client physics engine
--- never rubberband or trap the local player in the void after throwing/flinging a target.
+-- Multi-frame anchored void rescue: aborts immediately if a new Weld or Fling starts so it NEVER fights player connections!
 safeReturnFromVoid = function(char, preferredCF)
     char = char or (LP and LP.Character)
     if not char then return end
-    local root = char:FindFirstChild("HumanoidRootPart")
+    if WeldIntent.active or FlingActive then return end
+    local root = getRootPart(char)
     local hum  = char:FindFirstChildOfClass("Humanoid")
     local resolvedCF = isSafePlayableCF(preferredCF) and preferredCF or findFallbackSafeCF()
     local pos = resolvedCF.Position
@@ -516,11 +587,16 @@ safeReturnFromVoid = function(char, preferredCF)
     recoverCharacterState(char, cleanCF)
     if not root or not root.Parent then return end
 
+    RescueGeneration = RescueGeneration + 1
+    local myRescueGen = RescueGeneration
+
     task.spawn(function()
         pcall(function()
             root.Anchored = true
             for _ = 1, 4 do
-                if not root.Parent then break end
+                if not root.Parent or myRescueGen ~= RescueGeneration or WeldIntent.active or FlingActive then
+                    break
+                end
                 root.AssemblyLinearVelocity = Vector3.zero
                 root.AssemblyAngularVelocity = Vector3.zero
                 root.CFrame = cleanCF
@@ -528,21 +604,25 @@ safeReturnFromVoid = function(char, preferredCF)
             end
             if root.Parent then
                 root.Anchored = false
-                root.AssemblyLinearVelocity = Vector3.zero
-                root.AssemblyAngularVelocity = Vector3.zero
-                root.CFrame = cleanCF
+                if myRescueGen == RescueGeneration and not WeldIntent.active and not FlingActive then
+                    root.AssemblyLinearVelocity = Vector3.zero
+                    root.AssemblyAngularVelocity = Vector3.zero
+                    root.CFrame = cleanCF
+                end
             end
-            if hum and hum.Parent and hum.Health > 0 then
-                hum.PlatformStand = false
-                hum.Sit = false
-                hum.AutoRotate = true
-                hum:ChangeState(Enum.HumanoidStateType.GettingUp)
-                hum:ChangeState(Enum.HumanoidStateType.Running)
-            end
-            local currentCam = workspace.CurrentCamera
-            if currentCam and hum and not SpectatingTarget then
-                currentCam.CameraType = Enum.CameraType.Custom
-                currentCam.CameraSubject = hum
+            if myRescueGen == RescueGeneration and not WeldIntent.active and not FlingActive then
+                if hum and hum.Parent and hum.Health > 0 then
+                    hum.PlatformStand = false
+                    hum.Sit = false
+                    hum.AutoRotate = true
+                    hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+                    hum:ChangeState(Enum.HumanoidStateType.Running)
+                end
+                local currentCam = workspace.CurrentCamera
+                if currentCam and hum and not SpectatingTarget then
+                    currentCam.CameraType = Enum.CameraType.Custom
+                    currentCam.CameraSubject = hum
+                end
             end
         end)
         if not (Anti and Anti.Void and Anti.Void.enabled) and not (Anti and Anti.Kill and Anti.Kill.enabled) and not WeldIntent.active and not FlingActive then
@@ -554,17 +634,16 @@ end
 -- Continuously record LastKnownSafeCF when on safe ground & auto-rescue if stranded in void
 RunService.Heartbeat:Connect(function()
     local char = LP.Character
-    local root = char and char:FindFirstChild("HumanoidRootPart")
+    local root = getRootPart(char)
     local hum  = char and char:FindFirstChildOfClass("Humanoid")
     if not root or not hum or hum.Health <= 0 then return end
 
     if not FlingActive and not WeldIntent.active then
         local vel = root.AssemblyLinearVelocity.Magnitude
-        if isSafePlayableCF(root.CFrame) and vel < 110 then
+        if isSafePlayableCF(root.CFrame) and vel < 110 and hum.FloorMaterial ~= Enum.Material.Air then
             local _, yYaw, _ = root.CFrame:ToEulerAnglesYXZ()
             LastKnownSafeCF = CFrame.new(root.Position) * CFrame.Angles(0, yYaw, 0)
         elseif root.Position.Y <= math.max(OriginalFPDH + 22, -260) or root.Position.Magnitude > 22000 then
-            -- Auto-rescue if stuck in the void after an action or when Anti-Void is on
             if (Anti and Anti.Void and Anti.Void.enabled) or (tick() - LastVoidActionEnd < 6.0) then
                 safeReturnFromVoid(char, LastKnownSafeCF)
             end
@@ -579,59 +658,99 @@ local getBestTargetCFrame
 local streamAndTeleportToTarget
 local markIntentionalTeleport
 
-local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbacks, TargetPlayer, RefMode)
+local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbacks, TargetPlayer, RefMode, PreSeekSafeCF)
     local Character = Speaker.Character
     if not Character then return nil end
-    local Root = Character:FindFirstChild("HumanoidRootPart") or Character:FindFirstChildWhichIsA("BasePart")
+    local Root = getRootPart(Character)
     local Humanoid = Character:FindFirstChildWhichIsA("Humanoid")
     if not Root or not Humanoid or Humanoid.Health <= 0 then return nil end
 
+    -- Cancel any pending void-return loop so it never fights our new weld connection
+    RescueGeneration = RescueGeneration + 1
+    Root.Anchored = false
+    breakLocalSeatAndTrapWelds(Character)
+
     local TargetChar = (TargetPart and TargetPart.Parent) or (TargetPlayer and findPlayerCharacterAnywhere(TargetPlayer))
     local TargetHum  = TargetChar and TargetChar:FindFirstChildOfClass("Humanoid")
-    local lastSafeCF = isSafePlayableCF(Root.CFrame) and Root.CFrame or findFallbackSafeCF()
+    local lastSafeCF = isSafePlayableCF(PreSeekSafeCF) and PreSeekSafeCF
+        or (isSafePlayableCF(LastKnownSafeCF) and LastKnownSafeCF)
+        or (isSafePlayableCF(Root.CFrame) and Root.CFrame)
+        or findFallbackSafeCF()
 
     pcall(function() Humanoid.Sit = false end)
     pcall(function() Humanoid.PlatformStand = true end)
     pcall(function() Humanoid.AutoRotate = false end)
     forcePhysicsState(Humanoid)
     killAnimate(Character)
-    task.wait(0.02)
 
     local AnimTrack, AnimInstance = nil, nil
+    local animLoading = false
     local animAttempts = 0
+    local Weld = { destroyed = false }
+
     local function ensureAnim(force)
-        if not AnimationId then return end
+        if not AnimationId or Weld.destroyed or animLoading then return end
         if AnimTrack and not force then
-            local ip = false; pcall(function() ip = AnimTrack.IsPlaying end)
+            local ip = false
+            pcall(function()
+                ip = AnimTrack.IsPlaying
+                if ip and AnimTrack.Length > 0 and AnimTrack.TimePosition >= (AnimTrack.Length - 0.04) then
+                    AnimTrack.TimePosition = 0
+                end
+            end)
             if ip then
                 pcall(function() AnimTrack:AdjustSpeed(math.clamp(V.Speed or 1.0, 0.2, 6.0)) end)
                 return
             end
         end
         animAttempts = animAttempts + 1
-        if not force and animAttempts % 12 ~= 0 and AnimTrack then return end
-        local Animator = Character:FindFirstChildWhichIsA("Animator", true)
-        if not Animator and Humanoid then
-            Animator = Instance.new("Animator"); Animator.Parent = Humanoid
-        end
-        if not Animator then return end
-        local track, anim = loadPlayableAnim(Animator, AnimationId, AnimFallbacks, Humanoid)
-        if track then
-            pcall(function() track:AdjustSpeed(math.clamp(V.Speed or 1.0, 0.2, 6.0)) end)
-            AnimTrack = track
-            AnimInstance = anim
-        end
+        if not force and animAttempts % 15 ~= 0 and AnimTrack then return end
+        animLoading = true
+        task.spawn(function()
+            pcall(function()
+                if Weld.destroyed or not Character.Parent then return end
+                local Animator = Character:FindFirstChildWhichIsA("Animator", true)
+                if not Animator and Humanoid then
+                    Animator = Instance.new("Animator")
+                    Animator.Parent = Humanoid
+                end
+                if not Animator then return end
+                local track, anim = loadPlayableAnim(Animator, AnimationId, AnimFallbacks, Humanoid)
+                if Weld.destroyed then
+                    if track then pcall(function() track:Stop(0); track:Destroy() end) end
+                    if anim then pcall(function() anim:Destroy() end) end
+                    return
+                end
+                if track then
+                    pcall(function()
+                        track.Looped = true
+                        track:AdjustSpeed(math.clamp(V.Speed or 1.0, 0.2, 6.0))
+                    end)
+                    if AnimTrack and AnimTrack ~= track then
+                        pcall(function() AnimTrack:Stop(0); AnimTrack:Destroy() end)
+                    end
+                    if AnimInstance and AnimInstance ~= anim then
+                        pcall(function() AnimInstance:Destroy() end)
+                    end
+                    AnimTrack = track
+                    AnimInstance = anim
+                end
+            end)
+            animLoading = false
+        end)
     end
+    -- Load animation asynchronously so Frame-1 CFrame lock is NEVER delayed!
     ensureAnim(true)
 
     local function applyPhaseNoclip()
         if not Character or not Character.Parent then return end
         for _, v in ipairs(Character:GetDescendants()) do
             if v:IsA("BasePart") then
-                v.CanCollide = false
-                v.CanTouch = false
-                v.Massless = true
-                v.Anchored = false
+                if v.CanCollide then v.CanCollide = false end
+                if v.CanTouch then v.CanTouch = false end
+                if v.CanQuery then v.CanQuery = false end
+                if not v.Massless then v.Massless = true end
+                if v.Anchored then v.Anchored = false end
             elseif v:IsA("SeatWeld") or v.Name == "SeatWeld" then
                 pcall(function() v:Destroy() end)
             end
@@ -642,16 +761,19 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
     end
     applyPhaseNoclip()
 
-    local Weld = { destroyed = false }
     local Conn = nil
+    local RenderConn = nil
     local StepConn = nil
     local clock = 0
     local missingFrames = 0
+    local lastStreamReq = 0
+    local currentLockCF = nil
 
-    function Weld:Destroy()
+    function Weld:Destroy(skipReturn)
         if self.destroyed then return end
         self.destroyed = true
         if Conn then Conn:Disconnect(); Conn = nil end
+        if RenderConn then RenderConn:Disconnect(); RenderConn = nil end
         if StepConn then StepConn:Disconnect(); StepConn = nil end
         pcall(function() LP.ReplicationFocus = nil end)
         if AnimTrack then
@@ -666,10 +788,12 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
         if CurrentWeld == self then
             CurrentWeld = nil
         end
-        LastVoidActionEnd = tick()
-        safeReturnFromVoid(Character, lastSafeCF)
-        if LP.Character and LP.Character ~= Character then
-            safeReturnFromVoid(LP.Character, lastSafeCF)
+        if not skipReturn then
+            LastVoidActionEnd = tick()
+            safeReturnFromVoid(Character, lastSafeCF)
+            if LP.Character and LP.Character ~= Character then
+                safeReturnFromVoid(LP.Character, lastSafeCF)
+            end
         end
     end
 
@@ -677,27 +801,45 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
     StepConn = RunService.Stepped:Connect(function()
         if Weld.destroyed then return end
         applyPhaseNoclip()
+        if currentLockCF and Root and Root.Parent then
+            Root.CFrame = currentLockCF
+        end
+    end)
+
+    -- RenderStepped pass guarantees zero-jitter visual lock when the target sprints or turns camera
+    RenderConn = RunService.RenderStepped:Connect(function()
+        if Weld.destroyed then return end
+        if TargetPart and TargetPart.Parent and Root and Root.Parent then
+            local customAdjust = CFrame.new(V.X or 0, V.Y or 0, (V.Z or 1.3) - 1.3)
+            local localOffset = Offset * customAdjust
+            if Osc and Osc.period and Osc.period > 0 then
+                local phase = (math.sin(clock * (2 * math.pi) / Osc.period) + 1) * 0.5
+                localOffset = localOffset * CFrame.new(0, 0, -Osc.distance * phase)
+            end
+            currentLockCF = TargetPart.CFrame * localOffset
+            Root.CFrame = currentLockCF
+        end
     end)
 
     Conn = RunService.Heartbeat:Connect(function(dt)
         -- 1. Check if our own character died or respawned
         if not Character.Parent or Character ~= LP.Character or not Root.Parent or not Humanoid.Parent or Humanoid.Health <= 0 then
-            Weld:Destroy()
+            Weld:Destroy(true)
             return
         end
 
         -- 2. Check if target player left the server completely
         if TargetPlayer and TargetPlayer.Parent ~= Players then
-            Weld:Destroy()
+            Weld:Destroy(false)
             if stopWeld then pcall(stopWeld) end
             if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
-            notify("COCO POWDER", "Target left server — safely returned")
+            notify("KHAMAN DHOKLA", "Target left server — safely returned")
             return
         end
 
         -- 3. Check if target died
         if TargetHum and TargetHum.Parent and TargetHum.Health <= 0 then
-            Weld:Destroy()
+            Weld:Destroy(false)
             return
         end
 
@@ -708,7 +850,7 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
                 local newChar = findPlayerCharacterAnywhere(TargetPlayer)
                 local newHum  = newChar and newChar:FindFirstChildOfClass("Humanoid")
                 if newHum and newHum.Health <= 0 then
-                    Weld:Destroy()
+                    Weld:Destroy(false)
                     return
                 end
                 local newPart = newChar and pickTargetRef(newChar, RefMode or "torso")
@@ -718,46 +860,52 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
                     TargetPart = newPart
                     missingFrames = 0
                 else
-                    -- Target is in an unstreamed hiding spot! Teleport right to their model pivot / cached location to stream them in!
+                    -- Target is in an unstreamed hiding spot! Throttled stream request + CFrame follow
                     missingFrames = missingFrames + 1
                     local hiddenCF = getBestTargetCFrame(TargetPlayer)
                     if hiddenCF and not isLethalVoidCF(hiddenCF) then
-                        pcall(function() LP:RequestStreamAroundAsync(hiddenCF.Position, 1) end)
+                        local now = tick()
+                        if now - lastStreamReq > 0.35 then
+                            lastStreamReq = now
+                            task.spawn(function()
+                                pcall(function() LP:RequestStreamAroundAsync(hiddenCF.Position, 1) end)
+                            end)
+                        end
                         Root.CFrame = hiddenCF * Offset
                         Root.AssemblyLinearVelocity = Vector3.zero
                         Root.AssemblyAngularVelocity = Vector3.zero
                         markIntentionalTeleport(Root.CFrame)
                     end
-                    if missingFrames > 90 then
-                        Weld:Destroy()
+                    if missingFrames > 120 then
+                        Weld:Destroy(false)
                     end
                     return
                 end
             else
-                Weld:Destroy()
+                Weld:Destroy(false)
                 return
             end
         else
             missingFrames = 0
         end
 
-        -- 5. VOID PROTECTION: Only detach if the target is genuinely plummeting in the lethal void killzone,
-        --    NOT when they are inside underground rooms, secret bunkers, houses, or skyboxes!
+        -- 5. VOID PROTECTION: Only detach if the target is genuinely plummeting in the lethal void killzone
         local tVel = TargetPart.AssemblyLinearVelocity
         if isLethalVoidCF(TargetPart.CFrame, tVel) then
-            Weld:Destroy()
-            notify("COCO POWDER", "Target fell into lethal Void — detached safely!")
+            Weld:Destroy(false)
+            notify("KHAMAN DHOKLA", "Target fell into lethal Void — detached safely!")
             return
         end
 
-        -- Keep server streaming focused on the target so they can never outrun our client stream
-        pcall(function() LP.ReplicationFocus = TargetPart end)
+        -- Keep server streaming focused on the target's root part so they never outrun our client stream
+        local focusPart = (TargetChar and getRootPart(TargetChar)) or TargetPart
+        pcall(function() LP.ReplicationFocus = focusPart end)
 
-        -- Cache target location & update safe standing CFrame
+        -- Cache target location & update safe standing CFrame only when target is near stable ground
         if TargetPlayer then
             PlayerLocationCache[TargetPlayer.UserId] = { cf = TargetPart.CFrame, time = tick() }
         end
-        if not isLethalVoidCF(TargetPart.CFrame, tVel) then
+        if not isLethalVoidCF(TargetPart.CFrame, tVel) and math.abs(tVel.Y) < 45 and (not TargetHum or TargetHum.FloorMaterial ~= Enum.Material.Air) then
             local _, yYaw, _ = TargetPart.CFrame:ToEulerAnglesYXZ()
             lastSafeCF = CFrame.new(TargetPart.Position + Vector3.new(0, 2.5, 0)) * CFrame.Angles(0, yYaw, 0)
             LastKnownSafeCF = lastSafeCF
@@ -777,18 +925,24 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
             local phase = (math.sin(clock * (2 * math.pi) / Osc.period) + 1) * 0.5
             localOffset = localOffset * CFrame.new(0, 0, -Osc.distance * phase)
         end
-        Root.CFrame = TargetPart.CFrame * localOffset
-        Root.AssemblyLinearVelocity = Vector3.zero
+        currentLockCF = TargetPart.CFrame * localOffset
+        Root.CFrame = currentLockCF
+        -- Velocity-matched anti-sleep replication: prevents network sleep & trailing lag on other players' screens
+        local microWake = Vector3.new(0, math.sin(clock * 24) * 0.03, 0)
+        Root.AssemblyLinearVelocity = (tVel.Magnitude < 160 and (tVel * 0.85) or Vector3.zero) + microWake
         Root.AssemblyAngularVelocity = Vector3.zero
         markIntentionalTeleport(Root.CFrame)
         if sethiddenproperty then pcall(function()
-            sethiddenproperty(Root, "PhysicsRepRootPart", TargetPart)
+            sethiddenproperty(Root, "PhysicsRepRootPart", focusPart)
             if InstanceHandleNew then
-                sethiddenproperty(Root, "PhysicsRepRootRef", InstanceHandleNew(TargetPart))
+                sethiddenproperty(Root, "PhysicsRepRootRef", InstanceHandleNew(focusPart))
             end
         end) end
         pcall(function() ensureAnim(false) end)
-        pcall(function() if not Humanoid.PlatformStand then Humanoid.PlatformStand = true end end)
+        pcall(function()
+            if not Humanoid.PlatformStand then Humanoid.PlatformStand = true end
+            if Humanoid.Sit then Humanoid.Sit = false end
+        end)
     end)
 
     return Weld
@@ -804,15 +958,17 @@ local function unweld()
     end
 end
 
+local BANG_ANIM_ID = 116235062592344
+
 local WELD_PRESETS = {
     facebang  = { offset = CFrame.new(0, 2.5, -3.8) * CFrame.Angles(0, math.rad(180), 0),
-                  anim15 = 128342454196913, anim6 = 128342454196913,
-                  animFallbacks = {4555808220, 109168916859109},
+                  anim15 = BANG_ANIM_ID, anim6 = BANG_ANIM_ID,
+                  animFallbacks = {128342454196913, 5918726674, 148840371, 4555808220, 109168916859109},
                   osc = {distance = 2.9, period = 0.22}, refMode = "head", label = "Face Bang" },
     backshots = { offset = CFrame.new(0, 0, 3.2),
-                  anim15 = 128342454196913, anim6 = 128342454196913,
-                  animFallbacks = {4555808220, 109168916859109},
-                  osc = {distance = 2.9, period = 0.22}, refMode = "torso", label = "Backshots" },
+                  anim15 = BANG_ANIM_ID, anim6 = BANG_ANIM_ID,
+                  animFallbacks = {128342454196913, 5918726674, 148840371, 4555808220, 109168916859109},
+                  osc = {distance = 2.9, period = 0.22}, refMode = "torso", label = "Bang / Backshots" },
     headsit   = { offset = CFrame.new(0, 1.2, 0),
                   anim15 = 2506281703, anim6 = 2506281703,
                   animFallbacks = {2510238627, 507768375, 180426354},
@@ -825,7 +981,7 @@ local WELD_PRESETS = {
                   anim15 = 2506281703, anim6 = 2506281703,
                   animFallbacks = {2510238627, 507768375, 180426354},
                   osc = nil, refMode = "torso", label = "Backpack" },
-    headpat   = { offset = CFrame.new(0,0,-1.9) * CFrame.Angles(0, math.rad(180), 0),
+    headpat   = { offset = CFrame.new(0, 0, -1.9) * CFrame.Angles(0, math.rad(180), 0),
                   anim15 = 114313599861536, anim6 = 114313599861536,
                   animFallbacks = {}, osc = nil, refMode = "torso", label = "Headpat" },
     propose   = { offset = CFrame.new(0, 0, -3.5) * CFrame.Angles(0, math.rad(180), 0),
@@ -835,6 +991,9 @@ local WELD_PRESETS = {
                   anim15 = 95247520541805, anim6 = 95247520541805,
                   animFallbacks = {}, osc = nil, refMode = "torso", label = "Hug" },
 }
+
+-- Alias "bang" to backshots so any direct "bang" key call uses BANG_ANIM_ID (116235062592344)
+WELD_PRESETS.bang = WELD_PRESETS.backshots
 
 -- Add "chase" preset to WELD_PRESETS so users can also use pure Follow-Everywhere mode
 WELD_PRESETS.chase = {
@@ -847,15 +1006,43 @@ WELD_PRESETS.chase = {
     label = "Auto-Chase (Follow)"
 }
 
--- Locate a player's character even if the game parents characters to a custom folder in Workspace
+-- Cached character lookup to avoid expensive recursive Workspace scans every frame
+local CustomCharCache = {} -- [userId] = { model = Instance, lastScan = number }
+local CommonCharContainers = { "Characters", "Players", "Entities", "Live", "Units", "Ingame", "Chars" }
+
 findPlayerCharacterAnywhere = function(plr)
     if not plr then return nil end
     if plr.Character and plr.Character.Parent then
+        CustomCharCache[plr.UserId] = { model = plr.Character, lastScan = tick() }
         return plr.Character
     end
-    local byName = workspace:FindFirstChild(plr.Name, true)
-    if byName and byName:IsA("Model") and (byName:FindFirstChildOfClass("Humanoid") or byName.PrimaryPart or byName:FindFirstChildWhichIsA("BasePart", true)) then
-        return byName
+    local cached = CustomCharCache[plr.UserId]
+    if cached and cached.model and cached.model.Parent then
+        return cached.model
+    end
+    -- Fast top-level & common character container check (zero lag)
+    local direct = workspace:FindFirstChild(plr.Name)
+    if direct and direct:IsA("Model") then
+        CustomCharCache[plr.UserId] = { model = direct, lastScan = tick() }
+        return direct
+    end
+    for _, folderName in ipairs(CommonCharContainers) do
+        local folder = workspace:FindFirstChild(folderName)
+        local found = folder and folder:FindFirstChild(plr.Name)
+        if found and found:IsA("Model") then
+            CustomCharCache[plr.UserId] = { model = found, lastScan = tick() }
+            return found
+        end
+    end
+    -- Throttled deep search (at most once every 2.0 seconds per unstreamed player)
+    local now = tick()
+    if not cached or (now - (cached.lastScan or 0)) > 2.0 then
+        CustomCharCache[plr.UserId] = { model = nil, lastScan = now }
+        local byName = workspace:FindFirstChild(plr.Name, true)
+        if byName and byName:IsA("Model") and (byName:FindFirstChildOfClass("Humanoid") or byName.PrimaryPart or byName:FindFirstChildWhichIsA("BasePart", true)) then
+            CustomCharCache[plr.UserId] = { model = byName, lastScan = now }
+            return byName
+        end
     end
     return plr.Character
 end
@@ -866,15 +1053,21 @@ pickTargetRef = function(char, mode)
     if mode == "head" then
         local h = char:FindFirstChild("Head") or char:FindFirstChild("head", true)
         if h and h:IsA("BasePart") then return h end
+        for _, desc in ipairs(char:GetDescendants()) do
+            if desc:IsA("BasePart") and desc.Name:lower():find("head", 1, true) then
+                return desc
+            end
+        end
     end
+    local hum = char:FindFirstChildOfClass("Humanoid")
     local hrp = char:FindFirstChild("HumanoidRootPart")
+        or (hum and hum.RootPart)
         or char.PrimaryPart
         or char:FindFirstChild("UpperTorso")
         or char:FindFirstChild("LowerTorso")
         or char:FindFirstChild("Torso")
         or char:FindFirstChild("Head")
     if hrp and hrp:IsA("BasePart") then return hrp end
-    local hum = char:FindFirstChildOfClass("Humanoid")
     if hum and hum.SeatPart and hum.SeatPart:IsA("BasePart") then
         return hum.SeatPart
     end
@@ -894,7 +1087,6 @@ getBestTargetCFrame = function(plr)
                 return cf
             end
         end
-        -- Even when all BaseParts are streamed out in StreamingEnabled, Model:GetPivot() is replicated!
         local okPivot, pivotCF = pcall(function() return char:GetPivot() end)
         if okPivot and pivotCF and pivotCF.Position.Magnitude > 0.5 and not isLethalVoidCF(pivotCF) then
             PlayerLocationCache[plr.UserId] = { cf = pivotCF, time = tick() }
@@ -913,27 +1105,31 @@ getBestTargetCFrame = function(plr)
     return nil
 end
 
--- Continuous background scanner that caches every player's position & pivot across the server
-RunService.Heartbeat:Connect(function()
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= LP then
-            pcall(function() getBestTargetCFrame(p) end)
+-- Throttled background scanner (4Hz) that caches every player's position & pivot without frame lag
+do
+    local lastScanTick = 0
+    RunService.Heartbeat:Connect(function()
+        local now = tick()
+        if now - lastScanTick < 0.25 then return end
+        lastScanTick = now
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= LP then
+                pcall(function() getBestTargetCFrame(p) end)
+            end
         end
-    end
-end)
+    end)
+end
 
 -- Active Stream-Piercer & Server Hiding-Spot Seeker:
--- Teleports local player to the target's coordinates (or sweeps server interiors/spawns/seats)
--- and forces Roblox StreamingEnabled to load the target's character and reference part.
-streamAndTeleportToTarget = function(targetPlr, refMode, maxWaitSeconds)
+-- Instant return when target is already streamed; throttled async stream requests when unstreamed.
+streamAndTeleportToTarget = function(targetPlr, refMode, maxWaitSeconds, allowSweep)
     if not targetPlr or targetPlr.Parent ~= Players then return nil, nil end
-    maxWaitSeconds = maxWaitSeconds or 2.2
+    maxWaitSeconds = maxWaitSeconds or 2.0
     local myChar = LP.Character
-    local myRoot = myChar and (myChar:FindFirstChild("HumanoidRootPart") or myChar:FindFirstChildWhichIsA("BasePart"))
-    local myHum  = myChar and myChar:FindFirstChildOfClass("Humanoid")
+    local myRoot = getRootPart(myChar)
 
-    -- Prepare local character for phase-teleporting into any locked/hidden room
     if myChar then
+        breakLocalSeatAndTrapWelds(myChar)
         for _, v in ipairs(myChar:GetDescendants()) do
             if v:IsA("BasePart") then
                 v.CanCollide = false
@@ -941,11 +1137,15 @@ streamAndTeleportToTarget = function(targetPlr, refMode, maxWaitSeconds)
                 v.Anchored = false
             end
         end
-        if myHum and myHum.Sit then pcall(function() myHum.Sit = false end) end
     end
 
+    -- Fast path: if target's reference part is already streamed in, connect immediately with zero wait!
     local tChar = findPlayerCharacterAnywhere(targetPlr)
-    local tRef  = tChar and pickTargetRef(tChar, refMode or "torso")
+    local tHum  = tChar and tChar:FindFirstChildOfClass("Humanoid")
+    if tHum and tHum.Health <= 0 then
+        return tChar, nil
+    end
+    local tRef = tChar and pickTargetRef(tChar, refMode or "torso")
     if tRef and tRef.Parent then
         if myRoot then
             local destCF = tRef.CFrame * CFrame.new(0, 1.5, 2)
@@ -957,22 +1157,29 @@ streamAndTeleportToTarget = function(targetPlr, refMode, maxWaitSeconds)
         return tChar, tRef
     end
 
-    -- Target is hiding in an unstreamed chunk! Step 1: Teleport to their Model:GetPivot() or cached location
+    -- Step 1: Target is in an unstreamed chunk. Stream around their replicated Model:GetPivot() or cached location.
     local started = tick()
-    while tick() - started < (maxWaitSeconds * 0.65) do
+    local lastStreamCall = 0
+    while tick() - started < (maxWaitSeconds * 0.75) do
         if targetPlr.Parent ~= Players then return nil, nil end
         tChar = findPlayerCharacterAnywhere(targetPlr)
+        tHum  = tChar and tChar:FindFirstChildOfClass("Humanoid")
+        if tHum and tHum.Health <= 0 then return tChar, nil end
         tRef  = tChar and pickTargetRef(tChar, refMode or "torso")
         if tRef and tRef.Parent then
             return tChar, tRef
         end
         local targetCF = getBestTargetCFrame(targetPlr)
         if targetCF then
-            task.spawn(function()
-                pcall(function() LP:RequestStreamAroundAsync(targetCF.Position, 1.5) end)
-            end)
+            local now = tick()
+            if now - lastStreamCall > 0.30 then
+                lastStreamCall = now
+                task.spawn(function()
+                    pcall(function() LP:RequestStreamAroundAsync(targetCF.Position, 1.5) end)
+                end)
+            end
             myChar = LP.Character
-            myRoot = myChar and (myChar:FindFirstChild("HumanoidRootPart") or myChar:FindFirstChildWhichIsA("BasePart"))
+            myRoot = getRootPart(myChar)
             if myRoot then
                 markIntentionalTeleport(targetCF)
                 myRoot.AssemblyLinearVelocity = Vector3.zero
@@ -989,20 +1196,18 @@ streamAndTeleportToTarget = function(targetPlr, refMode, maxWaitSeconds)
     tRef  = tChar and pickTargetRef(tChar, refMode or "torso")
     if tRef and tRef.Parent then return tChar, tRef end
 
-    -- Step 2: If target was already hiding in an unknown unstreamed chunk before script started,
-    -- rapidly sweep server seats, spawns, and distant structures to stream in their hiding spot!
+    -- Step 2: Only sweep distant map structures if explicitly requested (never during background auto-reweld loops)
+    if not allowSweep or not tChar then
+        return tChar, tRef
+    end
+
     local probePoints = {}
-    pcall(function()
-        for _, obj in ipairs(workspace:GetDescendants()) do
-            if obj:IsA("SpawnLocation") or obj:IsA("Seat") or obj:IsA("VehicleSeat") then
-                if not isLethalVoidCF(obj.CFrame) then
-                    table.insert(probePoints, obj.CFrame)
-                end
-            end
-        end
-    end)
     for _, child in ipairs(workspace:GetChildren()) do
-        if child:IsA("Model") and child ~= LP.Character then
+        if child:IsA("SpawnLocation") or child:IsA("Seat") or child:IsA("VehicleSeat") then
+            if not isLethalVoidCF(child.CFrame) then
+                table.insert(probePoints, child.CFrame)
+            end
+        elseif child:IsA("Model") and child ~= LP.Character then
             local okP, pCF = pcall(function() return child:GetPivot() end)
             if okP and pCF and pCF.Position.Magnitude > 10 and not isLethalVoidCF(pCF) then
                 table.insert(probePoints, pCF)
@@ -1013,18 +1218,22 @@ streamAndTeleportToTarget = function(targetPlr, refMode, maxWaitSeconds)
     end
 
     for idx, probeCF in ipairs(probePoints) do
-        if tick() - started > maxWaitSeconds or idx > 28 then break end
+        if tick() - started > maxWaitSeconds or idx > 18 then break end
         tChar = findPlayerCharacterAnywhere(targetPlr)
         tRef  = tChar and pickTargetRef(tChar, refMode or "torso")
         if tRef and tRef.Parent then return tChar, tRef end
 
         local knownCF = getBestTargetCFrame(targetPlr)
         local hopCF = knownCF or probeCF
-        task.spawn(function()
-            pcall(function() LP:RequestStreamAroundAsync(hopCF.Position, 1) end)
-        end)
+        local now = tick()
+        if now - lastStreamCall > 0.25 then
+            lastStreamCall = now
+            task.spawn(function()
+                pcall(function() LP:RequestStreamAroundAsync(hopCF.Position, 1) end)
+            end)
+        end
         myChar = LP.Character
-        myRoot = myChar and (myChar:FindFirstChild("HumanoidRootPart") or myChar:FindFirstChildWhichIsA("BasePart"))
+        myRoot = getRootPart(myChar)
         if myRoot then
             markIntentionalTeleport(hopCF)
             myRoot.CFrame = hopCF + Vector3.new(0, 3, 0)
@@ -1131,8 +1340,23 @@ local function weldToTarget(target, speaker, offset, animId, osc, refMode, animF
         local myGen = callerGen or StopGeneration
         pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
 
+        -- Wait briefly if our own character is mid-respawn
+        local myChar = speaker and speaker.Character
+        local myRoot = getRootPart(myChar)
+        local waitStart = tick()
+        while (not myChar or not myRoot) and tick() - waitStart < 2.5 do
+            if myGen ~= StopGeneration then return end
+            task.wait(0.05)
+            myChar = speaker and speaker.Character
+            myRoot = getRootPart(myChar)
+        end
+        if not myChar or not myRoot or myGen ~= StopGeneration then return end
+
+        -- Capture safe origin BEFORE streaming/teleporting to the target
+        local preSeekSafeCF = isSafePlayableCF(myRoot.CFrame) and myRoot.CFrame or LastKnownSafeCF or findFallbackSafeCF()
+
         -- Stream & teleport directly to the target even if they are hiding in an unstreamed area
-        local char, TRoot = streamAndTeleportToTarget(TPlayer, refMode or "torso", 2.4)
+        local char, TRoot = streamAndTeleportToTarget(TPlayer, refMode or "torso", 2.0, true)
         if myGen ~= StopGeneration then return end
         if not TRoot or not TRoot.Parent then
             -- Keep WeldIntent active so the continuous watchdog immediately locks on as soon as they stream/respawn
@@ -1142,13 +1366,14 @@ local function weldToTarget(target, speaker, offset, animId, osc, refMode, animF
         local tHum = char and char:FindFirstChildOfClass("Humanoid")
         if tHum and tHum.Health <= 0 then return end
 
-        local myChar = speaker and speaker.Character
-        local myRoot = myChar and (myChar:FindFirstChild("HumanoidRootPart") or myChar:FindFirstChildWhichIsA("BasePart"))
+        myChar = speaker and speaker.Character
+        myRoot = getRootPart(myChar)
         if myRoot then
             if sethiddenproperty then
                 pcall(function() sethiddenproperty(myRoot, "PhysicsRepRootPart", nil) end)
                 pcall(function() sethiddenproperty(myRoot, "PhysicsRepRootRef", nil) end)
             end
+            myRoot.Anchored = false
             myRoot.AssemblyLinearVelocity = Vector3.zero
             myRoot.AssemblyAngularVelocity = Vector3.zero
             local destCF = TRoot.CFrame * offset
@@ -1156,14 +1381,19 @@ local function weldToTarget(target, speaker, offset, animId, osc, refMode, animF
             myRoot.CFrame = destCF
         end
 
-        local w = WeldTo(TRoot, offset, speaker, animId, osc, animFallbacks, TPlayer, refMode or "torso")
+        local old = CurrentWeld
+        if old then
+            CurrentWeld = nil
+            pcall(function() old:Destroy(true) end)
+        end
+
+        local w = WeldTo(TRoot, offset, speaker, animId, osc, animFallbacks, TPlayer, refMode or "torso", preSeekSafeCF)
         if myGen ~= StopGeneration then
-            if w then pcall(function() w:Destroy() end) end
+            if w then pcall(function() w:Destroy(false) end) end
             return
         end
-        local old = CurrentWeld
         CurrentWeld = w
-        if old and old ~= w then pcall(function() old:Destroy() end) end
+        if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
     end)
     return true, TPlayer
 end
@@ -1203,9 +1433,9 @@ end
 
 local function hookTargetRespawn(targetPlr)
     if not targetPlr then return end
-    if targetPlr:FindFirstChild("__CocoPowderHook") then return end
+    if targetPlr:FindFirstChild("__KhamanDhoklaHook") then return end
     local marker = Instance.new("BoolValue")
-    marker.Name = "__CocoPowderHook"
+    marker.Name = "__KhamanDhoklaHook"
     marker.Parent = targetPlr
     targetPlr.CharacterAdded:Connect(function()
         if not AutoReweldEnabled or not WeldIntent.active then return end
@@ -1213,7 +1443,7 @@ local function hookTargetRespawn(targetPlr)
         task.wait(0.25)
         if not WeldIntent.active or targetPlr.Parent ~= Players then return end
         if CurrentWeld then
-            pcall(function() CurrentWeld:Destroy() end)
+            pcall(function() CurrentWeld:Destroy(true) end)
             CurrentWeld = nil
         end
         local key = WeldIntent.presetKey or LastPresetKey
@@ -1229,7 +1459,7 @@ end
 local reweldWatchdogBusy = false
 task.spawn(function()
     while true do
-        task.wait(0.16)
+        task.wait(0.22)
         if AutoReweldEnabled and WeldIntent.active and WeldIntent.presetKey and not FlingActive and not reweldWatchdogBusy then
             local tgt = WeldIntent.target
             if not tgt or tgt.Parent ~= Players then
@@ -1237,14 +1467,14 @@ task.spawn(function()
                 if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
             elseif not CurrentWeld then
                 local myChar = LP.Character
-                local myRoot = myChar and (myChar:FindFirstChild("HumanoidRootPart") or myChar:FindFirstChildWhichIsA("BasePart"))
+                local myRoot = getRootPart(myChar)
                 local myHum  = myChar and myChar:FindFirstChildOfClass("Humanoid")
                 if myRoot and myHum and myHum.Health > 0 then
                     reweldWatchdogBusy = true
                     pcall(function()
                         local preset = WELD_PRESETS[WeldIntent.presetKey]
                         local refMode = preset and preset.refMode or "torso"
-                        local tChar, tRef = streamAndTeleportToTarget(tgt, refMode, 1.5)
+                        local tChar, tRef = streamAndTeleportToTarget(tgt, refMode, 1.2, false)
                         local tHum = tChar and tChar:FindFirstChildOfClass("Humanoid")
                         if WeldIntent.active and not CurrentWeld and tRef and tRef.Parent and (not tHum or tHum.Health > 0) then
                             if not isLethalVoidCF(tRef.CFrame, tRef.AssemblyLinearVelocity) then
@@ -1343,10 +1573,10 @@ do -- Scoped block for RewindSys & Void Throw v2 internals (preserves top-level 
         end
         if not gui or not gui.Parent then return nil end
         local f = Instance.new("Frame")
-        f.Name = "CocoRewindHUD"
+        f.Name = "KhamanRewindHUD"
         f.Size = UDim2.new(0, 276, 0, 44)
         f.Position = UDim2.new(0.5, -138, 0, 56)
-        f.BackgroundColor3 = Color3.fromRGB(16, 19, 27)
+        f.BackgroundColor3 = T.BG2
         f.BackgroundTransparency = 0.08
         f.BorderSizePixel = 0
         f.Visible = false
@@ -1555,7 +1785,7 @@ do -- Scoped block for RewindSys & Void Throw v2 internals (preserves top-level 
         if self.rewinding then
             -- Tapping Rewind while rewinding stops immediately at the exact current point in time!
             self:Stop(nil)
-            notify("COCO POWDER", "⏹️ Rewind locked at current point!")
+            notify("KHAMAN DHOKLA", "⏹️ Rewind locked at current point!")
             sToggleOff()
             return
         end
@@ -1563,7 +1793,7 @@ do -- Scoped block for RewindSys & Void Throw v2 internals (preserves top-level 
         local targetSec = math.clamp(tonumber(customSeconds) or self.duration or 8.0, 1.0, 10.0)
         local buf = self.buffer
         if #buf < 2 then
-            notify("COCO POWDER", "Rewind buffer warming up — move around for a moment!")
+            notify("KHAMAN DHOKLA", "Rewind buffer warming up — move around for a moment!")
             sError()
             return
         end
@@ -1572,7 +1802,7 @@ do -- Scoped block for RewindSys & Void Throw v2 internals (preserves top-level 
         local root = char and char:FindFirstChild("HumanoidRootPart")
         local hum  = char and char:FindFirstChildOfClass("Humanoid")
         if not char or not root or not hum or hum.Health <= 0 then
-            notify("COCO POWDER", "Character not ready to rewind!")
+            notify("KHAMAN DHOKLA", "Character not ready to rewind!")
             sError()
             return
         end
@@ -1607,7 +1837,7 @@ do -- Scoped block for RewindSys & Void Throw v2 internals (preserves top-level 
             end
             applySnapshotFrame(char, root, hum, targetSnap, false)
             self:Stop(targetSnap)
-            notify("COCO POWDER", string.format("⏪ Instant Rewind (-%.1fs) complete!", actualSpan))
+            notify("KHAMAN DHOKLA", string.format("⏪ Instant Rewind (-%.1fs) complete!", actualSpan))
             sSuccess()
             return
         end
@@ -1617,7 +1847,7 @@ do -- Scoped block for RewindSys & Void Throw v2 internals (preserves top-level 
         if hud then hud.Visible = true end
         killAnimate(char)
 
-        notify("COCO POWDER", string.format("⏪ Rewinding %.1f seconds with exact precision...", actualSpan))
+        notify("KHAMAN DHOKLA", string.format("⏪ Rewinding %.1f seconds with exact precision...", actualSpan))
 
         task.spawn(function()
             local cursorTime = newestTime
@@ -1683,7 +1913,7 @@ do -- Scoped block for RewindSys & Void Throw v2 internals (preserves top-level 
 
             if self.rewinding then
                 self:Stop(lastSnap)
-                notify("COCO POWDER", string.format("✨ Rewound -%.1fs with exact precision!", actualSpan))
+                notify("KHAMAN DHOKLA", string.format("✨ Rewound -%.1fs with exact precision!", actualSpan))
                 sSuccess()
             end
         end)
@@ -1742,7 +1972,7 @@ local function launchNebulaFling(durationSeconds, modeTitle, isVoidThrow, explic
         targetPlr, usedNearest = resolveActiveTarget()
     end
     if not targetPlr or targetPlr.Parent ~= Players then
-        notify("COCO POWDER", "No target player found in server!")
+        notify("KHAMAN DHOKLA", "No target player found in server!")
         sError()
         return
     end
@@ -1750,7 +1980,7 @@ local function launchNebulaFling(durationSeconds, modeTitle, isVoidThrow, explic
     local myRoot = myChar and (myChar:FindFirstChild("HumanoidRootPart") or myChar:FindFirstChildWhichIsA("BasePart"))
     local myHum  = myChar and myChar:FindFirstChildOfClass("Humanoid")
     if not myRoot then
-        notify("COCO POWDER", "Local character not ready!")
+        notify("KHAMAN DHOKLA", "Local character not ready!")
         sError()
         return
     end
@@ -1760,7 +1990,7 @@ local function launchNebulaFling(durationSeconds, modeTitle, isVoidThrow, explic
     local tChar, targetRoot = streamAndTeleportToTarget(targetPlr, "torso", 2.2)
     local targetHum = tChar and tChar:FindFirstChildOfClass("Humanoid")
     if not targetRoot or not targetRoot.Parent then
-        notify("COCO POWDER", "Could not stream target — try again!")
+        notify("KHAMAN DHOKLA", "Could not stream target — try again!")
         sError()
         return
     end
@@ -1768,7 +1998,7 @@ local function launchNebulaFling(durationSeconds, modeTitle, isVoidThrow, explic
     local origCF = preSeekOriginCF
     LastKnownSafeCF = origCF
 
-    StateManager:Cleanup(true)
+    StateManager:Cleanup(true, true)
     CurrentTarget = targetPlr
     FlingActive = true
     FlingOriginCF = origCF
@@ -1803,7 +2033,7 @@ local function launchNebulaFling(durationSeconds, modeTitle, isVoidThrow, explic
 
     sFling()
     local prefix = isVoidThrow and "Void Throw v2 (" or (usedNearest and "Auto-Nearest Fling (" or "Nebula Fling (")
-    notify("COCO POWDER", prefix .. tostring(modeTitle) .. ") -> " .. targetPlr.Name)
+    notify("KHAMAN DHOKLA", prefix .. tostring(modeTitle) .. ") -> " .. targetPlr.Name)
 
     local startTime = tick()
     local phaseCounter = 0
@@ -1813,7 +2043,7 @@ local function launchNebulaFling(durationSeconds, modeTitle, isVoidThrow, explic
 
     local function finishVoidThrow(msg, playSuccess)
         StateManager:StopFling(false)
-        if msg then notify("COCO POWDER", msg) end
+        if msg then notify("KHAMAN DHOKLA", msg) end
         if playSuccess then sSuccess() end
     end
 
@@ -2011,7 +2241,7 @@ end
 local function promptNebulaFling()
     local targetPlr, usedNearest = resolveActiveTarget()
     if not targetPlr then
-        notify("COCO POWDER", "No target or nearby player found!")
+        notify("KHAMAN DHOKLA", "No target or nearby player found!")
         sError()
         return
     end
@@ -2121,7 +2351,7 @@ end
 local CS_D = 5
 local CS_M = 200
 local CS_R = " TMKX MAI "
-local CS_HDR = "SCRIPT BY COCACOLA"
+local CS_HDR = "KHAMAN DHOKLA ON TOP"
 local CS_W = {"NOOB","ROOKIE","AMATEUR","TRAINEE","BEGINNER","SLOWPOKE","SLEEPY","CLUMSY","DORK","NERD","GEEK","DWEEB","SQUISHY","WOBBLY","FUZZY","SPARKLY","GIGGLY","WIGGLY","SNAIL","TURTLE","PANDA","SLOTH","MOOSE","HAMSTER","PUPPY","KITTEN","DUCKLING","PENGUIN","NARWHAL","PLATYPUS","CAPYBARA","ALPACA","RACCOON","SQUIRREL","OTTER","BEAVER","HEDGEHOG","MEERKAT","FERRET","BUNNY","CHIPMUNK","PUFFIN","TOUCAN","FLAMINGO","MANATEE","WALRUS","PELICAN","SEAGULL","PIGEON","SPARROW","ROBIN","FINCH","WREN","MAGPIE","CROW","RAVEN","STARLING","SWALLOW","MARTIN","SWIFT","DOVE","QUAIL","PHEASANT","TURKEY","DUCK","CHICKEN","ROOSTER","PARROT","MACAW","COCKATOO","BUDGIE","CANARY"}
 local CS_E = {"🔥","😂","💀","🗿","😭","😎","🤡","👻","👀","💯","🚨","🎯","⚡","🌊","🎪","🧠","🤖","🥶","😈","🤣","💥","✨","🙏","👑"}
 local CS_SYM = "@"
@@ -2209,19 +2439,7 @@ local function bld()
     return (CS_HDR .. " " .. genSymbols() .. " " .. tail:upper() .. pickEmojis()):sub(1, CS_M)
 end
 
--- Shared movement state (hoisted to top-level so Anti-Ragdoll, Anti-Bring, Anti-Anchor, and Move Tab cooperate seamlessly)
-local moveState = {
-    speed = false,
-    jump = false,
-    infiniteJump = false,
-    noclip = false,
-    fly = false,
-    flyConn = nil,
-    jumpConn = nil,
-    noclipConn = nil,
-    speedLoopConn = nil,
-    lastTeleportTick = 0,
-}
+-- Shared movement state is hoisted above RewindSys & WeldTo so all modules share the exact same upvalue
 
 local syncAllAntiButtons = nil
 
@@ -2297,7 +2515,7 @@ local function avEnsureSafetyFloor(pos)
         floor.Size = Vector3.new(64, 2, 64)
         floor.Transparency = 0.65
         floor.Material = Enum.Material.ForceField
-        floor.Color = Color3.fromRGB(138, 92, 246)
+        floor.Color = Color3.fromRGB(250, 204, 21)
         floor.Parent = workspace
         Anti.Void.safetyFloor = floor
     end
@@ -2400,7 +2618,7 @@ avStart = function()
         if h then avForceAlive(h) end
     end)
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("COCO POWDER", "Anti-Void v2 (Predictive Catch + Safety Floor) ON")
+    notify("KHAMAN DHOKLA", "Anti-Void v2 (Predictive Catch + Safety Floor) ON")
     sToggleOn()
 end
 
@@ -2419,7 +2637,7 @@ avStop = function()
         pcall(function() workspace.FallenPartsDestroyHeight = OriginalFPDH end)
     end
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("COCO POWDER", "Anti-Void disabled")
+    notify("KHAMAN DHOKLA", "Anti-Void disabled")
     sToggleOff()
 end
 
@@ -2494,7 +2712,7 @@ akStart = function()
         end
     end)
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("COCO POWDER", "Anti-Kill v2 (Touch/Query Shield + Blast Immunity) ON")
+    notify("KHAMAN DHOKLA", "Anti-Kill v2 (Touch/Query Shield + Blast Immunity) ON")
     sToggleOn()
 end
 
@@ -2516,7 +2734,7 @@ akStop = function()
         pcall(function() workspace.FallenPartsDestroyHeight = OriginalFPDH end)
     end
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("COCO POWDER", "Anti-Kill disabled")
+    notify("KHAMAN DHOKLA", "Anti-Kill disabled")
     sToggleOff()
 end
 
@@ -2571,7 +2789,7 @@ agpStart = function()
         end
     end)
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("COCO POWDER", "Anti-GameplayPaused v2 ON")
+    notify("KHAMAN DHOKLA", "Anti-GameplayPaused v2 ON")
     sToggleOn()
 end
 
@@ -2582,7 +2800,7 @@ agpStop = function()
     if Anti.GamePaused.propConn then Anti.GamePaused.propConn:Disconnect(); Anti.GamePaused.propConn = nil end
     if Anti.GamePaused.loopConn then Anti.GamePaused.loopConn:Disconnect(); Anti.GamePaused.loopConn = nil end
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("COCO POWDER", "Anti-GameplayPaused disabled")
+    notify("KHAMAN DHOKLA", "Anti-GameplayPaused disabled")
     sToggleOff()
 end
 
@@ -2618,7 +2836,7 @@ afkStart = function()
         afkPulse()
     end)
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("COCO POWDER", "Anti-AFK v2 (Multi-Hook) ON")
+    notify("KHAMAN DHOKLA", "Anti-AFK v2 (Multi-Hook) ON")
     sToggleOn()
 end
 
@@ -2627,7 +2845,7 @@ afkStop = function()
     Anti.AFK.enabled = false
     if Anti.AFK.conn then Anti.AFK.conn:Disconnect(); Anti.AFK.conn = nil end
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("COCO POWDER", "Anti-AFK disabled")
+    notify("KHAMAN DHOKLA", "Anti-AFK disabled")
     sToggleOff()
 end
 
@@ -2675,7 +2893,7 @@ vcStart = function()
         vcAttemptReconnect()
     end)
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("COCO POWDER", "Anti-VC v2 (Native Rejoin + Suspension Bypass) ON")
+    notify("KHAMAN DHOKLA", "Anti-VC v2 (Native Rejoin + Suspension Bypass) ON")
     sToggleOn()
 end
 
@@ -2684,7 +2902,7 @@ vcStop = function()
     Anti.VC.enabled = false
     if Anti.VC.loopConn then Anti.VC.loopConn:Disconnect(); Anti.VC.loopConn = nil end
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("COCO POWDER", "Anti-VC disabled")
+    notify("KHAMAN DHOKLA", "Anti-VC disabled")
     sToggleOff()
 end
 
@@ -2754,7 +2972,7 @@ ragdollStart = function()
         ragdollCleanseCharacter(LP.Character)
     end)
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("COCO POWDER", "Anti-Ragdoll / Anti-Stun / Anti-Sit v2 ON")
+    notify("KHAMAN DHOKLA", "Anti-Ragdoll / Anti-Stun / Anti-Sit v2 ON")
     sToggleOn()
 end
 
@@ -2771,7 +2989,7 @@ ragdollStop = function()
         end)
     end
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("COCO POWDER", "Anti-Ragdoll disabled")
+    notify("KHAMAN DHOKLA", "Anti-Ragdoll disabled")
     sToggleOff()
 end
 
@@ -2824,7 +3042,7 @@ anchorStart = function()
         anchorCleanse(LP.Character)
     end)
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("COCO POWDER", "Anti-Anchor / Anti-Freeze / Anti-Mover v2 ON")
+    notify("KHAMAN DHOKLA", "Anti-Anchor / Anti-Freeze / Anti-Mover v2 ON")
     sToggleOn()
 end
 
@@ -2833,7 +3051,7 @@ anchorStop = function()
     Anti.Anchor.enabled = false
     if Anti.Anchor.steppedConn then Anti.Anchor.steppedConn:Disconnect(); Anti.Anchor.steppedConn = nil end
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("COCO POWDER", "Anti-Anchor disabled")
+    notify("KHAMAN DHOKLA", "Anti-Anchor disabled")
     sToggleOff()
 end
 
@@ -2909,7 +3127,7 @@ attachStart = function()
         severAllHostileAttachments()
     end)
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("COCO POWDER", "Anti-Attach / Omni-Weld & Grab Sever v2 ON")
+    notify("KHAMAN DHOKLA", "Anti-Attach / Omni-Weld & Grab Sever v2 ON")
     sToggleOn()
 end
 
@@ -2918,7 +3136,7 @@ attachStop = function()
     Anti.Attach.enabled = false
     if Anti.Attach.steppedConn then Anti.Attach.steppedConn:Disconnect(); Anti.Attach.steppedConn = nil end
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("COCO POWDER", "Anti-Attach disabled")
+    notify("KHAMAN DHOKLA", "Anti-Attach disabled")
     sToggleOff()
 end
 
@@ -2955,12 +3173,19 @@ local function blindCleanse()
                 end
             end
         end
-        -- Check PlayerGui for hostile full-screen blind/flashbang ScreenGuis
+        -- Check PlayerGui for hostile full-screen blind/flashbang ScreenGuis (proper Lua keyword check)
         local pgui = LP:FindFirstChildOfClass("PlayerGui")
         if pgui then
             for _, sg in ipairs(pgui:GetChildren()) do
-                if sg:IsA("ScreenGui") and not sg.Name:match("^Coco") and sg.Name:lower():match("blind|flash|blackout|jumpscare|fade") then
-                    sg.Enabled = false
+                if sg:IsA("ScreenGui") and not sg.Name:match("^Khaman") and not sg.Name:match("^Coco") then
+                    local sname = sg.Name:lower()
+                    if sname:find("blind", 1, true)
+                        or sname:find("flash", 1, true)
+                        or sname:find("blackout", 1, true)
+                        or sname:find("jumpscare", 1, true)
+                        or sname:find("fade", 1, true) then
+                        sg.Enabled = false
+                    end
                 end
             end
         end
@@ -2977,7 +3202,7 @@ blindStart = function()
         blindCleanse()
     end)
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("COCO POWDER", "Anti-Blind / Anti-Flashbang & Fog Clear v2 ON")
+    notify("KHAMAN DHOKLA", "Anti-Blind / Anti-Flashbang & Fog Clear v2 ON")
     sToggleOn()
 end
 
@@ -2986,7 +3211,7 @@ blindStop = function()
     Anti.Blind.enabled = false
     if Anti.Blind.loopConn then Anti.Blind.loopConn:Disconnect(); Anti.Blind.loopConn = nil end
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("COCO POWDER", "Anti-Blind disabled")
+    notify("KHAMAN DHOKLA", "Anti-Blind disabled")
     sToggleOff()
 end
 
@@ -3050,7 +3275,7 @@ bringStart = function()
                 r.AssemblyAngularVelocity = Vector3.zero
                 r.CFrame = Anti.Bring.lastCF
                 Anti.Bring.blockedBrings = Anti.Bring.blockedBrings + 1
-                notify("COCO POWDER", "Anti-Bring v2: Blocked hostile teleport/grab!")
+                notify("KHAMAN DHOKLA", "Anti-Bring v2: Blocked hostile teleport/grab!")
             elseif isSafePlayableCF(r.CFrame) then
                 Anti.Bring.lastCF = r.CFrame
             end
@@ -3059,7 +3284,7 @@ bringStart = function()
         end
     end)
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("COCO POWDER", "Anti-Bring / Tool-Grab & Snap Guard v2 ON")
+    notify("KHAMAN DHOKLA", "Anti-Bring / Tool-Grab & Snap Guard v2 ON")
     sToggleOn()
 end
 
@@ -3068,7 +3293,7 @@ bringStop = function()
     Anti.Bring.enabled = false
     if Anti.Bring.steppedConn then Anti.Bring.steppedConn:Disconnect(); Anti.Bring.steppedConn = nil end
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("COCO POWDER", "Anti-Bring disabled")
+    notify("KHAMAN DHOKLA", "Anti-Bring disabled")
     sToggleOff()
 end
 
@@ -3148,7 +3373,7 @@ flingShieldStart = function()
         end
     end)
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("COCO POWDER", "Anti-Fling Shield v2 (Pre/Post-Physics Zero-Impulse) ON")
+    notify("KHAMAN DHOKLA", "Anti-Fling Shield v2 (Pre/Post-Physics Zero-Impulse) ON")
     sToggleOn()
 end
 
@@ -3166,7 +3391,7 @@ flingShieldStop = function()
         end
     end
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("COCO POWDER", "Anti-Fling Shield disabled")
+    notify("KHAMAN DHOKLA", "Anti-Fling Shield disabled")
     sToggleOff()
 end
 
@@ -3241,7 +3466,7 @@ local function executeDeflectAction(attacker, threatReason)
     end
 
     local alertMsg = "🛡️ " .. (DefenceTroll.modeLabels[mode] or mode) .. " -> " .. attacker.Name .. " (" .. tostring(DefenceTroll.lastThreatReason) .. ")"
-    notify("COCO POWDER", alertMsg)
+    notify("KHAMAN DHOKLA", alertMsg)
     if showDefenceToast then showDefenceToast(alertMsg) end
     sFling()
 
@@ -3438,14 +3663,14 @@ redirectStart = function()
     Anti.Redirect.enabled = true
     if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("COCO POWDER", "Troll Redirect ON (transfers attackers to another player)")
+    notify("KHAMAN DHOKLA", "Troll Redirect ON (transfers attackers to another player)")
     sToggleOn()
 end
 redirectStop = function()
     Anti.Redirect.enabled = false
     if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("COCO POWDER", "Troll Redirect disabled")
+    notify("KHAMAN DHOKLA", "Troll Redirect disabled")
     sToggleOff()
 end
 
@@ -3453,14 +3678,14 @@ pauseTrapStart = function()
     Anti.PauseTrap.enabled = true
     if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("COCO POWDER", "Void-Pause Trap ON (banishes welded attackers)")
+    notify("KHAMAN DHOKLA", "Void-Pause Trap ON (banishes welded attackers)")
     sToggleOn()
 end
 pauseTrapStop = function()
     Anti.PauseTrap.enabled = false
     if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("COCO POWDER", "Void-Pause Trap disabled")
+    notify("KHAMAN DHOKLA", "Void-Pause Trap disabled")
     sToggleOff()
 end
 
@@ -3469,14 +3694,14 @@ defenceTrollStart = function()
     flingShieldStart()
     if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("COCO POWDER", "Defence Troll Matrix v2 ON: " .. (DefenceTroll.modeLabels[DefenceTroll.mode] or DefenceTroll.mode))
+    notify("KHAMAN DHOKLA", "Defence Troll Matrix v2 ON: " .. (DefenceTroll.modeLabels[DefenceTroll.mode] or DefenceTroll.mode))
     sToggleOn()
 end
 defenceTrollStop = function()
     DefenceTroll.enabled = false
     if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("COCO POWDER", "Defence Troll Matrix OFF")
+    notify("KHAMAN DHOKLA", "Defence Troll Matrix OFF")
     sToggleOff()
 end
 
@@ -3495,7 +3720,7 @@ enableAllAntiSystems = function()
     if updateDefenceStatsUI then pcall(updateDefenceStatsUI) end
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
     if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
-    notify("COCO POWDER", "🛡️ ALL ADVANCED ANTI SHIELDS ACTIVATED!")
+    notify("KHAMAN DHOKLA", "🛡️ ALL ADVANCED ANTI SHIELDS ACTIVATED!")
     sSuccess()
 end
 
@@ -3517,7 +3742,7 @@ disableAllAntiSystems = function()
     if updateDefenceStatsUI then pcall(updateDefenceStatsUI) end
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
     if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
-    notify("COCO POWDER", "All Anti shields disabled")
+    notify("KHAMAN DHOKLA", "All Anti shields disabled")
     sToggleOff()
 end
 end -- end Anti internal scope
@@ -3541,7 +3766,7 @@ local function buildMainUI()
     local panelShadow
 
     gui = Instance.new("ScreenGui")
-    gui.Name = "CocoPowderV35"
+    gui.Name = "KhamanDhoklaV36"
     gui.ResetOnSpawn = false
     gui.Enabled = true
     gui.DisplayOrder = 999999
@@ -3550,36 +3775,84 @@ local function buildMainUI()
     local mountOk = pcall(function() gui.Parent = GuiParent end)
     if not mountOk or not gui.Parent then
         local playerGui = LP:FindFirstChildOfClass("PlayerGui") or LP:WaitForChild("PlayerGui", 8)
-        if not playerGui then error("No usable PlayerGui found while mounting COCO POWDER ScreenGui") end
+        if not playerGui then error("No usable PlayerGui found while mounting KHAMAN DHOKLA ScreenGui") end
         gui.Parent = playerGui
     end
 
-    -- Compact floating CP launcher (only shown when the main panel is minimized/hidden)
+    -- Floating Void Throw / Fling Status & Quick-Stop Side Panel (Fixes missing FlingSidePanel HUD!)
+    FlingSidePanel = Instance.new("Frame")
+    FlingSidePanel.Name = "KhamanFlingHUD"
+    FlingSidePanel.Size = UDim2.new(0, 210, 0, 56)
+    FlingSidePanel.Position = UDim2.new(0.5, -105, 0, 14)
+    FlingSidePanel.BackgroundColor3 = T.BG2
+    FlingSidePanel.BackgroundTransparency = 0.05
+    FlingSidePanel.BorderSizePixel = 0
+    FlingSidePanel.Visible = false
+    FlingSidePanel.ZIndex = 960
+    FlingSidePanel.Parent = gui
+    Instance.new("UICorner", FlingSidePanel).CornerRadius = UDim.new(0, 10)
+    do
+        local fSt = Instance.new("UIStroke")
+        fSt.Color = T.Accent
+        fSt.Thickness = 1.6
+        fSt.Parent = FlingSidePanel
+
+        FlingCountdownLabel = Instance.new("TextLabel")
+        FlingCountdownLabel.Size = UDim2.new(1, -78, 1, -8)
+        FlingCountdownLabel.Position = UDim2.new(0, 10, 0, 4)
+        FlingCountdownLabel.BackgroundTransparency = 1
+        FlingCountdownLabel.Text = "VOID LOCK ACTIVE"
+        FlingCountdownLabel.TextColor3 = T.Neon
+        FlingCountdownLabel.Font = Enum.Font.GothamBold
+        FlingCountdownLabel.TextSize = 11
+        FlingCountdownLabel.TextXAlignment = Enum.TextXAlignment.Left
+        FlingCountdownLabel.ZIndex = 961
+        FlingCountdownLabel.Parent = FlingSidePanel
+
+        local fStopBtn = Instance.new("TextButton")
+        fStopBtn.Size = UDim2.new(0, 58, 0, 34)
+        fStopBtn.Position = UDim2.new(1, -66, 0.5, -17)
+        fStopBtn.BackgroundColor3 = T.Danger
+        fStopBtn.Text = "STOP"
+        fStopBtn.TextColor3 = Color3.new(1, 1, 1)
+        fStopBtn.Font = Enum.Font.GothamBold
+        fStopBtn.TextSize = 10
+        fStopBtn.ZIndex = 962
+        fStopBtn.Parent = FlingSidePanel
+        Instance.new("UICorner", fStopBtn).CornerRadius = UDim.new(0, 7)
+        fStopBtn.MouseButton1Click:Connect(function()
+            sClick()
+            StateManager:StopFling(false)
+            notify("KHAMAN DHOKLA", "Stopped fling & returned to safe spot!")
+        end)
+    end
+
+    -- Compact floating KD Dhokla Cube launcher (only shown when the main panel is minimized/hidden)
     local mobToggle = Instance.new("TextButton")
-    mobToggle.Name = "CocoPowderLauncher"
-    mobToggle.Size = UDim2.new(0, 42, 0, 42)
-    mobToggle.Position = UDim2.new(0, 14, 0.5, -21)
-    mobToggle.BackgroundColor3 = Color3.fromRGB(18, 22, 28)
-    mobToggle.BackgroundTransparency = 0.08
-    mobToggle.Text = "CP"
-    mobToggle.TextColor3 = T.Neon
+    mobToggle.Name = "KhamanDhoklaLauncher"
+    mobToggle.Size = UDim2.new(0, 44, 0, 44)
+    mobToggle.Position = UDim2.new(0, 14, 0.5, -22)
+    mobToggle.BackgroundColor3 = Color3.fromRGB(234, 179, 8)
+    mobToggle.BackgroundTransparency = 0.04
+    mobToggle.Text = "KD"
+    mobToggle.TextColor3 = Color3.fromRGB(28, 20, 4)
     mobToggle.Font = Enum.Font.GothamBlack
-    mobToggle.TextSize = 13
+    mobToggle.TextSize = 14
     mobToggle.AutoButtonColor = false
     mobToggle.Active = true
     mobToggle.ZIndex = 999
-    mobToggle.Visible = false -- stays hidden while panel is open so it never overlaps the UI
+    mobToggle.Visible = false
     mobToggle.Parent = gui
-    Instance.new("UICorner", mobToggle).CornerRadius = UDim.new(1, 0)
+    Instance.new("UICorner", mobToggle).CornerRadius = UDim.new(0, 11)
 
     local mobStroke = Instance.new("UIStroke")
-    mobStroke.Color = T.Accent
-    mobStroke.Thickness = 1.6
-    mobStroke.Transparency = 0.15
+    mobStroke.Color = T.Neon
+    mobStroke.Thickness = 1.8
+    mobStroke.Transparency = 0.1
     mobStroke.Parent = mobToggle
 
     local launcherDot = Instance.new("Frame")
-    launcherDot.Size = UDim2.new(0, 8, 0, 8)
+    launcherDot.Size = UDim2.new(0, 9, 0, 9)
     launcherDot.Position = UDim2.new(1, -10, 1, -10)
     launcherDot.BackgroundColor3 = T.Success
     launcherDot.BorderSizePixel = 0
@@ -3587,13 +3860,13 @@ local function buildMainUI()
     launcherDot.Parent = mobToggle
     Instance.new("UICorner", launcherDot).CornerRadius = UDim.new(1, 0)
 
-    -- Main sleek window container
+    -- Main Khaman Dhokla window container
     local main = Instance.new("Frame")
-    main.Name = "NebulaDashboard"
+    main.Name = "KhamanDhoklaDashboard"
     main.Size = UDim2.new(0, W, 0, H)
     main.Position = UDim2.new(0.5, -W/2, 0.57, -H/2)
-    main.BackgroundColor3 = T.BG
-    main.BackgroundTransparency = 0.03
+    main.BackgroundColor3 = Color3.fromRGB(46, 35, 10)
+    main.BackgroundTransparency = 0.02
     main.BorderSizePixel = 0
     main.ClipsDescendants = true
     main.Active = true
@@ -3601,21 +3874,78 @@ local function buildMainUI()
     main.Parent = gui
     Instance.new("UICorner", main).CornerRadius = UDim.new(0, 14)
 
+    -- Khaman Dhokla Golden Turmeric Sponge Gradient & Spongy Tadka Background Layer
+    do
+        local mainGrad = Instance.new("UIGradient")
+        mainGrad.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(78, 58, 14)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(48, 36, 10)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(34, 25, 7)),
+        })
+        mainGrad.Rotation = 135
+        mainGrad.Parent = main
+
+        local dhoklaBg = Instance.new("Frame")
+        dhoklaBg.Name = "KhamanDhoklaSpongeTexture"
+        dhoklaBg.Size = UDim2.new(1, 0, 1, 0)
+        dhoklaBg.BackgroundTransparency = 1
+        dhoklaBg.ZIndex = 5
+        dhoklaBg.Active = false
+        dhoklaBg.Parent = main
+
+        -- Spongy golden dhokla pores, black mustard seeds (rai), and green curry-leaf flecks
+        local specks = {
+            -- Golden spongy pores
+            { x = 0.08, y = 0.28, sz = 14, col = Color3.fromRGB(250, 204, 21), tr = 0.88 },
+            { x = 0.22, y = 0.45, sz = 10, col = Color3.fromRGB(250, 204, 21), tr = 0.90 },
+            { x = 0.48, y = 0.33, sz = 18, col = Color3.fromRGB(250, 204, 21), tr = 0.90 },
+            { x = 0.74, y = 0.26, sz = 12, col = Color3.fromRGB(250, 204, 21), tr = 0.89 },
+            { x = 0.88, y = 0.52, sz = 16, col = Color3.fromRGB(250, 204, 21), tr = 0.88 },
+            { x = 0.16, y = 0.76, sz = 15, col = Color3.fromRGB(250, 204, 21), tr = 0.89 },
+            { x = 0.63, y = 0.72, sz = 13, col = Color3.fromRGB(250, 204, 21), tr = 0.90 },
+            { x = 0.84, y = 0.82, sz = 11, col = Color3.fromRGB(250, 204, 21), tr = 0.89 },
+            -- Roasted black mustard seeds (Rai tadka)
+            { x = 0.12, y = 0.36, sz = 4,  col = Color3.fromRGB(16, 12, 4),    tr = 0.45 },
+            { x = 0.35, y = 0.25, sz = 5,  col = Color3.fromRGB(16, 12, 4),    tr = 0.45 },
+            { x = 0.58, y = 0.48, sz = 4,  col = Color3.fromRGB(16, 12, 4),    tr = 0.45 },
+            { x = 0.81, y = 0.38, sz = 5,  col = Color3.fromRGB(16, 12, 4),    tr = 0.45 },
+            { x = 0.29, y = 0.68, sz = 4,  col = Color3.fromRGB(16, 12, 4),    tr = 0.45 },
+            { x = 0.72, y = 0.64, sz = 5,  col = Color3.fromRGB(16, 12, 4),    tr = 0.45 },
+            -- Fresh coriander / curry leaf green garnish flecks
+            { x = 0.19, y = 0.29, sz = 6,  col = Color3.fromRGB(42, 196, 88),  tr = 0.72 },
+            { x = 0.67, y = 0.31, sz = 7,  col = Color3.fromRGB(42, 196, 88),  tr = 0.72 },
+            { x = 0.42, y = 0.79, sz = 6,  col = Color3.fromRGB(42, 196, 88),  tr = 0.72 },
+            { x = 0.91, y = 0.67, sz = 6,  col = Color3.fromRGB(42, 196, 88),  tr = 0.72 },
+        }
+        for _, sp in ipairs(specks) do
+            local dot = Instance.new("Frame")
+            dot.Size = UDim2.new(0, sp.sz, 0, sp.sz)
+            dot.Position = UDim2.new(sp.x, 0, sp.y, 0)
+            dot.BackgroundColor3 = sp.col
+            dot.BackgroundTransparency = sp.tr
+            dot.BorderSizePixel = 0
+            dot.ZIndex = 5
+            dot.Active = false
+            dot.Parent = dhoklaBg
+            Instance.new("UICorner", dot).CornerRadius = UDim.new(1, 0)
+        end
+    end
+
     panelShadow = Instance.new("Frame")
     panelShadow.Name = "PanelShadow"
     panelShadow.Position = UDim2.new(0.5, -W/2 - 4, 0.57, -H/2 + 4)
     panelShadow.Size = UDim2.new(0, W + 8, 0, H + 8)
-    panelShadow.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-    panelShadow.BackgroundTransparency = 0.52
+    panelShadow.BackgroundColor3 = Color3.fromRGB(18, 12, 2)
+    panelShadow.BackgroundTransparency = 0.45
     panelShadow.BorderSizePixel = 0
     panelShadow.ZIndex = 4
     panelShadow.Parent = gui
     Instance.new("UICorner", panelShadow).CornerRadius = UDim.new(0, 16)
 
     local mainStroke = Instance.new("UIStroke")
-    mainStroke.Color = T.Border
-    mainStroke.Thickness = 1.2
-    mainStroke.Transparency = 0.25
+    mainStroke.Color = T.Accent
+    mainStroke.Thickness = 1.5
+    mainStroke.Transparency = 0.18
     mainStroke.Parent = main
 
     local function refreshViewportLayout()
@@ -3708,9 +4038,9 @@ local function buildMainUI()
     headerLine.Parent = header
 
     local brandMark = Instance.new("Frame")
-    brandMark.Size = UDim2.new(0, 24, 0, 24)
-    brandMark.Position = UDim2.new(0, 12, 0.5, -12)
-    brandMark.BackgroundColor3 = T.Accent2
+    brandMark.Size = UDim2.new(0, 26, 0, 26)
+    brandMark.Position = UDim2.new(0, 11, 0.5, -13)
+    brandMark.BackgroundColor3 = T.Accent
     brandMark.BorderSizePixel = 0
     brandMark.ZIndex = 8
     brandMark.Parent = header
@@ -3719,38 +4049,38 @@ local function buildMainUI()
     local brandGlyph = Instance.new("TextLabel")
     brandGlyph.Size = UDim2.new(1, 0, 1, 0)
     brandGlyph.BackgroundTransparency = 1
-    brandGlyph.Text = "C"
-    brandGlyph.TextColor3 = Color3.new(1, 1, 1)
+    brandGlyph.Text = "KD"
+    brandGlyph.TextColor3 = T.Dark
     brandGlyph.Font = Enum.Font.GothamBlack
-    brandGlyph.TextSize = 13
+    brandGlyph.TextSize = 11
     brandGlyph.ZIndex = 9
     brandGlyph.Parent = brandMark
 
     showDefenceToast = function(msg)
         pcall(function()
             if not gui or not gui.Parent then return end
-            local old = gui:FindFirstChild("CocoDefenceToast")
+            local old = gui:FindFirstChild("KhamanDefenceToast")
             if old then old:Destroy() end
             local tFrame = Instance.new("Frame")
-            tFrame.Name = "CocoDefenceToast"
+            tFrame.Name = "KhamanDefenceToast"
             tFrame.Size = UDim2.new(0, 280, 0, 34)
             tFrame.Position = UDim2.new(0.5, -140, 0, -42)
-            tFrame.BackgroundColor3 = Color3.fromRGB(18, 22, 32)
+            tFrame.BackgroundColor3 = T.BG2
             tFrame.BorderSizePixel = 0
             tFrame.ZIndex = 500
             tFrame.Parent = gui
             Instance.new("UICorner", tFrame).CornerRadius = UDim.new(0, 9)
             local tStroke = Instance.new("UIStroke")
-            tStroke.Color = Color3.fromRGB(138, 92, 246)
-            tStroke.Thickness = 1.3
-            tStroke.Transparency = 0.2
+            tStroke.Color = T.Accent
+            tStroke.Thickness = 1.4
+            tStroke.Transparency = 0.15
             tStroke.Parent = tFrame
             local tLbl = Instance.new("TextLabel")
             tLbl.Size = UDim2.new(1, -12, 1, 0)
             tLbl.Position = UDim2.new(0, 6, 0, 0)
             tLbl.BackgroundTransparency = 1
             tLbl.Text = msg
-            tLbl.TextColor3 = Color3.fromRGB(245, 245, 255)
+            tLbl.TextColor3 = T.Text
             tLbl.Font = Enum.Font.GothamBold
             tLbl.TextSize = 10
             tLbl.ZIndex = 501
@@ -3776,9 +4106,9 @@ local function buildMainUI()
     title.Size = UDim2.new(1, -210, 0, 16)
     title.Position = UDim2.new(0, 44, 0.5, -12)
     title.BackgroundTransparency = 1
-    title.Text = "COCO POWDER"
-    title.TextColor3 = T.Text
-    title.Font = Enum.Font.GothamBold
+    title.Text = "🟨 KHAMAN DHOKLA"
+    title.TextColor3 = T.Accent
+    title.Font = Enum.Font.GothamBlack
     title.TextSize = 12
     title.TextXAlignment = Enum.TextXAlignment.Left
     title.ZIndex = 8
@@ -3788,7 +4118,7 @@ local function buildMainUI()
     subTitle.Size = UDim2.new(1, -210, 0, 12)
     subTitle.Position = UDim2.new(0, 44, 0.5, 4)
     subTitle.BackgroundTransparency = 1
-    subTitle.Text = "OMNIPRESENT V34 SEEKER  ·  " .. (isMobileDevice and "📱 ANDROID" or "💻 PC")
+    subTitle.Text = "GOLDEN TADKA V36  ·  " .. (isMobileDevice and "📱 ANDROID" or "💻 PC")
     subTitle.TextColor3 = T.Neon
     subTitle.Font = Enum.Font.GothamMedium
     subTitle.TextSize = 8
@@ -4226,7 +4556,7 @@ local function buildMainUI()
         footerSub.Text = "auto-connects to nearest player"
         if refreshList then pcall(refreshList) end
         pcall(refreshCard)
-        notify("COCO POWDER", "Auto-Nearest Player mode active")
+        notify("KHAMAN DHOKLA", "Auto-Nearest Player mode active")
     end)
 
     refreshCard()
@@ -4262,16 +4592,16 @@ local function buildMainUI()
     local PILL_META = {}
     for _, item in ipairs(PILL_CATALOG) do PILL_META[item.key] = item end
 
-    local PILL_BG_OFF       = Color3.fromRGB(20, 24, 29)
-    local PILL_STROKE_OFF   = Color3.fromRGB(54, 62, 74)
-    local PILL_DOT_OFF      = Color3.fromRGB(88, 96, 110)
-    local PILL_DOT_RING_OFF = Color3.fromRGB(122, 132, 146)
-    local PILL_TXT_OFF      = Color3.fromRGB(228, 232, 240)
+    local PILL_BG_OFF       = Color3.fromRGB(48, 36, 11)
+    local PILL_STROKE_OFF   = Color3.fromRGB(185, 142, 24)
+    local PILL_DOT_OFF      = Color3.fromRGB(168, 132, 36)
+    local PILL_DOT_RING_OFF = Color3.fromRGB(234, 179, 8)
+    local PILL_TXT_OFF      = Color3.fromRGB(255, 251, 235)
 
-    local PILL_BG_ON        = Color3.fromRGB(22, 138, 72)
-    local PILL_STROKE_ON    = Color3.fromRGB(72, 245, 138)
-    local PILL_DOT_ON       = Color3.fromRGB(95, 255, 155)
-    local PILL_DOT_RING_ON  = Color3.fromRGB(215, 255, 230)
+    local PILL_BG_ON        = Color3.fromRGB(32, 156, 72)
+    local PILL_STROKE_ON    = Color3.fromRGB(250, 204, 21)
+    local PILL_DOT_ON       = Color3.fromRGB(254, 240, 138)
+    local PILL_DOT_RING_ON  = Color3.fromRGB(255, 255, 255)
     local PILL_TXT_ON       = Color3.fromRGB(255, 255, 255)
 
     local presetCards = {} -- key -> { btn, dot, label }
@@ -4363,10 +4693,10 @@ local function buildMainUI()
             Anti.FlingShield.enabled = turningOn
             if turningOn then
                 flingShieldStart()
-                notify("COCO POWDER", "Defence Troll ON (" .. (DefenceTroll.modeLabels[DefenceTroll.mode] or DefenceTroll.mode) .. ")")
+                notify("KHAMAN DHOKLA", "Defence Troll ON (" .. (DefenceTroll.modeLabels[DefenceTroll.mode] or DefenceTroll.mode) .. ")")
             else
                 flingShieldStop()
-                notify("COCO POWDER", "Defence Troll OFF")
+                notify("KHAMAN DHOKLA", "Defence Troll OFF")
             end
             syncAllActiveIndicators()
             if updateDefenceStatsUI then pcall(updateDefenceStatsUI) end
@@ -4375,7 +4705,7 @@ local function buildMainUI()
         if key == "voidthrow" then
             if FlingActive then
                 StateManager:StopFling(false)
-                notify("COCO POWDER", "Void Throw stopped & safely returned")
+                notify("KHAMAN DHOKLA", "Void Throw stopped & safely returned")
                 sToggleOff()
             else
                 launchVoidThrow()
@@ -4386,7 +4716,7 @@ local function buildMainUI()
         if key == "fling" then
             if FlingActive then
                 StateManager:StopFling(false)
-                notify("COCO POWDER", "Fling stopped & safely returned")
+                notify("KHAMAN DHOKLA", "Fling stopped & safely returned")
                 sToggleOff()
             else
                 launchNebulaFling(-1, "Unlimited", false)
@@ -4402,13 +4732,13 @@ local function buildMainUI()
             footerSub.Text = "stopped"
             syncAllActiveIndicators()
             sToggleOff()
-            notify("COCO POWDER", (WELD_PRESETS[key] and WELD_PRESETS[key].label or key) .. " stopped")
+            notify("KHAMAN DHOKLA", (WELD_PRESETS[key] and WELD_PRESETS[key].label or key) .. " stopped")
             return
         end
 
         local targetPlr, usedNearest = resolveActiveTarget()
         if not targetPlr or targetPlr.Parent ~= Players then
-            notify("COCO POWDER", "No target player found in server!")
+            notify("KHAMAN DHOKLA", "No target player found in server!")
             sError()
             syncAllActiveIndicators()
             return
@@ -4425,11 +4755,11 @@ local function buildMainUI()
             syncAllActiveIndicators()
             sSuccess()
             local prefix = usedNearest and "Auto-Nearest (" .. (WELD_PRESETS[key].label or key) .. ") -> " or ((WELD_PRESETS[key].label or key) .. " -> ")
-            notify("COCO POWDER", prefix .. targetPlr.Name)
+            notify("KHAMAN DHOKLA", prefix .. targetPlr.Name)
         else
             syncAllActiveIndicators()
             sError()
-            notify("COCO POWDER", "Failed — reference part missing")
+            notify("KHAMAN DHOKLA", "Failed — reference part missing")
         end
     end
 
@@ -4720,28 +5050,28 @@ local function buildMainUI()
     makeTunerBtn(0.62, 0.19, "SEEK & TP", function()
         local tgt = resolveActiveTarget()
         if not tgt or tgt.Parent ~= Players then
-            notify("COCO POWDER", "No target player in server!")
+            notify("KHAMAN DHOKLA", "No target player in server!")
             sError()
             return
         end
         task.spawn(function()
-            notify("COCO POWDER", "Seeking " .. tgt.Name .. " across server...")
+            notify("KHAMAN DHOKLA", "Seeking " .. tgt.Name .. " across server...")
             local _, tRef = streamAndTeleportToTarget(tgt, "torso", 2.4)
             if tRef and tRef.Parent then
                 local destCF = tRef.CFrame * CFrame.new(0, 1.5, 2.5)
                 markIntentionalTeleport(destCF)
                 safeReturnFromVoid(LP.Character, destCF)
-                notify("COCO POWDER", "Found & teleported to " .. tgt.Name .. "!")
+                notify("KHAMAN DHOKLA", "Found & teleported to " .. tgt.Name .. "!")
                 sSuccess()
             else
                 local fallbackCF = getBestTargetCFrame(tgt)
                 if fallbackCF then
                     markIntentionalTeleport(fallbackCF)
                     safeReturnFromVoid(LP.Character, fallbackCF * CFrame.new(0, 2, 0))
-                    notify("COCO POWDER", "Teleported to " .. tgt.Name .. "'s hidden zone!")
+                    notify("KHAMAN DHOKLA", "Teleported to " .. tgt.Name .. "'s hidden zone!")
                     sSuccess()
                 else
-                    notify("COCO POWDER", "Target is respawning — enable Auto-Chase to lock on!")
+                    notify("KHAMAN DHOKLA", "Target is respawning — enable Auto-Chase to lock on!")
                     sError()
                 end
             end
@@ -4752,9 +5082,10 @@ local function buildMainUI()
         local currentCam = workspace.CurrentCamera
         if SpectatingTarget then
             local tgt = resolveActiveTarget()
-            local tHum = tgt and tgt.Character and tgt.Character:FindFirstChildOfClass("Humanoid")
-            if currentCam and tHum then
-                currentCam.CameraSubject = tHum
+            local tChar = tgt and findPlayerCharacterAnywhere(tgt)
+            local tSubj = tChar and (tChar:FindFirstChildOfClass("Humanoid") or getRootPart(tChar))
+            if currentCam and tSubj then
+                currentCam.CameraSubject = tSubj
                 btn.Text = "VIEW: ON"
                 BtnColors[btn] = PILL_BG_ON
                 btn.BackgroundColor3 = PILL_BG_ON
@@ -4944,17 +5275,17 @@ local function buildMainUI()
                         local destCF = tRef.CFrame * CFrame.new(0, 1.5, 2.5)
                         markIntentionalTeleport(destCF)
                         safeReturnFromVoid(LP.Character, destCF)
-                        notify("COCO POWDER", "Found & teleported to " .. p.Name .. "!")
+                        notify("KHAMAN DHOKLA", "Found & teleported to " .. p.Name .. "!")
                         sSuccess()
                     else
                         local fallbackCF = getBestTargetCFrame(p)
                         if fallbackCF then
                             markIntentionalTeleport(fallbackCF)
                             safeReturnFromVoid(LP.Character, fallbackCF * CFrame.new(0, 2, 0))
-                            notify("COCO POWDER", "Teleported to " .. p.Name .. "'s hidden location!")
+                            notify("KHAMAN DHOKLA", "Teleported to " .. p.Name .. "'s hidden location!")
                             sSuccess()
                         else
-                            notify("COCO POWDER", "Seeking " .. p.Name .. " — turned on Auto-Chase!")
+                            notify("KHAMAN DHOKLA", "Seeking " .. p.Name .. " — turned on Auto-Chase!")
                             applyWeldPreset("chase", p)
                             syncAllActiveIndicators()
                         end
@@ -5192,14 +5523,14 @@ local function buildMainUI()
                 if fallbackPlr then csTgt = fallbackPlr.Name end
             end
             if csTgt == "" or csTgt == nil then
-                notify("COCO POWDER", "No target or nearby player found")
+                notify("KHAMAN DHOKLA", "No target or nearby player found")
                 sError()
                 return
             end
             chatTargetInput.Text = csTgt
         end
         if csMode == "message" and csMsg == "" then
-            notify("COCO POWDER", "Enter a message")
+            notify("KHAMAN DHOKLA", "Enter a message")
             sError()
             return
         end
@@ -5225,7 +5556,7 @@ local function buildMainUI()
             end
         end)
         sToggleOn()
-        notify("COCO POWDER", "Chat spammer started")
+        notify("KHAMAN DHOKLA", "Chat spammer started")
     end
 
     chatStopFn = function()
@@ -5234,7 +5565,7 @@ local function buildMainUI()
         chatStatusLbl.Text = "stopped · " .. csCnt .. " sent"
         chatStatusLbl.TextColor3 = T.Muted
         sToggleOff()
-        notify("COCO POWDER", "Chat spammer stopped")
+        notify("KHAMAN DHOKLA", "Chat spammer stopped")
     end
 
     chatStartBtn.MouseButton1Click:Connect(function() sClick(); chatStartFn() end)
@@ -5432,7 +5763,7 @@ local function buildMainUI()
         idx = (idx % #DefenceTroll.modes) + 1
         DefenceTroll.mode = DefenceTroll.modes[idx]
         modeBtn.Text = "MODE: " .. (DefenceTroll.modeLabels[DefenceTroll.mode] or DefenceTroll.mode)
-        notify("COCO POWDER", "Defence Mode set: " .. (DefenceTroll.modeLabels[DefenceTroll.mode] or DefenceTroll.mode))
+        notify("KHAMAN DHOKLA", "Defence Mode set: " .. (DefenceTroll.modeLabels[DefenceTroll.mode] or DefenceTroll.mode))
         updateDefenceStatsUI()
     end)
 
@@ -5441,7 +5772,7 @@ local function buildMainUI()
         DefenceTroll.rangeIdx = (DefenceTroll.rangeIdx % #DefenceTroll.ranges) + 1
         DefenceTroll.range = DefenceTroll.ranges[DefenceTroll.rangeIdx]
         rangeBtn.Text = "RADAR: " .. tostring(DefenceTroll.range) .. "s"
-        notify("COCO POWDER", "Deflect Radar Range: " .. tostring(DefenceTroll.range) .. " studs")
+        notify("KHAMAN DHOKLA", "Deflect Radar Range: " .. tostring(DefenceTroll.range) .. " studs")
     end)
 
     sectionLbl(antiTab, 3, "ADVANCED CHARACTER & PHYSICS SHIELDS (V2)", T.Muted)
@@ -5573,7 +5904,7 @@ local function buildMainUI()
             sClick()
             RewindSys.duration = opt.val
             refreshRewindDurUI()
-            notify("COCO POWDER", "Rewind window set to " .. tostring(opt.val) .. " seconds (60Hz exact)")
+            notify("KHAMAN DHOKLA", "Rewind window set to " .. tostring(opt.val) .. " seconds (60Hz exact)")
         end)
     end
     refreshRewindDurUI()
@@ -6047,7 +6378,8 @@ local function buildMainUI()
         end
         moveState.fly = false
         if moveState.flyConn then moveState.flyConn:Disconnect(); moveState.flyConn = nil end
-        flyStatus.Text = "FLY  ·  OFF  (WASD + SPACE/CTRL)"; BtnColors[flyStatus] = T.Panel; flyStatus.BackgroundColor3 = T.Panel
+        removeMobileFlyHUD()
+        flyStatus.Text = "FLY  ·  OFF  (WASD / JOYSTICK + ALT)"; BtnColors[flyStatus] = T.Panel; flyStatus.BackgroundColor3 = T.Panel
     end)
     end -- end Move Tab scope block
 
@@ -6060,7 +6392,7 @@ local function buildMainUI()
         footerSub.Text = "stopped"
         syncAllActiveIndicators()
         pcall(function() workspace.FallenPartsDestroyHeight = OriginalFPDH end)
-        notify("COCO POWDER", "Unwelded & state cleared")
+        notify("KHAMAN DHOKLA", "Unwelded & state cleared")
         sSuccess()
     end)
 
@@ -6087,7 +6419,7 @@ local function buildMainUI()
         chatStopFn()
         pcall(function() workspace.FallenPartsDestroyHeight = OriginalFPDH end)
         gui:Destroy()
-        print("[COCO POWDER] Terminated.")
+        print("[KHAMAN DHOKLA] Terminated.")
     end
 
     local function showCloseConfirm()
@@ -6115,7 +6447,7 @@ local function buildMainUI()
         dt.Size = UDim2.new(1, -24, 0, 22)
         dt.Position = UDim2.new(0, 12, 0, 12)
         dt.BackgroundTransparency = 1
-        dt.Text = "Close COCO POWDER?"
+        dt.Text = "Close KHAMAN DHOKLA?"
         dt.TextColor3 = T.Text
         dt.Font = Enum.Font.GothamBold
         dt.TextSize = 13
@@ -6126,7 +6458,7 @@ local function buildMainUI()
         dm.Size = UDim2.new(1, -24, 0, 28)
         dm.Position = UDim2.new(0, 12, 0, 34)
         dm.BackgroundTransparency = 1
-        dm.Text = "Hide to the CP icon or unload completely?"
+        dm.Text = "Hide to the KD Dhokla icon or unload completely?"
         dm.TextColor3 = T.Muted
         dm.TextWrapped = true
         dm.Font = Enum.Font.Gotham
@@ -6211,15 +6543,15 @@ local bootOk, bootErr = xpcall(buildMainUI, function(err)
     return tostring(err) .. trace
 end)
 if not bootOk then
-    warn("[COCO POWDER] GUI startup failed:\n" .. tostring(bootErr))
+    warn("[KHAMAN DHOKLA] GUI startup failed:\n" .. tostring(bootErr))
     -- Show a simple diagnostic in PlayerGui so a failed mount/build is visible.
     pcall(function()
         local playerGui = LP:FindFirstChildOfClass("PlayerGui") or LP:WaitForChild("PlayerGui", 8)
         if not playerGui then return end
-        local old = playerGui:FindFirstChild("CocoPowderStartupError")
+        local old = playerGui:FindFirstChild("KhamanDhoklaStartupError")
         if old then old:Destroy() end
         local diagnostic = Instance.new("ScreenGui")
-        diagnostic.Name = "CocoPowderStartupError"
+        diagnostic.Name = "KhamanDhoklaStartupError"
         diagnostic.ResetOnSpawn = false
         diagnostic.DisplayOrder = 100000
         diagnostic.Parent = playerGui
@@ -6238,7 +6570,7 @@ if not bootOk then
         title.TextSize = 16
         title.TextColor3 = Color3.fromRGB(255, 115, 115)
         title.TextXAlignment = Enum.TextXAlignment.Left
-        title.Text = "COCO POWDER failed to start"
+        title.Text = "KHAMAN DHOKLA failed to start"
         title.Parent = panel
         local details = Instance.new("TextLabel")
         details.Size = UDim2.new(1, -20, 1, -48)
@@ -6255,5 +6587,5 @@ if not bootOk then
     end)
     return
 end
-notify("COCO POWDER V35", "Omnipresent Seeker & Void-Safe ready. Finds & TPs to hidden players anywhere!")
-print("[COCO POWDER V35] Ready.")
+notify("KHAMAN DHOKLA V36", "Omnipresent Seeker & Void-Safe ready. Finds & TPs to hidden players anywhere!")
+print("[KHAMAN DHOKLA V36] Ready.")
