@@ -1,25 +1,22 @@
 --[[═══════════════════════════════════════════════════════════════════════════════
-  🟨 KHAMAN DHOKLA — V36 "GOLDEN TADKA OMNIPRESENT & ZERO-BUG" EDITION
+  🟨 KHAMAN DHOKLA — V37 "GOLDEN TADKA ZERO-DELAY & ULTRA-REFINED UI" EDITION
   Tabs: WELD | TARGET | CHAT | ANTI | MOVE
-  Toggle: RightShift (or floating KD Dhokla cube launcher)
+  Toggle: RightShift (or floating KD Dhokla Cube launcher)
   Theme: Authentic Khaman Dhokla (Steamed Golden Besan Sponge, Roasted Rai Mustard
          Seeds, Crisp Curry Leaf & Green Chili Chutney Accents, Grated Coconut Text)
   Compatibility: Universal R6 & R15 Cross-Rig Architecture (Delta / Android / PC)
-  Key Upgrades & Bug Fixes:
-    • Bang Animation Upgraded to rbxassetid://116235062592344 (R15 & R6 + Auto-Loop
-      Guard & Asynchronous Non-Blocking Track Loader so Welding connects on Frame 1!)
-    • Instant Zero-Lag Player Connection: Dual RenderStepped + Heartbeat CFrame lock,
-      velocity-matched anti-sleep replication, automatic SeatWeld / Grab breaker,
-      and Humanoid.RootPart fallback for custom-rig games
-    • Safe Return & Re-Weld Race Condition Fixed: Switching targets or presets no
-      longer triggers background anchor snapbacks that fight the new weld connection
-    • Throttled Smart Stream-Piercer: Eliminates workspace:GetDescendants() frame
-      freezes and RequestStreamAroundAsync spam while finding hidden players anywhere
-    • Lua Pattern & Scope Fixes: Fixed hoisted moveState/deflectBusy upvalues, fixed
-      Anti-Blind ScreenGui pattern matching, and added live Fling/Void Throw HUD
+  V37 Upgrades & Optimizations:
+    • 0.00s True Zero-Delay Troll & Weld Engine: Synchronous Frame-0 CFrame lock &
+      instant 0-fade animation playback across RenderStepped, Stepped, and Heartbeat
+    • Calibrated Face Bang & Backshots for rbxassetid://116235062592344: Exact
+      head/face height alignment + live Height (Y), Distance (Z), and Speed tuner
+    • Ultra-Smooth Page & Panel Transitions: Directional Quint slide + fade page
+      switching, animated sliding tab indicator pill, and smooth spring panel toggle
+    • Cached Character Part Optimizer: Event-driven BasePart caching eliminates
+      redundant GetDescendants() scans for locked high FPS on Android & PC
 ═══════════════════════════════════════════════════════════════════════════════]]
 
-print("[KHAMAN DHOKLA] V36 Golden Tadka Omnipresent & Zero-Bug Edition bootstrapping...")
+print("[KHAMAN DHOKLA] V37 Golden Tadka Zero-Delay & Refined UI Edition bootstrapping...")
 
 if not game:IsLoaded() then
     local ok = pcall(function() game.Loaded:Wait() end)
@@ -118,24 +115,24 @@ workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
 end)
 
 local T = {
-    -- Authentic Khaman Dhokla Palette: Steamed Golden Besan Sponge, Roasted Mustard Tadka & Green Chutney
-    BG      = Color3.fromRGB(34, 26, 8),     -- Deep Roasted Tadka & Besan Base
-    BG2     = Color3.fromRGB(48, 36, 11),    -- Warm Golden-Brown Dhokla Crust
-    Panel   = Color3.fromRGB(66, 50, 14),    -- Spongy Khaman Interior Card
-    PanelLt = Color3.fromRGB(88, 67, 19),    -- Fluffy Steamed Besan Highlight
-    Border  = Color3.fromRGB(212, 162, 28),  -- Bright Turmeric Gold Rim
+    -- Refined Khaman Dhokla Palette: Rich Golden Besan Sponge, Roasted Rai Tadka & Green Chutney
+    BG      = Color3.fromRGB(28, 21, 6),     -- Deep Roasted Tadka & Besan Base
+    BG2     = Color3.fromRGB(42, 31, 9),     -- Warm Golden-Brown Dhokla Crust
+    Panel   = Color3.fromRGB(58, 44, 12),    -- Spongy Khaman Interior Card
+    PanelLt = Color3.fromRGB(82, 62, 17),    -- Fluffy Steamed Besan Highlight
+    Border  = Color3.fromRGB(218, 165, 32),  -- Bright Turmeric Gold Rim
     Accent  = Color3.fromRGB(250, 204, 21),  -- Signature Khaman Dhokla Golden Yellow
     Accent2 = Color3.fromRGB(217, 138, 10),  -- Tangy Kesari Tadka Amber (Buttons/Active)
     Neon    = Color3.fromRGB(254, 243, 148), -- Fresh Lemon-Turmeric Sponge Glow
-    Success = Color3.fromRGB(42, 196, 88),   -- Fresh Coriander & Green Chili Chutney
+    Success = Color3.fromRGB(38, 198, 90),   -- Fresh Coriander & Green Chili Chutney
     Danger  = Color3.fromRGB(239, 68, 68),   -- Spicy Red Chili Tadka
     Warning = Color3.fromRGB(245, 168, 18),  -- Sweet Tamarind Chutney
     Pink    = Color3.fromRGB(252, 211, 77),  -- Soft Besan Cream
     Purple  = Color3.fromRGB(234, 179, 8),   -- Golden Mustard Glow
-    Text    = Color3.fromRGB(255, 252, 235), -- Fresh Grated Coconut White
-    Muted   = Color3.fromRGB(224, 201, 138), -- Toasted Sesame & Soft Besan Text
-    Dark    = Color3.fromRGB(20, 15, 4),     -- Black Mustard Seed (Rai)
-    Active  = Color3.fromRGB(112, 85, 22),   -- Warm Active Sponge Cell
+    Text    = Color3.fromRGB(255, 252, 238), -- Fresh Grated Coconut White
+    Muted   = Color3.fromRGB(224, 201, 142), -- Toasted Sesame & Soft Besan Text
+    Dark    = Color3.fromRGB(18, 13, 4),     -- Black Mustard Seed (Rai)
+    Active  = Color3.fromRGB(108, 82, 20),   -- Warm Active Sponge Cell
 }
 
 local function sfx(id, vol, pitch)
@@ -290,8 +287,40 @@ local moveState = {
     speedLoopConn = nil,
     lastTeleportTick = 0,
 }
--- deflectBusy, contactTimers, deflectCooldowns, attackerLastPos are hoisted above RewindSys
+-- deflectBusy, contactTimers, deflectCooldowns, attackerLastPos hoisted above RewindSys
 local RescueGeneration = 0
+
+-- Event-Driven Character BasePart Cache: avoids redundant GetDescendants() scans on every Stepped frame!
+local CharPartCache = setmetatable({}, { __mode = "k" })
+local function getCachedCharParts(char)
+    if not char then return {} end
+    local entry = CharPartCache[char]
+    if entry then return entry.parts end
+    local parts = {}
+    for _, d in ipairs(char:GetDescendants()) do
+        if d:IsA("BasePart") then
+            parts[#parts + 1] = d
+        end
+    end
+    entry = { parts = parts }
+    CharPartCache[char] = entry
+    char.DescendantAdded:Connect(function(d)
+        if d:IsA("BasePart") then
+            parts[#parts + 1] = d
+        end
+    end)
+    char.DescendantRemoving:Connect(function(d)
+        if d:IsA("BasePart") then
+            for i = #parts, 1, -1 do
+                if parts[i] == d then
+                    table.remove(parts, i)
+                    break
+                end
+            end
+        end
+    end)
+    return parts
+end
 
 -- Universal RootPart resolver: handles games that rename HumanoidRootPart or use custom rigs
 local function getRootPart(char)
@@ -351,8 +380,8 @@ function StateManager:ResetPhysics(character)
         root.AssemblyLinearVelocity = Vector3.zero
         root.AssemblyAngularVelocity = Vector3.zero
     end
-    for _, part in ipairs(character:GetDescendants()) do
-        if part:IsA("BasePart") then
+    for _, part in ipairs(getCachedCharParts(character)) do
+        if part.Parent then
             part.Massless = false
             if part.Name == "HumanoidRootPart" or part.Name == "Torso" or part.Name == "UpperTorso" or part.Name == "LowerTorso" or part.Name == "Head" then
                 part.CanCollide = true
@@ -367,8 +396,8 @@ function StateManager:StopFling(skipReturn)
     if FlingConn then FlingConn:Disconnect(); FlingConn = nil end
     if self.FlingStepConn then self.FlingStepConn:Disconnect(); self.FlingStepConn = nil end
     if LP.Character then
-        for _, part in ipairs(LP.Character:GetDescendants()) do
-            if part:IsA("BasePart") then
+        for _, part in ipairs(getCachedCharParts(LP.Character)) do
+            if part.Parent then
                 pcall(function() part.CustomPhysicalProperties = nil end)
             end
         end
@@ -421,7 +450,7 @@ function StateManager:Cleanup(keepTarget, skipReturn)
     if not keepTarget then CurrentTarget = nil end
 end
 
-local ANIM_VERIFY_TIME = 0.28
+local ANIM_VERIFY_TIME = 0.12
 local ANIM_MAX_ATTEMPTS = 2
 
 local function forcePhysicsState(hum)
@@ -436,54 +465,51 @@ local function normalizeAnimAssetId(animId)
     return digits or raw
 end
 
-local function tryPlayOnce(Animator, animId, hum, priority)
+-- Instant 0.00s Zero-Delay Animation Starter:
+-- Starts primary animation track immediately with 0 fade time on the calling frame!
+local function startInstantAnimTrack(Animator, animId, fallbacks, hum, priority)
+    if not Animator or not animId then return nil, nil end
     local cleanId = normalizeAnimAssetId(animId)
-    if cleanId == "" then return nil, nil, false end
+    if cleanId == "" then return nil, nil end
     local anim = Instance.new("Animation")
     anim.AnimationId = "rbxassetid://" .. cleanId
     local okLoad, track = pcall(function() return Animator:LoadAnimation(anim) end)
     if (not okLoad or not track) and hum then
         okLoad, track = pcall(function() return hum:LoadAnimation(anim) end)
     end
-    if not okLoad or not track then anim:Destroy(); return nil, nil, false end
-    pcall(function()
-        track.Priority = priority or Enum.AnimationPriority.Action4
-    end)
-    pcall(function()
-        if not track.Priority then track.Priority = Enum.AnimationPriority.Action end
-    end)
-    pcall(function() track.Looped = true end)
-    pcall(function() track:AdjustSpeed(math.clamp(V.Speed or 1.0, 0.2, 6.0)) end)
-    forcePhysicsState(hum)
-    local okPlay = pcall(function() track:Play(0.08, 1, math.clamp(V.Speed or 1.0, 0.2, 6.0)) end)
-    if not okPlay then
-        pcall(function() track:Stop(0) end); pcall(function() track:Destroy() end)
-        anim:Destroy()
-        return nil, nil, false
+    if okLoad and track then
+        pcall(function() track.Priority = priority or Enum.AnimationPriority.Action4 end)
+        pcall(function() if not track.Priority then track.Priority = Enum.AnimationPriority.Action end end)
+        pcall(function() track.Looped = true end)
+        forcePhysicsState(hum)
+        local spd = math.clamp(V.Speed or 1.0, 0.2, 6.0)
+        local okPlay = pcall(function() track:Play(0, 1, spd) end)
+        if okPlay then
+            pcall(function() track:AdjustSpeed(spd) end)
+            table.insert(PlayedAnims, track)
+            return track, anim
+        end
     end
-    table.insert(PlayedAnims, track)
-    local started = tick()
-    while tick() - started < ANIM_VERIFY_TIME do
-        local playing = false
-        pcall(function() playing = track.IsPlaying end)
-        if playing then return track, anim, true end
-        task.wait(0.02)
-    end
-    pcall(function() track:Stop(0) end); pcall(function() track:Destroy() end)
-    anim:Destroy()
-    return nil, nil, false
-end
-
-local function loadPlayableAnim(Animator, animId, fallbacks, hum, priority)
-    if not Animator or not animId then return nil, nil end
-    local cands = { animId }
-    for _, f in ipairs(fallbacks or {}) do table.insert(cands, f) end
-    for _, id in ipairs(cands) do
-        for attempt = 1, ANIM_MAX_ATTEMPTS do
-            local track, anim, ok = tryPlayOnce(Animator, id, hum, priority)
-            if ok then return track, anim end
-            if anim then pcall(function() anim:Destroy() end) end
-            if attempt < ANIM_MAX_ATTEMPTS then task.wait(0.03) end
+    pcall(function() anim:Destroy() end)
+    -- If primary failed synchronously, try fallbacks immediately
+    for _, fb in ipairs(fallbacks or {}) do
+        local fbId = normalizeAnimAssetId(fb)
+        if fbId ~= "" then
+            local fbAnim = Instance.new("Animation")
+            fbAnim.AnimationId = "rbxassetid://" .. fbId
+            local ok2, tr2 = pcall(function() return Animator:LoadAnimation(fbAnim) end)
+            if ok2 and tr2 then
+                pcall(function() tr2.Priority = priority or Enum.AnimationPriority.Action4 end)
+                pcall(function() tr2.Looped = true end)
+                forcePhysicsState(hum)
+                local spd = math.clamp(V.Speed or 1.0, 0.2, 6.0)
+                if pcall(function() tr2:Play(0, 1, spd) end) then
+                    pcall(function() tr2:AdjustSpeed(spd) end)
+                    table.insert(PlayedAnims, tr2)
+                    return tr2, fbAnim
+                end
+            end
+            pcall(function() fbAnim:Destroy() end)
         end
     end
     return nil, nil
@@ -553,8 +579,8 @@ recoverCharacterState = function(char, safeCF)
             root.CFrame = CFrame.new(pos) * CFrame.Angles(0, yYaw, 0)
         end
     end
-    for _, part in ipairs(char:GetDescendants()) do
-        if part:IsA("BasePart") then
+    for _, part in ipairs(getCachedCharParts(char)) do
+        if part.Parent then
             part.Massless = false
             if part.Name == "HumanoidRootPart" or part.Name == "Torso" or part.Name == "UpperTorso" or part.Name == "LowerTorso" or part.Name == "Head" then
                 part.CanCollide = true
@@ -683,13 +709,51 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
     forcePhysicsState(Humanoid)
     killAnimate(Character)
 
+    local function applyPhaseNoclip()
+        if not Character or not Character.Parent then return end
+        for _, v in ipairs(getCachedCharParts(Character)) do
+            if v.Parent then
+                if v.CanCollide then v.CanCollide = false end
+                if v.CanTouch then v.CanTouch = false end
+                if v.CanQuery then v.CanQuery = false end
+                if not v.Massless then v.Massless = true end
+                if v.Anchored then v.Anchored = false end
+            end
+        end
+        if Humanoid and Humanoid.Sit then
+            pcall(function() Humanoid.Sit = false end)
+        end
+    end
+    applyPhaseNoclip()
+
+    -- ZERO-DELAY FRAME-0 LOCK: Snap to TargetPart immediately on the exact calling line!
+    local clock = 0
+    local function computeCurrentTargetLockCF()
+        local customAdjust = CFrame.new(V.X or 0, V.Y or 0, (V.Z or 1.3) - 1.3)
+        local localOffset = Offset * customAdjust
+        if Osc and Osc.period and Osc.period > 0 then
+            local phase = (math.sin(clock * (2 * math.pi) / Osc.period) + 1) * 0.5
+            localOffset = localOffset * CFrame.new(0, 0, -Osc.distance * phase)
+        end
+        return TargetPart.CFrame * localOffset
+    end
+
+    local currentLockCF = nil
+    if TargetPart and TargetPart.Parent then
+        currentLockCF = computeCurrentTargetLockCF()
+        markIntentionalTeleport(currentLockCF)
+        Root.CFrame = currentLockCF
+        Root.AssemblyLinearVelocity = Vector3.zero
+        Root.AssemblyAngularVelocity = Vector3.zero
+    end
+
+    -- ZERO-DELAY FRAME-0 ANIMATION: Start animation immediately without any task.wait!
     local AnimTrack, AnimInstance = nil, nil
-    local animLoading = false
     local animAttempts = 0
     local Weld = { destroyed = false }
 
     local function ensureAnim(force)
-        if not AnimationId or Weld.destroyed or animLoading then return end
+        if not AnimationId or Weld.destroyed then return end
         if AnimTrack and not force then
             local ip = false
             pcall(function()
@@ -704,70 +768,31 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
             end
         end
         animAttempts = animAttempts + 1
-        if not force and animAttempts % 15 ~= 0 and AnimTrack then return end
-        animLoading = true
-        task.spawn(function()
-            pcall(function()
-                if Weld.destroyed or not Character.Parent then return end
-                local Animator = Character:FindFirstChildWhichIsA("Animator", true)
-                if not Animator and Humanoid then
-                    Animator = Instance.new("Animator")
-                    Animator.Parent = Humanoid
-                end
-                if not Animator then return end
-                local track, anim = loadPlayableAnim(Animator, AnimationId, AnimFallbacks, Humanoid)
-                if Weld.destroyed then
-                    if track then pcall(function() track:Stop(0); track:Destroy() end) end
-                    if anim then pcall(function() anim:Destroy() end) end
-                    return
-                end
-                if track then
-                    pcall(function()
-                        track.Looped = true
-                        track:AdjustSpeed(math.clamp(V.Speed or 1.0, 0.2, 6.0))
-                    end)
-                    if AnimTrack and AnimTrack ~= track then
-                        pcall(function() AnimTrack:Stop(0); AnimTrack:Destroy() end)
-                    end
-                    if AnimInstance and AnimInstance ~= anim then
-                        pcall(function() AnimInstance:Destroy() end)
-                    end
-                    AnimTrack = track
-                    AnimInstance = anim
-                end
-            end)
-            animLoading = false
-        end)
-    end
-    -- Load animation asynchronously so Frame-1 CFrame lock is NEVER delayed!
-    ensureAnim(true)
-
-    local function applyPhaseNoclip()
-        if not Character or not Character.Parent then return end
-        for _, v in ipairs(Character:GetDescendants()) do
-            if v:IsA("BasePart") then
-                if v.CanCollide then v.CanCollide = false end
-                if v.CanTouch then v.CanTouch = false end
-                if v.CanQuery then v.CanQuery = false end
-                if not v.Massless then v.Massless = true end
-                if v.Anchored then v.Anchored = false end
-            elseif v:IsA("SeatWeld") or v.Name == "SeatWeld" then
-                pcall(function() v:Destroy() end)
+        if not force and animAttempts % 10 ~= 0 and AnimTrack then return end
+        local Animator = Character:FindFirstChildWhichIsA("Animator", true)
+        if not Animator and Humanoid then
+            Animator = Instance.new("Animator")
+            Animator.Parent = Humanoid
+        end
+        if not Animator then return end
+        local track, anim = startInstantAnimTrack(Animator, AnimationId, AnimFallbacks, Humanoid)
+        if track then
+            if AnimTrack and AnimTrack ~= track then
+                pcall(function() AnimTrack:Stop(0); AnimTrack:Destroy() end)
             end
-        end
-        if Humanoid and Humanoid.Sit then
-            pcall(function() Humanoid.Sit = false end)
+            if AnimInstance and AnimInstance ~= anim then
+                pcall(function() AnimInstance:Destroy() end)
+            end
+            AnimTrack = track
+            AnimInstance = anim
         end
     end
-    applyPhaseNoclip()
+    ensureAnim(true)
 
     local Conn = nil
     local RenderConn = nil
     local StepConn = nil
-    local clock = 0
     local missingFrames = 0
-    local lastStreamReq = 0
-    local currentLockCF = nil
 
     function Weld:Destroy(skipReturn)
         if self.destroyed then return end
@@ -801,7 +826,8 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
     StepConn = RunService.Stepped:Connect(function()
         if Weld.destroyed then return end
         applyPhaseNoclip()
-        if currentLockCF and Root and Root.Parent then
+        if TargetPart and TargetPart.Parent and Root and Root.Parent then
+            currentLockCF = computeCurrentTargetLockCF()
             Root.CFrame = currentLockCF
         end
     end)
@@ -810,13 +836,7 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
     RenderConn = RunService.RenderStepped:Connect(function()
         if Weld.destroyed then return end
         if TargetPart and TargetPart.Parent and Root and Root.Parent then
-            local customAdjust = CFrame.new(V.X or 0, V.Y or 0, (V.Z or 1.3) - 1.3)
-            local localOffset = Offset * customAdjust
-            if Osc and Osc.period and Osc.period > 0 then
-                local phase = (math.sin(clock * (2 * math.pi) / Osc.period) + 1) * 0.5
-                localOffset = localOffset * CFrame.new(0, 0, -Osc.distance * phase)
-            end
-            currentLockCF = TargetPart.CFrame * localOffset
+            currentLockCF = computeCurrentTargetLockCF()
             Root.CFrame = currentLockCF
         end
     end)
@@ -860,23 +880,16 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
                     TargetPart = newPart
                     missingFrames = 0
                 else
-                    -- Target is in an unstreamed hiding spot! Throttled stream request + CFrame follow
                     missingFrames = missingFrames + 1
                     local hiddenCF = getBestTargetCFrame(TargetPlayer)
                     if hiddenCF and not isLethalVoidCF(hiddenCF) then
-                        local now = tick()
-                        if now - lastStreamReq > 0.35 then
-                            lastStreamReq = now
-                            task.spawn(function()
-                                pcall(function() LP:RequestStreamAroundAsync(hiddenCF.Position, 1) end)
-                            end)
-                        end
+                        pcall(function() LP:RequestStreamAroundAsync(hiddenCF.Position, 1) end)
                         Root.CFrame = hiddenCF * Offset
                         Root.AssemblyLinearVelocity = Vector3.zero
                         Root.AssemblyAngularVelocity = Vector3.zero
                         markIntentionalTeleport(Root.CFrame)
                     end
-                    if missingFrames > 120 then
+                    if missingFrames > 100 then
                         Weld:Destroy(false)
                     end
                     return
@@ -901,7 +914,7 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
         local focusPart = (TargetChar and getRootPart(TargetChar)) or TargetPart
         pcall(function() LP.ReplicationFocus = focusPart end)
 
-        -- Cache target location & update safe standing CFrame only when target is near stable ground
+        -- Cache target location & update safe standing CFrame when target is on stable ground
         if TargetPlayer then
             PlayerLocationCache[TargetPlayer.UserId] = { cf = TargetPart.CFrame, time = tick() }
         end
@@ -919,15 +932,9 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
 
         local speedMult = math.clamp(V.Speed or 1.0, 0.2, 6.0)
         clock = clock + (dt * speedMult)
-        local customAdjust = CFrame.new(V.X or 0, V.Y or 0, (V.Z or 1.3) - 1.3)
-        local localOffset = Offset * customAdjust
-        if Osc and Osc.period and Osc.period > 0 then
-            local phase = (math.sin(clock * (2 * math.pi) / Osc.period) + 1) * 0.5
-            localOffset = localOffset * CFrame.new(0, 0, -Osc.distance * phase)
-        end
-        currentLockCF = TargetPart.CFrame * localOffset
+        currentLockCF = computeCurrentTargetLockCF()
         Root.CFrame = currentLockCF
-        -- Velocity-matched anti-sleep replication: prevents network sleep & trailing lag on other players' screens
+        -- Velocity-matched anti-sleep replication: zero lag trail on other players' screens
         local microWake = Vector3.new(0, math.sin(clock * 24) * 0.03, 0)
         Root.AssemblyLinearVelocity = (tVel.Magnitude < 160 and (tVel * 0.85) or Vector3.zero) + microWake
         Root.AssemblyAngularVelocity = Vector3.zero
@@ -960,15 +967,18 @@ end
 
 local BANG_ANIM_ID = 116235062592344
 
+-- Calibrated offsets for BANG_ANIM_ID (116235062592344):
+-- • facebang: Y = -0.15 relative to target Head aligns local waist/pelvis directly with target's face!
+-- • backshots: Z = 1.25 behind target Torso with fast 1.15-stud thrust oscillation!
 local WELD_PRESETS = {
-    facebang  = { offset = CFrame.new(0, 2.5, -3.8) * CFrame.Angles(0, math.rad(180), 0),
+    facebang  = { offset = CFrame.new(0, -0.15, -1.25) * CFrame.Angles(0, math.rad(180), 0),
                   anim15 = BANG_ANIM_ID, anim6 = BANG_ANIM_ID,
                   animFallbacks = {128342454196913, 5918726674, 148840371, 4555808220, 109168916859109},
-                  osc = {distance = 2.9, period = 0.22}, refMode = "head", label = "Face Bang" },
-    backshots = { offset = CFrame.new(0, 0, 3.2),
+                  osc = {distance = 1.15, period = 0.16}, refMode = "head", label = "Face Bang" },
+    backshots = { offset = CFrame.new(0, 0, 1.25),
                   anim15 = BANG_ANIM_ID, anim6 = BANG_ANIM_ID,
                   animFallbacks = {128342454196913, 5918726674, 148840371, 4555808220, 109168916859109},
-                  osc = {distance = 2.9, period = 0.22}, refMode = "torso", label = "Bang / Backshots" },
+                  osc = {distance = 1.15, period = 0.16}, refMode = "torso", label = "Backshots" },
     headsit   = { offset = CFrame.new(0, 1.2, 0),
                   anim15 = 2506281703, anim6 = 2506281703,
                   animFallbacks = {2510238627, 507768375, 180426354},
@@ -992,10 +1002,8 @@ local WELD_PRESETS = {
                   animFallbacks = {}, osc = nil, refMode = "torso", label = "Hug" },
 }
 
--- Alias "bang" to backshots so any direct "bang" key call uses BANG_ANIM_ID (116235062592344)
 WELD_PRESETS.bang = WELD_PRESETS.backshots
 
--- Add "chase" preset to WELD_PRESETS so users can also use pure Follow-Everywhere mode
 WELD_PRESETS.chase = {
     offset = CFrame.new(0, 0, 2.2),
     anim15 = nil,
@@ -1006,8 +1014,8 @@ WELD_PRESETS.chase = {
     label = "Auto-Chase (Follow)"
 }
 
--- Cached character lookup to avoid expensive recursive Workspace scans every frame
-local CustomCharCache = {} -- [userId] = { model = Instance, lastScan = number }
+-- Fast cached character resolver: zero-delay O(1) lookup for active characters
+local CustomCharCache = {}
 local CommonCharContainers = { "Characters", "Players", "Entities", "Live", "Units", "Ingame", "Chars" }
 
 findPlayerCharacterAnywhere = function(plr)
@@ -1020,7 +1028,6 @@ findPlayerCharacterAnywhere = function(plr)
     if cached and cached.model and cached.model.Parent then
         return cached.model
     end
-    -- Fast top-level & common character container check (zero lag)
     local direct = workspace:FindFirstChild(plr.Name)
     if direct and direct:IsA("Model") then
         CustomCharCache[plr.UserId] = { model = direct, lastScan = tick() }
@@ -1034,9 +1041,8 @@ findPlayerCharacterAnywhere = function(plr)
             return found
         end
     end
-    -- Throttled deep search (at most once every 2.0 seconds per unstreamed player)
     local now = tick()
-    if not cached or (now - (cached.lastScan or 0)) > 2.0 then
+    if not cached or (now - (cached.lastScan or 0)) > 1.5 then
         CustomCharCache[plr.UserId] = { model = nil, lastScan = now }
         local byName = workspace:FindFirstChild(plr.Name, true)
         if byName and byName:IsA("Model") and (byName:FindFirstChildOfClass("Humanoid") or byName.PrimaryPart or byName:FindFirstChildWhichIsA("BasePart", true)) then
@@ -1053,8 +1059,8 @@ pickTargetRef = function(char, mode)
     if mode == "head" then
         local h = char:FindFirstChild("Head") or char:FindFirstChild("head", true)
         if h and h:IsA("BasePart") then return h end
-        for _, desc in ipairs(char:GetDescendants()) do
-            if desc:IsA("BasePart") and desc.Name:lower():find("head", 1, true) then
+        for _, desc in ipairs(getCachedCharParts(char)) do
+            if desc.Name:lower():find("head", 1, true) then
                 return desc
             end
         end
@@ -1105,23 +1111,17 @@ getBestTargetCFrame = function(plr)
     return nil
 end
 
--- Throttled background scanner (4Hz) that caches every player's position & pivot without frame lag
-do
-    local lastScanTick = 0
-    RunService.Heartbeat:Connect(function()
-        local now = tick()
-        if now - lastScanTick < 0.25 then return end
-        lastScanTick = now
-        for _, p in ipairs(Players:GetPlayers()) do
-            if p ~= LP then
-                pcall(function() getBestTargetCFrame(p) end)
-            end
+-- Zero-delay continuous Heartbeat position & pivot tracker
+RunService.Heartbeat:Connect(function()
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LP then
+            pcall(function() getBestTargetCFrame(p) end)
         end
-    end)
-end
+    end
+end)
 
 -- Active Stream-Piercer & Server Hiding-Spot Seeker:
--- Instant return when target is already streamed; throttled async stream requests when unstreamed.
+-- Returns synchronously in 0.00s when target is already streamed!
 streamAndTeleportToTarget = function(targetPlr, refMode, maxWaitSeconds, allowSweep)
     if not targetPlr or targetPlr.Parent ~= Players then return nil, nil end
     maxWaitSeconds = maxWaitSeconds or 2.0
@@ -1130,8 +1130,8 @@ streamAndTeleportToTarget = function(targetPlr, refMode, maxWaitSeconds, allowSw
 
     if myChar then
         breakLocalSeatAndTrapWelds(myChar)
-        for _, v in ipairs(myChar:GetDescendants()) do
-            if v:IsA("BasePart") then
+        for _, v in ipairs(getCachedCharParts(myChar)) do
+            if v.Parent then
                 v.CanCollide = false
                 v.CanTouch = false
                 v.Anchored = false
@@ -1139,7 +1139,7 @@ streamAndTeleportToTarget = function(targetPlr, refMode, maxWaitSeconds, allowSw
         end
     end
 
-    -- Fast path: if target's reference part is already streamed in, connect immediately with zero wait!
+    -- 0.00s Zero-Delay Fast Path: if target part is already streamed, return immediately without yielding!
     local tChar = findPlayerCharacterAnywhere(targetPlr)
     local tHum  = tChar and tChar:FindFirstChildOfClass("Humanoid")
     if tHum and tHum.Health <= 0 then
@@ -1147,19 +1147,11 @@ streamAndTeleportToTarget = function(targetPlr, refMode, maxWaitSeconds, allowSw
     end
     local tRef = tChar and pickTargetRef(tChar, refMode or "torso")
     if tRef and tRef.Parent then
-        if myRoot then
-            local destCF = tRef.CFrame * CFrame.new(0, 1.5, 2)
-            markIntentionalTeleport(destCF)
-            myRoot.AssemblyLinearVelocity = Vector3.zero
-            myRoot.AssemblyAngularVelocity = Vector3.zero
-            myRoot.CFrame = destCF
-        end
         return tChar, tRef
     end
 
-    -- Step 1: Target is in an unstreamed chunk. Stream around their replicated Model:GetPivot() or cached location.
+    -- Target is in an unstreamed chunk: stream around their replicated Model:GetPivot() or cached location
     local started = tick()
-    local lastStreamCall = 0
     while tick() - started < (maxWaitSeconds * 0.75) do
         if targetPlr.Parent ~= Players then return nil, nil end
         tChar = findPlayerCharacterAnywhere(targetPlr)
@@ -1171,13 +1163,9 @@ streamAndTeleportToTarget = function(targetPlr, refMode, maxWaitSeconds, allowSw
         end
         local targetCF = getBestTargetCFrame(targetPlr)
         if targetCF then
-            local now = tick()
-            if now - lastStreamCall > 0.30 then
-                lastStreamCall = now
-                task.spawn(function()
-                    pcall(function() LP:RequestStreamAroundAsync(targetCF.Position, 1.5) end)
-                end)
-            end
+            task.spawn(function()
+                pcall(function() LP:RequestStreamAroundAsync(targetCF.Position, 1.5) end)
+            end)
             myChar = LP.Character
             myRoot = getRootPart(myChar)
             if myRoot then
@@ -1196,7 +1184,6 @@ streamAndTeleportToTarget = function(targetPlr, refMode, maxWaitSeconds, allowSw
     tRef  = tChar and pickTargetRef(tChar, refMode or "torso")
     if tRef and tRef.Parent then return tChar, tRef end
 
-    -- Step 2: Only sweep distant map structures if explicitly requested (never during background auto-reweld loops)
     if not allowSweep or not tChar then
         return tChar, tRef
     end
@@ -1218,20 +1205,16 @@ streamAndTeleportToTarget = function(targetPlr, refMode, maxWaitSeconds, allowSw
     end
 
     for idx, probeCF in ipairs(probePoints) do
-        if tick() - started > maxWaitSeconds or idx > 18 then break end
+        if tick() - started > maxWaitSeconds or idx > 20 then break end
         tChar = findPlayerCharacterAnywhere(targetPlr)
         tRef  = tChar and pickTargetRef(tChar, refMode or "torso")
         if tRef and tRef.Parent then return tChar, tRef end
 
         local knownCF = getBestTargetCFrame(targetPlr)
         local hopCF = knownCF or probeCF
-        local now = tick()
-        if now - lastStreamCall > 0.25 then
-            lastStreamCall = now
-            task.spawn(function()
-                pcall(function() LP:RequestStreamAroundAsync(hopCF.Position, 1) end)
-            end)
-        end
+        task.spawn(function()
+            pcall(function() LP:RequestStreamAroundAsync(hopCF.Position, 1) end)
+        end)
         myChar = LP.Character
         myRoot = getRootPart(myChar)
         if myRoot then
@@ -1335,51 +1318,46 @@ end
 local function weldToTarget(target, speaker, offset, animId, osc, refMode, animFallbacks, callerGen)
     local TPlayer = resolvePlayer(target, speaker)
     if not TPlayer or TPlayer.Parent ~= Players then return false, nil end
+    local myGen = callerGen or StopGeneration
+    pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
 
+    local myChar = speaker and speaker.Character
+    local myRoot = getRootPart(myChar)
+    local preSeekSafeCF = (myRoot and isSafePlayableCF(myRoot.CFrame) and myRoot.CFrame) or LastKnownSafeCF or findFallbackSafeCF()
+
+    -- 0.00s ZERO-DELAY FAST PATH: If target is already streamed in, attach synchronously on this exact frame!
+    local tCharFast = findPlayerCharacterAnywhere(TPlayer)
+    local tHumFast  = tCharFast and tCharFast:FindFirstChildOfClass("Humanoid")
+    local tRootFast = tCharFast and pickTargetRef(tCharFast, refMode or "torso")
+    if myChar and myRoot and tRootFast and tRootFast.Parent and (not tHumFast or tHumFast.Health > 0) then
+        local old = CurrentWeld
+        if old then
+            CurrentWeld = nil
+            pcall(function() old:Destroy(true) end)
+        end
+        local w = WeldTo(tRootFast, offset, speaker, animId, osc, animFallbacks, TPlayer, refMode or "torso", preSeekSafeCF)
+        CurrentWeld = w
+        if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
+        return true, TPlayer
+    end
+
+    -- Fallback async path only when target is currently unstreamed or mid-respawn
     task.spawn(function()
-        local myGen = callerGen or StopGeneration
-        pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
-
-        -- Wait briefly if our own character is mid-respawn
-        local myChar = speaker and speaker.Character
-        local myRoot = getRootPart(myChar)
         local waitStart = tick()
         while (not myChar or not myRoot) and tick() - waitStart < 2.5 do
             if myGen ~= StopGeneration then return end
-            task.wait(0.05)
+            RunService.Heartbeat:Wait()
             myChar = speaker and speaker.Character
             myRoot = getRootPart(myChar)
         end
         if not myChar or not myRoot or myGen ~= StopGeneration then return end
 
-        -- Capture safe origin BEFORE streaming/teleporting to the target
-        local preSeekSafeCF = isSafePlayableCF(myRoot.CFrame) and myRoot.CFrame or LastKnownSafeCF or findFallbackSafeCF()
-
-        -- Stream & teleport directly to the target even if they are hiding in an unstreamed area
         local char, TRoot = streamAndTeleportToTarget(TPlayer, refMode or "torso", 2.0, true)
         if myGen ~= StopGeneration then return end
-        if not TRoot or not TRoot.Parent then
-            -- Keep WeldIntent active so the continuous watchdog immediately locks on as soon as they stream/respawn
-            return
-        end
+        if not TRoot or not TRoot.Parent then return end
 
         local tHum = char and char:FindFirstChildOfClass("Humanoid")
         if tHum and tHum.Health <= 0 then return end
-
-        myChar = speaker and speaker.Character
-        myRoot = getRootPart(myChar)
-        if myRoot then
-            if sethiddenproperty then
-                pcall(function() sethiddenproperty(myRoot, "PhysicsRepRootPart", nil) end)
-                pcall(function() sethiddenproperty(myRoot, "PhysicsRepRootRef", nil) end)
-            end
-            myRoot.Anchored = false
-            myRoot.AssemblyLinearVelocity = Vector3.zero
-            myRoot.AssemblyAngularVelocity = Vector3.zero
-            local destCF = TRoot.CFrame * offset
-            markIntentionalTeleport(destCF)
-            myRoot.CFrame = destCF
-        end
 
         local old = CurrentWeld
         if old then
@@ -1437,10 +1415,14 @@ local function hookTargetRespawn(targetPlr)
     local marker = Instance.new("BoolValue")
     marker.Name = "__KhamanDhoklaHook"
     marker.Parent = targetPlr
-    targetPlr.CharacterAdded:Connect(function()
+    targetPlr.CharacterAdded:Connect(function(newChar)
         if not AutoReweldEnabled or not WeldIntent.active then return end
         if WeldIntent.target ~= targetPlr and LastWeldTargetUserId ~= targetPlr.UserId then return end
-        task.wait(0.25)
+        -- Zero-delay respawn lock: wait only until a root/base part exists on the new character!
+        local t0 = tick()
+        while tick() - t0 < 1.5 and newChar.Parent and not pickTargetRef(newChar, "torso") do
+            RunService.Heartbeat:Wait()
+        end
         if not WeldIntent.active or targetPlr.Parent ~= Players then return end
         if CurrentWeld then
             pcall(function() CurrentWeld:Destroy(true) end)
@@ -1454,38 +1436,40 @@ local function hookTargetRespawn(targetPlr)
     end)
 end
 
--- Relentless Omnipresent Watchdog:
--- Handles target hiding in unstreamed rooms, teleporting across the map, respawning, AND local player respawning!
+-- Zero-Delay Heartbeat Omnipresent Watchdog:
+-- Instantly re-locks on the exact frame a target streams in or respawns!
 local reweldWatchdogBusy = false
-task.spawn(function()
-    while true do
-        task.wait(0.22)
-        if AutoReweldEnabled and WeldIntent.active and WeldIntent.presetKey and not FlingActive and not reweldWatchdogBusy then
-            local tgt = WeldIntent.target
-            if not tgt or tgt.Parent ~= Players then
-                stopWeld()
-                if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
-            elseif not CurrentWeld then
-                local myChar = LP.Character
-                local myRoot = getRootPart(myChar)
-                local myHum  = myChar and myChar:FindFirstChildOfClass("Humanoid")
-                if myRoot and myHum and myHum.Health > 0 then
-                    reweldWatchdogBusy = true
-                    pcall(function()
-                        local preset = WELD_PRESETS[WeldIntent.presetKey]
-                        local refMode = preset and preset.refMode or "torso"
-                        local tChar, tRef = streamAndTeleportToTarget(tgt, refMode, 1.2, false)
-                        local tHum = tChar and tChar:FindFirstChildOfClass("Humanoid")
-                        if WeldIntent.active and not CurrentWeld and tRef and tRef.Parent and (not tHum or tHum.Health > 0) then
-                            if not isLethalVoidCF(tRef.CFrame, tRef.AssemblyLinearVelocity) then
-                                applyWeldPreset(WeldIntent.presetKey, tgt)
-                                if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
-                            end
+RunService.Heartbeat:Connect(function()
+    if not AutoReweldEnabled or not WeldIntent.active or not WeldIntent.presetKey or FlingActive or reweldWatchdogBusy then
+        return
+    end
+    local tgt = WeldIntent.target
+    if not tgt or tgt.Parent ~= Players then
+        stopWeld()
+        if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
+        return
+    end
+    if not CurrentWeld then
+        local myChar = LP.Character
+        local myRoot = getRootPart(myChar)
+        local myHum  = myChar and myChar:FindFirstChildOfClass("Humanoid")
+        if myRoot and myHum and myHum.Health > 0 then
+            reweldWatchdogBusy = true
+            task.spawn(function()
+                pcall(function()
+                    local preset = WELD_PRESETS[WeldIntent.presetKey]
+                    local refMode = preset and preset.refMode or "torso"
+                    local tChar, tRef = streamAndTeleportToTarget(tgt, refMode, 1.2, false)
+                    local tHum = tChar and tChar:FindFirstChildOfClass("Humanoid")
+                    if WeldIntent.active and not CurrentWeld and tRef and tRef.Parent and (not tHum or tHum.Health > 0) then
+                        if not isLethalVoidCF(tRef.CFrame, tRef.AssemblyLinearVelocity) then
+                            applyWeldPreset(WeldIntent.presetKey, tgt)
+                            if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
                         end
-                    end)
-                    reweldWatchdogBusy = false
-                end
-            end
+                    end
+                end)
+                reweldWatchdogBusy = false
+            end)
         end
     end
 end)
@@ -2439,7 +2423,7 @@ local function bld()
     return (CS_HDR .. " " .. genSymbols() .. " " .. tail:upper() .. pickEmojis()):sub(1, CS_M)
 end
 
--- Shared movement state is hoisted above RewindSys & WeldTo so all modules share the exact same upvalue
+-- Shared movement state hoisted above RewindSys & WeldTo
 
 local syncAllAntiButtons = nil
 
@@ -2695,8 +2679,8 @@ akStart = function()
         if not Anti.Kill.enabled then return end
         local c = LP.Character
         if not c then return end
-        for _, p in ipairs(c:GetDescendants()) do
-            if p:IsA("BasePart") then
+        for _, p in ipairs(getCachedCharParts(c)) do
+            if p.Parent then
                 if p.CanTouch then p.CanTouch = false end
                 if p.CanQuery then p.CanQuery = false end
             end
@@ -3173,7 +3157,7 @@ local function blindCleanse()
                 end
             end
         end
-        -- Check PlayerGui for hostile full-screen blind/flashbang ScreenGuis (proper Lua keyword check)
+        -- Check PlayerGui for hostile full-screen blind/flashbang ScreenGuis
         local pgui = LP:FindFirstChildOfClass("PlayerGui")
         if pgui then
             for _, sg in ipairs(pgui:GetChildren()) do
@@ -3753,10 +3737,10 @@ local function buildMainUI()
     local screenW = (vp and vp.X > 300) and vp.X or 1280
     local screenH = (vp and vp.Y > 300) and vp.Y or 720
 
-    -- Sleek, compact window dimensions that never overwhelm mobile or desktop screens
+    -- Refined, balanced window dimensions with generous breathing room on both Android & PC
     local function computeWindowSize(sw, sh)
-        local w = math.clamp(sw - 32, 300, sw >= 900 and 430 or 360)
-        local h = math.clamp(math.floor(sh * 0.48), 320, 390)
+        local w = math.clamp(sw - 28, 316, sw >= 900 and 444 or 376)
+        local h = math.clamp(math.floor(sh * 0.52), 336, 412)
         return w, h
     end
 
@@ -3766,7 +3750,7 @@ local function buildMainUI()
     local panelShadow
 
     gui = Instance.new("ScreenGui")
-    gui.Name = "KhamanDhoklaV36"
+    gui.Name = "KhamanDhoklaV37"
     gui.ResetOnSpawn = false
     gui.Enabled = true
     gui.DisplayOrder = 999999
@@ -3779,13 +3763,13 @@ local function buildMainUI()
         gui.Parent = playerGui
     end
 
-    -- Floating Void Throw / Fling Status & Quick-Stop Side Panel (Fixes missing FlingSidePanel HUD!)
+    -- Floating Void Throw / Fling Status & Quick-Stop Side Panel
     FlingSidePanel = Instance.new("Frame")
     FlingSidePanel.Name = "KhamanFlingHUD"
-    FlingSidePanel.Size = UDim2.new(0, 210, 0, 56)
-    FlingSidePanel.Position = UDim2.new(0.5, -105, 0, 14)
+    FlingSidePanel.Size = UDim2.new(0, 216, 0, 54)
+    FlingSidePanel.Position = UDim2.new(0.5, -108, 0, 14)
     FlingSidePanel.BackgroundColor3 = T.BG2
-    FlingSidePanel.BackgroundTransparency = 0.05
+    FlingSidePanel.BackgroundTransparency = 0.04
     FlingSidePanel.BorderSizePixel = 0
     FlingSidePanel.Visible = false
     FlingSidePanel.ZIndex = 960
@@ -3827,15 +3811,15 @@ local function buildMainUI()
         end)
     end
 
-    -- Compact floating KD Dhokla Cube launcher (only shown when the main panel is minimized/hidden)
+    -- Floating KD Dhokla Cube Launcher (shown when panel is minimized)
     local mobToggle = Instance.new("TextButton")
     mobToggle.Name = "KhamanDhoklaLauncher"
-    mobToggle.Size = UDim2.new(0, 44, 0, 44)
-    mobToggle.Position = UDim2.new(0, 14, 0.5, -22)
-    mobToggle.BackgroundColor3 = Color3.fromRGB(234, 179, 8)
-    mobToggle.BackgroundTransparency = 0.04
+    mobToggle.Size = UDim2.new(0, 46, 0, 46)
+    mobToggle.Position = UDim2.new(0, 14, 0.5, -23)
+    mobToggle.BackgroundColor3 = Color3.fromRGB(242, 188, 18)
+    mobToggle.BackgroundTransparency = 0.02
     mobToggle.Text = "KD"
-    mobToggle.TextColor3 = Color3.fromRGB(28, 20, 4)
+    mobToggle.TextColor3 = Color3.fromRGB(24, 16, 4)
     mobToggle.Font = Enum.Font.GothamBlack
     mobToggle.TextSize = 14
     mobToggle.AutoButtonColor = false
@@ -3843,12 +3827,12 @@ local function buildMainUI()
     mobToggle.ZIndex = 999
     mobToggle.Visible = false
     mobToggle.Parent = gui
-    Instance.new("UICorner", mobToggle).CornerRadius = UDim.new(0, 11)
+    Instance.new("UICorner", mobToggle).CornerRadius = UDim.new(0, 12)
 
     local mobStroke = Instance.new("UIStroke")
     mobStroke.Color = T.Neon
     mobStroke.Thickness = 1.8
-    mobStroke.Transparency = 0.1
+    mobStroke.Transparency = 0.08
     mobStroke.Parent = mobToggle
 
     local launcherDot = Instance.new("Frame")
@@ -3860,30 +3844,50 @@ local function buildMainUI()
     launcherDot.Parent = mobToggle
     Instance.new("UICorner", launcherDot).CornerRadius = UDim.new(1, 0)
 
-    -- Main Khaman Dhokla window container
+    -- Main Khaman Dhokla Script Panel Container
     local main = Instance.new("Frame")
     main.Name = "KhamanDhoklaDashboard"
     main.Size = UDim2.new(0, W, 0, H)
-    main.Position = UDim2.new(0.5, -W/2, 0.57, -H/2)
-    main.BackgroundColor3 = Color3.fromRGB(46, 35, 10)
+    main.Position = UDim2.new(0.5, -W/2, 0.56, -H/2)
+    main.BackgroundColor3 = Color3.fromRGB(44, 33, 9)
     main.BackgroundTransparency = 0.02
     main.BorderSizePixel = 0
     main.ClipsDescendants = true
     main.Active = true
     main.ZIndex = 5
     main.Parent = gui
-    Instance.new("UICorner", main).CornerRadius = UDim.new(0, 14)
+    Instance.new("UICorner", main).CornerRadius = UDim.new(0, 15)
 
-    -- Khaman Dhokla Golden Turmeric Sponge Gradient & Spongy Tadka Background Layer
+    local mainScale = Instance.new("UIScale")
+    mainScale.Scale = 1
+    mainScale.Parent = main
+
+    -- Rich Multi-Layer Khaman Dhokla Background (Turmeric Gradient + Top Specular Bar + Sponge & Tadka Garnish)
     do
         local mainGrad = Instance.new("UIGradient")
         mainGrad.Color = ColorSequence.new({
-            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(78, 58, 14)),
-            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(48, 36, 10)),
-            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(34, 25, 7)),
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(82, 62, 15)),
+            ColorSequenceKeypoint.new(0.45, Color3.fromRGB(48, 36, 10)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(30, 22, 6)),
         })
         mainGrad.Rotation = 135
         mainGrad.Parent = main
+
+        local topGlowBar = Instance.new("Frame")
+        topGlowBar.Name = "TopTurmericGlow"
+        topGlowBar.Size = UDim2.new(1, 0, 0, 2)
+        topGlowBar.Position = UDim2.new(0, 0, 0, 0)
+        topGlowBar.BackgroundColor3 = T.Accent
+        topGlowBar.BorderSizePixel = 0
+        topGlowBar.ZIndex = 12
+        topGlowBar.Parent = main
+        local tgGrad = Instance.new("UIGradient")
+        tgGrad.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(217, 138, 10)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(254, 243, 148)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(42, 196, 88)),
+        })
+        tgGrad.Parent = topGlowBar
 
         local dhoklaBg = Instance.new("Frame")
         dhoklaBg.Name = "KhamanDhoklaSpongeTexture"
@@ -3893,29 +3897,28 @@ local function buildMainUI()
         dhoklaBg.Active = false
         dhoklaBg.Parent = main
 
-        -- Spongy golden dhokla pores, black mustard seeds (rai), and green curry-leaf flecks
         local specks = {
-            -- Golden spongy pores
-            { x = 0.08, y = 0.28, sz = 14, col = Color3.fromRGB(250, 204, 21), tr = 0.88 },
-            { x = 0.22, y = 0.45, sz = 10, col = Color3.fromRGB(250, 204, 21), tr = 0.90 },
-            { x = 0.48, y = 0.33, sz = 18, col = Color3.fromRGB(250, 204, 21), tr = 0.90 },
-            { x = 0.74, y = 0.26, sz = 12, col = Color3.fromRGB(250, 204, 21), tr = 0.89 },
-            { x = 0.88, y = 0.52, sz = 16, col = Color3.fromRGB(250, 204, 21), tr = 0.88 },
-            { x = 0.16, y = 0.76, sz = 15, col = Color3.fromRGB(250, 204, 21), tr = 0.89 },
-            { x = 0.63, y = 0.72, sz = 13, col = Color3.fromRGB(250, 204, 21), tr = 0.90 },
-            { x = 0.84, y = 0.82, sz = 11, col = Color3.fromRGB(250, 204, 21), tr = 0.89 },
+            -- Golden spongy air pockets
+            { x = 0.07, y = 0.27, sz = 14, col = Color3.fromRGB(250, 204, 21), tr = 0.89 },
+            { x = 0.21, y = 0.44, sz = 10, col = Color3.fromRGB(250, 204, 21), tr = 0.91 },
+            { x = 0.47, y = 0.32, sz = 18, col = Color3.fromRGB(250, 204, 21), tr = 0.90 },
+            { x = 0.73, y = 0.25, sz = 12, col = Color3.fromRGB(250, 204, 21), tr = 0.89 },
+            { x = 0.88, y = 0.51, sz = 16, col = Color3.fromRGB(250, 204, 21), tr = 0.89 },
+            { x = 0.15, y = 0.75, sz = 15, col = Color3.fromRGB(250, 204, 21), tr = 0.90 },
+            { x = 0.62, y = 0.71, sz = 13, col = Color3.fromRGB(250, 204, 21), tr = 0.90 },
+            { x = 0.83, y = 0.81, sz = 11, col = Color3.fromRGB(250, 204, 21), tr = 0.89 },
             -- Roasted black mustard seeds (Rai tadka)
-            { x = 0.12, y = 0.36, sz = 4,  col = Color3.fromRGB(16, 12, 4),    tr = 0.45 },
-            { x = 0.35, y = 0.25, sz = 5,  col = Color3.fromRGB(16, 12, 4),    tr = 0.45 },
-            { x = 0.58, y = 0.48, sz = 4,  col = Color3.fromRGB(16, 12, 4),    tr = 0.45 },
-            { x = 0.81, y = 0.38, sz = 5,  col = Color3.fromRGB(16, 12, 4),    tr = 0.45 },
-            { x = 0.29, y = 0.68, sz = 4,  col = Color3.fromRGB(16, 12, 4),    tr = 0.45 },
-            { x = 0.72, y = 0.64, sz = 5,  col = Color3.fromRGB(16, 12, 4),    tr = 0.45 },
+            { x = 0.12, y = 0.35, sz = 4,  col = Color3.fromRGB(16, 12, 4),    tr = 0.42 },
+            { x = 0.34, y = 0.24, sz = 5,  col = Color3.fromRGB(16, 12, 4),    tr = 0.42 },
+            { x = 0.57, y = 0.47, sz = 4,  col = Color3.fromRGB(16, 12, 4),    tr = 0.42 },
+            { x = 0.80, y = 0.37, sz = 5,  col = Color3.fromRGB(16, 12, 4),    tr = 0.42 },
+            { x = 0.28, y = 0.67, sz = 4,  col = Color3.fromRGB(16, 12, 4),    tr = 0.42 },
+            { x = 0.71, y = 0.63, sz = 5,  col = Color3.fromRGB(16, 12, 4),    tr = 0.42 },
             -- Fresh coriander / curry leaf green garnish flecks
-            { x = 0.19, y = 0.29, sz = 6,  col = Color3.fromRGB(42, 196, 88),  tr = 0.72 },
-            { x = 0.67, y = 0.31, sz = 7,  col = Color3.fromRGB(42, 196, 88),  tr = 0.72 },
-            { x = 0.42, y = 0.79, sz = 6,  col = Color3.fromRGB(42, 196, 88),  tr = 0.72 },
-            { x = 0.91, y = 0.67, sz = 6,  col = Color3.fromRGB(42, 196, 88),  tr = 0.72 },
+            { x = 0.18, y = 0.28, sz = 6,  col = Color3.fromRGB(42, 196, 88),  tr = 0.70 },
+            { x = 0.66, y = 0.30, sz = 7,  col = Color3.fromRGB(42, 196, 88),  tr = 0.70 },
+            { x = 0.41, y = 0.78, sz = 6,  col = Color3.fromRGB(42, 196, 88),  tr = 0.70 },
+            { x = 0.90, y = 0.66, sz = 6,  col = Color3.fromRGB(42, 196, 88),  tr = 0.70 },
         }
         for _, sp in ipairs(specks) do
             local dot = Instance.new("Frame")
@@ -3933,19 +3936,19 @@ local function buildMainUI()
 
     panelShadow = Instance.new("Frame")
     panelShadow.Name = "PanelShadow"
-    panelShadow.Position = UDim2.new(0.5, -W/2 - 4, 0.57, -H/2 + 4)
-    panelShadow.Size = UDim2.new(0, W + 8, 0, H + 8)
-    panelShadow.BackgroundColor3 = Color3.fromRGB(18, 12, 2)
-    panelShadow.BackgroundTransparency = 0.45
+    panelShadow.Position = UDim2.new(0.5, -W/2 - 5, 0.56, -H/2 + 5)
+    panelShadow.Size = UDim2.new(0, W + 10, 0, H + 10)
+    panelShadow.BackgroundColor3 = Color3.fromRGB(14, 10, 2)
+    panelShadow.BackgroundTransparency = 0.42
     panelShadow.BorderSizePixel = 0
     panelShadow.ZIndex = 4
     panelShadow.Parent = gui
-    Instance.new("UICorner", panelShadow).CornerRadius = UDim.new(0, 16)
+    Instance.new("UICorner", panelShadow).CornerRadius = UDim.new(0, 18)
 
     local mainStroke = Instance.new("UIStroke")
     mainStroke.Color = T.Accent
     mainStroke.Thickness = 1.5
-    mainStroke.Transparency = 0.18
+    mainStroke.Transparency = 0.16
     mainStroke.Parent = main
 
     local function refreshViewportLayout()
@@ -3955,10 +3958,10 @@ local function buildMainUI()
         local newW, newH = computeWindowSize(size.X, size.Y)
         W, H = newW, newH
         main.Size = UDim2.new(0, newW, 0, newH)
-        panelShadow.Size = UDim2.new(0, newW + 8, 0, newH + 8)
+        panelShadow.Size = UDim2.new(0, newW + 10, 0, newH + 10)
         if not dragging then
-            main.Position = UDim2.new(0.5, -newW / 2, 0.57, -newH / 2)
-            panelShadow.Position = UDim2.new(0.5, -newW / 2 - 4, 0.57, -newH / 2 + 4)
+            main.Position = UDim2.new(0.5, -newW / 2, 0.56, -newH / 2)
+            panelShadow.Position = UDim2.new(0.5, -newW / 2 - 5, 0.56, -newH / 2 + 5)
         end
     end
     local currentCamera = workspace.CurrentCamera
@@ -3970,7 +3973,7 @@ local function buildMainUI()
     local mobDrag, mobStart, mobPos, mobMoved = false, nil, nil, false
     local lastLauncherToggle = 0
     local function triggerLauncherToggle()
-        if tick() - lastLauncherToggle < 0.18 then return end
+        if tick() - lastLauncherToggle < 0.12 then return end
         lastLauncherToggle = tick()
         sClick()
         if setPanelOpen then setPanelOpen(true) end
@@ -4007,44 +4010,54 @@ local function buildMainUI()
         b.MouseEnter:Connect(function()
             sHover()
             if BtnColors[b] then
-                TweenService:Create(b, TweenInfo.new(0.12), {BackgroundColor3 = BtnColors[b]:Lerp(Color3.new(1, 1, 1), 0.08)}):Play()
+                TweenService:Create(b, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                    BackgroundColor3 = BtnColors[b]:Lerp(T.Neon, 0.12)
+                }):Play()
             end
         end)
         b.MouseLeave:Connect(function()
             if BtnColors[b] then
-                TweenService:Create(b, TweenInfo.new(0.16), {BackgroundColor3 = BtnColors[b]}):Play()
+                TweenService:Create(b, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                    BackgroundColor3 = BtnColors[b]
+                }):Play()
             end
         end)
     end
 
     -- ═══════════════════════════════════════════════════════════════════════════
-    -- COMPACT HEADER BAR (42px)
+    -- REFINED HEADER BAR (44px)
     -- ═══════════════════════════════════════════════════════════════════════════
     local header = Instance.new("Frame")
     header.Name = "Header"
-    header.Size = UDim2.new(1, 0, 0, 42)
+    header.Size = UDim2.new(1, 0, 0, 44)
     header.BackgroundColor3 = T.BG2
+    header.BackgroundTransparency = 0.08
     header.BorderSizePixel = 0
     header.ZIndex = 6
     header.Parent = main
 
     local headerLine = Instance.new("Frame")
-    headerLine.Size = UDim2.new(1, 0, 0, 1)
-    headerLine.Position = UDim2.new(0, 0, 1, -1)
+    headerLine.Size = UDim2.new(1, -20, 0, 1)
+    headerLine.Position = UDim2.new(0, 10, 1, -1)
     headerLine.BackgroundColor3 = T.Border
-    headerLine.BackgroundTransparency = 0.4
+    headerLine.BackgroundTransparency = 0.35
     headerLine.BorderSizePixel = 0
     headerLine.ZIndex = 7
     headerLine.Parent = header
 
     local brandMark = Instance.new("Frame")
-    brandMark.Size = UDim2.new(0, 26, 0, 26)
-    brandMark.Position = UDim2.new(0, 11, 0.5, -13)
+    brandMark.Size = UDim2.new(0, 28, 0, 28)
+    brandMark.Position = UDim2.new(0, 11, 0.5, -14)
     brandMark.BackgroundColor3 = T.Accent
     brandMark.BorderSizePixel = 0
     brandMark.ZIndex = 8
     brandMark.Parent = header
-    Instance.new("UICorner", brandMark).CornerRadius = UDim.new(0, 6)
+    Instance.new("UICorner", brandMark).CornerRadius = UDim.new(0, 8)
+    local bmStroke = Instance.new("UIStroke")
+    bmStroke.Color = T.Neon
+    bmStroke.Thickness = 1.2
+    bmStroke.Transparency = 0.2
+    bmStroke.Parent = brandMark
 
     local brandGlyph = Instance.new("TextLabel")
     brandGlyph.Size = UDim2.new(1, 0, 1, 0)
@@ -4063,8 +4076,8 @@ local function buildMainUI()
             if old then old:Destroy() end
             local tFrame = Instance.new("Frame")
             tFrame.Name = "KhamanDefenceToast"
-            tFrame.Size = UDim2.new(0, 280, 0, 34)
-            tFrame.Position = UDim2.new(0.5, -140, 0, -42)
+            tFrame.Size = UDim2.new(0, 286, 0, 34)
+            tFrame.Position = UDim2.new(0.5, -143, 0, -42)
             tFrame.BackgroundColor3 = T.BG2
             tFrame.BorderSizePixel = 0
             tFrame.ZIndex = 500
@@ -4085,13 +4098,13 @@ local function buildMainUI()
             tLbl.TextSize = 10
             tLbl.ZIndex = 501
             tLbl.Parent = tFrame
-            TweenService:Create(tFrame, TweenInfo.new(0.28, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-                Position = UDim2.new(0.5, -140, 0, 16)
+            TweenService:Create(tFrame, TweenInfo.new(0.26, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+                Position = UDim2.new(0.5, -143, 0, 16)
             }):Play()
-            task.delay(2.6, function()
+            task.delay(2.5, function()
                 if tFrame and tFrame.Parent then
-                    local tw = TweenService:Create(tFrame, TweenInfo.new(0.25), {
-                        Position = UDim2.new(0.5, -140, 0, -42),
+                    local tw = TweenService:Create(tFrame, TweenInfo.new(0.22), {
+                        Position = UDim2.new(0.5, -143, 0, -42),
                         BackgroundTransparency = 1
                     })
                     tw:Play()
@@ -4103,8 +4116,8 @@ local function buildMainUI()
 
     local isMobileDevice = (UIS.TouchEnabled and not UIS.KeyboardEnabled) or UIS.TouchEnabled
     local title = Instance.new("TextLabel")
-    title.Size = UDim2.new(1, -210, 0, 16)
-    title.Position = UDim2.new(0, 44, 0.5, -12)
+    title.Size = UDim2.new(1, -216, 0, 16)
+    title.Position = UDim2.new(0, 46, 0.5, -13)
     title.BackgroundTransparency = 1
     title.Text = "🟨 KHAMAN DHOKLA"
     title.TextColor3 = T.Accent
@@ -4115,10 +4128,10 @@ local function buildMainUI()
     title.Parent = header
 
     local subTitle = Instance.new("TextLabel")
-    subTitle.Size = UDim2.new(1, -210, 0, 12)
-    subTitle.Position = UDim2.new(0, 44, 0.5, 4)
+    subTitle.Size = UDim2.new(1, -216, 0, 12)
+    subTitle.Position = UDim2.new(0, 46, 0.5, 4)
     subTitle.BackgroundTransparency = 1
-    subTitle.Text = "GOLDEN TADKA V36  ·  " .. (isMobileDevice and "📱 ANDROID" or "💻 PC")
+    subTitle.Text = "ZERO-DELAY V37  ·  " .. (isMobileDevice and "📱 ANDROID" or "💻 PC")
     subTitle.TextColor3 = T.Neon
     subTitle.Font = Enum.Font.GothamMedium
     subTitle.TextSize = 8
@@ -4126,19 +4139,19 @@ local function buildMainUI()
     subTitle.ZIndex = 8
     subTitle.Parent = header
 
-    -- Live HUD Badge (FPS / Ping / Protections)
+    -- Live HUD Badge (FPS / Ping / Active Shields)
     local hudBadge = Instance.new("Frame")
-    hudBadge.Size = UDim2.new(0, 96, 0, 22)
-    hudBadge.Position = UDim2.new(1, -172, 0.5, -11)
+    hudBadge.Size = UDim2.new(0, 108, 0, 24)
+    hudBadge.Position = UDim2.new(1, -182, 0.5, -12)
     hudBadge.BackgroundColor3 = T.Panel
     hudBadge.BorderSizePixel = 0
     hudBadge.ZIndex = 8
     hudBadge.Parent = header
-    Instance.new("UICorner", hudBadge).CornerRadius = UDim.new(0, 6)
+    Instance.new("UICorner", hudBadge).CornerRadius = UDim.new(0, 7)
     local hudStroke = Instance.new("UIStroke")
     hudStroke.Color = T.Border
     hudStroke.Thickness = 1
-    hudStroke.Transparency = 0.5
+    hudStroke.Transparency = 0.4
     hudStroke.Parent = hudBadge
 
     local hudText = Instance.new("TextLabel")
@@ -4155,19 +4168,25 @@ local function buildMainUI()
         local lastTime = tick()
         local frameCount = 0
         RunService.RenderStepped:Connect(function()
-            frameCount = frameCount + (1)
+            frameCount = frameCount + 1
             local now = tick()
-            if now - lastTime >= 0.8 then
+            if now - lastTime >= 0.75 then
                 local fps = math.clamp(math.floor(frameCount / (now - lastTime)), 1, 240)
                 frameCount = 0
                 lastTime = now
                 local activeProtCount = 0
                 for _, sub in pairs(Anti) do
-                    if typeof(sub) == "table" and sub.enabled then activeProtCount = activeProtCount + (1) end
+                    if typeof(sub) == "table" and sub.enabled then activeProtCount = activeProtCount + 1 end
                 end
-                if DefenceTroll.enabled then activeProtCount = activeProtCount + (1) end
+                if DefenceTroll.enabled then activeProtCount = activeProtCount + 1 end
+                local pingMs = 0
+                pcall(function() pingMs = math.floor(LP:GetNetworkPing() * 1000) end)
                 if hudText and hudText.Parent then
-                    hudText.Text = tostring(fps) .. " FPS · 🛡️ " .. tostring(activeProtCount)
+                    if pingMs > 0 then
+                        hudText.Text = string.format("%d FPS · %dms · 🛡️%d", fps, pingMs, activeProtCount)
+                    else
+                        hudText.Text = string.format("%d FPS · 🛡️ %d", fps, activeProtCount)
+                    end
                 end
             end
         end)
@@ -4185,7 +4204,7 @@ local function buildMainUI()
         b.AutoButtonColor = false
         b.ZIndex = 8
         b.Parent = header
-        Instance.new("UICorner", b).CornerRadius = UDim.new(0, 6)
+        Instance.new("UICorner", b).CornerRadius = UDim.new(0, 7)
         styleBtn(b, bgCol)
         return b
     end
@@ -4202,7 +4221,7 @@ local function buildMainUI()
         if dragging and (inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch) then
             local d = inp.Position - dragStart
             main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y)
-            panelShadow.Position = UDim2.new(main.Position.X.Scale, main.Position.X.Offset - 4, main.Position.Y.Scale, main.Position.Y.Offset + 4)
+            panelShadow.Position = UDim2.new(main.Position.X.Scale, main.Position.X.Offset - 5, main.Position.Y.Scale, main.Position.Y.Offset + 5)
         end
     end)
     UIS.InputEnded:Connect(function(inp)
@@ -4212,29 +4231,56 @@ local function buildMainUI()
     end)
 
     -- ═══════════════════════════════════════════════════════════════════════════
-    -- SLEEK HORIZONTAL SEGMENTED TAB BAR (36px) - Replaces cramped left sidebar
+    -- ANIMATED SLIDING PILL TAB BAR (34px) + DIRECTIONAL QUINT PAGE TRANSITIONS
     -- ═══════════════════════════════════════════════════════════════════════════
     local tabsBar = Instance.new("Frame")
     tabsBar.Name = "TabsBar"
-    tabsBar.Size = UDim2.new(1, -20, 0, 32)
+    tabsBar.Size = UDim2.new(1, -20, 0, 34)
     tabsBar.Position = UDim2.new(0, 10, 0, 48)
     tabsBar.BackgroundColor3 = T.BG2
     tabsBar.BorderSizePixel = 0
     tabsBar.ZIndex = 6
     tabsBar.Parent = main
-    Instance.new("UICorner", tabsBar).CornerRadius = UDim.new(0, 8)
+    Instance.new("UICorner", tabsBar).CornerRadius = UDim.new(0, 9)
 
     local tabsStroke = Instance.new("UIStroke")
     tabsStroke.Color = T.Border
     tabsStroke.Thickness = 1
-    tabsStroke.Transparency = 0.45
+    tabsStroke.Transparency = 0.4
     tabsStroke.Parent = tabsBar
+
+    -- Sliding Golden Pill Indicator behind the active tab button
+    local activeTabPill = Instance.new("Frame")
+    activeTabPill.Name = "ActiveTabPill"
+    activeTabPill.Size = UDim2.new(0.2, -4, 1, -4)
+    activeTabPill.Position = UDim2.new(0, 2, 0, 2)
+    activeTabPill.BackgroundColor3 = T.Accent2
+    activeTabPill.BorderSizePixel = 0
+    activeTabPill.ZIndex = 7
+    activeTabPill.Parent = tabsBar
+    Instance.new("UICorner", activeTabPill).CornerRadius = UDim.new(0, 7)
+    do
+        local pillGrad = Instance.new("UIGradient")
+        pillGrad.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(245, 178, 18)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(204, 122, 8)),
+        })
+        pillGrad.Rotation = 90
+        pillGrad.Parent = activeTabPill
+
+        local pillSt = Instance.new("UIStroke")
+        pillSt.Color = T.Neon
+        pillSt.Thickness = 1
+        pillSt.Transparency = 0.25
+        pillSt.Parent = activeTabPill
+    end
 
     local content = Instance.new("Frame")
     content.Name = "Content"
-    content.Size = UDim2.new(1, 0, 1, -124)
-    content.Position = UDim2.new(0, 0, 0, 84)
+    content.Size = UDim2.new(1, 0, 1, -126)
+    content.Position = UDim2.new(0, 0, 0, 86)
     content.BackgroundTransparency = 1
+    content.ClipsDescendants = true
     content.ZIndex = 6
     content.Parent = main
 
@@ -4251,16 +4297,17 @@ local function buildMainUI()
     footer.Parent = main
 
     local fTop = Instance.new("Frame")
-    fTop.Size = UDim2.new(1, 0, 0, 1)
+    fTop.Size = UDim2.new(1, -20, 0, 1)
+    fTop.Position = UDim2.new(0, 10, 0, 0)
     fTop.BackgroundColor3 = T.Border
-    fTop.BackgroundTransparency = 0.4
+    fTop.BackgroundTransparency = 0.38
     fTop.BorderSizePixel = 0
     fTop.ZIndex = 7
     fTop.Parent = footer
 
     local footerDot = Instance.new("Frame")
-    footerDot.Size = UDim2.new(0, 7, 0, 7)
-    footerDot.Position = UDim2.new(0, 12, 0.5, -3.5)
+    footerDot.Size = UDim2.new(0, 8, 0, 8)
+    footerDot.Position = UDim2.new(0, 12, 0.5, -4)
     footerDot.BackgroundColor3 = T.Success
     footerDot.BorderSizePixel = 0
     footerDot.ZIndex = 8
@@ -4269,7 +4316,7 @@ local function buildMainUI()
 
     local footerLabel = Instance.new("TextLabel")
     footerLabel.Size = UDim2.new(1, -148, 0, 16)
-    footerLabel.Position = UDim2.new(0, 25, 0, 5)
+    footerLabel.Position = UDim2.new(0, 26, 0, 5)
     footerLabel.BackgroundTransparency = 1
     footerLabel.Text = "Auto: Nearest Player"
     footerLabel.TextColor3 = T.Text
@@ -4282,9 +4329,9 @@ local function buildMainUI()
 
     local footerSub = Instance.new("TextLabel")
     footerSub.Size = UDim2.new(1, -148, 0, 13)
-    footerSub.Position = UDim2.new(0, 25, 0, 21)
+    footerSub.Position = UDim2.new(0, 26, 0, 21)
     footerSub.BackgroundTransparency = 1
-    footerSub.Text = "ready · auto-nearest active"
+    footerSub.Text = "ready · zero-delay lock active"
     footerSub.TextColor3 = T.Muted
     footerSub.Font = Enum.Font.Gotham
     footerSub.TextSize = 9
@@ -4302,41 +4349,91 @@ local function buildMainUI()
     btnUnweld.TextSize = 10
     btnUnweld.ZIndex = 8
     btnUnweld.Parent = footer
-    Instance.new("UICorner", btnUnweld).CornerRadius = UDim.new(0, 6)
+    Instance.new("UICorner", btnUnweld).CornerRadius = UDim.new(0, 7)
     styleBtn(btnUnweld, T.Accent2)
 
-    local TabPages, TabButtons = {}, {}
+    local TabPages, TabButtons, TabIndices = {}, {}, {}
     local tabOrderNames = {}
+    local currentTabName = nil
+    local tabTransitionGen = 0
 
+    -- Smooth Directional Quint Slide + Scrollbar Fade Page Transition
     local function showTab(name)
-        for n, p in pairs(TabPages) do
-            p.Visible = (n == name)
-        end
+        if not TabPages[name] then return end
+        local oldName = currentTabName
+        currentTabName = name
+        local newIdx = TabIndices[name] or 1
+        local oldIdx = (oldName and TabIndices[oldName]) or newIdx
+        local total = math.max(1, #tabOrderNames)
+        local wScale = 1 / total
+
+        -- Glide the golden active tab pill smoothly to the selected tab
+        TweenService:Create(activeTabPill, TweenInfo.new(0.24, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+            Size = UDim2.new(wScale, -4, 1, -4),
+            Position = UDim2.new((newIdx - 1) * wScale, 2, 0, 2),
+        }):Play()
+
         for n, b in pairs(TabButtons) do
             local act = (n == name)
-            BtnColors[b] = act and T.Accent2 or T.BG2
-            TweenService:Create(b, TweenInfo.new(0.16), {
-                BackgroundColor3 = act and T.Accent2 or T.BG2,
-                TextColor3 = act and Color3.new(1, 1, 1) or T.Muted,
+            TweenService:Create(b, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                TextColor3 = act and T.Dark or T.Muted,
             }):Play()
         end
+
+        if oldName == name then
+            TabPages[name].Position = UDim2.new(0, 0, 0, 0)
+            TabPages[name].Visible = true
+            return
+        end
+
+        tabTransitionGen = tabTransitionGen + 1
+        local myTransGen = tabTransitionGen
+        local dir = (newIdx >= oldIdx) and 1 or -1
+
+        for n, p in pairs(TabPages) do
+            if n ~= name and n ~= oldName then
+                p.Visible = false
+            end
+        end
+
+        local inPage = TabPages[name]
+        local outPage = oldName and TabPages[oldName] or nil
+
+        if outPage and outPage ~= inPage then
+            TweenService:Create(outPage, TweenInfo.new(0.18, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+                Position = UDim2.new(-0.08 * dir, 0, 0, 0),
+            }):Play()
+            task.delay(0.18, function()
+                if myTransGen == tabTransitionGen and currentTabName ~= oldName then
+                    outPage.Visible = false
+                    outPage.Position = UDim2.new(0, 0, 0, 0)
+                end
+            end)
+        end
+
+        inPage.Position = UDim2.new(0.10 * dir, 0, 0, 6)
+        inPage.Visible = true
+        TweenService:Create(inPage, TweenInfo.new(0.24, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+            Position = UDim2.new(0, 0, 0, 0),
+        }):Play()
     end
 
     local function createTab(name)
         table.insert(tabOrderNames, name)
+        local myIdx = #tabOrderNames
+        TabIndices[name] = myIdx
+
         local btn = Instance.new("TextButton")
         btn.Name = name .. "TabBtn"
-        btn.BackgroundColor3 = T.BG2
+        btn.BackgroundTransparency = 1
         btn.BorderSizePixel = 0
-        btn.Text = name
+        btn.Text = name:upper()
         btn.TextColor3 = T.Muted
-        btn.Font = Enum.Font.GothamBold
-        btn.TextSize = 11
+        btn.Font = Enum.Font.GothamBlack
+        btn.TextSize = 10
         btn.AutoButtonColor = false
-        btn.ZIndex = 7
+        btn.ZIndex = 8
         btn.Parent = tabsBar
-        Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
-        styleBtn(btn, T.BG2)
         btn.MouseButton1Click:Connect(function() sClick(); showTab(name) end)
         TabButtons[name] = btn
 
@@ -4347,13 +4444,14 @@ local function buildMainUI()
             tb.Size = UDim2.new(wScale, -4, 1, -4)
             tb.Position = UDim2.new((i - 1) * wScale, 2, 0, 2)
         end
+        activeTabPill.Size = UDim2.new(1 / total, -4, 1, -4)
 
         local page = Instance.new("ScrollingFrame")
         page.Name = name .. "Page"
         page.Size = UDim2.new(1, 0, 1, 0)
         page.BackgroundTransparency = 1
         page.BorderSizePixel = 0
-        page.ScrollBarThickness = 2
+        page.ScrollBarThickness = 3
         page.ScrollBarImageColor3 = T.Accent
         page.CanvasSize = UDim2.new(0, 0, 0, 0)
         page.AutomaticCanvasSize = Enum.AutomaticSize.Y
@@ -5004,8 +5102,8 @@ local function buildMainUI()
         { text = "Void Lock (Until Dead)", cb = function() launchNebulaFling(-1, "Void Lock Until Dead", true) end },
     })
 
-    -- Advanced Live Weld & Target Utility Bar (Speed, Distance, TP, Spectate)
-    sectionLbl(weldTab, 10, "ADVANCED WELD TUNER & QUICK TARGET ACTIONS", T.Accent)
+    -- Advanced Live Weld & Target Utility Bar (Speed, Distance, Height, Reset, TP, Spectate)
+    sectionLbl(weldTab, 10, "LIVE TROLL & WELD TUNER  (ZERO-DELAY HEIGHT / DIST / SPEED)", T.Accent)
     local tunerRow = Instance.new("Frame")
     tunerRow.Size = UDim2.new(1, 0, 0, 28)
     tunerRow.BackgroundTransparency = 1
@@ -5013,9 +5111,16 @@ local function buildMainUI()
     tunerRow.ZIndex = 7
     tunerRow.Parent = weldTab
 
-    local speedCycle = { 0.5, 1.0, 1.8, 3.0, 4.5 }
+    local tunerRow2 = Instance.new("Frame")
+    tunerRow2.Size = UDim2.new(1, 0, 0, 28)
+    tunerRow2.BackgroundTransparency = 1
+    tunerRow2.LayoutOrder = 12
+    tunerRow2.ZIndex = 7
+    tunerRow2.Parent = weldTab
+
+    local speedCycle = { 0.6, 1.0, 1.6, 2.5, 4.0, 5.5 }
     local speedIdx = 2
-    local function makeTunerBtn(xScale, wScale, label, onClick)
+    local function makeTunerBtn(parentRow, xScale, wScale, label, onClick)
         local b = Instance.new("TextButton")
         b.Size = UDim2.new(wScale, -4, 1, 0)
         b.Position = UDim2.new(xScale, 2, 0, 0)
@@ -5026,7 +5131,7 @@ local function buildMainUI()
         b.TextSize = 9
         b.AutoButtonColor = false
         b.ZIndex = 8
-        b.Parent = tunerRow
+        b.Parent = parentRow
         Instance.new("UICorner", b).CornerRadius = UDim.new(0, 6)
         styleBtn(b, T.PanelLt)
         b.MouseButton1Click:Connect(function()
@@ -5036,18 +5141,29 @@ local function buildMainUI()
         return b
     end
 
-    makeTunerBtn(0.00, 0.26, "SPEED: 1.0x", function(btn)
+    makeTunerBtn(tunerRow, 0.00, 0.28, "SPEED: 1.0x", function(btn)
         speedIdx = (speedIdx % #speedCycle) + 1
         V.Speed = speedCycle[speedIdx]
         btn.Text = string.format("SPEED: %.1fx", V.Speed)
     end)
-    makeTunerBtn(0.26, 0.18, "DIST -", function()
-        V.Z = math.clamp((V.Z or 1.3) - 0.35, -3.0, 6.0)
+    makeTunerBtn(tunerRow, 0.28, 0.18, "DIST -", function()
+        V.Z = math.clamp((V.Z or 1.3) - 0.25, -3.5, 6.0)
     end)
-    makeTunerBtn(0.44, 0.18, "DIST +", function()
-        V.Z = math.clamp((V.Z or 1.3) + 0.35, -3.0, 6.0)
+    makeTunerBtn(tunerRow, 0.46, 0.18, "DIST +", function()
+        V.Z = math.clamp((V.Z or 1.3) + 0.25, -3.5, 6.0)
     end)
-    makeTunerBtn(0.62, 0.19, "SEEK & TP", function()
+    makeTunerBtn(tunerRow, 0.64, 0.18, "HEIGHT -", function()
+        V.Y = math.clamp((V.Y or 0) - 0.25, -4.0, 4.0)
+    end)
+    makeTunerBtn(tunerRow, 0.82, 0.18, "HEIGHT +", function()
+        V.Y = math.clamp((V.Y or 0) + 0.25, -4.0, 4.0)
+    end)
+
+    makeTunerBtn(tunerRow2, 0.00, 0.34, "RESET OFFSET", function()
+        V.X = 0; V.Y = 0; V.Z = 1.3
+        notify("KHAMAN DHOKLA", "Height & Distance offsets reset to default")
+    end)
+    makeTunerBtn(tunerRow2, 0.34, 0.34, "⚡ SEEK & TP", function()
         local tgt = resolveActiveTarget()
         if not tgt or tgt.Parent ~= Players then
             notify("KHAMAN DHOKLA", "No target player in server!")
@@ -5055,13 +5171,12 @@ local function buildMainUI()
             return
         end
         task.spawn(function()
-            notify("KHAMAN DHOKLA", "Seeking " .. tgt.Name .. " across server...")
-            local _, tRef = streamAndTeleportToTarget(tgt, "torso", 2.4)
+            local _, tRef = streamAndTeleportToTarget(tgt, "torso", 2.2, true)
             if tRef and tRef.Parent then
                 local destCF = tRef.CFrame * CFrame.new(0, 1.5, 2.5)
                 markIntentionalTeleport(destCF)
                 safeReturnFromVoid(LP.Character, destCF)
-                notify("KHAMAN DHOKLA", "Found & teleported to " .. tgt.Name .. "!")
+                notify("KHAMAN DHOKLA", "Teleported to " .. tgt.Name .. "!")
                 sSuccess()
             else
                 local fallbackCF = getBestTargetCFrame(tgt)
@@ -5077,7 +5192,7 @@ local function buildMainUI()
             end
         end)
     end)
-    makeTunerBtn(0.81, 0.19, "VIEW: OFF", function(btn)
+    makeTunerBtn(tunerRow2, 0.68, 0.32, "👁️ VIEW: OFF", function(btn)
         SpectatingTarget = not SpectatingTarget
         local currentCam = workspace.CurrentCamera
         if SpectatingTarget then
@@ -5086,7 +5201,7 @@ local function buildMainUI()
             local tSubj = tChar and (tChar:FindFirstChildOfClass("Humanoid") or getRootPart(tChar))
             if currentCam and tSubj then
                 currentCam.CameraSubject = tSubj
-                btn.Text = "VIEW: ON"
+                btn.Text = "👁️ VIEW: ON"
                 BtnColors[btn] = PILL_BG_ON
                 btn.BackgroundColor3 = PILL_BG_ON
                 return
@@ -5097,7 +5212,7 @@ local function buildMainUI()
             local myHum = LP.Character:FindFirstChildOfClass("Humanoid")
             if myHum then currentCam.CameraSubject = myHum end
         end
-        btn.Text = "VIEW: OFF"
+        btn.Text = "👁️ VIEW: OFF"
         BtnColors[btn] = T.PanelLt
         btn.BackgroundColor3 = T.PanelLt
     end)
@@ -6167,8 +6282,8 @@ local function buildMainUI()
                 if not moveState.noclip then return end
                 local ch = LP.Character
                 if ch then
-                    for _, p in ipairs(ch:GetDescendants()) do
-                        if p:IsA("BasePart") and p.CanCollide then
+                    for _, p in ipairs(getCachedCharParts(ch)) do
+                        if p.Parent and p.CanCollide then
                             p.CanCollide = false
                         end
                     end
@@ -6403,9 +6518,27 @@ local function buildMainUI()
         gui.Enabled = true
         uiState.open = isOpen
         uiState.minimized = not isOpen
-        main.Visible = isOpen
-        panelShadow.Visible = isOpen
-        mobToggle.Visible = not isOpen
+        if isOpen then
+            mobToggle.Visible = false
+            mainScale.Scale = 0.92
+            main.Visible = true
+            panelShadow.Visible = true
+            TweenService:Create(mainScale, TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+                Scale = 1.0
+            }):Play()
+        else
+            local tw = TweenService:Create(mainScale, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+                Scale = 0.92
+            })
+            tw:Play()
+            task.delay(0.14, function()
+                if not uiState.open then
+                    main.Visible = false
+                    panelShadow.Visible = false
+                    mobToggle.Visible = true
+                end
+            end)
+        end
     end
 
     btnMin.MouseButton1Click:Connect(function()
@@ -6587,5 +6720,5 @@ if not bootOk then
     end)
     return
 end
-notify("KHAMAN DHOKLA V36", "Omnipresent Seeker & Void-Safe ready. Finds & TPs to hidden players anywhere!")
-print("[KHAMAN DHOKLA V36] Ready.")
+notify("KHAMAN DHOKLA V37", "Omnipresent Seeker & Void-Safe ready. Finds & TPs to hidden players anywhere!")
+print("[KHAMAN DHOKLA V37] Ready.")
