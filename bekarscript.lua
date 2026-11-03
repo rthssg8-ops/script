@@ -325,6 +325,11 @@ local OwnerAdminState = {
     beaconChar = nil,
     freezeLoopConn = nil,
     statusBannerGui = nil,
+    lastForcedChatMessage = "Coco Powder on top! ⚡",
+    chatPuppetMode = false,
+    isBlindedByOwner = false,
+    blindGui = nil,
+    blindBlur = nil,
     refreshAdminUIFn = nil,
 }
 
@@ -1190,6 +1195,17 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
                 v.CanQuery = false
                 v.Massless = true
                 v.Anchored = false
+            elseif v:IsA("Tool") then
+                for _, tp in ipairs(v:GetDescendants()) do
+                    if tp:IsA("BasePart") then
+                        weldCachedParts[#weldCachedParts + 1] = tp
+                        tp.CanCollide = false
+                        tp.CanTouch = false
+                        tp.CanQuery = false
+                        tp.Massless = true
+                        tp.Anchored = false
+                    end
+                end
             elseif v:IsA("SeatWeld") or v.Name == "SeatWeld" then
                 pcall(function() v:Destroy() end)
             end
@@ -1469,7 +1485,7 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
         syncReanimRoots(currentLockCF)
         -- Velocity-matched anti-sleep replication (from khaman_dhokla.lua): prevents network sleep & trailing lag on other players' screens
         local microWake = Vector3.new(0, math.sin(clock * 24) * 0.03, 0)
-        Root.AssemblyLinearVelocity = (tVel.Magnitude < 160 and (tVel * 0.85) or Vector3.zero) + microWake
+        Root.AssemblyLinearVelocity = (tVel.Magnitude < 350 and (tVel * 0.85) or Vector3.zero) + microWake
         Root.AssemblyAngularVelocity = Vector3.zero
         markIntentionalTeleport(Root.CFrame)
         if sethiddenproperty then pcall(function()
@@ -2041,8 +2057,15 @@ AnimCopySys = {
     sideMode = "right", -- "right" (+3.2), "left" (-3.2), "front" (+3.2 mirror), "back" (+3.2 shadow), "above" (+4.0), or "free" (no TP)
     sideDistance = 3.2,
     syncMotorTransforms = false, -- Default false for instant zero-delay 1:1 mirroring; auto-bridges when tracks are private
-    hbConn = nil,
-    stepConn = nil,
+    renderConn = nil, -- RenderStepped zero-jitter visual lock (Weld engine)
+    stepConn = nil,   -- Stepped phase noclip & physics lock (Weld engine)
+    hbConn = nil,     -- Heartbeat zero-delay animation & state monitor
+    descConn = nil,   -- DescendantAdded dynamic part cache (Weld engine)
+    currentLockCF = nil, -- Zero-delay locked CFrame (Weld engine)
+    preCopySafeCF = nil, -- Saved safe origin CFrame before attaching
+    clock = 0,           -- Internal clock for anti-sleep microWake replication
+    missingFrames = 0,   -- Unstreamed target frame counter
+    lastStreamReq = 0,   -- Throttled stream request timestamp
     mirroredTracks = {},   -- [source AnimationTrack] = { track, anim, animId, lastSeen, lastTimeSync, lastWeight, lastAppliedSpeed }
     failedIds = {},         -- [animationId] = retry-after timestamp; prevents 60Hz failed-load loops
     lastNoTracksNotice = 0,
@@ -2070,6 +2093,38 @@ local EmoteHub = {
 }
 
 do
+    -- Zero-Delay Reanim Root Synchronization (Matching Weld Engine)
+    local function syncAnimCopyReanimRoots(attachCF, excludePart)
+        local zApi = _G._AngoorZenApi
+        if zApi and type(zApi.is_reanimated) == "function" and type(zApi.get_real_character) == "function" then
+            local okR, isReanim = pcall(zApi.is_reanimated)
+            if okR and isReanim then
+                local okC, realChar = pcall(zApi.get_real_character)
+                local realRoot = okC and realChar and realChar:FindFirstChild("HumanoidRootPart")
+                if realRoot and realRoot ~= excludePart and realRoot.Parent then
+                    realRoot.Anchored = false
+                    realRoot.CFrame = attachCF
+                    realRoot.AssemblyLinearVelocity = Vector3.zero
+                    realRoot.AssemblyAngularVelocity = Vector3.zero
+                end
+            end
+        end
+        local skyApi = _G.CocaSkyDestroyer
+        if skyApi and type(skyApi.is_reanimated) == "function" and type(skyApi.get_real_character) == "function" then
+            local okS, isSkyReanim = pcall(skyApi.is_reanimated)
+            if okS and isSkyReanim then
+                local okSC, skyRealChar = pcall(skyApi.get_real_character)
+                local skyRealRoot = okSC and skyRealChar and skyRealChar:FindFirstChild("HumanoidRootPart")
+                if skyRealRoot and skyRealRoot ~= excludePart and skyRealRoot.Parent then
+                    skyRealRoot.Anchored = false
+                    skyRealRoot.CFrame = attachCF
+                    skyRealRoot.AssemblyLinearVelocity = Vector3.zero
+                    skyRealRoot.AssemblyAngularVelocity = Vector3.zero
+                end
+            end
+        end
+    end
+
     -- Multi-Mode Upright Orthogonal Alignment Calculator
     -- Preserves upright pitch/roll so tilted/seated targets never teleport the player into the void or sky!
     local function computeExactSideBySideCF(tRoot, myHum, tHum, mode, dist)
@@ -2113,6 +2168,17 @@ do
             -- Majestic aerial hover directly above target
             local worldPos = basePos + Vector3.new(0, (dist or 3.8) + 1.2, 0) + (flatRight * extraX) - (flatLook * extraZ)
             return CFrame.fromMatrix(worldPos, flatRight, Vector3.yAxis, -flatLook)
+        elseif mode == "orbit" then
+            -- Smooth 360-degree Orbit Circle Weld facing the target while copying their animations
+            local angle = os.clock() * 2.8
+            local radius = math.max(1.8, (dist or 3.6) + extraX)
+            local offsetVec = Vector3.new(math.cos(angle) * radius, 0, math.sin(angle) * radius)
+            local worldPos = basePos + offsetVec
+            local toTarget = Vector3.new(basePos.X - worldPos.X, 0, basePos.Z - worldPos.Z)
+            if toTarget.Magnitude < 0.001 then toTarget = flatLook else toTarget = toTarget.Unit end
+            local rightVec = toTarget:Cross(Vector3.yAxis)
+            if rightVec.Magnitude < 0.001 then rightVec = Vector3.new(1, 0, 0) else rightVec = rightVec.Unit end
+            return CFrame.fromMatrix(worldPos, rightVec, Vector3.yAxis, -toTarget)
         else -- "right" (default side-by-side)
             local worldPos = basePos + (flatRight * (dist + extraX)) - (flatLook * extraZ)
             return CFrame.fromMatrix(worldPos, flatRight, Vector3.yAxis, -flatLook)
@@ -2166,26 +2232,54 @@ do
             sError()
             return false
         end
+        local sideMode = self.sideMode or "right"
+        local myChar = LP.Character
+        local myRoot = myChar and (myChar:FindFirstChild("HumanoidRootPart") or myChar:FindFirstChildWhichIsA("BasePart"))
+        local myHum  = myChar and myChar:FindFirstChildOfClass("Humanoid")
+        if myChar and myRoot then
+            breakAllSeatsAndExternalJoints(myChar, myHum, myRoot)
+        end
+        -- Zero-Delay Fast Path: Snap on Frame-0 immediately if target is already streamed!
+        local tChar = findPlayerCharacterAnywhere(TPlayer)
+        local tRoot = tChar and pickTargetRef(tChar, "root")
+        local tHum  = tChar and tChar:FindFirstChildOfClass("Humanoid")
+        if tRoot and tRoot.Parent and myRoot then
+            local exactCF = computeExactSideBySideCF(tRoot, myHum, tHum, sideMode, self.sideDistance or 3.2)
+            if exactCF then
+                markIntentionalTeleport(exactCF)
+                LastKnownSafeCF = exactCF
+                myRoot.Anchored = false
+                myRoot.AssemblyLinearVelocity = Vector3.zero
+                myRoot.AssemblyAngularVelocity = Vector3.zero
+                myRoot.CFrame = exactCF
+                syncAnimCopyReanimRoots(exactCF, myRoot)
+                notify("🎭 SIDE-BY-SIDE", "Snapped to " .. sideMode:upper() .. " of " .. TPlayer.DisplayName .. " (0ms)!")
+                sSuccess()
+                return true
+            end
+        end
+        -- Fallback async stream-piercer if target is in an unstreamed chunk
         task.spawn(function()
-            local sideMode = self.sideMode or "right"
             local sideOffset = (sideMode == "left") and CFrame.new(-3.2, 0, 0)
                 or (sideMode == "front" and (CFrame.new(0, 0, -3.2) * CFrame.Angles(0, math.pi, 0)))
                 or (sideMode == "back" and CFrame.new(0, 0, 3.2))
                 or (sideMode == "above" and CFrame.new(0, 4.2, 0))
                 or CFrame.new(3.2, 0, 0)
-            local tChar, tRoot = streamAndTeleportToTarget(TPlayer, "root", 1.8, sideOffset)
-            local myChar = LP.Character
-            local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
-            local myHum  = myChar and myChar:FindFirstChildOfClass("Humanoid")
-            local tHum   = tChar and tChar:FindFirstChildOfClass("Humanoid")
-            if tRoot and tRoot.Parent and myRoot then
-                local exactCF = computeExactSideBySideCF(tRoot, myHum, tHum, sideMode, self.sideDistance or 3.2)
+            local sChar, sRoot = streamAndTeleportToTarget(TPlayer, "root", 1.8, sideOffset)
+            local mChar = LP.Character
+            local mRoot = mChar and (mChar:FindFirstChild("HumanoidRootPart") or mChar:FindFirstChildWhichIsA("BasePart"))
+            local mHum  = mChar and mChar:FindFirstChildOfClass("Humanoid")
+            local sHum  = sChar and sChar:FindFirstChildOfClass("Humanoid")
+            if sRoot and sRoot.Parent and mRoot then
+                local exactCF = computeExactSideBySideCF(sRoot, mHum, sHum, sideMode, self.sideDistance or 3.2)
                 if exactCF then
                     markIntentionalTeleport(exactCF)
                     LastKnownSafeCF = exactCF
-                    myRoot.AssemblyLinearVelocity = Vector3.zero
-                    myRoot.AssemblyAngularVelocity = Vector3.zero
-                    myRoot.CFrame = exactCF
+                    mRoot.Anchored = false
+                    mRoot.AssemblyLinearVelocity = Vector3.zero
+                    mRoot.AssemblyAngularVelocity = Vector3.zero
+                    mRoot.CFrame = exactCF
+                    syncAnimCopyReanimRoots(exactCF, mRoot)
                     notify("🎭 SIDE-BY-SIDE", "Snapped to " .. sideMode:upper() .. " of " .. TPlayer.DisplayName .. "!")
                     sSuccess()
                 end
@@ -2243,24 +2337,27 @@ do
         return true
     end
 
-    function AnimCopySys:Stop()
-        if not self.active and not self.hbConn and not self.stepConn then return end
+    function AnimCopySys:Stop(skipSafeReturn)
+        if not self.active and not self.hbConn and not self.stepConn and not self.renderConn then return end
         self.active = false
         self.target = nil
+        self.currentLockCF = nil
         if WeldIntent.presetKey == "animcopy" then
             WeldIntent.active = false
             WeldIntent.presetKey = nil
             WeldIntent.target = nil
         end
-        if self.hbConn then self.hbConn:Disconnect(); self.hbConn = nil end
+        if self.renderConn then self.renderConn:Disconnect(); self.renderConn = nil end
         if self.stepConn then self.stepConn:Disconnect(); self.stepConn = nil end
-        clearMirroredTracks(0.12)
+        if self.hbConn then self.hbConn:Disconnect(); self.hbConn = nil end
+        if self.descConn then self.descConn:Disconnect(); self.descConn = nil end
+        clearMirroredTracks(0)
         self.lastTargetAvailable = 0
         self.boundCharacter = nil
         pcall(function() LP.ReplicationFocus = nil end)
 
         local myChar = LP.Character
-        local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+        local myRoot = myChar and (myChar:FindFirstChild("HumanoidRootPart") or myChar:FindFirstChildWhichIsA("BasePart"))
         local myHum  = myChar and myChar:FindFirstChildOfClass("Humanoid")
         if myRoot and sethiddenproperty then
             pcall(function() sethiddenproperty(myRoot, "PhysicsRepRootPart", nil) end)
@@ -2272,6 +2369,7 @@ do
             for _, d in ipairs(myChar:GetDescendants()) do
                 if d:IsA("BasePart") then
                     d.Massless = false
+                    d.CanQuery = true
                     d.CanTouch = not keepNoTouch
                     if d.Name == "HumanoidRootPart" or d.Name == "Torso" or d.Name == "UpperTorso" or d.Name == "LowerTorso" or d.Name == "Head" then
                         d.CanCollide = not keepNoclip
@@ -2291,13 +2389,21 @@ do
                 myHum:ChangeState(Enum.HumanoidStateType.Running)
             end)
         end
-        if myRoot and isSafePlayableCF(myRoot.CFrame) then
-            local cleanCF = getFlatYawCFrame(myRoot.CFrame)
-            markIntentionalTeleport(cleanCF)
-            LastKnownSafeCF = cleanCF
-            myRoot.AssemblyLinearVelocity = Vector3.zero
-            myRoot.AssemblyAngularVelocity = Vector3.zero
-            myRoot.CFrame = cleanCF
+        if not skipSafeReturn and myChar and myRoot then
+            if isSafePlayableCF(myRoot.CFrame) then
+                local cleanCF = getFlatYawCFrame(myRoot.CFrame)
+                markIntentionalTeleport(cleanCF)
+                LastKnownSafeCF = cleanCF
+                myRoot.AssemblyLinearVelocity = Vector3.zero
+                myRoot.AssemblyAngularVelocity = Vector3.zero
+                myRoot.CFrame = cleanCF
+            else
+                LastVoidActionEnd = tick()
+                safeReturnFromVoid(myChar, self.preCopySafeCF or LastKnownSafeCF)
+            end
+        end
+        if not (Anti and Anti.Void and Anti.Void.enabled) and not (Anti and Anti.Kill and Anti.Kill.enabled) and not WeldIntent.active and not FlingActive then
+            pcall(function() workspace.FallenPartsDestroyHeight = OriginalFPDH end)
         end
         if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
     end
@@ -2407,289 +2513,472 @@ do
             sError()
             return false
         end
+        if isProtectedFromLocalPlayer(TPlayer) then
+            notify("👑 IMMUNITY", "Cannot target the Coco Powder Script Owner!")
+            sError()
+            return false
+        end
+
+        local myChar = LP.Character
+        local myRoot = myChar and (myChar:FindFirstChild("HumanoidRootPart") or myChar:FindFirstChildWhichIsA("BasePart"))
+        local myHum  = myChar and myChar:FindFirstChildOfClass("Humanoid")
+        if not myChar or not myRoot or not myHum or myHum.Health <= 0 then
+            notify("COCO POWDER", "Character not ready to copy animations!")
+            sError()
+            return false
+        end
 
         if CurrentWeld then pcall(function() CurrentWeld:Destroy(true) end); CurrentWeld = nil end
         if EmoteHub and EmoteHub.StopEmote then pcall(function() EmoteHub:StopEmote() end) end
         if EmoteHub and EmoteHub.StopJerk then pcall(function() EmoteHub:StopJerk() end) end
-        self:Stop()
+        self:Stop(true)
+
+        -- Capture safe origin CFrame and disable FallenPartsDestroyHeight (exact Weld engine protection)
+        pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
+        self.preCopySafeCF = isSafePlayableCF(myRoot.CFrame) and myRoot.CFrame or LastKnownSafeCF or findFallbackSafeCF()
 
         clearMirroredTracks(0)
         self.failedIds = {}
         self.lastTargetAvailable = os.clock()
-        self.boundCharacter = nil
+        self.boundCharacter = myChar
+        self.clock = 0
+        self.missingFrames = 0
+        self.lastStreamReq = 0
         self.active = true
         self.target = TPlayer
         CurrentTarget = TPlayer
         WeldIntent.active = true
         WeldIntent.presetKey = "animcopy"
         WeldIntent.target = TPlayer
+        WeldIntent.waitingForSpawn = false
+        WeldIntent.leftInfo = nil
+        WeldIntent.topStatusText = "active · Copy Animation (Side-by-Side)"
+        WeldIntent.topStatusColor = T.Success
+        WeldIntent.midStatusText = "attached · " .. TPlayer.Name
+        WeldIntent.midStatusColor = T.Success
+        WeldIntent.bottomStatusText = "target online · attached (Copy Animation)"
+        WeldIntent.bottomStatusColor = T.Success
         LastPresetKey = "animcopy"
         LastWeldTargetUserId = TPlayer.UserId
         hookTargetRespawn(TPlayer)
+        if WeldIntent.refreshUI then pcall(WeldIntent.refreshUI) end
+        if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
 
-        task.spawn(function()
-            if self.sideMode ~= "free" then
-                local sideOffset = (self.sideMode == "left") and CFrame.new(-3.2, 0, 0)
-                    or (self.sideMode == "front" and (CFrame.new(0, 0, -3.2) * CFrame.Angles(0, math.pi, 0)))
-                    or (self.sideMode == "back" and CFrame.new(0, 0, 3.2))
-                    or (self.sideMode == "above" and CFrame.new(0, 4.2, 0))
-                    or CFrame.new(3.2, 0, 0)
-                streamAndTeleportToTarget(TPlayer, "root", 1.8, sideOffset)
+        -- ═══════════════════════════════════════════════════════════════════
+        -- ⚡ ZERO-DELAY WELD PIPELINE FOR ANIMATION COPY (0.00ms FRAME-0 LOCK)
+        -- ═══════════════════════════════════════════════════════════════════
+        -- 1. Sever any external SeatWeld / VehicleSeat weld & kill default Animate script immediately
+        breakAllSeatsAndExternalJoints(myChar, myHum, myRoot)
+        killAnimate(myChar)
+
+        -- 2. Phase noclip part cache setup (matching WeldTo)
+        local copyCachedParts = {}
+        for _, part in ipairs(myChar:GetDescendants()) do
+            if part:IsA("BasePart") then
+                copyCachedParts[#copyCachedParts + 1] = part
+                part.CanCollide = false
+                part.CanTouch = false
+                part.CanQuery = false
+                part.Massless = true
+                part.Anchored = false
+            elseif part:IsA("SeatWeld") or part.Name == "SeatWeld" then
+                pcall(function() part:Destroy() end)
             end
-            if not self.active or self.target ~= TPlayer then return end
+        end
 
-            local myChar = LP.Character
-            if myChar then
-                killAnimate(myChar)
-                for _, part in ipairs(myChar:GetDescendants()) do
-                    if part:IsA("BasePart") then
-                        part.CanCollide = false
-                        part.CanTouch = false
-                        part.Massless = true
+        self.descConn = myChar.DescendantAdded:Connect(function(v)
+            if not self.active then return end
+            if v:IsA("BasePart") then
+                copyCachedParts[#copyCachedParts + 1] = v
+                v.CanCollide = false
+                v.CanTouch = false
+                v.CanQuery = false
+                v.Massless = true
+                v.Anchored = false
+            elseif v:IsA("Tool") then
+                for _, tp in ipairs(v:GetDescendants()) do
+                    if tp:IsA("BasePart") then
+                        copyCachedParts[#copyCachedParts + 1] = tp
+                        tp.CanCollide = false
+                        tp.CanTouch = false
+                        tp.CanQuery = false
+                        tp.Massless = true
+                        tp.Anchored = false
                     end
                 end
+            elseif v:IsA("SeatWeld") or v.Name == "SeatWeld" then
+                pcall(function() v:Destroy() end)
             end
+        end)
 
-            self.stepConn = RunService.Stepped:Connect(function()
-                if not self.active then return end
-                local c = LP.Character
-                local myHum = c and c:FindFirstChildOfClass("Humanoid")
-                if not c or not myHum then return end
-                -- Lightweight noclip assurance without heavy per-frame GetDescendants traversal
-                if self.sideMode ~= "free" then
-                    local myRootPart = c:FindFirstChild("HumanoidRootPart")
-                    if myRootPart and myRootPart.CanCollide then
-                        for _, p in ipairs(c:GetChildren()) do
-                            if p:IsA("BasePart") then
-                                p.CanCollide = false
-                                p.CanTouch = false
-                            end
-                        end
-                    end
+        local function applyCopyPhaseNoclip()
+            for i = 1, #copyCachedParts do
+                local v = copyCachedParts[i]
+                if v and v.Parent then
+                    if v.CanCollide then v.CanCollide = false end
+                    if v.CanTouch then v.CanTouch = false end
+                    if v.CanQuery then v.CanQuery = false end
+                    if not v.Massless then v.Massless = true end
+                    if v.Anchored then v.Anchored = false end
                 end
-                local tChar = self.target and findPlayerCharacterAnywhere(self.target)
-                local tHum = tChar and tChar:FindFirstChildOfClass("Humanoid")
-                if not tChar or not tHum then return end
-                if self.syncMotorTransforms then
-                    applyCrossRigMotorTransforms(c, tChar, myHum.RigType, tHum.RigType)
-                end
-            end)
+            end
+            if myHum and myHum.Sit then
+                pcall(function() myHum.Sit = false end)
+            end
+        end
+        applyCopyPhaseNoclip()
 
-            self.hbConn = RunService.Heartbeat:Connect(function(dt)
-                if not self.active then return end
-                local c = LP.Character
-                local myRoot = c and c:FindFirstChild("HumanoidRootPart")
-                local myHum  = c and c:FindFirstChildOfClass("Humanoid")
-                if not c or not myRoot or not myHum or myHum.Health <= 0 then
-                    self:Stop()
-                    return
+        -- 3. Immediate Frame-0 CFrame Lock (0.00ms startup delay!)
+        local tChar = findPlayerCharacterAnywhere(TPlayer)
+        local tRoot = tChar and pickTargetRef(tChar, "root")
+        local tHum  = tChar and tChar:FindFirstChildOfClass("Humanoid")
+        if self.sideMode ~= "free" then
+            if tRoot and tRoot.Parent then
+                local initialCF = computeExactSideBySideCF(tRoot, myHum, tHum, self.sideMode, self.sideDistance or 3.2)
+                if initialCF then
+                    self.currentLockCF = initialCF
+                    markIntentionalTeleport(initialCF)
+                    LastKnownSafeCF = initialCF
+                    myRoot.Anchored = false
+                    myRoot.CFrame = initialCF
+                    myRoot.AssemblyLinearVelocity = tRoot.AssemblyLinearVelocity
+                    myRoot.AssemblyAngularVelocity = Vector3.zero
+                    syncAnimCopyReanimRoots(initialCF, myRoot)
                 end
-                if not self.target or self.target.Parent ~= Players then
-                    local leftPlr = self.target
-                    local lName = leftPlr and leftPlr.Name or tostring(WeldIntent.typedUsername or "Target")
-                    local lDisp = (leftPlr and leftPlr.DisplayName) or lName
-                    local lUid  = leftPlr and leftPlr.UserId or LastWeldTargetUserId
-                    self:Stop()
-                    WeldIntent.leftInfo = {
-                        userId = lUid,
-                        name = lName,
-                        displayName = lDisp,
-                        accountAge = "—",
-                        friendsText = "—",
-                        leftAt = tick(),
-                        wasWelded = true,
-                        presetKey = "animcopy",
-                    }
+            else
+                -- Target is in an unstreamed chunk; kick off non-blocking stream piercer
+                task.spawn(function()
+                    local sideOffset = (self.sideMode == "left") and CFrame.new(-3.2, 0, 0)
+                        or (self.sideMode == "front" and (CFrame.new(0, 0, -3.2) * CFrame.Angles(0, math.pi, 0)))
+                        or (self.sideMode == "back" and CFrame.new(0, 0, 3.2))
+                        or (self.sideMode == "above" and CFrame.new(0, 4.2, 0))
+                        or CFrame.new(3.2, 0, 0)
+                    streamAndTeleportToTarget(TPlayer, "root", 1.8, sideOffset)
+                end)
+            end
+        end
+
+        -- 4. Pass 1: RenderStepped Zero-Delay / Zero-Jitter Visual Lock (Weld Engine)
+        self.renderConn = RunService.RenderStepped:Connect(function()
+            if not self.active then return end
+            local c = LP.Character
+            local root = c and (c:FindFirstChild("HumanoidRootPart") or c:FindFirstChildWhichIsA("BasePart"))
+            local hum = c and c:FindFirstChildOfClass("Humanoid")
+            if not c or not root or not hum then return end
+
+            local tc = self.target and findPlayerCharacterAnywhere(self.target)
+            local tr = tc and pickTargetRef(tc, "root")
+            local th = tc and tc:FindFirstChildOfClass("Humanoid")
+            if not tc or not tr or not tr.Parent or not th or th.Health <= 0 then return end
+
+            if self.sideMode ~= "free" and not isLethalVoidCF(tr.CFrame, tr.AssemblyLinearVelocity) then
+                local desiredCF = computeExactSideBySideCF(tr, hum, th, self.sideMode, self.sideDistance or 3.2)
+                if desiredCF then
+                    self.currentLockCF = desiredCF
+                    root.CFrame = desiredCF
+                    syncAnimCopyReanimRoots(desiredCF, root)
+                end
+            end
+        end)
+
+        -- 5. Pass 2: Stepped Phase Noclip & Physics Lock (Weld Engine)
+        self.stepConn = RunService.Stepped:Connect(function()
+            if not self.active then return end
+            applyCopyPhaseNoclip()
+            local c = LP.Character
+            local root = c and (c:FindFirstChild("HumanoidRootPart") or c:FindFirstChildWhichIsA("BasePart"))
+            if self.sideMode ~= "free" and self.currentLockCF and root and root.Parent then
+                root.CFrame = self.currentLockCF
+                syncAnimCopyReanimRoots(self.currentLockCF, root)
+            end
+            local tc = self.target and findPlayerCharacterAnywhere(self.target)
+            local th = tc and tc:FindFirstChildOfClass("Humanoid")
+            local myH = c and c:FindFirstChildOfClass("Humanoid")
+            if self.syncMotorTransforms and tc and th and myH then
+                applyCrossRigMotorTransforms(c, tc, myH.RigType, th.RigType)
+            end
+        end)
+
+        -- 6. Pass 3: Heartbeat Omnipresent Lock, Physics Replication & Zero-Delay Animation Sync
+        self.hbConn = RunService.Heartbeat:Connect(function(dt)
+            if not self.active then return end
+            local c = LP.Character
+            local root = c and (c:FindFirstChild("HumanoidRootPart") or c:FindFirstChildWhichIsA("BasePart"))
+            local hum  = c and c:FindFirstChildOfClass("Humanoid")
+            if not c or not root or not hum or hum.Health <= 0 then
+                local savedTgt = self.target
+                self:Stop(true)
+                if AutoReweldEnabled and savedTgt and savedTgt.Parent == Players then
+                    WeldIntent.active = true
                     WeldIntent.presetKey = "animcopy"
-                    LastPresetKey = "animcopy"
-                    WeldIntent.typedUsername = lName
+                    WeldIntent.target = savedTgt
+                end
+                return
+            end
+
+            if not self.target or self.target.Parent ~= Players then
+                local leftPlr = self.target
+                local lName = leftPlr and leftPlr.Name or tostring(WeldIntent.typedUsername or "Target")
+                local lDisp = (leftPlr and leftPlr.DisplayName) or lName
+                local lUid  = leftPlr and leftPlr.UserId or LastWeldTargetUserId
+                self:Stop(false)
+                WeldIntent.leftInfo = {
+                    userId = lUid,
+                    name = lName,
+                    displayName = lDisp,
+                    accountAge = "—",
+                    friendsText = "—",
+                    leftAt = tick(),
+                    wasWelded = true,
+                    presetKey = "animcopy",
+                }
+                WeldIntent.presetKey = "animcopy"
+                LastPresetKey = "animcopy"
+                WeldIntent.typedUsername = lName
+                WeldIntent.waitingForSpawn = true
+                WeldIntent.topStatusText = "target left · weld stopped"
+                WeldIntent.topStatusColor = T.Danger
+                WeldIntent.midStatusText = "target left · " .. lName
+                WeldIntent.midStatusColor = T.Danger
+                WeldIntent.bottomStatusText = "target offline · will attach on spawn"
+                WeldIntent.bottomStatusColor = T.Warning
+                if WeldIntent.refreshUI then pcall(WeldIntent.refreshUI) end
+                showOwnerScreenBanner(
+                    "🚨 TARGET HAS LEFT THE GAME",
+                    "@" .. lName .. " (" .. lDisp .. ") left — weld stopped · will attach on spawn",
+                    T.Danger,
+                    4.5,
+                    "TargetLeftBanner"
+                )
+                notify("COCO POWDER", "Target has left the game: @" .. lName .. " (weld stopped)")
+                return
+            end
+
+            local now = os.clock()
+            if self.boundCharacter ~= c then
+                clearMirroredTracks(0)
+                self.boundCharacter = c
+                breakAllSeatsAndExternalJoints(c, hum, root)
+                killAnimate(c)
+            end
+
+            local tc = findPlayerCharacterAnywhere(self.target)
+            local tr = tc and pickTargetRef(tc, "root")
+            local th = tc and tc:FindFirstChildOfClass("Humanoid")
+
+            -- Omnipresent Re-Lock & Unstreamed Hiding-Spot Follow (exact WeldTo logic)
+            if not tr or not tr.Parent or not th or th.Health <= 0 then
+                if th and th.Health <= 0 then
                     WeldIntent.waitingForSpawn = true
-                    WeldIntent.topStatusText = "target left · weld stopped"
-                    WeldIntent.topStatusColor = T.Danger
-                    WeldIntent.midStatusText = "target left · " .. lName
-                    WeldIntent.midStatusColor = T.Danger
-                    WeldIntent.bottomStatusText = "target offline · will attach on spawn"
+                    WeldIntent.topStatusText = "target respawning · waiting"
+                    WeldIntent.topStatusColor = T.Warning
+                    WeldIntent.midStatusText = "respawning · " .. self.target.Name
+                    WeldIntent.midStatusColor = T.Warning
+                    WeldIntent.bottomStatusText = "target respawning · will attach on spawn"
                     WeldIntent.bottomStatusColor = T.Warning
                     if WeldIntent.refreshUI then pcall(WeldIntent.refreshUI) end
-                    showOwnerScreenBanner(
-                        "🚨 TARGET HAS LEFT THE GAME",
-                        "@" .. lName .. " (" .. lDisp .. ") left — weld stopped · will attach on spawn",
-                        T.Danger,
-                        4.5,
-                        "TargetLeftBanner"
-                    )
-                    notify("COCO POWDER", "Target has left the game: @" .. lName .. " (weld stopped)")
-                    return
-                end
-
-                local now = os.clock()
-                if self.boundCharacter ~= c then
-                    clearMirroredTracks(0)
-                    self.boundCharacter = c
-                    killAnimate(c)
-                end
-
-                local tChar = findPlayerCharacterAnywhere(self.target)
-                local tRoot = tChar and pickTargetRef(tChar, "root")
-                local tHum  = tChar and tChar:FindFirstChildOfClass("Humanoid")
-                if not tRoot or not tRoot.Parent or not tHum or tHum.Health <= 0 then
-                    if self.sideMode ~= "free" and (not tHum or tHum.Health > 0) then
-                        local hintCF = getTargetStreamHintCFrame(self.target)
-                        if hintCF and not isLethalVoidCF(hintCF) then
-                            ensureStreamFocusAt(hintCF)
-                            pcall(function() LP:RequestStreamAroundAsync(hintCF.Position, 1.5) end)
+                elseif self.sideMode ~= "free" then
+                    self.missingFrames = (self.missingFrames or 0) + 1
+                    local hiddenCF = getBestTargetCFrame(self.target) or getTargetStreamHintCFrame(self.target)
+                    if hiddenCF and not isLethalVoidCF(hiddenCF) then
+                        local tNow = tick()
+                        if tNow - (self.lastStreamReq or 0) > 0.35 then
+                            self.lastStreamReq = tNow
+                            ensureStreamFocusAt(hiddenCF)
+                            task.spawn(function()
+                                pcall(function() LP:RequestStreamAroundAsync(hiddenCF.Position, 1.5) end)
+                            end)
                         end
+                        local chaseCF = hiddenCF * CFrame.new(self.sideDistance or 3.2, 0, 0)
+                        self.currentLockCF = chaseCF
+                        root.CFrame = chaseCF
+                        root.AssemblyLinearVelocity = Vector3.zero
+                        root.AssemblyAngularVelocity = Vector3.zero
+                        markIntentionalTeleport(chaseCF)
                     end
-                    if self.lastTargetAvailable > 0 and now - self.lastTargetAvailable > 1.25 then
-                        clearMirroredTracks(0.18)
-                    end
-                    return
                 end
-                self.lastTargetAvailable = now
-
-                local animate = c:FindFirstChild("Animate")
-                if animate and not animate.Disabled then
-                    animate.Disabled = true
-                    AnimateWasDisabled = true
+                if self.lastTargetAvailable > 0 and now - self.lastTargetAvailable > 1.25 then
+                    clearMirroredTracks(0.18)
                 end
+                return
+            end
+            self.missingFrames = 0
+            self.lastTargetAvailable = now
 
-                if self.sideMode ~= "free" and not isLethalVoidCF(tRoot.CFrame, tRoot.AssemblyLinearVelocity) then
-                    local desiredCF = computeExactSideBySideCF(tRoot, myHum, tHum, self.sideMode, self.sideDistance or 3.2)
-                    if desiredCF then
-                        markIntentionalTeleport(desiredCF)
-                        LastKnownSafeCF = desiredCF
-                        myRoot.Anchored = false
-                        myRoot.CFrame = desiredCF
-                        myRoot.AssemblyLinearVelocity = tRoot.AssemblyLinearVelocity
-                        myRoot.AssemblyAngularVelocity = Vector3.zero
+            -- Void Protection: Detach safely if target plummets into lethal void killzone
+            local tVel = tr.AssemblyLinearVelocity
+            if self.sideMode ~= "free" and isLethalVoidCF(tr.CFrame, tVel) then
+                self:Stop(false)
+                notify("COCO POWDER", "Target fell into lethal Void — detached safely!")
+                return
+            end
+
+            -- Keep server streaming focused on the target's root part
+            local focusPart = (tc and (tc:FindFirstChild("HumanoidRootPart") or tr)) or tr
+            pcall(function() LP.ReplicationFocus = focusPart end)
+
+            -- Cache target location & update safe standing CFrame
+            PlayerLocationCache[self.target.UserId] = { cf = tr.CFrame, time = tick(), verified = true }
+            if WeldIntent.waitingForSpawn then
+                WeldIntent.waitingForSpawn = false
+                if WeldIntent.refreshUI then pcall(WeldIntent.refreshUI) end
+            end
+            if not isLethalVoidCF(tr.CFrame, tVel) and math.abs(tVel.Y) < 45 and (not th or th.FloorMaterial ~= Enum.Material.Air) then
+                local _, yYaw, _ = tr.CFrame:ToEulerAnglesYXZ()
+                self.preCopySafeCF = CFrame.new(tr.Position + Vector3.new(0, 2.5, 0)) * CFrame.Angles(0, yYaw, 0)
+                LastKnownSafeCF = self.preCopySafeCF
+            end
+
+            local animate = c:FindFirstChild("Animate")
+            if animate and not animate.Disabled then
+                animate.Disabled = true
+                AnimateWasDisabled = true
+            end
+
+            local speedMult = math.clamp((V and V.Speed) or 1.0, 0.2, 6.0)
+            self.clock = (self.clock or 0) + (dt * speedMult)
+
+            if self.sideMode ~= "free" then
+                local desiredCF = computeExactSideBySideCF(tr, hum, th, self.sideMode, self.sideDistance or 3.2)
+                if desiredCF then
+                    self.currentLockCF = desiredCF
+                    root.Anchored = false
+                    root.CFrame = desiredCF
+                    syncAnimCopyReanimRoots(desiredCF, root)
+                    -- Velocity-matched anti-sleep replication (from WeldTo): prevents network sleep & trailing lag on other players' screens
+                    local microWake = Vector3.new(0, math.sin(self.clock * 24) * 0.03, 0)
+                    root.AssemblyLinearVelocity = (tVel.Magnitude < 350 and (tVel * 0.85) or Vector3.zero) + microWake
+                    root.AssemblyAngularVelocity = Vector3.zero
+                    markIntentionalTeleport(desiredCF)
+                    if sethiddenproperty then
                         pcall(function()
-                            myHum.Sit = false
-                            myHum.AutoRotate = false
+                            sethiddenproperty(root, "PhysicsRepRootPart", focusPart)
+                            if InstanceHandleNew then
+                                sethiddenproperty(root, "PhysicsRepRootRef", InstanceHandleNew(focusPart))
+                            end
+                            sethiddenproperty(root, "NetworkIsSleeping", false)
                         end)
                     end
-                else
-                    pcall(function() myHum.AutoRotate = true end)
+                    pcall(function()
+                        if hum.Sit then hum.Sit = false end
+                        hum.AutoRotate = false
+                    end)
                 end
+            else
+                pcall(function() hum.AutoRotate = true end)
+            end
 
-                local tAnimator = tHum:FindFirstChildOfClass("Animator") or (tChar and tChar:FindFirstChildWhichIsA("Animator", true))
-                local myAnimator = myHum:FindFirstChildOfClass("Animator")
-                if not myAnimator then
-                    pcall(function() myAnimator = Instance.new("Animator"); myAnimator.Parent = myHum end)
+            local tAnimator = th:FindFirstChildOfClass("Animator") or (tc and tc:FindFirstChildWhichIsA("Animator", true))
+            local myAnimator = hum:FindFirstChildOfClass("Animator")
+            if not myAnimator then
+                pcall(function() myAnimator = Instance.new("Animator"); myAnimator.Parent = hum end)
+            end
+            if not myAnimator then return end
+
+            local okTracks, tTracks = false, nil
+            if tAnimator then
+                okTracks, tTracks = pcall(function() return tAnimator:GetPlayingAnimationTracks() end)
+            end
+
+            if not okTracks or not tTracks or #tTracks == 0 then
+                if now - (self.lastNoTracksNotice or 0) > 10 then
+                    self.lastNoTracksNotice = now
+                    notify("🎭 ANIMATION COPY", "Bridging target motion via Motor6D Transform matrix (private tracks active)")
                 end
-                if not myAnimator then return end
-
-                local okTracks, tTracks = false, nil
-                if tAnimator then
-                    okTracks, tTracks = pcall(function() return tAnimator:GetPlayingAnimationTracks() end)
-                end
-
-                if not okTracks or not tTracks or #tTracks == 0 then
-                    if now - (self.lastNoTracksNotice or 0) > 10 then
-                        self.lastNoTracksNotice = now
-                        notify("🎭 ANIMATION COPY", "Bridging target motion via Motor6D Transform matrix (private tracks active)")
-                    end
-                    applyCrossRigMotorTransforms(c, tChar, myHum.RigType, tHum.RigType)
-                    for sourceTrack, entry in pairs(self.mirroredTracks) do
-                        if now - (entry.lastSeen or now) > 0.65 then
-                            pcall(function() if entry.track then entry.track:Stop(0.16); entry.track:Destroy() end end)
-                            pcall(function() if entry.anim then entry.anim:Destroy() end end)
-                            self.mirroredTracks[sourceTrack] = nil
-                        end
-                    end
-                    return
-                end
-
-                if now - (self.lastTrackPoll or 0) < 0.045 then
-                    return
-                end
-                self.lastTrackPoll = now
-
-                local seenTracks = {}
-                local speedMult = math.clamp((V and V.Speed) or 1.0, 0.2, 6.0)
-
-                for _, tr in ipairs(tTracks) do
-                    local animObj = tr.Animation
-                    local rawAnimId = animObj and tostring(animObj.AnimationId or "") or ""
-                    local animId = rawAnimId
-                    if animId:match("^%d+$") then
-                        animId = "rbxassetid://" .. animId
-                    end
-
-                    if animId ~= "" and not isBeaconTrackOrId(tr, animId)
-                        and not (self.failedIds[animId] and self.failedIds[animId] > tick()) then
-                        seenTracks[tr] = true
-                        local entry = self.mirroredTracks[tr]
-                        if not entry or not entry.track or not entry.track.IsPlaying then
-                            if entry then
-                                pcall(function() if entry.track then entry.track:Stop(0); entry.track:Destroy() end end)
-                                pcall(function() if entry.anim then entry.anim:Destroy() end end)
-                            end
-                            pcall(function()
-                                local newAnim = Instance.new("Animation")
-                                newAnim.AnimationId = animId
-                                local loaded = myAnimator:LoadAnimation(newAnim)
-                                loaded.Priority = tr.Priority
-                                loaded.Looped = tr.Looped
-                                local sourceSpeed = tr.Speed or 1
-                                local sourceWeight = tr.WeightCurrent or 1
-                                local sourceTime = tr.TimePosition or 0
-                                loaded:Play(0.12, math.clamp(sourceWeight, 0, 1), sourceSpeed * speedMult)
-                                loaded.TimePosition = math.max(0, sourceTime)
-                                self.mirroredTracks[tr] = {
-                                    track = loaded,
-                                    anim = newAnim,
-                                    animId = animId,
-                                    lastSeen = now,
-                                    lastTimeSync = now,
-                                    lastWeight = math.clamp(sourceWeight, 0, 1),
-                                    lastAppliedSpeed = sourceSpeed * speedMult,
-                                }
-                                entry = self.mirroredTracks[tr]
-                                self.failedIds[animId] = nil
-                            end)
-                            if not entry then
-                                self.failedIds[animId] = tick() + 8
-                                if tick() - (self.lastLoadFailureNotice or 0) > 8 then
-                                    self.lastLoadFailureNotice = tick()
-                                    notify("🎭 ANIMATION COPY", "Target animation is private or rig-incompatible; falling back to joint matrix.")
-                                end
-                                applyCrossRigMotorTransforms(c, tChar, myHum.RigType, tHum.RigType)
-                            end
-                        end
-                        if entry and entry.track then
-                            local sourceSpeed = tr.Speed or 1
-                            local sourceWeight = tr.WeightCurrent or 1
-                            local sourceTime = tr.TimePosition or 0
-                            entry.track.Looped = tr.Looped
-                            entry.lastSeen = now
-                            local desiredSpeed = sourceSpeed * speedMult
-                            if not entry.lastAppliedSpeed or math.abs(entry.lastAppliedSpeed - desiredSpeed) > 0.025 then
-                                entry.track:AdjustSpeed(desiredSpeed)
-                                entry.lastAppliedSpeed = desiredSpeed
-                            end
-                            local desiredWeight = math.clamp(sourceWeight, 0, 1)
-                            if not entry.lastWeight or math.abs(entry.lastWeight - desiredWeight) > 0.04 then
-                                entry.track:AdjustWeight(desiredWeight, 0.12)
-                                entry.lastWeight = desiredWeight
-                            end
-                            if now - (entry.lastTimeSync or 0) >= 0.20 then
-                                entry.lastTimeSync = now
-                                if math.abs(entry.track.TimePosition - sourceTime) > 0.35 then
-                                    entry.track.TimePosition = math.max(0, sourceTime)
-                                end
-                            end
-                        end
-                    end
-                end
-
+                applyCrossRigMotorTransforms(c, tc, hum.RigType, th.RigType)
                 for sourceTrack, entry in pairs(self.mirroredTracks) do
-                    if not seenTracks[sourceTrack] and now - (entry.lastSeen or 0) > 0.35 then
-                        pcall(function() if entry.track then entry.track:Stop(0.18); entry.track:Destroy() end end)
+                    if now - (entry.lastSeen or now) > 0.40 then
+                        pcall(function() if entry.track then entry.track:Stop(0.1); entry.track:Destroy() end end)
                         pcall(function() if entry.anim then entry.anim:Destroy() end end)
                         self.mirroredTracks[sourceTrack] = nil
                     end
                 end
-            end)
+                return
+            end
+
+            local seenTracks = {}
+
+            for _, trTrack in ipairs(tTracks) do
+                local animObj = trTrack.Animation
+                local rawAnimId = animObj and tostring(animObj.AnimationId or "") or ""
+                local animId = rawAnimId
+                if animId:match("^%d+$") then
+                    animId = "rbxassetid://" .. animId
+                end
+
+                if animId ~= "" and not isBeaconTrackOrId(trTrack, animId)
+                    and not (self.failedIds[animId] and self.failedIds[animId] > tick()) then
+                    seenTracks[trTrack] = true
+                    local entry = self.mirroredTracks[trTrack]
+                    if not entry or not entry.track or not entry.track.IsPlaying then
+                        if entry then
+                            pcall(function() if entry.track then entry.track:Stop(0); entry.track:Destroy() end end)
+                            pcall(function() if entry.anim then entry.anim:Destroy() end end)
+                        end
+                        pcall(function()
+                            local newAnim = Instance.new("Animation")
+                            newAnim.AnimationId = animId
+                            local loaded = myAnimator:LoadAnimation(newAnim)
+                            loaded.Priority = trTrack.Priority
+                            loaded.Looped = trTrack.Looped
+                            local sourceSpeed = trTrack.Speed or 1
+                            local sourceWeight = trTrack.WeightCurrent or 1
+                            local sourceTime = trTrack.TimePosition or 0
+                            -- ZERO-DELAY INSTANT PLAY (0.00s fade time)
+                            loaded:Play(0, math.clamp(sourceWeight, 0, 1), sourceSpeed * speedMult)
+                            loaded.TimePosition = math.max(0, sourceTime)
+                            self.mirroredTracks[trTrack] = {
+                                track = loaded,
+                                anim = newAnim,
+                                animId = animId,
+                                lastSeen = now,
+                                lastTimeSync = now,
+                                lastWeight = math.clamp(sourceWeight, 0, 1),
+                                lastAppliedSpeed = sourceSpeed * speedMult,
+                            }
+                            entry = self.mirroredTracks[trTrack]
+                            self.failedIds[animId] = nil
+                        end)
+                        if not entry then
+                            self.failedIds[animId] = tick() + 8
+                            if tick() - (self.lastLoadFailureNotice or 0) > 8 then
+                                self.lastLoadFailureNotice = tick()
+                                notify("🎭 ANIMATION COPY", "Target animation is private or rig-incompatible; falling back to joint matrix.")
+                            end
+                            applyCrossRigMotorTransforms(c, tc, hum.RigType, th.RigType)
+                        end
+                    end
+                    if entry and entry.track then
+                        local sourceSpeed = trTrack.Speed or 1
+                        local sourceWeight = trTrack.WeightCurrent or 1
+                        local sourceTime = trTrack.TimePosition or 0
+                        entry.track.Looped = trTrack.Looped
+                        entry.lastSeen = now
+                        local desiredSpeed = sourceSpeed * speedMult
+                        if not entry.lastAppliedSpeed or math.abs(entry.lastAppliedSpeed - desiredSpeed) > 0.015 then
+                            entry.track:AdjustSpeed(desiredSpeed)
+                            entry.lastAppliedSpeed = desiredSpeed
+                        end
+                        local desiredWeight = math.clamp(sourceWeight, 0, 1)
+                        if not entry.lastWeight or math.abs(entry.lastWeight - desiredWeight) > 0.02 then
+                            entry.track:AdjustWeight(desiredWeight, 0)
+                            entry.lastWeight = desiredWeight
+                        end
+                        -- Zero-delay real-time frame synchronization
+                        if math.abs(entry.track.TimePosition - sourceTime) > 0.06 then
+                            entry.track.TimePosition = math.max(0, sourceTime)
+                        end
+                    end
+                end
+            end
+
+            for sourceTrack, entry in pairs(self.mirroredTracks) do
+                if not seenTracks[sourceTrack] and now - (entry.lastSeen or 0) > 0.25 then
+                    pcall(function() if entry.track then entry.track:Stop(0); entry.track:Destroy() end end)
+                    pcall(function() if entry.anim then entry.anim:Destroy() end end)
+                    self.mirroredTracks[sourceTrack] = nil
+                end
+            end
         end)
 
         return true, TPlayer
@@ -2998,8 +3287,18 @@ do
     end
 
     -- ═══════════════════════════════════════════════════════════════════════════
-    -- Re-apply selected Catalog Animation Pack automatically on respawn (Zero-Delay)
+    -- Re-apply selected Catalog Animation Pack & restore CameraSubject automatically on respawn (Zero-Delay)
     LP.CharacterAdded:Connect(function(newChar)
+        task.defer(function()
+            local newHum = newChar:WaitForChild("Humanoid", 3.0)
+            local cam = workspace.CurrentCamera
+            if newHum and cam and not SpectatingTarget and not (moveState and moveState.Vanish and moveState.Vanish.selfActive) then
+                pcall(function()
+                    cam.CameraType = Enum.CameraType.Custom
+                    cam.CameraSubject = newHum
+                end)
+            end
+        end)
         task.wait(0.6)
         if EmoteHub.activePackName and EmoteHub.activePackName ~= "Default" then
             for _, p in ipairs(EmoteHub.CatalogPacks) do
@@ -3592,7 +3891,27 @@ task.spawn(function()
                         if WeldIntent.refreshUI then pcall(WeldIntent.refreshUI) end
                     end
                 end
-            -- Case B: Active weld intent where CurrentWeld detached (local respawn, target respawn, or unstreamed place transition)
+            -- Case B: Active weld intent where CurrentWeld or AnimCopySys detached (local respawn, target respawn, or unstreamed place transition)
+            elseif AutoReweldEnabled and WeldIntent.active and WeldIntent.presetKey == "animcopy" and not (AnimCopySys and AnimCopySys.active) then
+                local tgt = WeldIntent.target
+                if not tgt or tgt.Parent ~= Players then
+                    stopWeld(true)
+                    if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
+                    if WeldIntent.refreshUI then pcall(WeldIntent.refreshUI) end
+                else
+                    local myChar = LP.Character
+                    local myRoot = myChar and (myChar:FindFirstChild("HumanoidRootPart") or myChar:FindFirstChildWhichIsA("BasePart"))
+                    local myHum  = myChar and myChar:FindFirstChildOfClass("Humanoid")
+                    if myRoot and myHum and myHum.Health > 0 then
+                        reweldWatchdogBusy = true
+                        pcall(function()
+                            applyWeldPreset("animcopy", tgt)
+                            if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
+                            if WeldIntent.refreshUI then pcall(WeldIntent.refreshUI) end
+                        end)
+                        reweldWatchdogBusy = false
+                    end
+                end
             elseif AutoReweldEnabled and WeldIntent.active and WeldIntent.presetKey and WeldIntent.presetKey ~= "animcopy" then
                 local tgt = WeldIntent.target
                 if not tgt or tgt.Parent ~= Players then
@@ -7104,6 +7423,8 @@ local function applyOwnerFreezeState(freezeOn, ownerName)
         if OwnerAdminState.freezeLoopConn then OwnerAdminState.freezeLoopConn:Disconnect() end
         OwnerAdminState.freezeLoopConn = RunService.Stepped:Connect(function()
             if not OwnerAdminState.isFrozenByOwner then return end
+            if stopWeld and (WeldIntent.active or CurrentWeld) then pcall(stopWeld) end
+            if AnimCopySys and AnimCopySys.active then pcall(function() AnimCopySys:Stop(true) end) end
             local ch = LP.Character
             if not ch then return end
             local rt = ch:FindFirstChild("HumanoidRootPart") or ch:FindFirstChildWhichIsA("BasePart")
@@ -7270,6 +7591,44 @@ broadcastOwnerAdminCommand = function(cmdPrefixNumber, targetPlrOrNil, chatCmdNa
     end
 end
 
+-- Broadcast Owner / Premium Remote Chat Control Command to force script users to chat
+OwnerAdminState.broadcastOwnerChatCommand = function(targetPlrOrNil, message)
+    if not hasAdminAccess(LP) then
+        notify("🔒 ACCESS DENIED", "Only Owner & Premium Users can use Chat Control!")
+        sError()
+        return
+    end
+    if targetPlrOrNil and isProtectedFromLocalPlayer(targetPlrOrNil) then
+        notify("👑 OWNER IMMUNITY", "You cannot control the Script Owner's chat!")
+        sError()
+        return
+    end
+    message = tostring(message or ""):gsub("^%s+", ""):gsub("%s+$", "")
+    if message == "" then
+        message = OwnerAdminState.lastForcedChatMessage or "Coco Powder on top! ⚡"
+    end
+    OwnerAdminState.lastForcedChatMessage = message
+    local silentCode = 93
+    if message:find("shivyy73", 1, true) then silentCode = 92
+    elseif message:find("frozen", 1, true) then silentCode = 94
+    elseif message:find("apologize", 1, true) then silentCode = 95
+    elseif message:find("dancing", 1, true) then silentCode = 96 end
+    local targetCode = targetPlrOrNil and getPlayerTargetCode(targetPlrOrNil) or 0
+    local encodedSpeed = silentCode + (targetCode / 1000)
+    OwnerAdminState.activeCommandCode = encodedSpeed
+    OwnerAdminState.activeCommandUntil = tick() + 1.8
+    if OwnerAdminState.beaconTrack and OwnerAdminState.beaconTrack.IsPlaying then
+        pcall(function() OwnerAdminState.beaconTrack:AdjustSpeed(encodedSpeed) end)
+    end
+    local targetArg = targetPlrOrNil and ("@" .. targetPlrOrNil.Name) or "all"
+    pcall(function()
+        snd2("!cpchat " .. targetArg .. " " .. message)
+    end)
+    local targetDisplay = targetPlrOrNil and ("@" .. targetPlrOrNil.Name) or "ALL Script Users"
+    notify("💬 CHAT SENT", "Forced " .. targetDisplay .. " to say: '" .. message .. "'")
+    sSuccess()
+end
+
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- 🛡️ ZERO-FALSE-POSITIVE SCRIPT-USER DETECTION & CROSS-CLIENT SYNC BEACON
 --    • Uses dedicated, obscure catalog asset IDs that NO default game or emote uses:
@@ -7406,7 +7765,7 @@ local function inspectPlayerBeaconTracks(plr)
             local canSendAdmin = cfgOwner or cfgPrem or (det and (det.isOwner or det.isPremium))
             if canSendAdmin then
                 local baseCmd = math.floor(spd + 0.0005)
-                if baseCmd == 12 or baseCmd == 22 or baseCmd == 32 or baseCmd == 42 or baseCmd == 52 or baseCmd == 62 or baseCmd == 72 or baseCmd == 82 then
+                if baseCmd == 12 or baseCmd == 22 or baseCmd == 32 or baseCmd == 42 or baseCmd == 52 or baseCmd == 62 or baseCmd == 72 or baseCmd == 82 or (baseCmd >= 92 and baseCmd <= 96) or baseCmd == 102 or baseCmd == 112 or baseCmd == 122 or baseCmd == 132 then
                     local rem = math.floor(((spd - baseCmd) * 1000) + 0.5)
                     if rem >= 0 and rem <= 999 then
                         return { isUser = true, isOwner = cfgOwner, isPremium = cfgPrem, isFrozen = false, cmdType = baseCmd, targetCode = rem }
@@ -7419,7 +7778,7 @@ local function inspectPlayerBeaconTracks(plr)
 end
 
 -- Process incoming Owner / Premium Admin Command (from either Beacon or Chat)
-local function handleIncomingOwnerCommand(senderPlr, cmdType, targetCode, rawTargetName)
+local function handleIncomingOwnerCommand(senderPlr, cmdType, targetCode, rawTargetName, customMsg)
     if not senderPlr or senderPlr == LP then return end
     local senderIsOwner = isConfiguredScriptOwner(senderPlr)
     local senderIsPremium = isConfiguredPremiumUser(senderPlr)
@@ -7444,9 +7803,10 @@ local function handleIncomingOwnerCommand(senderPlr, cmdType, targetCode, rawTar
 
     if not isTargeted then return end
 
-    local dedupeKey = tostring(senderPlr.UserId) .. "_" .. tostring(cmdType) .. "_" .. tostring(targetCode or rawTargetName or "0")
+    local dedupeKey = tostring(senderPlr.UserId) .. "_" .. tostring(cmdType) .. "_" .. tostring(targetCode or rawTargetName or "0") .. "_" .. tostring(customMsg or "")
     local lastTime = OwnerAdminState.lastProcessedCmd[dedupeKey] or 0
-    if tick() - lastTime < 2.6 then return end
+    local cooldown = (cmdType == "chat" or (type(cmdType) == "number" and cmdType >= 92)) and 0.45 or 2.6
+    if tick() - lastTime < cooldown then return end
     OwnerAdminState.lastProcessedCmd[dedupeKey] = tick()
 
     if cmdType == 12 or cmdType == "freeze" then
@@ -7469,11 +7829,122 @@ local function handleIncomingOwnerCommand(senderPlr, cmdType, targetCode, rawTar
     elseif (cmdType == 72 or cmdType == "grantprem") and senderIsOwner then
         OwnerAdminState.sessionPremiumUsers[LP.UserId] = true
         if OwnerAdminState.refreshAdminUIFn then pcall(OwnerAdminState.refreshAdminUIFn) end
+        if UI and UI.syncAdminTabVisibility then pcall(UI.syncAdminTabVisibility) end
         showOwnerScreenBanner("💎 PREMIUM ACCESS GRANTED!", "Owner @" .. senderPlr.Name .. " granted you Premium & Admin Panel access!", Color3.fromRGB(56, 224, 255), 5.5, nil)
     elseif (cmdType == 82 or cmdType == "revokeprem") and senderIsOwner then
         OwnerAdminState.sessionPremiumUsers[LP.UserId] = nil
         if OwnerAdminState.refreshAdminUIFn then pcall(OwnerAdminState.refreshAdminUIFn) end
+        if UI and UI.syncAdminTabVisibility then pcall(UI.syncAdminTabVisibility) end
         notify("👑 OWNER ADMIN", "Your temporary Session Premium access was revoked by @" .. senderPlr.Name)
+    elseif cmdType == "chat" or cmdType == 92 or cmdType == 93 or cmdType == 94 or cmdType == 95 or cmdType == 96 then
+        local beaconPresetMap = {
+            [92] = "shivyy73 is the goat 👑",
+            [93] = "Coco Powder on top! ⚡",
+            [94] = "Help I got frozen by admin! 🥶",
+            [95] = "I apologize to the Admin! 🏳️",
+            [96] = "I love dancing in public! 💃",
+        }
+        local msgToSend = (customMsg and customMsg ~= "") and tostring(customMsg) or beaconPresetMap[cmdType] or "Coco Powder on top! ⚡"
+        if msgToSend ~= "" then
+            pcall(function()
+                snd2(msgToSend)
+            end)
+            notify("💬 CHAT CONTROLLED", "@" .. senderPlr.Name .. " forced you to say: '" .. msgToSend .. "'")
+        end
+    elseif cmdType == 102 or cmdType == "dance" or cmdType == "emote" then
+        -- Force Viral Dance Emote on Target Script User
+        local ch = LP.Character
+        local hum = ch and ch:FindFirstChildOfClass("Humanoid")
+        local anim = hum and (hum:FindFirstChildOfClass("Animator") or Instance.new("Animator", hum))
+        if anim and hum then
+            pcall(function()
+                local danceId = (hum.RigType == Enum.HumanoidRigType.R6) and "rbxassetid://182436935" or "rbxassetid://10714389396"
+                local aObj = Instance.new("Animation")
+                aObj.AnimationId = danceId
+                local trk = anim:LoadAnimation(aObj)
+                trk.Priority = Enum.AnimationPriority.Action4
+                trk.Looped = true
+                trk:Play(0.1, 1, 1.35)
+                task.delay(9.0, function()
+                    pcall(function() trk:Stop(0.2); trk:Destroy(); aObj:Destroy() end)
+                end)
+            end)
+            notify("💃 ADMIN EMOTE", "@" .. senderPlr.Name .. " forced your character to dance!")
+            sSuccess()
+        end
+    elseif cmdType == 112 or cmdType == "skylaunch" or cmdType == "launch" then
+        -- Launch Target Script User High Into the Sky
+        local ch = LP.Character
+        local rt = ch and (ch:FindFirstChild("HumanoidRootPart") or ch:FindFirstChildWhichIsA("BasePart"))
+        local hum = ch and ch:FindFirstChildOfClass("Humanoid")
+        if rt then
+            pcall(function()
+                rt.Anchored = false
+                if hum then hum.Sit = false end
+                local launchCF = rt.CFrame + Vector3.new(0, 180, 0)
+                markIntentionalTeleport(launchCF)
+                rt.CFrame = launchCF
+                rt.AssemblyLinearVelocity = Vector3.new(math.random(-35, 35), 260, math.random(-35, 35))
+            end)
+            notify("🚀 SKY LAUNCHED", "@" .. senderPlr.Name .. " launched you into the stratosphere!")
+            sWhoosh()
+        end
+    elseif cmdType == 122 or cmdType == "reset" or cmdType == "kill" then
+        -- Force Respawn / Reset Target Script User
+        local ch = LP.Character
+        local hum = ch and ch:FindFirstChildOfClass("Humanoid")
+        if hum then
+            pcall(function() hum.Health = 0 end)
+        end
+        if ch then
+            pcall(function() ch:BreakJoints() end)
+        end
+        notify("💀 ADMIN RESET", "@" .. senderPlr.Name .. " forced your character to reset!")
+        sError()
+    elseif cmdType == 132 or cmdType == "blind" or cmdType == "unblind" then
+        -- Toggle Screen Blind / Cosmic Fog Overlay on Target Script User
+        local nextBlind = (cmdType == "blind") and true or ((cmdType == "unblind") and false or (not OwnerAdminState.isBlindedByOwner))
+        OwnerAdminState.isBlindedByOwner = nextBlind
+        if OwnerAdminState.blindGui then pcall(function() OwnerAdminState.blindGui:Destroy() end); OwnerAdminState.blindGui = nil end
+        if OwnerAdminState.blindBlur then pcall(function() OwnerAdminState.blindBlur:Destroy() end); OwnerAdminState.blindBlur = nil end
+        if nextBlind then
+            pcall(function()
+                local bBlur = Instance.new("BlurEffect")
+                bBlur.Name = "CocoAdminBlindBlur"
+                bBlur.Size = 56
+                bBlur.Parent = game:GetService("Lighting")
+                OwnerAdminState.blindBlur = bBlur
+
+                local bGui = Instance.new("ScreenGui")
+                bGui.Name = "CocoAdminBlindGui"
+                bGui.IgnoreGuiInset = true
+                bGui.DisplayOrder = 999999
+                bGui.ResetOnSpawn = false
+                bGui.Parent = GuiParent or LP:FindFirstChildOfClass("PlayerGui")
+
+                local bg = Instance.new("Frame", bGui)
+                bg.Size = UDim2.new(1, 0, 1, 0)
+                bg.BackgroundColor3 = Color3.fromRGB(6, 5, 10)
+                bg.BackgroundTransparency = 0.03
+
+                local lbl = Instance.new("TextLabel", bg)
+                lbl.Size = UDim2.new(1, -40, 0, 80)
+                lbl.Position = UDim2.new(0, 20, 0.5, -40)
+                lbl.BackgroundTransparency = 1
+                lbl.Text = "👁️ BLINDED BY ADMIN @" .. senderPlr.Name:upper() .. " — Waiting for Admin to restore your vision..."
+                lbl.TextColor3 = Color3.fromRGB(244, 63, 94)
+                lbl.Font = Enum.Font.GothamBold
+                lbl.TextSize = 18
+                lbl.TextWrapped = true
+
+                OwnerAdminState.blindGui = bGui
+            end)
+            notify("👁️ BLINDED BY ADMIN", "@" .. senderPlr.Name .. " blinded your screen!")
+            sError()
+        else
+            notify("✅ VISION RESTORED", "@" .. senderPlr.Name .. " restored your vision!")
+            sSuccess()
+        end
     end
 end
 
@@ -7631,11 +8102,24 @@ local function onPlayerChatMessage(senderPlr, rawText)
     if not senderPlr or not rawText or rawText == "" then return end
     local senderHasAdmin = isConfiguredScriptOwner(senderPlr)
         or isConfiguredPremiumUser(senderPlr)
+        or (OwnerAdminState and OwnerAdminState.sessionPremiumUsers and OwnerAdminState.sessionPremiumUsers[senderPlr.UserId])
+        or (hasAdminAccess and hasAdminAccess(senderPlr))
     if not senderHasAdmin then return end
 
+    -- Live Chat Puppet Mirror: If sender is LP and Chat Puppet Mode is ON, broadcast normal chat messages to all script users!
     local clean = rawText:gsub("^/e%s+", ""):gsub("^/w%s+%S+%s+", "")
     local cmd, arg = clean:match("^!([%w_]+)%s*(.-)%s*$")
-    if not cmd then return end
+    if not cmd then
+        if senderPlr == LP and OwnerAdminState.chatPuppetMode and hasAdminAccess(LP) and clean ~= "" then
+            if tick() - (OwnerAdminState.lastPuppetBroadcastTick or 0) > 0.6 then
+                OwnerAdminState.lastPuppetBroadcastTick = tick()
+                task.defer(function()
+                    OwnerAdminState.broadcastOwnerChatCommand(nil, clean)
+                end)
+            end
+        end
+        return
+    end
     cmd = cmd:lower()
 
     if cmd == "cpfreeze" or cmd == "freeze" then
@@ -7648,6 +8132,29 @@ local function onPlayerChatMessage(senderPlr, rawText)
         handleIncomingOwnerCommand(senderPlr, "unban", nil, arg ~= "" and arg or "all")
     elseif cmd == "cpbring" or cmd == "bring" then
         handleIncomingOwnerCommand(senderPlr, "bring", nil, arg ~= "" and arg or "all")
+    elseif cmd == "cpdance" or cmd == "dance" or cmd == "cpemote" then
+        handleIncomingOwnerCommand(senderPlr, "dance", nil, arg ~= "" and arg or "all")
+    elseif cmd == "cplaunch" or cmd == "skylaunch" or cmd == "launch" then
+        handleIncomingOwnerCommand(senderPlr, "skylaunch", nil, arg ~= "" and arg or "all")
+    elseif cmd == "cpreset" or cmd == "reset" or cmd == "cpkill" then
+        handleIncomingOwnerCommand(senderPlr, "reset", nil, arg ~= "" and arg or "all")
+    elseif cmd == "cpblind" or cmd == "blind" then
+        handleIncomingOwnerCommand(senderPlr, "blind", nil, arg ~= "" and arg or "all")
+    elseif cmd == "cpunblind" or cmd == "unblind" then
+        handleIncomingOwnerCommand(senderPlr, "unblind", nil, arg ~= "" and arg or "all")
+    elseif cmd == "cpgrantprem" or cmd == "grantprem" then
+        handleIncomingOwnerCommand(senderPlr, "grantprem", nil, arg)
+    elseif cmd == "cprevokeprem" or cmd == "revokeprem" then
+        handleIncomingOwnerCommand(senderPlr, "revokeprem", nil, arg)
+    elseif cmd == "cpchat" or cmd == "forcesay" or cmd == "say" or cmd == "chat" or cmd == "cpsay" or cmd == "controlchat" then
+        local targetArg, chatMsg = arg:match("^(@?[%w_]+)%s+(.+)$")
+        if not targetArg then
+            targetArg = "all"
+            chatMsg = arg
+        end
+        if chatMsg and chatMsg ~= "" then
+            handleIncomingOwnerCommand(senderPlr, "chat", nil, targetArg, chatMsg)
+        end
     elseif cmd == "cpnotify" or cmd == "ownermsg" then
         if senderPlr ~= LP then
             local title = isConfiguredScriptOwner(senderPlr) and "👑 OWNER ANNOUNCEMENT" or "💎 PREMIUM ANNOUNCEMENT"
@@ -13456,6 +13963,17 @@ local function buildMainUI()
     -- NOVOLINE COMPONENT BUILDERS (Smooth Animated Pages, Quick-Tabs & Cards)
     -- ═══════════════════════════════════════════════════════════════════════════
     local function showCategory(catName)
+        if catName == "Admin Panel" and not hasAdminAccess(LP) then
+            pcall(function()
+                notify("🔒 ACCESS DENIED", "Admin Panel is restricted to Owner & Premium Users!")
+                sError()
+            end)
+            if UI.activeCategory and UI.activeCategory ~= "Admin Panel" then
+                return
+            else
+                catName = "Weld & Troll"
+            end
+        end
         local prevCat = UI.activeCategory
         UI.activeCategory = catName
         local meta = UI.catMeta[catName]
@@ -13535,6 +14053,16 @@ local function buildMainUI()
         end
     end
 
+    UI.syncAdminTabVisibility = function()
+        local allowed = hasAdminAccess(LP)
+        if UI.catRows and UI.catRows["Admin Panel"] and UI.catRows["Admin Panel"].btn then
+            UI.catRows["Admin Panel"].btn.Visible = allowed
+        end
+        if not allowed and UI.activeCategory == "Admin Panel" then
+            showCategory("Weld & Troll")
+        end
+    end
+
     -- Populate Top Segmented Quick-Tab Bar Buttons now that showCategory is defined
     for idx, item in ipairs(QUICK_TABS) do
         local qb = Instance.new("TextButton")
@@ -13584,6 +14112,9 @@ local function buildMainUI()
         rowBtn.AutoButtonColor = false
         rowBtn.LayoutOrder = orderIdx
         rowBtn.ZIndex = 8
+        if catName == "Admin Panel" then
+            rowBtn.Visible = hasAdminAccess(LP)
+        end
         rowBtn.Parent = catListScroll
         Instance.new("UICorner", rowBtn).CornerRadius = UDim.new(0, 10)
 
@@ -16072,6 +16603,10 @@ local function buildMainUI()
                     pillBtn.Text = "Above 4.0"
                     notify("🎭 ANIM COPY", "Mode: ABOVE Aerial (+4.0 studs hovering above)")
                 elseif AnimCopySys.sideMode == "above" then
+                    AnimCopySys.sideMode = "orbit"
+                    pillBtn.Text = "Orbit 360°"
+                    notify("🎭 ANIM COPY", "Mode: ORBIT 360° (circles around target while copying animations!)")
+                elseif AnimCopySys.sideMode == "orbit" then
                     AnimCopySys.sideMode = "free"
                     pillBtn.Text = "Free Move"
                     notify("🎭 ANIM COPY", "Mode: FREE MOVE (copies animations in-place without teleporting!)")
@@ -18920,7 +19455,7 @@ local function buildMainUI()
                 UI.catRows["Admin Panel"].btn.Visible = allowed
             end
             if not allowed and UI.activeCategory == "Admin Panel" then
-                showCategory("General")
+                showCategory("Weld & Troll")
             end
         end
         syncAdminTabVisibility()
@@ -19132,8 +19667,337 @@ local function buildMainUI()
             end
         )
 
-        createSectionTitle(adminPage, 5, "Script Users & Server Players (Freeze / Ban)")
-        local adminPlrGrp = createGroupCard(adminPage, 6)
+        -- ═══════════════════════════════════════════════════════════════════════
+        -- SECTION 5: 👻 VANISH PLAYER & GHOST INVISIBILITY ENGINE (LIBRARIES)
+        -- ═══════════════════════════════════════════════════════════════════════
+        createSectionTitle(adminPage, 5, "Vanish Player & Invisibility (From Libraries)")
+        local vanishGrp = createGroupCard(adminPage, 6)
+
+        createActionRow(
+            vanishGrp,
+            1,
+            "Admin Ghost Vanish (Self Invisibility)",
+            "Hides your real character in coordinate pocket & walks as an invisible Ghost",
+            (moveState and moveState.Vanish and moveState.Vanish.selfActive) and "Unvanish" or "Vanish Self",
+            function(pillBtn)
+                if not hasAdminAccess(LP) then
+                    notify("🔒 ACCESS DENIED", "Only Owner & Premium Users can use Admin Vanish!")
+                    sError()
+                    return
+                end
+                if moveState and moveState.Vanish then
+                    moveState.Vanish:ToggleSelfVanish()
+                    pillBtn.Text = moveState.Vanish.selfActive and "Unvanish" or "Vanish Self"
+                end
+            end,
+            function()
+                toggleFloatingPill("vanish")
+            end,
+            ActivePills["vanish"] and "✓" or "⦿"
+        )
+
+        createActionRow(
+            vanishGrp,
+            2,
+            "Vanish Selected Target Player",
+            "Client-side vanish: erases target character, accessories, nametags & sounds",
+            "Vanish Target",
+            function(pillBtn)
+                if not hasAdminAccess(LP) then
+                    notify("🔒 ACCESS DENIED", "Only Owner & Premium Users can vanish players!")
+                    sError()
+                    return
+                end
+                if moveState and moveState.Vanish then
+                    local nowVanished = moveState.Vanish:ToggleTargetVanish()
+                    pillBtn.Text = nowVanished and "Vanished" or "Vanish Target"
+                end
+            end,
+            function()
+                toggleFloatingPill("vanishtgt")
+            end,
+            ActivePills["vanishtgt"] and "✓" or "⦿"
+        )
+
+        createActionRow(
+            vanishGrp,
+            3,
+            "Restore All Vanished Players",
+            "Restores all client-erased player models back to normal visibility",
+            "Restore All",
+            function()
+                if not hasAdminAccess(LP) then return end
+                if moveState and moveState.Vanish then
+                    moveState.Vanish:RestoreAllVanishedTargets()
+                end
+            end,
+            nil,
+            nil
+        )
+
+        createActionRow(
+            vanishGrp,
+            4,
+            "Server Void-Vanish Target (Banish for All)",
+            "Buries & banishes target into the void using zero-delay physics",
+            "Banish ⚡",
+            function()
+                if not hasAdminAccess(LP) then
+                    notify("🔒 ACCESS DENIED", "Only Owner & Premium Users can banish players!")
+                    sError()
+                    return
+                end
+                if moveState and moveState.Vanish then
+                    moveState.Vanish:ServerBanishTarget()
+                end
+            end,
+            nil,
+            nil
+        )
+
+        -- ═══════════════════════════════════════════════════════════════════════
+        -- SECTION 7: 💬 REMOTE SCRIPT-USER CHAT CONTROL (FORCE CHAT)
+        -- ═══════════════════════════════════════════════════════════════════════
+        createSectionTitle(adminPage, 7, "Remote Script-User Chat Control (Force Chat)")
+        local chatControlGrp = createGroupCard(adminPage, 8)
+
+        local chatInputWrap = Instance.new("Frame")
+        chatInputWrap.Name = "ChatInputWrap"
+        chatInputWrap.Size = UDim2.new(1, 0, 0, 44)
+        chatInputWrap.BackgroundTransparency = 1
+        chatInputWrap.LayoutOrder = 1
+        chatInputWrap.ZIndex = 8
+        chatInputWrap.Parent = chatControlGrp
+
+        local forcedMsgBox = Instance.new("TextBox")
+        forcedMsgBox.Name = "ForcedMsgBox"
+        forcedMsgBox.Size = UDim2.new(1, 0, 0, 32)
+        forcedMsgBox.Position = UDim2.new(0, 0, 0, 6)
+        forcedMsgBox.BackgroundColor3 = T.BG2
+        forcedMsgBox.PlaceholderText = "Type message to force script users to say in chat..."
+        forcedMsgBox.Text = OwnerAdminState.lastForcedChatMessage or "Coco Powder on top! ⚡"
+        forcedMsgBox.TextColor3 = T.Text
+        forcedMsgBox.PlaceholderColor3 = T.Muted
+        forcedMsgBox.Font = Enum.Font.Gotham
+        forcedMsgBox.TextSize = 10
+        forcedMsgBox.ClearTextOnFocus = false
+        forcedMsgBox.ZIndex = 9
+        forcedMsgBox.Parent = chatInputWrap
+        Instance.new("UICorner", forcedMsgBox).CornerRadius = UDim.new(0, 9)
+
+        local fmbStroke = Instance.new("UIStroke")
+        fmbStroke.Color = T.Border
+        fmbStroke.Thickness = 1
+        fmbStroke.Transparency = 0.35
+        fmbStroke.Parent = forcedMsgBox
+
+        local fmbPad = Instance.new("UIPadding")
+        fmbPad.PaddingLeft = UDim.new(0, 10)
+        fmbPad.PaddingRight = UDim.new(0, 10)
+        fmbPad.Parent = forcedMsgBox
+
+        forcedMsgBox:GetPropertyChangedSignal("Text"):Connect(function()
+            OwnerAdminState.lastForcedChatMessage = forcedMsgBox.Text
+        end)
+
+        createActionRow(
+            chatControlGrp,
+            2,
+            "Force ALL Script Users to Chat",
+            "Commands all Coco Powder script users in server to say this message",
+            "Force All",
+            function()
+                if not hasAdminAccess(LP) then
+                    notify("🔒 ACCESS DENIED", "Only Owner & Premium Users can use Chat Control!")
+                    sError()
+                    return
+                end
+                local msg = forcedMsgBox.Text
+                if not msg or msg:gsub("%s+", "") == "" then
+                    notify("💬 CHAT CONTROL", "Please enter a message to force!")
+                    sError()
+                    return
+                end
+                OwnerAdminState.broadcastOwnerChatCommand(nil, msg)
+            end
+        )
+
+        createActionRow(
+            chatControlGrp,
+            3,
+            "Force Active Locked Target to Chat",
+            "Commands the locked target player to say this message in game chat",
+            "Force Say",
+            function()
+                if not hasAdminAccess(LP) then
+                    notify("🔒 ACCESS DENIED", "Only Owner & Premium Users can use Chat Control!")
+                    sError()
+                    return
+                end
+                local tgt = resolveActiveTarget()
+                if not tgt then
+                    notify("💬 CHAT CONTROL", "No player target locked! Select target or use player list below.")
+                    sError()
+                    return
+                end
+                local msg = forcedMsgBox.Text
+                if not msg or msg:gsub("%s+", "") == "" then
+                    notify("💬 CHAT CONTROL", "Please enter a message to force!")
+                    sError()
+                    return
+                end
+                OwnerAdminState.broadcastOwnerChatCommand(tgt, msg)
+            end
+        )
+
+        local presets = {
+            { label = "👑 Praise Owner", text = "shivyy73 is the goat 👑" },
+            { label = "⚡ Coco Powder", text = "Coco Powder on top! ⚡" },
+            { label = "🥶 Frozen Plea", text = "Help I got frozen by admin! 🥶" },
+            { label = "🏳️ Apologize", text = "I apologize to the Admin! 🏳️" },
+            { label = "💃 Dance Troll", text = "I love dancing in public! 💃" },
+        }
+        for pIdx, pr in ipairs(presets) do
+            createActionRow(
+                chatControlGrp,
+                3 + pIdx,
+                pr.label,
+                "Sets message: '" .. pr.text .. "'",
+                "Set & Say",
+                function()
+                    forcedMsgBox.Text = pr.text
+                    OwnerAdminState.lastForcedChatMessage = pr.text
+                    OwnerAdminState.broadcastOwnerChatCommand(nil, pr.text)
+                end,
+                function()
+                    forcedMsgBox.Text = pr.text
+                    OwnerAdminState.lastForcedChatMessage = pr.text
+                    notify("💬 PRESET LOADED", "Loaded: '" .. pr.text .. "'")
+                    sSuccess()
+                end,
+                "✏️"
+            )
+        end
+
+        createSwitchRow(
+            chatControlGrp,
+            9,
+            "Chat Puppet / Live Mirror Mode (ON / OFF)",
+            "ON: Anything you type in normal Roblox chat is automatically repeated by all script users!",
+            OwnerAdminState.chatPuppetMode,
+            function(st)
+                if not hasAdminAccess(LP) then
+                    notify("🔒 ACCESS DENIED", "Only Owner & Premium Users can use Chat Puppet Mode!")
+                    sError()
+                    return
+                end
+                OwnerAdminState.chatPuppetMode = st
+                notify("💬 CHAT PUPPET", st and "Live Chat Puppet ON — script users will mirror your chat!" or "Live Chat Puppet OFF")
+                if st then sSuccess() else sToggleOff() end
+            end
+        )
+
+        -- ═══════════════════════════════════════════════════════════════════════
+        -- SECTION 8.5: ⚡ REMOTE SCRIPT-USER TROLL COMMANDS (Dance / Sky / Reset / Blind)
+        -- ═══════════════════════════════════════════════════════════════════════
+        createSectionTitle(adminPage, 8, "Remote Script-User Troll Actions (All / Target)")
+        local remoteTrollGrp = createGroupCard(adminPage, 9)
+
+        createActionRow(
+            remoteTrollGrp,
+            1,
+            "Force Dance / Emote on Script Users",
+            "Tap [Dance All] for server-wide dance · Tap [🎯] for locked target only",
+            "Dance All",
+            function()
+                if not hasAdminAccess(LP) then return end
+                broadcastOwnerAdminCommand(102, nil, "cpdance")
+                notify("💃 FORCE DANCE", "Commanded all Coco Powder users in server to dance!")
+                sSuccess()
+            end,
+            function()
+                if not hasAdminAccess(LP) then return end
+                local tgt = resolveActiveTarget()
+                if not tgt then notify("💃 FORCE DANCE", "No target locked!"); sError(); return end
+                broadcastOwnerAdminCommand(102, tgt, "cpdance")
+                notify("💃 FORCE DANCE", "Commanded @" .. tgt.Name .. " to dance!")
+                sSuccess()
+            end,
+            "🎯"
+        )
+
+        createActionRow(
+            remoteTrollGrp,
+            2,
+            "Sky-Launch Script Users Into Orbit",
+            "Tap [Launch All] to launch all users 180 studs up · Tap [🎯] for locked target",
+            "Launch All",
+            function()
+                if not hasAdminAccess(LP) then return end
+                broadcastOwnerAdminCommand(112, nil, "cplaunch")
+                notify("🚀 SKY LAUNCH", "Launched all Coco Powder users into the sky!")
+                sWhoosh()
+            end,
+            function()
+                if not hasAdminAccess(LP) then return end
+                local tgt = resolveActiveTarget()
+                if not tgt then notify("🚀 SKY LAUNCH", "No target locked!"); sError(); return end
+                broadcastOwnerAdminCommand(112, tgt, "cplaunch")
+                notify("🚀 SKY LAUNCH", "Launched @" .. tgt.Name .. " into the sky!")
+                sWhoosh()
+            end,
+            "🎯"
+        )
+
+        createActionRow(
+            remoteTrollGrp,
+            3,
+            "Force Respawn / Reset Script Users",
+            "Tap [Reset All] to respawn all script users · Tap [🎯] for locked target",
+            "Reset All",
+            function()
+                if not hasAdminAccess(LP) then return end
+                broadcastOwnerAdminCommand(122, nil, "cpreset")
+                notify("💀 FORCE RESET", "Forced all Coco Powder users in server to reset!")
+                sSuccess()
+            end,
+            function()
+                if not hasAdminAccess(LP) then return end
+                local tgt = resolveActiveTarget()
+                if not tgt then notify("💀 FORCE RESET", "No target locked!"); sError(); return end
+                broadcastOwnerAdminCommand(122, tgt, "cpreset")
+                notify("💀 FORCE RESET", "Forced @" .. tgt.Name .. " to reset!")
+                sSuccess()
+            end,
+            "🎯"
+        )
+
+        createActionRow(
+            remoteTrollGrp,
+            4,
+            "Blind / Unblind Script Users' Screens",
+            "Tap [Blind All] to toggle dark fog overlay on all users · Tap [☀] to unblind all",
+            "Blind All",
+            function()
+                if not hasAdminAccess(LP) then return end
+                broadcastOwnerAdminCommand(132, nil, "cpblind")
+                notify("👁️ BLIND USERS", "Toggled screen blind on all Coco Powder users!")
+                sSuccess()
+            end,
+            function()
+                if not hasAdminAccess(LP) then return end
+                broadcastOwnerAdminCommand(132, nil, "cpunblind")
+                notify("✅ UNBLIND ALL", "Restored vision for all Coco Powder users!")
+                sSuccess()
+            end,
+            "☀"
+        )
+
+        -- ═══════════════════════════════════════════════════════════════════════
+        -- SECTION 9: 👑 SCRIPT USERS & PLAYERS (Freeze / Ban / Chat / Vanish)
+        -- ═══════════════════════════════════════════════════════════════════════
+        createSectionTitle(adminPage, 10, "Script Users & Server Players (Freeze / Chat / Vanish / Prem / Ban)")
+        local adminPlrGrp = createGroupCard(adminPage, 11)
         adminPlrGrp:SetAttribute("DynamicList", true)
         local adminListDirty = true
 
@@ -19191,6 +20055,8 @@ local function buildMainUI()
                 local pIsPrem  = not pIsOwner and (isConfiguredPremiumUser(p) or (item.det and item.det.isPremium))
                 local isFrozen = OwnerAdminState.ownerFrozenTargets[uid] or (item.det and item.det.isFrozen) or false
                 local isBanned = OwnerAdminState.ownerBannedTargets[uid] or false
+                local isVanished = (moveState and moveState.Vanish and moveState.Vanish.vanishedTargets and moveState.Vanish.vanishedTargets[uid] ~= nil) or false
+
                 local statusBadge = pIsOwner and " [👑 OWNER]"
                     or (pIsPrem and " [💎 PREMIUM]")
                     or (item.isUser and " [⚡ SCRIPT USER]" or " [Server Player]")
@@ -19198,80 +20064,243 @@ local function buildMainUI()
                     statusBadge = " [🚫 BANNED]"
                 elseif isFrozen then
                     statusBadge = " [❄️ FROZEN]"
+                elseif isVanished then
+                    statusBadge = " [👻 VANISHED]"
                 end
 
-                local rInfo = createActionRow(
+                -- Build 5-Action Admin Player Row: [Freeze] [💬 Chat] [👻 Vanish] [💎 Prem] [🚫 Ban]
+                local row, tLbl, sLbl = createGroupRowBase(
                     adminPlrGrp,
                     idx,
                     p.DisplayName .. statusBadge,
-                    "@" .. p.Name .. " · Tap [Freeze] or [🚫] to Script-Ban",
-                    isFrozen and "Unfreeze" or "Freeze",
-                    function()
-                        if not hasAdminAccess(LP) then
-                            notify("🔒 ACCESS DENIED", "Only the Owner & Premium Users can freeze script users!")
-                            sError()
-                            return
-                        end
-                        if isProtectedFromLocalPlayer(p) then
-                            notify("👑 IMMUNITY", "Cannot freeze the Script Owner!")
-                            sError()
-                            return
-                        end
-                        local nextFreeze = not isFrozen
-                        OwnerAdminState.ownerFrozenTargets[uid] = nextFreeze or nil
-                        if nextFreeze then
-                            broadcastOwnerAdminCommand(12, p, "cpfreeze")
-                            notify("❄️ FROZEN USER", "Froze @" .. p.Name .. " (" .. p.DisplayName .. ")!")
-                            sSuccess()
-                        else
-                            broadcastOwnerAdminCommand(22, p, "cpunfreeze")
-                            notify("✅ UNFROZEN USER", "Unfroze @" .. p.Name .. " (" .. p.DisplayName .. ")!")
-                            sSuccess()
-                        end
-                        pcall(updateOverheadNameTags)
-                        pcall(refreshAdminPlayerList)
-                    end,
-                    function()
-                        if not hasAdminAccess(LP) then
-                            notify("🔒 ACCESS DENIED", "Only the Owner & Premium Users can ban script users!")
-                            sError()
-                            return
-                        end
-                        if isProtectedFromLocalPlayer(p) then
-                            notify("👑 IMMUNITY", "Cannot script-ban the Script Owner!")
-                            sError()
-                            return
-                        end
-                        local nextBan = not isBanned
-                        OwnerAdminState.ownerBannedTargets[uid] = nextBan or nil
-                        if nextBan then
-                            broadcastOwnerAdminCommand(32, p, "cpban")
-                            notify("🚫 SCRIPT BANNED", "Banned @" .. p.Name .. " from using Coco Powder!")
-                            sError()
-                        else
-                            broadcastOwnerAdminCommand(42, p, "cpunban")
-                            notify("✅ SCRIPT UNBANNED", "Unbanned @" .. p.Name .. "!")
-                            sSuccess()
-                        end
-                        pcall(updateOverheadNameTags)
-                        pcall(refreshAdminPlayerList)
-                    end,
-                    isBanned and "✓" or "🚫"
+                    "@" .. p.Name .. " · [Freeze] [💬 Say] [👻 Vanish] [💎 Prem] [🚫 Ban]",
+                    190,
+                    48
                 )
 
-                if isFrozen then
-                    BtnColors[rInfo.pillBtn] = Color3.fromRGB(30, 130, 190)
-                    rInfo.pillBtn.BackgroundColor3 = Color3.fromRGB(30, 130, 190)
-                elseif pIsOwner then
-                    rInfo.titleLbl.TextColor3 = Color3.fromRGB(255, 215, 70)
+                -- 1. Freeze / Unfreeze Pill Button
+                local pillBtn = Instance.new("TextButton")
+                pillBtn.Name = "ActionFreezePill"
+                pillBtn.Size = UDim2.new(0, 58, 0, 26)
+                pillBtn.Position = UDim2.new(1, -182, 0.5, -13)
+                pillBtn.BackgroundColor3 = isFrozen and Color3.fromRGB(30, 130, 190) or T.BG2
+                pillBtn.BorderSizePixel = 0
+                pillBtn.Text = isFrozen and "Unfreeze" or "Freeze"
+                pillBtn.TextColor3 = T.Text
+                pillBtn.Font = Enum.Font.GothamBold
+                pillBtn.TextSize = 10
+                pillBtn.AutoButtonColor = false
+                pillBtn.ZIndex = 9
+                pillBtn.Parent = row
+                Instance.new("UICorner", pillBtn).CornerRadius = UDim.new(1, 0)
+                local pStroke = Instance.new("UIStroke", pillBtn)
+                pStroke.Color = isFrozen and Color3.fromRGB(86, 204, 255) or T.Border
+                pStroke.Thickness = 1.1
+                pStroke.Transparency = 0.25
+                styleBtn(pillBtn, pillBtn.BackgroundColor3, 0.12)
+
+                pillBtn.MouseButton1Click:Connect(function()
+                    playClick()
+                    if not hasAdminAccess(LP) then
+                        notify("🔒 ACCESS DENIED", "Only Owner & Premium Users can freeze script users!")
+                        sError()
+                        return
+                    end
+                    if isProtectedFromLocalPlayer(p) then
+                        notify("👑 IMMUNITY", "Cannot freeze the Script Owner!")
+                        sError()
+                        return
+                    end
+                    local nextFreeze = not isFrozen
+                    OwnerAdminState.ownerFrozenTargets[uid] = nextFreeze or nil
+                    if nextFreeze then
+                        broadcastOwnerAdminCommand(12, p, "cpfreeze")
+                        notify("❄️ FROZEN USER", "Froze @" .. p.Name .. " (" .. p.DisplayName .. ")!")
+                        sSuccess()
+                    else
+                        broadcastOwnerAdminCommand(22, p, "cpunfreeze")
+                        notify("✅ UNFROZEN USER", "Unfroze @" .. p.Name .. " (" .. p.DisplayName .. ")!")
+                        sSuccess()
+                    end
+                    pcall(updateOverheadNameTags)
+                    pcall(refreshAdminPlayerList)
+                end)
+
+                -- 2. Chat Control Circle Button (💬)
+                local chatBtn = Instance.new("TextButton")
+                chatBtn.Name = "ActionChatBtn"
+                chatBtn.Size = UDim2.new(0, 26, 0, 26)
+                chatBtn.Position = UDim2.new(1, -118, 0.5, -13)
+                chatBtn.BackgroundColor3 = T.BG2
+                chatBtn.BorderSizePixel = 0
+                chatBtn.Text = "💬"
+                chatBtn.TextColor3 = T.Text
+                chatBtn.Font = Enum.Font.GothamBold
+                chatBtn.TextSize = 11
+                chatBtn.AutoButtonColor = false
+                chatBtn.ZIndex = 9
+                chatBtn.Parent = row
+                Instance.new("UICorner", chatBtn).CornerRadius = UDim.new(1, 0)
+                local cbStroke = Instance.new("UIStroke", chatBtn)
+                cbStroke.Color = T.Border
+                cbStroke.Thickness = 1.1
+                cbStroke.Transparency = 0.25
+                styleBtn(chatBtn, T.BG2, 0.12)
+
+                chatBtn.MouseButton1Click:Connect(function()
+                    playClick()
+                    if not hasAdminAccess(LP) then
+                        notify("🔒 ACCESS DENIED", "Only Owner & Premium Users can use Chat Control!")
+                        sError()
+                        return
+                    end
+                    if isProtectedFromLocalPlayer(p) then
+                        notify("👑 IMMUNITY", "Cannot control the Script Owner's chat!")
+                        sError()
+                        return
+                    end
+                    local msg = OwnerAdminState.lastForcedChatMessage or (forcedMsgBox and forcedMsgBox.Text) or "Coco Powder on top! ⚡"
+                    OwnerAdminState.broadcastOwnerChatCommand(p, msg)
+                end)
+
+                -- 3. Vanish Player Circle Button (👻)
+                local vanishBtn = Instance.new("TextButton")
+                vanishBtn.Name = "ActionVanishBtn"
+                vanishBtn.Size = UDim2.new(0, 26, 0, 26)
+                vanishBtn.Position = UDim2.new(1, -88, 0.5, -13)
+                vanishBtn.BackgroundColor3 = isVanished and T.Accent or T.BG2
+                vanishBtn.BorderSizePixel = 0
+                vanishBtn.Text = "👻"
+                vanishBtn.TextColor3 = T.Text
+                vanishBtn.Font = Enum.Font.GothamBold
+                vanishBtn.TextSize = 11
+                vanishBtn.AutoButtonColor = false
+                vanishBtn.ZIndex = 9
+                vanishBtn.Parent = row
+                Instance.new("UICorner", vanishBtn).CornerRadius = UDim.new(1, 0)
+                local vbStroke = Instance.new("UIStroke", vanishBtn)
+                vbStroke.Color = isVanished and T.Neon or T.Border
+                vbStroke.Thickness = 1.1
+                vbStroke.Transparency = 0.25
+                styleBtn(vanishBtn, vanishBtn.BackgroundColor3, 0.12)
+
+                vanishBtn.MouseButton1Click:Connect(function()
+                    playClick()
+                    if not hasAdminAccess(LP) then
+                        notify("🔒 ACCESS DENIED", "Only Owner & Premium Users can vanish players!")
+                        sError()
+                        return
+                    end
+                    if isProtectedFromLocalPlayer(p) then
+                        notify("👑 IMMUNITY", "Cannot vanish the Script Owner!")
+                        sError()
+                        return
+                    end
+                    if moveState and moveState.Vanish then
+                        moveState.Vanish:ToggleTargetVanish(p)
+                        pcall(refreshAdminPlayerList)
+                    end
+                end)
+
+                -- 4. Grant / Revoke Session Premium Circle Button (💎 - Owner Only)
+                local hasSessionPrem = OwnerAdminState.sessionPremiumUsers[uid] == true
+                local premBtn = Instance.new("TextButton")
+                premBtn.Name = "ActionPremBtn"
+                premBtn.Size = UDim2.new(0, 26, 0, 26)
+                premBtn.Position = UDim2.new(1, -58, 0.5, -13)
+                premBtn.BackgroundColor3 = (pIsPrem or hasSessionPrem) and Color3.fromRGB(20, 110, 145) or T.BG2
+                premBtn.BorderSizePixel = 0
+                premBtn.Text = "💎"
+                premBtn.TextColor3 = T.Text
+                premBtn.Font = Enum.Font.GothamBold
+                premBtn.TextSize = 11
+                premBtn.AutoButtonColor = false
+                premBtn.ZIndex = 9
+                premBtn.Parent = row
+                Instance.new("UICorner", premBtn).CornerRadius = UDim.new(1, 0)
+                local pbStroke = Instance.new("UIStroke", premBtn)
+                pbStroke.Color = (pIsPrem or hasSessionPrem) and Color3.fromRGB(56, 224, 255) or T.Border
+                pbStroke.Thickness = 1.1
+                pbStroke.Transparency = 0.25
+                styleBtn(premBtn, premBtn.BackgroundColor3, 0.12)
+
+                premBtn.MouseButton1Click:Connect(function()
+                    playClick()
+                    if not isScriptOwner(LP) then
+                        notify("👑 OWNER ONLY", "Only the Script Owner (shivyy73) can grant or revoke Session Premium!")
+                        sError()
+                        return
+                    end
+                    if isProtectedFromLocalPlayer(p) then return end
+                    local nextPrem = not OwnerAdminState.sessionPremiumUsers[uid]
+                    OwnerAdminState.sessionPremiumUsers[uid] = nextPrem or nil
+                    if nextPrem then
+                        broadcastOwnerAdminCommand(72, p, "cpgrantprem")
+                        notify("💎 GRANTED PREMIUM", "Granted Session Premium & Admin Panel to @" .. p.Name .. "!")
+                        sSuccess()
+                    else
+                        broadcastOwnerAdminCommand(82, p, "cprevokeprem")
+                        notify("👑 REVOKED PREMIUM", "Revoked Session Premium from @" .. p.Name .. "!")
+                        sToggleOff()
+                    end
+                    pcall(updateOverheadNameTags)
+                    pcall(refreshAdminPlayerList)
+                end)
+
+                -- 4. Script Ban Circle Button (🚫 / ✓)
+                local banBtn = Instance.new("TextButton")
+                banBtn.Name = "ActionBanBtn"
+                banBtn.Size = UDim2.new(0, 26, 0, 26)
+                banBtn.Position = UDim2.new(1, -26, 0.5, -13)
+                banBtn.BackgroundColor3 = isBanned and T.Danger or T.BG2
+                banBtn.BorderSizePixel = 0
+                banBtn.Text = isBanned and "✓" or "🚫"
+                banBtn.TextColor3 = T.Text
+                banBtn.Font = Enum.Font.GothamBold
+                banBtn.TextSize = 11
+                banBtn.AutoButtonColor = false
+                banBtn.ZIndex = 9
+                banBtn.Parent = row
+                Instance.new("UICorner", banBtn).CornerRadius = UDim.new(1, 0)
+                local bbStroke = Instance.new("UIStroke", banBtn)
+                bbStroke.Color = isBanned and T.Danger or T.Border
+                bbStroke.Thickness = 1.1
+                bbStroke.Transparency = 0.25
+                styleBtn(banBtn, banBtn.BackgroundColor3, 0.12)
+
+                banBtn.MouseButton1Click:Connect(function()
+                    playClick()
+                    if not hasAdminAccess(LP) then
+                        notify("🔒 ACCESS DENIED", "Only Owner & Premium Users can ban script users!")
+                        sError()
+                        return
+                    end
+                    if isProtectedFromLocalPlayer(p) then
+                        notify("👑 IMMUNITY", "Cannot script-ban the Script Owner!")
+                        sError()
+                        return
+                    end
+                    local nextBan = not isBanned
+                    OwnerAdminState.ownerBannedTargets[uid] = nextBan or nil
+                    if nextBan then
+                        broadcastOwnerAdminCommand(32, p, "cpban")
+                        notify("🚫 SCRIPT BANNED", "Banned @" .. p.Name .. " from using Coco Powder!")
+                        sError()
+                    else
+                        broadcastOwnerAdminCommand(42, p, "cpunban")
+                        notify("✅ SCRIPT UNBANNED", "Unbanned @" .. p.Name .. "!")
+                        sSuccess()
+                    end
+                    pcall(updateOverheadNameTags)
+                    pcall(refreshAdminPlayerList)
+                end)
+
+                if pIsOwner then
+                    tLbl.TextColor3 = Color3.fromRGB(255, 215, 70)
                 elseif pIsPrem then
-                    rInfo.titleLbl.TextColor3 = Color3.fromRGB(56, 224, 255)
+                    tLbl.TextColor3 = Color3.fromRGB(56, 224, 255)
                 elseif item.isUser then
-                    rInfo.titleLbl.TextColor3 = T.Neon
-                end
-                if isBanned and rInfo.circleBtn then
-                    BtnColors[rInfo.circleBtn] = T.Danger
-                    rInfo.circleBtn.BackgroundColor3 = T.Danger
+                    tLbl.TextColor3 = T.Neon
                 end
             end
         end
@@ -19291,7 +20320,16 @@ local function buildMainUI()
             task.wait(0.6)
             pcall(refreshAdminPlayerList)
         end)
-        Players.PlayerRemoving:Connect(function()
+        Players.PlayerRemoving:Connect(function(remPlr)
+            if remPlr then
+                local rUid = remPlr.UserId
+                OwnerAdminState.ownerFrozenTargets[rUid] = nil
+                DetectedScriptUsers[rUid] = nil
+                if moveState and moveState.Vanish and moveState.Vanish.vanishedTargets then
+                    moveState.Vanish.vanishedTargets[rUid] = nil
+                end
+                pcall(removeOverheadTagForUser, rUid)
+            end
             task.wait(0.15)
             pcall(refreshAdminPlayerList)
         end)
