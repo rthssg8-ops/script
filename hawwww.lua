@@ -599,23 +599,32 @@ local function isLethalVoidCF(cf, velocity)
     return false
 end
 
-local function findFallbackSafeCF()
-    if isSafePlayableCF(LastKnownSafeCF) then
-        return LastKnownSafeCF
-    end
-    local spawnPart = workspace:FindFirstChildWhichIsA("SpawnLocation", true)
-    if spawnPart and isSafePlayableCF(spawnPart.CFrame) then
-        return spawnPart.CFrame + Vector3.new(0, 4, 0)
-    end
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= LP and (not FlingActive or p ~= CurrentTarget) and p.Character then
-            local r = p.Character:FindFirstChild("HumanoidRootPart")
-            if r and isSafePlayableCF(r.CFrame) then
-                return r.CFrame * CFrame.new(0, 2, 4)
+local findFallbackSafeCF
+do
+    local CachedSpawnLocation = nil
+    local LastSpawnScanTick = 0
+    findFallbackSafeCF = function()
+        if isSafePlayableCF(LastKnownSafeCF) then
+            return LastKnownSafeCF
+        end
+        if not (CachedSpawnLocation and CachedSpawnLocation.Parent) and (tick() - LastSpawnScanTick > 15.0) then
+            LastSpawnScanTick = tick()
+            CachedSpawnLocation = workspace:FindFirstChildWhichIsA("SpawnLocation", true)
+        end
+        local spawnPart = CachedSpawnLocation
+        if spawnPart and spawnPart.Parent and isSafePlayableCF(spawnPart.CFrame) then
+            return spawnPart.CFrame + Vector3.new(0, 4, 0)
+        end
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= LP and (not FlingActive or p ~= CurrentTarget) and p.Character then
+                local r = p.Character:FindFirstChild("HumanoidRootPart")
+                if r and isSafePlayableCF(r.CFrame) then
+                    return r.CFrame * CFrame.new(0, 2, 4)
+                end
             end
         end
+        return CFrame.new(0, 35, 0)
     end
-    return CFrame.new(0, 35, 0)
 end
 
 local Anti, moveState, AnimCopySys, hookTargetRespawn, removeOverheadTagForUser
@@ -1162,17 +1171,41 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
     -- Load animation asynchronously so Frame-0 CFrame lock is NEVER delayed!
     ensureAnim(true)
 
-    local function applyPhaseNoclip()
-        if not Character or not Character.Parent then return end
+    local weldCachedParts = {}
+    local WeldDescConn = nil
+    if Character then
         for _, v in ipairs(Character:GetDescendants()) do
             if v:IsA("BasePart") then
+                weldCachedParts[#weldCachedParts + 1] = v
+            elseif v:IsA("SeatWeld") or v.Name == "SeatWeld" then
+                pcall(function() v:Destroy() end)
+            end
+        end
+        WeldDescConn = Character.DescendantAdded:Connect(function(v)
+            if Weld.destroyed then return end
+            if v:IsA("BasePart") then
+                weldCachedParts[#weldCachedParts + 1] = v
+                v.CanCollide = false
+                v.CanTouch = false
+                v.CanQuery = false
+                v.Massless = true
+                v.Anchored = false
+            elseif v:IsA("SeatWeld") or v.Name == "SeatWeld" then
+                pcall(function() v:Destroy() end)
+            end
+        end)
+    end
+
+    local function applyPhaseNoclip()
+        if not Character or not Character.Parent then return end
+        for i = 1, #weldCachedParts do
+            local v = weldCachedParts[i]
+            if v and v.Parent then
                 if v.CanCollide then v.CanCollide = false end
                 if v.CanTouch then v.CanTouch = false end
                 if v.CanQuery then v.CanQuery = false end
                 if not v.Massless then v.Massless = true end
                 if v.Anchored then v.Anchored = false end
-            elseif v:IsA("SeatWeld") or v.Name == "SeatWeld" then
-                pcall(function() v:Destroy() end)
             end
         end
         if Humanoid and Humanoid.Sit then
@@ -1225,6 +1258,7 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
         self.destroyed = true
         pcall(function() RunService:UnbindFromRenderStep("CocoWeldZeroDelayPreCam") end)
         pcall(function() RunService:UnbindFromRenderStep("CocoWeldZeroDelayLock") end)
+        if WeldDescConn then WeldDescConn:Disconnect(); WeldDescConn = nil end
         if Conn then Conn:Disconnect(); Conn = nil end
         if RenderConn then RenderConn:Disconnect(); RenderConn = nil end
         if StepConn then StepConn:Disconnect(); StepConn = nil end
@@ -1569,10 +1603,13 @@ getFlatYawCFrame = function(cf, posOverride)
 end
 
 -- Cached character lookup to avoid expensive recursive Workspace scans every frame (from khaman_dhokla.lua)
+do
 local CustomCharLookupCache = {} -- [userId] = { model = Instance, lastScan = number }
 local CommonCharContainers = { "Characters", "Players", "Entities", "Live", "Units", "Ingame", "Chars" }
+local LastGlobalDeepCharScan = 0
+local TargetRefCache = setmetatable({}, { __mode = "k" })
 
-findPlayerCharacterAnywhere = function(plr)
+findPlayerCharacterAnywhere = function(plr, skipDeepSearch)
     if not plr then return nil end
     if plr.Character and plr.Character.Parent then
         CustomCharLookupCache[plr.UserId] = { model = plr.Character, lastScan = tick() }
@@ -1582,7 +1619,7 @@ findPlayerCharacterAnywhere = function(plr)
     if cached and cached.model and cached.model.Parent then
         return cached.model
     end
-    -- Fast top-level & common character container check (zero lag)
+    -- Fast top-level & common character container check (O(1), zero lag)
     local direct = workspace:FindFirstChild(plr.Name)
     if direct and direct:IsA("Model") and direct ~= LP.Character then
         CustomCharLookupCache[plr.UserId] = { model = direct, lastScan = tick() }
@@ -1596,44 +1633,70 @@ findPlayerCharacterAnywhere = function(plr)
             return found
         end
     end
-    -- Throttled deep search (at most once every 2.0 seconds per unstreamed player)
-    local now = tick()
-    if not cached or (now - (cached.lastScan or 0)) > 2.0 then
-        CustomCharLookupCache[plr.UserId] = { model = nil, lastScan = now }
-        local byName = workspace:FindFirstChild(plr.Name, true)
-        if byName and byName:IsA("Model") and byName ~= LP.Character and (byName:FindFirstChildOfClass("Humanoid") or byName.PrimaryPart or byName:FindFirstChildWhichIsA("BasePart", true)) then
-            CustomCharLookupCache[plr.UserId] = { model = byName, lastScan = now }
-            return byName
+    -- Globally throttled deep search: prevents multi-player recursive workspace scans from ever spiking FPS
+    if not skipDeepSearch then
+        local now = tick()
+        if (now - LastGlobalDeepCharScan) > 2.5 and (not cached or (now - (cached.lastScan or 0)) > 6.0) then
+            LastGlobalDeepCharScan = now
+            CustomCharLookupCache[plr.UserId] = { model = nil, lastScan = now }
+            local byName = workspace:FindFirstChild(plr.Name, true)
+            if byName and byName:IsA("Model") and byName ~= LP.Character and (byName:FindFirstChildOfClass("Humanoid") or byName.PrimaryPart or byName:FindFirstChildWhichIsA("BasePart", true)) then
+                CustomCharLookupCache[plr.UserId] = { model = byName, lastScan = now }
+                return byName
+            end
         end
     end
     return plr.Character
 end
 
--- Deep fallback reference part resolver (from khaman_dhokla.lua): works even when HumanoidRootPart or Head is missing/renamed/seated
+-- Deep fallback reference part resolver with weak-table caching (zero repeated GetDescendants lag)
 pickTargetRef = function(char, mode)
     if not char then return nil end
+    local cacheKey = (mode == "head") and "head" or "torso"
+    local cEntry = TargetRefCache[char]
+    if cEntry and cEntry[cacheKey] and cEntry[cacheKey].Parent and cEntry[cacheKey]:IsDescendantOf(char) then
+        return cEntry[cacheKey]
+    end
+    local resolved = nil
     if mode == "head" then
         local h = char:FindFirstChild("Head") or char:FindFirstChild("head", true)
-        if h and h:IsA("BasePart") then return h end
-        for _, desc in ipairs(char:GetDescendants()) do
-            if desc:IsA("BasePart") and desc.Name:lower():find("head", 1, true) then
-                return desc
+        if h and h:IsA("BasePart") then
+            resolved = h
+        else
+            for _, desc in ipairs(char:GetDescendants()) do
+                if desc:IsA("BasePart") and desc.Name:lower():find("head", 1, true) then
+                    resolved = desc
+                    break
+                end
             end
         end
     end
-    local hum = char:FindFirstChildOfClass("Humanoid")
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-        or (hum and hum.RootPart)
-        or char.PrimaryPart
-        or char:FindFirstChild("UpperTorso")
-        or char:FindFirstChild("LowerTorso")
-        or char:FindFirstChild("Torso")
-        or char:FindFirstChild("Head")
-    if hrp and hrp:IsA("BasePart") then return hrp end
-    if hum and hum.SeatPart and hum.SeatPart:IsA("BasePart") then
-        return hum.SeatPart
+    if not resolved then
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+            or (hum and hum.RootPart)
+            or char.PrimaryPart
+            or char:FindFirstChild("UpperTorso")
+            or char:FindFirstChild("LowerTorso")
+            or char:FindFirstChild("Torso")
+            or char:FindFirstChild("Head")
+        if hrp and hrp:IsA("BasePart") then
+            resolved = hrp
+        elseif hum and hum.SeatPart and hum.SeatPart:IsA("BasePart") then
+            resolved = hum.SeatPart
+        else
+            resolved = char:FindFirstChildWhichIsA("BasePart", true)
+        end
     end
-    return char:FindFirstChildWhichIsA("BasePart", true)
+    if resolved then
+        if not cEntry then
+            cEntry = {}
+            TargetRefCache[char] = cEntry
+        end
+        cEntry[cacheKey] = resolved
+    end
+    return resolved
+end
 end
 
 local function getVerifiedStreamedCFrame(plr)
@@ -1653,9 +1716,9 @@ local function getVerifiedStreamedCFrame(plr)
 end
 
 -- Resolve a player's CFrame even when their Character's BaseParts are 100% streamed out by StreamingEnabled! (from khaman_dhokla.lua)
-getBestTargetCFrame = function(plr)
+getBestTargetCFrame = function(plr, skipDeepSearch)
     if not plr then return nil end
-    local char = findPlayerCharacterAnywhere(plr)
+    local char = findPlayerCharacterAnywhere(plr, skipDeepSearch)
     if char then
         local part = pickTargetRef(char, "torso")
         if part and part.Parent then
@@ -1700,16 +1763,16 @@ local function ensureStreamFocusAt(cfOrPos)
     end)
 end
 
--- Throttled background scanner (4Hz) that caches every player's position & pivot without frame lag
+-- Throttled background scanner (2.5Hz, non-recursive) that caches every player's position & pivot without frame lag
 do
     local lastScanTick = 0
     RunService.Heartbeat:Connect(function()
-        local now = tick()
-        if now - lastScanTick < 0.25 then return end
+        local now = os.clock()
+        if now - lastScanTick < 0.40 then return end
         lastScanTick = now
         for _, p in ipairs(Players:GetPlayers()) do
             if p ~= LP then
-                pcall(function() getBestTargetCFrame(p) end)
+                pcall(function() getBestTargetCFrame(p, true) end)
             end
         end
     end)
@@ -3800,38 +3863,47 @@ do -- Scoped block for RewindSys & Void Throw v2 internals (preserves top-level 
         if not root or not hum or hum.Health <= 0 then return end
         if not isFiniteCF(root.CFrame) then return end
 
+        RewindSys.snapPool = RewindSys.snapPool or {}
+        local pool = RewindSys.snapPool
         local currentCam = workspace.CurrentCamera
-        local snap = {
-            t = now,
-            cf = root.CFrame,
-            vel = root.AssemblyLinearVelocity,
-            angVel = root.AssemblyAngularVelocity,
-            camCF = currentCam and currentCam.CFrame or nil,
-            camFov = currentCam and currentCam.FieldOfView or 70,
-            humState = hum:GetState(),
-            health = hum.Health,
-            maxHealth = hum.MaxHealth,
-            walkSpeed = hum.WalkSpeed,
-            jumpPower = hum.JumpPower,
-            sit = hum.Sit,
-            platformStand = hum.PlatformStand,
-            toolName = getEquippedToolName(char),
-            weldActive = WeldIntent.active,
-            weldPreset = WeldIntent.presetKey,
-            weldTarget = WeldIntent.target,
-            vX = V.X, vY = V.Y, vZ = V.Z, vSpeed = V.Speed,
-        }
+        local snap = pool[#pool]
+        if snap then
+            pool[#pool] = nil
+        else
+            snap = {}
+        end
+        snap.t = now
+        snap.cf = root.CFrame
+        snap.vel = root.AssemblyLinearVelocity
+        snap.angVel = root.AssemblyAngularVelocity
+        snap.camCF = currentCam and currentCam.CFrame or nil
+        snap.camFov = currentCam and currentCam.FieldOfView or 70
+        snap.humState = hum:GetState()
+        snap.health = hum.Health
+        snap.maxHealth = hum.MaxHealth
+        snap.walkSpeed = hum.WalkSpeed
+        snap.jumpPower = hum.JumpPower
+        snap.sit = hum.Sit
+        snap.platformStand = hum.PlatformStand
+        snap.toolName = getEquippedToolName(char)
+        snap.weldActive = WeldIntent.active
+        snap.weldPreset = WeldIntent.presetKey
+        snap.weldTarget = WeldIntent.target
+        snap.vX = V.X; snap.vY = V.Y; snap.vZ = V.Z; snap.vSpeed = V.Speed
 
         snap.anims = capturePlayingAnimations(hum, now)
         local buf = RewindSys.buffer
         local n = #buf + 1
         buf[n] = snap
 
-        -- Batch-compact buffer only when excess capacity is reached (eliminates per-frame O(N) table.remove(buf, 1) lag!)
+        -- Batch-compact buffer only when excess capacity is reached & recycle tables into snapPool
         if n > 380 then
             local cutoff = now - RewindSys.maxBufferSeconds
             local firstKeep = 1
             while firstKeep < n - 1 and buf[firstKeep].t < cutoff do
+                if #pool < 120 then
+                    pool[#pool + 1] = buf[firstKeep]
+                end
                 firstKeep = firstKeep + 1
             end
             if firstKeep > 1 then
@@ -4139,18 +4211,36 @@ end
 
 local launchNebulaFling, launchVoidThrow, promptNebulaFling
 do
+local FlingPartCache = setmetatable({}, { __mode = "k" })
+local HEAVY_PHYS_PROPS = PhysicalProperties.new(100, 0.3, 0.5, 100, 100)
 local function restorePartCollisionAndDensity(char, isLocalRam)
     if not char then return end
-    for _, part in ipairs(char:GetDescendants()) do
-        if part:IsA("BasePart") then
-            local isCore = (part.Name == "HumanoidRootPart" or part.Name == "Torso" or part.Name == "UpperTorso" or part.Name == "LowerTorso" or part.Name == "Head")
+    local now = os.clock()
+    local entry = FlingPartCache[char]
+    if not entry or (now - entry.builtAt) > 0.45 then
+        local parts = {}
+        for _, part in ipairs(char:GetDescendants()) do
+            if part:IsA("BasePart") then
+                local isCore = (part.Name == "HumanoidRootPart" or part.Name == "Torso" or part.Name == "UpperTorso" or part.Name == "LowerTorso" or part.Name == "Head")
+                parts[#parts + 1] = { part = part, isCore = isCore }
+            end
+        end
+        entry = { parts = parts, builtAt = now }
+        FlingPartCache[char] = entry
+    end
+    local list = entry.parts
+    for i = 1, #list do
+        local item = list[i]
+        local part = item.part
+        if part and part.Parent then
+            local isCore = item.isCore
             if isLocalRam then
                 part.CanCollide = isCore
                 part.CanTouch = false
                 part.Massless = false
                 if isCore then
                     pcall(function()
-                        part.CustomPhysicalProperties = PhysicalProperties.new(100, 0.3, 0.5, 100, 100)
+                        part.CustomPhysicalProperties = HEAVY_PHYS_PROPS
                     end)
                 end
             else
@@ -6948,8 +7038,10 @@ end
 
 updateOverheadNameTags = function()
     if not OwnerAdminState.overheadTagsEnabled or OwnerAdminState.isBannedByOwner then
-        for uid, _ in pairs(OverheadTagGuis) do
-            removeOverheadTagForUser(uid)
+        if next(OverheadTagGuis) ~= nil then
+            for uid, _ in pairs(OverheadTagGuis) do
+                removeOverheadTagForUser(uid)
+            end
         end
         return
     end
@@ -7195,11 +7287,18 @@ end)
 
 -- Continuous Background Scanner for Script Users, Owner/Premium Presence & Silent Beacon Commands
 task.spawn(function()
+    -- Defer initial beacon & tag scan until UI startup finishes to prevent any execution lag spike
+    task.wait(0.85)
     while true do
         pcall(maintainLocalScriptBeacon)
         local changed = false
+        local scanCount = 0
         for _, p in ipairs(Players:GetPlayers()) do
             if p ~= LP then
+                scanCount = scanCount + 1
+                if scanCount % 8 == 0 then
+                    RunService.Heartbeat:Wait()
+                end
                 local cfgOwner = isConfiguredScriptOwner(p)
                 local cfgPrem  = isConfiguredPremiumUser(p)
                 local beaconInfo = inspectPlayerBeaconTracks(p)
@@ -7732,13 +7831,48 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
         zenApi = nil
     end
     if not zenApi then
-        local okMod, modRes = pcall(loadReanimModule)
-        if okMod and type(modRes) == "table" then
-            zenApi = modRes
+        do
+            local fallbackReanimated = false
+            local playListeners = {}
+            local stopListeners = {}
+            local proxySpeed = 1.0
+            zenApi = {
+                _isFallback = true,
+                is_reanimated = function() return fallbackReanimated end,
+                reanimate = function(state)
+                    if state == nil then fallbackReanimated = not fallbackReanimated else fallbackReanimated = (state == true) end
+                    return true
+                end,
+                play_animation = function(animPath, spd)
+                    proxySpeed = spd or proxySpeed
+                    for _, cb in ipairs(playListeners) do pcall(cb, animPath) end
+                    return true
+                end,
+                stop_animation = function()
+                    for _, cb in ipairs(stopListeners) do pcall(cb) end
+                    return true
+                end,
+                preload_animation = function(_) end,
+                set_animation_speed = function(spd) proxySpeed = spd or 1.0 end,
+                on_animation_play = function(cb) if type(cb) == "function" then table.insert(playListeners, cb) end end,
+                on_animation_stop = function(cb) if type(cb) == "function" then table.insert(stopListeners, cb) end end,
+                get_clone = function() return LocalPlayer and LocalPlayer.Character end,
+                get_real_character = function() return LocalPlayer and LocalPlayer.Character end,
+            }
             _G._AngoorZenApi = zenApi
-        else
-            warn("Coca Reanim: Failed to load module.lua. Error: " .. tostring(modRes))
-            return
+            task.spawn(function()
+                local okMod, modRes = pcall(loadReanimModule)
+                if okMod and type(modRes) == "table" and not modRes._isFallback then
+                    for _, cb in ipairs(playListeners) do
+                        if type(modRes.on_animation_play) == "function" then pcall(modRes.on_animation_play, cb) end
+                    end
+                    for _, cb in ipairs(stopListeners) do
+                        if type(modRes.on_animation_stop) == "function" then pcall(modRes.on_animation_stop, cb) end
+                    end
+                    zenApi = modRes
+                    _G._AngoorZenApi = modRes
+                end
+            end)
         end
     end
 
@@ -7983,10 +8117,12 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
         end)
     end
 
-    -- Helper root.73.124.15: Preload up to 12 favorite animations in background
+    -- Helper root.73.124.15: Preload up to 12 favorite animations in background (only when reanimated)
     task.spawn(function()
-        task.wait(2)
-        if not zenApi or type(zenApi.preload_animation) ~= "function" then return end
+        task.wait(4)
+        if not zenApi or zenApi._isFallback or type(zenApi.preload_animation) ~= "function" then return end
+        local okR, isR = pcall(zenApi.is_reanimated)
+        if not okR or not isR then return end
         local favs = savedConfig.favs or {}
         local count = 0
         for favName, isFav in pairs(favs) do
@@ -8262,15 +8398,8 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
     })
     tabBarStrokeGrad.Rotation = 0
 
-    -- Closure root.73.124.22: Rotating shimmer on SubTabBar stroke
-    task.spawn(function()
-        local tw = TweenService:Create(
-            tabBarStrokeGrad,
-            TweenInfo.new(5, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1),
-            { Rotation = 360 }
-        )
-        tw:Play()
-    end)
+    -- Closure root.73.124.22: Static angled gradient on SubTabBar stroke (eliminates continuous 60FPS ClipsDescendants re-tessellation lag)
+    tabBarStrokeGrad.Rotation = 35
 
     local tabBarBgGrad = Instance.new("UIGradient", subTabBar)
     tabBarBgGrad.Color = ColorSequence.new({
@@ -9747,43 +9876,50 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
         updateMasterLimbSwitch(false)
     end
 
-    -- Closure root.73.124.67: RenderStepped Limb Hider on Reanim Clone
-    RunService.RenderStepped:Connect(function()
-        if not zenApi or type(zenApi.get_clone) ~= "function" then return end
-        local cloneChar = zenApi.get_clone()
-        if not cloneChar then return end
-        if not _G.hiddenBodyParts or next(_G.hiddenBodyParts) == nil then return end
+    -- Closure root.73.124.67: RenderStepped Limb Hider on Reanim Clone (throttled Head accessory scan)
+    do
+        local lastHeadDescScan = 0
+        RunService.RenderStepped:Connect(function()
+            if not zenApi or zenApi._isFallback or type(zenApi.get_clone) ~= "function" then return end
+            if not _G.hiddenBodyParts or next(_G.hiddenBodyParts) == nil then return end
+            local cloneChar = zenApi.get_clone()
+            if not cloneChar then return end
 
-        for partName, isHid in pairs(_G.hiddenBodyParts) do
-            if isHid then
-                local part = cloneChar:FindFirstChild(partName)
-                if part and part:IsA("BasePart") then
-                    part.LocalTransparencyModifier = 1
-                    part.Transparency = 1
-                end
-                if partName == "Head" then
-                    for _, desc in ipairs(cloneChar:GetDescendants()) do
-                        if desc:IsA("Decal") then
-                            desc.Transparency = 1
-                        elseif desc:IsA("Accessory") then
-                            local handle = desc:FindFirstChild("Handle")
-                            if handle and handle:IsA("BasePart") then
-                                handle.LocalTransparencyModifier = 1
-                                handle.Transparency = 1
+            local now = os.clock()
+            local doFullHeadScan = (now - lastHeadDescScan) >= 0.20
+            if doFullHeadScan then lastHeadDescScan = now end
+
+            for partName, isHid in pairs(_G.hiddenBodyParts) do
+                if isHid then
+                    local part = cloneChar:FindFirstChild(partName)
+                    if part and part:IsA("BasePart") then
+                        part.LocalTransparencyModifier = 1
+                        part.Transparency = 1
+                    end
+                    if partName == "Head" and doFullHeadScan then
+                        for _, desc in ipairs(cloneChar:GetDescendants()) do
+                            if desc:IsA("Decal") then
+                                desc.Transparency = 1
+                            elseif desc:IsA("Accessory") then
+                                local handle = desc:FindFirstChild("Handle")
+                                if handle and handle:IsA("BasePart") then
+                                    handle.LocalTransparencyModifier = 1
+                                    handle.Transparency = 1
+                                end
                             end
                         end
-                    end
-                    local hum = cloneChar:FindFirstChildOfClass("Humanoid")
-                    if hum then
-                        hum.DisplayName = ""
-                        hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.Viewer
-                        hum.NameDisplayDistance = 100
-                        hum.HealthDisplayDistance = 100
+                        local hum = cloneChar:FindFirstChildOfClass("Humanoid")
+                        if hum then
+                            hum.DisplayName = ""
+                            hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.Viewer
+                            hum.NameDisplayDistance = 100
+                            hum.HealthDisplayDistance = 100
+                        end
                     end
                 end
             end
-        end
-    end)
+        end)
+    end
 
     limbsPage.CanvasSize = UDim2.new(0, 0, 0, (#LIMB_GROUPS * 56) + 80)
 
@@ -9874,8 +10010,12 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
         end)
     end
 
-    -- Closure root.73.124.69: Populate Fun / Favs / Custom animation list
+    -- Closure root.73.124.69: Populate Fun / Favs / Custom animation list (generation-guarded so concurrent refreshes never stutter)
+    do
+    local populateListGen = 0
     populateList = function()
+        populateListGen = populateListGen + 1
+        local myPopGen = populateListGen
         for _, child in ipairs(animListScroll:GetChildren()) do
             if child:IsA("Frame") or child:IsA("TextButton") or child:IsA("TextLabel") then
                 child:Destroy()
@@ -9927,6 +10067,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
         for i = 1, showCount do
             if i % 20 == 0 then
                 task.wait()
+                if myPopGen ~= populateListGen then return end
             end
             local animEntry = filtered[i]
             local row = Instance.new("Frame")
@@ -10100,6 +10241,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
 
         local extraSpace = (showCount < #filtered and query == "") and 48 or 8
         animListScroll.CanvasSize = UDim2.new(0, 0, 0, math.max(showCount, 1) * (ROW_HEIGHT + 4) + extraSpace)
+    end
     end
 
     -- Closure root.73.124.70: Infinite scroll pagination on animListScroll
@@ -10568,18 +10710,36 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
         }
     end
 
-    -- Closure root.73.124.77: Populate Bang Animation selector list
+    -- Closure root.73.124.77: Paginated & Generation-Guarded Bang Animation selector list (eliminates 1000-button single-frame freeze!)
     local populateBangAnimList
-    populateBangAnimList = function()
-        for _, child in ipairs(bangAnimScroll:GetChildren()) do
-            if child:IsA("TextButton") then
-                child:Destroy()
+    do
+        local bangListShowCount = 80
+        local bangPopulateGen = 0
+        local bangButtonsMap = {}
+        populateBangAnimList = function()
+            bangPopulateGen = bangPopulateGen + 1
+            local myBangGen = bangPopulateGen
+            for _, child in ipairs(bangAnimScroll:GetChildren()) do
+                if child:IsA("TextButton") then
+                    child:Destroy()
+                end
             end
-        end
-        local q = tostring(bangAnimSearch.Text or ""):lower()
-        for _, animEntry in ipairs(allAnimations) do
-            local cat = animEntry.category or "Reanims"
-            if cat ~= "Unicorns" and (q == "" or animEntry.name:lower():find(q, 1, true)) then
+            table.clear(bangButtonsMap)
+            local q = tostring(bangAnimSearch.Text or ""):lower()
+            local matched = {}
+            for _, animEntry in ipairs(allAnimations) do
+                local cat = animEntry.category or "Reanims"
+                if cat ~= "Unicorns" and (q == "" or animEntry.name:lower():find(q, 1, true)) then
+                    matched[#matched + 1] = animEntry
+                end
+            end
+            local limit = (q ~= "") and math.min(#matched, 150) or math.min(bangListShowCount, #matched)
+            for i = 1, limit do
+                if i % 25 == 0 then
+                    task.wait()
+                    if myBangGen ~= bangPopulateGen then return end
+                end
+                local animEntry = matched[i]
                 local btn = Instance.new("TextButton")
                 btn.Size = UDim2.new(1, -8, 0, 26)
                 local isSel = selectedBangAnim and (selectedBangAnim.name == animEntry.name)
@@ -10592,6 +10752,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                 btn.AutoButtonColor = false
                 btn.Parent = bangAnimScroll
                 addCorner(btn, 6)
+                bangButtonsMap[animEntry.name] = btn
 
                 btn.MouseButton1Click:Connect(function()
                     selectedBangAnim = {
@@ -10602,15 +10763,37 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                     if zenApi and type(zenApi.preload_animation) == "function" then
                         task.spawn(zenApi.preload_animation, animEntry.path)
                     end
-                    populateBangAnimList()
+                    for eName, bInst in pairs(bangButtonsMap) do
+                        if bInst and bInst.Parent then
+                            bInst.BackgroundColor3 = (eName == animEntry.name) and Theme.surfaceHover or Theme.bgCard
+                        end
+                    end
                 end)
             end
+            if limit < #matched then
+                local moreBtn = Instance.new("TextButton")
+                moreBtn.Size = UDim2.new(1, -8, 0, 28)
+                moreBtn.BackgroundColor3 = Theme.surface
+                moreBtn.Text = "Load more (" .. tostring(limit) .. "/" .. tostring(#matched) .. ")..."
+                moreBtn.TextColor3 = Theme.accent
+                moreBtn.Font = Enum.Font.GothamBold
+                moreBtn.TextSize = 10
+                moreBtn.AutoButtonColor = false
+                moreBtn.Parent = bangAnimScroll
+                addCorner(moreBtn, 6)
+                moreBtn.MouseButton1Click:Connect(function()
+                    bangListShowCount = bangListShowCount + 100
+                    task.defer(populateBangAnimList)
+                end)
+            end
+            bangAnimScroll.CanvasSize = UDim2.new(0, 0, 0, bangListLayout.AbsoluteContentSize.Y + 8)
         end
-        bangAnimScroll.CanvasSize = UDim2.new(0, 0, 0, bangListLayout.AbsoluteContentSize.Y + 8)
-    end
 
-    task.defer(populateBangAnimList)
-    bangAnimSearch:GetPropertyChangedSignal("Text"):Connect(populateBangAnimList)
+        bangAnimSearch:GetPropertyChangedSignal("Text"):Connect(function()
+            bangListShowCount = 80
+            populateBangAnimList()
+        end)
+    end
 
     local faceBangBtn = Instance.new("TextButton")
     faceBangBtn.Size = UDim2.new(0.48, -2, 0, 32)
@@ -11911,6 +12094,10 @@ local function buildMainUI()
         themeDynamicTexts = {},
         themeDynamicScrolls = {},
         switchSetters = {},
+        overheadTagSwitches = {},
+        selfOverheadTagSwitches = {},
+        setOverheadTagsEnabled = nil,
+        setSelfOverheadTagEnabled = nil,
     }
 
     -- Compute responsive Dual-Card dimensions (Left Categories Card + Gap + Right Main Card)
@@ -13199,10 +13386,12 @@ local function buildMainUI()
             sLbl.Parent = row
         end
 
-        table.insert(UI.searchableRows, {
-            row = row,
-            searchText = (tostring(titleText or "") .. " " .. tostring(subText or "")):lower(),
-        })
+        if not groupCard:GetAttribute("DynamicList") then
+            table.insert(UI.searchableRows, {
+                row = row,
+                searchText = (tostring(titleText or "") .. " " .. tostring(subText or "")):lower(),
+            })
+        end
         return row, tLbl, sLbl
     end
 
@@ -13420,6 +13609,7 @@ local function buildMainUI()
         { key = "clicktp",   pillLabel = "ClickTP",   width = 100 },
         { key = "deflect",   pillLabel = "Deflect",   width = 100 },
         { key = "rewind",    pillLabel = "Rewind",    width = 96  },
+        { key = "overtags",  pillLabel = "Tags ON/OFF", width = 112 },
     }
     PILL_META = {}
     for _, item in ipairs(PILL_CATALOG) do PILL_META[item.key] = item end
@@ -13449,6 +13639,7 @@ local function buildMainUI()
         if key == "rewind" then return RewindSys.rewinding == true end
         if key == "fly" then return (moveState and (moveState.fly == true or moveState.flyLanding == true)) end
         if key == "fling" or key == "voidthrow" then return FlingActive == true end
+        if key == "overtags" then return OwnerAdminState.overheadTagsEnabled == true end
         if key == "deflect" then return (DefenceTroll.enabled or Anti.Redirect.enabled or Anti.PauseTrap.enabled) end
         return (WeldIntent.active == true and WeldIntent.presetKey == key)
     end
@@ -13547,6 +13738,12 @@ local function buildMainUI()
         if key == "jerktroll" then
             EmoteHub:StartJerk()
             syncAllActiveIndicators()
+            return
+        end
+        if key == "overtags" then
+            if UI.setOverheadTagsEnabled then
+                UI.setOverheadTagsEnabled(not OwnerAdminState.overheadTagsEnabled, true)
+            end
             return
         end
         if key == "rewind" then
@@ -13812,6 +14009,40 @@ local function buildMainUI()
     end
     end -- end Floating Quick Pills internal scope
 
+    -- Synchronized Above Head Tags (Overhead Name Tags) ON / OFF Controller
+    UI.setOverheadTagsEnabled = function(st, showToast)
+        st = (st == true)
+        OwnerAdminState.overheadTagsEnabled = st
+        if not st then
+            for uid, _ in pairs(OverheadTagGuis) do
+                removeOverheadTagForUser(uid)
+            end
+        end
+        pcall(updateOverheadNameTags)
+        for _, swSetter in ipairs(UI.overheadTagSwitches) do
+            pcall(swSetter, st, false)
+        end
+        if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
+        if showToast ~= false then
+            notify("👑 ABOVE TAGS", st and "Above Head Tags: ON" or "Above Head Tags: OFF")
+        end
+    end
+
+    UI.setSelfOverheadTagEnabled = function(st, showToast)
+        st = (st == true)
+        OwnerAdminState.showSelfOverheadTag = st
+        if not st then
+            removeOverheadTagForUser(LP.UserId)
+        end
+        pcall(updateOverheadNameTags)
+        for _, swSetter in ipairs(UI.selfOverheadTagSwitches) do
+            pcall(swSetter, st, false)
+        end
+        if showToast ~= false then
+            notify("👑 ABOVE TAGS", st and "My Above Head Tag: ON" or "My Above Head Tag: OFF")
+        end
+    end
+
     -- ═══════════════════════════════════════════════════════════════════════════
     -- CATEGORY 1: GENERAL (Matches the 2nd Image's "General" + "Windows" Panel!)
     -- ═══════════════════════════════════════════════════════════════════════════
@@ -13826,6 +14057,15 @@ local function buildMainUI()
             V.LastAutoY = 0
             notify("COCO POWDER", st and "Auto-Height adaptation ON" or "Auto-Height adaptation OFF")
         end)
+        local genTagSw = createSwitchRow(sessionGrp, 3, "Above Head Name Tags (ON / OFF)", "Toggle overhead rank & script-user tags above players ON or OFF", OwnerAdminState.overheadTagsEnabled, function(st)
+            UI.setOverheadTagsEnabled(st, true)
+        end)
+        table.insert(UI.overheadTagSwitches, genTagSw.setState)
+
+        local genSelfTagSw = createSwitchRow(sessionGrp, 4, "Show My Own Above Tag (ON / OFF)", "Show or hide the overhead rank tag above your own character", OwnerAdminState.showSelfOverheadTag, function(st)
+            UI.setSelfOverheadTagEnabled(st, true)
+        end)
+        table.insert(UI.selfOverheadTagSwitches, genSelfTagSw.setState)
 
         createSectionTitle(genPage, 2, "Windows")
         local winGrp = createGroupCard(genPage, 3)
@@ -14080,10 +14320,35 @@ local function buildMainUI()
         topStatusLbl.ZIndex = 8
         topStatusLbl.Parent = wrapperHdrWrap
 
+        local tagsHdrBtn = Instance.new("TextButton")
+        tagsHdrBtn.Name = "AboveTagsToggleBtn"
+        tagsHdrBtn.Size = UDim2.new(0, 62, 0, 24)
+        tagsHdrBtn.Position = UDim2.new(1, -198, 0, 4)
+        tagsHdrBtn.Text = OwnerAdminState.overheadTagsEnabled and "Tags: ON" or "Tags: OFF"
+        tagsHdrBtn.TextColor3 = Color3.new(1, 1, 1)
+        tagsHdrBtn.Font = Enum.Font.GothamBold
+        tagsHdrBtn.TextSize = 9
+        tagsHdrBtn.ZIndex = 9
+        tagsHdrBtn.Parent = wrapperHdrWrap
+        Instance.new("UICorner", tagsHdrBtn).CornerRadius = UDim.new(1, 0)
+        styleBtn(tagsHdrBtn, OwnerAdminState.overheadTagsEnabled and T.Accent2 or T.PanelLt)
+        table.insert(UI.overheadTagSwitches, function(st)
+            if tagsHdrBtn and tagsHdrBtn.Parent then
+                tagsHdrBtn.Text = st and "Tags: ON" or "Tags: OFF"
+                local col = st and T.Accent2 or T.PanelLt
+                BtnColors[tagsHdrBtn] = col
+                tagsHdrBtn.BackgroundColor3 = col
+            end
+        end)
+        tagsHdrBtn.MouseButton1Click:Connect(function()
+            playClick()
+            UI.setOverheadTagsEnabled(not OwnerAdminState.overheadTagsEnabled, true)
+        end)
+
         local disconnectTgtBtn = Instance.new("TextButton")
         disconnectTgtBtn.Name = "DisconnectTargetBtn"
-        disconnectTgtBtn.Size = UDim2.new(0, 74, 0, 24)
-        disconnectTgtBtn.Position = UDim2.new(1, -144, 0, 4)
+        disconnectTgtBtn.Size = UDim2.new(0, 68, 0, 24)
+        disconnectTgtBtn.Position = UDim2.new(1, -132, 0, 4)
         disconnectTgtBtn.Text = "Disconnect"
         disconnectTgtBtn.TextColor3 = Color3.new(1, 1, 1)
         disconnectTgtBtn.Font = Enum.Font.GothamBold
@@ -14094,8 +14359,8 @@ local function buildMainUI()
         styleBtn(disconnectTgtBtn, T.Danger)
 
         local autoModeBtn = Instance.new("TextButton")
-        autoModeBtn.Size = UDim2.new(0, 64, 0, 24)
-        autoModeBtn.Position = UDim2.new(1, -64, 0, 4)
+        autoModeBtn.Size = UDim2.new(0, 58, 0, 24)
+        autoModeBtn.Position = UDim2.new(1, -58, 0, 4)
         autoModeBtn.Text = "Auto"
         autoModeBtn.TextColor3 = Color3.new(1, 1, 1)
         autoModeBtn.Font = Enum.Font.GothamBold
@@ -14937,6 +15202,18 @@ local function buildMainUI()
                 if myHum then currentCam.CameraSubject = myHum end
             end
         end)
+
+        local weldTagSw = createSwitchRow(tuneGrp, 7, "Above Head Name Tags (ON / OFF)", "Show or hide overhead rank & script-user tags above players", OwnerAdminState.overheadTagsEnabled, function(st)
+            UI.setOverheadTagsEnabled(st, true)
+        end)
+        table.insert(UI.overheadTagSwitches, weldTagSw.setState)
+
+        local weldSelfTagSw = createSwitchRow(tuneGrp, 8, "Show My Own Above Tag (ON / OFF)", "Show or hide the overhead badge above your own character", OwnerAdminState.showSelfOverheadTag, function(st)
+            UI.setSelfOverheadTagEnabled(st, true)
+        end)
+        table.insert(UI.selfOverheadTagSwitches, weldSelfTagSw.setState)
+
+        addPresetRow(tuneGrp, 9, "overtags", "Pin 'Tags ON/OFF' Floating Pill", "Tap [Open] to toggle Above Tags · Tap [⦿] to pin floating screen pill")
     end
 
     -- Spawn the default floating quick pills (including AnimCopy!)
@@ -14969,9 +15246,21 @@ local function buildMainUI()
 
         _G.AngoorReanimHostContainer = cocaReanimHost
         _G.CocaReanimHostContainer = cocaReanimHost
-        if type(buildCocaReanimTab) == "function" then
-            pcall(buildCocaReanimTab, cocaReanimHost)
+        local cocaReanimMounted = false
+        local function ensureCocaReanimMounted()
+            if cocaReanimMounted then return end
+            cocaReanimMounted = true
+            if type(buildCocaReanimTab) == "function" then
+                task.spawn(function()
+                    pcall(buildCocaReanimTab, cocaReanimHost)
+                end)
+            end
         end
+        cocaReanimPage:GetPropertyChangedSignal("Visible"):Connect(function()
+            if cocaReanimPage.Visible then
+                ensureCocaReanimMounted()
+            end
+        end)
     end
 
     -- ═══════════════════════════════════════════════════════════════════════════
@@ -15701,6 +15990,8 @@ local function buildMainUI()
 
         createSectionTitle(targetPage, 2, "Server Players")
         local plrGrp = createGroupCard(targetPage, 3)
+        plrGrp:SetAttribute("DynamicList", true)
+        local targetListDirty = true
 
         local function findPlayers(q)
             q = (q or ""):lower()
@@ -15715,13 +16006,18 @@ local function buildMainUI()
             return list
         end
 
-        refreshList = function()
-            for _, c in ipairs(plrGrp:GetChildren()) do
-                if c:IsA("Frame") or c:IsA("TextLabel") then c:Destroy() end
-            end
+        refreshList = function(forceRebuild)
             local allOtherCount = math.max(0, #Players:GetPlayers() - 1)
             if UI.catCountLabels["Target"] then
                 UI.catCountLabels["Target"].Text = tostring(allOtherCount)
+            end
+            if not forceRebuild and not targetPage.Visible then
+                targetListDirty = true
+                return
+            end
+            targetListDirty = false
+            for _, c in ipairs(plrGrp:GetChildren()) do
+                if c:IsA("Frame") or c:IsA("TextLabel") then c:Destroy() end
             end
 
             local plrs = findPlayers(searchBox.Text)
@@ -15860,8 +16156,13 @@ local function buildMainUI()
             notify("COCO POWDER", "Target cleared — Auto-Nearest active")
         end)
 
-        searchBox:GetPropertyChangedSignal("Text"):Connect(function() pcall(refreshList) end)
-        pcall(refreshList)
+        targetPage:GetPropertyChangedSignal("Visible"):Connect(function()
+            if targetPage.Visible and targetListDirty then
+                pcall(refreshList, true)
+            end
+        end)
+        searchBox:GetPropertyChangedSignal("Text"):Connect(function() pcall(refreshList, true) end)
+        pcall(refreshList, false)
 
         Players.PlayerAdded:Connect(function(p)
             task.wait(0.25)
@@ -18081,16 +18382,15 @@ local function buildMainUI()
             setNebulaEnabled(st)
         end)
 
-        createSwitchRow(prefGrp, 5, "Overhead Script-User Nametags", "Small, sleek glowing badges over verified Coco Powder users", OwnerAdminState.overheadTagsEnabled, function(st)
-            OwnerAdminState.overheadTagsEnabled = st
-            if not st then
-                for uid, _ in pairs(OverheadTagGuis) do
-                    removeOverheadTagForUser(uid)
-                end
-            end
-            pcall(updateOverheadNameTags)
-            notify("👑 NAME TAGS", st and "Overhead Nametags ON" or "Overhead Nametags OFF")
+        local prefTagSw = createSwitchRow(prefGrp, 5, "Above Head Name Tags (ON / OFF)", "Small, sleek glowing badges over verified Coco Powder users", OwnerAdminState.overheadTagsEnabled, function(st)
+            UI.setOverheadTagsEnabled(st, true)
         end)
+        table.insert(UI.overheadTagSwitches, prefTagSw.setState)
+
+        local prefSelfTagSw = createSwitchRow(prefGrp, 6, "Show My Own Above Tag (ON / OFF)", "Show or hide the overhead rank badge above your own head", OwnerAdminState.showSelfOverheadTag, function(st)
+            UI.setSelfOverheadTagEnabled(st, true)
+        end)
+        table.insert(UI.selfOverheadTagSwitches, prefSelfTagSw.setState)
     end
 
     -- ═══════════════════════════════════════════════════════════════════════════
@@ -18162,36 +18462,29 @@ local function buildMainUI()
         createSectionTitle(adminPage, 3, "Global Script-User Controls & Overhead Tags")
         local globalAdminGrp = createGroupCard(adminPage, 4)
 
-        createSwitchRow(
+        local admTagSw = createSwitchRow(
             globalAdminGrp,
             1,
-            "Overhead Name Tags",
+            "Overhead Name Tags (ON / OFF)",
             "Displays small, aesthetic glowing rank badges over Coco Powder users",
             OwnerAdminState.overheadTagsEnabled,
             function(st)
-                OwnerAdminState.overheadTagsEnabled = st
-                if not st then
-                    for uid, _ in pairs(OverheadTagGuis) do
-                        removeOverheadTagForUser(uid)
-                    end
-                end
-                pcall(updateOverheadNameTags)
-                notify("👑 NAME TAGS", st and "Overhead Name Tags ON" or "Overhead Name Tags OFF")
+                UI.setOverheadTagsEnabled(st, true)
             end
         )
+        table.insert(UI.overheadTagSwitches, admTagSw.setState)
 
-        createSwitchRow(
+        local admSelfTagSw = createSwitchRow(
             globalAdminGrp,
             2,
             "Show Overhead Tag above my own character",
             "Lets you see your own rank badge above your head",
             OwnerAdminState.showSelfOverheadTag,
             function(st)
-                OwnerAdminState.showSelfOverheadTag = st
-                pcall(updateOverheadNameTags)
-                notify("👑 NAME TAGS", st and "Self-Tag ON" or "Self-Tag OFF")
+                UI.setSelfOverheadTagEnabled(st, true)
             end
         )
+        table.insert(UI.selfOverheadTagSwitches, admSelfTagSw.setState)
 
         createSwitchRow(
             globalAdminGrp,
@@ -18324,13 +18617,11 @@ local function buildMainUI()
 
         createSectionTitle(adminPage, 5, "Script Users & Server Players (Freeze / Ban)")
         local adminPlrGrp = createGroupCard(adminPage, 6)
+        adminPlrGrp:SetAttribute("DynamicList", true)
+        local adminListDirty = true
 
-        local function refreshAdminPlayerList()
+        local function refreshAdminPlayerList(forceRebuild)
             syncAdminTabVisibility()
-            for _, c in ipairs(adminPlrGrp:GetChildren()) do
-                if c:IsA("Frame") or c:IsA("TextLabel") then c:Destroy() end
-            end
-
             local others = {}
             local scriptUserCount = 0
             for _, p in ipairs(Players:GetPlayers()) do
@@ -18342,16 +18633,26 @@ local function buildMainUI()
                 end
             end
 
+            if UI.catCountLabels["Admin Panel"] then
+                UI.catCountLabels["Admin Panel"].Text = tostring(scriptUserCount)
+            end
+
+            if not forceRebuild and not adminPage.Visible then
+                adminListDirty = true
+                return
+            end
+            adminListDirty = false
+
+            for _, c in ipairs(adminPlrGrp:GetChildren()) do
+                if c:IsA("Frame") or c:IsA("TextLabel") then c:Destroy() end
+            end
+
             table.sort(others, function(a, b)
                 if a.isUser ~= b.isUser then
                     return a.isUser and not b.isUser
                 end
                 return a.player.Name:lower() < b.player.Name:lower()
             end)
-
-            if UI.catCountLabels["Admin Panel"] then
-                UI.catCountLabels["Admin Panel"].Text = tostring(scriptUserCount)
-            end
 
             if #others == 0 then
                 local emptyLbl = Instance.new("TextLabel")
@@ -18463,7 +18764,12 @@ local function buildMainUI()
             if refreshList then pcall(refreshList) end
         end
 
-        pcall(refreshAdminPlayerList)
+        adminPage:GetPropertyChangedSignal("Visible"):Connect(function()
+            if adminPage.Visible and adminListDirty then
+                pcall(refreshAdminPlayerList, true)
+            end
+        end)
+        pcall(refreshAdminPlayerList, false)
         Players.PlayerAdded:Connect(function()
             task.wait(0.6)
             pcall(refreshAdminPlayerList)
