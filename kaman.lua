@@ -180,7 +180,7 @@ local function isR15(player)
     return getRig(player) == Enum.HumanoidRigType.R15
 end
 
-local V = { X = 0, Y = 0, Z = 1.3, RX = 0, RY = 0, RZ = 0, Speed = 1.0 }
+local V = { X = 0, Y = 0, Z = 1.3, RX = 0, RY = 0, RZ = 0, Speed = 1.0, AutoHeight = true, LastAutoY = 0 }
 
 local CurrentWeld         = nil
 local CurrentTarget       = nil
@@ -208,7 +208,7 @@ local OriginalCameraSubject = nil
 local AutoReweldEnabled   = true
 local LastWeldTargetUserId = nil
 local LastPresetKey       = nil
-local WeldIntent          = { active = false, presetKey = nil, target = nil }
+local WeldIntent          = { active = false, presetKey = nil, target = nil, waitingForSpawn = false, autoNearest = false }
 local StopGeneration      = 0
 
 local FlingActive         = false
@@ -335,15 +335,17 @@ local function getRootPart(char)
     return char:FindFirstChildWhichIsA("BasePart")
 end
 
--- Break any active SeatWeld or hostile grab joint on local character before teleporting/welding
+-- Break any active SeatWeld, VehicleSeat weld, or external grab joint on local character before teleporting/welding
 local function breakLocalSeatAndTrapWelds(char)
     if not char then return end
     local hum = char:FindFirstChildOfClass("Humanoid")
     if hum then
         pcall(function()
-            if hum.SeatPart then
-                for _, w in ipairs(hum.SeatPart:GetChildren()) do
-                    if w:IsA("Weld") or w:IsA("WeldConstraint") or w.Name == "SeatWeld" then
+            local seatPart = hum.SeatPart
+            if seatPart then
+                pcall(function() seatPart.CanTouch = false end)
+                for _, w in ipairs(seatPart:GetDescendants()) do
+                    if w:IsA("Weld") or w:IsA("WeldConstraint") or w:IsA("Motor6D") or w.Name == "SeatWeld" then
                         w:Destroy()
                     end
                 end
@@ -354,6 +356,20 @@ local function breakLocalSeatAndTrapWelds(char)
     for _, desc in ipairs(char:GetDescendants()) do
         if desc:IsA("SeatWeld") or desc.Name == "SeatWeld" then
             pcall(function() desc:Destroy() end)
+        elseif desc:IsA("BasePart") then
+            local okJ, joints = pcall(function() return desc:GetJoints() end)
+            if okJ and joints then
+                for _, j in ipairs(joints) do
+                    if j:IsA("JointInstance") or j:IsA("WeldConstraint") then
+                        local p0, p1 = j.Part0, j.Part1
+                        local p0Mine = p0 and p0:IsDescendantOf(char)
+                        local p1Mine = p1 and p1:IsDescendantOf(char)
+                        if (p0Mine and p1 and not p1Mine) or (p1Mine and p0 and not p0Mine) then
+                            pcall(function() j:Destroy() end)
+                        end
+                    end
+                end
+            end
         end
     end
 end
@@ -664,12 +680,12 @@ RunService.Heartbeat:Connect(function()
     local hum  = char and char:FindFirstChildOfClass("Humanoid")
     if not root or not hum or hum.Health <= 0 then return end
 
-    if not FlingActive and not WeldIntent.active then
+    if not FlingActive and not WeldIntent.active and CurrentWeld == nil and not (RewindSys and RewindSys.rewinding) then
         local vel = root.AssemblyLinearVelocity.Magnitude
         if isSafePlayableCF(root.CFrame) and vel < 110 and hum.FloorMaterial ~= Enum.Material.Air then
             local _, yYaw, _ = root.CFrame:ToEulerAnglesYXZ()
             LastKnownSafeCF = CFrame.new(root.Position) * CFrame.Angles(0, yYaw, 0)
-        elseif root.Position.Y <= math.max(OriginalFPDH + 22, -260) or root.Position.Magnitude > 22000 then
+        elseif root.Position.Y <= math.min(OriginalFPDH + 22, -260) or root.Position.Magnitude > 45000 then
             if (Anti and Anti.Void and Anti.Void.enabled) or (tick() - LastVoidActionEnd < 6.0) then
                 safeReturnFromVoid(char, LastKnownSafeCF)
             end
@@ -683,796 +699,1373 @@ local pickTargetRef
 local getBestTargetCFrame
 local streamAndTeleportToTarget
 local markIntentionalTeleport
+local WELD_PRESETS
+local getNearestPlayer, findPlayerByNameOrDisplay, resolvePlayer, resolveActiveTarget, applyWeldPreset, hookTargetRespawn
 
-local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbacks, TargetPlayer, RefMode, PreSeekSafeCF)
-    local Character = Speaker.Character
-    if not Character then return nil end
-    local Root = getRootPart(Character)
-    local Humanoid = Character:FindFirstChildWhichIsA("Humanoid")
-    if not Root or not Humanoid or Humanoid.Health <= 0 then return nil end
+do -- Scoped block for Tesla Height Engine, WeldTo, Seeker & Watchdog (keeps top-level registers lean)
+    local DEFAULT_METRICS = { totalH = 5.0, scaleY = 1.0, legH = 2.0, torsoH = 2.0, headH = 1.0, rootH = 3.0 }
+    local CharMetricsCache = setmetatable({}, { __mode = "k" })
+    local KhamanStreamProbePart = nil
 
-    -- Cancel any pending void-return loop so it never fights our new weld connection
-    RescueGeneration = RescueGeneration + 1
-    Root.Anchored = false
-    breakLocalSeatAndTrapWelds(Character)
-
-    local TargetChar = (TargetPart and TargetPart.Parent) or (TargetPlayer and findPlayerCharacterAnywhere(TargetPlayer))
-    local TargetHum  = TargetChar and TargetChar:FindFirstChildOfClass("Humanoid")
-    local lastSafeCF = isSafePlayableCF(PreSeekSafeCF) and PreSeekSafeCF
-        or (isSafePlayableCF(LastKnownSafeCF) and LastKnownSafeCF)
-        or (isSafePlayableCF(Root.CFrame) and Root.CFrame)
-        or findFallbackSafeCF()
-
-    pcall(function() Humanoid.Sit = false end)
-    pcall(function() Humanoid.PlatformStand = true end)
-    pcall(function() Humanoid.AutoRotate = false end)
-    forcePhysicsState(Humanoid)
-    killAnimate(Character)
-
-    local function applyPhaseNoclip()
-        if not Character or not Character.Parent then return end
-        for _, v in ipairs(getCachedCharParts(Character)) do
-            if v.Parent then
-                if v.CanCollide then v.CanCollide = false end
-                if v.CanTouch then v.CanTouch = false end
-                if v.CanQuery then v.CanQuery = false end
-                if not v.Massless then v.Massless = true end
-                if v.Anchored then v.Anchored = false end
-            end
+    local function getFlatYawCFrame(cf, posOverride)
+        if not cf then return CFrame.new() end
+        local pos = posOverride or cf.Position
+        local look = cf.LookVector
+        local flatLook = Vector3.new(look.X, 0, look.Z)
+        if flatLook.Magnitude > 0.001 then
+            return CFrame.lookAt(pos, pos + flatLook.Unit, Vector3.yAxis)
         end
-        if Humanoid and Humanoid.Sit then
-            pcall(function() Humanoid.Sit = false end)
-        end
-    end
-    applyPhaseNoclip()
-
-    -- ZERO-DELAY FRAME-0 LOCK: Snap to TargetPart immediately on the exact calling line!
-    local clock = 0
-    local function computeCurrentTargetLockCF()
-        local customAdjust = CFrame.new(V.X or 0, V.Y or 0, (V.Z or 1.3) - 1.3)
-        local localOffset = Offset * customAdjust
-        if Osc and Osc.period and Osc.period > 0 then
-            local phase = (math.sin(clock * (2 * math.pi) / Osc.period) + 1) * 0.5
-            localOffset = localOffset * CFrame.new(0, 0, -Osc.distance * phase)
-        end
-        return TargetPart.CFrame * localOffset
+        local _, yYaw, _ = cf:ToEulerAnglesYXZ()
+        return CFrame.new(pos) * CFrame.Angles(0, yYaw, 0)
     end
 
-    local currentLockCF = nil
-    if TargetPart and TargetPart.Parent then
-        currentLockCF = computeCurrentTargetLockCF()
-        markIntentionalTeleport(currentLockCF)
-        Root.CFrame = currentLockCF
-        Root.AssemblyLinearVelocity = Vector3.zero
-        Root.AssemblyAngularVelocity = Vector3.zero
-    end
-
-    -- ZERO-DELAY FRAME-0 ANIMATION: Start animation immediately without any task.wait!
-    local AnimTrack, AnimInstance = nil, nil
-    local animAttempts = 0
-    local Weld = { destroyed = false }
-
-    local function ensureAnim(force)
-        if not AnimationId or Weld.destroyed then return end
-        if AnimTrack and not force then
-            local ip = false
-            pcall(function()
-                ip = AnimTrack.IsPlaying
-                if ip and AnimTrack.Length > 0 and AnimTrack.TimePosition >= (AnimTrack.Length - 0.04) then
-                    AnimTrack.TimePosition = 0
-                end
-            end)
-            if ip then
-                pcall(function() AnimTrack:AdjustSpeed(math.clamp(V.Speed or 1.0, 0.2, 6.0)) end)
-                return
-            end
-        end
-        animAttempts = animAttempts + 1
-        if not force and animAttempts % 10 ~= 0 and AnimTrack then return end
-        local Animator = Character:FindFirstChildWhichIsA("Animator", true)
-        if not Animator and Humanoid then
-            Animator = Instance.new("Animator")
-            Animator.Parent = Humanoid
-        end
-        if not Animator then return end
-        local track, anim = startInstantAnimTrack(Animator, AnimationId, AnimFallbacks, Humanoid)
-        if track then
-            if AnimTrack and AnimTrack ~= track then
-                pcall(function() AnimTrack:Stop(0); AnimTrack:Destroy() end)
-            end
-            if AnimInstance and AnimInstance ~= anim then
-                pcall(function() AnimInstance:Destroy() end)
-            end
-            AnimTrack = track
-            AnimInstance = anim
-        end
-    end
-    ensureAnim(true)
-
-    local Conn = nil
-    local RenderConn = nil
-    local StepConn = nil
-    local missingFrames = 0
-
-    function Weld:Destroy(skipReturn)
-        if self.destroyed then return end
-        self.destroyed = true
-        if Conn then Conn:Disconnect(); Conn = nil end
-        if RenderConn then RenderConn:Disconnect(); RenderConn = nil end
-        if StepConn then StepConn:Disconnect(); StepConn = nil end
-        pcall(function() LP.ReplicationFocus = nil end)
-        if AnimTrack then
-            pcall(function() AnimTrack:Stop(0) end)
-            pcall(function() AnimTrack:Destroy() end)
-            AnimTrack = nil
-        end
-        if AnimInstance then
-            pcall(function() AnimInstance:Destroy() end)
-            AnimInstance = nil
-        end
-        if CurrentWeld == self then
-            CurrentWeld = nil
-        end
-        if not skipReturn then
-            LastVoidActionEnd = tick()
-            safeReturnFromVoid(Character, lastSafeCF)
-            if LP.Character and LP.Character ~= Character then
-                safeReturnFromVoid(LP.Character, lastSafeCF)
-            end
-        end
-    end
-
-    -- Stepped pass ensures we phase through walls, doors, roofs, and seats inside any hiding spot
-    StepConn = RunService.Stepped:Connect(function()
-        if Weld.destroyed then return end
-        applyPhaseNoclip()
-        if TargetPart and TargetPart.Parent and Root and Root.Parent then
-            currentLockCF = computeCurrentTargetLockCF()
-            Root.CFrame = currentLockCF
-        end
-    end)
-
-    -- RenderStepped pass guarantees zero-jitter visual lock when the target sprints or turns camera
-    RenderConn = RunService.RenderStepped:Connect(function()
-        if Weld.destroyed then return end
-        if TargetPart and TargetPart.Parent and Root and Root.Parent then
-            currentLockCF = computeCurrentTargetLockCF()
-            Root.CFrame = currentLockCF
-        end
-    end)
-
-    Conn = RunService.Heartbeat:Connect(function(dt)
-        -- 1. Check if our own character died or respawned
-        if not Character.Parent or Character ~= LP.Character or not Root.Parent or not Humanoid.Parent or Humanoid.Health <= 0 then
-            Weld:Destroy(true)
-            return
+    local function getCharacterHeightMetrics(char)
+        if not char then return DEFAULT_METRICS end
+        local now = os.clock()
+        local cached = CharMetricsCache[char]
+        if cached and (now - cached.cachedAt) < 0.45 then
+            return cached
         end
 
-        -- 2. Check if target player left the server completely
-        if TargetPlayer and TargetPlayer.Parent ~= Players then
-            Weld:Destroy(false)
-            if stopWeld then pcall(stopWeld) end
-            if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
-            notify("KHAMAN DHOKLA", "Target left server — safely returned")
-            return
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        local root = getRootPart(char)
+        local head = char:FindFirstChild("Head")
+        local uTorso = char:FindFirstChild("UpperTorso")
+        local lTorso = char:FindFirstChild("LowerTorso")
+        local r6Torso = char:FindFirstChild("Torso")
+
+        local torsoH = 2.0
+        if uTorso and lTorso and uTorso:IsA("BasePart") and lTorso:IsA("BasePart") then
+            torsoH = uTorso.Size.Y + lTorso.Size.Y
+        elseif r6Torso and r6Torso:IsA("BasePart") then
+            torsoH = r6Torso.Size.Y
+        elseif root and root:IsA("BasePart") then
+            torsoH = root.Size.Y
         end
 
-        -- 3. Check if target died
-        if TargetHum and TargetHum.Parent and TargetHum.Health <= 0 then
-            Weld:Destroy(false)
-            return
-        end
-
-        -- 4. OMNIPRESENT RE-LOCK: If TargetPart streamed out because target teleported to a hiding spot,
-        --    entered a house/locker/vehicle, or switched character model, dynamically re-acquire or follow!
-        if not TargetPart or not TargetPart.Parent or (TargetPlayer and findPlayerCharacterAnywhere(TargetPlayer) ~= TargetChar) then
-            if TargetPlayer then
-                local newChar = findPlayerCharacterAnywhere(TargetPlayer)
-                local newHum  = newChar and newChar:FindFirstChildOfClass("Humanoid")
-                if newHum and newHum.Health <= 0 then
-                    Weld:Destroy(false)
-                    return
-                end
-                local newPart = newChar and pickTargetRef(newChar, RefMode or "torso")
-                if newPart and newPart.Parent then
-                    TargetChar = newChar
-                    TargetHum  = newHum
-                    TargetPart = newPart
-                    missingFrames = 0
-                else
-                    missingFrames = missingFrames + 1
-                    local hiddenCF = getBestTargetCFrame(TargetPlayer)
-                    if hiddenCF and not isLethalVoidCF(hiddenCF) then
-                        pcall(function() LP:RequestStreamAroundAsync(hiddenCF.Position, 1) end)
-                        Root.CFrame = hiddenCF * Offset
-                        Root.AssemblyLinearVelocity = Vector3.zero
-                        Root.AssemblyAngularVelocity = Vector3.zero
-                        markIntentionalTeleport(Root.CFrame)
-                    end
-                    if missingFrames > 100 then
-                        Weld:Destroy(false)
-                    end
-                    return
-                end
+        local legH = 2.0
+        if hum and hum.RigType == Enum.HumanoidRigType.R15 then
+            if hum.HipHeight and hum.HipHeight > 0.25 then
+                legH = hum.HipHeight
             else
-                Weld:Destroy(false)
-                return
+                local rul = char:FindFirstChild("RightUpperLeg")
+                local rll = char:FindFirstChild("RightLowerLeg")
+                local rf  = char:FindFirstChild("RightFoot")
+                if rul and rll and rul:IsA("BasePart") and rll:IsA("BasePart") then
+                    legH = rul.Size.Y + rll.Size.Y + ((rf and rf:IsA("BasePart") and rf.Size.Y) or 0.3)
+                end
             end
         else
-            missingFrames = 0
-        end
-
-        -- 5. VOID PROTECTION: Only detach if the target is genuinely plummeting in the lethal void killzone
-        local tVel = TargetPart.AssemblyLinearVelocity
-        if isLethalVoidCF(TargetPart.CFrame, tVel) then
-            Weld:Destroy(false)
-            notify("KHAMAN DHOKLA", "Target fell into lethal Void — detached safely!")
-            return
-        end
-
-        -- Keep server streaming focused on the target's root part so they never outrun our client stream
-        local focusPart = (TargetChar and getRootPart(TargetChar)) or TargetPart
-        pcall(function() LP.ReplicationFocus = focusPart end)
-
-        -- Cache target location & update safe standing CFrame when target is on stable ground
-        if TargetPlayer then
-            PlayerLocationCache[TargetPlayer.UserId] = { cf = TargetPart.CFrame, time = tick() }
-        end
-        if not isLethalVoidCF(TargetPart.CFrame, tVel) and math.abs(tVel.Y) < 45 and (not TargetHum or TargetHum.FloorMaterial ~= Enum.Material.Air) then
-            local _, yYaw, _ = TargetPart.CFrame:ToEulerAnglesYXZ()
-            lastSafeCF = CFrame.new(TargetPart.Position + Vector3.new(0, 2.5, 0)) * CFrame.Angles(0, yYaw, 0)
-            LastKnownSafeCF = lastSafeCF
-        end
-
-        local animate = Character:FindFirstChild("Animate")
-        if animate and not animate.Disabled then
-            animate.Disabled = true
-            AnimateWasDisabled = true
-        end
-
-        local speedMult = math.clamp(V.Speed or 1.0, 0.2, 6.0)
-        clock = clock + (dt * speedMult)
-        currentLockCF = computeCurrentTargetLockCF()
-        Root.CFrame = currentLockCF
-        -- Velocity-matched anti-sleep replication: zero lag trail on other players' screens
-        local microWake = Vector3.new(0, math.sin(clock * 24) * 0.03, 0)
-        Root.AssemblyLinearVelocity = (tVel.Magnitude < 160 and (tVel * 0.85) or Vector3.zero) + microWake
-        Root.AssemblyAngularVelocity = Vector3.zero
-        markIntentionalTeleport(Root.CFrame)
-        if sethiddenproperty then pcall(function()
-            sethiddenproperty(Root, "PhysicsRepRootPart", focusPart)
-            if InstanceHandleNew then
-                sethiddenproperty(Root, "PhysicsRepRootRef", InstanceHandleNew(focusPart))
+            local rLeg = char:FindFirstChild("Right Leg") or char:FindFirstChild("Left Leg")
+            if rLeg and rLeg:IsA("BasePart") then
+                legH = rLeg.Size.Y
+            elseif hum and hum.HipHeight and hum.HipHeight > 0.25 then
+                legH = hum.HipHeight + 1.0
             end
-        end) end
-        pcall(function() ensureAnim(false) end)
+        end
+
+        local headH = (head and head:IsA("BasePart") and head.Size.Y) or 1.0
+        local totalH = math.clamp(legH + torsoH + headH, 1.4, 20.0)
+        local scaleY = math.clamp(totalH / 5.0, 0.30, 3.50)
+
+        local bhs = hum and hum:FindFirstChild("BodyHeightScale")
+        if bhs and bhs:IsA("NumberValue") and bhs.Value > 0.1 then
+            scaleY = math.clamp((scaleY * 0.65) + (bhs.Value * 0.35), 0.30, 3.50)
+        end
+
+        local m = cached or {}
+        m.totalH = totalH
+        m.scaleY = scaleY
+        m.legH = legH
+        m.torsoH = torsoH
+        m.headH = headH
+        m.rootH = legH + (torsoH * 0.5)
+        m.uTorso = uTorso
+        m.lTorso = lTorso
+        m.r6Torso = r6Torso
+        m.head = head
+        m.root = root
+        m.cachedAt = now
+        CharMetricsCache[char] = m
+        return m
+    end
+
+    local function getPelvisLocalY(char, root, metrics)
+        if not char or not root then return -0.85 * (metrics and metrics.scaleY or 1.0) end
+        local scaleY = metrics and metrics.scaleY or 1.0
+        local lTorso = metrics and metrics.lTorso
+        local r6Torso = metrics and metrics.r6Torso
+        if lTorso and lTorso.Parent then
+            local hipWorld = lTorso.Position - (lTorso.CFrame.UpVector * (lTorso.Size.Y * 0.35))
+            local rel = root.CFrame:PointToObjectSpace(hipWorld)
+            if rel and rel.Y == rel.Y then
+                return math.clamp(rel.Y, -4.2 * scaleY, 1.5 * scaleY)
+            end
+        elseif r6Torso and r6Torso.Parent then
+            local hipWorld = r6Torso.Position - (r6Torso.CFrame.UpVector * (r6Torso.Size.Y * 0.42))
+            local rel = root.CFrame:PointToObjectSpace(hipWorld)
+            if rel and rel.Y == rel.Y then
+                return math.clamp(rel.Y, -4.2 * scaleY, 1.5 * scaleY)
+            end
+        end
+        return -0.85 * scaleY
+    end
+
+    local function computeDynamicHeightWeld(myChar, myRoot, targetChar, targetPart, refMode, presetKey)
+        if V.AutoHeight == false or not myChar or not targetPart then
+            return 0
+        end
+        local myM = getCharacterHeightMetrics(myChar)
+        local tgM = getCharacterHeightMetrics(targetChar)
+        local key = presetKey or (WeldIntent and WeldIntent.presetKey) or LastPresetKey or ""
+        local myPelvisY = getPelvisLocalY(myChar, myRoot, myM)
+
+        if key == "facebang" then
+            -- Tesla Deo root.70.60 uses exact targetHead.Position.Y + 1.2 (plus subtle scale delta for non-standard rigs)
+            return math.clamp((myM.scaleY - 1.0) * 1.2, -0.8, 0.8)
+        elseif key == "bang" or key == "backshots" then
+            -- Tesla Deo root.70.61 uses targetRoot.Position.Y as base + anatomical hip/pelvis delta for tall/short avatars
+            local tgHipRelY = -0.65 * tgM.scaleY
+            if tgM.lTorso and tgM.lTorso.Parent then
+                local tgHipWorld = tgM.lTorso.Position - (tgM.lTorso.CFrame.UpVector * (tgM.lTorso.Size.Y * 0.20))
+                local rel = targetPart.CFrame:PointToObjectSpace(tgHipWorld)
+                if rel and rel.Y == rel.Y then
+                    tgHipRelY = math.clamp(rel.Y, -3.5 * tgM.scaleY, 2.0 * tgM.scaleY)
+                end
+            elseif tgM.r6Torso and tgM.r6Torso.Parent then
+                local tgHipWorld = tgM.r6Torso.Position - (tgM.r6Torso.CFrame.UpVector * (tgM.r6Torso.Size.Y * 0.35))
+                local rel = targetPart.CFrame:PointToObjectSpace(tgHipWorld)
+                if rel and rel.Y == rel.Y then
+                    tgHipRelY = math.clamp(rel.Y, -3.5 * tgM.scaleY, 2.0 * tgM.scaleY)
+                end
+            end
+            local stdPelvisDrop = -0.65 * myM.scaleY
+            local animDropDelta = math.clamp(stdPelvisDrop - myPelvisY, -1.2, 2.2) * 0.45
+            local heightScaleDelta = ((tgM.scaleY - myM.scaleY) * 0.85) + ((tgM.legH - myM.legH) * 0.28)
+            return math.clamp((tgHipRelY - stdPelvisDrop) + animDropDelta + heightScaleDelta, -3.5, 3.8)
+        elseif key == "headsit" then
+            local headTopY = (tgM.headH * 0.5) + (0.70 * myM.scaleY)
+            return math.clamp(headTopY - 1.2, -2.5, 2.5)
+        elseif key == "kiss" or key == "hug" or key == "headpat" or key == "propose" or key == "backpack" then
+            local headDelta = ((tgM.scaleY - myM.scaleY) * 1.25) + ((tgM.legH - myM.legH) * 0.20)
+            return math.clamp(headDelta, -3.0, 3.2)
+        end
+        return 0
+    end
+
+    local function ensureStreamFocusAt(cfOrPos)
+        local pos = nil
+        if typeof(cfOrPos) == "CFrame" then
+            pos = cfOrPos.Position
+        elseif typeof(cfOrPos) == "Vector3" then
+            pos = cfOrPos
+        end
+        if not pos or pos.X ~= pos.X or pos.Y ~= pos.Y or pos.Z ~= pos.Z or pos.Magnitude > 500000 then return end
         pcall(function()
-            if not Humanoid.PlatformStand then Humanoid.PlatformStand = true end
-            if Humanoid.Sit then Humanoid.Sit = false end
+            if not KhamanStreamProbePart or not KhamanStreamProbePart.Parent then
+                local p = Instance.new("Part")
+                p.Name = "KhamanQuantumStreamProbe"
+                p.Size = Vector3.new(1, 1, 1)
+                p.Transparency = 1
+                p.Anchored = true
+                p.CanCollide = false
+                p.CanTouch = false
+                p.CanQuery = false
+                p.CastShadow = false
+                p.Parent = workspace.CurrentCamera or workspace
+                KhamanStreamProbePart = p
+            end
+            KhamanStreamProbePart.CFrame = CFrame.new(pos)
+            if LP.ReplicationFocus ~= KhamanStreamProbePart then
+                LP.ReplicationFocus = KhamanStreamProbePart
+            end
         end)
-    end)
-
-    return Weld
-end
-
-local function unweld()
-    if CurrentWeld then pcall(function() CurrentWeld:Destroy() end); CurrentWeld = nil end
-    if LP.Character then
-        pcall(function() safeReturnFromVoid(LP.Character, LastKnownSafeCF) end)
     end
-    if not (Anti and Anti.Void and Anti.Void.enabled) and not (Anti and Anti.Kill and Anti.Kill.enabled) then
-        pcall(function() workspace.FallenPartsDestroyHeight = OriginalFPDH end)
+
+    local function touchTargetIntersections(targetChar)
+        local myChar = LP.Character
+        local myRoot = getRootPart(myChar)
+        local tRoot  = getRootPart(targetChar)
+        if not myRoot or not tRoot then return end
+        pcall(function()
+            local parts = workspace:GetPartBoundsInBox(tRoot.CFrame, Vector3.new(8, 8, 8))
+            for _, part in ipairs(parts) do
+                if part and part.Parent and (not myChar or not part:IsDescendantOf(myChar)) and not part:IsDescendantOf(targetChar) then
+                    local pname = part.Name:lower()
+                    local parName = (part.Parent and part.Parent.Name or ""):lower()
+                    local isPortal = pname:find("pipe", 1, true)
+                        or pname:find("tunnel", 1, true)
+                        or pname:find("teleport", 1, true)
+                        or pname:find("portal", 1, true)
+                        or pname:find("enter", 1, true)
+                        or pname:find("warp", 1, true)
+                        or pname:find("door", 1, true)
+                        or parName:find("pipe", 1, true)
+                        or parName:find("tunnel", 1, true)
+                        or parName:find("warp", 1, true)
+                        or parName:find("portal", 1, true)
+                        or (part:FindFirstChildOfClass("TouchTransmitter") ~= nil)
+                    if isPortal and typeof(firetouchinterest) == "function" then
+                        pcall(function() firetouchinterest(myRoot, part, 0) end)
+                        task.defer(function()
+                            pcall(function() firetouchinterest(myRoot, part, 1) end)
+                        end)
+                    end
+                end
+            end
+        end)
     end
-end
 
-local BANG_ANIM_ID = 116235062592344
+    local function getTargetStreamHintCFrame(plr)
+        if not plr then return nil end
+        local best = getBestTargetCFrame(plr)
+        if best then return best end
+        local char = plr.Character or findPlayerCharacterAnywhere(plr)
+        if char then
+            local okP, piv = pcall(function() return char:GetPivot() end)
+            if okP and piv and piv.Position.Magnitude > 0.5 and not isLethalVoidCF(piv) then
+                return getFlatYawCFrame(piv)
+            end
+        end
+        return nil
+    end
 
--- Calibrated offsets for BANG_ANIM_ID (116235062592344):
--- • facebang: Y = -0.15 relative to target Head aligns local waist/pelvis directly with target's face!
--- • backshots: Z = 1.25 behind target Torso with fast 1.15-stud thrust oscillation!
-local WELD_PRESETS = {
-    facebang  = { offset = CFrame.new(0, -0.15, -1.25) * CFrame.Angles(0, math.rad(180), 0),
-                  anim15 = BANG_ANIM_ID, anim6 = BANG_ANIM_ID,
-                  animFallbacks = {128342454196913, 5918726674, 148840371, 4555808220, 109168916859109},
-                  osc = {distance = 1.15, period = 0.16}, refMode = "head", label = "Face Bang" },
-    backshots = { offset = CFrame.new(0, 0, 1.25),
-                  anim15 = BANG_ANIM_ID, anim6 = BANG_ANIM_ID,
-                  animFallbacks = {128342454196913, 5918726674, 148840371, 4555808220, 109168916859109},
-                  osc = {distance = 1.15, period = 0.16}, refMode = "torso", label = "Backshots" },
-    headsit   = { offset = CFrame.new(0, 1.2, 0),
-                  anim15 = 2506281703, anim6 = 2506281703,
-                  animFallbacks = {2510238627, 507768375, 180426354},
-                  osc = nil, refMode = "head", label = "Headsit" },
-    kiss      = { offset = CFrame.new(0, 0, -1.1) * CFrame.Angles(0, math.rad(180), 0),
-                  anim15 = 81124524945738, anim6 = 81124524945738,
-                  animFallbacks = {3576686446, 3019619673, 15849372443},
-                  osc = nil, refMode = "torso", label = "Kiss" },
-    backpack  = { offset = CFrame.new(0, 0, 1.05) * CFrame.Angles(0, math.rad(180), 0),
-                  anim15 = 2506281703, anim6 = 2506281703,
-                  animFallbacks = {2510238627, 507768375, 180426354},
-                  osc = nil, refMode = "torso", label = "Backpack" },
-    headpat   = { offset = CFrame.new(0, 0, -1.9) * CFrame.Angles(0, math.rad(180), 0),
-                  anim15 = 114313599861536, anim6 = 114313599861536,
-                  animFallbacks = {}, osc = nil, refMode = "torso", label = "Headpat" },
-    propose   = { offset = CFrame.new(0, 0, -3.5) * CFrame.Angles(0, math.rad(180), 0),
-                  anim15 = 70639053125611, anim6 = 70639053125611,
-                  animFallbacks = {}, osc = nil, refMode = "torso", label = "Propose" },
-    hug       = { offset = CFrame.new(0, 0, -1.4) * CFrame.Angles(0, math.rad(180), 0),
-                  anim15 = 95247520541805, anim6 = 95247520541805,
-                  animFallbacks = {}, osc = nil, refMode = "torso", label = "Hug" },
-}
+    local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbacks, TargetPlayer, RefMode, PreSeekSafeCF, PresetKey)
+        local Character = Speaker.Character
+        if not Character then return nil end
+        local Root = getRootPart(Character)
+        local Humanoid = Character:FindFirstChildWhichIsA("Humanoid")
+        if not Root or not Humanoid or Humanoid.Health <= 0 then return nil end
 
-WELD_PRESETS.bang = WELD_PRESETS.backshots
+        -- Cancel any pending void-return loop so it never fights our new weld connection
+        RescueGeneration = RescueGeneration + 1
+        Root.Anchored = false
+        breakLocalSeatAndTrapWelds(Character)
 
-WELD_PRESETS.chase = {
-    offset = CFrame.new(0, 0, 2.2),
-    anim15 = nil,
-    anim6  = nil,
-    animFallbacks = {},
-    osc = nil,
-    refMode = "torso",
-    label = "Auto-Chase (Follow)"
-}
+        local TargetChar = (TargetPart and TargetPart.Parent) or (TargetPlayer and findPlayerCharacterAnywhere(TargetPlayer))
+        local TargetHum  = TargetChar and TargetChar:FindFirstChildOfClass("Humanoid")
+        local lastSafeCF = isSafePlayableCF(PreSeekSafeCF) and PreSeekSafeCF
+            or (isSafePlayableCF(LastKnownSafeCF) and LastKnownSafeCF)
+            or (isSafePlayableCF(Root.CFrame) and Root.CFrame)
+            or findFallbackSafeCF()
 
--- Fast cached character resolver: zero-delay O(1) lookup for active characters
-local CustomCharCache = {}
-local CommonCharContainers = { "Characters", "Players", "Entities", "Live", "Units", "Ingame", "Chars" }
+        pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
+        pcall(function() workspace.Gravity = 0 end)
+        pcall(function() Humanoid.Sit = false end)
+        pcall(function() Humanoid.PlatformStand = true end)
+        pcall(function() Humanoid.AutoRotate = false end)
+        forcePhysicsState(Humanoid)
+        killAnimate(Character)
 
-findPlayerCharacterAnywhere = function(plr)
-    if not plr then return nil end
-    if plr.Character and plr.Character.Parent then
-        CustomCharCache[plr.UserId] = { model = plr.Character, lastScan = tick() }
+        -- Clear PhysicsRepRootPart to prevent world-space double-transformation & wake network ownership (Tesla root.70.57)
+        if sethiddenproperty then
+            pcall(function() sethiddenproperty(Root, "PhysicsRepRootPart", nil) end)
+            pcall(function() sethiddenproperty(Root, "PhysicsRepRootRef", nil) end)
+            pcall(function() sethiddenproperty(Root, "NetworkIsSleeping", false) end)
+            pcall(function() sethiddenproperty(LP, "SimulationRadius", 112412400000) end)
+            pcall(function() sethiddenproperty(LP, "MaxSimulationRadius", 112412400000) end)
+        end
+
+        local function applyPhaseNoclip()
+            if not Character or not Character.Parent then return end
+            for _, v in ipairs(getCachedCharParts(Character)) do
+                if v.Parent then
+                    if v.CanCollide then v.CanCollide = false end
+                    if v.CanTouch then v.CanTouch = false end
+                    if v.CanQuery then v.CanQuery = false end
+                    if not v.Massless then v.Massless = true end
+                    if v.Anchored then v.Anchored = false end
+                end
+            end
+            if Humanoid then
+                if Humanoid.Sit then
+                    breakLocalSeatAndTrapWelds(Character)
+                    pcall(function() Humanoid.Sit = false end)
+                end
+                if not Humanoid.PlatformStand then
+                    pcall(function() Humanoid.PlatformStand = true end)
+                end
+            end
+        end
+        applyPhaseNoclip()
+
+        local clock = 0
+        local activePresetKey = PresetKey or (WeldIntent and WeldIntent.presetKey) or LastPresetKey or ""
+
+        local function isFiniteValidCF(cf)
+            if not cf then return false end
+            local p = cf.Position
+            return (p.X == p.X and p.Y == p.Y and p.Z == p.Z and p.Magnitude < 500000)
+        end
+
+        -- Exact Tesla Deo (root.70.60, root.70.61, root.70.62) Height & CFrame Solver
+        local function computeCurrentTargetLockCF()
+            if not TargetPart or not TargetPart.Parent then return nil end
+            local tRoot = (TargetChar and getRootPart(TargetChar)) or TargetPart
+            if not tRoot or not tRoot.Parent then return nil end
+            local tHead = TargetChar and (TargetChar:FindFirstChild("Head") or TargetChar:FindFirstChild("head", true))
+            local validHead = tHead and tHead:IsA("BasePart") and tHead.Parent and ((tHead.Position - tRoot.Position).Magnitude <= 12)
+            local levelRootCF = getFlatYawCFrame(tRoot.CFrame, tRoot.Position)
+
+            local customX = V.X or 0
+            local customY = (V.Y or 0) + (V.LastAutoY or 0)
+            local customZ = (V.Z or 1.3) - 1.3
+            local speedMult = math.clamp(V.Speed or 1.0, 0.2, 6.0)
+
+            if activePresetKey == "facebang" then
+                -- Tesla root.70.60 & fbComputeCFrame: Y = tHead.Position.Y + 1.2 + customY (or +1.65 from tRoot if Head missing)
+                local range = (Osc and Osc.distance) or 2.5
+                local wave = (math.sin(tick() * speedMult * 10) + 1) * 0.5
+                local dist = math.max(0.25, 0.5 + customZ + (wave * range))
+                if validHead then
+                    local look = tHead.CFrame.LookVector
+                    local flatLook = Vector3.new(look.X, 0, look.Z)
+                    if flatLook.Magnitude < 0.001 then
+                        local rLook = levelRootCF.LookVector
+                        flatLook = Vector3.new(rLook.X, 0, rLook.Z)
+                    end
+                    local dir = (flatLook.Magnitude > 0.001) and flatLook.Unit or Vector3.new(0, 0, 1)
+                    local pos = tHead.Position + (dir * dist)
+                    local hPos = Vector3.new(pos.X, tHead.Position.Y + 1.2 + customY, pos.Z)
+                    local lookAtPt = Vector3.new(tHead.Position.X, hPos.Y, tHead.Position.Z)
+                    if (hPos - lookAtPt).Magnitude < 0.001 then
+                        return levelRootCF * CFrame.new(customX, 1.65 + customY, -0.55 - customZ - (wave * range)) * CFrame.Angles(0, math.rad(180), 0)
+                    end
+                    return CFrame.lookAt(hPos, lookAtPt, Vector3.yAxis) * CFrame.new(customX, 0, 0)
+                else
+                    return levelRootCF * CFrame.new(customX, 1.65 + customY, -0.55 - customZ - (wave * range)) * CFrame.Angles(0, math.rad(180), 0)
+                end
+
+            elseif activePresetKey == "backshots" or activePresetKey == "bang" then
+                -- Tesla root.70.61 & hbComputeCFrame: Y = tRoot.Position.Y + customY (aligned with target hips/pelvis)
+                local range = (Osc and Osc.distance) or 2.0
+                local wave = (math.sin(tick() * (speedMult * 2) * 10) + 1) * 0.5
+                local dist = math.max(0.25, 0.5 + customZ + (wave * range))
+                if validHead then
+                    local look = tHead.CFrame.LookVector
+                    local flatLook = Vector3.new(look.X, 0, look.Z)
+                    if flatLook.Magnitude < 0.001 then
+                        local rLook = levelRootCF.LookVector
+                        flatLook = Vector3.new(rLook.X, 0, rLook.Z)
+                    end
+                    local dir = (flatLook.Magnitude > 0.001) and flatLook.Unit or Vector3.new(0, 0, 1)
+                    local baseY = tRoot.Position.Y + customY
+                    local pos = tHead.Position - (dir * dist)
+                    local bPos = Vector3.new(pos.X, baseY, pos.Z)
+                    local lookAtPt = Vector3.new(tHead.Position.X, baseY, tHead.Position.Z)
+                    if (bPos - lookAtPt).Magnitude < 0.001 then
+                        return levelRootCF * CFrame.new(customX, customY, dist)
+                    end
+                    return CFrame.lookAt(bPos, lookAtPt, Vector3.yAxis) * CFrame.new(customX, 0, 0)
+                else
+                    return levelRootCF * CFrame.new(customX, customY, dist)
+                end
+
+            elseif activePresetKey == "headsit" then
+                -- Tesla root.70.62 & hsComputeCFrame: Y = tHead.Position.Y + 1.5 (or +1.9 from tRoot)
+                if validHead then
+                    return getFlatYawCFrame(tHead.CFrame, tHead.Position) * CFrame.new(customX, 1.5 + customY, customZ)
+                else
+                    return levelRootCF * CFrame.new(customX, 1.9 + customY, customZ)
+                end
+            end
+
+            local basePos = Offset.Position
+            local baseRot = Offset - basePos
+            local localOffset = CFrame.new(basePos.X + customX, basePos.Y + customY, basePos.Z + customZ) * baseRot
+            if Osc and Osc.period and Osc.period > 0 then
+                local phase = (math.sin(clock * (2 * math.pi) / Osc.period) + 1) * 0.5
+                localOffset = localOffset * CFrame.new(0, 0, -Osc.distance * phase)
+            end
+            local anchorPos = (RefMode == "head" and validHead) and tHead.Position or tRoot.Position
+            local yawSourceCF = (RefMode == "head" and validHead) and tHead.CFrame or tRoot.CFrame
+            return getFlatYawCFrame(yawSourceCF, anchorPos) * localOffset
+        end
+
+        local Weld = { destroyed = false }
+        local currentLockCF = nil
+
+        -- 5-Stage Sub-Frame Zero-Delay Lock Applicator
+        local function applyZeroDelaySubFrame()
+            if Weld.destroyed then return end
+            if not Root or not Root.Parent or not TargetPart or not TargetPart.Parent then return end
+            local tVel = TargetPart.AssemblyLinearVelocity
+            if isLethalVoidCF(TargetPart.CFrame, tVel) then return end
+            local cf = computeCurrentTargetLockCF()
+            if not cf or not isFiniteValidCF(cf) then return end
+            currentLockCF = cf
+            markIntentionalTeleport(cf)
+
+            if sethiddenproperty then
+                pcall(sethiddenproperty, Root, "PhysicsRepRootPart", nil)
+                pcall(sethiddenproperty, Root, "PhysicsRepRootRef", nil)
+                pcall(sethiddenproperty, Root, "NetworkIsSleeping", false)
+            end
+            Root.Anchored = false
+            Root.CFrame = cf
+            local microWake = Vector3.new(0, math.sin(tick() * 30) * 0.03, 0)
+            local matchVel = (tVel.Magnitude < 165 and tVel or Vector3.zero) + microWake
+            Root.AssemblyLinearVelocity = matchVel
+            Root.AssemblyAngularVelocity = Vector3.zero
+            pcall(function()
+                Root.Velocity = matchVel
+                Root.RotVelocity = Vector3.zero
+            end)
+        end
+
+        -- STAGE 0: Immediate Synchronous Frame-0 Lock
+        if TargetPart and TargetPart.Parent then
+            V.LastAutoY = computeDynamicHeightWeld(Character, Root, TargetChar, TargetPart, RefMode, activePresetKey)
+            applyZeroDelaySubFrame()
+        end
+
+        -- ZERO-DELAY FRAME-0 ANIMATION: Start animation immediately without any task.wait!
+        local AnimTrack, AnimInstance = nil, nil
+        local animAttempts = 0
+
+        local function ensureAnim(force)
+            if not AnimationId or Weld.destroyed then return end
+            if AnimTrack and not force then
+                local ip = false
+                pcall(function()
+                    ip = AnimTrack.IsPlaying
+                    if ip and AnimTrack.Length > 0 and AnimTrack.TimePosition >= (AnimTrack.Length - 0.04) then
+                        AnimTrack.TimePosition = 0
+                    end
+                end)
+                if ip then
+                    pcall(function() AnimTrack:AdjustSpeed(math.clamp(V.Speed or 1.0, 0.2, 6.0)) end)
+                    return
+                end
+            end
+            animAttempts = animAttempts + 1
+            if not force and animAttempts % 8 ~= 0 and AnimTrack then return end
+            local Animator = Character:FindFirstChildWhichIsA("Animator", true)
+            if not Animator and Humanoid then
+                Animator = Instance.new("Animator")
+                Animator.Parent = Humanoid
+            end
+            if not Animator then return end
+            local track, anim = startInstantAnimTrack(Animator, AnimationId, AnimFallbacks, Humanoid)
+            if track then
+                if AnimTrack and AnimTrack ~= track then
+                    pcall(function() AnimTrack:Stop(0); AnimTrack:Destroy() end)
+                end
+                if AnimInstance and AnimInstance ~= anim then
+                    pcall(function() AnimInstance:Destroy() end)
+                end
+                AnimTrack = track
+                AnimInstance = anim
+            end
+        end
+        ensureAnim(true)
+
+        local Conn = nil
+        local RenderConn = nil
+        local StepConn = nil
+        local lastStreamReqTick = 0
+        local lastPortalCheckTick = 0
+        local lastKnownTargetPos = (TargetPart and TargetPart.Parent and TargetPart.Position) or nil
+
+        function Weld:Destroy(skipReturn)
+            if self.destroyed then return end
+            self.destroyed = true
+            pcall(function() RunService:UnbindFromRenderStep("KhamanWeldPreCam") end)
+            pcall(function() RunService:UnbindFromRenderStep("KhamanWeldPostCam") end)
+            if Conn then Conn:Disconnect(); Conn = nil end
+            if RenderConn then RenderConn:Disconnect(); RenderConn = nil end
+            if StepConn then StepConn:Disconnect(); StepConn = nil end
+            pcall(function() LP.ReplicationFocus = nil end)
+            if KhamanStreamProbePart and KhamanStreamProbePart.Parent then
+                pcall(function() KhamanStreamProbePart:Destroy() end)
+                KhamanStreamProbePart = nil
+            end
+            if Root and sethiddenproperty then
+                pcall(function() sethiddenproperty(Root, "PhysicsRepRootPart", nil) end)
+                pcall(function() sethiddenproperty(Root, "PhysicsRepRootRef", nil) end)
+            end
+            pcall(function() workspace.Gravity = 196.2 end)
+            if AnimTrack then
+                pcall(function() AnimTrack:Stop(0) end)
+                pcall(function() AnimTrack:Destroy() end)
+                AnimTrack = nil
+            end
+            if AnimInstance then
+                pcall(function() AnimInstance:Destroy() end)
+                AnimInstance = nil
+            end
+            if CurrentWeld == self then
+                CurrentWeld = nil
+            end
+            if not skipReturn then
+                LastVoidActionEnd = tick()
+                local stayCF = (Root and Root.Parent and isSafePlayableCF(Root.CFrame)) and getFlatYawCFrame(Root.CFrame) or lastSafeCF
+                markIntentionalTeleport(stayCF)
+                safeReturnFromVoid(Character, stayCF)
+                if LP.Character and LP.Character ~= Character then
+                    safeReturnFromVoid(LP.Character, stayCF)
+                end
+            end
+        end
+
+        -- STAGE 1: Pre-Simulation Stepped Pass
+        StepConn = RunService.Stepped:Connect(function()
+            if Weld.destroyed then return end
+            applyPhaseNoclip()
+            applyZeroDelaySubFrame()
+        end)
+
+        -- STAGE 2: RenderStepped Pass
+        RenderConn = RunService.RenderStepped:Connect(function()
+            if Weld.destroyed then return end
+            applyZeroDelaySubFrame()
+        end)
+
+        -- STAGE 3: Pre-Camera & Post-Camera RenderStep Bindings
+        pcall(function() RunService:UnbindFromRenderStep("KhamanWeldPreCam") end)
+        pcall(function() RunService:UnbindFromRenderStep("KhamanWeldPostCam") end)
+        pcall(function()
+            RunService:BindToRenderStep("KhamanWeldPreCam", Enum.RenderPriority.Camera.Value - 1, function()
+                if Weld.destroyed then return end
+                applyZeroDelaySubFrame()
+            end)
+            RunService:BindToRenderStep("KhamanWeldPostCam", Enum.RenderPriority.Camera.Value + 1, function()
+                if Weld.destroyed then return end
+                applyZeroDelaySubFrame()
+            end)
+        end)
+
+        -- STAGE 4: Post-Simulation Heartbeat Pass
+        Conn = RunService.Heartbeat:Connect(function(dt)
+            if not Character.Parent or Character ~= LP.Character or not Root.Parent or not Humanoid.Parent or Humanoid.Health <= 0 then
+                Weld:Destroy(true)
+                return
+            end
+
+            if TargetPlayer and TargetPlayer.Parent ~= Players then
+                if WeldIntent.autoNearest and not selectedPlayer then
+                    local nextPlr = resolvePlayer(nil, LP)
+                    if nextPlr and nextPlr ~= TargetPlayer and nextPlr.Parent == Players then
+                        TargetPlayer = nextPlr
+                        CurrentTarget = nextPlr
+                        WeldIntent.target = nextPlr
+                        LastWeldTargetUserId = nextPlr.UserId
+                        TargetChar = findPlayerCharacterAnywhere(nextPlr)
+                        TargetHum = TargetChar and TargetChar:FindFirstChildOfClass("Humanoid")
+                        TargetPart = TargetChar and pickTargetRef(TargetChar, RefMode or "torso")
+                        notify("KHAMAN DHOKLA", "Target left — auto-switched to " .. nextPlr.Name)
+                        return
+                    end
+                end
+                WeldIntent.waitingForSpawn = true
+                Weld:Destroy(false)
+                if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
+                notify("KHAMAN DHOKLA", "Target left server — queued for auto-attach if they rejoin")
+                return
+            end
+
+            local speedMult = math.clamp(V.Speed or 1.0, 0.2, 6.0)
+            clock = clock + (dt * speedMult)
+
+            local latestChar = TargetPlayer and findPlayerCharacterAnywhere(TargetPlayer) or TargetChar
+            if latestChar and latestChar ~= TargetChar then
+                TargetChar = latestChar
+                TargetHum  = latestChar:FindFirstChildOfClass("Humanoid")
+                TargetPart = pickTargetRef(latestChar, RefMode or "torso")
+            end
+
+            if TargetHum and TargetHum.Parent and TargetHum.Health <= 0 then
+                WeldIntent.waitingForSpawn = true
+                if isSafePlayableCF(lastSafeCF) then
+                    local waitCF = getFlatYawCFrame(lastSafeCF)
+                    markIntentionalTeleport(waitCF)
+                    Root.CFrame = waitCF
+                    Root.AssemblyLinearVelocity = Vector3.zero
+                    Root.AssemblyAngularVelocity = Vector3.zero
+                end
+                return
+            end
+
+            if not TargetPart or not TargetPart.Parent then
+                TargetChar = TargetPlayer and findPlayerCharacterAnywhere(TargetPlayer) or nil
+                TargetHum  = TargetChar and TargetChar:FindFirstChildOfClass("Humanoid")
+                if TargetHum and TargetHum.Health <= 0 then
+                    WeldIntent.waitingForSpawn = true
+                    return
+                end
+                TargetPart = TargetChar and pickTargetRef(TargetChar, RefMode or "torso") or nil
+                if not TargetPart or not TargetPart.Parent then
+                    local hintCF = getTargetStreamHintCFrame(TargetPlayer)
+                    if hintCF and not isLethalVoidCF(hintCF) then
+                        ensureStreamFocusAt(hintCF)
+                        local nowT = tick()
+                        if nowT - lastStreamReqTick >= 0.20 then
+                            lastStreamReqTick = nowT
+                            task.spawn(function()
+                                pcall(function() LP:RequestStreamAroundAsync(hintCF.Position, 3) end)
+                            end)
+                        end
+                        local seekCF = getFlatYawCFrame(hintCF) * CFrame.new(0, 2, 0)
+                        markIntentionalTeleport(seekCF)
+                        Root.CFrame = seekCF
+                        Root.AssemblyLinearVelocity = Vector3.zero
+                        Root.AssemblyAngularVelocity = Vector3.zero
+                    end
+                    return
+                end
+            end
+
+            WeldIntent.waitingForSpawn = false
+
+            local tVel = TargetPart.AssemblyLinearVelocity
+            if isLethalVoidCF(TargetPart.CFrame, tVel) then
+                WeldIntent.waitingForSpawn = true
+                if isSafePlayableCF(lastSafeCF) then
+                    local waitCF = getFlatYawCFrame(lastSafeCF)
+                    markIntentionalTeleport(waitCF)
+                    Root.CFrame = waitCF
+                    Root.AssemblyLinearVelocity = Vector3.zero
+                    Root.AssemblyAngularVelocity = Vector3.zero
+                end
+                return
+            end
+
+            local focusPart = (TargetChar and getRootPart(TargetChar)) or TargetPart
+            pcall(function()
+                if LP.ReplicationFocus ~= focusPart then
+                    LP.ReplicationFocus = focusPart
+                end
+            end)
+            if focusPart and focusPart.Parent then
+                local curTPos = focusPart.Position
+                if lastKnownTargetPos and (curTPos - lastKnownTargetPos).Magnitude > 20 then
+                    task.spawn(function()
+                        pcall(function() LP:RequestStreamAroundAsync(curTPos, 3) end)
+                    end)
+                end
+                lastKnownTargetPos = curTPos
+                local nowP = tick()
+                if nowP - lastPortalCheckTick >= 0.35 then
+                    lastPortalCheckTick = nowP
+                    if TargetChar then
+                        touchTargetIntersections(TargetChar)
+                    end
+                end
+            end
+
+            if TargetPlayer and focusPart then
+                PlayerLocationCache[TargetPlayer.UserId] = {
+                    cf = getFlatYawCFrame(focusPart.CFrame, focusPart.Position),
+                    time = tick(),
+                    streamed = true,
+                    part = focusPart,
+                }
+            end
+            if not isLethalVoidCF(TargetPart.CFrame, tVel) and math.abs(tVel.Y) < 55 then
+                local _, yYaw, _ = TargetPart.CFrame:ToEulerAnglesYXZ()
+                lastSafeCF = CFrame.new(TargetPart.Position + Vector3.new(0, 2.2, 0)) * CFrame.Angles(0, yYaw, 0)
+                LastKnownSafeCF = lastSafeCF
+            end
+
+            local animate = Character:FindFirstChild("Animate")
+            if animate and not animate.Disabled then
+                animate.Disabled = true
+                AnimateWasDisabled = true
+            end
+
+            local autoY = computeDynamicHeightWeld(Character, Root, TargetChar, TargetPart, RefMode, activePresetKey)
+            V.LastAutoY = (V.LastAutoY or 0) + (autoY - (V.LastAutoY or 0)) * math.clamp((dt or 1/60) * 18, 0, 1)
+
+            applyZeroDelaySubFrame()
+            pcall(function() ensureAnim(false) end)
+            pcall(function()
+                if not Humanoid.PlatformStand then Humanoid.PlatformStand = true end
+                if Humanoid.Sit then Humanoid.Sit = false end
+            end)
+        end)
+
+        return Weld
+    end
+
+    local function unweld(skipReturn)
+        if CurrentWeld then
+            pcall(function() CurrentWeld:Destroy(skipReturn) end)
+            CurrentWeld = nil
+        elseif not skipReturn and LP.Character then
+            pcall(function() safeReturnFromVoid(LP.Character, LastKnownSafeCF) end)
+        end
+        pcall(function() workspace.Gravity = 196.2 end)
+        if not (Anti and Anti.Void and Anti.Void.enabled) and not (Anti and Anti.InfFallVoid and Anti.InfFallVoid.enabled) and not (Anti and Anti.Kill and Anti.Kill.enabled) then
+            pcall(function() workspace.FallenPartsDestroyHeight = OriginalFPDH end)
+        end
+    end
+
+    local BANG_ANIM_ID = 116235062592344
+    local BANG_FALLBACKS_R15 = { 116235062592344, 85194549268064, 5918726674, 10714010337, 4555808220, 5915714366, 128342454196913, 109168916859109, 3333499508, 507771019 }
+    local BANG_FALLBACKS_R6  = { 116235062592344, 178130996, 148840371, 182436842, 180435571, 182435998 }
+
+    WELD_PRESETS = {
+        facebang  = { offset = CFrame.new(0, 1.2, -1.5) * CFrame.Angles(0, math.rad(180), 0),
+                      anim15 = BANG_ANIM_ID, anim6 = BANG_ANIM_ID,
+                      animFallbacks = BANG_FALLBACKS_R15, animFallbacks6 = BANG_FALLBACKS_R6,
+                      osc = {distance = 2.5, period = 0.20}, refMode = "head", label = "Face Bang" },
+        backshots = { offset = CFrame.new(0, 0, 1.2),
+                      anim15 = BANG_ANIM_ID, anim6 = BANG_ANIM_ID,
+                      animFallbacks = BANG_FALLBACKS_R15, animFallbacks6 = BANG_FALLBACKS_R6,
+                      osc = {distance = 2.0, period = 0.20}, refMode = "torso", label = "Backshots" },
+        headsit   = { offset = CFrame.new(0, 1.5, 0),
+                      anim15 = 2506281703, anim6 = 178130996,
+                      animFallbacks = {2510238627, 507768375, 180426354},
+                      animFallbacks6 = {178130996, 180426354, 182435998},
+                      osc = nil, refMode = "head", label = "Headsit" },
+        kiss      = { offset = CFrame.new(0, 0, -1.1) * CFrame.Angles(0, math.rad(180), 0),
+                      anim15 = 81124524945738, anim6 = 81124524945738,
+                      animFallbacks = {3576686446, 3019619673, 15849372443},
+                      osc = nil, refMode = "torso", label = "Kiss" },
+        backpack  = { offset = CFrame.new(0, 0.5, 1.1),
+                      anim15 = 109031585977967, anim6 = 2506281703,
+                      animFallbacks = {2506281703, 2510238627, 507768375, 180426354},
+                      osc = nil, refMode = "torso", label = "Backpack" },
+        headpat   = { offset = CFrame.new(0, 0, -2.5) * CFrame.Angles(0, math.rad(180), 0),
+                      anim15 = 114022540397953, anim6 = 114313599861536,
+                      animFallbacks = {114313599861536, 3344650532}, osc = nil, refMode = "torso", label = "Headpat" },
+        propose   = { offset = CFrame.new(0, -1.0, -2.5) * CFrame.Angles(0, math.rad(180), 0),
+                      anim15 = 107416091886634, anim6 = 70639053125611,
+                      animFallbacks = {70639053125611}, osc = nil, refMode = "torso", label = "Propose" },
+        hug       = { offset = CFrame.new(0, 0, -1.2) * CFrame.Angles(0, math.rad(180), 0),
+                      anim15 = 117991975031893, anim6 = 95247520541805,
+                      animFallbacks = {95247520541805}, osc = nil, refMode = "torso", label = "Hug" },
+    }
+    WELD_PRESETS.bang = WELD_PRESETS.backshots
+    WELD_PRESETS.chase = {
+        offset = CFrame.new(0, 0, 2.2),
+        anim15 = nil,
+        anim6  = nil,
+        animFallbacks = {},
+        osc = nil,
+        refMode = "torso",
+        label = "Auto-Chase (Follow)"
+    }
+
+    local CustomCharCache = {}
+    local CommonCharContainers = { "Characters", "Players", "Entities", "Live", "Units", "Ingame", "Chars", "Avatars", "Rigs", "SpawnedCharacters", "PlayerModels", "Map" }
+
+    local function isVerifiedPlayerCharacter(model, plr)
+        if not model or not model:IsA("Model") or model == LP.Character then return false end
+        local okPlr, ownerPlr = pcall(function() return Players:GetPlayerFromCharacter(model) end)
+        if okPlr and ownerPlr == plr then return true end
+        if okPlr and ownerPlr and ownerPlr ~= plr then return false end
+        local uidAttr = model:GetAttribute("UserId") or model:GetAttribute("PlayerUserId") or model:GetAttribute("OwnerId")
+        if uidAttr and tonumber(uidAttr) == plr.UserId then return true end
+        local mName = model.Name
+        if mName == plr.Name or mName == plr.DisplayName or mName:lower() == plr.Name:lower() then
+            if model:FindFirstChildOfClass("Humanoid") or model:FindFirstChild("HumanoidRootPart") or model.PrimaryPart or model:FindFirstChild("Head") or model:FindFirstChild("Torso") or model:FindFirstChild("UpperTorso") or model:FindFirstChildWhichIsA("BasePart", true) then
+                return true
+            end
+        end
+        return false
+    end
+
+    local function scanFolderRecursive(container, plr, depth)
+        if not container or depth > 3 then return nil end
+        for _, child in ipairs(container:GetChildren()) do
+            if isVerifiedPlayerCharacter(child, plr) then
+                return child
+            elseif (child:IsA("Folder") or child:IsA("Model")) and depth < 3 then
+                local okP, ownerP = pcall(function() return Players:GetPlayerFromCharacter(child) end)
+                if not (okP and ownerP) then
+                    local sub = scanFolderRecursive(child, plr, depth + 1)
+                    if sub then return sub end
+                end
+            end
+        end
+        return nil
+    end
+
+    findPlayerCharacterAnywhere = function(plr)
+        if not plr then return nil end
+        if plr.Character and plr.Character.Parent then
+            CustomCharCache[plr.UserId] = { model = plr.Character, lastScan = tick() }
+            return plr.Character
+        end
+        local cached = CustomCharCache[plr.UserId]
+        if cached and cached.model and cached.model.Parent and isVerifiedPlayerCharacter(cached.model, plr) then
+            return cached.model
+        end
+        local direct = workspace:FindFirstChild(plr.Name)
+        if direct and isVerifiedPlayerCharacter(direct, plr) then
+            CustomCharCache[plr.UserId] = { model = direct, lastScan = tick() }
+            return direct
+        end
+        for _, folderName in ipairs(CommonCharContainers) do
+            local folder = workspace:FindFirstChild(folderName)
+            if folder then
+                local found = folder:FindFirstChild(plr.Name)
+                if found and isVerifiedPlayerCharacter(found, plr) then
+                    CustomCharCache[plr.UserId] = { model = found, lastScan = tick() }
+                    return found
+                end
+                local deepFound = scanFolderRecursive(folder, plr, 1)
+                if deepFound then
+                    CustomCharCache[plr.UserId] = { model = deepFound, lastScan = tick() }
+                    return deepFound
+                end
+            end
+        end
+        local now = tick()
+        if not cached or (now - (cached.lastScan or 0)) > 0.6 then
+            CustomCharCache[plr.UserId] = { model = nil, lastScan = now }
+            for _, child in ipairs(workspace:GetChildren()) do
+                if isVerifiedPlayerCharacter(child, plr) then
+                    CustomCharCache[plr.UserId] = { model = child, lastScan = now }
+                    return child
+                end
+            end
+            local byName = workspace:FindFirstChild(plr.Name, true)
+            if byName and isVerifiedPlayerCharacter(byName, plr) then
+                CustomCharCache[plr.UserId] = { model = byName, lastScan = now }
+                return byName
+            end
+        end
         return plr.Character
     end
-    local cached = CustomCharCache[plr.UserId]
-    if cached and cached.model and cached.model.Parent then
-        return cached.model
-    end
-    local direct = workspace:FindFirstChild(plr.Name)
-    if direct and direct:IsA("Model") then
-        CustomCharCache[plr.UserId] = { model = direct, lastScan = tick() }
-        return direct
-    end
-    for _, folderName in ipairs(CommonCharContainers) do
-        local folder = workspace:FindFirstChild(folderName)
-        local found = folder and folder:FindFirstChild(plr.Name)
-        if found and found:IsA("Model") then
-            CustomCharCache[plr.UserId] = { model = found, lastScan = tick() }
-            return found
-        end
-    end
-    local now = tick()
-    if not cached or (now - (cached.lastScan or 0)) > 1.5 then
-        CustomCharCache[plr.UserId] = { model = nil, lastScan = now }
-        local byName = workspace:FindFirstChild(plr.Name, true)
-        if byName and byName:IsA("Model") and (byName:FindFirstChildOfClass("Humanoid") or byName.PrimaryPart or byName:FindFirstChildWhichIsA("BasePart", true)) then
-            CustomCharCache[plr.UserId] = { model = byName, lastScan = now }
-            return byName
-        end
-    end
-    return plr.Character
-end
 
--- Deep fallback reference part resolver: works even when HumanoidRootPart or Head is missing/renamed/seated
-pickTargetRef = function(char, mode)
-    if not char then return nil end
-    if mode == "head" then
-        local h = char:FindFirstChild("Head") or char:FindFirstChild("head", true)
-        if h and h:IsA("BasePart") then return h end
-        for _, desc in ipairs(getCachedCharParts(char)) do
-            if desc.Name:lower():find("head", 1, true) then
-                return desc
+    pickTargetRef = function(char, mode)
+        if not char or not char.Parent then return nil end
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+            or (hum and hum.RootPart)
+            or char.PrimaryPart
+            or char:FindFirstChild("UpperTorso")
+            or char:FindFirstChild("LowerTorso")
+            or char:FindFirstChild("Torso")
+        if mode == "head" then
+            local h = char:FindFirstChild("Head") or char:FindFirstChild("head", true)
+            if h and h:IsA("BasePart") then
+                if not hrp or (h.Position - hrp.Position).Magnitude <= 12 then
+                    return h
+                end
+            end
+            for _, desc in ipairs(getCachedCharParts(char)) do
+                if desc.Name:lower():find("head", 1, true) then
+                    if not hrp or (desc.Position - hrp.Position).Magnitude <= 12 then
+                        return desc
+                    end
+                end
             end
         end
+        if hrp and hrp:IsA("BasePart") then return hrp end
+        local headFallback = char:FindFirstChild("Head")
+        if headFallback and headFallback:IsA("BasePart") then return headFallback end
+        if hum and hum.SeatPart and hum.SeatPart:IsA("BasePart") then
+            return hum.SeatPart
+        end
+        return char:FindFirstChildWhichIsA("BasePart", true)
     end
-    local hum = char:FindFirstChildOfClass("Humanoid")
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-        or (hum and hum.RootPart)
-        or char.PrimaryPart
-        or char:FindFirstChild("UpperTorso")
-        or char:FindFirstChild("LowerTorso")
-        or char:FindFirstChild("Torso")
-        or char:FindFirstChild("Head")
-    if hrp and hrp:IsA("BasePart") then return hrp end
-    if hum and hum.SeatPart and hum.SeatPart:IsA("BasePart") then
-        return hum.SeatPart
-    end
-    return char:FindFirstChildWhichIsA("BasePart", true)
-end
 
--- Resolve a player's CFrame even when their Character's BaseParts are 100% streamed out by StreamingEnabled!
-getBestTargetCFrame = function(plr)
-    if not plr then return nil end
-    local char = findPlayerCharacterAnywhere(plr)
-    if char then
-        local part = pickTargetRef(char, "torso")
-        if part and part.Parent then
-            local cf = part.CFrame
-            if not isLethalVoidCF(cf, part.AssemblyLinearVelocity) then
-                PlayerLocationCache[plr.UserId] = { cf = cf, time = tick() }
-                return cf
+    getBestTargetCFrame = function(plr)
+        if not plr then return nil end
+        local char = findPlayerCharacterAnywhere(plr)
+        if char and char.Parent then
+            local part = pickTargetRef(char, "torso")
+            if part and part.Parent then
+                local cf = getFlatYawCFrame(part.CFrame, part.Position)
+                if not isLethalVoidCF(cf, part.AssemblyLinearVelocity) then
+                    PlayerLocationCache[plr.UserId] = { cf = cf, time = tick(), streamed = true, part = part }
+                    return cf
+                end
+            end
+            local okPivot, pivotCF = pcall(function() return char:GetPivot() end)
+            if okPivot and pivotCF and pivotCF.Position.Magnitude > 0.5 and pivotCF.Position.Magnitude < 450000 and not isLethalVoidCF(pivotCF) then
+                local cleanPiv = getFlatYawCFrame(pivotCF)
+                PlayerLocationCache[plr.UserId] = { cf = cleanPiv, time = tick(), streamed = false }
+                return cleanPiv
+            end
+            local okWP, wpCF = pcall(function() return char.WorldPivot end)
+            if okWP and wpCF and wpCF.Position.Magnitude > 0.5 and wpCF.Position.Magnitude < 450000 and not isLethalVoidCF(wpCF) then
+                local cleanWP = getFlatYawCFrame(wpCF)
+                PlayerLocationCache[plr.UserId] = { cf = cleanWP, time = tick(), streamed = false }
+                return cleanWP
             end
         end
-        local okPivot, pivotCF = pcall(function() return char:GetPivot() end)
-        if okPivot and pivotCF and pivotCF.Position.Magnitude > 0.5 and not isLethalVoidCF(pivotCF) then
-            PlayerLocationCache[plr.UserId] = { cf = pivotCF, time = tick() }
-            return pivotCF
+        local cached = PlayerLocationCache[plr.UserId]
+        if cached and cached.cf and not isLethalVoidCF(cached.cf) then
+            return cached.cf
         end
-        local okWP, wpCF = pcall(function() return char.WorldPivot end)
-        if okWP and wpCF and wpCF.Position.Magnitude > 0.5 and not isLethalVoidCF(wpCF) then
-            PlayerLocationCache[plr.UserId] = { cf = wpCF, time = tick() }
-            return wpCF
-        end
+        return nil
     end
-    local cached = PlayerLocationCache[plr.UserId]
-    if cached and cached.cf and not isLethalVoidCF(cached.cf) then
-        return cached.cf
-    end
-    return nil
-end
 
--- Zero-delay continuous Heartbeat position & pivot tracker
-RunService.Heartbeat:Connect(function()
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= LP then
-            pcall(function() getBestTargetCFrame(p) end)
-        end
-    end
-end)
-
--- Active Stream-Piercer & Server Hiding-Spot Seeker:
--- Returns synchronously in 0.00s when target is already streamed!
-streamAndTeleportToTarget = function(targetPlr, refMode, maxWaitSeconds, allowSweep)
-    if not targetPlr or targetPlr.Parent ~= Players then return nil, nil end
-    maxWaitSeconds = maxWaitSeconds or 2.0
-    local myChar = LP.Character
-    local myRoot = getRootPart(myChar)
-
-    if myChar then
-        breakLocalSeatAndTrapWelds(myChar)
-        for _, v in ipairs(getCachedCharParts(myChar)) do
-            if v.Parent then
-                v.CanCollide = false
-                v.CanTouch = false
-                v.Anchored = false
+    local lastStreamKeepAlive = 0
+    RunService.Heartbeat:Connect(function()
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= LP then
+                pcall(function() getBestTargetCFrame(p) end)
             end
         end
-    end
+        local now = tick()
+        if WeldIntent.active and WeldIntent.target and WeldIntent.target.Parent == Players and (now - lastStreamKeepAlive >= 1.2) then
+            lastStreamKeepAlive = now
+            local hintCF = getTargetStreamHintCFrame(WeldIntent.target)
+            if hintCF and typeof(LP.RequestStreamAroundAsync) == "function" then
+                task.spawn(function()
+                    pcall(function() LP:RequestStreamAroundAsync(hintCF.Position, 3) end)
+                end)
+            end
+        end
+    end)
 
-    -- 0.00s Zero-Delay Fast Path: if target part is already streamed, return immediately without yielding!
-    local tChar = findPlayerCharacterAnywhere(targetPlr)
-    local tHum  = tChar and tChar:FindFirstChildOfClass("Humanoid")
-    if tHum and tHum.Health <= 0 then
-        return tChar, nil
-    end
-    local tRef = tChar and pickTargetRef(tChar, refMode or "torso")
-    if tRef and tRef.Parent then
-        return tChar, tRef
-    end
+    streamAndTeleportToTarget = function(targetPlr, refMode, maxWaitSeconds, allowSweep)
+        if not targetPlr or targetPlr.Parent ~= Players then return nil, nil end
+        maxWaitSeconds = maxWaitSeconds or 2.8
+        local myChar = LP.Character
+        local myRoot = getRootPart(myChar)
 
-    -- Target is in an unstreamed chunk: stream around their replicated Model:GetPivot() or cached location
-    local started = tick()
-    while tick() - started < (maxWaitSeconds * 0.75) do
-        if targetPlr.Parent ~= Players then return nil, nil end
-        tChar = findPlayerCharacterAnywhere(targetPlr)
-        tHum  = tChar and tChar:FindFirstChildOfClass("Humanoid")
-        if tHum and tHum.Health <= 0 then return tChar, nil end
-        tRef  = tChar and pickTargetRef(tChar, refMode or "torso")
+        if myChar then
+            breakLocalSeatAndTrapWelds(myChar)
+            for _, v in ipairs(getCachedCharParts(myChar)) do
+                if v.Parent then
+                    v.CanCollide = false
+                    v.CanTouch = false
+                    v.Massless = true
+                    v.Anchored = false
+                end
+            end
+        end
+
+        local tChar = findPlayerCharacterAnywhere(targetPlr)
+        local tHum  = tChar and tChar:FindFirstChildOfClass("Humanoid")
+        if tHum and tHum.Health <= 0 then
+            return tChar, nil
+        end
+        local tRef = tChar and pickTargetRef(tChar, refMode or "torso")
         if tRef and tRef.Parent then
+            pcall(function() LP.ReplicationFocus = getRootPart(tChar) or tRef end)
             return tChar, tRef
         end
-        local targetCF = getBestTargetCFrame(targetPlr)
-        if targetCF then
+
+        local started = tick()
+        local lastReq = 0
+        while tick() - started < (maxWaitSeconds * 0.75) do
+            if targetPlr.Parent ~= Players then return nil, nil end
+            tChar = findPlayerCharacterAnywhere(targetPlr)
+            tHum  = tChar and tChar:FindFirstChildOfClass("Humanoid")
+            if tHum and tHum.Health <= 0 then return tChar, nil end
+            tRef  = tChar and pickTargetRef(tChar, refMode or "torso")
+            if tRef and tRef.Parent then
+                pcall(function() LP.ReplicationFocus = getRootPart(tChar) or tRef end)
+                return tChar, tRef
+            end
+            local targetCF = getTargetStreamHintCFrame(targetPlr)
+            if targetCF then
+                ensureStreamFocusAt(targetCF)
+                if tick() - lastReq >= 0.18 then
+                    lastReq = tick()
+                    task.spawn(function()
+                        pcall(function() LP:RequestStreamAroundAsync(targetCF.Position, 2) end)
+                    end)
+                end
+                myChar = LP.Character
+                myRoot = getRootPart(myChar)
+                if myRoot then
+                    local hopCF = getFlatYawCFrame(targetCF) * CFrame.new(0, 2, 0)
+                    markIntentionalTeleport(hopCF)
+                    myRoot.AssemblyLinearVelocity = Vector3.zero
+                    myRoot.AssemblyAngularVelocity = Vector3.zero
+                    myRoot.CFrame = hopCF
+                end
+            else
+                break
+            end
+            RunService.Heartbeat:Wait()
+        end
+
+        tChar = findPlayerCharacterAnywhere(targetPlr)
+        tRef  = tChar and pickTargetRef(tChar, refMode or "torso")
+        if tRef and tRef.Parent then
+            pcall(function() LP.ReplicationFocus = getRootPart(tChar) or tRef end)
+            return tChar, tRef
+        end
+
+        if not allowSweep then
+            return tChar, tRef
+        end
+
+        local probePoints = {}
+        for _, child in ipairs(workspace:GetChildren()) do
+            if child:IsA("SpawnLocation") or child:IsA("Seat") or child:IsA("VehicleSeat") then
+                if not isLethalVoidCF(child.CFrame) then
+                    table.insert(probePoints, child.CFrame)
+                end
+            elseif child:IsA("Model") and child ~= LP.Character then
+                local okP, pCF = pcall(function() return child:GetPivot() end)
+                if okP and pCF and pCF.Position.Magnitude > 10 and not isLethalVoidCF(pCF) then
+                    table.insert(probePoints, pCF)
+                end
+            elseif child:IsA("BasePart") and child.Position.Magnitude > 50 and not isLethalVoidCF(child.CFrame) then
+                table.insert(probePoints, child.CFrame)
+            end
+        end
+
+        for idx, probeCF in ipairs(probePoints) do
+            if tick() - started > maxWaitSeconds or idx > 24 then break end
+            tChar = findPlayerCharacterAnywhere(targetPlr)
+            tRef  = tChar and pickTargetRef(tChar, refMode or "torso")
+            if tRef and tRef.Parent then
+                pcall(function() LP.ReplicationFocus = getRootPart(tChar) or tRef end)
+                return tChar, tRef
+            end
+
+            local knownCF = getTargetStreamHintCFrame(targetPlr)
+            local hopCF = knownCF or probeCF
+            ensureStreamFocusAt(hopCF)
             task.spawn(function()
-                pcall(function() LP:RequestStreamAroundAsync(targetCF.Position, 1.5) end)
+                pcall(function() LP:RequestStreamAroundAsync(hopCF.Position, 1.5) end)
             end)
             myChar = LP.Character
             myRoot = getRootPart(myChar)
-            if myRoot then
-                markIntentionalTeleport(targetCF)
+            if myRoot and knownCF then
+                local safeHop = getFlatYawCFrame(knownCF) + Vector3.new(0, 3, 0)
+                markIntentionalTeleport(safeHop)
+                myRoot.CFrame = safeHop
                 myRoot.AssemblyLinearVelocity = Vector3.zero
-                myRoot.AssemblyAngularVelocity = Vector3.zero
-                myRoot.CFrame = targetCF * CFrame.new(0, 2, 0)
             end
-        else
-            break
+            RunService.Heartbeat:Wait()
         end
-        RunService.Heartbeat:Wait()
-    end
 
-    tChar = findPlayerCharacterAnywhere(targetPlr)
-    tRef  = tChar and pickTargetRef(tChar, refMode or "torso")
-    if tRef and tRef.Parent then return tChar, tRef end
-
-    if not allowSweep or not tChar then
+        tChar = findPlayerCharacterAnywhere(targetPlr)
+        tRef  = tChar and pickTargetRef(tChar, refMode or "torso")
         return tChar, tRef
     end
 
-    local probePoints = {}
-    for _, child in ipairs(workspace:GetChildren()) do
-        if child:IsA("SpawnLocation") or child:IsA("Seat") or child:IsA("VehicleSeat") then
-            if not isLethalVoidCF(child.CFrame) then
-                table.insert(probePoints, child.CFrame)
-            end
-        elseif child:IsA("Model") and child ~= LP.Character then
-            local okP, pCF = pcall(function() return child:GetPivot() end)
-            if okP and pCF and pCF.Position.Magnitude > 10 and not isLethalVoidCF(pCF) then
-                table.insert(probePoints, pCF)
-            end
-        elseif child:IsA("BasePart") and child.Position.Magnitude > 50 and not isLethalVoidCF(child.CFrame) then
-            table.insert(probePoints, child.CFrame)
-        end
-    end
+    getNearestPlayer = function(speaker)
+        speaker = speaker or LP
+        local myChar = speaker and speaker.Character
+        local myRoot = getRootPart(myChar)
+        local myPos  = myRoot and myRoot.Position or Vector3.zero
+        local bestPlr, bestDist = nil, math.huge
 
-    for idx, probeCF in ipairs(probePoints) do
-        if tick() - started > maxWaitSeconds or idx > 20 then break end
-        tChar = findPlayerCharacterAnywhere(targetPlr)
-        tRef  = tChar and pickTargetRef(tChar, refMode or "torso")
-        if tRef and tRef.Parent then return tChar, tRef end
-
-        local knownCF = getBestTargetCFrame(targetPlr)
-        local hopCF = knownCF or probeCF
-        task.spawn(function()
-            pcall(function() LP:RequestStreamAroundAsync(hopCF.Position, 1) end)
-        end)
-        myChar = LP.Character
-        myRoot = getRootPart(myChar)
-        if myRoot then
-            markIntentionalTeleport(hopCF)
-            myRoot.CFrame = hopCF + Vector3.new(0, 3, 0)
-            myRoot.AssemblyLinearVelocity = Vector3.zero
-        end
-        RunService.Heartbeat:Wait()
-    end
-
-    tChar = findPlayerCharacterAnywhere(targetPlr)
-    tRef  = tChar and pickTargetRef(tChar, refMode or "torso")
-    return tChar, tRef
-end
-
-local function getNearestPlayer(speaker)
-    speaker = speaker or LP
-    local myChar = speaker and speaker.Character
-    local myRoot = myChar and (myChar:FindFirstChild("HumanoidRootPart") or myChar:FindFirstChildWhichIsA("BasePart"))
-    local myPos  = myRoot and myRoot.Position or Vector3.zero
-    local bestPlr, bestDist = nil, math.huge
-
-    -- 1. First pass: alive players with a known or streamed CFrame
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= speaker then
-            local c = findPlayerCharacterAnywhere(p)
-            local h = c and c:FindFirstChildOfClass("Humanoid")
-            local cf = getBestTargetCFrame(p)
-            if cf and (not h or h.Health > 0) then
-                local d = (cf.Position - myPos).Magnitude
-                if d < bestDist then
-                    bestDist = d
-                    bestPlr = p
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= speaker then
+                local c = findPlayerCharacterAnywhere(p)
+                local h = c and c:FindFirstChildOfClass("Humanoid")
+                local r = c and pickTargetRef(c, "torso")
+                if r and r.Parent and (not h or h.Health > 0) and not isLethalVoidCF(r.CFrame, r.AssemblyLinearVelocity) then
+                    local d = (r.Position - myPos).Magnitude
+                    if d < bestDist then
+                        bestDist = d
+                        bestPlr = p
+                    end
                 end
             end
         end
-    end
-    -- 2. Fallback: even if all players are hiding in unstreamed chunks, still return a valid server player!
-    if not bestPlr then
+        if bestPlr then return bestPlr, bestDist end
+
         for _, p in ipairs(Players:GetPlayers()) do
             if p ~= speaker then
-                return p, math.huge
+                local c = findPlayerCharacterAnywhere(p)
+                local h = c and c:FindFirstChildOfClass("Humanoid")
+                local cf = getBestTargetCFrame(p)
+                if cf and (not h or h.Health > 0) then
+                    local d = (cf.Position - myPos).Magnitude
+                    if d < bestDist then
+                        bestDist = d
+                        bestPlr = p
+                    end
+                end
             end
         end
-    end
-    return bestPlr, bestDist
-end
-
-local function findPlayerByNameOrDisplay(query, speaker)
-    speaker = speaker or LP
-    if not query then return nil end
-    local q = tostring(query):gsub("^%s*@+%s*", ""):gsub("^%s+", ""):gsub("%s+$", ""):lower()
-    if q == "" then return nil end
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= speaker and (p.Name:lower() == q or p.DisplayName:lower() == q) then
-            return p
+        if not bestPlr then
+            for _, p in ipairs(Players:GetPlayers()) do
+                if p ~= speaker then
+                    return p, math.huge
+                end
+            end
         end
+        return bestPlr, bestDist
     end
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= speaker and (p.Name:lower():sub(1, #q) == q or p.DisplayName:lower():sub(1, #q) == q) then
-            return p
-        end
-    end
-    return nil
-end
 
-local function resolvePlayer(target, speaker)
-    speaker = speaker or LP
-    -- Never reject a target just because their Character is currently unstreamed/hiding!
-    if typeof(target) == "Instance" and target:IsA("Player") then
-        if target.Parent == Players and target ~= speaker then return target end
+    findPlayerByNameOrDisplay = function(query, speaker)
+        speaker = speaker or LP
+        if not query then return nil end
+        local q = tostring(query):gsub("^%s*@+%s*", ""):gsub("^%s+", ""):gsub("%s+$", ""):lower()
+        if q == "" then return nil end
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= speaker and (p.Name:lower() == q or p.DisplayName:lower() == q) then
+                return p
+            end
+        end
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= speaker and (p.Name:lower():sub(1, #q) == q or p.DisplayName:lower():sub(1, #q) == q) then
+                return p
+            end
+        end
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= speaker and (p.Name:lower():find(q, 1, true) or p.DisplayName:lower():find(q, 1, true)) then
+                return p
+            end
+        end
+        return nil
+    end
+
+    resolvePlayer = function(target, speaker)
+        speaker = speaker or LP
+        if typeof(target) == "Instance" and target:IsA("Player") then
+            if target.Parent == Players and target ~= speaker then return target end
+            return getNearestPlayer(speaker)
+        end
+        if target ~= nil and tostring(target) ~= "" then
+            local found = findPlayerByNameOrDisplay(target, speaker)
+            if found and found.Parent == Players then return found end
+        end
+        if selectedPlayer and selectedPlayer.Parent == Players then
+            return selectedPlayer
+        end
+        if WeldIntent.active and WeldIntent.target and WeldIntent.target.Parent == Players and WeldIntent.target ~= speaker then
+            return WeldIntent.target
+        end
         return getNearestPlayer(speaker)
     end
-    if target ~= nil and tostring(target) ~= "" then
-        local found = findPlayerByNameOrDisplay(target, speaker)
-        if found and found.Parent == Players then return found end
-    end
-    if selectedPlayer and selectedPlayer.Parent == Players then
-        return selectedPlayer
-    end
-    return getNearestPlayer(speaker)
-end
 
-local function resolveActiveTarget()
-    if selectedPlayer and selectedPlayer.Parent == Players then
-        return selectedPlayer, false
-    end
-    if chatTargetInput and chatTargetInput.Parent then
-        local typed = (chatTargetInput.Text or ""):gsub("^%s*@+%s*", ""):gsub("^%s+", ""):gsub("%s+$", "")
-        if typed ~= "" then
-            local byName = findPlayerByNameOrDisplay(typed, LP)
-            if byName and byName.Parent == Players then
-                return byName, false
-            end
+    resolveActiveTarget = function()
+        if selectedPlayer and selectedPlayer.Parent == Players then
+            return selectedPlayer, false
         end
+        local nearest = getNearestPlayer(LP)
+        return nearest, true
     end
-    local nearest = getNearestPlayer(LP)
-    return nearest, true
-end
 
-local function weldToTarget(target, speaker, offset, animId, osc, refMode, animFallbacks, callerGen)
-    local TPlayer = resolvePlayer(target, speaker)
-    if not TPlayer or TPlayer.Parent ~= Players then return false, nil end
-    local myGen = callerGen or StopGeneration
-    pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
+    local function weldToTarget(target, speaker, offset, animId, osc, refMode, animFallbacks, callerGen, presetKey)
+        local TPlayer = resolvePlayer(target, speaker)
+        if not TPlayer or TPlayer.Parent ~= Players then return false, nil end
+        local myGen = callerGen or StopGeneration
+        pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
 
-    local myChar = speaker and speaker.Character
-    local myRoot = getRootPart(myChar)
-    local preSeekSafeCF = (myRoot and isSafePlayableCF(myRoot.CFrame) and myRoot.CFrame) or LastKnownSafeCF or findFallbackSafeCF()
+        local myChar = speaker and speaker.Character
+        local myRoot = getRootPart(myChar)
+        local preSeekSafeCF = (myRoot and isSafePlayableCF(myRoot.CFrame) and myRoot.CFrame) or LastKnownSafeCF or findFallbackSafeCF()
 
-    -- 0.00s ZERO-DELAY FAST PATH: If target is already streamed in, attach synchronously on this exact frame!
-    local tCharFast = findPlayerCharacterAnywhere(TPlayer)
-    local tHumFast  = tCharFast and tCharFast:FindFirstChildOfClass("Humanoid")
-    local tRootFast = tCharFast and pickTargetRef(tCharFast, refMode or "torso")
-    if myChar and myRoot and tRootFast and tRootFast.Parent and (not tHumFast or tHumFast.Health > 0) then
-        local old = CurrentWeld
-        if old then
+        if CurrentWeld then
+            local old = CurrentWeld
             CurrentWeld = nil
             pcall(function() old:Destroy(true) end)
         end
-        local w = WeldTo(tRootFast, offset, speaker, animId, osc, animFallbacks, TPlayer, refMode or "torso", preSeekSafeCF)
-        CurrentWeld = w
-        if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
+
+        local tCharFast = findPlayerCharacterAnywhere(TPlayer)
+        local tHumFast  = tCharFast and tCharFast:FindFirstChildOfClass("Humanoid")
+        local tRootFast = tCharFast and pickTargetRef(tCharFast, refMode or "torso")
+
+        if myChar and myRoot then
+            if tHumFast and tHumFast.Health <= 0 then
+                WeldIntent.waitingForSpawn = true
+            end
+            local w = WeldTo(tRootFast, offset, speaker, animId, osc, animFallbacks, TPlayer, refMode or "torso", preSeekSafeCF, presetKey)
+            CurrentWeld = w
+            if not (tRootFast and tRootFast.Parent) then
+                task.spawn(function()
+                    if myGen ~= StopGeneration then return end
+                    streamAndTeleportToTarget(TPlayer, refMode or "torso", 3.5, true)
+                end)
+            end
+            if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
+            return true, TPlayer
+        end
+
+        task.spawn(function()
+            local waitStart = tick()
+            while (not myChar or not myRoot) and tick() - waitStart < 5.0 do
+                if myGen ~= StopGeneration then return end
+                RunService.Heartbeat:Wait()
+                myChar = speaker and speaker.Character
+                myRoot = getRootPart(myChar)
+            end
+            if not myChar or not myRoot or myGen ~= StopGeneration then return end
+
+            local _, TRoot = streamAndTeleportToTarget(TPlayer, refMode or "torso", 3.0, true)
+            if myGen ~= StopGeneration then return end
+
+            local old = CurrentWeld
+            if old then
+                CurrentWeld = nil
+                pcall(function() old:Destroy(true) end)
+            end
+
+            local w = WeldTo(TRoot, offset, speaker, animId, osc, animFallbacks, TPlayer, refMode or "torso", preSeekSafeCF, presetKey)
+            if myGen ~= StopGeneration then
+                if w then pcall(function() w:Destroy(false) end) end
+                return
+            end
+            CurrentWeld = w
+            if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
+        end)
         return true, TPlayer
     end
 
-    -- Fallback async path only when target is currently unstreamed or mid-respawn
-    task.spawn(function()
-        local waitStart = tick()
-        while (not myChar or not myRoot) and tick() - waitStart < 2.5 do
-            if myGen ~= StopGeneration then return end
-            RunService.Heartbeat:Wait()
-            myChar = speaker and speaker.Character
-            myRoot = getRootPart(myChar)
-        end
-        if not myChar or not myRoot or myGen ~= StopGeneration then return end
+    applyWeldPreset = function(presetKey, target, callerGen)
+        local preset = WELD_PRESETS[presetKey]; if not preset then return false end
+        if callerGen and callerGen ~= StopGeneration then return false end
+        local myGen = StopGeneration
+        local TPlayer = resolvePlayer(target, LP)
+        if not TPlayer or TPlayer.Parent ~= Players then return false end
 
-        local char, TRoot = streamAndTeleportToTarget(TPlayer, refMode or "torso", 2.0, true)
-        if myGen ~= StopGeneration then return end
-        if not TRoot or not TRoot.Parent then return end
+        WeldIntent.active = true
+        WeldIntent.presetKey = presetKey
+        WeldIntent.target = TPlayer
+        WeldIntent.waitingForSpawn = false
+        WeldIntent.autoNearest = (selectedPlayer == nil)
+        LastPresetKey = presetKey
+        LastWeldTargetUserId = TPlayer.UserId
+        V.LastAutoY = 0
 
-        local tHum = char and char:FindFirstChildOfClass("Humanoid")
-        if tHum and tHum.Health <= 0 then return end
-
-        local old = CurrentWeld
-        if old then
-            CurrentWeld = nil
-            pcall(function() old:Destroy(true) end)
-        end
-
-        local w = WeldTo(TRoot, offset, speaker, animId, osc, animFallbacks, TPlayer, refMode or "torso", preSeekSafeCF)
-        if myGen ~= StopGeneration then
-            if w then pcall(function() w:Destroy(false) end) end
-            return
-        end
-        CurrentWeld = w
-        if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
-    end)
-    return true, TPlayer
-end
-
-local function applyWeldPreset(presetKey, target, callerGen)
-    local preset = WELD_PRESETS[presetKey]; if not preset then return false end
-    if callerGen and callerGen ~= StopGeneration then return false end
-    local myGen = StopGeneration
-    local TPlayer = resolvePlayer(target, LP)
-    if not TPlayer or TPlayer.Parent ~= Players then return false end
-
-    WeldIntent.active = true
-    WeldIntent.presetKey = presetKey
-    WeldIntent.target = TPlayer
-    LastPresetKey = presetKey
-    LastWeldTargetUserId = TPlayer.UserId
-
-    local anim = isR15(LP) and preset.anim15 or preset.anim6
-    local ok = weldToTarget(TPlayer, LP, preset.offset, anim, preset.osc, preset.refMode, preset.animFallbacks, myGen)
-    return ok
-end
-
-stopWeld = function()
-    StopGeneration = StopGeneration + 1
-    WeldIntent.active = false
-    WeldIntent.presetKey = nil
-    WeldIntent.target = nil
-    pcall(function() LP.ReplicationFocus = nil end)
-    unweld()
-    if not (Anti and Anti.Void and Anti.Void.enabled) and not (Anti and Anti.Kill and Anti.Kill.enabled) then
-        pcall(function() workspace.FallenPartsDestroyHeight = OriginalFPDH end)
+        local r15 = isR15(LP)
+        local anim = r15 and preset.anim15 or preset.anim6
+        local fallbacks = r15 and preset.animFallbacks or (preset.animFallbacks6 or preset.animFallbacks)
+        local ok = weldToTarget(TPlayer, LP, preset.offset, anim, preset.osc, preset.refMode, fallbacks, myGen, presetKey)
+        return ok
     end
-    if LP.Character then
-        pcall(function() recoverCharacterState(LP.Character, nil) end)
-    end
-end
 
-local function hookTargetRespawn(targetPlr)
-    if not targetPlr then return end
-    if targetPlr:FindFirstChild("__KhamanDhoklaHook") then return end
-    local marker = Instance.new("BoolValue")
-    marker.Name = "__KhamanDhoklaHook"
-    marker.Parent = targetPlr
-    targetPlr.CharacterAdded:Connect(function(newChar)
-        if not AutoReweldEnabled or not WeldIntent.active then return end
-        if WeldIntent.target ~= targetPlr and LastWeldTargetUserId ~= targetPlr.UserId then return end
-        -- Zero-delay respawn lock: wait only until a root/base part exists on the new character!
+    stopWeld = function(preserveQueue)
+        StopGeneration = StopGeneration + 1
+        WeldIntent.active = false
+        if not preserveQueue then
+            WeldIntent.presetKey = nil
+            WeldIntent.target = nil
+            WeldIntent.waitingForSpawn = false
+            WeldIntent.autoNearest = false
+        end
+        pcall(function() LP.ReplicationFocus = nil end)
+        if KhamanStreamProbePart and KhamanStreamProbePart.Parent then
+            pcall(function() KhamanStreamProbePart:Destroy() end)
+            KhamanStreamProbePart = nil
+        end
+        unweld(false)
+        if not (Anti and Anti.Void and Anti.Void.enabled) and not (Anti and Anti.InfFallVoid and Anti.InfFallVoid.enabled) and not (Anti and Anti.Kill and Anti.Kill.enabled) then
+            pcall(function() workspace.FallenPartsDestroyHeight = OriginalFPDH end)
+        end
+        if LP.Character then
+            pcall(function() recoverCharacterState(LP.Character, nil) end)
+        end
+    end
+
+    hookTargetRespawn = function(targetPlr)
+        if not targetPlr then return end
+        if targetPlr:FindFirstChild("__KhamanDhoklaHook") then return end
+        local marker = Instance.new("BoolValue")
+        marker.Name = "__KhamanDhoklaHook"
+        marker.Parent = targetPlr
+        targetPlr.CharacterAdded:Connect(function(newChar)
+            if not AutoReweldEnabled and not WeldIntent.waitingForSpawn then return end
+            if WeldIntent.target ~= targetPlr and LastWeldTargetUserId ~= targetPlr.UserId then return end
+            if not WeldIntent.active and not WeldIntent.waitingForSpawn then return end
+            local t0 = tick()
+            while tick() - t0 < 3.0 and newChar.Parent and not pickTargetRef(newChar, "torso") do
+                RunService.Heartbeat:Wait()
+            end
+            if targetPlr.Parent ~= Players then return end
+            if not WeldIntent.active and not WeldIntent.waitingForSpawn then return end
+            if CurrentWeld then
+                pcall(function() CurrentWeld:Destroy(true) end)
+                CurrentWeld = nil
+            end
+            local key = WeldIntent.presetKey or LastPresetKey
+            if key and WELD_PRESETS[key] then
+                applyWeldPreset(key, targetPlr)
+                if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
+            end
+        end)
+    end
+
+    LP.CharacterAdded:Connect(function(newMyChar)
+        if not AutoReweldEnabled or (not WeldIntent.active and not WeldIntent.waitingForSpawn) then return end
         local t0 = tick()
-        while tick() - t0 < 1.5 and newChar.Parent and not pickTargetRef(newChar, "torso") do
+        while tick() - t0 < 3.0 and newMyChar.Parent and not getRootPart(newMyChar) do
             RunService.Heartbeat:Wait()
         end
-        if not WeldIntent.active or targetPlr.Parent ~= Players then return end
-        if CurrentWeld then
-            pcall(function() CurrentWeld:Destroy(true) end)
-            CurrentWeld = nil
-        end
+        if not WeldIntent.active and not WeldIntent.waitingForSpawn then return end
+        local tgt = WeldIntent.target or resolvePlayer(nil, LP)
         local key = WeldIntent.presetKey or LastPresetKey
-        if key and WELD_PRESETS[key] then
-            applyWeldPreset(key, targetPlr)
+        if tgt and tgt.Parent == Players and key and WELD_PRESETS[key] then
+            if CurrentWeld then
+                pcall(function() CurrentWeld:Destroy(true) end)
+                CurrentWeld = nil
+            end
+            applyWeldPreset(key, tgt)
             if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
         end
     end)
-end
 
--- Zero-Delay Heartbeat Omnipresent Watchdog:
--- Instantly re-locks on the exact frame a target streams in or respawns!
-local reweldWatchdogBusy = false
-RunService.Heartbeat:Connect(function()
-    if not AutoReweldEnabled or not WeldIntent.active or not WeldIntent.presetKey or FlingActive or reweldWatchdogBusy then
-        return
-    end
-    local tgt = WeldIntent.target
-    if not tgt or tgt.Parent ~= Players then
-        stopWeld()
-        if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
-        return
-    end
-    if not CurrentWeld then
-        local myChar = LP.Character
-        local myRoot = getRootPart(myChar)
-        local myHum  = myChar and myChar:FindFirstChildOfClass("Humanoid")
-        if myRoot and myHum and myHum.Health > 0 then
-            reweldWatchdogBusy = true
-            task.spawn(function()
-                pcall(function()
-                    local preset = WELD_PRESETS[WeldIntent.presetKey]
-                    local refMode = preset and preset.refMode or "torso"
-                    local tChar, tRef = streamAndTeleportToTarget(tgt, refMode, 1.2, false)
-                    local tHum = tChar and tChar:FindFirstChildOfClass("Humanoid")
-                    if WeldIntent.active and not CurrentWeld and tRef and tRef.Parent and (not tHum or tHum.Health > 0) then
-                        if not isLethalVoidCF(tRef.CFrame, tRef.AssemblyLinearVelocity) then
-                            applyWeldPreset(WeldIntent.presetKey, tgt)
+    local reweldWatchdogBusy = false
+    RunService.Heartbeat:Connect(function()
+        if FlingActive or reweldWatchdogBusy then return end
+
+        if WeldIntent.waitingForSpawn and not WeldIntent.active then
+            local key = WeldIntent.presetKey or LastPresetKey
+            if key and WELD_PRESETS[key] and LastWeldTargetUserId then
+                for _, p in ipairs(Players:GetPlayers()) do
+                    if p ~= LP and p.UserId == LastWeldTargetUserId then
+                        local tChar = findPlayerCharacterAnywhere(p)
+                        local tHum  = tChar and tChar:FindFirstChildOfClass("Humanoid")
+                        local tRef  = tChar and pickTargetRef(tChar, "torso")
+                        if tRef and tRef.Parent and (not tHum or tHum.Health > 0) then
+                            selectedPlayer = p
+                            CurrentTarget = p
+                            hookTargetRespawn(p)
+                            applyWeldPreset(key, p)
                             if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
                         end
+                        break
                     end
-                end)
-                reweldWatchdogBusy = false
-            end)
+                end
+            end
+            return
         end
-    end
-end)
+
+        if not AutoReweldEnabled or not WeldIntent.active or not WeldIntent.presetKey then
+            return
+        end
+        local tgt = WeldIntent.target
+        if not tgt or tgt.Parent ~= Players then
+            if WeldIntent.autoNearest and not selectedPlayer then
+                local nextPlr = getNearestPlayer(LP)
+                if nextPlr and nextPlr.Parent == Players then
+                    WeldIntent.target = nextPlr
+                    CurrentTarget = nextPlr
+                    LastWeldTargetUserId = nextPlr.UserId
+                    hookTargetRespawn(nextPlr)
+                    applyWeldPreset(WeldIntent.presetKey, nextPlr)
+                    if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
+                    return
+                end
+            end
+            WeldIntent.waitingForSpawn = true
+            stopWeld(true)
+            if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
+            return
+        end
+        if not CurrentWeld or CurrentWeld.destroyed then
+            local myChar = LP.Character
+            local myRoot = getRootPart(myChar)
+            local myHum  = myChar and myChar:FindFirstChildOfClass("Humanoid")
+            if myRoot and myHum and myHum.Health > 0 then
+                reweldWatchdogBusy = true
+                task.spawn(function()
+                    pcall(function()
+                        local preset = WELD_PRESETS[WeldIntent.presetKey]
+                        local refMode = preset and preset.refMode or "torso"
+                        local tChar, tRef = streamAndTeleportToTarget(tgt, refMode, 2.0, true)
+                        local tHum = tChar and tChar:FindFirstChildOfClass("Humanoid")
+                        if WeldIntent.active and (not CurrentWeld or CurrentWeld.destroyed) and (not tHum or tHum.Health > 0) then
+                            if not tRef or not isLethalVoidCF(tRef.CFrame, tRef.AssemblyLinearVelocity) then
+                                applyWeldPreset(WeldIntent.presetKey, tgt)
+                                if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
+                            end
+                        end
+                    end)
+                    reweldWatchdogBusy = false
+                end)
+            end
+        end
+    end)
+end -- end Tesla Height Engine, WeldTo, Seeker & Watchdog scope
 
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- HIGH-PRECISION 6s–10s CHRONO-REWIND ENGINE (60Hz Frame-Exact State, Anim & Action Recorder)
@@ -2332,6 +2925,8 @@ local function promptNebulaFling()
     end)
 end
 
+local csOn, csMode, csTgt, csMsg, csCnt, csMtd, csGen, bld, snd2 = false, "roast", "", "", 0, "-", 0, nil, nil
+do
 local CS_D = 5
 local CS_M = 200
 local CS_R = " TMKX MAI "
@@ -2341,15 +2936,8 @@ local CS_E = {"🔥","😂","💀","🗿","😭","😎","🤡","👻","👀","�
 local CS_SYM = "@"
 local CS_REPEAT = 120
 
-local csOn = false
-local csMode = "roast"
-local csTgt = ""
-local csMsg = ""
-local csCnt = 0
-local csMtd = "-"
 local csCh = nil
 local csLg = nil
-local csGen = 0
 
 local function gC()
     if TextChatService.ChatVersion ~= Enum.ChatVersion.TextChatService then return nil end
@@ -2367,7 +2955,7 @@ local function gL()
     end)
     return ok and res or nil
 end
-local function snd2(tx)
+snd2 = function(tx)
     if #tx > CS_M then tx = tx:sub(1, CS_M) end
     if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
         if not csCh or not csCh.Parent then csCh = gC() end
@@ -2411,7 +2999,7 @@ local function genSymbols()
     end
     return out
 end
-local function bld()
+bld = function()
     if csMode == "message" then
         return (CS_HDR .. " " .. csMsg:upper() .. genSymbols() .. pickEmojis()):sub(1, CS_M)
     end
@@ -2422,26 +3010,33 @@ local function bld()
     local tail = "@" .. raw .. CS_R .. CS_W[math.random(1, #CS_W)]
     return (CS_HDR .. " " .. genSymbols() .. " " .. tail:upper() .. pickEmojis()):sub(1, CS_M)
 end
+end -- end Chat Spammer internal scope
 
 -- Shared movement state hoisted above RewindSys & WeldTo
 
 local syncAllAntiButtons = nil
 
 Anti = {
-    Void        = { enabled = false, charAdded = nil, healthConns = {}, charConns = {}, loopConn = nil, steppedConn = nil, safetyFloor = nil, rescues = 0 },
-    Kill        = { enabled = false, charAdded = nil, descConn = nil, loopConn = nil, wsDescConn = nil, blockedTouches = 0 },
-    GamePaused  = { enabled = false, childAdded = nil, propConn = nil, loopConn = nil },
-    AFK         = { enabled = false, conn = nil, loopConn = nil },
-    VC          = { enabled = false, loaded = false, loopConn = nil },
-    Redirect    = { enabled = false },
-    PauseTrap   = { enabled = false },
-    FlingShield = { enabled = false, steppedConn = nil, heartbeatConn = nil, preStepCF = nil, blockedFlings = 0 },
-    -- ADVANCED MULTI-LAYER ANTI-SYSTEMS V2:
-    Ragdoll     = { enabled = false, steppedConn = nil, stateConn = nil, descConn = nil, charAdded = nil, recoveries = 0 },
-    Anchor      = { enabled = false, steppedConn = nil, descConn = nil, charAdded = nil, purgedMovers = 0 },
-    Attach      = { enabled = false, steppedConn = nil, descConn = nil, severedCount = 0 },
-    Blind       = { enabled = false, loopConn = nil, lightChildConn = nil, camChildConn = nil, guiChildConn = nil },
-    Bring       = { enabled = false, steppedConn = nil, heartbeatConn = nil, lastCF = nil, lastSafeTime = 0, blockedBrings = 0 },
+    Void         = { enabled = false, charAdded = nil, healthConns = {}, charConns = {}, loopConn = nil, steppedConn = nil, safetyFloor = nil, rescues = 0 },
+    InfFallVoid  = { enabled = false, steppedConn = nil, startFn = nil, stopFn = nil },
+    Kill         = { enabled = false, charAdded = nil, descConn = nil, loopConn = nil, wsDescConn = nil, blockedTouches = 0, originalPartFlags = setmetatable({}, {__mode = "k"}) },
+    GamePaused   = { enabled = false, childAdded = nil, propConn = nil, loopConn = nil },
+    AFK          = { enabled = false, conn = nil, loopConn = nil },
+    VC           = { enabled = false, running = false, statusText = "Status: Idle", statusLbl = nil, activateBtn = nil, rowSubLbl = nil, openPanelFn = nil },
+    Redirect     = { enabled = false },
+    PauseTrap    = { enabled = false },
+    FlingShield  = { enabled = false, steppedConn = nil, heartbeatConn = nil, plrAddedConn = nil, preStepCF = nil, blockedFlings = 0 },
+    -- FULL LIBRARY MULTI-LAYER ANTI-SYSTEMS V3:
+    Ragdoll      = { enabled = false, steppedConn = nil, stateConn = nil, descConn = nil, charAdded = nil, recoveries = 0 },
+    Anchor       = { enabled = false, steppedConn = nil, descConn = nil, charAdded = nil, partConns = setmetatable({}, {__mode = "k"}), purgedMovers = 0 },
+    Attach       = { enabled = false, steppedConn = nil, descConn = nil, severedCount = 0 },
+    Blind        = { enabled = false, loopConn = nil, lightChildConn = nil, camChildConn = nil, guiChildConn = nil },
+    Bring        = { enabled = false, steppedConn = nil, heartbeatConn = nil, lastCF = nil, lastSafeTime = 0, blockedBrings = 0 },
+    SeatTrap     = { enabled = false, wsDescConn = nil, loopConn = nil, savedSeats = setmetatable({}, {__mode = "k"}), neutralizedSeats = 0, startFn = nil, stopFn = nil },
+    ToolGuard    = { enabled = false, loopConn = nil, disarmedTools = 0, startFn = nil, stopFn = nil },
+    AntiHeadsit  = { enabled = false, steppedConn = nil, evadedCount = 0, lastEvade = 0, startFn = nil, stopFn = nil },
+    GlitchDesync = { enabled = false, mode = "Normal", steppedConn = nil, heartbeatConn = nil, realCF = nil, realVel = Vector3.zero, realRot = Vector3.zero, startFn = nil, stopFn = nil },
+    Kick         = { enabled = false, hooked = false, originalKick = nil, blockedKicks = 0, startFn = nil, stopFn = nil },
 }
 
 local DefenceTroll = {
@@ -2470,11 +3065,16 @@ local contactTimers = {}
 local deflectCooldowns = {}
 local attackerLastPos = {}
 
--- Helper: Mark an intentional local teleport so Anti-Bring never fights our own teleports
+-- Helper: Mark an intentional local teleport so Anti-Bring, Anti-FlingShield, and DefenceTroll never fight our own teleports/welds
 markIntentionalTeleport = function(cf)
     moveState.lastTeleportTick = tick()
     if cf then
         Anti.Bring.lastCF = cf
+        Anti.Bring.lastSafeTime = tick()
+        Anti.FlingShield.preStepCF = cf
+        if Anti.GlitchDesync and Anti.GlitchDesync.enabled then
+            Anti.GlitchDesync.realCF = cf
+        end
         LastKnownSafeCF = cf
     end
 end
@@ -2484,26 +3084,27 @@ local avStart, avStop, akStart, akStop, agpStart, agpStop, afkStart, afkStop, vc
 local ragdollStart, ragdollStop, anchorStart, anchorStop, attachStart, attachStop, blindStart, blindStop
 local bringStart, bringStop, flingShieldStart, flingShieldStop, redirectStart, redirectStop, pauseTrapStart, pauseTrapStop
 local defenceTrollStart, defenceTrollStop, enableAllAntiSystems, disableAllAntiSystems
-do -- Scoped block for internal Anti helper functions (frees 35+ top-level local registers)
--- 1. ADVANCED ANTI-VOID V2 (Predictive Velocity Catch + Safety Platform + Death Block)
+do -- Scoped block for internal Anti helper functions (preserves top-level local register budget)
+-- 1. ADVANCED ANTI-VOID V3 + INFINITE FALL VOID (Full Library Dynamic 2048x2048 Floor + Predictive Catch + Death Block)
 -- ═══════════════════════════════════════════════════════════════════════════════
-local function avEnsureSafetyFloor(pos)
+local function avEnsureSafetyFloor(pos, customY)
     local floor = Anti.Void.safetyFloor
     if not floor or not floor.Parent then
         floor = Instance.new("Part")
-        floor.Name = "CocoVoidSafetyFloor"
+        floor.Name = "KhamanVoidSafetyFloor"
         floor.Anchored = true
         floor.CanCollide = true
         floor.CanTouch = false
         floor.CanQuery = false
-        floor.Size = Vector3.new(64, 2, 64)
-        floor.Transparency = 0.65
+        floor.Locked = true
+        floor.Size = Vector3.new(2048, 2, 2048)
+        floor.Transparency = 0.72
         floor.Material = Enum.Material.ForceField
         floor.Color = Color3.fromRGB(250, 204, 21)
         floor.Parent = workspace
         Anti.Void.safetyFloor = floor
     end
-    floor.CFrame = CFrame.new(pos.X, pos.Y - 3.5, pos.Z)
+    floor.CFrame = CFrame.new(pos.X, customY or (pos.Y - 3.5), pos.Z)
 end
 
 local function avRemoveSafetyFloor()
@@ -2521,10 +3122,10 @@ local function avForceAlive(h)
         h:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
         if h.MaxHealth <= 0 then h.MaxHealth = 100 end
         if h.Health <= 0 or h.Health < h.MaxHealth then h.Health = h.MaxHealth end
-        if h.PlatformStand and not (moveState and moveState.fly) and not WeldIntent.active then
+        if h.PlatformStand and not (moveState and moveState.fly) and not WeldIntent.active and CurrentWeld == nil then
             h.PlatformStand = false
         end
-        if h.Sit then h.Sit = false end
+        if h.Sit and not WeldIntent.active and CurrentWeld == nil then h.Sit = false end
         if h:GetState() == Enum.HumanoidStateType.Dead then
             h:ChangeState(Enum.HumanoidStateType.Running)
         end
@@ -2576,16 +3177,18 @@ avStart = function()
         if not Anti.Void.enabled then return end
         pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
         local c = LP.Character
-        local r = c and c:FindFirstChild("HumanoidRootPart")
-        if not r or FlingActive or deflectBusy then return end
+        local r = getRootPart(c)
+        if not r or FlingActive or deflectBusy or WeldIntent.active or CurrentWeld ~= nil or (RewindSys and RewindSys.rewinding) then
+            return
+        end
         local pos = r.Position
         local vel = r.AssemblyLinearVelocity
-        local dangerFloor = math.max(OriginalFPDH + 55, -180)
-        -- Predictive catch: if plummeting fast toward the void or below safe map floor
-        if pos.Y <= dangerFloor or (pos.Y <= -45 and vel.Y < -140) or pos.Magnitude > 20000 then
-            r.AssemblyLinearVelocity = Vector3.new(vel.X * 0.1, math.max(0, vel.Y), vel.Z * 0.1)
+        local dangerFloor = math.min(OriginalFPDH + 55, -220)
+        local predictedY = pos.Y + (vel.Y * 0.055)
+        if pos.Y <= dangerFloor or predictedY <= dangerFloor or (pos.Y <= (dangerFloor + 45) and vel.Y < -95) or pos.Magnitude > 45000 then
+            r.AssemblyLinearVelocity = Vector3.new(vel.X * 0.05, math.max(0, vel.Y), vel.Z * 0.05)
             r.AssemblyAngularVelocity = Vector3.zero
-            avEnsureSafetyFloor(Vector3.new(pos.X, math.max(pos.Y, dangerFloor + 10), pos.Z))
+            avEnsureSafetyFloor(pos, math.max(pos.Y - 3.5, dangerFloor + 12))
             Anti.Void.rescues = Anti.Void.rescues + 1
             markIntentionalTeleport(LastKnownSafeCF)
             safeReturnFromVoid(c, LastKnownSafeCF)
@@ -2594,15 +3197,19 @@ avStart = function()
         end
     end)
     if Anti.Void.loopConn then Anti.Void.loopConn:Disconnect() end
+    local lastHealthGuard = 0
     Anti.Void.loopConn = RunService.Heartbeat:Connect(function()
         if not Anti.Void.enabled then return end
+        local now = tick()
+        if now - lastHealthGuard < 0.20 then return end
+        lastHealthGuard = now
         local c = LP.Character
         if not c then return end
         local h = c:FindFirstChildOfClass("Humanoid")
         if h then avForceAlive(h) end
     end)
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("KHAMAN DHOKLA", "Anti-Void v2 (Predictive Catch + Safety Floor) ON")
+    notify("KHAMAN DHOKLA", "Anti-Void v3 (2048x2048 Floor + Predictive Catch) ON")
     sToggleOn()
 end
 
@@ -2617,7 +3224,7 @@ avStop = function()
     for _, x in ipairs(Anti.Void.healthConns) do pcall(function() x:Disconnect() end) end
     Anti.Void.healthConns = {}
     avRemoveSafetyFloor()
-    if not (Anti.Kill and Anti.Kill.enabled) and not WeldIntent.active and not FlingActive then
+    if not (Anti.InfFallVoid and Anti.InfFallVoid.enabled) and not (Anti.Kill and Anti.Kill.enabled) and not WeldIntent.active and not FlingActive then
         pcall(function() workspace.FallenPartsDestroyHeight = OriginalFPDH end)
     end
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
@@ -2625,44 +3232,94 @@ avStop = function()
     sToggleOff()
 end
 
+-- Infinite Fall Void (from full library chunk_06: fall infinitely below map without dying)
+Anti.InfFallVoid.startFn = function()
+    if Anti.InfFallVoid.enabled then return end
+    Anti.InfFallVoid.enabled = true
+    pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
+    if Anti.InfFallVoid.steppedConn then Anti.InfFallVoid.steppedConn:Disconnect() end
+    Anti.InfFallVoid.steppedConn = RunService.Stepped:Connect(function()
+        if not Anti.InfFallVoid.enabled then return end
+        pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
+    end)
+    if syncAllAntiButtons then pcall(syncAllAntiButtons) end
+    notify("KHAMAN DHOKLA", "Infinite Fall Void ON (FallenPartsDestroyHeight = NaN)")
+    sToggleOn()
+end
+
+Anti.InfFallVoid.stopFn = function()
+    if not Anti.InfFallVoid.enabled then return end
+    Anti.InfFallVoid.enabled = false
+    if Anti.InfFallVoid.steppedConn then Anti.InfFallVoid.steppedConn:Disconnect(); Anti.InfFallVoid.steppedConn = nil end
+    if not (Anti.Void and Anti.Void.enabled) and not (Anti.Kill and Anti.Kill.enabled) and not WeldIntent.active and not FlingActive then
+        pcall(function() workspace.FallenPartsDestroyHeight = OriginalFPDH end)
+    end
+    if syncAllAntiButtons then pcall(syncAllAntiButtons) end
+    notify("KHAMAN DHOKLA", "Infinite Fall Void disabled")
+    sToggleOff()
+end
+
 -- ═══════════════════════════════════════════════════════════════════════════════
--- 2. ADVANCED ANTI-KILL / GOD-TOUCH SHIELD V2 (Zero KillBrick Touch + Explosion Immunity)
+-- 2. ADVANCED ANTI-KILL / FULL GOD-MODE SHIELD V3 (Touch/Query Shield + ForceField + Explosion Immunity)
 -- ═══════════════════════════════════════════════════════════════════════════════
 local function akSanitizePart(p)
-    if p and p:IsA("BasePart") then
+    if not (p and p:IsA("BasePart")) then return end
+    local saved = Anti.Kill.originalPartFlags[p]
+    if not saved then
+        saved = { CanTouch = p.CanTouch, CanQuery = p.CanQuery }
+        Anti.Kill.originalPartFlags[p] = saved
+    end
+    pcall(function()
         if p.CanTouch then p.CanTouch = false end
         if p.CanQuery then p.CanQuery = false end
-    end
+    end)
 end
 
 local function akApply(char)
     if not char then return end
-    for _, p in ipairs(char:GetDescendants()) do
+    for _, p in ipairs(getCachedCharParts(char)) do
         akSanitizePart(p)
     end
+    pcall(function()
+        if not char:FindFirstChild("__KhamanGodForceField") then
+            local ff = Instance.new("ForceField")
+            ff.Name = "__KhamanGodForceField"
+            ff.Visible = false
+            ff.Parent = char
+        end
+    end)
     local hum = char:FindFirstChildOfClass("Humanoid")
     if hum then
         pcall(function()
             hum:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
-            if hum.Health > 0 and hum.Health < hum.MaxHealth then
+            if hum.MaxHealth <= 0 then hum.MaxHealth = 100 end
+            if hum.Health <= 0 or hum.Health < hum.MaxHealth then
                 hum.Health = hum.MaxHealth
             end
         end)
     end
 end
 
+local function akHookCharacter(char)
+    if Anti.Kill.descConn then Anti.Kill.descConn:Disconnect(); Anti.Kill.descConn = nil end
+    if not char then return end
+    akApply(char)
+    Anti.Kill.descConn = char.DescendantAdded:Connect(function(obj)
+        if Anti.Kill.enabled and obj:IsA("BasePart") then akSanitizePart(obj) end
+    end)
+end
+
 akStart = function()
     if Anti.Kill.enabled then return end
     Anti.Kill.enabled = true
     pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
-    akApply(LP.Character)
+    akHookCharacter(LP.Character)
     if Anti.Kill.charAdded then Anti.Kill.charAdded:Disconnect() end
     Anti.Kill.charAdded = LP.CharacterAdded:Connect(function(c)
         if not Anti.Kill.enabled then return end
         task.wait(0.15)
-        akApply(c)
+        akHookCharacter(c)
     end)
-    -- Neutralize any Explosions spawned in Workspace so BlastPressure never kills or ragdolls joints
     if Anti.Kill.wsDescConn then Anti.Kill.wsDescConn:Disconnect() end
     Anti.Kill.wsDescConn = workspace.DescendantAdded:Connect(function(obj)
         if not Anti.Kill.enabled then return end
@@ -2696,7 +3353,7 @@ akStart = function()
         end
     end)
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("KHAMAN DHOKLA", "Anti-Kill v2 (Touch/Query Shield + Blast Immunity) ON")
+    notify("KHAMAN DHOKLA", "Anti-Kill / God-Mode v3 (Touch Shield + ForceField + Blast Immunity) ON")
     sToggleOn()
 end
 
@@ -2704,26 +3361,37 @@ akStop = function()
     if not Anti.Kill.enabled then return end
     Anti.Kill.enabled = false
     if Anti.Kill.charAdded then Anti.Kill.charAdded:Disconnect(); Anti.Kill.charAdded = nil end
+    if Anti.Kill.descConn then Anti.Kill.descConn:Disconnect(); Anti.Kill.descConn = nil end
     if Anti.Kill.wsDescConn then Anti.Kill.wsDescConn:Disconnect(); Anti.Kill.wsDescConn = nil end
     if Anti.Kill.loopConn then Anti.Kill.loopConn:Disconnect(); Anti.Kill.loopConn = nil end
+    for part, saved in pairs(Anti.Kill.originalPartFlags) do
+        if part and part.Parent then
+            pcall(function()
+                part.CanTouch = saved.CanTouch
+                part.CanQuery = saved.CanQuery
+            end)
+        end
+        Anti.Kill.originalPartFlags[part] = nil
+    end
     local c = LP.Character
     if c then
-        for _, p in ipairs(c:GetDescendants()) do
-            if p:IsA("BasePart") then
-                pcall(function() p.CanTouch = true; p.CanQuery = true end)
-            end
+        local ff = c:FindFirstChild("__KhamanGodForceField")
+        if ff then pcall(function() ff:Destroy() end) end
+        local hum = c:FindFirstChildOfClass("Humanoid")
+        if hum and not (Anti.Void and Anti.Void.enabled) then
+            pcall(function() hum:SetStateEnabled(Enum.HumanoidStateType.Dead, true) end)
         end
     end
-    if not (Anti.Void and Anti.Void.enabled) and not WeldIntent.active and not FlingActive then
+    if not (Anti.Void and Anti.Void.enabled) and not (Anti.InfFallVoid and Anti.InfFallVoid.enabled) and not WeldIntent.active and not FlingActive then
         pcall(function() workspace.FallenPartsDestroyHeight = OriginalFPDH end)
     end
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("KHAMAN DHOKLA", "Anti-Kill disabled")
+    notify("KHAMAN DHOKLA", "Anti-Kill disabled & part flags restored")
     sToggleOff()
 end
 
 -- ═══════════════════════════════════════════════════════════════════════════════
--- 3. ADVANCED ANTI-GAMEPLAYPAUSED V2 (GuiService + CoreGui + Property Unfreeze)
+-- 3. ADVANCED ANTI-GAMEPLAYPAUSED V3 (GuiService + CoreGui + Property Unfreeze)
 -- ═══════════════════════════════════════════════════════════════════════════════
 local function agpCleanse()
     pcall(function()
@@ -2773,7 +3441,7 @@ agpStart = function()
         end
     end)
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("KHAMAN DHOKLA", "Anti-GameplayPaused v2 ON")
+    notify("KHAMAN DHOKLA", "Anti-GameplayPaused v3 ON")
     sToggleOn()
 end
 
@@ -2789,7 +3457,7 @@ agpStop = function()
 end
 
 -- ═══════════════════════════════════════════════════════════════════════════════
--- 4. ADVANCED ANTI-AFK V2 (Idled Signal + VirtualUser + VirtualInputManager)
+-- 4. ADVANCED ANTI-AFK V3 (Idled Signal + VirtualUser + VirtualInputManager)
 -- ═══════════════════════════════════════════════════════════════════════════════
 local function afkPulse()
     pcall(function()
@@ -2820,7 +3488,7 @@ afkStart = function()
         afkPulse()
     end)
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("KHAMAN DHOKLA", "Anti-AFK v2 (Multi-Hook) ON")
+    notify("KHAMAN DHOKLA", "Anti-AFK v3 (Multi-Hook) ON")
     sToggleOn()
 end
 
@@ -2834,68 +3502,380 @@ afkStop = function()
 end
 
 -- ═══════════════════════════════════════════════════════════════════════════════
--- 5. ADVANCED ANTI-VC BAN & SUSPENSION BYPASS V2 (Native Rejoin + External Hook)
+-- 5. KHAMAN ANTI-VC / VC BYPASS (Full Deobfuscated Tesla/Eternity VoiceChatInternal Bypass)
 -- ═══════════════════════════════════════════════════════════════════════════════
-local function vcAttemptReconnect()
-    pcall(function()
-        local vcs = game:GetService("VoiceChatService")
-        if vcs and typeof(vcs.joinVoice) == "function" then
-            vcs:joinVoice()
-        end
+local function findMicIcon(btn)
+    local ok, res = pcall(function()
+        return btn:WaitForChild("IntegrationIconFrame", 15)
+            :WaitForChild("IntegrationIcon", 15)["1"]
     end)
-    pcall(function()
-        local vci = game:GetService("VoiceChatInternal")
-        if vci and typeof(vci.Leave) == "function" and typeof(vci.JoinByGroupIdToken) == "function" then
-            -- Clear local suspension modal if shown in CoreGui
-            if CoreGui then
-                for _, d in ipairs(CoreGui:GetDescendants()) do
-                    if d:IsA("TextLabel") and (d.Text:lower():find("voice chat") and d.Text:lower():find("suspended")) then
-                        local screen = d:FindFirstAncestorOfClass("ScreenGui") or d.Parent
-                        if screen then screen:Destroy() end
-                    end
-                end
-            end
-        end
-    end)
+    return (ok and res) or nil
+end
+
+local function updateKhamanAntiVCVisuals(statusStr, statusCol, btnStr)
+    Anti.VC.statusText = statusStr or Anti.VC.statusText
+    if Anti.VC.statusLbl and Anti.VC.statusLbl.Parent then
+        Anti.VC.statusLbl.Text = statusStr or "Status: Idle"
+        if statusCol then Anti.VC.statusLbl.TextColor3 = statusCol end
+    end
+    if Anti.VC.activateBtn and Anti.VC.activateBtn.Parent and btnStr then
+        Anti.VC.activateBtn.Text = btnStr
+    end
+    if Anti.VC.rowSubLbl and Anti.VC.rowSubLbl.Parent then
+        Anti.VC.rowSubLbl.Text = (statusStr or "Status: Idle") .. " · Khaman Anti-VC"
+    end
 end
 
 vcStart = function()
-    if Anti.VC.enabled then return end
-    Anti.VC.enabled = true
-    vcAttemptReconnect()
-    if not Anti.VC.loaded then
-        Anti.VC.loaded = true
-        task.spawn(function()
-            pcall(function()
-                loadstring(game:HttpGet("https://gist.githubusercontent.com/akashbhondu/157416db937268169e8a4a1b42547540/raw/3ba28974476051db60898a6bdff670a3271c140d/anti%2520vc"))()
-            end)
-        end)
+    if Anti.VC.enabled then
+        notify("Khaman Anti-VC", "Already active")
+        return
     end
-    if Anti.VC.loopConn then Anti.VC.loopConn:Disconnect() end
-    Anti.VC.loopConn = RunService.Heartbeat:Connect(function()
-        if not Anti.VC.enabled then return end
-        vcAttemptReconnect()
-    end)
+    if Anti.VC.running then
+        notify("Khaman Anti-VC", "Waiting for mic unmute...")
+        return
+    end
+
+    Anti.VC.running = true
+    updateKhamanAntiVCVisuals("Status: Waiting for unmute...", T.Warning, "WAITING...")
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("KHAMAN DHOKLA", "Anti-VC v2 (Native Rejoin + Suspension Bypass) ON")
     sToggleOn()
+
+    task.spawn(function()
+        local ok, err = pcall(function()
+            local safeCloneref = cloneref or function(...)
+                return ...
+            end
+            local safeClonefunc = clonefunction or function(...)
+                return ...
+            end
+
+            local VoiceChatService = safeCloneref(game:GetService("VoiceChatService"))
+            local VoiceChatInternal = safeCloneref(game:GetService("VoiceChatInternal"))
+            local coreGui = CoreGui or game:GetService("CoreGui")
+
+            local micBtn = nil
+            local micParent = nil
+
+            pcall(function()
+                for _, v in ipairs(coreGui:GetDescendants()) do
+                    if v.Name == "toggle_mic_mute" then
+                        micBtn = v
+                        micParent = v.Parent
+                        break
+                    end
+                end
+            end)
+
+            local function isPaused()
+                return VoiceChatInternal:IsPublishPaused()
+            end
+
+            local function setPaused(state)
+                VoiceChatInternal:PublishPause(state)
+            end
+
+            if not micBtn then
+                pcall(function()
+                    VoiceChatService:joinVoice()
+                end)
+                task.wait(1)
+
+                pcall(function()
+                    for _, v in ipairs(coreGui:GetDescendants()) do
+                        if v.Name == "toggle_mic_mute" then
+                            micBtn = v
+                            micParent = v.Parent
+                            break
+                        end
+                    end
+                end)
+
+                if not micBtn then
+                    error("Mic button not found — open Voice Chat first")
+                end
+            end
+
+            notify("Khaman Anti-VC", "Unmute your mic to continue")
+
+            local icon = findMicIcon(micBtn)
+            local mutedImg = "rbxasset://textures/ui/VoiceChat/MicLight/Muted.png"
+            local startTick = tick()
+
+            while icon and icon.Image == mutedImg and (tick() - startTick) < 60 do
+                if not Anti.VC.running then
+                    error("Cancelled")
+                end
+                task.wait(0.5)
+                icon = findMicIcon(micBtn) or icon
+            end
+
+            -- Step 1: Leave Voice Chat
+            pcall(function()
+                VoiceChatService:leaveVoice()
+            end)
+            task.wait(2)
+
+            -- Step 2: Disable StateChanged connections from index 7..#conns
+            pcall(function()
+                if type(getconnections) == "function" then
+                    local getConns = safeClonefunc(getconnections)
+                    local conns = getConns(VoiceChatInternal.StateChanged)
+                    for i = 7, #conns, 1 do
+                        pcall(function()
+                            if conns[i] then conns[i]:Disable() end
+                        end)
+                    end
+                end
+            end)
+            task.wait(2)
+
+            -- Step 3: Rejoin Voice Chat
+            pcall(function()
+                VoiceChatService:joinVoice()
+            end)
+            task.wait(1)
+
+            -- Step 4: Re-locate "toggle_mic_mute" in CoreGui
+            pcall(function()
+                if micParent then
+                    local waited = micParent:FindFirstChild("toggle_mic_mute") or micParent:WaitForChild("toggle_mic_mute", 10)
+                    if waited then micBtn = waited end
+                end
+                if not micBtn or not micBtn.Parent then
+                    for _, v in ipairs(coreGui:GetDescendants()) do
+                        if v.Name == "toggle_mic_mute" then
+                            micBtn = v
+                            micParent = v.Parent
+                            break
+                        end
+                    end
+                end
+            end)
+
+            -- Step 5: Replace original mic button with custom clone bound to PublishPause
+            if micBtn and micParent then
+                for _, storeName in ipairs({ "KhamanVCBypassStore", "AngoorVCBypassStore" }) do
+                    local oldStore = coreGui:FindFirstChild(storeName)
+                    if oldStore then pcall(function() oldStore:Destroy() end) end
+                end
+                local oldCustom = micParent:FindFirstChild("toggle_mic_mute_new")
+                if oldCustom then pcall(function() oldCustom:Destroy() end) end
+
+                local storeFolder = Instance.new("Folder")
+                storeFolder.Name = "KhamanVCBypassStore"
+                storeFolder.Parent = coreGui
+
+                local newBtn = micBtn:Clone()
+                micBtn.Parent = storeFolder
+
+                newBtn.Name = "toggle_mic_mute_new"
+                newBtn.Parent = micParent
+
+                local newIcon = findMicIcon(newBtn)
+                local origIcon = findMicIcon(micBtn)
+
+                setPaused(true)
+                if newIcon then
+                    newIcon.Image = mutedImg
+                end
+
+                local hitArea = newBtn:FindFirstChild("IconHitArea_toggle_mic_mute", true) or newBtn:WaitForChild("IconHitArea_toggle_mic_mute", 10)
+                if hitArea then
+                    hitArea.Activated:Connect(function()
+                        local nextPaused = not isPaused()
+                        setPaused(nextPaused)
+                        if newIcon then
+                            if nextPaused then
+                                newIcon.Image = mutedImg
+                            elseif origIcon then
+                                newIcon.Image = origIcon.Image
+                            end
+                        end
+                    end)
+                end
+            end
+
+            Anti.VC.running = false
+            Anti.VC.enabled = true
+            updateKhamanAntiVCVisuals("Status: Active", T.Success, "KHAMAN ANTI VC ACTIVE")
+            if syncAllAntiButtons then pcall(syncAllAntiButtons) end
+            notify("Khaman Anti-VC", "Activated successfully!")
+            sSuccess()
+        end)
+
+        if not ok then
+            Anti.VC.running = false
+            Anti.VC.enabled = false
+            updateKhamanAntiVCVisuals("Status: Failed", T.Danger, "RETRY")
+            if syncAllAntiButtons then pcall(syncAllAntiButtons) end
+            notify("Khaman Anti-VC", "Error: " .. tostring(err))
+            warn("[KHAMAN ANTI-VC] Error:", err)
+        end
+    end)
 end
 
 vcStop = function()
-    if not Anti.VC.enabled then return end
+    if not Anti.VC.enabled and not Anti.VC.running then return end
+    Anti.VC.running = false
     Anti.VC.enabled = false
-    if Anti.VC.loopConn then Anti.VC.loopConn:Disconnect(); Anti.VC.loopConn = nil end
+    pcall(function()
+        local coreGui = CoreGui or game:GetService("CoreGui")
+        local store = coreGui and (coreGui:FindFirstChild("KhamanVCBypassStore") or coreGui:FindFirstChild("AngoorVCBypassStore"))
+        if store then
+            local origBtn = store:FindFirstChild("toggle_mic_mute")
+            for _, v in ipairs(coreGui:GetDescendants()) do
+                if v.Name == "toggle_mic_mute_new" and v.Parent then
+                    if origBtn then
+                        origBtn.Parent = v.Parent
+                    end
+                    v:Destroy()
+                    break
+                end
+            end
+            store:Destroy()
+        end
+    end)
+    updateKhamanAntiVCVisuals("Status: Idle", T.Muted, "ACTIVATE KHAMAN ANTI VC")
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("KHAMAN DHOKLA", "Anti-VC disabled")
+    notify("Khaman Anti-VC", "Khaman Anti-VC reset to Idle")
     sToggleOff()
 end
 
+_G.ActivateKhamanAntiVC = vcStart
+_G.ActivateTeslaAntiVC  = vcStart
+
+Anti.VC.openPanelFn = function()
+    local coreGui = CoreGui or game:GetService("CoreGui")
+    local pgui = LP and LP:FindFirstChildOfClass("PlayerGui")
+    for _, panelName in ipairs({ "KhamanAntiVCPanel", "TeslaAntiVCPanel" }) do
+        local existing = (coreGui and coreGui:FindFirstChild(panelName))
+            or (pgui and pgui:FindFirstChild(panelName))
+        if existing then
+            existing:Destroy()
+            return
+        end
+    end
+
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "KhamanAntiVCPanel"
+    screenGui.ResetOnSpawn = false
+    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    screenGui.DisplayOrder = 1000002
+
+    local parentOk = pcall(function()
+        screenGui.Parent = coreGui
+    end)
+    if not parentOk or not screenGui.Parent then
+        screenGui.Parent = pgui or LP:WaitForChild("PlayerGui")
+    end
+
+    local mainCard = Instance.new("Frame", screenGui)
+    mainCard.Name = "KhamanAntiVCCard"
+    mainCard.Size = UDim2.new(0, 286, 0, 222)
+    mainCard.Position = UDim2.new(0.5, -143, 0.5, -111)
+    mainCard.BackgroundColor3 = T.BG2
+    mainCard.BorderSizePixel = 0
+    mainCard.Active = true
+    pcall(function() mainCard.Draggable = true end)
+
+    local cardCorner = Instance.new("UICorner", mainCard)
+    cardCorner.CornerRadius = UDim.new(0, 12)
+
+    local cardStroke = Instance.new("UIStroke", mainCard)
+    cardStroke.Color = T.Accent
+    cardStroke.Thickness = 1.6
+
+    local closeBtn = Instance.new("TextButton", mainCard)
+    closeBtn.Size = UDim2.new(0, 24, 0, 22)
+    closeBtn.Position = UDim2.new(1, -24, 0, 0)
+    closeBtn.BackgroundTransparency = 1
+    closeBtn.Text = "✕"
+    closeBtn.Font = Enum.Font.GothamBold
+    closeBtn.TextSize = 12
+    closeBtn.TextColor3 = T.Muted
+    closeBtn.ZIndex = 5
+    closeBtn.MouseButton1Click:Connect(function()
+        sClick()
+        screenGui:Destroy()
+    end)
+
+    local cardPadding = Instance.new("UIPadding", mainCard)
+    cardPadding.PaddingTop = UDim.new(0, 12)
+    cardPadding.PaddingBottom = UDim.new(0, 12)
+    cardPadding.PaddingLeft = UDim.new(0, 14)
+    cardPadding.PaddingRight = UDim.new(0, 14)
+
+    local listLayout = Instance.new("UIListLayout", mainCard)
+    listLayout.FillDirection = Enum.FillDirection.Vertical
+    listLayout.Padding = UDim.new(0, 6)
+    listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+    local headerLbl = Instance.new("TextLabel", mainCard)
+    headerLbl.LayoutOrder = 1
+    headerLbl.Size = UDim2.new(1, -24, 0, 20)
+    headerLbl.BackgroundTransparency = 1
+    headerLbl.Text = "🟨 KHAMAN ANTI VC / VC BYPASS"
+    headerLbl.Font = Enum.Font.GothamBlack
+    headerLbl.TextSize = 12
+    headerLbl.TextColor3 = T.Accent
+    headerLbl.TextXAlignment = Enum.TextXAlignment.Left
+
+    local stLbl = Instance.new("TextLabel", mainCard)
+    stLbl.LayoutOrder = 2
+    stLbl.Size = UDim2.new(1, 0, 0, 22)
+    stLbl.BackgroundTransparency = 1
+    stLbl.Text = Anti.VC.statusText or "Status: Idle"
+    stLbl.Font = Enum.Font.GothamBold
+    stLbl.TextSize = 11
+    stLbl.TextColor3 = Anti.VC.enabled and T.Success
+        or (Anti.VC.running and T.Warning or T.Muted)
+    stLbl.TextXAlignment = Enum.TextXAlignment.Left
+    Anti.VC.statusLbl = stLbl
+
+    local infoLbl = Instance.new("TextLabel", mainCard)
+    infoLbl.LayoutOrder = 3
+    infoLbl.Size = UDim2.new(1, 0, 0, 92)
+    infoLbl.BackgroundColor3 = T.Panel
+    infoLbl.BorderSizePixel = 0
+    infoLbl.Text = "1. Click Activate Khaman Anti-VC\n2. Unmute your mic when prompted\n3. Wait ~6s for bypass to finish\n4. Use the custom mic button after"
+    infoLbl.Font = Enum.Font.Gotham
+    infoLbl.TextSize = 11
+    infoLbl.TextColor3 = T.Text
+    infoLbl.TextXAlignment = Enum.TextXAlignment.Left
+    infoLbl.TextYAlignment = Enum.TextYAlignment.Top
+    infoLbl.TextWrapped = true
+
+    local infoCorner = Instance.new("UICorner", infoLbl)
+    infoCorner.CornerRadius = UDim.new(0, 8)
+
+    local infoPad = Instance.new("UIPadding", infoLbl)
+    infoPad.PaddingTop = UDim.new(0, 8)
+    infoPad.PaddingLeft = UDim.new(0, 10)
+
+    local actBtn = Instance.new("TextButton", mainCard)
+    actBtn.LayoutOrder = 4
+    actBtn.Size = UDim2.new(1, 0, 0, 40)
+    actBtn.BackgroundColor3 = T.Accent2
+    actBtn.BorderSizePixel = 0
+    actBtn.Text = Anti.VC.enabled and "KHAMAN ANTI VC ACTIVE" or (Anti.VC.running and "WAITING..." or "ACTIVATE KHAMAN ANTI VC")
+    actBtn.Font = Enum.Font.GothamBold
+    actBtn.TextSize = 12
+    actBtn.TextColor3 = Color3.new(1, 1, 1)
+    actBtn.AutoButtonColor = true
+    Anti.VC.activateBtn = actBtn
+
+    local btnCorner = Instance.new("UICorner", actBtn)
+    btnCorner.CornerRadius = UDim.new(0, 8)
+
+    actBtn.MouseButton1Click:Connect(function()
+        sClick()
+        vcStart()
+    end)
+end
+
 -- ═══════════════════════════════════════════════════════════════════════════════
--- 6. ADVANCED ANTI-RAGDOLL / ANTI-SIT / ANTI-STUN / ANTI-TRIP V2
---    • Disables Ragdoll, FallingDown, Seated, PlatformStand states
---    • Destroys SeatWelds and Ragdoll BallSocketConstraints / NoCollisionConstraints
---    • Automatically re-enables disabled Motor6D joints
---    • Cures stun/freeze walkspeed locks (when WalkSpeed is forced to 0)
+-- 6. ADVANCED ANTI-RAGDOLL / ANTI-SIT / ANTI-KIDNAP / ANTI-STUN V3
 -- ═══════════════════════════════════════════════════════════════════════════════
 local function ragdollCleanseCharacter(c)
     if not c then return end
@@ -2906,7 +3886,7 @@ local function ragdollCleanseCharacter(c)
             hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
             hum:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
             hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
-            if not WeldIntent.active and not FlingActive and not (moveState and moveState.fly) then
+            if not WeldIntent.active and CurrentWeld == nil and not FlingActive and not (moveState and moveState.fly) then
                 hum:SetStateEnabled(Enum.HumanoidStateType.Physics, false)
                 if hum.PlatformStand then hum.PlatformStand = false end
                 if hum.Sit then hum.Sit = false end
@@ -2921,7 +3901,6 @@ local function ragdollCleanseCharacter(c)
                     hum:ChangeState(Enum.HumanoidStateType.Running)
                     Anti.Ragdoll.recoveries = Anti.Ragdoll.recoveries + 1
                 end
-                -- Cure stun scripts that lock WalkSpeed to 0
                 if hum.WalkSpeed < 8 and not (moveState and moveState.speed) then
                     hum.WalkSpeed = 16
                 end
@@ -2931,11 +3910,11 @@ local function ragdollCleanseCharacter(c)
     for _, obj in ipairs(c:GetDescendants()) do
         if obj:IsA("Motor6D") and not obj.Enabled then
             pcall(function() obj.Enabled = true end)
-        elseif obj:IsA("SeatWeld") or obj.Name == "SeatWeld" or obj.Name:lower():find("ragdoll") then
+        elseif obj:IsA("SeatWeld") or obj.Name == "SeatWeld" or obj.Name:lower():find("ragdoll", 1, true) then
             if not obj:IsA("BasePart") and not obj:IsA("Humanoid") then
                 pcall(function() obj:Destroy() end)
             end
-        elseif obj:IsA("BallSocketConstraint") or obj:IsA("HingeConstraint") then
+        elseif obj:IsA("BallSocketConstraint") or obj:IsA("HingeConstraint") or obj:IsA("NoCollisionConstraint") then
             pcall(function() obj:Destroy() end)
         end
     end
@@ -2944,11 +3923,38 @@ end
 ragdollStart = function()
     if Anti.Ragdoll.enabled then return end
     Anti.Ragdoll.enabled = true
-    ragdollCleanseCharacter(LP.Character)
+    local function hookRagdollChar(char)
+        if Anti.Ragdoll.descConn then Anti.Ragdoll.descConn:Disconnect(); Anti.Ragdoll.descConn = nil end
+        if Anti.Ragdoll.stateConn then Anti.Ragdoll.stateConn:Disconnect(); Anti.Ragdoll.stateConn = nil end
+        if not char then return end
+        ragdollCleanseCharacter(char)
+        Anti.Ragdoll.descConn = char.DescendantAdded:Connect(function(obj)
+            if not Anti.Ragdoll.enabled then return end
+            if obj:IsA("Motor6D") and not obj.Enabled then
+                pcall(function() obj.Enabled = true end)
+            elseif obj:IsA("SeatWeld") or obj.Name == "SeatWeld" or obj.Name:lower():find("ragdoll", 1, true)
+                or obj:IsA("BallSocketConstraint") or obj:IsA("HingeConstraint") then
+                pcall(function() obj:Destroy() end)
+            end
+        end)
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if hum then
+            Anti.Ragdoll.stateConn = hum.StateChanged:Connect(function(_, state)
+                if Anti.Ragdoll.enabled and (state == Enum.HumanoidStateType.Ragdoll
+                    or state == Enum.HumanoidStateType.FallingDown
+                    or state == Enum.HumanoidStateType.Seated) then
+                    task.defer(function()
+                        if Anti.Ragdoll.enabled and char.Parent then ragdollCleanseCharacter(char) end
+                    end)
+                end
+            end)
+        end
+    end
+    hookRagdollChar(LP.Character)
     if Anti.Ragdoll.charAdded then Anti.Ragdoll.charAdded:Disconnect() end
     Anti.Ragdoll.charAdded = LP.CharacterAdded:Connect(function(c)
         task.wait(0.15)
-        if Anti.Ragdoll.enabled then ragdollCleanseCharacter(c) end
+        if Anti.Ragdoll.enabled then hookRagdollChar(c) end
     end)
     if Anti.Ragdoll.steppedConn then Anti.Ragdoll.steppedConn:Disconnect() end
     Anti.Ragdoll.steppedConn = RunService.Stepped:Connect(function()
@@ -2956,7 +3962,7 @@ ragdollStart = function()
         ragdollCleanseCharacter(LP.Character)
     end)
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("KHAMAN DHOKLA", "Anti-Ragdoll / Anti-Stun / Anti-Sit v2 ON")
+    notify("KHAMAN DHOKLA", "Anti-Ragdoll / Anti-Sit / Anti-Stun v3 ON")
     sToggleOn()
 end
 
@@ -2964,6 +3970,8 @@ ragdollStop = function()
     if not Anti.Ragdoll.enabled then return end
     Anti.Ragdoll.enabled = false
     if Anti.Ragdoll.steppedConn then Anti.Ragdoll.steppedConn:Disconnect(); Anti.Ragdoll.steppedConn = nil end
+    if Anti.Ragdoll.descConn then Anti.Ragdoll.descConn:Disconnect(); Anti.Ragdoll.descConn = nil end
+    if Anti.Ragdoll.stateConn then Anti.Ragdoll.stateConn:Disconnect(); Anti.Ragdoll.stateConn = nil end
     if Anti.Ragdoll.charAdded then Anti.Ragdoll.charAdded:Disconnect(); Anti.Ragdoll.charAdded = nil end
     local c = LP.Character
     local hum = c and c:FindFirstChildOfClass("Humanoid")
@@ -2978,10 +3986,7 @@ ragdollStop = function()
 end
 
 -- ═══════════════════════════════════════════════════════════════════════════════
--- 7. ADVANCED ANTI-ANCHOR / ANTI-FREEZE / ANTI-MOVER V2
---    • Unanchors all character parts on Stepped
---    • Purges hostile BodyPosition, BodyVelocity, BodyGyro, AlignPosition,
---      AlignOrientation, LinearVelocity, AngularVelocity, VectorForce injected by enemies
+-- 7. ADVANCED ANTI-ANCHOR / ANTI-FREEZE / ANTI-MOVER V3 (Event-Driven + Stepped)
 -- ═══════════════════════════════════════════════════════════════════════════════
 local HOSTILE_MOVER_CLASSES = {
     BodyVelocity = true,
@@ -2999,15 +4004,26 @@ local HOSTILE_MOVER_CLASSES = {
     AlignOrientation = true,
 }
 
+local function anchorWatchPart(part)
+    if not (part and part:IsA("BasePart")) or Anti.Anchor.partConns[part] then return end
+    Anti.Anchor.partConns[part] = part:GetPropertyChangedSignal("Anchored"):Connect(function()
+        if Anti.Anchor.enabled and part.Parent and part.Anchored and not deflectBusy then
+            pcall(function() part.Anchored = false end)
+            Anti.Anchor.purgedMovers = Anti.Anchor.purgedMovers + 1
+        end
+    end)
+end
+
 local function anchorCleanse(c)
     if not c then return end
     for _, obj in ipairs(c:GetDescendants()) do
         if obj:IsA("BasePart") then
+            anchorWatchPart(obj)
             if obj.Anchored and not deflectBusy then
                 obj.Anchored = false
                 Anti.Anchor.purgedMovers = Anti.Anchor.purgedMovers + 1
             end
-        elseif HOSTILE_MOVER_CLASSES[obj.ClassName] and not obj.Name:match("^Coco") then
+        elseif HOSTILE_MOVER_CLASSES[obj.ClassName] and not obj.Name:match("^Coco") and not obj.Name:match("^Khaman") then
             pcall(function()
                 obj:Destroy()
                 Anti.Anchor.purgedMovers = Anti.Anchor.purgedMovers + 1
@@ -3016,17 +4032,43 @@ local function anchorCleanse(c)
     end
 end
 
+local function anchorHookChar(char)
+    if Anti.Anchor.descConn then Anti.Anchor.descConn:Disconnect(); Anti.Anchor.descConn = nil end
+    for part, conn in pairs(Anti.Anchor.partConns) do
+        if conn then pcall(function() conn:Disconnect() end) end
+        Anti.Anchor.partConns[part] = nil
+    end
+    if not char then return end
+    anchorCleanse(char)
+    Anti.Anchor.descConn = char.DescendantAdded:Connect(function(obj)
+        if not Anti.Anchor.enabled then return end
+        if obj:IsA("BasePart") then
+            anchorWatchPart(obj)
+            if obj.Anchored and not deflectBusy then
+                pcall(function() obj.Anchored = false end)
+            end
+        elseif HOSTILE_MOVER_CLASSES[obj.ClassName] and not obj.Name:match("^Coco") and not obj.Name:match("^Khaman") then
+            pcall(function() obj:Destroy(); Anti.Anchor.purgedMovers = Anti.Anchor.purgedMovers + 1 end)
+        end
+    end)
+end
+
 anchorStart = function()
     if Anti.Anchor.enabled then return end
     Anti.Anchor.enabled = true
-    anchorCleanse(LP.Character)
+    anchorHookChar(LP.Character)
+    if Anti.Anchor.charAdded then Anti.Anchor.charAdded:Disconnect() end
+    Anti.Anchor.charAdded = LP.CharacterAdded:Connect(function(char)
+        task.wait(0.15)
+        if Anti.Anchor.enabled then anchorHookChar(char) end
+    end)
     if Anti.Anchor.steppedConn then Anti.Anchor.steppedConn:Disconnect() end
     Anti.Anchor.steppedConn = RunService.Stepped:Connect(function()
         if not Anti.Anchor.enabled then return end
         anchorCleanse(LP.Character)
     end)
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("KHAMAN DHOKLA", "Anti-Anchor / Anti-Freeze / Anti-Mover v2 ON")
+    notify("KHAMAN DHOKLA", "Anti-Anchor / Anti-Freeze / BodyMover Purger v3 ON")
     sToggleOn()
 end
 
@@ -3034,16 +4076,19 @@ anchorStop = function()
     if not Anti.Anchor.enabled then return end
     Anti.Anchor.enabled = false
     if Anti.Anchor.steppedConn then Anti.Anchor.steppedConn:Disconnect(); Anti.Anchor.steppedConn = nil end
+    if Anti.Anchor.descConn then Anti.Anchor.descConn:Disconnect(); Anti.Anchor.descConn = nil end
+    if Anti.Anchor.charAdded then Anti.Anchor.charAdded:Disconnect(); Anti.Anchor.charAdded = nil end
+    for part, conn in pairs(Anti.Anchor.partConns) do
+        if conn then pcall(function() conn:Disconnect() end) end
+        Anti.Anchor.partConns[part] = nil
+    end
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
     notify("KHAMAN DHOKLA", "Anti-Anchor disabled")
     sToggleOff()
 end
 
 -- ═══════════════════════════════════════════════════════════════════════════════
--- 8. ADVANCED ANTI-ATTACH / HOSTILE WELD & GRAB SEVER V2
---    • Scans BOTH LP.Character AND external characters/workspace for any Joint/Constraint
---      (Weld, WeldConstraint, RigidConstraint, Motor6D, AlignPosition, Rope, etc.)
---      that links any part of our character to an external object or player!
+-- 8. ADVANCED ANTI-ATTACH / HOSTILE WELD & GRAB SEVER V3
 -- ═══════════════════════════════════════════════════════════════════════════════
 local function isJointHostileToCharacter(obj, myChar)
     if not obj or not myChar then return false end
@@ -3069,7 +4114,6 @@ local function severAllHostileAttachments()
     local myChar = LP.Character
     if not myChar then return 0 end
     local severed = 0
-    -- 1. Check joints/constraints inside our own character
     for _, obj in ipairs(myChar:GetDescendants()) do
         if isJointHostileToCharacter(obj, myChar) then
             pcall(function() obj:Destroy() end)
@@ -3086,7 +4130,6 @@ local function severAllHostileAttachments()
             end
         end
     end
-    -- 2. Check joints/constraints inside other players' characters & tools (catches external grab welds!)
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= LP and p.Character then
             for _, obj in ipairs(p.Character:GetDescendants()) do
@@ -3111,7 +4154,7 @@ attachStart = function()
         severAllHostileAttachments()
     end)
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("KHAMAN DHOKLA", "Anti-Attach / Omni-Weld & Grab Sever v2 ON")
+    notify("KHAMAN DHOKLA", "Anti-Attach / Omni-Weld & Grab Sever v3 ON")
     sToggleOn()
 end
 
@@ -3125,9 +4168,7 @@ attachStop = function()
 end
 
 -- ═══════════════════════════════════════════════════════════════════════════════
--- 9. ADVANCED ANTI-BLIND / ANTI-FLASH & VISION CLEAR V2
---    • Cleanses Lighting & Camera post-effects (Blur, ColorCorrection, Bloom, DepthOfField, Fog)
---    • Neutralizes full-screen blinding flashbang overlays in PlayerGui
+-- 9. ADVANCED ANTI-BLIND / ANTI-FLASH & VISION CLEAR V3
 -- ═══════════════════════════════════════════════════════════════════════════════
 local function blindCleanse()
     local Lighting = game:GetService("Lighting")
@@ -3152,12 +4193,11 @@ local function blindCleanse()
                 currentCam.FieldOfView = 70
             end
             for _, eff in ipairs(currentCam:GetChildren()) do
-                if eff:IsA("PostEffect") and not eff.Name:match("^Coco") then
+                if eff:IsA("PostEffect") and not eff.Name:match("^Coco") and not eff.Name:match("^Khaman") then
                     eff.Enabled = false
                 end
             end
         end
-        -- Check PlayerGui for hostile full-screen blind/flashbang ScreenGuis
         local pgui = LP:FindFirstChildOfClass("PlayerGui")
         if pgui then
             for _, sg in ipairs(pgui:GetChildren()) do
@@ -3186,7 +4226,7 @@ blindStart = function()
         blindCleanse()
     end)
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("KHAMAN DHOKLA", "Anti-Blind / Anti-Flashbang & Fog Clear v2 ON")
+    notify("KHAMAN DHOKLA", "Anti-Blind / Anti-Flashbang & Fog Clear v3 ON")
     sToggleOn()
 end
 
@@ -3200,42 +4240,39 @@ blindStop = function()
 end
 
 -- ═══════════════════════════════════════════════════════════════════════════════
--- 10. ADVANCED ANTI-BRING / ANTI-TELEPORT / ANTI-TOOL-GRAB GUARD V2
---     • Detects involuntary CFrame snaps (>38 studs) AND FE Tool-Bring grips
---     • Destroys hostile tool welds and restores verified safe trajectory
+-- 10. ADVANCED ANTI-BRING / ANTI-TELEPORT / ANTI-TOOL-GRAB GUARD V3
 -- ═══════════════════════════════════════════════════════════════════════════════
 bringStart = function()
     if Anti.Bring.enabled then return end
     Anti.Bring.enabled = true
     local c = LP.Character
-    local root = c and c:FindFirstChild("HumanoidRootPart")
+    local root = getRootPart(c)
     if root and isSafePlayableCF(root.CFrame) then
         Anti.Bring.lastCF = root.CFrame
         Anti.Bring.lastSafeTime = tick()
     end
     if Anti.Bring.steppedConn then Anti.Bring.steppedConn:Disconnect() end
-    Anti.Bring.steppedConn = RunService.Stepped:Connect(function( _, dt )
+    Anti.Bring.steppedConn = RunService.Stepped:Connect(function(_, dt)
         if not Anti.Bring.enabled then return end
-        if WeldIntent.active or FlingActive or deflectBusy or (moveState and moveState.fly) then
+        if WeldIntent.active or CurrentWeld ~= nil or FlingActive or deflectBusy or (moveState and moveState.fly) or (RewindSys and RewindSys.rewinding) then
             local ch = LP.Character
-            local r = ch and ch:FindFirstChild("HumanoidRootPart")
+            local r = getRootPart(ch)
             if r and isSafePlayableCF(r.CFrame) then Anti.Bring.lastCF = r.CFrame end
             return
         end
-        if tick() - (moveState.lastTeleportTick or 0) < 0.75 then return end
+        if tick() - (moveState.lastTeleportTick or 0) < 0.85 then return end
 
         local ch = LP.Character
-        local r = ch and ch:FindFirstChild("HumanoidRootPart")
+        local r = getRootPart(ch)
         local hum = ch and ch:FindFirstChildOfClass("Humanoid")
         if not r or not hum or hum.Health <= 0 then return end
 
-        -- Strip any foreign Tool attached to our character that belongs to another player (FE Tool-Bring defense)
         for _, p in ipairs(Players:GetPlayers()) do
             if p ~= LP and p.Character then
                 for _, tool in ipairs(p.Character:GetChildren()) do
                     if tool:IsA("Tool") then
                         local handle = tool:FindFirstChild("Handle")
-                        if handle and (handle.Position - r.Position).Magnitude < 6.5 then
+                        if handle and (handle.Position - r.Position).Magnitude < 7.5 then
                             for _, j in ipairs(handle:GetDescendants()) do
                                 if j:IsA("JointInstance") or j:IsA("WeldConstraint") then
                                     if (j.Part0 and j.Part0:IsDescendantOf(ch)) or (j.Part1 and j.Part1:IsDescendantOf(ch)) then
@@ -3253,13 +4290,12 @@ bringStart = function()
             local dist = (r.Position - Anti.Bring.lastCF.Position).Magnitude
             local maxAllowedStep = math.max(38, (hum.WalkSpeed or 16) * math.max(dt or 0.016, 0.016) * 4.5 + 22)
             if dist > maxAllowedStep then
-                -- Hostile teleport / bring detected!
                 severAllHostileAttachments()
                 r.AssemblyLinearVelocity = Vector3.zero
                 r.AssemblyAngularVelocity = Vector3.zero
                 r.CFrame = Anti.Bring.lastCF
                 Anti.Bring.blockedBrings = Anti.Bring.blockedBrings + 1
-                notify("KHAMAN DHOKLA", "Anti-Bring v2: Blocked hostile teleport/grab!")
+                notify("KHAMAN DHOKLA", "Anti-Bring v3: Blocked hostile teleport/grab!")
             elseif isSafePlayableCF(r.CFrame) then
                 Anti.Bring.lastCF = r.CFrame
             end
@@ -3268,7 +4304,7 @@ bringStart = function()
         end
     end)
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("KHAMAN DHOKLA", "Anti-Bring / Tool-Grab & Snap Guard v2 ON")
+    notify("KHAMAN DHOKLA", "Anti-Bring / Tool-Grab & Snap Guard v3 ON")
     sToggleOn()
 end
 
@@ -3282,34 +4318,26 @@ bringStop = function()
 end
 
 -- ═══════════════════════════════════════════════════════════════════════════════
--- 11. ADVANCED ANTI-FLING & NO-CONTACT SHIELD V2
---     • Pre-Simulation (RunService.Stepped): Strips CanCollide, CanTouch & Massless on
---       ALL other players' characters, tools & accessories across the server so a
---       25,000-stud/s spinner can NEVER physically collide with you even in 1 frame!
---     • Post-Simulation (RunService.Heartbeat): Clamps any residual velocity/angular
---       impulse and snaps back to pre-step CFrame if an exploit spike occurs.
+-- 11. ADVANCED ANTI-FLING & SERVER-WIDE NO-COLLIDE SHIELD V3 (Tesla + Eternity Full Library)
 -- ═══════════════════════════════════════════════════════════════════════════════
 local function neutralizeOtherPlayersCollision()
     local myChar = LP.Character
-    local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+    local myRoot = getRootPart(myChar)
     if not myRoot then return end
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= LP and p.Character then
-            local tRoot = p.Character:FindFirstChild("HumanoidRootPart")
-            local isHighVel = tRoot and (tRoot.AssemblyLinearVelocity.Magnitude > 55 or tRoot.AssemblyAngularVelocity.Magnitude > 30)
-            local isNearby = tRoot and ((tRoot.Position - myRoot.Position).Magnitude < 45)
-            if isHighVel or isNearby then
-                for _, part in ipairs(p.Character:GetDescendants()) do
-                    if part:IsA("BasePart") then
-                        if part.CanCollide then part.CanCollide = false end
-                        if part.CanTouch then part.CanTouch = false end
-                        if not part.Massless then part.Massless = true end
-                        if isHighVel then
-                            pcall(function()
-                                part.AssemblyLinearVelocity = Vector3.zero
-                                part.AssemblyAngularVelocity = Vector3.zero
-                            end)
-                        end
+            local tRoot = getRootPart(p.Character)
+            local isHighVel = tRoot and (tRoot.AssemblyLinearVelocity.Magnitude > 50 or tRoot.AssemblyAngularVelocity.Magnitude > 25)
+            for _, part in ipairs(getCachedCharParts(p.Character)) do
+                if part.Parent then
+                    if part.CanCollide then part.CanCollide = false end
+                    if part.CanTouch then part.CanTouch = false end
+                    if not part.Massless then part.Massless = true end
+                    if isHighVel then
+                        pcall(function()
+                            part.AssemblyLinearVelocity = Vector3.zero
+                            part.AssemblyAngularVelocity = Vector3.zero
+                        end)
                     end
                 end
             end
@@ -3320,13 +4348,18 @@ end
 flingShieldStart = function()
     if Anti.FlingShield.enabled then return end
     Anti.FlingShield.enabled = true
+    pcall(function()
+        local ps = game:GetService("PhysicsService")
+        ps:RegisterCollisionGroup("KhamanNoCollide")
+        ps:CollisionGroupSetCollidable("KhamanNoCollide", "Default", false)
+    end)
     if Anti.FlingShield.steppedConn then Anti.FlingShield.steppedConn:Disconnect() end
     Anti.FlingShield.steppedConn = RunService.Stepped:Connect(function()
         if not Anti.FlingShield.enabled and not DefenceTroll.enabled then return end
-        if WeldIntent.active or FlingActive or deflectBusy then return end
+        if WeldIntent.active or CurrentWeld ~= nil or FlingActive or deflectBusy or (RewindSys and RewindSys.rewinding) then return end
         neutralizeOtherPlayersCollision()
         local myChar = LP.Character
-        local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+        local myRoot = getRootPart(myChar)
         if myRoot and isSafePlayableCF(myRoot.CFrame) then
             if myRoot.AssemblyLinearVelocity.Magnitude < 90 and myRoot.AssemblyAngularVelocity.Magnitude < 35 then
                 Anti.FlingShield.preStepCF = myRoot.CFrame
@@ -3343,9 +4376,9 @@ flingShieldStart = function()
     if Anti.FlingShield.heartbeatConn then Anti.FlingShield.heartbeatConn:Disconnect() end
     Anti.FlingShield.heartbeatConn = RunService.Heartbeat:Connect(function()
         if not Anti.FlingShield.enabled and not DefenceTroll.enabled then return end
-        if WeldIntent.active or FlingActive or deflectBusy then return end
+        if WeldIntent.active or CurrentWeld ~= nil or FlingActive or deflectBusy or (RewindSys and RewindSys.rewinding) then return end
         local myChar = LP.Character
-        local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+        local myRoot = getRootPart(myChar)
         if not myRoot then return end
         if myRoot.AssemblyLinearVelocity.Magnitude > 90 or myRoot.AssemblyAngularVelocity.Magnitude > 35 then
             myRoot.AssemblyLinearVelocity = Vector3.zero
@@ -3357,7 +4390,7 @@ flingShieldStart = function()
         end
     end)
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("KHAMAN DHOKLA", "Anti-Fling Shield v2 (Pre/Post-Physics Zero-Impulse) ON")
+    notify("KHAMAN DHOKLA", "Anti-Fling Shield v3 (Server-Wide No-Collide + Zero-Impulse) ON")
     sToggleOn()
 end
 
@@ -3374,22 +4407,358 @@ flingShieldStop = function()
             Anti.FlingShield.heartbeatConn = nil
         end
     end
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LP and p.Character then
+            for _, part in ipairs(getCachedCharParts(p.Character)) do
+                if part.Parent and (part.Name == "HumanoidRootPart" or part.Name == "Torso" or part.Name == "UpperTorso" or part.Name == "LowerTorso" or part.Name == "Head") then
+                    pcall(function() part.CanCollide = true; part.Massless = false end)
+                end
+            end
+        end
+    end
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
     notify("KHAMAN DHOKLA", "Anti-Fling Shield disabled")
     sToggleOff()
 end
 
 -- ═══════════════════════════════════════════════════════════════════════════════
--- 12. ADVANCED DEFENCE TROLL MATRIX V2 (6 COUNTER-MODES + OMNI-THREAT RADAR)
+-- 12. ADVANCED ANTI-SEAT / COUCH-KIDNAP DESTROYER V3 + ANTI-TOOL-GRAB DISARMER V3
+-- ═══════════════════════════════════════════════════════════════════════════════
+local function neutralizeSeatInstance(seat)
+    if not seat or not (seat:IsA("Seat") or seat:IsA("VehicleSeat")) then return end
+    if not Anti.SeatTrap.savedSeats[seat] then
+        Anti.SeatTrap.savedSeats[seat] = { Disabled = seat.Disabled, CanTouch = seat.CanTouch }
+    end
+    pcall(function()
+        seat.Disabled = true
+        seat.CanTouch = false
+        for _, ch in ipairs(seat:GetChildren()) do
+            if ch:IsA("Weld") or ch:IsA("WeldConstraint") or ch.Name == "SeatWeld" then
+                ch:Destroy()
+            end
+        end
+    end)
+    Anti.SeatTrap.neutralizedSeats = (Anti.SeatTrap.neutralizedSeats or 0) + 1
+end
+
+Anti.SeatTrap.startFn = function()
+    if Anti.SeatTrap.enabled then return end
+    Anti.SeatTrap.enabled = true
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("Seat") or obj:IsA("VehicleSeat") then
+            neutralizeSeatInstance(obj)
+        end
+    end
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p.Character then
+            for _, obj in ipairs(p.Character:GetDescendants()) do
+                if obj:IsA("Seat") or obj:IsA("VehicleSeat") then
+                    neutralizeSeatInstance(obj)
+                end
+            end
+        end
+    end
+    if Anti.SeatTrap.wsDescConn then Anti.SeatTrap.wsDescConn:Disconnect() end
+    Anti.SeatTrap.wsDescConn = workspace.DescendantAdded:Connect(function(obj)
+        if not Anti.SeatTrap.enabled then return end
+        if obj:IsA("Seat") or obj:IsA("VehicleSeat") then
+            neutralizeSeatInstance(obj)
+        elseif (obj:IsA("SeatWeld") or obj.Name == "SeatWeld") and LP.Character then
+            local p0, p1 = obj.Part0, obj.Part1
+            if (p0 and p0:IsDescendantOf(LP.Character)) or (p1 and p1:IsDescendantOf(LP.Character)) then
+                pcall(function() obj:Destroy() end)
+            end
+        end
+    end)
+    if Anti.SeatTrap.loopConn then Anti.SeatTrap.loopConn:Disconnect() end
+    Anti.SeatTrap.loopConn = RunService.Stepped:Connect(function()
+        if not Anti.SeatTrap.enabled then return end
+        local ch = LP.Character
+        local hum = ch and ch:FindFirstChildOfClass("Humanoid")
+        if hum and hum.Sit then
+            pcall(function()
+                hum.Sit = false
+                hum:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
+            end)
+        end
+    end)
+    if syncAllAntiButtons then pcall(syncAllAntiButtons) end
+    if updateDefenceStatsUI then pcall(updateDefenceStatsUI) end
+    notify("KHAMAN DHOKLA", "Anti-Seat / Couch-Kidnap Destroyer v3 ON")
+    sToggleOn()
+end
+
+Anti.SeatTrap.stopFn = function()
+    if not Anti.SeatTrap.enabled then return end
+    Anti.SeatTrap.enabled = false
+    if Anti.SeatTrap.wsDescConn then Anti.SeatTrap.wsDescConn:Disconnect(); Anti.SeatTrap.wsDescConn = nil end
+    if Anti.SeatTrap.loopConn then Anti.SeatTrap.loopConn:Disconnect(); Anti.SeatTrap.loopConn = nil end
+    for seat, saved in pairs(Anti.SeatTrap.savedSeats) do
+        if seat and seat.Parent then
+            pcall(function()
+                seat.Disabled = saved.Disabled
+                seat.CanTouch = saved.CanTouch
+            end)
+        end
+        Anti.SeatTrap.savedSeats[seat] = nil
+    end
+    local hum = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
+    if hum and not Anti.Ragdoll.enabled then
+        pcall(function() hum:SetStateEnabled(Enum.HumanoidStateType.Seated, true) end)
+    end
+    if syncAllAntiButtons then pcall(syncAllAntiButtons) end
+    if updateDefenceStatsUI then pcall(updateDefenceStatsUI) end
+    notify("KHAMAN DHOKLA", "Anti-Seat disabled & map seats restored")
+    sToggleOff()
+end
+
+Anti.ToolGuard.startFn = function()
+    if Anti.ToolGuard.enabled then return end
+    Anti.ToolGuard.enabled = true
+    if Anti.ToolGuard.loopConn then Anti.ToolGuard.loopConn:Disconnect() end
+    local lastToolScan = 0
+    Anti.ToolGuard.loopConn = RunService.Heartbeat:Connect(function()
+        if not Anti.ToolGuard.enabled then return end
+        local now = tick()
+        if now - lastToolScan < 0.14 then return end
+        lastToolScan = now
+        local myChar = LP.Character
+        local myRoot = getRootPart(myChar)
+        if not myRoot then return end
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= LP and p.Character then
+                local oRoot = getRootPart(p.Character)
+                if not oRoot or (oRoot.Position - myRoot.Position).Magnitude < 45 then
+                    for _, child in ipairs(p.Character:GetChildren()) do
+                        if child:IsA("Tool") or child:IsA("HopperBin") then
+                            for _, part in ipairs(child:GetDescendants()) do
+                                if part:IsA("BasePart") then
+                                    if part.CanTouch or part.CanCollide then
+                                        part.CanTouch = false
+                                        part.CanCollide = false
+                                        part.Massless = true
+                                        Anti.ToolGuard.disarmedTools = (Anti.ToolGuard.disarmedTools or 0) + 1
+                                    end
+                                elseif part:IsA("Seat") or part:IsA("VehicleSeat") then
+                                    neutralizeSeatInstance(part)
+                                elseif myChar and isJointHostileToCharacter(part, myChar) then
+                                    pcall(function() part:Destroy() end)
+                                    Anti.Attach.severedCount = (Anti.Attach.severedCount or 0) + 1
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end)
+    if syncAllAntiButtons then pcall(syncAllAntiButtons) end
+    if updateDefenceStatsUI then pcall(updateDefenceStatsUI) end
+    notify("KHAMAN DHOKLA", "Anti-Tool / Couch / Carry Disarmer v3 ON")
+    sToggleOn()
+end
+
+Anti.ToolGuard.stopFn = function()
+    if not Anti.ToolGuard.enabled then return end
+    Anti.ToolGuard.enabled = false
+    if Anti.ToolGuard.loopConn then Anti.ToolGuard.loopConn:Disconnect(); Anti.ToolGuard.loopConn = nil end
+    if syncAllAntiButtons then pcall(syncAllAntiButtons) end
+    if updateDefenceStatsUI then pcall(updateDefenceStatsUI) end
+    notify("KHAMAN DHOKLA", "Anti-Tool Disarmer disabled")
+    sToggleOff()
+end
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- 13. FULL LIBRARY ANTI-HEADSIT & ANTI-FACEBANG EVADER + GLITCH DESYNC + ANTI-KICK (from chunk_06)
+-- ═══════════════════════════════════════════════════════════════════════════════
+Anti.AntiHeadsit.startFn = function()
+    if Anti.AntiHeadsit.enabled then return end
+    Anti.AntiHeadsit.enabled = true
+    if Anti.AntiHeadsit.steppedConn then Anti.AntiHeadsit.steppedConn:Disconnect() end
+    Anti.AntiHeadsit.steppedConn = RunService.Stepped:Connect(function()
+        if not Anti.AntiHeadsit.enabled then return end
+        if WeldIntent.active or CurrentWeld ~= nil or FlingActive or deflectBusy or (RewindSys and RewindSys.rewinding) then return end
+        local now = tick()
+        if now - (Anti.AntiHeadsit.lastEvade or 0) < 0.35 then return end
+        local myChar = LP.Character
+        local myRoot = getRootPart(myChar)
+        if not myRoot then return end
+        local savedCF = myRoot.CFrame
+        local faceZone = savedCF * CFrame.new(0, 0, -1.75)
+        local backZone = savedCF * CFrame.new(0, 0, 1.75)
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= LP and p.Character then
+                local tRoot = getRootPart(p.Character)
+                if tRoot then
+                    local tp = tRoot.Position
+                    local dy = tp.Y - savedCF.Position.Y
+                    local isHeadsitting = (math.abs(tp.X - savedCF.Position.X) <= 2.5 and math.abs(tp.Z - savedCF.Position.Z) <= 2.5 and dy >= 1.15 and dy <= 5.5)
+                    local isFacebanging = ((tp - faceZone.Position).Magnitude <= 1.85) or ((tp - backZone.Position).Magnitude <= 1.65)
+                    if isHeadsitting or isFacebanging then
+                        Anti.AntiHeadsit.lastEvade = now
+                        Anti.AntiHeadsit.evadedCount = (Anti.AntiHeadsit.evadedCount or 0) + 1
+                        pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
+                        task.spawn(function()
+                            pcall(function()
+                                markIntentionalTeleport(savedCF)
+                                myRoot.CFrame = CFrame.new(savedCF.Position.X, math.clamp(OriginalFPDH - 180, -950, -350), savedCF.Position.Z)
+                                task.wait(0.18)
+                                if myRoot and myRoot.Parent and not WeldIntent.active and not FlingActive then
+                                    markIntentionalTeleport(savedCF)
+                                    myRoot.AssemblyLinearVelocity = Vector3.zero
+                                    myRoot.AssemblyAngularVelocity = Vector3.zero
+                                    myRoot.CFrame = savedCF
+                                end
+                            end)
+                        end)
+                        break
+                    end
+                end
+            end
+        end
+    end)
+    if syncAllAntiButtons then pcall(syncAllAntiButtons) end
+    notify("KHAMAN DHOKLA", "Anti-Headsit & Anti-Facebang Evader (Full Library) ON")
+    sToggleOn()
+end
+
+Anti.AntiHeadsit.stopFn = function()
+    if not Anti.AntiHeadsit.enabled then return end
+    Anti.AntiHeadsit.enabled = false
+    if Anti.AntiHeadsit.steppedConn then Anti.AntiHeadsit.steppedConn:Disconnect(); Anti.AntiHeadsit.steppedConn = nil end
+    if syncAllAntiButtons then pcall(syncAllAntiButtons) end
+    notify("KHAMAN DHOKLA", "Anti-Headsit & Anti-Facebang disabled")
+    sToggleOff()
+end
+
+-- Evade Bangs / Glitch Desync (from chunk_06 tbl10: scrambles server CFrame on Heartbeat while restoring real CFrame on Stepped & RenderStep)
+Anti.GlitchDesync.startFn = function()
+    if Anti.GlitchDesync.enabled then return end
+    Anti.GlitchDesync.enabled = true
+    pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
+    local myChar = LP.Character
+    local myRoot = getRootPart(myChar)
+    if myRoot then
+        Anti.GlitchDesync.realCF = myRoot.CFrame
+        Anti.GlitchDesync.realVel = myRoot.AssemblyLinearVelocity
+        Anti.GlitchDesync.realRot = myRoot.AssemblyAngularVelocity
+    end
+    if Anti.GlitchDesync.steppedConn then Anti.GlitchDesync.steppedConn:Disconnect() end
+    Anti.GlitchDesync.steppedConn = RunService.Stepped:Connect(function()
+        if not Anti.GlitchDesync.enabled then return end
+        if WeldIntent.active or CurrentWeld ~= nil or FlingActive or deflectBusy or (RewindSys and RewindSys.rewinding) then return end
+        local r = getRootPart(LP.Character)
+        if r and Anti.GlitchDesync.realCF then
+            r.CFrame = Anti.GlitchDesync.realCF
+            local rv = Anti.GlitchDesync.realVel
+            if rv and rv.Magnitude < 1 then rv = Vector3.new(0, 0.05, 0) end
+            r.AssemblyLinearVelocity = rv or Vector3.zero
+            r.AssemblyAngularVelocity = Anti.GlitchDesync.realRot or Vector3.zero
+        end
+    end)
+    pcall(function() RunService:UnbindFromRenderStep("KhamanGlitchRestore") end)
+    pcall(function()
+        RunService:BindToRenderStep("KhamanGlitchRestore", 1, function()
+            if not Anti.GlitchDesync.enabled then return end
+            if WeldIntent.active or CurrentWeld ~= nil or FlingActive or deflectBusy or (RewindSys and RewindSys.rewinding) then return end
+            local r = getRootPart(LP.Character)
+            if r and Anti.GlitchDesync.realCF then
+                r.CFrame = Anti.GlitchDesync.realCF
+                local rv = Anti.GlitchDesync.realVel
+                if rv and rv.Magnitude < 1 then rv = Vector3.new(0, 0.05, 0) end
+                r.AssemblyLinearVelocity = rv or Vector3.zero
+                r.AssemblyAngularVelocity = Anti.GlitchDesync.realRot or Vector3.zero
+            end
+        end)
+    end)
+    if Anti.GlitchDesync.heartbeatConn then Anti.GlitchDesync.heartbeatConn:Disconnect() end
+    Anti.GlitchDesync.heartbeatConn = RunService.Heartbeat:Connect(function()
+        if not Anti.GlitchDesync.enabled then return end
+        if WeldIntent.active or CurrentWeld ~= nil or FlingActive or deflectBusy or (RewindSys and RewindSys.rewinding) then return end
+        local r = getRootPart(LP.Character)
+        if not r then return end
+        Anti.GlitchDesync.realCF = r.CFrame
+        Anti.GlitchDesync.realVel = r.AssemblyLinearVelocity
+        Anti.GlitchDesync.realRot = r.AssemblyAngularVelocity
+        local rx = math.random(-50000, 50000)
+        local ry = math.random(50, 1000)
+        local rz = math.random(-50000, 50000)
+        local ox = math.random(-100, 100)
+        local oy = math.random(12, 145)
+        local oz = math.random(-100, 100)
+        local spoofCF = CFrame.new(r.Position) * CFrame.Angles(0, math.random(0, 314) / 100, 0) + Vector3.new(ox, oy, oz)
+        markIntentionalTeleport(Anti.GlitchDesync.realCF)
+        r.AssemblyLinearVelocity = Vector3.new(rx, ry, rz)
+        r.AssemblyAngularVelocity = Vector3.new(rx, ry, rz)
+        r.CFrame = spoofCF
+    end)
+    if syncAllAntiButtons then pcall(syncAllAntiButtons) end
+    notify("KHAMAN DHOKLA", "Anti-Bang Glitch Desync (Evade Bangs) ON")
+    sToggleOn()
+end
+
+Anti.GlitchDesync.stopFn = function()
+    if not Anti.GlitchDesync.enabled then return end
+    Anti.GlitchDesync.enabled = false
+    pcall(function() RunService:UnbindFromRenderStep("KhamanGlitchRestore") end)
+    if Anti.GlitchDesync.steppedConn then Anti.GlitchDesync.steppedConn:Disconnect(); Anti.GlitchDesync.steppedConn = nil end
+    if Anti.GlitchDesync.heartbeatConn then Anti.GlitchDesync.heartbeatConn:Disconnect(); Anti.GlitchDesync.heartbeatConn = nil end
+    local r = getRootPart(LP.Character)
+    if r and Anti.GlitchDesync.realCF then
+        markIntentionalTeleport(Anti.GlitchDesync.realCF)
+        r.CFrame = Anti.GlitchDesync.realCF
+        r.AssemblyLinearVelocity = Anti.GlitchDesync.realVel or Vector3.zero
+        r.AssemblyAngularVelocity = Anti.GlitchDesync.realRot or Vector3.zero
+    end
+    if syncAllAntiButtons then pcall(syncAllAntiButtons) end
+    notify("KHAMAN DHOKLA", "Anti-Bang Glitch Desync disabled")
+    sToggleOff()
+end
+
+-- Anti-Kick (from chunk_06: intercepts client-side LocalPlayer:Kick calls via hookfunction)
+Anti.Kick.startFn = function()
+    if Anti.Kick.enabled then return end
+    Anti.Kick.enabled = true
+    pcall(function()
+        if type(hookfunction) == "function" and LP and LP.Kick and not Anti.Kick.hooked then
+            Anti.Kick.hooked = true
+            local origKick
+            origKick = hookfunction(LP.Kick, function(selfArg, ...)
+                if Anti.Kick.enabled and selfArg == LP then
+                    Anti.Kick.blockedKicks = (Anti.Kick.blockedKicks or 0) + 1
+                    local reason = tostring(... or "Client Kick")
+                    notify("KHAMAN DHOKLA", "🛡️ Anti-Kick blocked: " .. reason:sub(1, 36))
+                    return nil
+                end
+                return origKick(selfArg, ...)
+            end)
+            Anti.Kick.originalKick = origKick
+        end
+    end)
+    if syncAllAntiButtons then pcall(syncAllAntiButtons) end
+    notify("KHAMAN DHOKLA", "Anti-Kick (Client Kick Interceptor) ON")
+    sToggleOn()
+end
+
+Anti.Kick.stopFn = function()
+    if not Anti.Kick.enabled then return end
+    Anti.Kick.enabled = false
+    if syncAllAntiButtons then pcall(syncAllAntiButtons) end
+    notify("KHAMAN DHOKLA", "Anti-Kick disabled")
+    sToggleOff()
+end
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- 14. ADVANCED DEFENCE TROLL MATRIX V3 (6 COUNTER-MODES + OMNI-THREAT RADAR)
 -- ═══════════════════════════════════════════════════════════════════════════════
 local function findBestRedirectVictim(attacker)
     local myChar = LP.Character
-    local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+    local myRoot = getRootPart(myChar)
     if not myRoot then return nil end
     local bestPlr, bestDist = nil, math.huge
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= LP and p ~= attacker and p.Character then
-            local r = p.Character:FindFirstChild("HumanoidRootPart")
+            local r = getRootPart(p.Character)
             local h = p.Character:FindFirstChildOfClass("Humanoid")
             if r and (not h or h.Health > 0) and r.Position.Y > (OriginalFPDH + 25) then
                 local d = (r.Position - myRoot.Position).Magnitude
@@ -3404,9 +4773,9 @@ local function findBestRedirectVictim(attacker)
 end
 
 local function executeDeflectAction(attacker, threatReason)
-    if deflectBusy then return end
+    if deflectBusy or WeldIntent.active or CurrentWeld ~= nil or FlingActive then return end
     local myChar = LP.Character
-    local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+    local myRoot = getRootPart(myChar)
     local myHum  = myChar and myChar:FindFirstChildOfClass("Humanoid")
     if not myRoot or not myHum or myHum.Health <= 0 then return end
     if not attacker or not attacker.Character then return end
@@ -3418,7 +4787,6 @@ local function executeDeflectAction(attacker, threatReason)
     DefenceTroll.lastAttackerName = attacker.Name
     DefenceTroll.lastThreatReason = threatReason or "Proximity/Troll"
 
-    -- Determine active counter mode (respects dedicated PauseTrap / Redirect toggles too)
     local mode = DefenceTroll.mode or "GodMatrix"
     if not DefenceTroll.enabled then
         if Anti.Redirect.enabled then mode = "Redirect"
@@ -3439,10 +4807,9 @@ local function executeDeflectAction(attacker, threatReason)
         end)
     end
 
-    -- 1. Instant Disarm: Sever any hostile welds/constraints & make local parts non-colliding with world walls
     severAllHostileAttachments()
-    for _, part in ipairs(myChar:GetDescendants()) do
-        if part:IsA("BasePart") then
+    for _, part in ipairs(getCachedCharParts(myChar)) do
+        if part.Parent then
             part.CanCollide = false
             part.CanTouch = false
             part.Massless = true
@@ -3458,7 +4825,6 @@ local function executeDeflectAction(attacker, threatReason)
     local voidDropCF = CFrame.new(savedCF.Position.X, voidDropY, savedCF.Position.Z)
 
     if mode == "GodMatrix" then
-        -- Phase 1: High-RPM Kinetic Vortex Intersection through Attacker Center of Mass
         for i = 1, 6 do
             if not myRoot.Parent or not attRoot.Parent then break end
             local angle = i * 1.15
@@ -3468,7 +4834,6 @@ local function executeDeflectAction(attacker, threatReason)
             myRoot.AssemblyLinearVelocity = Vector3.new(math.random(-28000, 28000), -60000, math.random(-28000, 28000))
             RunService.Heartbeat:Wait()
         end
-        -- Phase 2: Streamed-Chunk Void Drop (kills welded attackers instantly)
         for _ = 1, 5 do
             if not myRoot.Parent then break end
             myRoot.CFrame = voidDropCF
@@ -3476,7 +4841,6 @@ local function executeDeflectAction(attacker, threatReason)
             myRoot.AssemblyAngularVelocity = Vector3.zero
             RunService.Heartbeat:Wait()
         end
-        -- Phase 3: Bystander Slingshot Redirect
         local victim = findBestRedirectVictim(attacker)
         if victim and victim.Character then
             local vRoot = pickTargetRef(victim.Character, "torso")
@@ -3544,7 +4908,6 @@ local function executeDeflectAction(attacker, threatReason)
             RunService.Heartbeat:Wait()
         end
     elseif mode == "SkyOrbit" then
-        -- SKY ORBIT: Launches welded/attacking troll vertically into upper-atmosphere orbit (+18,000 Y)
         local skyCF = CFrame.new(savedCF.Position.X, math.min(savedCF.Position.Y + 18000, 45000), savedCF.Position.Z)
         for _ = 1, 5 do
             if not myRoot.Parent or not attRoot.Parent then break end
@@ -3561,7 +4924,6 @@ local function executeDeflectAction(attacker, threatReason)
         end
     end
 
-    -- Multi-frame anchored snapback to exact savedCF so local player NEVER stays stuck in the void
     LastVoidActionEnd = tick()
     markIntentionalTeleport(savedCF)
     safeReturnFromVoid(myChar, savedCF)
@@ -3581,10 +4943,10 @@ RunService.Heartbeat:Connect(function(dt)
     if not DefenceTroll.enabled and not Anti.Redirect.enabled and not Anti.PauseTrap.enabled then
         return
     end
-    if WeldIntent.active or FlingActive or deflectBusy then return end
+    if WeldIntent.active or CurrentWeld ~= nil or FlingActive or deflectBusy or (RewindSys and RewindSys.rewinding) then return end
 
     local myChar = LP.Character
-    local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+    local myRoot = getRootPart(myChar)
     local myHum  = myChar and myChar:FindFirstChildOfClass("Humanoid")
     if not myRoot or not myHum or myHum.Health <= 0 then return end
 
@@ -3601,11 +4963,9 @@ RunService.Heartbeat:Connect(function(dt)
                 local velMag = vel.Magnitude
                 local angMag = tRoot.AssemblyAngularVelocity.Magnitude
 
-                -- Calculate closing speed toward our character
                 local toMe = (myRoot.Position - tRoot.Position)
                 local closingSpeed = (toMe.Magnitude > 0.01) and vel:Dot(toMe.Unit) or 0
 
-                -- Detect oscillation / weld-troll pattern (Facebang / Backshots / Headsit)
                 local prevPos = attackerLastPos[p.UserId]
                 attackerLastPos[p.UserId] = tRoot.Position
                 local stepDelta = prevPos and (tRoot.Position - prevPos).Magnitude or 0
@@ -3678,7 +5038,7 @@ defenceTrollStart = function()
     flingShieldStart()
     if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("KHAMAN DHOKLA", "Defence Troll Matrix v2 ON: " .. (DefenceTroll.modeLabels[DefenceTroll.mode] or DefenceTroll.mode))
+    notify("KHAMAN DHOKLA", "Defence Troll Matrix v3 ON: " .. (DefenceTroll.modeLabels[DefenceTroll.mode] or DefenceTroll.mode))
     sToggleOn()
 end
 defenceTrollStop = function()
@@ -3699,12 +5059,16 @@ enableAllAntiSystems = function()
     attachStart()
     blindStart()
     bringStart()
+    if Anti.SeatTrap.startFn then Anti.SeatTrap.startFn() end
+    if Anti.ToolGuard.startFn then Anti.ToolGuard.startFn() end
+    if Anti.AntiHeadsit.startFn then Anti.AntiHeadsit.startFn() end
+    if Anti.Kick.startFn then Anti.Kick.startFn() end
     agpStart()
     afkStart()
     if updateDefenceStatsUI then pcall(updateDefenceStatsUI) end
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
     if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
-    notify("KHAMAN DHOKLA", "🛡️ ALL ADVANCED ANTI SHIELDS ACTIVATED!")
+    notify("KHAMAN DHOKLA", "🛡️ ALL FULL-LIBRARY V3 ANTI SHIELDS ACTIVATED!")
     sSuccess()
 end
 
@@ -3713,6 +5077,7 @@ disableAllAntiSystems = function()
     redirectStop()
     pauseTrapStop()
     avStop()
+    if Anti.InfFallVoid.stopFn then Anti.InfFallVoid.stopFn() end
     akStop()
     flingShieldStop()
     ragdollStop()
@@ -3720,6 +5085,11 @@ disableAllAntiSystems = function()
     attachStop()
     blindStop()
     bringStop()
+    if Anti.SeatTrap.stopFn then Anti.SeatTrap.stopFn() end
+    if Anti.ToolGuard.stopFn then Anti.ToolGuard.stopFn() end
+    if Anti.AntiHeadsit.stopFn then Anti.AntiHeadsit.stopFn() end
+    if Anti.GlitchDesync.stopFn then Anti.GlitchDesync.stopFn() end
+    if Anti.Kick.stopFn then Anti.Kick.stopFn() end
     agpStop()
     afkStop()
     vcStop()
@@ -4842,7 +6212,7 @@ local function buildMainUI()
             return
         end
 
-        StateManager:Cleanup(true)
+        StateManager:Cleanup(true, true)
         CurrentTarget = targetPlr
         LastWeldTargetUserId = targetPlr.UserId
         hookTargetRespawn(targetPlr)
@@ -5461,33 +6831,56 @@ local function buildMainUI()
     pcall(refreshList)
 
     Players.PlayerAdded:Connect(function(p)
-        task.wait(0.5)
+        task.wait(0.35)
         pcall(refreshList)
         if AutoReweldEnabled and LastWeldTargetUserId and p.UserId == LastWeldTargetUserId then
-            task.wait(1.5)
-            if not p.Character then return end
+            hookTargetRespawn(p)
+            local waitStart = tick()
+            while tick() - waitStart < 12.0 and p.Parent == Players and not findPlayerCharacterAnywhere(p) do
+                RunService.Heartbeat:Wait()
+            end
+            if p.Parent ~= Players then return end
             selectedPlayer = p
             footerLabel.Text = "Target: " .. p.Name
             footerSub.Text = "rejoined — auto re-welding"
             syncChatTarget(p)
-            if LastPresetKey and WELD_PRESETS[LastPresetKey] then
-                applyWeldPreset(LastPresetKey, p)
+            local key = WeldIntent.presetKey or LastPresetKey
+            if key and WELD_PRESETS[key] then
+                applyWeldPreset(key, p)
                 syncAllActiveIndicators()
             end
-            hookTargetRespawn(p)
         end
     end)
 
     Players.PlayerRemoving:Connect(function(p)
         if WeldIntent.target == p or CurrentTarget == p or selectedPlayer == p then
-            stopWeld()
+            if WeldIntent.active and WeldIntent.autoNearest and selectedPlayer == nil then
+                local nextPlr = getNearestPlayer(LP)
+                if nextPlr and nextPlr ~= p and nextPlr.Parent == Players then
+                    CurrentTarget = nextPlr
+                    WeldIntent.target = nextPlr
+                    LastWeldTargetUserId = nextPlr.UserId
+                    hookTargetRespawn(nextPlr)
+                    applyWeldPreset(WeldIntent.presetKey or LastPresetKey, nextPlr)
+                    footerLabel.Text = "Nearest: " .. nextPlr.Name
+                    footerSub.Text = "target left · auto-switched to " .. nextPlr.Name
+                    pcall(syncAllActiveIndicators)
+                    task.wait(0.1)
+                    pcall(refreshList)
+                    pcall(refreshCard)
+                    return
+                end
+            end
+            LastWeldTargetUserId = p.UserId
+            WeldIntent.waitingForSpawn = WeldIntent.active
+            stopWeld(true)
             StateManager:Cleanup(false)
             if selectedPlayer == p then
                 selectedPlayer = nil
                 syncChatTarget(nil)
             end
             footerLabel.Text = "Auto: Nearest Player"
-            footerSub.Text = "target left — stopped & reset"
+            footerSub.Text = "target left — queued for rejoin"
             pcall(syncAllActiveIndicators)
         end
         task.wait(0.1)
@@ -5940,21 +7333,67 @@ local function buildMainUI()
         return btn
     end
 
-    makeAntiToggle(4, "Anti-Fling v2 (Pre/Post-Physics Zero-Impulse)", function() return Anti.FlingShield.enabled end, flingShieldStart, flingShieldStop)
-    makeAntiToggle(5, "Anti-Void v2 (Velocity Catch + Safety Floor)", function() return Anti.Void.enabled end, avStart, avStop)
-    makeAntiToggle(6, "Anti-Kill v2 (God-Touch + Explosion Immunity)", function() return Anti.Kill.enabled end, akStart, akStop)
-    makeAntiToggle(7, "Anti-Ragdoll / Anti-Sit / Anti-Stun / Motor6D", function() return Anti.Ragdoll.enabled end, ragdollStart, ragdollStop)
-    makeAntiToggle(8, "Anti-Anchor / Anti-Freeze / Purge BodyMovers", function() return Anti.Anchor.enabled end, anchorStart, anchorStop)
-    makeAntiToggle(9, "Anti-Attach / Omni-Weld & Grab Sever", function() return Anti.Attach.enabled end, attachStart, attachStop)
-    makeAntiToggle(10, "Anti-Bring / Tool-Grab & Teleport Guard", function() return Anti.Bring.enabled end, bringStart, bringStop)
-    makeAntiToggle(11, "Anti-Blind / Anti-Flashbang & Fog Clear", function() return Anti.Blind.enabled end, blindStart, blindStop)
+    makeAntiToggle(4, "Anti-Fling v3 (Server No-Collide + Zero-Impulse)", function() return Anti.FlingShield.enabled end, flingShieldStart, flingShieldStop)
+    makeAntiToggle(5, "Anti-Void v3 (2048x2048 Floor + Velocity Catch)", function() return Anti.Void.enabled end, avStart, avStop)
+    makeAntiToggle(6, "Infinite Fall Void (Fall Below Map Without Dying)", function() return Anti.InfFallVoid.enabled end, Anti.InfFallVoid.startFn, Anti.InfFallVoid.stopFn)
+    makeAntiToggle(7, "Anti-Kill / God-Mode v3 (Touch Shield + ForceField)", function() return Anti.Kill.enabled end, akStart, akStop)
+    makeAntiToggle(8, "Anti-Ragdoll / Anti-Sit / Anti-Stun / Motor6D v3", function() return Anti.Ragdoll.enabled end, ragdollStart, ragdollStop)
+    makeAntiToggle(9, "Anti-Anchor / Anti-Freeze / Purge BodyMovers v3", function() return Anti.Anchor.enabled end, anchorStart, anchorStop)
+    makeAntiToggle(10, "Anti-Attach / Omni-Weld & Grab Sever v3", function() return Anti.Attach.enabled end, attachStart, attachStop)
+    makeAntiToggle(11, "Anti-Bring / Tool-Grab & Teleport Guard v3", function() return Anti.Bring.enabled end, bringStart, bringStop)
+    makeAntiToggle(12, "Anti-Seat / Couch-Kidnap Destroyer v3", function() return Anti.SeatTrap.enabled end, Anti.SeatTrap.startFn, Anti.SeatTrap.stopFn)
+    makeAntiToggle(13, "Anti-Tool / Couch / Carry / Cuffs Disarmer v3", function() return Anti.ToolGuard.enabled end, Anti.ToolGuard.startFn, Anti.ToolGuard.stopFn)
+    makeAntiToggle(14, "Anti-Headsit & Anti-Facebang Evader (Library)", function() return Anti.AntiHeadsit.enabled end, Anti.AntiHeadsit.startFn, Anti.AntiHeadsit.stopFn)
+    makeAntiToggle(15, "Anti-Bang Glitch Desync (Evade Bangs / CFrame Spoof)", function() return Anti.GlitchDesync.enabled end, Anti.GlitchDesync.startFn, Anti.GlitchDesync.stopFn)
+    makeAntiToggle(16, "Anti-Blind / Anti-Flashbang & Fog Clear v3", function() return Anti.Blind.enabled end, blindStart, blindStop)
 
-    sectionLbl(antiTab, 12, "COUNTER-TRAPS & CLIENT BYPASSES", T.Muted)
-    makeAntiToggle(13, "Void-Pause Attacker (Banish Welded Trolls)", function() return Anti.PauseTrap.enabled end, pauseTrapStart, pauseTrapStop)
-    makeAntiToggle(14, "Redirect Attacker -> Nearest Bystander", function() return Anti.Redirect.enabled end, redirectStart, redirectStop)
-    makeAntiToggle(15, "Anti-GameplayPaused / Anti-NetworkPause", function() return Anti.GamePaused.enabled end, agpStart, agpStop)
-    makeAntiToggle(16, "Anti-AFK v2 (Idled + VirtualUser Pulse)", function() return Anti.AFK.enabled end, afkStart, afkStop)
-    makeAntiToggle(17, "Anti-VC Ban (Native Voice Rejoin + Bypass)", function() return Anti.VC.enabled end, vcStart, vcStop)
+    sectionLbl(antiTab, 17, "COUNTER-TRAPS, KHAMAN ANTI-VC & CLIENT BYPASSES", T.Accent)
+    makeAntiToggle(18, "Void-Pause Attacker (Banish Welded Trolls)", function() return Anti.PauseTrap.enabled end, pauseTrapStart, pauseTrapStop)
+    makeAntiToggle(19, "Redirect Attacker -> Nearest Bystander", function() return Anti.Redirect.enabled end, redirectStart, redirectStop)
+    makeAntiToggle(20, "Anti-Kick (Intercept Client LocalPlayer:Kick)", function() return Anti.Kick.enabled end, Anti.Kick.startFn, Anti.Kick.stopFn)
+    makeAntiToggle(21, "Anti-GameplayPaused / Anti-NetworkPause v3", function() return Anti.GamePaused.enabled end, agpStart, agpStop)
+    makeAntiToggle(22, "Anti-AFK v3 (Idled + VirtualUser + Input Pulse)", function() return Anti.AFK.enabled end, afkStart, afkStop)
+    makeAntiToggle(23, "Khaman Anti-VC (Voice Chat Bypass Toggle)", function() return Anti.VC.enabled or Anti.VC.running end, vcStart, vcStop)
+
+    do
+        local vcPanelRow = Instance.new("Frame")
+        vcPanelRow.Size = UDim2.new(1, 0, 0, 36)
+        vcPanelRow.BackgroundColor3 = T.Panel
+        vcPanelRow.BorderSizePixel = 0
+        vcPanelRow.LayoutOrder = 24
+        vcPanelRow.ZIndex = 7
+        vcPanelRow.Parent = antiTab
+        Instance.new("UICorner", vcPanelRow).CornerRadius = UDim.new(0, 7)
+
+        local vcRowLbl = Instance.new("TextLabel")
+        vcRowLbl.Size = UDim2.new(1, -138, 1, 0)
+        vcRowLbl.Position = UDim2.new(0, 12, 0, 0)
+        vcRowLbl.BackgroundTransparency = 1
+        vcRowLbl.Text = "Status: Idle · Khaman Anti-VC"
+        vcRowLbl.TextColor3 = T.Neon
+        vcRowLbl.Font = Enum.Font.GothamBold
+        vcRowLbl.TextSize = 10
+        vcRowLbl.TextXAlignment = Enum.TextXAlignment.Left
+        vcRowLbl.ZIndex = 8
+        vcRowLbl.Parent = vcPanelRow
+        Anti.VC.rowSubLbl = vcRowLbl
+
+        local openVcPanelBtn = Instance.new("TextButton")
+        openVcPanelBtn.Size = UDim2.new(0, 118, 0, 24)
+        openVcPanelBtn.Position = UDim2.new(1, -126, 0.5, -12)
+        openVcPanelBtn.Text = "OPEN ANTI-VC UI"
+        openVcPanelBtn.TextColor3 = Color3.new(1, 1, 1)
+        openVcPanelBtn.Font = Enum.Font.GothamBold
+        openVcPanelBtn.TextSize = 9
+        openVcPanelBtn.ZIndex = 8
+        openVcPanelBtn.Parent = vcPanelRow
+        Instance.new("UICorner", openVcPanelBtn).CornerRadius = UDim.new(0, 6)
+        styleBtn(openVcPanelBtn, T.Accent2)
+        openVcPanelBtn.MouseButton1Click:Connect(function()
+            sClick()
+            if Anti.VC.openPanelFn then Anti.VC.openPanelFn() end
+        end)
+    end
 
     -- ═══════════════════════════════════════════════════════════════════════════
     -- TAB 5: MOVE (SPEED UP TO 500 & UNIVERSAL ANDROID / PC FLIGHT)
