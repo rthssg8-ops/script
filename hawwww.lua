@@ -146,14 +146,7 @@ cleanupOldGuis(LP:FindFirstChildOfClass("PlayerGui"))
 if CoreGui then cleanupOldGuis(CoreGui) end
 end -- end GuiParent bootstrap scope
 
-local _raw_sethiddenproperty = sethiddenproperty or set_hidden_property or set_hidden_prop
--- Guard against PhysicsRepRootPart / PhysicsRepRootRef non-nil double-transform bug (which sends Root.CFrame to 2x world coordinates!)
-local sethiddenproperty = _raw_sethiddenproperty and function(inst, prop, val)
-    if (prop == "PhysicsRepRootPart" or prop == "PhysicsRepRootRef") and val ~= nil then
-        return
-    end
-    return _raw_sethiddenproperty(inst, prop, val)
-end or nil
+local sethiddenproperty = sethiddenproperty or set_hidden_property or set_hidden_prop
 local InstanceHandleNew = nil
 pcall(function()
     if InstanceHandle and typeof(InstanceHandle.new) == "function" then
@@ -620,24 +613,25 @@ local function isSafePlayableCF(cf)
     if not cf then return false end
     local pos = cf.Position
     if pos.X ~= pos.X or pos.Y ~= pos.Y or pos.Z ~= pos.Z then return false end
-    local voidFloor = math.min(OriginalFPDH + 15, -450)
-    if pos.Y <= voidFloor or pos.Y > 75000 then return false end
-    if math.abs(pos.Y - 85000) < 3500 then return false end
-    if pos.Magnitude > 250000 then return false end
+    local voidFloor = math.min(OriginalFPDH + 10, -485)
+    if pos.Y <= voidFloor or pos.Y > 500000 then return false end
+    if math.abs(pos.Y - 85000) < 1500 then return false end
+    if pos.Magnitude > 850000 then return false end
     return true
 end
 
 -- Distinguish true lethal void freefall from hidden underground rooms, house interiors, custom realms, or skyboxes!
+-- Allows attaching in EVERY place in the server (underground bunkers, high skyboxes, distant teleport maps, etc.).
 local function isLethalVoidCF(cf, velocity)
     if not cf then return true end
     local pos = cf.Position
     if pos.X ~= pos.X or pos.Y ~= pos.Y or pos.Z ~= pos.Z then return true end
-    if pos.Magnitude > 500000 or pos.Y > 120000 then return true end
-    local hardFloor = math.min(OriginalFPDH - 15, -550)
+    if pos.Magnitude > 950000 then return true end
+    local hardFloor = math.min(OriginalFPDH - 25, -600)
     if pos.Y <= hardFloor then return true end
     local vy = velocity and velocity.Y or 0
-    local killLine = math.min(OriginalFPDH + 5, -480)
-    if pos.Y <= killLine and vy < -130 then return true end
+    local killLine = math.min(OriginalFPDH + 2, -495)
+    if pos.Y <= killLine and vy < -135 then return true end
     return false
 end
 
@@ -1472,27 +1466,7 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
         end
     end
 
-    -- Immediate Frame-0 Lock (0.00ms startup delay!)
-    if TargetPart and TargetPart.Parent and Root and Root.Parent then
-        local customAdjust = CFrame.new(V.X or 0, V.Y or 0, (V.Z or 1.3) - 1.3)
-        local localOffset = Offset * customAdjust
-        currentLockCF = TargetPart.CFrame * localOffset
-        Root.CFrame = currentLockCF
-        syncReanimRoots(currentLockCF)
-    end
-
-    -- Stepped pass ensures we phase through walls, doors, roofs, and seats inside any hiding spot
-    StepConn = RunService.Stepped:Connect(function()
-        if Weld.destroyed then return end
-        applyPhaseNoclip()
-        if currentLockCF and Root and Root.Parent then
-            Root.CFrame = currentLockCF
-            syncReanimRoots(currentLockCF)
-        end
-    end)
-
-    -- RenderStepped pass guarantees zero-jitter visual lock when the target sprints or turns camera (exact khaman_dhokla.lua math)
-    RenderConn = RunService.RenderStepped:Connect(function()
+    local function updateZeroDelayLockCF()
         if Weld.destroyed then return end
         if TargetPart and TargetPart.Parent and Root and Root.Parent then
             local customAdjust = CFrame.new(V.X or 0, V.Y or 0, (V.Z or 1.3) - 1.3)
@@ -1505,6 +1479,40 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
             Root.CFrame = currentLockCF
             syncReanimRoots(currentLockCF)
         end
+    end
+
+    -- Immediate Frame-0 Lock + Zero-Delay Network Replication Bind (0.00ms startup delay!)
+    if TargetPart and TargetPart.Parent and Root and Root.Parent then
+        local focusInit = (TargetChar and (TargetChar:FindFirstChild("HumanoidRootPart") or TargetPart)) or TargetPart
+        pcall(function() LP.ReplicationFocus = focusInit end)
+        if sethiddenproperty then
+            pcall(function()
+                sethiddenproperty(Root, "PhysicsRepRootPart", focusInit)
+                if InstanceHandleNew then
+                    sethiddenproperty(Root, "PhysicsRepRootRef", InstanceHandleNew(focusInit))
+                end
+                sethiddenproperty(Root, "NetworkIsSleeping", false)
+            end)
+        end
+        updateZeroDelayLockCF()
+    end
+
+    pcall(function()
+        RunService:BindToRenderStep("CocoWeldZeroDelayPreCam", Enum.RenderPriority.Camera.Value - 1, updateZeroDelayLockCF)
+        RunService:BindToRenderStep("CocoWeldZeroDelayLock", Enum.RenderPriority.Character.Value + 1, updateZeroDelayLockCF)
+    end)
+
+    -- Stepped pass ensures we phase through walls, doors, roofs, and seats inside any hiding spot
+    StepConn = RunService.Stepped:Connect(function()
+        if Weld.destroyed then return end
+        applyPhaseNoclip()
+        updateZeroDelayLockCF()
+    end)
+
+    -- RenderStepped pass guarantees zero-jitter visual lock when the target sprints or turns camera (exact khaman_dhokla.lua math)
+    RenderConn = RunService.RenderStepped:Connect(function()
+        if Weld.destroyed then return end
+        updateZeroDelayLockCF()
     end)
 
     Conn = RunService.Heartbeat:Connect(function(dt)
@@ -1979,6 +1987,10 @@ streamAndTeleportToTarget = function(targetPlr, refMode, maxWaitSeconds, allowSw
         myRoot = myChar and (myChar:FindFirstChild("HumanoidRootPart") or myChar:FindFirstChildWhichIsA("BasePart"))
         myHum  = myChar and myChar:FindFirstChildOfClass("Humanoid")
         if myChar and myRoot then
+            if sethiddenproperty then
+                pcall(function() sethiddenproperty(myRoot, "PhysicsRepRootPart", nil) end)
+                pcall(function() sethiddenproperty(myRoot, "PhysicsRepRootRef", nil) end)
+            end
             breakAllSeatsAndExternalJoints(myChar, myHum, myRoot)
             if myHum and myHum.Sit then pcall(function() myHum.Sit = false end) end
             myRoot.Anchored = false
@@ -3395,6 +3407,16 @@ do
                     myRoot.CFrame = initialCF
                     myRoot.AssemblyLinearVelocity = tRoot.AssemblyLinearVelocity
                     myRoot.AssemblyAngularVelocity = Vector3.zero
+                    pcall(function() LP.ReplicationFocus = tRoot end)
+                    if sethiddenproperty then
+                        pcall(function()
+                            sethiddenproperty(myRoot, "PhysicsRepRootPart", tRoot)
+                            if InstanceHandleNew then
+                                sethiddenproperty(myRoot, "PhysicsRepRootRef", InstanceHandleNew(tRoot))
+                            end
+                            sethiddenproperty(myRoot, "NetworkIsSleeping", false)
+                        end)
+                    end
                     syncAnimCopyReanimRoots(initialCF, myRoot)
                 end
             else
@@ -4386,6 +4408,17 @@ local function weldToTarget(target, speaker, offset, animId, osc, refMode, animF
         -- Capture safe origin BEFORE streaming/teleporting to the target
         local preSeekSafeCF = isSafePlayableCF(myRoot.CFrame) and myRoot.CFrame or LastKnownSafeCF or findFallbackSafeCF()
 
+        -- Stop any previous weld before streaming/teleporting to the new target so old loops never fight
+        local prevWeld = CurrentWeld
+        if prevWeld then
+            CurrentWeld = nil
+            pcall(function() prevWeld:Destroy(true) end)
+        end
+        if myRoot and sethiddenproperty then
+            pcall(function() sethiddenproperty(myRoot, "PhysicsRepRootPart", nil) end)
+            pcall(function() sethiddenproperty(myRoot, "PhysicsRepRootRef", nil) end)
+        end
+
         -- Stream & teleport directly to the target even if they are hiding in an unstreamed area (instant 0ms return when already streamed!)
         local char, TRoot = streamAndTeleportToTarget(TPlayer, refMode or "torso", 1.8, true)
         WeldSeekingTarget = false
@@ -4524,8 +4557,9 @@ hookTargetRespawn = function(targetPlr)
             or (WeldIntent.typedUsername ~= "" and targetPlr.Name:lower() == WeldIntent.typedUsername:lower())
         if not isOurTarget then return end
         if not WeldIntent.active and not WeldIntent.waitingForSpawn then return end
-        pcall(function() newChar:WaitForChild("HumanoidRootPart", 2.0) end)
-        task.wait(0.05)
+        if not newChar:FindFirstChild("HumanoidRootPart") then
+            pcall(function() newChar:WaitForChild("HumanoidRootPart", 2.0) end)
+        end
         if targetPlr.Parent ~= Players then return end
         if CurrentWeld then
             pcall(function() CurrentWeld:Destroy(true) end)
@@ -6651,11 +6685,14 @@ local vcAutoGuardEnabled = true
 local vcKeepAliveEnabled = true
 local vcShieldedHookCount = 0
 local VC_BYPASS_MODES = {
-    { key = "hybrid",  name = "Hybrid V5 (Full Shield)", desc = "Leave + Hook Shield + Rejoin + TopBar Clone" },
-    { key = "instant", name = "Instant 0s (No Leave)",   desc = "Direct 0.1s Hook Shield + TopBar Clone without leaving VC" },
+    { key = "hybrid",  name = "Hybrid V6 (Full Shield)",   desc = "Leave + Hook Shield + Rejoin + TopBar Clone" },
+    { key = "instant", name = "Instant 0s (No Leave)",     desc = "Direct 0.1s Hook Shield + TopBar Clone without leaving VC" },
     { key = "deep",    name = "Deep Reset (Anti-Suspend)", desc = "Double Re-Handshake + Full Signal Purge + Unmute Force" },
+    { key = "stealth", name = "Stealth Desync (Fake Mute)", desc = "Displays Muted Icon on TopBar while Mic transmits LIVE" },
 }
 local vcBypassModeIdx = 1
+local vcStrobeEnabled = false
+local vcPttHoldEnabled = false
 
 local VC_MUTED_ICON = "rbxasset://textures/ui/VoiceChat/MicLight/Muted.png"
 local VC_UNMUTED_ICON = "rbxasset://textures/ui/VoiceChat/MicLight/Unmuted.png"
@@ -6818,7 +6855,11 @@ end
 local function syncCustomMicIconVisual(newIcon, origIcon, paused)
     if not newIcon or not newIcon.Parent then return end
     pcall(function()
-        if paused then
+        local activeMode = VC_BYPASS_MODES[vcBypassModeIdx]
+        if activeMode and activeMode.key == "stealth" then
+            -- Stealth Desync: always show Muted icon on TopBar even when mic is LIVE!
+            newIcon.Image = VC_MUTED_ICON
+        elseif paused then
             newIcon.Image = VC_MUTED_ICON
         else
             local liveImg = (origIcon and origIcon.Parent and origIcon.Image ~= "" and not isMicMutedIcon(origIcon.Image))
@@ -6911,9 +6952,17 @@ local function startVCWatchdog()
     if vcWatchdogConn then vcWatchdogConn:Disconnect(); vcWatchdogConn = nil end
     local lastCheck = 0
     local lastKeepAlive = os.clock()
+    local lastStrobe = 0
+    local strobePhase = false
     vcWatchdogConn = RunService.Heartbeat:Connect(function()
         if not Anti.VC.enabled then return end
         local now = os.clock()
+        if vcStrobeEnabled and (now - lastStrobe) >= 0.085 then
+            lastStrobe = now
+            strobePhase = not strobePhase
+            local _, vci = getVoiceServices()
+            if vci then pcall(function() vci:PublishPause(strobePhase) end) end
+        end
         if now - lastCheck < 1.1 then return end
         lastCheck = now
         pcall(function()
@@ -7179,8 +7228,8 @@ Anti.VC.openPanelFn = function()
 
     local mainCard = Instance.new("Frame", screenGui)
     mainCard.Name = "CocoAntiVCCard"
-    mainCard.Size = UDim2.new(0, 320, 0, 358)
-    mainCard.Position = UDim2.new(0.5, -160, 0.5, -179)
+    mainCard.Size = UDim2.new(0, 324, 0, 396)
+    mainCard.Position = UDim2.new(0.5, -162, 0.5, -198)
     mainCard.BackgroundColor3 = Color3.fromRGB(16, 16, 24)
     mainCard.BorderSizePixel = 0
     mainCard.Active = true
@@ -7222,7 +7271,7 @@ Anti.VC.openPanelFn = function()
     headerLbl.LayoutOrder = 1
     headerLbl.Size = UDim2.new(1, -26, 0, 20)
     headerLbl.BackgroundTransparency = 1
-    headerLbl.Text = "⚡ COCO ANTI-VC / VC BYPASS V5 ULTRA"
+    headerLbl.Text = "⚡ COCO ANTI-VC / VC BYPASS V6 OMEGA"
     headerLbl.Font = Enum.Font.GothamBold
     headerLbl.TextSize = 13
     headerLbl.TextColor3 = Color3.fromRGB(175, 115, 255)
@@ -7386,6 +7435,60 @@ Anti.VC.openPanelFn = function()
     resetBtn.MouseButton1Click:Connect(function()
         sClick()
         vcStop()
+    end)
+
+    local rowFrame3 = Instance.new("Frame", mainCard)
+    rowFrame3.LayoutOrder = 9
+    rowFrame3.Size = UDim2.new(1, 0, 0, 32)
+    rowFrame3.BackgroundTransparency = 1
+
+    local strobeBtn = Instance.new("TextButton", rowFrame3)
+    strobeBtn.Size = UDim2.new(0.5, -3, 1, 0)
+    strobeBtn.Position = UDim2.new(0, 0, 0, 0)
+    strobeBtn.BackgroundColor3 = vcStrobeEnabled and Color3.fromRGB(85, 38, 145) or Color3.fromRGB(32, 34, 48)
+    strobeBtn.BorderSizePixel = 0
+    strobeBtn.Text = vcStrobeEnabled and "⚡ Mic Strobe: ON" or "⚡ Mic Strobe: OFF"
+    strobeBtn.Font = Enum.Font.GothamBold
+    strobeBtn.TextSize = 11
+    strobeBtn.TextColor3 = vcStrobeEnabled and Color3.fromRGB(220, 180, 255) or Color3.fromRGB(175, 180, 200)
+    Instance.new("UICorner", strobeBtn).CornerRadius = UDim.new(0, 7)
+    strobeBtn.MouseButton1Click:Connect(function()
+        sClick()
+        vcStrobeEnabled = not vcStrobeEnabled
+        strobeBtn.Text = vcStrobeEnabled and "⚡ Mic Strobe: ON" or "⚡ Mic Strobe: OFF"
+        strobeBtn.TextColor3 = vcStrobeEnabled and Color3.fromRGB(220, 180, 255) or Color3.fromRGB(175, 180, 200)
+        strobeBtn.BackgroundColor3 = vcStrobeEnabled and Color3.fromRGB(85, 38, 145) or Color3.fromRGB(32, 34, 48)
+        notify("Coco Anti-VC V6", vcStrobeEnabled and "12Hz Chopper Mic Strobe ON!" or "Mic Strobe OFF")
+    end)
+
+    local diagBtn = Instance.new("TextButton", rowFrame3)
+    diagBtn.Size = UDim2.new(0.5, -3, 1, 0)
+    diagBtn.Position = UDim2.new(0.5, 3, 0, 0)
+    diagBtn.BackgroundColor3 = Color3.fromRGB(32, 34, 48)
+    diagBtn.BorderSizePixel = 0
+    diagBtn.Text = "🩺 VC Diagnostic"
+    diagBtn.Font = Enum.Font.GothamBold
+    diagBtn.TextSize = 11
+    diagBtn.TextColor3 = Color3.fromRGB(130, 230, 200)
+    Instance.new("UICorner", diagBtn).CornerRadius = UDim.new(0, 7)
+    diagBtn.MouseButton1Click:Connect(function()
+        sClick()
+        local vcs, vci = getVoiceServices()
+        local cBtn = findMicButtonAndParent(nil, true) or findMicButtonAndParent(nil, false)
+        local ic = findMicIcon(cBtn)
+        local paused = getVCMicPausedState(vci, ic)
+        notify(
+            "🩺 VC V6 DIAGNOSTIC",
+            string.format(
+                "VCS:%s | VCI:%s | Btn:%s | Mic:%s | Hooks:%d",
+                vcs and "OK" or "NO",
+                vci and "OK" or "NO",
+                cBtn and cBtn.Name or "None",
+                paused and "Muted" or "LIVE",
+                vcShieldedHookCount
+            )
+        )
+        sSuccess()
     end)
 
     updateAntiVCVisuals(nil, nil, nil)
@@ -11009,30 +11112,251 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                         setPose("Left Arm", CFrame.Angles(math.rad(45 - s * 120), 0, math.rad(-25)))
                         setPose("Right Arm", CFrame.Angles(math.rad(45 + s * 120), 0, math.rad(25)))
                     elseif lower:find("handstand") or lower:find("invert") then
-                        local bal = math.sin(t * 1.4) * math.rad(8)
-                        setPose("LowerTorso", CFrame.new(0, 1.1, 0) * CFrame.Angles(math.rad(180) + bal, 0, 0))
-                        setPose("Torso", CFrame.new(0, 1.1, 0) * CFrame.Angles(math.rad(180) + bal, 0, 0))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(175), 0, math.rad(-8)))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(175), 0, math.rad(8)))
-                        setPose("Left Arm", CFrame.Angles(math.rad(175), 0, math.rad(-8)))
-                        setPose("Right Arm", CFrame.Angles(math.rad(175), 0, math.rad(8)))
-                        setPose("LeftUpperLeg", CFrame.Angles(bal * 2, 0, math.rad(-12)))
-                        setPose("RightUpperLeg", CFrame.Angles(-bal * 2, 0, math.rad(12)))
+                        local bal = math.sin(t * 1.4) * math.rad(10)
+                        local walk = math.cos(t * 2.2) * math.rad(28)
+                        setPose("LowerTorso", CFrame.new(0, 1.15, 0) * CFrame.Angles(math.rad(180) + bal, 0, 0))
+                        setPose("Torso", CFrame.new(0, 1.15, 0) * CFrame.Angles(math.rad(180) + bal, 0, 0))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(175) + walk * 0.3, 0, math.rad(-8)))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(175) - walk * 0.3, 0, math.rad(8)))
+                        setPose("Left Arm", CFrame.Angles(math.rad(175) + walk * 0.3, 0, math.rad(-8)))
+                        setPose("Right Arm", CFrame.Angles(math.rad(175) - walk * 0.3, 0, math.rad(8)))
+                        setPose("LeftUpperLeg", CFrame.Angles(walk, 0, math.rad(-14)))
+                        setPose("RightUpperLeg", CFrame.Angles(-walk, 0, math.rad(14)))
+                        setPose("LeftLowerLeg", CFrame.Angles(math.rad(-25), 0, 0))
+                        setPose("RightLowerLeg", CFrame.Angles(math.rad(-25), 0, 0))
+                    elseif lower:find("gojo") or lower:find("infinity") or lower:find("susanoo") or lower:find("god") then
+                        local h = 3.4 + math.sin(t * 0.55) * 0.65
+                        local sway = math.sin(t * 0.4) * math.rad(8)
+                        setPose("LowerTorso", CFrame.new(0, h, 0) * CFrame.Angles(math.rad(-8), sway, 0))
+                        setPose("UpperTorso", CFrame.Angles(math.rad(-10), -sway * 0.5, 0))
+                        setPose("Torso", CFrame.new(0, h, 0) * CFrame.Angles(math.rad(-12), sway, 0))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(48), math.rad(25), math.rad(-42 - math.sin(t * 0.7) * 8)))
+                        setPose("LeftLowerArm", CFrame.Angles(math.rad(55), 0, 0))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(85), math.rad(-30), math.rad(18)))
+                        setPose("RightLowerArm", CFrame.Angles(math.rad(75), 0, 0))
+                        setPose("Left Arm", CFrame.Angles(math.rad(48), 0, math.rad(-42)))
+                        setPose("Right Arm", CFrame.Angles(math.rad(85), 0, math.rad(18)))
+                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(-18), 0, math.rad(-6)))
+                        setPose("LeftLowerLeg", CFrame.Angles(math.rad(-35), 0, 0))
+                        setPose("RightUpperLeg", CFrame.Angles(math.rad(28), 0, math.rad(6)))
+                        setPose("RightLowerLeg", CFrame.Angles(math.rad(-65), 0, 0))
+                        setPose("Head", CFrame.Angles(math.rad(-14 + math.sin(t * 0.5) * 5), 0, 0))
+                    elseif lower:find("sukuna") or lower:find("shrine") or lower:find("meditat") or lower:find("lotus") then
+                        local bob = math.sin(t * 0.65) * 0.35
+                        setPose("LowerTorso", CFrame.new(0, 1.4 + bob, 0) * CFrame.Angles(math.rad(-6), 0, 0))
+                        setPose("UpperTorso", CFrame.Angles(math.rad(8), math.sin(t * 0.4) * math.rad(6), 0))
+                        setPose("Torso", CFrame.new(0, 1.4 + bob, 0) * CFrame.Angles(0, 0, 0))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(55), math.rad(38), math.rad(-22)))
+                        setPose("LeftLowerArm", CFrame.Angles(math.rad(85), 0, 0))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(55), math.rad(-38), math.rad(22)))
+                        setPose("RightLowerArm", CFrame.Angles(math.rad(85), 0, 0))
+                        setPose("Left Arm", CFrame.Angles(math.rad(65), math.rad(35), math.rad(-15)))
+                        setPose("Right Arm", CFrame.Angles(math.rad(65), math.rad(-35), math.rad(15)))
+                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(78), math.rad(45), math.rad(-40)))
+                        setPose("LeftLowerLeg", CFrame.Angles(math.rad(-110), 0, 0))
+                        setPose("RightUpperLeg", CFrame.Angles(math.rad(78), math.rad(-45), math.rad(40)))
+                        setPose("RightLowerLeg", CFrame.Angles(math.rad(-110), 0, 0))
+                        setPose("Left Leg", CFrame.Angles(math.rad(80), math.rad(35), math.rad(-30)))
+                        setPose("Right Leg", CFrame.Angles(math.rad(80), math.rad(-35), math.rad(30)))
+                    elseif lower:find("hakari") or lower:find("jackpot") or lower:find("specialist") or lower:find("torture") then
+                        local s = math.sin(t * 2.5)
+                        local c = math.cos(t * 2.5)
+                        setPose("LowerTorso", CFrame.new(s * 0.45, math.abs(c) * 0.4, 0) * CFrame.Angles(0, math.rad(s * 28), math.rad(-s * 14)))
+                        setPose("UpperTorso", CFrame.Angles(math.rad(c * 16), math.rad(-s * 32), math.rad(s * 12)))
+                        setPose("Torso", CFrame.new(s * 0.45, math.abs(c) * 0.4, 0) * CFrame.Angles(math.rad(c * 14), math.rad(s * 25), math.rad(-s * 12)))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(115 + s * 45), 0, math.rad(-45 - c * 25)))
+                        setPose("LeftLowerArm", CFrame.Angles(math.rad(65 + c * 35), 0, 0))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(115 - s * 45), 0, math.rad(45 - c * 25)))
+                        setPose("RightLowerArm", CFrame.Angles(math.rad(65 - c * 35), 0, 0))
+                        setPose("Left Arm", CFrame.Angles(math.rad(115 + s * 45), 0, math.rad(-45)))
+                        setPose("Right Arm", CFrame.Angles(math.rad(115 - s * 45), 0, math.rad(45)))
+                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(s * 42), 0, math.rad(-15)))
+                        setPose("LeftLowerLeg", CFrame.Angles(math.rad(-math.max(0, s) * 65), 0, 0))
+                        setPose("RightUpperLeg", CFrame.Angles(math.rad(-s * 42), 0, math.rad(15)))
+                        setPose("RightLowerLeg", CFrame.Angles(math.rad(-math.max(0, -s) * 65), 0, 0))
+                        setPose("Left Leg", CFrame.Angles(math.rad(s * 42), 0, math.rad(-15)))
+                        setPose("Right Leg", CFrame.Angles(math.rad(-s * 42), 0, math.rad(15)))
+                        setPose("Head", CFrame.Angles(math.rad(c * 14), math.rad(s * 22), math.rad(s * 10)))
+                    elseif lower:find("griddy") or lower:find("billy") or lower:find("footwork") then
+                        local s = math.sin(t * 2.8)
+                        local c = math.cos(t * 2.8)
+                        setPose("LowerTorso", CFrame.new(0, math.abs(s) * 0.38, 0) * CFrame.Angles(math.rad(-14), math.rad(s * 12), 0))
+                        setPose("UpperTorso", CFrame.Angles(math.rad(-18 + c * 10), 0, 0))
+                        setPose("Torso", CFrame.new(0, math.abs(s) * 0.38, 0) * CFrame.Angles(math.rad(-16), math.rad(s * 12), 0))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(85 + s * 55), 0, math.rad(-18)))
+                        setPose("LeftLowerArm", CFrame.Angles(math.rad(70), 0, 0))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(85 + s * 55), 0, math.rad(18)))
+                        setPose("RightLowerArm", CFrame.Angles(math.rad(70), 0, 0))
+                        setPose("Left Arm", CFrame.Angles(math.rad(85 + s * 55), 0, math.rad(-18)))
+                        setPose("Right Arm", CFrame.Angles(math.rad(85 + s * 55), 0, math.rad(18)))
+                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(c * 48), 0, math.rad(-8)))
+                        setPose("LeftLowerLeg", CFrame.Angles(math.rad(-45 - math.max(0, c) * 45), 0, 0))
+                        setPose("RightUpperLeg", CFrame.Angles(math.rad(-c * 48), 0, math.rad(8)))
+                        setPose("RightLowerLeg", CFrame.Angles(math.rad(-45 - math.max(0, -c) * 45), 0, 0))
+                        setPose("Left Leg", CFrame.Angles(math.rad(c * 48), 0, math.rad(-8)))
+                        setPose("Right Leg", CFrame.Angles(math.rad(-c * 48), 0, math.rad(8)))
+                    elseif lower:find("kazotsky") or lower:find("squat") or lower:find("russian") then
+                        local s = math.sin(t * 2.6)
+                        setPose("LowerTorso", CFrame.new(0, -1.05 + math.abs(s) * 0.22, 0))
+                        setPose("UpperTorso", CFrame.Angles(math.rad(-10), math.rad(s * 14), 0))
+                        setPose("Torso", CFrame.new(0, -1.05 + math.abs(s) * 0.22, 0) * CFrame.Angles(0, math.rad(s * 14), 0))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(78), math.rad(45), math.rad(-15)))
+                        setPose("LeftLowerArm", CFrame.Angles(math.rad(95), 0, 0))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(78), math.rad(-45), math.rad(15)))
+                        setPose("RightLowerArm", CFrame.Angles(math.rad(95), 0, 0))
+                        setPose("Left Arm", CFrame.Angles(math.rad(85), math.rad(35), 0))
+                        setPose("Right Arm", CFrame.Angles(math.rad(85), math.rad(-35), 0))
+                        local lKick = s > 0 and 88 or 65
+                        local rKick = s < 0 and 88 or 65
+                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(lKick), 0, math.rad(-10)))
+                        setPose("LeftLowerLeg", CFrame.Angles(math.rad(s > 0 and -5 or -105), 0, 0))
+                        setPose("RightUpperLeg", CFrame.Angles(math.rad(rKick), 0, math.rad(10)))
+                        setPose("RightLowerLeg", CFrame.Angles(math.rad(s < 0 and -5 or -105), 0, 0))
+                        setPose("Left Leg", CFrame.Angles(math.rad(s > 0 and 85 or 35), 0, math.rad(-10)))
+                        setPose("Right Leg", CFrame.Angles(math.rad(s < 0 and 85 or 35), 0, math.rad(10)))
+                    elseif lower:find("michael") or lower:find("smooth") or lower:find("moonwalk") then
+                        local s = math.sin(t * 2.0)
+                        local lean = lower:find("lean") and math.rad(-42) or math.rad(-8)
+                        setPose("LowerTorso", CFrame.new(0, 0, lower:find("lean") and -0.95 or 0) * CFrame.Angles(lean, 0, 0))
+                        setPose("UpperTorso", CFrame.Angles(math.rad(-6), math.rad(s * 12), 0))
+                        setPose("Torso", CFrame.new(0, 0, lower:find("lean") and -0.95 or 0) * CFrame.Angles(lean, math.rad(s * 12), 0))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(68), math.rad(-25), math.rad(12)))
+                        setPose("RightLowerArm", CFrame.Angles(math.rad(82), 0, 0))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(-s * 28), 0, math.rad(-14)))
+                        setPose("Left Arm", CFrame.Angles(math.rad(-s * 28), 0, math.rad(-14)))
+                        setPose("Right Arm", CFrame.Angles(math.rad(72), math.rad(-25), math.rad(12)))
+                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(s * 38), 0, 0))
+                        setPose("LeftLowerLeg", CFrame.Angles(math.rad(-math.max(0, -s) * 55), 0, 0))
+                        setPose("RightUpperLeg", CFrame.Angles(math.rad(-s * 38), 0, 0))
+                        setPose("RightLowerLeg", CFrame.Angles(math.rad(-math.max(0, s) * 55), 0, 0))
+                        setPose("Left Leg", CFrame.Angles(math.rad(s * 38), 0, 0))
+                        setPose("Right Leg", CFrame.Angles(math.rad(-s * 38), 0, 0))
+                        setPose("Head", CFrame.Angles(math.rad(-18), 0, 0))
+                    elseif lower:find("naruto") or lower:find("ninja") or lower:find("shinobi") then
+                        local s = math.sin(t * 3.2)
+                        setPose("LowerTorso", CFrame.new(0, math.abs(s) * 0.25, 0) * CFrame.Angles(math.rad(-38), 0, 0))
+                        setPose("UpperTorso", CFrame.Angles(math.rad(-22), 0, 0))
+                        setPose("Torso", CFrame.new(0, math.abs(s) * 0.25, 0) * CFrame.Angles(math.rad(-48), 0, 0))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(-75 + s * 8), 0, math.rad(-18)))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(-75 - s * 8), 0, math.rad(18)))
+                        setPose("Left Arm", CFrame.Angles(math.rad(-75), 0, math.rad(-18)))
+                        setPose("Right Arm", CFrame.Angles(math.rad(-75), 0, math.rad(18)))
+                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(s * 65), 0, 0))
+                        setPose("LeftLowerLeg", CFrame.Angles(math.rad(-45), 0, 0))
+                        setPose("RightUpperLeg", CFrame.Angles(math.rad(-s * 65), 0, 0))
+                        setPose("RightLowerLeg", CFrame.Angles(math.rad(-45), 0, 0))
+                        setPose("Left Leg", CFrame.Angles(math.rad(s * 65), 0, 0))
+                        setPose("Right Leg", CFrame.Angles(math.rad(-s * 65), 0, 0))
+                        setPose("Head", CFrame.Angles(math.rad(32), 0, 0))
+                    elseif lower:find("crab") or lower:find("exorcist") or lower:find("spider") then
+                        local s = math.sin(t * 2.6)
+                        setPose("LowerTorso", CFrame.new(0, -1.1 + math.abs(s) * 0.2, 0) * CFrame.Angles(math.rad(88), 0, math.rad(s * 12)))
+                        setPose("UpperTorso", CFrame.Angles(math.rad(25), 0, 0))
+                        setPose("Torso", CFrame.new(0, -1.1 + math.abs(s) * 0.2, 0) * CFrame.Angles(math.rad(92), 0, math.rad(s * 12)))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(165 + s * 35), 0, math.rad(-25)))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(165 - s * 35), 0, math.rad(25)))
+                        setPose("Left Arm", CFrame.Angles(math.rad(165 + s * 35), 0, math.rad(-25)))
+                        setPose("Right Arm", CFrame.Angles(math.rad(165 - s * 35), 0, math.rad(25)))
+                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(-65 - s * 35), 0, math.rad(-22)))
+                        setPose("RightUpperLeg", CFrame.Angles(math.rad(-65 + s * 35), 0, math.rad(22)))
+                        setPose("Left Leg", CFrame.Angles(math.rad(-65 - s * 35), 0, math.rad(-22)))
+                        setPose("Right Leg", CFrame.Angles(math.rad(-65 + s * 35), 0, math.rad(22)))
+                        setPose("Head", CFrame.Angles(math.rad(65), math.rad(s * 45), 0))
+                    elseif lower:find("backflip") or lower:find("acrobat") or lower:find("windmill") then
+                        local flip = t * 2.6
+                        local tuck = math.sin(flip) * 0.5 + 0.5
+                        setPose("LowerTorso", CFrame.new(0, 1.8 + math.sin(flip) * 1.4, 0) * CFrame.Angles(flip, 0, 0))
+                        setPose("Torso", CFrame.new(0, 1.8 + math.sin(flip) * 1.4, 0) * CFrame.Angles(flip, 0, 0))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(110 * tuck), 0, math.rad(-25)))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(110 * tuck), 0, math.rad(25)))
+                        setPose("Left Arm", CFrame.Angles(math.rad(110 * tuck), 0, math.rad(-25)))
+                        setPose("Right Arm", CFrame.Angles(math.rad(110 * tuck), 0, math.rad(25)))
+                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(85 * tuck), 0, math.rad(-12)))
+                        setPose("LeftLowerLeg", CFrame.Angles(math.rad(-95 * tuck), 0, 0))
+                        setPose("RightUpperLeg", CFrame.Angles(math.rad(85 * tuck), 0, math.rad(12)))
+                        setPose("RightLowerLeg", CFrame.Angles(math.rad(-95 * tuck), 0, 0))
+                    elseif lower:find("split") or lower:find("gymnast") then
+                        local pulse = math.sin(t * 1.5) * 0.12
+                        setPose("LowerTorso", CFrame.new(0, -1.75 + math.abs(pulse), 0))
+                        setPose("Torso", CFrame.new(0, -1.75 + math.abs(pulse), 0))
+                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(88), 0, math.rad(-18)))
+                        setPose("RightUpperLeg", CFrame.Angles(math.rad(-88), 0, math.rad(18)))
+                        setPose("Left Leg", CFrame.Angles(math.rad(88), 0, math.rad(-18)))
+                        setPose("Right Leg", CFrame.Angles(math.rad(-88), 0, math.rad(18)))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(145), 0, math.rad(-35 - pulse * 80)))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(145), 0, math.rad(35 + pulse * 80)))
+                        setPose("Left Arm", CFrame.Angles(math.rad(145), 0, math.rad(-35)))
+                        setPose("Right Arm", CFrame.Angles(math.rad(145), 0, math.rad(35)))
+                    elseif lower:find("boxer") or lower:find("punch") or lower:find("saitama") or lower:find("fight") then
+                        local jabL = math.max(0, math.sin(t * 4.2))
+                        local jabR = math.max(0, -math.sin(t * 4.2))
+                        local weave = math.cos(t * 2.1)
+                        setPose("LowerTorso", CFrame.new(weave * 0.35, -0.25 + math.abs(weave) * 0.15, 0) * CFrame.Angles(0, math.rad((jabR - jabL) * 32), 0))
+                        setPose("UpperTorso", CFrame.Angles(math.rad(-12), math.rad((jabR - jabL) * 28), math.rad(weave * 10)))
+                        setPose("Torso", CFrame.new(weave * 0.35, -0.25, 0) * CFrame.Angles(math.rad(-12), math.rad((jabR - jabL) * 32), 0))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(88), 0, math.rad(-12 + jabL * 12)))
+                        setPose("LeftLowerArm", CFrame.Angles(math.rad(95 - jabL * 88), 0, 0))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(88), 0, math.rad(12 - jabR * 12)))
+                        setPose("RightLowerArm", CFrame.Angles(math.rad(95 - jabR * 88), 0, 0))
+                        setPose("Left Arm", CFrame.Angles(math.rad(75 + jabL * 25), 0, math.rad(-10)))
+                        setPose("Right Arm", CFrame.Angles(math.rad(75 + jabR * 25), 0, math.rad(10)))
+                    elseif lower:find("t-pose") or lower:find("tpose") or lower:find("dominance") then
+                        local spin = lower:find("spin") and (t * 2.8) or (math.sin(t * 0.8) * math.rad(15))
+                        local hover = math.sin(t * 1.2) * 0.35
+                        setPose("LowerTorso", CFrame.new(0, 0.8 + hover, 0) * CFrame.Angles(0, spin, 0))
+                        setPose("Torso", CFrame.new(0, 0.8 + hover, 0) * CFrame.Angles(0, spin, 0))
+                        setPose("LeftUpperArm", CFrame.Angles(0, 0, math.rad(-90)))
+                        setPose("LeftLowerArm", CFrame.Angles(0, 0, 0))
+                        setPose("RightUpperArm", CFrame.Angles(0, 0, math.rad(90)))
+                        setPose("RightLowerArm", CFrame.Angles(0, 0, 0))
+                        setPose("Left Arm", CFrame.Angles(0, 0, math.rad(-90)))
+                        setPose("Right Arm", CFrame.Angles(0, 0, math.rad(90)))
+                    elseif lower:find("zombie") or lower:find("thriller") then
+                        local s = math.sin(t * 1.5)
+                        setPose("LowerTorso", CFrame.new(s * 0.25, -0.2, 0) * CFrame.Angles(math.rad(-18), math.rad(s * 14), math.rad(s * 12)))
+                        setPose("UpperTorso", CFrame.Angles(math.rad(-15), 0, math.rad(-s * 10)))
+                        setPose("Torso", CFrame.new(s * 0.25, -0.2, 0) * CFrame.Angles(math.rad(-22), math.rad(s * 14), math.rad(s * 12)))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(82 + s * 10), 0, math.rad(-8)))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(82 - s * 10), 0, math.rad(8)))
+                        setPose("Left Arm", CFrame.Angles(math.rad(82 + s * 10), 0, math.rad(-8)))
+                        setPose("Right Arm", CFrame.Angles(math.rad(82 - s * 10), 0, math.rad(8)))
+                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(s * 32), 0, 0))
+                        setPose("RightUpperLeg", CFrame.Angles(math.rad(-s * 32), 0, 0))
+                        setPose("Left Leg", CFrame.Angles(math.rad(s * 32), 0, 0))
+                        setPose("Right Leg", CFrame.Angles(math.rad(-s * 32), 0, 0))
+                        setPose("Head", CFrame.Angles(math.rad(-16), 0, math.rad(24)))
                     else
-                        local s = math.sin(t * 1.6)
-                        local c = math.cos(t * 0.8)
-                        setPose("LowerTorso", CFrame.new(c * 0.25, math.abs(s) * 0.3, 0) * CFrame.Angles(0, math.rad(c * 20), math.rad(s * 8)))
-                        setPose("UpperTorso", CFrame.Angles(math.rad(s * 12), math.rad(-c * 25), 0))
-                        setPose("Torso", CFrame.new(c * 0.25, math.abs(s) * 0.3, 0) * CFrame.Angles(math.rad(s * 12), math.rad(c * 20), math.rad(s * 8)))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(65 + s * 45), 0, math.rad(-30 - math.abs(c) * 25)))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(65 - s * 45), 0, math.rad(30 + math.abs(c) * 25)))
-                        setPose("Left Arm", CFrame.Angles(math.rad(65 + s * 45), 0, math.rad(-30)))
-                        setPose("Right Arm", CFrame.Angles(math.rad(65 - s * 45), 0, math.rad(30)))
-                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(-s * 28), 0, math.rad(-8)))
-                        setPose("RightUpperLeg", CFrame.Angles(math.rad(s * 28), 0, math.rad(8)))
-                        setPose("Left Leg", CFrame.Angles(math.rad(-s * 28), 0, math.rad(-8)))
-                        setPose("Right Leg", CFrame.Angles(math.rad(s * 28), 0, math.rad(8)))
-                        setPose("Head", CFrame.Angles(math.rad(-s * 10), math.rad(c * 15), 0))
+                        -- Deterministic Hash Choreographer: every single named animation gets its own unique rhythm, arm/leg/torso/head angles & bounce!
+                        local h = 0
+                        for idx = 1, #lower do
+                            h = (h * 31 + string.byte(lower, idx)) % 10007
+                        end
+                        local freq = 1.4 + ((h % 19) * 0.08)
+                        local phase = (h % 13) * 0.45
+                        local s = math.sin(t * freq + phase)
+                        local c = math.cos(t * (freq * 0.5) + phase)
+                        local armBase = 45 + (h % 85)
+                        local armSpread = 18 + ((h * 3) % 52)
+                        local elbowBend = 25 + ((h * 7) % 65)
+                        local legSwing = 20 + ((h * 5) % 35)
+                        local hipSway = 0.18 + ((h % 7) * 0.05)
+                        local bounce = 0.2 + ((h % 5) * 0.07)
+                        setPose("LowerTorso", CFrame.new(c * hipSway, math.abs(s) * bounce, 0) * CFrame.Angles(0, math.rad(c * 22), math.rad(s * 10)))
+                        setPose("UpperTorso", CFrame.Angles(math.rad(s * 14), math.rad(-c * 26), math.rad(-s * 8)))
+                        setPose("Torso", CFrame.new(c * hipSway, math.abs(s) * bounce, 0) * CFrame.Angles(math.rad(s * 12), math.rad(c * 22), math.rad(s * 10)))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(armBase + s * 48), 0, math.rad(-armSpread - math.abs(c) * 24)))
+                        setPose("LeftLowerArm", CFrame.Angles(math.rad(elbowBend + c * 28), 0, 0))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(armBase - s * 48), 0, math.rad(armSpread + math.abs(c) * 24)))
+                        setPose("RightLowerArm", CFrame.Angles(math.rad(elbowBend - c * 28), 0, 0))
+                        setPose("Left Arm", CFrame.Angles(math.rad(armBase + s * 48), 0, math.rad(-armSpread)))
+                        setPose("Right Arm", CFrame.Angles(math.rad(armBase - s * 48), 0, math.rad(armSpread)))
+                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(-s * legSwing), 0, math.rad(-10)))
+                        setPose("LeftLowerLeg", CFrame.Angles(math.rad(-math.max(0, s) * 48), 0, 0))
+                        setPose("RightUpperLeg", CFrame.Angles(math.rad(s * legSwing), 0, math.rad(10)))
+                        setPose("RightLowerLeg", CFrame.Angles(math.rad(-math.max(0, -s) * 48), 0, 0))
+                        setPose("Left Leg", CFrame.Angles(math.rad(-s * legSwing), 0, math.rad(-10)))
+                        setPose("Right Leg", CFrame.Angles(math.rad(s * legSwing), 0, math.rad(10)))
+                        setPose("Head", CFrame.Angles(math.rad(-s * 12), math.rad(c * 18), math.rad(s * 6)))
                     end
                 end)
                 return true
@@ -11202,13 +11526,13 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                         local hiddenPartsTbl = _G.hiddenBodyParts
                         local function syncRealLimbsToClone(isHeartbeat)
                             local tNow = os.clock()
-                            local netlessVel = Vector3.new(0, 25.05, 0) + Vector3.new(math.sin(tNow * 30) * 0.02, 0, math.cos(tNow * 30) * 0.02)
+                            local netlessVel = isHeartbeat and (Vector3.new(0, 25.05, 0) + Vector3.new(math.sin(tNow * 30) * 0.02, 0, math.cos(tNow * 30) * 0.02)) or nil
                             for i = 1, #limbPairs do
                                 local p = limbPairs[i]
                                 local r, f = p.real, p.fake
                                 if r and f and r.Parent and f.Parent then
-                                    r.CanCollide = false
-                                    r.LocalTransparencyModifier = 1
+                                    if r.CanCollide then r.CanCollide = false end
+                                    if r.LocalTransparencyModifier < 0.99 then r.LocalTransparencyModifier = 1 end
                                     local isHiddenLimb = hiddenPartsTbl and hiddenPartsTbl[p.name] == true
                                     if isHiddenLimb and p.name ~= "HumanoidRootPart" then
                                         r.CFrame = f.CFrame * CFrame.new(0, -450, 0)
@@ -11639,7 +11963,50 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
         print("[ANGOOR] loaded " .. tostring(#allAnimations) .. " animations from GitHub Animations repo")
     end
 
-    -- Load cached animations, seed 48 built-in animations if empty, & launch background GitHub refresh
+    -- 88 Built-In Signature Reanimations (Anime, Viral Dances, Gymnastics, Freestyle & Troll Poses)
+    local BUILTIN_REANIM_NAMES = {
+        "⚡ Gojo Infinity Levitate", "🩸 Sukuna Malevolent Shrine", "🎰 Hakari Jackpot Fever Dance",
+        "☁️ Gear 5 Joyboy Bounce", "🔥 Super Saiyan Aura Charge", "🧛 Dio Wryyy Backbend",
+        "🌀 Naruto Shinobi Sprint", "👊 Saitama Serious Punch Rush", "👁️ Uchiha Susanoo Float",
+        "🕺 Michael Jackson 45° Lean", "🕺 Moonwalk Glide Pro", "👟 Griddy Pro Footwork",
+        "🤸 B-Boy Windmill Flare", "🦵 Kazotsky Russian Squat Kick", "🦀 Exorcist Spider Crab Walk",
+        "🧟 Zombie Thriller March", "🥊 Boxer Mike Tyson Weave", "🤸 Backflip Acrobat Loop",
+        "🧘 Floating Lotus Meditation", "🤸 Full Gymnast Split Drop", "🤖 Cyber Glitch Overload",
+        "🕶️ Matrix Bullet Dodge Lean", "🤸 Inverted Handstand Walk", "🚁 Apache Helicopter Rotor V2",
+        "✝️ T-Pose Dominance Spin", "👑 Ascended God Halo Pose", "🎸 Heavy Metal Headbang",
+        "🏋️ Gigachad Flex Showcase", "🏊 Freestyle Air Swim", "🛹 Invisible Skateboard Flip",
+        "🧎 Begging Mercy Kneel", "🫡 Military Salute Attention", "🥴 Drunk Stumble Sway",
+        "🐍 Anaconda Floor Slither", "🛸 Alien Abduction Float", "💃 Hype Shoot Hop",
+        "🙌 Infinidab Turbo", "💃 California Girls Sway", "🕶️ Gangnam Horse Ride",
+        "Bang", "Face Bang", "Backshots", "Hard Thrust", "Twerk", "Floss Dance",
+        "Helicopter Spin", "Headspin Breakdance", "Levitating Ascend", "Worm Crawl",
+        "Default Dance", "Orange Justice", "Take The L", "billy bounce", "Griddy",
+        "California Girls", "Gangnam Style", "Macarena", "Moonwalk", "Kazotsky Kick",
+        "Distraction Dance", "Smug Dance", "Torture Dance", "Specialist Dance",
+        "Boogie Down", "Electro Shuffle", "Hype", "Swipe It", "Fresh", "Rambunctious",
+        "Tidy", "Scenario", "Laugh It Up", "Zany", "Star Power", "True Heart",
+        "Breakneck", "Infinidab", "Dab", "T-Pose", "Assert Dominance", "Float Idle",
+        "Zombie Walk", "Ninja Run", "Superhero Fly", "Sit Chill", "Lay Down", "Spinning Top", "Breakdance Pro"
+    }
+
+    local function ensureBuiltinReanimsMerged()
+        local existing = {}
+        for _, item in ipairs(allAnimations) do
+            if item and item.name then existing[tostring(item.name)] = true end
+        end
+        for _, bName in ipairs(BUILTIN_REANIM_NAMES) do
+            if not existing[bName] then
+                table.insert(allAnimations, {
+                    name = bName,
+                    path = "builtin://" .. bName,
+                    category = "Reanims",
+                })
+                existing[bName] = true
+            end
+        end
+        setSortedAnimations(allAnimations)
+    end
+
     if #allAnimations == 0 then
         if type(isfile) == "function" and type(readfile) == "function" then
             local okExists, exists = pcall(isfile, ANIMS_CACHE_FILE)
@@ -11650,30 +12017,15 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                 end
             end
         end
-        if #allAnimations == 0 then
-            local builtinNames = {
-                "Bang", "Face Bang", "Backshots", "Hard Thrust", "Twerk", "Floss Dance",
-                "Helicopter Spin", "Headspin Breakdance", "Levitating Ascend", "Worm Crawl",
-                "Default Dance", "Orange Justice", "Take The L", "billy bounce", "Griddy",
-                "California Girls", "Gangnam Style", "Macarena", "Moonwalk", "Kazotsky Kick",
-                "Distraction Dance", "Smug Dance", "Torture Dance", "Specialist Dance",
-                "Boogie Down", "Electro Shuffle", "Hype", "Swipe It", "Fresh", "Rambunctious",
-                "Tidy", "Scenario", "Laugh It Up", "Zany", "Star Power", "True Heart",
-                "Breakneck", "Infinidab", "Dab", "T-Pose", "Assert Dominance", "Float Idle",
-                "Zombie Walk", "Ninja Run", "Superhero Fly", "Sit Chill", "Lay Down", "Spinning Top"
-            }
-            local seeded = {}
-            for _, bName in ipairs(builtinNames) do
-                table.insert(seeded, {
-                    name = bName,
-                    path = "builtin://" .. bName,
-                    category = "Reanims",
-                })
-            end
-            setSortedAnimations(seeded)
-            mergeSavedCustomAnims()
-        end
-        task.spawn(fetchGitHubAnimationsAsync)
+        ensureBuiltinReanimsMerged()
+        mergeSavedCustomAnims()
+        task.spawn(function()
+            fetchGitHubAnimationsAsync()
+            ensureBuiltinReanimsMerged()
+            if type(populateList) == "function" then pcall(populateList) end
+        end)
+    else
+        ensureBuiltinReanimsMerged()
     end
 
     -- Helper root.73.124.11: Load user config from angoorreanim.json
@@ -14117,10 +14469,15 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
             local rootPart = charModel:FindFirstChild("HumanoidRootPart")
             local hum      = charModel:FindFirstChildWhichIsA("Humanoid")
             if rootPart then
+                if typeof(sethiddenproperty) == "function" then
+                    pcall(sethiddenproperty, rootPart, "PhysicsRepRootPart", nil)
+                    pcall(sethiddenproperty, rootPart, "PhysicsRepRootRef", nil)
+                end
                 rootPart.Anchored = false
                 rootPart.AssemblyLinearVelocity = Vector3.zero
                 rootPart.AssemblyAngularVelocity = Vector3.zero
             end
+            pcall(function() LocalPlayer.ReplicationFocus = nil end)
             if hum then
                 hum.Sit = false
                 hum.PlatformStand = false
@@ -14301,14 +14658,20 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
             end
 
             markIntentionalTeleport(desiredCF)
+            pcall(function() LocalPlayer.ReplicationFocus = targetRoot end)
+            local tVel = targetRoot.AssemblyLinearVelocity
+            local microWake = Vector3.new(0, math.sin(tick() * 24) * 0.03, 0)
+            local syncVel = (tVel.Magnitude < 350 and (tVel * 0.85) or Vector3.zero) + microWake
             for _, entry in ipairs(collectLocalRoots()) do
                 if typeof(sethiddenproperty) == "function" then
-                    pcall(sethiddenproperty, entry.root, "PhysicsRepRootPart", nil)
-                    pcall(sethiddenproperty, entry.root, "PhysicsRepRootRef", nil)
+                    pcall(sethiddenproperty, entry.root, "PhysicsRepRootPart", targetRoot)
+                    if InstanceHandleNew then
+                        pcall(sethiddenproperty, entry.root, "PhysicsRepRootRef", InstanceHandleNew(targetRoot))
+                    end
                     pcall(sethiddenproperty, entry.root, "NetworkIsSleeping", false)
                 end
                 entry.root.CFrame = desiredCF
-                entry.root.AssemblyLinearVelocity = Vector3.zero
+                entry.root.AssemblyLinearVelocity = syncVel
                 entry.root.AssemblyAngularVelocity = Vector3.zero
                 safeSyncPhysicsStep(entry.root, targetRoot)
                 if entry.char then
@@ -14707,6 +15070,10 @@ _G.CocaSkyDestroyer = CocaSkyDestroyer
     _G._HaloCoverSkyActive        = false
     _G._HaloCoverCubeMatrixActive = false
     _G._HaloCoverVortexActive     = false
+    _G._HaloCoverBlackholeActive  = false
+    _G._HaloCoverHaloRingActive   = false
+    _G._HaloCoverHelixActive      = false
+    _G._HaloCoverWallActive       = false
     _G._HaloCoverTargetCageActive = false
     _G._HaloCoverPulseActive      = false
     _G._HaloCoverFlashActive      = false
@@ -14915,11 +15282,33 @@ _G.CocaSkyDestroyer = CocaSkyDestroyer
         local scale = _G._HaloCoverScaleMult or 1.0
         local flashActive = _G._HaloCoverFlashActive == true
         local flashPhase  = _G._HaloCoverFlashPhase ~= false
-        local useVortex   = (_G._HaloCoverVortexActive == true) and (not flashActive or flashPhase)
-
-        if useVortex then
-            local idx = VortexLimbIndex[partName] or 1
-            local ang = os.clock() * (_G._HaloCoverVortexSpeed or 2.2) + (idx * 0.42)
+        local idx = VortexLimbIndex[partName] or 1
+        local tNow = os.clock()
+        if (_G._HaloCoverBlackholeActive == true) and (not flashActive or flashPhase) then
+            local ang = tNow * 3.8 + (idx * 0.65)
+            local funnelRatio = (idx / 15)
+            local rad = (2000000 + funnelRatio * 18000000) * scale
+            local funnelY = groundY + (funnelRatio * ((skyY - groundY) * 2.2 + 25))
+            return Vector3.new(math.cos(ang) * rad, funnelY, math.sin(ang) * rad)
+        elseif (_G._HaloCoverHaloRingActive == true) and (not flashActive or flashPhase) then
+            local ang = tNow * 1.6 + ((idx / 15) * math.pi * 2)
+            local rad = 16000000 * scale
+            return Vector3.new(math.cos(ang) * rad, skyY + 12, math.sin(ang) * rad)
+        elseif (_G._HaloCoverHelixActive == true) and (not flashActive or flashPhase) then
+            local strand = (idx % 2 == 0) and 1 or -1
+            local ang = tNow * 2.4 + (idx * 0.55) + (strand == -1 and math.pi or 0)
+            local rad = 14000000 * scale
+            local hY = groundY + (idx * ((_G._HaloCoverCubeSpacing or 2.0) + 2.5))
+            return Vector3.new(math.cos(ang) * rad, hY, math.sin(ang) * rad)
+        elseif (_G._HaloCoverWallActive == true) and (not flashActive or flashPhase) then
+            local col = ((idx - 1) % 5) - 2
+            local row = math.floor((idx - 1) / 5)
+            local spanX = col * 8500000 * scale
+            local wallY = groundY + (row * ((_G._HaloCoverCubeSpacing or 4.0) + 8.0))
+            local wallZ = ((idx % 2 == 0) and 18000000 or -18000000) * scale
+            return Vector3.new(spanX, wallY, wallZ)
+        elseif (_G._HaloCoverVortexActive == true) and (not flashActive or flashPhase) then
+            local ang = tNow * (_G._HaloCoverVortexSpeed or 2.2) + (idx * 0.42)
             local rad = 12000000 * scale
             local tierY = groundY + ((idx % 5) * ((_G._HaloCoverCubeSpacing or 2.5) + 3.5))
             return Vector3.new(math.cos(ang) * rad, tierY, math.sin(ang) * rad)
@@ -14950,22 +15339,31 @@ _G.CocaSkyDestroyer = CocaSkyDestroyer
     local skyRayParams = RaycastParams.new()
     skyRayParams.FilterType = Enum.RaycastFilterType.Exclude
 
+    local cachedEnvClock = 0
+    local cachedGroundY, cachedSkyY, cachedUseGround, cachedUseSky, cachedUseCubes = 3, 15, false, false, false
+
     local function sampleEnvironmentState(realChar, cloneChar)
+        local now = os.clock()
+        if (now - cachedEnvClock) < 0.012 then
+            return cachedGroundY, cachedSkyY, cachedUseGround, cachedUseSky, cachedUseCubes
+        end
+        cachedEnvClock = now
+
         local flashActive = _G._HaloCoverFlashActive == true
         local flashPhase  = _G._HaloCoverFlashPhase ~= false
         local groundOn    = _G._HaloCoverGroundActive == true
         local skyOn       = _G._HaloCoverSkyActive == true
         local cubesOn     = _G._HaloCoverCubeMatrixActive == true
-        local vortexOn    = _G._HaloCoverVortexActive == true
+        local specialOn   = _G._HaloCoverVortexActive or _G._HaloCoverBlackholeActive or _G._HaloCoverHaloRingActive or _G._HaloCoverHelixActive or _G._HaloCoverWallActive
 
-        if flashActive and not groundOn and not skyOn and not cubesOn and not vortexOn then
+        if flashActive and not groundOn and not skyOn and not cubesOn and not specialOn then
             groundOn = true
             skyOn = true
         end
 
-        local useGround = groundOn and (not flashActive or flashPhase)
-        local useSky    = skyOn    and (not flashActive or flashPhase)
-        local useCubes  = cubesOn  and (not flashActive or flashPhase)
+        cachedUseGround = groundOn and (not flashActive or flashPhase)
+        cachedUseSky    = skyOn    and (not flashActive or flashPhase)
+        cachedUseCubes  = cubesOn  and (not flashActive or flashPhase)
 
         local groundY = 3
         local skyY = 15
@@ -14986,12 +15384,13 @@ _G.CocaSkyDestroyer = CocaSkyDestroyer
             skyRayParams.FilterDescendantsInstances = { realChar, cloneChar }
             local hit = workspace:Raycast(refPos + Vector3.new(0, 5, 0), Vector3.new(0, -100, 0), skyRayParams)
             local floorY = (hit and hit.Position.Y) or (refPos.Y - 3)
-            local pulseWave = (_G._HaloCoverPulseActive == true) and (math.sin(os.clock() * 3.2) * 8.5) or 0
+            local pulseWave = (_G._HaloCoverPulseActive == true) and (math.sin(now * 3.2) * 8.5) or 0
             groundY = floorY + (_G._HaloCoverGroundHeight or 1.5) + (pulseWave * 0.35)
             skyY    = refPos.Y + (_G._HaloCoverSkyHeight or 3) + pulseWave
         end
 
-        return groundY, skyY, useGround, useSky, useCubes
+        cachedGroundY, cachedSkyY = groundY, skyY
+        return groundY, skyY, cachedUseGround, cachedUseSky, cachedUseCubes
     end
 
     function CocaSkyDestroyer.reanimate(enable)
@@ -15188,15 +15587,15 @@ _G.CocaSkyDestroyer = CocaSkyDestroyer
                     local linVel = (cloneHRP and cloneHRP.AssemblyLinearVelocity) or Vector3.zero
                     local angVel = (cloneHRP and cloneHRP.AssemblyAngularVelocity) or Vector3.zero
                     local groundY, skyY, useGround, useSky, useCubes = sampleEnvironmentState(realChar, cloneChar)
+                    local tNow = os.clock()
+                    local netlessVel = Vector3.new(0, 25.05, 0) + Vector3.new(math.sin(tNow * 30) * 0.02, 0, math.cos(tNow * 30) * 0.02)
 
                     for i = 1, #limbPairs do
                         local pair = limbPairs[i]
                         local real_, fake_ = pair.real, pair.fake
                         if real_ and fake_ and real_.Parent and fake_.Parent then
-                            real_.Anchored = false
-                            real_.CanCollide = false
-                            local tNow = os.clock()
-                            local netlessVel = Vector3.new(0, 25.05, 0) + Vector3.new(math.sin(tNow * 30) * 0.02, 0, math.cos(tNow * 30) * 0.02)
+                            if real_.Anchored then real_.Anchored = false end
+                            if real_.CanCollide then real_.CanCollide = false end
                             local targetVec = computeSkyDestroyerPosition(pair.name, groundY, skyY, useGround, useSky, useCubes)
                             if targetVec then
                                 real_.CFrame = CFrame.new(targetVec)
@@ -15367,6 +15766,10 @@ _G.CocaSkyDestroyer = CocaSkyDestroyer
             and not _G._HaloCoverSkyActive
             and not _G._HaloCoverCubeMatrixActive
             and not _G._HaloCoverVortexActive
+            and not _G._HaloCoverBlackholeActive
+            and not _G._HaloCoverHaloRingActive
+            and not _G._HaloCoverHelixActive
+            and not _G._HaloCoverWallActive
             and not _G._HaloCoverFlashActive
             and CocaSkyDestroyer.is_reanimated()
             and not isTransitioning
@@ -15523,11 +15926,87 @@ _G.CocaSkyDestroyer = CocaSkyDestroyer
         if CocaSkyDestroyer.syncUIFn then pcall(CocaSkyDestroyer.syncUIFn) end
     end
 
+    function _G.SetCoverBlackhole(enabled)
+        task.spawn(function()
+            if enabled then
+                _G._HaloCoverBlackholeActive = true
+                ensureReanimated()
+                notify("🕳️ BLACKHOLE SINGULARITY", "Blackhole Singularity Funnel ACTIVE!")
+                sToggleOn()
+            else
+                _G._HaloCoverBlackholeActive = false
+                notify("🕳️ BLACKHOLE SINGULARITY", "Blackhole Funnel disabled")
+                sToggleOff()
+                checkAndStopReanimation()
+            end
+            if CocaSkyDestroyer.syncUIFn then pcall(CocaSkyDestroyer.syncUIFn) end
+            if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
+        end)
+    end
+
+    function _G.SetCoverHaloRing(enabled)
+        task.spawn(function()
+            if enabled then
+                _G._HaloCoverHaloRingActive = true
+                ensureReanimated()
+                notify("🪐 ORBITAL HALO RING", "360° Orbital Halo Crown ACTIVE!")
+                sToggleOn()
+            else
+                _G._HaloCoverHaloRingActive = false
+                notify("🪐 ORBITAL HALO RING", "Orbital Halo Ring disabled")
+                sToggleOff()
+                checkAndStopReanimation()
+            end
+            if CocaSkyDestroyer.syncUIFn then pcall(CocaSkyDestroyer.syncUIFn) end
+            if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
+        end)
+    end
+
+    function _G.SetCoverHelix(enabled)
+        task.spawn(function()
+            if enabled then
+                _G._HaloCoverHelixActive = true
+                ensureReanimated()
+                notify("🧬 DOUBLE-HELIX DNA", "Counter-Rotating DNA Spiral ACTIVE!")
+                sToggleOn()
+            else
+                _G._HaloCoverHelixActive = false
+                notify("🧬 DOUBLE-HELIX DNA", "Double-Helix Spiral disabled")
+                sToggleOff()
+                checkAndStopReanimation()
+            end
+            if CocaSkyDestroyer.syncUIFn then pcall(CocaSkyDestroyer.syncUIFn) end
+            if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
+        end)
+    end
+
+    function _G.SetCoverWall(enabled)
+        task.spawn(function()
+            if enabled then
+                _G._HaloCoverWallActive = true
+                ensureReanimated()
+                notify("🧱 VERTICAL SHIELD WALL", "Vertical Mesh Curtain Wall ACTIVE!")
+                sToggleOn()
+            else
+                _G._HaloCoverWallActive = false
+                notify("🧱 VERTICAL SHIELD WALL", "Vertical Shield Wall disabled")
+                sToggleOff()
+                checkAndStopReanimation()
+            end
+            if CocaSkyDestroyer.syncUIFn then pcall(CocaSkyDestroyer.syncUIFn) end
+            if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
+        end)
+    end
+
     function _G.stopSkyDestroyer()
         _G._HaloCoverGroundActive = false
         _G._HaloCoverSkyActive = false
         _G._HaloCoverCubeMatrixActive = false
         _G._HaloCoverVortexActive = false
+        _G._HaloCoverBlackholeActive = false
+        _G._HaloCoverHaloRingActive = false
+        _G._HaloCoverHelixActive = false
+        _G._HaloCoverWallActive = false
         _G._HaloCoverTargetCageActive = false
         _G._HaloCoverPulseActive = false
         stopFlashLoop()
@@ -15539,7 +16018,9 @@ _G.CocaSkyDestroyer = CocaSkyDestroyer
     end
 
     function CocaSkyDestroyer.isAnyActive()
-        return _G._HaloCoverGroundActive or _G._HaloCoverSkyActive or _G._HaloCoverCubeMatrixActive or _G._HaloCoverVortexActive or _G._HaloCoverFlashActive
+        return _G._HaloCoverGroundActive or _G._HaloCoverSkyActive or _G._HaloCoverCubeMatrixActive
+            or _G._HaloCoverVortexActive or _G._HaloCoverBlackholeActive or _G._HaloCoverHaloRingActive
+            or _G._HaloCoverHelixActive or _G._HaloCoverWallActive or _G._HaloCoverFlashActive
     end
 
     LP.CharacterAdded:Connect(function(newChar)
@@ -19264,6 +19745,50 @@ local function buildMainUI()
             end
         )
 
+        local swBlackhole = createSwitchRow(
+            modesSkyGrp,
+            8,
+            "Blackhole Singularity Funnel (V5 NEW)",
+            "Spirals 3D Layered Clothing limbs into a high-velocity singularity funnel",
+            _G._HaloCoverBlackholeActive,
+            function(st)
+                _G.SetCoverBlackhole(st)
+            end
+        )
+
+        local swHaloRing = createSwitchRow(
+            modesSkyGrp,
+            9,
+            "360° Orbital Halo Crown Ring (V5 NEW)",
+            "Forms a giant horizontal halo ring of stretched 3D Layered Clothing overhead",
+            _G._HaloCoverHaloRingActive,
+            function(st)
+                _G.SetCoverHaloRing(st)
+            end
+        )
+
+        local swHelix = createSwitchRow(
+            modesSkyGrp,
+            10,
+            "Double-Helix DNA Spiral (V5 NEW)",
+            "Twists left & right limbs in counter-rotating 3D DNA strands across the map",
+            _G._HaloCoverHelixActive,
+            function(st)
+                _G.SetCoverHelix(st)
+            end
+        )
+
+        local swWall = createSwitchRow(
+            modesSkyGrp,
+            11,
+            "Vertical Shield Wall / Curtain (V5 NEW)",
+            "Raises a towering vertical wall of 3D Layered Clothing across the map",
+            _G._HaloCoverWallActive,
+            function(st)
+                _G.SetCoverWall(st)
+            end
+        )
+
         createSectionTitle(skyPage, 6, "Elevation, Cube Spacing, Scale & Diagnostic Tuners")
         local tuneSkyGrp = createGroupCard(skyPage, 7)
 
@@ -19475,6 +20000,10 @@ local function buildMainUI()
             if swVortex then swVortex.setState(_G._HaloCoverVortexActive == true, false) end
             if swTargetCage then swTargetCage.setState(_G._HaloCoverTargetCageActive == true, false) end
             if swPulse then swPulse.setState(_G._HaloCoverPulseActive == true, false) end
+            if swBlackhole then swBlackhole.setState(_G._HaloCoverBlackholeActive == true, false) end
+            if swHaloRing then swHaloRing.setState(_G._HaloCoverHaloRingActive == true, false) end
+            if swHelix then swHelix.setState(_G._HaloCoverHelixActive == true, false) end
+            if swWall then swWall.setState(_G._HaloCoverWallActive == true, false) end
             if eternityEngineRow and eternityEngineRow.pillBtn then
                 local v1Act = (_G.SkyDestroyerAPI and _G.SkyDestroyerAPI.is_reanimated()) == true
                 eternityEngineRow.pillBtn.Text = v1Act and "Active V1" or "Start V1"
@@ -20383,8 +20912,9 @@ local function buildMainUI()
                 task.spawn(function()
                     local char = p.Character or p.CharacterAdded:Wait()
                     if char and p.Parent == Players then
-                        pcall(function() char:WaitForChild("HumanoidRootPart", 3.0) end)
-                        task.wait(0.05)
+                        if not char:FindFirstChild("HumanoidRootPart") then
+                            pcall(function() char:WaitForChild("HumanoidRootPart", 3.0) end)
+                        end
                         local presetToUse = WeldIntent.presetKey or (WeldIntent.leftInfo and WeldIntent.leftInfo.presetKey) or LastPresetKey or "facebang"
                         if WELD_PRESETS[presetToUse] then
                             applyWeldPreset(presetToUse, p)
@@ -21231,7 +21761,7 @@ local function buildMainUI()
                     pcall(function() existing:AdjustSpeed(speedMult or 1.0) end)
                     return
                 end
-                if (os.clock() - (FlyLoadCooldowns[fullKey] or 0)) < 1.25 then
+                if (os.clock() - (FlyLoadCooldowns[fullKey] or 0)) < 0.12 then
                     return
                 end
             end
@@ -22136,19 +22666,26 @@ local function buildMainUI()
                     }
                 end
                 pcall(function() Lighting.GlobalShadows = false end)
-                for _, obj in ipairs(workspace:GetDescendants()) do
-                    if obj:IsA("BasePart") and not obj:IsDescendantOf(LP.Character or workspace) then
-                        if obj.CastShadow then
-                            moveState.savedFpsParts[obj] = true
-                            obj.CastShadow = false
+                task.spawn(function()
+                    local list = workspace:GetDescendants()
+                    for idx, obj in ipairs(list) do
+                        if not moveState.fpsBoost then break end
+                        if obj:IsA("BasePart") and not (LP.Character and obj:IsDescendantOf(LP.Character)) then
+                            if obj.CastShadow then
+                                moveState.savedFpsParts[obj] = true
+                                obj.CastShadow = false
+                            end
+                        elseif (obj:IsA("ParticleEmitter") or obj:IsA("Smoke") or obj:IsA("Fire") or obj:IsA("Sparkles")) and obj.Enabled then
+                            if not obj.Name:match("^Coco") then
+                                moveState.savedFpsEffects[obj] = true
+                                obj.Enabled = false
+                            end
                         end
-                    elseif (obj:IsA("ParticleEmitter") or obj:IsA("Smoke") or obj:IsA("Fire") or obj:IsA("Sparkles")) and obj.Enabled then
-                        if not obj.Name:match("^Coco") then
-                            moveState.savedFpsEffects[obj] = true
-                            obj.Enabled = false
+                        if idx % 1000 == 0 then
+                            RunService.Heartbeat:Wait()
                         end
                     end
-                end
+                end)
                 notify("🚀 FPS BOOSTER", "Ultra FPS Booster ON — shadows & laggy particles suppressed!")
                 sToggleOn()
             else
@@ -24402,23 +24939,32 @@ local function buildMainUI()
         createSwitchRow(utilGrp, 7, "Client VIP Door, Gate & Barrier Unlocker (NEW)", "Walk straight through locked doors, VIP barriers, gates & invisible walls", false, function(st)
             doorsUnlocked = st
             if st then
-                local count = 0
-                for _, obj in ipairs(workspace:GetDescendants()) do
-                    if obj:IsA("BasePart") and obj.CanCollide and not obj:IsDescendantOf(LP.Character or workspace) then
-                        local n = obj.Name:lower()
-                        local pName = (obj.Parent and obj.Parent.Name:lower()) or ""
-                        if n:find("door") or n:find("gate") or n:find("barrier") or n:find("vip") or n:find("lock") or n:find("forcefield") or pName:find("door") or pName:find("vip") or pName:find("gate") then
-                            unlockedDoorParts[obj] = obj.Transparency
-                            pcall(function()
-                                obj.CanCollide = false
-                                if obj.Transparency < 0.55 then obj.Transparency = 0.55 end
-                            end)
-                            count = count + 1
+                sToggleOn()
+                task.spawn(function()
+                    local count = 0
+                    local list = workspace:GetDescendants()
+                    for idx, obj in ipairs(list) do
+                        if not doorsUnlocked then break end
+                        if obj:IsA("BasePart") and obj.CanCollide and not (LP.Character and obj:IsDescendantOf(LP.Character)) then
+                            local n = obj.Name:lower()
+                            local pName = (obj.Parent and obj.Parent.Name:lower()) or ""
+                            if n:find("door") or n:find("gate") or n:find("barrier") or n:find("vip") or n:find("lock") or n:find("forcefield") or pName:find("door") or pName:find("vip") or pName:find("gate") then
+                                unlockedDoorParts[obj] = obj.Transparency
+                                pcall(function()
+                                    obj.CanCollide = false
+                                    if obj.Transparency < 0.55 then obj.Transparency = 0.55 end
+                                end)
+                                count = count + 1
+                            end
+                        end
+                        if idx % 1000 == 0 then
+                            RunService.Heartbeat:Wait()
                         end
                     end
-                end
-                notify("🔓 VIP DOOR UNLOCKER", "Unlocked " .. tostring(count) .. " doors, gates & VIP barriers!")
-                sToggleOn()
+                    if doorsUnlocked then
+                        notify("🔓 VIP DOOR UNLOCKER", "Unlocked " .. tostring(count) .. " doors, gates & VIP barriers!")
+                    end
+                end)
             else
                 for part, origTrans in pairs(unlockedDoorParts) do
                     if part and part.Parent then
