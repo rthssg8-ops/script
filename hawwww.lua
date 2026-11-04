@@ -1953,56 +1953,491 @@ streamAndTeleportToTarget = function(targetPlr, refMode, maxWaitSeconds, allowSw
     return tChar, tRef
 end
 
-local function getNearestPlayer(speaker)
-    speaker = speaker or LP
-    local myChar = speaker and speaker.Character
-    local myRoot = myChar and (myChar:FindFirstChild("HumanoidRootPart") or myChar:FindFirstChildWhichIsA("BasePart"))
-    local myPos  = myRoot and myRoot.Position or Vector3.zero
-    local bestPlr, bestDist = nil, math.huge
+local getNearestPlayer
+do
+    local ProximityPromptService = nil
+    pcall(function() ProximityPromptService = game:GetService("ProximityPromptService") end)
 
-    -- 1. First pass: strictly prioritize players whose real Character BasePart is currently streamed in!
-    --    (Prevents unstreamed players' stale spawn WorldPivots from ever fooling Auto-Nearest!)
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= speaker then
-            local c = findPlayerCharacterAnywhere(p)
-            local h = c and c:FindFirstChildOfClass("Humanoid")
-            local streamedCF = getVerifiedStreamedCFrame(p)
-            if streamedCF and (not h or h.Health > 0) then
-                local d = (streamedCF.Position - myPos).Magnitude
-                if d < bestDist then
-                    bestDist = d
-                    bestPlr = p
-                end
+    -- Tracks players recently interacted with or carried via ProximityPrompt or Interact/Carry UI buttons
+    local InteractedCarryPlayers = {} -- [userId] = { triggeredAt = number, lastNearAt = number }
+
+    local CARRY_INTERACT_KEYWORDS = {
+        "carry", "carried", "carrying", "carrier",
+        "interact", "interacting", "interaction",
+        "piggyback", "cradle", "shoulder", "bridal",
+        "hug", "hugging", "cuddle", "hold", "holding", "held",
+        "grab", "grabbed", "grabbing", "pickup", "pick up", "lift",
+        "sync", "synced", "couple", "coupled", "partner", "paired", "duet",
+        "weld", "welded", "attached", "linked"
+    }
+
+    local RELEASE_KEYWORDS = {
+        "drop", "release", "put down", "putdown", "uncarry", "stop carry", "stop interact", "let go", "detach"
+    }
+
+    local function textMatchesAny(str, wordList)
+        if type(str) ~= "string" or str == "" then return false end
+        local low = str:lower()
+        for i = 1, #wordList do
+            if low:find(wordList[i], 1, true) then
+                return true
             end
         end
+        return false
     end
-    if bestPlr then return bestPlr, bestDist end
 
-    -- 2. Second pass: if no players are streamed in near us, check known/cached player positions
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= speaker then
-            local c = findPlayerCharacterAnywhere(p)
-            local h = c and c:FindFirstChildOfClass("Humanoid")
-            local cf = getBestTargetCFrame(p)
-            if cf and (not h or h.Health > 0) then
-                local d = (cf.Position - myPos).Magnitude
-                if d < bestDist then
-                    bestDist = d
-                    bestPlr = p
+    local function getPlayerFromInstance(inst)
+        if not inst then return nil end
+        local cur = inst
+        while cur and cur ~= workspace and cur ~= game do
+            if cur:IsA("Player") then return cur end
+            if cur:IsA("Model") then
+                local plr = Players:GetPlayerFromCharacter(cur)
+                if plr then return plr end
+                local byExact = Players:FindFirstChild(cur.Name)
+                if byExact and byExact:IsA("Player") then return byExact end
+            end
+            if cur:IsA("BillboardGui") or cur:IsA("SurfaceGui") or cur:IsA("ProximityPrompt") then
+                local adornee = nil
+                pcall(function() adornee = cur.Adornee end)
+                if adornee then
+                    local aCur = adornee
+                    while aCur and aCur ~= workspace and aCur ~= game do
+                        if aCur:IsA("Model") then
+                            local aPlr = Players:GetPlayerFromCharacter(aCur) or Players:FindFirstChild(aCur.Name)
+                            if aPlr and aPlr:IsA("Player") then return aPlr end
+                        end
+                        aCur = aCur.Parent
+                    end
                 end
             end
+            cur = cur.Parent
         end
+        return nil
     end
 
-    -- 3. Fallback: even if all players are hiding in unstreamed chunks, still return a valid server player!
-    if not bestPlr then
+    local function findClosestPlayerWithin(originPos, maxDist, excludePlr)
+        local bestP, bestD = nil, maxDist or 14
         for _, p in ipairs(Players:GetPlayers()) do
-            if p ~= speaker then
-                return p, math.huge
+            if p ~= LP and p ~= excludePlr then
+                local c = findPlayerCharacterAnywhere(p, true)
+                local r = c and pickTargetRef(c, "torso")
+                if r and r.Parent then
+                    local d = (r.Position - originPos).Magnitude
+                    if d <= bestD then
+                        bestD = d
+                        bestP = p
+                    end
+                end
             end
         end
+        return bestP
     end
-    return bestPlr, bestDist
+
+    local function markPlayerInteractedOrCarried(plr)
+        if not plr or plr == LP or not plr.UserId then return end
+        local now = tick()
+        InteractedCarryPlayers[plr.UserId] = {
+            triggeredAt = now,
+            lastNearAt = now,
+        }
+    end
+
+    local function clearPlayerInteractedOrCarried(plr)
+        if not plr or not plr.UserId then return end
+        InteractedCarryPlayers[plr.UserId] = nil
+    end
+
+    if ProximityPromptService then
+        local function onPromptInteraction(prompt, playerWhoTriggered)
+            if playerWhoTriggered and playerWhoTriggered ~= LP then return end
+            if not prompt then return end
+            pcall(function()
+                local combinedText = tostring(prompt.ActionText or "") .. " " .. tostring(prompt.ObjectText or "") .. " " .. tostring(prompt.Name or "")
+                local ownerPlr = getPlayerFromInstance(prompt)
+                local myChar = LP.Character
+                local myRoot = myChar and (myChar:FindFirstChild("HumanoidRootPart") or myChar:FindFirstChildWhichIsA("BasePart"))
+
+                if textMatchesAny(combinedText, RELEASE_KEYWORDS) then
+                    if ownerPlr and ownerPlr ~= LP then
+                        clearPlayerInteractedOrCarried(ownerPlr)
+                    else
+                        for uid, _ in pairs(InteractedCarryPlayers) do
+                            InteractedCarryPlayers[uid] = nil
+                        end
+                    end
+                    return
+                end
+
+                if ownerPlr and ownerPlr ~= LP then
+                    markPlayerInteractedOrCarried(ownerPlr)
+                    return
+                end
+
+                if textMatchesAny(combinedText, CARRY_INTERACT_KEYWORDS) then
+                    local promptPos = nil
+                    local pParent = prompt.Parent
+                    if pParent and pParent:IsA("BasePart") then
+                        promptPos = pParent.Position
+                    elseif pParent and pParent:IsA("Attachment") then
+                        promptPos = pParent.WorldPosition
+                    elseif pParent and pParent:IsA("Model") then
+                        local okP, piv = pcall(function() return pParent:GetPivot() end)
+                        if okP and piv then promptPos = piv.Position end
+                    end
+                    local refPos = promptPos or (myRoot and myRoot.Position)
+                    if refPos then
+                        local nearP = findClosestPlayerWithin(refPos, 14)
+                        if nearP then
+                            markPlayerInteractedOrCarried(nearP)
+                        end
+                    end
+                end
+            end)
+        end
+        pcall(function() ProximityPromptService.PromptTriggered:Connect(onPromptInteraction) end)
+        pcall(function() ProximityPromptService.PromptButtonHoldEnded:Connect(onPromptInteraction) end)
+    end
+
+    local hookedGuiButtons = setmetatable({}, { __mode = "k" })
+    local function inspectAndHookGuiButton(btn)
+        if not btn or hookedGuiButtons[btn] then return end
+        if not (btn:IsA("TextButton") or btn:IsA("ImageButton")) then return end
+        local anc = btn
+        while anc do
+            if anc.Name:match("^Coco") then return end
+            anc = anc.Parent
+        end
+        hookedGuiButtons[btn] = true
+        pcall(function()
+            btn.Activated:Connect(function()
+                pcall(function()
+                    local txt = ""
+                    if btn:IsA("TextButton") then txt = tostring(btn.Text or "") end
+                    for _, desc in ipairs(btn:GetDescendants()) do
+                        if desc:IsA("TextLabel") or desc:IsA("TextButton") then
+                            txt = txt .. " " .. tostring(desc.Text or "")
+                        end
+                    end
+                    local fullStr = txt .. " " .. tostring(btn.Name or "") .. " " .. tostring(btn.Parent and btn.Parent.Name or "")
+                    if textMatchesAny(fullStr, RELEASE_KEYWORDS) then
+                        for uid, _ in pairs(InteractedCarryPlayers) do
+                            InteractedCarryPlayers[uid] = nil
+                        end
+                        return
+                    end
+                    local adorneePlr = getPlayerFromInstance(btn)
+                    if adorneePlr and adorneePlr ~= LP then
+                        markPlayerInteractedOrCarried(adorneePlr)
+                        return
+                    end
+                    if textMatchesAny(fullStr, CARRY_INTERACT_KEYWORDS) then
+                        local menuRoot = btn.Parent and btn.Parent.Parent or btn.Parent
+                        if menuRoot then
+                            for _, d in ipairs(menuRoot:GetDescendants()) do
+                                if d:IsA("TextLabel") or d:IsA("TextButton") then
+                                    local dTxt = tostring(d.Text or ""):lower()
+                                    if dTxt ~= "" then
+                                        for _, p in ipairs(Players:GetPlayers()) do
+                                            if p ~= LP and (dTxt:find(p.Name:lower(), 1, true) or (p.DisplayName ~= "" and dTxt:find(p.DisplayName:lower(), 1, true))) then
+                                                markPlayerInteractedOrCarried(p)
+                                                return
+                                            end
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                        local myChar = LP.Character
+                        local myRoot = myChar and (myChar:FindFirstChild("HumanoidRootPart") or myChar:FindFirstChildWhichIsA("BasePart"))
+                        if myRoot then
+                            local nearP = findClosestPlayerWithin(myRoot.Position, 14)
+                            if nearP then
+                                markPlayerInteractedOrCarried(nearP)
+                            end
+                        end
+                    end
+                end)
+            end)
+        end)
+    end
+
+    pcall(function()
+        local pgui = LP:FindFirstChildOfClass("PlayerGui")
+        if pgui then
+            for _, obj in ipairs(pgui:GetDescendants()) do
+                if obj:IsA("TextButton") or obj:IsA("ImageButton") then
+                    inspectAndHookGuiButton(obj)
+                end
+            end
+            pgui.DescendantAdded:Connect(function(obj)
+                if obj:IsA("TextButton") or obj:IsA("ImageButton") then
+                    inspectAndHookGuiButton(obj)
+                end
+            end)
+        end
+    end)
+
+    LP.CharacterAdded:Connect(function()
+        InteractedCarryPlayers = {}
+    end)
+
+    local function valueReferencesPlayer(val, targetPlr, targetChar)
+        if val == nil or not targetPlr then return false end
+        local t = typeof(val)
+        if t == "Instance" then
+            if val == targetPlr or (targetChar and (val == targetChar or val:IsDescendantOf(targetChar))) then
+                return true
+            end
+        elseif t == "number" then
+            if val == targetPlr.UserId then return true end
+        elseif t == "string" and val ~= "" then
+            local low = val:lower()
+            local pName = (targetPlr.Name or ""):lower()
+            local pDisp = (targetPlr.DisplayName or ""):lower()
+            local uidStr = tostring(targetPlr.UserId)
+            if low == pName or (pDisp ~= "" and low == pDisp) or low == uidStr then
+                return true
+            end
+            if pName ~= "" and low:find(pName, 1, true) then
+                return true
+            end
+        end
+        return false
+    end
+
+    local function hasCrossReferenceOrCarryState(sourceInst, targetPlr, targetChar, isCloseEnough)
+        if not sourceInst then return false end
+        local okAttr, attrs = pcall(function() return sourceInst:GetAttributes() end)
+        if okAttr and attrs then
+            for k, v in pairs(attrs) do
+                if valueReferencesPlayer(v, targetPlr, targetChar) then
+                    return true
+                end
+                if isCloseEnough and textMatchesAny(tostring(k), CARRY_INTERACT_KEYWORDS) then
+                    if v == true or (type(v) == "number" and v ~= 0) or (type(v) == "string" and v ~= "" and v:lower() ~= "none" and v:lower() ~= "false") then
+                        return true
+                    end
+                end
+            end
+        end
+        for _, child in ipairs(sourceInst:GetDescendants()) do
+            if child:IsA("ValueBase") then
+                local okV, v = pcall(function() return child.Value end)
+                if okV then
+                    if valueReferencesPlayer(v, targetPlr, targetChar) then
+                        return true
+                    end
+                    if isCloseEnough and textMatchesAny(child.Name, CARRY_INTERACT_KEYWORDS) then
+                        if v == true or (typeof(v) == "Instance") or (type(v) == "number" and v ~= 0) or (type(v) == "string" and v ~= "" and v:lower() ~= "none" and v:lower() ~= "false") then
+                            return true
+                        end
+                    end
+                end
+            end
+        end
+        return false
+    end
+
+    local function isJointOrConstraintBetween(obj, charA, charB)
+        if not obj or not charA or not charB then return false end
+        if obj:IsA("JointInstance") or obj:IsA("WeldConstraint") then
+            local p0, p1 = obj.Part0, obj.Part1
+            if p0 and p1 then
+                if (p0:IsDescendantOf(charA) and p1:IsDescendantOf(charB))
+                    or (p1:IsDescendantOf(charA) and p0:IsDescendantOf(charB)) then
+                    return true
+                end
+            end
+        elseif obj:IsA("Constraint") then
+            local a0, a1 = obj.Attachment0, obj.Attachment1
+            if a0 and a1 then
+                if (a0:IsDescendantOf(charA) and a1:IsDescendantOf(charB))
+                    or (a1:IsDescendantOf(charA) and a0:IsDescendantOf(charB)) then
+                    return true
+                end
+            end
+        end
+        return false
+    end
+
+    local function isPlayerCarriedOrInteracting(p, speaker)
+        speaker = speaker or LP
+        if not p or p == speaker or p.Parent ~= Players then return false end
+
+        -- Never exclude a target that CocoPowder itself is actively welding/flinging/copying
+        if (WeldIntent and WeldIntent.active and WeldIntent.target == p)
+            or (CurrentWeld ~= nil and CurrentTarget == p)
+            or (FlingActive and CurrentTarget == p)
+            or (AnimCopySys and AnimCopySys.active and AnimCopySys.target == p) then
+            return false
+        end
+
+        local myChar = speaker and speaker.Character
+        local tChar  = findPlayerCharacterAnywhere(p, true)
+        local myRoot = myChar and (myChar:FindFirstChild("HumanoidRootPart") or myChar:FindFirstChildWhichIsA("BasePart"))
+        local tRoot  = tChar and pickTargetRef(tChar, "torso")
+        local myHum  = myChar and myChar:FindFirstChildOfClass("Humanoid")
+        local tHum   = tChar and tChar:FindFirstChildOfClass("Humanoid")
+
+        if myChar and tChar then
+            -- 1. Direct character hierarchy or SeatPart parenting
+            if tChar:IsDescendantOf(myChar) or myChar:IsDescendantOf(tChar) then
+                return true
+            end
+            if (tHum and tHum.SeatPart and tHum.SeatPart:IsDescendantOf(myChar))
+                or (myHum and myHum.SeatPart and myHum.SeatPart:IsDescendantOf(tChar)) then
+                return true
+            end
+
+            -- 2. Shared physics assembly or connected rigid parts (catches all Weld/Motor6D/Carry tools)
+            if myRoot and tRoot then
+                local okAssy, sameAssy = pcall(function()
+                    local a1 = myRoot.AssemblyRootPart
+                    local a2 = tRoot.AssemblyRootPart
+                    return (a1 ~= nil and a1 == a2)
+                end)
+                if okAssy and sameAssy then
+                    return true
+                end
+
+                local okConn, connParts = pcall(function() return myRoot:GetConnectedParts(true) end)
+                if okConn and connParts then
+                    for i = 1, #connParts do
+                        local cp = connParts[i]
+                        if cp and cp:IsDescendantOf(tChar) then
+                            return true
+                        end
+                    end
+                end
+            end
+
+            -- 3. JointInstance / WeldConstraint / Constraint links between characters or equipped tools
+            for _, obj in ipairs(tChar:GetDescendants()) do
+                if isJointOrConstraintBetween(obj, myChar, tChar) then
+                    return true
+                end
+                if obj:IsA("BasePart") then
+                    local okJ, joints = pcall(function() return obj:GetJoints() end)
+                    if okJ and joints then
+                        for jIdx = 1, #joints do
+                            if isJointOrConstraintBetween(joints[jIdx], myChar, tChar) then
+                                return true
+                            end
+                        end
+                    end
+                end
+            end
+            for _, obj in ipairs(myChar:GetDescendants()) do
+                if isJointOrConstraintBetween(obj, myChar, tChar) then
+                    return true
+                end
+            end
+        end
+
+        local dist = (myRoot and tRoot) and (tRoot.Position - myRoot.Position).Magnitude or math.huge
+
+        -- 4. Event-driven ProximityPrompt / UI Carry & Interact tracker
+        local entry = InteractedCarryPlayers[p.UserId]
+        if entry then
+            if tHum and tHum.Health <= 0 then
+                InteractedCarryPlayers[p.UserId] = nil
+            elseif dist <= 11.5 then
+                entry.lastNearAt = tick()
+                return true
+            elseif (tick() - entry.triggeredAt) <= 2.5 or (tick() - entry.lastNearAt) <= 1.2 then
+                return true
+            else
+                InteractedCarryPlayers[p.UserId] = nil
+            end
+        end
+
+        -- 5. Game Attributes & ValueObjects (CarriedBy, Carrier, InteractingWith, Sync, Partner, etc.)
+        local isClose = (dist <= 10.5)
+        if hasCrossReferenceOrCarryState(p, speaker, myChar, isClose)
+            or (tChar and hasCrossReferenceOrCarryState(tChar, speaker, myChar, isClose))
+            or hasCrossReferenceOrCarryState(speaker, p, tChar, false)
+            or (myChar and hasCrossReferenceOrCarryState(myChar, p, tChar, false)) then
+            return true
+        end
+
+        -- 6. Close-range Physical Carry / Piggyback / Synced Interact state heuristic
+        if dist <= 5.2 and myRoot and tRoot and tChar then
+            if tHum then
+                local okSt, tState = pcall(function() return tHum:GetState() end)
+                local sitOnMe = tHum.Sit and (not tHum.SeatPart or (myChar and tHum.SeatPart:IsDescendantOf(myChar)))
+                local seatedStateOnMe = okSt and (tState == Enum.HumanoidStateType.Seated) and (not tHum.SeatPart or (myChar and tHum.SeatPart:IsDescendantOf(myChar)))
+                if tHum.PlatformStand
+                    or sitOnMe
+                    or (okSt and tState == Enum.HumanoidStateType.Physics)
+                    or seatedStateOnMe
+                    or tRoot.Massless then
+                    return true
+                end
+            end
+            for _, obj in ipairs(tChar:GetDescendants()) do
+                if obj:IsA("AlignPosition") or obj:IsA("AlignOrientation") or obj:IsA("BodyPosition") or obj:IsA("BodyGyro") then
+                    return true
+                end
+            end
+        end
+
+        return false
+    end
+
+    OwnerAdminState.isPlayerCarriedOrInteracting = isPlayerCarriedOrInteracting
+
+    getNearestPlayer = function(speaker)
+        speaker = speaker or LP
+        local myChar = speaker and speaker.Character
+        local myRoot = myChar and (myChar:FindFirstChild("HumanoidRootPart") or myChar:FindFirstChildWhichIsA("BasePart"))
+        local myPos  = myRoot and myRoot.Position or Vector3.zero
+        local bestPlr, bestDist = nil, math.huge
+
+        -- 1. First pass: strictly prioritize players whose real Character BasePart is currently streamed in!
+        --    (Excludes any player currently carried or interacted with by speaker!)
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= speaker and not isPlayerCarriedOrInteracting(p, speaker) then
+                local c = findPlayerCharacterAnywhere(p)
+                local h = c and c:FindFirstChildOfClass("Humanoid")
+                local streamedCF = getVerifiedStreamedCFrame(p)
+                if streamedCF and (not h or h.Health > 0) then
+                    local d = (streamedCF.Position - myPos).Magnitude
+                    if d < bestDist then
+                        bestDist = d
+                        bestPlr = p
+                    end
+                end
+            end
+        end
+        if bestPlr then return bestPlr, bestDist end
+
+        -- 2. Second pass: if no players are streamed in near us, check known/cached player positions
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= speaker and not isPlayerCarriedOrInteracting(p, speaker) then
+                local c = findPlayerCharacterAnywhere(p)
+                local h = c and c:FindFirstChildOfClass("Humanoid")
+                local cf = getBestTargetCFrame(p)
+                if cf and (not h or h.Health > 0) then
+                    local d = (cf.Position - myPos).Magnitude
+                    if d < bestDist then
+                        bestDist = d
+                        bestPlr = p
+                    end
+                end
+            end
+        end
+
+        -- 3. Fallback: even if all players are hiding in unstreamed chunks, still return a valid server player (excluding carried/interacted)!
+        if not bestPlr then
+            for _, p in ipairs(Players:GetPlayers()) do
+                if p ~= speaker and not isPlayerCarriedOrInteracting(p, speaker) then
+                    return p, math.huge
+                end
+            end
+        end
+        return bestPlr, bestDist
+    end
 end
 
 local function findPlayerByNameOrDisplay(query, speaker)
@@ -2036,8 +2471,8 @@ local function resolveActiveTarget()
             end
         end
     end
-    -- 2. Check explicitly locked selectedPlayer from Target tab
-    if selectedPlayer and selectedPlayer.Parent == Players and selectedPlayer ~= LP then
+    -- 2. Check explicitly locked selectedPlayer from Target tab (skip if currently carried/interacted with)
+    if selectedPlayer and selectedPlayer.Parent == Players and selectedPlayer ~= LP and not (OwnerAdminState.isPlayerCarriedOrInteracting and OwnerAdminState.isPlayerCarriedOrInteracting(selectedPlayer, LP)) then
         return selectedPlayer, false
     end
     -- 3. Check Chat tab target input if non-empty
@@ -2223,7 +2658,7 @@ do
             local p = resolvePlayer(explicitTarget, LP)
             if p and p.Parent == Players and p ~= LP then return p end
         end
-        if selectedPlayer and selectedPlayer.Parent == Players and selectedPlayer ~= LP then
+        if selectedPlayer and selectedPlayer.Parent == Players and selectedPlayer ~= LP and not (OwnerAdminState.isPlayerCarriedOrInteracting and OwnerAdminState.isPlayerCarriedOrInteracting(selectedPlayer, LP)) then
             return selectedPlayer
         end
         if AnimCopySys.active and AnimCopySys.target and AnimCopySys.target.Parent == Players and AnimCopySys.target ~= LP then
@@ -5762,6 +6197,7 @@ local function avForceAlive(h)
         if h.PlatformStand and not (moveState and (moveState.fly or moveState.flyLanding)) and not WeldIntent.active and not isReanimActive then
             h.PlatformStand = false
         end
+        h:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
         if h.Sit then h.Sit = false end
         if h:GetState() == Enum.HumanoidStateType.Dead then
             h:ChangeState(Enum.HumanoidStateType.Running)
@@ -5797,16 +6233,20 @@ local function avHookChar(c)
     end))
 end
 
-avStart = function()
-    if Anti.Void.enabled then return end
+avStart = function(silent)
+    if Anti.Void.enabled and Anti.Void.steppedConn and Anti.Void.loopConn then
+        if syncAllAntiButtons then pcall(syncAllAntiButtons) end
+        return
+    end
     Anti.Void.enabled = true
+    pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
     avHookChar(LP.Character)
     if Anti.Void.charAdded then Anti.Void.charAdded:Disconnect() end
     Anti.Void.charAdded = LP.CharacterAdded:Connect(function(c)
         if not Anti.Void.enabled then return end
         task.wait(0.15)
         avHookChar(c)
-        end)
+    end)
     if Anti.Void.steppedConn then Anti.Void.steppedConn:Disconnect() end
     Anti.Void.steppedConn = RunService.Stepped:Connect(function()
         if not Anti.Void.enabled then return end
@@ -5842,27 +6282,21 @@ avStart = function()
         if h then avForceAlive(h) end
     end)
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("COCO POWDER", "Anti-Void v2 (Predictive Catch + Safety Floor) ON")
-    sToggleOn()
+    if not silent then
+        notify("COCO POWDER", "Anti-Void v2 (Always-On Predictive Catch + Safety Floor) ON")
+        sToggleOn()
+    end
 end
 
 avStop = function()
-    if not Anti.Void.enabled then return end
-    Anti.Void.enabled = false
-    if Anti.Void.charAdded then Anti.Void.charAdded:Disconnect(); Anti.Void.charAdded = nil end
-    if Anti.Void.steppedConn then Anti.Void.steppedConn:Disconnect(); Anti.Void.steppedConn = nil end
-    if Anti.Void.loopConn then Anti.Void.loopConn:Disconnect(); Anti.Void.loopConn = nil end
-    for _, x in ipairs(Anti.Void.charConns) do pcall(function() x:Disconnect() end) end
-    Anti.Void.charConns = {}
-    for _, x in ipairs(Anti.Void.healthConns) do pcall(function() x:Disconnect() end) end
-    Anti.Void.healthConns = {}
-    avRemoveSafetyFloor()
-    if not (Anti.Kill and Anti.Kill.enabled) and not WeldIntent.active and not FlingActive then
-        pcall(function() workspace.FallenPartsDestroyHeight = OriginalFPDH end)
+    -- Always-On enforcement: Anti-Void remains enabled at all times
+    if not Anti.Void.enabled or not Anti.Void.steppedConn or not Anti.Void.loopConn then
+        avStart(true)
     end
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("COCO POWDER", "Anti-Void disabled")
-    sToggleOff()
+    if updateDefenceStatsUI then pcall(updateDefenceStatsUI) end
+    notify("COCO POWDER", "Anti-Void is permanently enabled (Always-On)!")
+    sToggleOn()
 end
 
 -- ═══════════════════════════════════════════════════════════════════════════════
@@ -6538,7 +6972,7 @@ ragdollStop = function()
     if Anti.Ragdoll.charAdded then Anti.Ragdoll.charAdded:Disconnect(); Anti.Ragdoll.charAdded = nil end
     local c = LP.Character
     local hum = c and c:FindFirstChildOfClass("Humanoid")
-    if hum then
+    if hum and not (Anti.SeatTrap and Anti.SeatTrap.enabled) then
         pcall(function()
             hum:SetStateEnabled(Enum.HumanoidStateType.Seated, true)
         end)
@@ -7007,7 +7441,7 @@ local function findBestRedirectVictim(attacker)
     if not myRoot then return nil end
     local bestPlr, bestDist = nil, math.huge
     for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= LP and p ~= attacker and p.Character then
+        if p ~= LP and p ~= attacker and not (OwnerAdminState.isPlayerCarriedOrInteracting and OwnerAdminState.isPlayerCarriedOrInteracting(p, LP)) and p.Character then
             local r = p.Character:FindFirstChild("HumanoidRootPart")
             local h = p.Character:FindFirstChildOfClass("Humanoid")
             if r and (not h or h.Health > 0) and r.Position.Y > (OriginalFPDH + 25) then
@@ -7225,7 +7659,7 @@ RunService.Heartbeat:Connect(function(dt)
     local now = tick()
 
     for _, p in ipairs(Players:GetPlayers()) do
-        local isFriendlyTarget = (p == selectedPlayer) or (p == CurrentTarget) or (p == WeldIntent.target) or (AnimCopySys and p == AnimCopySys.target)
+        local isFriendlyTarget = (p == selectedPlayer) or (p == CurrentTarget) or (p == WeldIntent.target) or (AnimCopySys and p == AnimCopySys.target) or (OwnerAdminState.isPlayerCarriedOrInteracting and OwnerAdminState.isPlayerCarriedOrInteracting(p, LP))
         if p ~= LP and not isFriendlyTarget and p.Character and not isProtectedFromLocalPlayer(p) then
             local tRoot = pickTargetRef(p.Character, "torso")
             local tHum  = p.Character:FindFirstChildOfClass("Humanoid")
@@ -7336,9 +7770,68 @@ local function neutralizeSeatInstance(seat)
     end)
 end
 
-Anti.SeatTrap.startFn = function()
-    if Anti.SeatTrap.enabled then return end
+local function enforceAntiSitOnHumanoid(hum)
+    if not hum or not hum.Parent then return end
+    pcall(function()
+        hum:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
+        if hum.Sit then hum.Sit = false end
+        if hum:GetState() == Enum.HumanoidStateType.Seated then
+            hum:ChangeState(Enum.HumanoidStateType.Running)
+        end
+    end)
+end
+
+local function hookAntiSitCharacter(ch)
+    if not ch then return end
+    if Anti.SeatTrap.charConns then
+        for _, c in ipairs(Anti.SeatTrap.charConns) do pcall(function() c:Disconnect() end) end
+    end
+    Anti.SeatTrap.charConns = {}
+    local function bindHum(hum)
+        if not hum then return end
+        enforceAntiSitOnHumanoid(hum)
+        table.insert(Anti.SeatTrap.charConns, hum:GetPropertyChangedSignal("Sit"):Connect(function()
+            if Anti.SeatTrap.enabled and hum.Sit then
+                enforceAntiSitOnHumanoid(hum)
+            end
+        end))
+        table.insert(Anti.SeatTrap.charConns, hum.StateChanged:Connect(function(_, newState)
+            if Anti.SeatTrap.enabled and newState == Enum.HumanoidStateType.Seated then
+                enforceAntiSitOnHumanoid(hum)
+            end
+        end))
+    end
+    local hum = ch:FindFirstChildOfClass("Humanoid")
+    if hum then bindHum(hum) end
+    table.insert(Anti.SeatTrap.charConns, ch.ChildAdded:Connect(function(child)
+        if child:IsA("Humanoid") then bindHum(child) end
+    end))
+    table.insert(Anti.SeatTrap.charConns, ch.DescendantAdded:Connect(function(obj)
+        if not Anti.SeatTrap.enabled then return end
+        if obj:IsA("SeatWeld") or obj.Name == "SeatWeld" then
+            pcall(function() obj:Destroy() end)
+        end
+    end))
+end
+
+Anti.SeatTrap.startFn = function(silent)
+    if Anti.SeatTrap.enabled and Anti.SeatTrap.loopConn and Anti.SeatTrap.wsDescConn then
+        if syncAllAntiButtons then pcall(syncAllAntiButtons) end
+        return
+    end
     Anti.SeatTrap.enabled = true
+    pcall(function()
+        for _, obj in ipairs(workspace:GetDescendants()) do
+            if obj:IsA("Seat") or obj:IsA("VehicleSeat") then
+                neutralizeSeatInstance(obj)
+            elseif (obj:IsA("SeatWeld") or obj.Name == "SeatWeld") and LP.Character then
+                local p0, p1 = obj.Part0, obj.Part1
+                if (p0 and p0:IsDescendantOf(LP.Character)) or (p1 and p1:IsDescendantOf(LP.Character)) then
+                    pcall(function() obj:Destroy() end)
+                end
+            end
+        end
+    end)
     for _, p in ipairs(Players:GetPlayers()) do
         if p.Character then
             for _, obj in ipairs(p.Character:GetDescendants()) do
@@ -7348,6 +7841,14 @@ Anti.SeatTrap.startFn = function()
             end
         end
     end
+    hookAntiSitCharacter(LP.Character)
+    if Anti.SeatTrap.charAddedConn then Anti.SeatTrap.charAddedConn:Disconnect() end
+    Anti.SeatTrap.charAddedConn = LP.CharacterAdded:Connect(function(ch)
+        if not Anti.SeatTrap.enabled then return end
+        task.defer(function()
+            if Anti.SeatTrap.enabled then hookAntiSitCharacter(ch) end
+        end)
+    end)
     if Anti.SeatTrap.wsDescConn then Anti.SeatTrap.wsDescConn:Disconnect() end
     Anti.SeatTrap.wsDescConn = workspace.DescendantAdded:Connect(function(obj)
         if not Anti.SeatTrap.enabled then return end
@@ -7365,41 +7866,32 @@ Anti.SeatTrap.startFn = function()
         if not Anti.SeatTrap.enabled then return end
         local ch = LP.Character
         local hum = ch and ch:FindFirstChildOfClass("Humanoid")
-        if hum and hum.Sit then
+        if hum then
             pcall(function()
-                hum.Sit = false
                 hum:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
+                if hum.Sit then
+                    hum.Sit = false
+                end
             end)
         end
     end)
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
     if updateDefenceStatsUI then pcall(updateDefenceStatsUI) end
-    notify("COCO POWDER", "Anti-Seat / Couch-Kidnap Destroyer ON")
-    sToggleOn()
+    if not silent then
+        notify("COCO POWDER", "Anti-Sit / Couch-Kidnap Destroyer (Always-On) ON")
+        sToggleOn()
+    end
 end
 
 Anti.SeatTrap.stopFn = function()
-    if not Anti.SeatTrap.enabled then return end
-    Anti.SeatTrap.enabled = false
-    if Anti.SeatTrap.wsDescConn then Anti.SeatTrap.wsDescConn:Disconnect(); Anti.SeatTrap.wsDescConn = nil end
-    if Anti.SeatTrap.loopConn then Anti.SeatTrap.loopConn:Disconnect(); Anti.SeatTrap.loopConn = nil end
-    for seat, saved in pairs(Anti.SeatTrap.savedSeats) do
-        if seat and seat.Parent then
-            pcall(function()
-                seat.Disabled = saved.Disabled
-                seat.CanTouch = saved.CanTouch
-            end)
-        end
-        Anti.SeatTrap.savedSeats[seat] = nil
-    end
-    local hum = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
-    if hum and not Anti.Ragdoll.enabled then
-        pcall(function() hum:SetStateEnabled(Enum.HumanoidStateType.Seated, true) end)
+    -- Always-On enforcement: Anti-Sit remains enabled at all times
+    if not Anti.SeatTrap.enabled or not Anti.SeatTrap.loopConn or not Anti.SeatTrap.wsDescConn then
+        Anti.SeatTrap.startFn(true)
     end
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
     if updateDefenceStatsUI then pcall(updateDefenceStatsUI) end
-    notify("COCO POWDER", "Anti-Seat disabled & map seats restored")
-    sToggleOff()
+    notify("COCO POWDER", "Anti-Sit is permanently enabled (Always-On)!")
+    sToggleOn()
 end
 
 -- ═══════════════════════════════════════════════════════════════════════════════
@@ -7488,7 +7980,8 @@ disableAllAntiSystems = function()
     defenceTrollStop()
     redirectStop()
     pauseTrapStop()
-    avStop()
+    -- Anti-Void and Anti-Sit remain permanently enabled (Always-On)
+    avStart(true)
     akStop()
     flingShieldStop()
     ragdollStop()
@@ -7496,7 +7989,7 @@ disableAllAntiSystems = function()
     attachStop()
     blindStop()
     bringStop()
-    if Anti.SeatTrap.stopFn then Anti.SeatTrap.stopFn() end
+    if Anti.SeatTrap.startFn then Anti.SeatTrap.startFn(true) end
     if Anti.ToolGuard.stopFn then Anti.ToolGuard.stopFn() end
     agpStop()
     afkStop()
@@ -7504,9 +7997,13 @@ disableAllAntiSystems = function()
     if updateDefenceStatsUI then pcall(updateDefenceStatsUI) end
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
     if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
-    notify("COCO POWDER", "All Anti shields disabled")
+    notify("COCO POWDER", "Other Anti shields disabled (Anti-Sit & Anti-Void stay Always-On)")
     sToggleOff()
 end
+
+-- Auto-enable Anti-Void and Anti-Sit (Anti.SeatTrap) permanently on startup
+pcall(function() avStart(true) end)
+pcall(function() if Anti.SeatTrap.startFn then Anti.SeatTrap.startFn(true) end end)
 end -- end Anti internal scope
 
 -- ═══════════════════════════════════════════════════════════════════════════════
