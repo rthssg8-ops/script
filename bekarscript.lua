@@ -331,6 +331,31 @@ local OwnerAdminState = {
     blindGui = nil,
     blindBlur = nil,
     refreshAdminUIFn = nil,
+    -- New V36.8 Admin Panel Upgrade State
+    puppetModeActive = false,
+    puppetLeader = nil,
+    formationMode = nil,       -- "ring", "wall", "vwings", "line"
+    formationStyleIdx = 1,
+    formationCenterPlr = nil,
+    formationConn = nil,
+    invertControlsActive = false,
+    invertConn = nil,
+    drunkModeActive = false,
+    drunkConn = nil,
+    drunkColorEffect = nil,
+    fakeModalGui = nil,
+    flashbangGui = nil,
+    savedWaypoints = {},       -- { { name = string, cf = CFrame } }
+    activeWaypointIdx = 1,
+    lastBroadcastWaypointCF = nil,
+    skyLoungePart = nil,
+    skyLoungePreCF = nil,
+    syncedVipIds = {},         -- [userId] = true (Protected VIPs synced by Owner)
+    bodyguardModeActive = false,
+    bodyguardConn = nil,
+    telemetryTargetPlr = nil,
+    telemetryAutoRefresh = true,
+    localFps = 60,
 }
 
 local isConfiguredScriptOwner, isConfiguredPremiumUser, isScriptOwner, isPremiumUser, hasAdminAccess, isProtectedFromLocalPlayer, getPlayerTargetCode, checkSavedBanState, saveBanStateToDisk, showOwnerScreenBanner, clearPersistentBanner
@@ -430,6 +455,9 @@ end
 isProtectedFromLocalPlayer = function(targetPlr)
     if not targetPlr then return false end
     if isScriptOwner(targetPlr) then
+        return true
+    end
+    if not isScriptOwner(LP) and OwnerAdminState.syncedVipIds and OwnerAdminState.syncedVipIds[targetPlr.UserId] then
         return true
     end
     return false
@@ -632,7 +660,7 @@ do
     end
 end
 
-local Anti, moveState, AnimCopySys, hookTargetRespawn, removeOverheadTagForUser
+local Anti, moveState, AnimCopySys, hookTargetRespawn, removeOverheadTagForUser, updateOverheadNameTags
 local recoverCharacterState, safeReturnFromVoid, syncAllActiveIndicators
 
 local StateManager = {}
@@ -955,7 +983,7 @@ end
 do
     local lastSafeSampleTick = 0
     RunService.Heartbeat:Connect(function()
-        if FlingActive or WeldIntent.active or CurrentWeld ~= nil or (AnimCopySys and AnimCopySys.active) or (moveState and moveState.Vanish and moveState.Vanish.selfActive) or _G.CocaBangActive then return end
+        if FlingActive or WeldIntent.active or CurrentWeld ~= nil or (AnimCopySys and AnimCopySys.active) or (moveState and moveState.Vanish and moveState.Vanish.selfActive) or _G.CocaBangActive or (_G.CocaSkyDestroyer and (_G.CocaSkyDestroyer.isAnyActive() or _G.CocaSkyDestroyer.is_reanimated())) or (_G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated) == "function" and _G._AngoorZenApi.is_reanimated()) then return end
         local now = os.clock()
         local inVoidWindow = (Anti and Anti.Void and Anti.Void.enabled) or (tick() - LastVoidActionEnd < 6.0)
         if not inVoidWindow and (now - lastSafeSampleTick < 0.15) then return end
@@ -1925,56 +1953,491 @@ streamAndTeleportToTarget = function(targetPlr, refMode, maxWaitSeconds, allowSw
     return tChar, tRef
 end
 
-local function getNearestPlayer(speaker)
-    speaker = speaker or LP
-    local myChar = speaker and speaker.Character
-    local myRoot = myChar and (myChar:FindFirstChild("HumanoidRootPart") or myChar:FindFirstChildWhichIsA("BasePart"))
-    local myPos  = myRoot and myRoot.Position or Vector3.zero
-    local bestPlr, bestDist = nil, math.huge
+local getNearestPlayer
+do
+    local ProximityPromptService = nil
+    pcall(function() ProximityPromptService = game:GetService("ProximityPromptService") end)
 
-    -- 1. First pass: strictly prioritize players whose real Character BasePart is currently streamed in!
-    --    (Prevents unstreamed players' stale spawn WorldPivots from ever fooling Auto-Nearest!)
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= speaker then
-            local c = findPlayerCharacterAnywhere(p)
-            local h = c and c:FindFirstChildOfClass("Humanoid")
-            local streamedCF = getVerifiedStreamedCFrame(p)
-            if streamedCF and (not h or h.Health > 0) then
-                local d = (streamedCF.Position - myPos).Magnitude
-                if d < bestDist then
-                    bestDist = d
-                    bestPlr = p
-                end
+    -- Tracks players recently interacted with or carried via ProximityPrompt or Interact/Carry UI buttons
+    local InteractedCarryPlayers = {} -- [userId] = { triggeredAt = number, lastNearAt = number }
+
+    local CARRY_INTERACT_KEYWORDS = {
+        "carry", "carried", "carrying", "carrier",
+        "interact", "interacting", "interaction",
+        "piggyback", "cradle", "shoulder", "bridal",
+        "hug", "hugging", "cuddle", "hold", "holding", "held",
+        "grab", "grabbed", "grabbing", "pickup", "pick up", "lift",
+        "sync", "synced", "couple", "coupled", "partner", "paired", "duet",
+        "weld", "welded", "attached", "linked"
+    }
+
+    local RELEASE_KEYWORDS = {
+        "drop", "release", "put down", "putdown", "uncarry", "stop carry", "stop interact", "let go", "detach"
+    }
+
+    local function textMatchesAny(str, wordList)
+        if type(str) ~= "string" or str == "" then return false end
+        local low = str:lower()
+        for i = 1, #wordList do
+            if low:find(wordList[i], 1, true) then
+                return true
             end
         end
+        return false
     end
-    if bestPlr then return bestPlr, bestDist end
 
-    -- 2. Second pass: if no players are streamed in near us, check known/cached player positions
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= speaker then
-            local c = findPlayerCharacterAnywhere(p)
-            local h = c and c:FindFirstChildOfClass("Humanoid")
-            local cf = getBestTargetCFrame(p)
-            if cf and (not h or h.Health > 0) then
-                local d = (cf.Position - myPos).Magnitude
-                if d < bestDist then
-                    bestDist = d
-                    bestPlr = p
+    local function getPlayerFromInstance(inst)
+        if not inst then return nil end
+        local cur = inst
+        while cur and cur ~= workspace and cur ~= game do
+            if cur:IsA("Player") then return cur end
+            if cur:IsA("Model") then
+                local plr = Players:GetPlayerFromCharacter(cur)
+                if plr then return plr end
+                local byExact = Players:FindFirstChild(cur.Name)
+                if byExact and byExact:IsA("Player") then return byExact end
+            end
+            if cur:IsA("BillboardGui") or cur:IsA("SurfaceGui") or cur:IsA("ProximityPrompt") then
+                local adornee = nil
+                pcall(function() adornee = cur.Adornee end)
+                if adornee then
+                    local aCur = adornee
+                    while aCur and aCur ~= workspace and aCur ~= game do
+                        if aCur:IsA("Model") then
+                            local aPlr = Players:GetPlayerFromCharacter(aCur) or Players:FindFirstChild(aCur.Name)
+                            if aPlr and aPlr:IsA("Player") then return aPlr end
+                        end
+                        aCur = aCur.Parent
+                    end
                 end
             end
+            cur = cur.Parent
         end
+        return nil
     end
 
-    -- 3. Fallback: even if all players are hiding in unstreamed chunks, still return a valid server player!
-    if not bestPlr then
+    local function findClosestPlayerWithin(originPos, maxDist, excludePlr)
+        local bestP, bestD = nil, maxDist or 14
         for _, p in ipairs(Players:GetPlayers()) do
-            if p ~= speaker then
-                return p, math.huge
+            if p ~= LP and p ~= excludePlr then
+                local c = findPlayerCharacterAnywhere(p, true)
+                local r = c and pickTargetRef(c, "torso")
+                if r and r.Parent then
+                    local d = (r.Position - originPos).Magnitude
+                    if d <= bestD then
+                        bestD = d
+                        bestP = p
+                    end
+                end
             end
         end
+        return bestP
     end
-    return bestPlr, bestDist
+
+    local function markPlayerInteractedOrCarried(plr)
+        if not plr or plr == LP or not plr.UserId then return end
+        local now = tick()
+        InteractedCarryPlayers[plr.UserId] = {
+            triggeredAt = now,
+            lastNearAt = now,
+        }
+    end
+
+    local function clearPlayerInteractedOrCarried(plr)
+        if not plr or not plr.UserId then return end
+        InteractedCarryPlayers[plr.UserId] = nil
+    end
+
+    if ProximityPromptService then
+        local function onPromptInteraction(prompt, playerWhoTriggered)
+            if playerWhoTriggered and playerWhoTriggered ~= LP then return end
+            if not prompt then return end
+            pcall(function()
+                local combinedText = tostring(prompt.ActionText or "") .. " " .. tostring(prompt.ObjectText or "") .. " " .. tostring(prompt.Name or "")
+                local ownerPlr = getPlayerFromInstance(prompt)
+                local myChar = LP.Character
+                local myRoot = myChar and (myChar:FindFirstChild("HumanoidRootPart") or myChar:FindFirstChildWhichIsA("BasePart"))
+
+                if textMatchesAny(combinedText, RELEASE_KEYWORDS) then
+                    if ownerPlr and ownerPlr ~= LP then
+                        clearPlayerInteractedOrCarried(ownerPlr)
+                    else
+                        for uid, _ in pairs(InteractedCarryPlayers) do
+                            InteractedCarryPlayers[uid] = nil
+                        end
+                    end
+                    return
+                end
+
+                if ownerPlr and ownerPlr ~= LP then
+                    markPlayerInteractedOrCarried(ownerPlr)
+                    return
+                end
+
+                if textMatchesAny(combinedText, CARRY_INTERACT_KEYWORDS) then
+                    local promptPos = nil
+                    local pParent = prompt.Parent
+                    if pParent and pParent:IsA("BasePart") then
+                        promptPos = pParent.Position
+                    elseif pParent and pParent:IsA("Attachment") then
+                        promptPos = pParent.WorldPosition
+                    elseif pParent and pParent:IsA("Model") then
+                        local okP, piv = pcall(function() return pParent:GetPivot() end)
+                        if okP and piv then promptPos = piv.Position end
+                    end
+                    local refPos = promptPos or (myRoot and myRoot.Position)
+                    if refPos then
+                        local nearP = findClosestPlayerWithin(refPos, 14)
+                        if nearP then
+                            markPlayerInteractedOrCarried(nearP)
+                        end
+                    end
+                end
+            end)
+        end
+        pcall(function() ProximityPromptService.PromptTriggered:Connect(onPromptInteraction) end)
+        pcall(function() ProximityPromptService.PromptButtonHoldEnded:Connect(onPromptInteraction) end)
+    end
+
+    local hookedGuiButtons = setmetatable({}, { __mode = "k" })
+    local function inspectAndHookGuiButton(btn)
+        if not btn or hookedGuiButtons[btn] then return end
+        if not (btn:IsA("TextButton") or btn:IsA("ImageButton")) then return end
+        local anc = btn
+        while anc do
+            if anc.Name:match("^Coco") then return end
+            anc = anc.Parent
+        end
+        hookedGuiButtons[btn] = true
+        pcall(function()
+            btn.Activated:Connect(function()
+                pcall(function()
+                    local txt = ""
+                    if btn:IsA("TextButton") then txt = tostring(btn.Text or "") end
+                    for _, desc in ipairs(btn:GetDescendants()) do
+                        if desc:IsA("TextLabel") or desc:IsA("TextButton") then
+                            txt = txt .. " " .. tostring(desc.Text or "")
+                        end
+                    end
+                    local fullStr = txt .. " " .. tostring(btn.Name or "") .. " " .. tostring(btn.Parent and btn.Parent.Name or "")
+                    if textMatchesAny(fullStr, RELEASE_KEYWORDS) then
+                        for uid, _ in pairs(InteractedCarryPlayers) do
+                            InteractedCarryPlayers[uid] = nil
+                        end
+                        return
+                    end
+                    local adorneePlr = getPlayerFromInstance(btn)
+                    if adorneePlr and adorneePlr ~= LP then
+                        markPlayerInteractedOrCarried(adorneePlr)
+                        return
+                    end
+                    if textMatchesAny(fullStr, CARRY_INTERACT_KEYWORDS) then
+                        local menuRoot = btn.Parent and btn.Parent.Parent or btn.Parent
+                        if menuRoot then
+                            for _, d in ipairs(menuRoot:GetDescendants()) do
+                                if d:IsA("TextLabel") or d:IsA("TextButton") then
+                                    local dTxt = tostring(d.Text or ""):lower()
+                                    if dTxt ~= "" then
+                                        for _, p in ipairs(Players:GetPlayers()) do
+                                            if p ~= LP and (dTxt:find(p.Name:lower(), 1, true) or (p.DisplayName ~= "" and dTxt:find(p.DisplayName:lower(), 1, true))) then
+                                                markPlayerInteractedOrCarried(p)
+                                                return
+                                            end
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                        local myChar = LP.Character
+                        local myRoot = myChar and (myChar:FindFirstChild("HumanoidRootPart") or myChar:FindFirstChildWhichIsA("BasePart"))
+                        if myRoot then
+                            local nearP = findClosestPlayerWithin(myRoot.Position, 14)
+                            if nearP then
+                                markPlayerInteractedOrCarried(nearP)
+                            end
+                        end
+                    end
+                end)
+            end)
+        end)
+    end
+
+    pcall(function()
+        local pgui = LP:FindFirstChildOfClass("PlayerGui")
+        if pgui then
+            for _, obj in ipairs(pgui:GetDescendants()) do
+                if obj:IsA("TextButton") or obj:IsA("ImageButton") then
+                    inspectAndHookGuiButton(obj)
+                end
+            end
+            pgui.DescendantAdded:Connect(function(obj)
+                if obj:IsA("TextButton") or obj:IsA("ImageButton") then
+                    inspectAndHookGuiButton(obj)
+                end
+            end)
+        end
+    end)
+
+    LP.CharacterAdded:Connect(function()
+        InteractedCarryPlayers = {}
+    end)
+
+    local function valueReferencesPlayer(val, targetPlr, targetChar)
+        if val == nil or not targetPlr then return false end
+        local t = typeof(val)
+        if t == "Instance" then
+            if val == targetPlr or (targetChar and (val == targetChar or val:IsDescendantOf(targetChar))) then
+                return true
+            end
+        elseif t == "number" then
+            if val == targetPlr.UserId then return true end
+        elseif t == "string" and val ~= "" then
+            local low = val:lower()
+            local pName = (targetPlr.Name or ""):lower()
+            local pDisp = (targetPlr.DisplayName or ""):lower()
+            local uidStr = tostring(targetPlr.UserId)
+            if low == pName or (pDisp ~= "" and low == pDisp) or low == uidStr then
+                return true
+            end
+            if pName ~= "" and low:find(pName, 1, true) then
+                return true
+            end
+        end
+        return false
+    end
+
+    local function hasCrossReferenceOrCarryState(sourceInst, targetPlr, targetChar, isCloseEnough)
+        if not sourceInst then return false end
+        local okAttr, attrs = pcall(function() return sourceInst:GetAttributes() end)
+        if okAttr and attrs then
+            for k, v in pairs(attrs) do
+                if valueReferencesPlayer(v, targetPlr, targetChar) then
+                    return true
+                end
+                if isCloseEnough and textMatchesAny(tostring(k), CARRY_INTERACT_KEYWORDS) then
+                    if v == true or (type(v) == "number" and v ~= 0) or (type(v) == "string" and v ~= "" and v:lower() ~= "none" and v:lower() ~= "false") then
+                        return true
+                    end
+                end
+            end
+        end
+        for _, child in ipairs(sourceInst:GetDescendants()) do
+            if child:IsA("ValueBase") then
+                local okV, v = pcall(function() return child.Value end)
+                if okV then
+                    if valueReferencesPlayer(v, targetPlr, targetChar) then
+                        return true
+                    end
+                    if isCloseEnough and textMatchesAny(child.Name, CARRY_INTERACT_KEYWORDS) then
+                        if v == true or (typeof(v) == "Instance") or (type(v) == "number" and v ~= 0) or (type(v) == "string" and v ~= "" and v:lower() ~= "none" and v:lower() ~= "false") then
+                            return true
+                        end
+                    end
+                end
+            end
+        end
+        return false
+    end
+
+    local function isJointOrConstraintBetween(obj, charA, charB)
+        if not obj or not charA or not charB then return false end
+        if obj:IsA("JointInstance") or obj:IsA("WeldConstraint") then
+            local p0, p1 = obj.Part0, obj.Part1
+            if p0 and p1 then
+                if (p0:IsDescendantOf(charA) and p1:IsDescendantOf(charB))
+                    or (p1:IsDescendantOf(charA) and p0:IsDescendantOf(charB)) then
+                    return true
+                end
+            end
+        elseif obj:IsA("Constraint") then
+            local a0, a1 = obj.Attachment0, obj.Attachment1
+            if a0 and a1 then
+                if (a0:IsDescendantOf(charA) and a1:IsDescendantOf(charB))
+                    or (a1:IsDescendantOf(charA) and a0:IsDescendantOf(charB)) then
+                    return true
+                end
+            end
+        end
+        return false
+    end
+
+    local function isPlayerCarriedOrInteracting(p, speaker)
+        speaker = speaker or LP
+        if not p or p == speaker or p.Parent ~= Players then return false end
+
+        -- Never exclude a target that CocoPowder itself is actively welding/flinging/copying
+        if (WeldIntent and WeldIntent.active and WeldIntent.target == p)
+            or (CurrentWeld ~= nil and CurrentTarget == p)
+            or (FlingActive and CurrentTarget == p)
+            or (AnimCopySys and AnimCopySys.active and AnimCopySys.target == p) then
+            return false
+        end
+
+        local myChar = speaker and speaker.Character
+        local tChar  = findPlayerCharacterAnywhere(p, true)
+        local myRoot = myChar and (myChar:FindFirstChild("HumanoidRootPart") or myChar:FindFirstChildWhichIsA("BasePart"))
+        local tRoot  = tChar and pickTargetRef(tChar, "torso")
+        local myHum  = myChar and myChar:FindFirstChildOfClass("Humanoid")
+        local tHum   = tChar and tChar:FindFirstChildOfClass("Humanoid")
+
+        if myChar and tChar then
+            -- 1. Direct character hierarchy or SeatPart parenting
+            if tChar:IsDescendantOf(myChar) or myChar:IsDescendantOf(tChar) then
+                return true
+            end
+            if (tHum and tHum.SeatPart and tHum.SeatPart:IsDescendantOf(myChar))
+                or (myHum and myHum.SeatPart and myHum.SeatPart:IsDescendantOf(tChar)) then
+                return true
+            end
+
+            -- 2. Shared physics assembly or connected rigid parts (catches all Weld/Motor6D/Carry tools)
+            if myRoot and tRoot then
+                local okAssy, sameAssy = pcall(function()
+                    local a1 = myRoot.AssemblyRootPart
+                    local a2 = tRoot.AssemblyRootPart
+                    return (a1 ~= nil and a1 == a2)
+                end)
+                if okAssy and sameAssy then
+                    return true
+                end
+
+                local okConn, connParts = pcall(function() return myRoot:GetConnectedParts(true) end)
+                if okConn and connParts then
+                    for i = 1, #connParts do
+                        local cp = connParts[i]
+                        if cp and cp:IsDescendantOf(tChar) then
+                            return true
+                        end
+                    end
+                end
+            end
+
+            -- 3. JointInstance / WeldConstraint / Constraint links between characters or equipped tools
+            for _, obj in ipairs(tChar:GetDescendants()) do
+                if isJointOrConstraintBetween(obj, myChar, tChar) then
+                    return true
+                end
+                if obj:IsA("BasePart") then
+                    local okJ, joints = pcall(function() return obj:GetJoints() end)
+                    if okJ and joints then
+                        for jIdx = 1, #joints do
+                            if isJointOrConstraintBetween(joints[jIdx], myChar, tChar) then
+                                return true
+                            end
+                        end
+                    end
+                end
+            end
+            for _, obj in ipairs(myChar:GetDescendants()) do
+                if isJointOrConstraintBetween(obj, myChar, tChar) then
+                    return true
+                end
+            end
+        end
+
+        local dist = (myRoot and tRoot) and (tRoot.Position - myRoot.Position).Magnitude or math.huge
+
+        -- 4. Event-driven ProximityPrompt / UI Carry & Interact tracker
+        local entry = InteractedCarryPlayers[p.UserId]
+        if entry then
+            if tHum and tHum.Health <= 0 then
+                InteractedCarryPlayers[p.UserId] = nil
+            elseif dist <= 11.5 then
+                entry.lastNearAt = tick()
+                return true
+            elseif (tick() - entry.triggeredAt) <= 2.5 or (tick() - entry.lastNearAt) <= 1.2 then
+                return true
+            else
+                InteractedCarryPlayers[p.UserId] = nil
+            end
+        end
+
+        -- 5. Game Attributes & ValueObjects (CarriedBy, Carrier, InteractingWith, Sync, Partner, etc.)
+        local isClose = (dist <= 10.5)
+        if hasCrossReferenceOrCarryState(p, speaker, myChar, isClose)
+            or (tChar and hasCrossReferenceOrCarryState(tChar, speaker, myChar, isClose))
+            or hasCrossReferenceOrCarryState(speaker, p, tChar, false)
+            or (myChar and hasCrossReferenceOrCarryState(myChar, p, tChar, false)) then
+            return true
+        end
+
+        -- 6. Close-range Physical Carry / Piggyback / Synced Interact state heuristic
+        if dist <= 5.2 and myRoot and tRoot and tChar then
+            if tHum then
+                local okSt, tState = pcall(function() return tHum:GetState() end)
+                local sitOnMe = tHum.Sit and (not tHum.SeatPart or (myChar and tHum.SeatPart:IsDescendantOf(myChar)))
+                local seatedStateOnMe = okSt and (tState == Enum.HumanoidStateType.Seated) and (not tHum.SeatPart or (myChar and tHum.SeatPart:IsDescendantOf(myChar)))
+                if tHum.PlatformStand
+                    or sitOnMe
+                    or (okSt and tState == Enum.HumanoidStateType.Physics)
+                    or seatedStateOnMe
+                    or tRoot.Massless then
+                    return true
+                end
+            end
+            for _, obj in ipairs(tChar:GetDescendants()) do
+                if obj:IsA("AlignPosition") or obj:IsA("AlignOrientation") or obj:IsA("BodyPosition") or obj:IsA("BodyGyro") then
+                    return true
+                end
+            end
+        end
+
+        return false
+    end
+
+    OwnerAdminState.isPlayerCarriedOrInteracting = isPlayerCarriedOrInteracting
+
+    getNearestPlayer = function(speaker)
+        speaker = speaker or LP
+        local myChar = speaker and speaker.Character
+        local myRoot = myChar and (myChar:FindFirstChild("HumanoidRootPart") or myChar:FindFirstChildWhichIsA("BasePart"))
+        local myPos  = myRoot and myRoot.Position or Vector3.zero
+        local bestPlr, bestDist = nil, math.huge
+
+        -- 1. First pass: strictly prioritize players whose real Character BasePart is currently streamed in!
+        --    (Excludes any player currently carried or interacted with by speaker!)
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= speaker and not isPlayerCarriedOrInteracting(p, speaker) then
+                local c = findPlayerCharacterAnywhere(p)
+                local h = c and c:FindFirstChildOfClass("Humanoid")
+                local streamedCF = getVerifiedStreamedCFrame(p)
+                if streamedCF and (not h or h.Health > 0) then
+                    local d = (streamedCF.Position - myPos).Magnitude
+                    if d < bestDist then
+                        bestDist = d
+                        bestPlr = p
+                    end
+                end
+            end
+        end
+        if bestPlr then return bestPlr, bestDist end
+
+        -- 2. Second pass: if no players are streamed in near us, check known/cached player positions
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= speaker and not isPlayerCarriedOrInteracting(p, speaker) then
+                local c = findPlayerCharacterAnywhere(p)
+                local h = c and c:FindFirstChildOfClass("Humanoid")
+                local cf = getBestTargetCFrame(p)
+                if cf and (not h or h.Health > 0) then
+                    local d = (cf.Position - myPos).Magnitude
+                    if d < bestDist then
+                        bestDist = d
+                        bestPlr = p
+                    end
+                end
+            end
+        end
+
+        -- 3. Fallback: even if all players are hiding in unstreamed chunks, still return a valid server player (excluding carried/interacted)!
+        if not bestPlr then
+            for _, p in ipairs(Players:GetPlayers()) do
+                if p ~= speaker and not isPlayerCarriedOrInteracting(p, speaker) then
+                    return p, math.huge
+                end
+            end
+        end
+        return bestPlr, bestDist
+    end
 end
 
 local function findPlayerByNameOrDisplay(query, speaker)
@@ -2008,8 +2471,8 @@ local function resolveActiveTarget()
             end
         end
     end
-    -- 2. Check explicitly locked selectedPlayer from Target tab
-    if selectedPlayer and selectedPlayer.Parent == Players and selectedPlayer ~= LP then
+    -- 2. Check explicitly locked selectedPlayer from Target tab (skip if currently carried/interacted with)
+    if selectedPlayer and selectedPlayer.Parent == Players and selectedPlayer ~= LP and not (OwnerAdminState.isPlayerCarriedOrInteracting and OwnerAdminState.isPlayerCarriedOrInteracting(selectedPlayer, LP)) then
         return selectedPlayer, false
     end
     -- 3. Check Chat tab target input if non-empty
@@ -2056,17 +2519,20 @@ AnimCopySys = {
     target = nil,
     sideMode = "right", -- "right" (+3.2), "left" (-3.2), "front" (+3.2 mirror), "back" (+3.2 shadow), "above" (+4.0), or "free" (no TP)
     sideDistance = 3.2,
-    syncMotorTransforms = false, -- Default false for instant zero-delay 1:1 mirroring; auto-bridges when tracks are private
-    renderConn = nil, -- RenderStepped zero-jitter visual lock (Weld engine)
-    stepConn = nil,   -- Stepped phase noclip & physics lock (Weld engine)
+    syncMotorTransforms = true, -- Default true for 0.00ms instant real-time joint + track mirroring (zero asset-download lag!)
+    renderConn = nil, -- RenderStepped zero-jitter visual lock & pre-Animator track sync
+    stepConn = nil,   -- Stepped phase noclip, physics lock & 1:1 Motor6D Transform bridge
     hbConn = nil,     -- Heartbeat zero-delay animation & state monitor
     descConn = nil,   -- DescendantAdded dynamic part cache (Weld engine)
+    animPlayedConn = nil, -- Event-driven 0ms hook on target Animator.AnimationPlayed
+    hookedAnimator = nil, -- Target Animator currently hooked
     currentLockCF = nil, -- Zero-delay locked CFrame (Weld engine)
     preCopySafeCF = nil, -- Saved safe origin CFrame before attaching
     clock = 0,           -- Internal clock for anti-sleep microWake replication
     missingFrames = 0,   -- Unstreamed target frame counter
     lastStreamReq = 0,   -- Throttled stream request timestamp
-    mirroredTracks = {},   -- [source AnimationTrack] = { track, anim, animId, lastSeen, lastTimeSync, lastWeight, lastAppliedSpeed }
+    mirroredTracks = {},   -- [source AnimationTrack] = { track, anim, animId, lastSeen, lastTimeSync, lastWeight, lastAppliedSpeed, lengthReady }
+    animObjCache = {},     -- [animId] = Animation instance cache (eliminates per-track allocation & asset re-resolution delay)
     failedIds = {},         -- [animationId] = retry-after timestamp; prevents 60Hz failed-load loops
     lastNoTracksNotice = 0,
     lastLoadFailureNotice = 0,
@@ -2192,7 +2658,7 @@ do
             local p = resolvePlayer(explicitTarget, LP)
             if p and p.Parent == Players and p ~= LP then return p end
         end
-        if selectedPlayer and selectedPlayer.Parent == Players and selectedPlayer ~= LP then
+        if selectedPlayer and selectedPlayer.Parent == Players and selectedPlayer ~= LP and not (OwnerAdminState.isPlayerCarriedOrInteracting and OwnerAdminState.isPlayerCarriedOrInteracting(selectedPlayer, LP)) then
             return selectedPlayer
         end
         if AnimCopySys.active and AnimCopySys.target and AnimCopySys.target.Parent == Players and AnimCopySys.target ~= LP then
@@ -2347,6 +2813,8 @@ do
             WeldIntent.presetKey = nil
             WeldIntent.target = nil
         end
+        if self.animPlayedConn then pcall(function() self.animPlayedConn:Disconnect() end); self.animPlayedConn = nil end
+        self.hookedAnimator = nil
         if self.renderConn then self.renderConn:Disconnect(); self.renderConn = nil end
         if self.stepConn then self.stepConn:Disconnect(); self.stepConn = nil end
         if self.hbConn then self.hbConn:Disconnect(); self.hbConn = nil end
@@ -2445,7 +2913,6 @@ do
             local tRootJ = (tChar:FindFirstChild("HumanoidRootPart") and tChar.HumanoidRootPart:FindFirstChild("RootJoint")) or tTorso:FindFirstChild("RootJoint")
 
             local head = myChar:FindFirstChild("Head")
-            local uTorso = myChar:FindFirstChild("UpperTorso")
             local lTorso = myChar:FindFirstChild("LowerTorso")
             local rUArm = myChar:FindFirstChild("RightUpperArm")
             local lUArm = myChar:FindFirstChild("LeftUpperArm")
@@ -2474,31 +2941,204 @@ do
             local myTorso = myChar:FindFirstChild("Torso")
             if not myTorso then return end
             local head = tChar:FindFirstChild("Head")
+            local uTorso = tChar:FindFirstChild("UpperTorso")
             local lTorso = tChar:FindFirstChild("LowerTorso")
             local rUArm = tChar:FindFirstChild("RightUpperArm")
+            local rLArm = tChar:FindFirstChild("RightLowerArm")
             local lUArm = tChar:FindFirstChild("LeftUpperArm")
+            local lLArm = tChar:FindFirstChild("LeftLowerArm")
             local rULeg = tChar:FindFirstChild("RightUpperLeg")
+            local rLLeg = tChar:FindFirstChild("RightLowerLeg")
             local lULeg = tChar:FindFirstChild("LeftUpperLeg")
+            local lLLeg = tChar:FindFirstChild("LeftLowerLeg")
 
             if head and head:FindFirstChild("Neck") and myTorso:FindFirstChild("Neck") then
                 pcall(function() myTorso.Neck.Transform = head.Neck.Transform end)
             end
-            if lTorso and lTorso:FindFirstChild("Root") and myTorso:FindFirstChild("RootJoint") then
-                pcall(function() myTorso.RootJoint.Transform = lTorso.Root.Transform end)
+            local myRootJ = (myChar:FindFirstChild("HumanoidRootPart") and myChar.HumanoidRootPart:FindFirstChild("RootJoint")) or myTorso:FindFirstChild("RootJoint")
+            if lTorso and lTorso:FindFirstChild("Root") and myRootJ then
+                local wTf = (uTorso and uTorso:FindFirstChild("Waist") and uTorso.Waist.Transform) or CFrame.identity
+                pcall(function() myRootJ.Transform = lTorso.Root.Transform * wTf end)
             end
             if rUArm and rUArm:FindFirstChild("RightShoulder") and myTorso:FindFirstChild("Right Shoulder") then
-                pcall(function() myTorso["Right Shoulder"].Transform = rUArm.RightShoulder.Transform end)
+                local elb = (rLArm and rLArm:FindFirstChild("RightElbow") and rLArm.RightElbow.Transform) or CFrame.identity
+                pcall(function() myTorso["Right Shoulder"].Transform = rUArm.RightShoulder.Transform * elb end)
             end
             if lUArm and lUArm:FindFirstChild("LeftShoulder") and myTorso:FindFirstChild("Left Shoulder") then
-                pcall(function() myTorso["Left Shoulder"].Transform = lUArm.LeftShoulder.Transform end)
+                local elb = (lLArm and lLArm:FindFirstChild("LeftElbow") and lLArm.LeftElbow.Transform) or CFrame.identity
+                pcall(function() myTorso["Left Shoulder"].Transform = lUArm.LeftShoulder.Transform * elb end)
             end
             if rULeg and rULeg:FindFirstChild("RightHip") and myTorso:FindFirstChild("Right Hip") then
-                pcall(function() myTorso["Right Hip"].Transform = rULeg.RightHip.Transform end)
+                local kn = (rLLeg and rLLeg:FindFirstChild("RightKnee") and rLLeg.RightKnee.Transform) or CFrame.identity
+                pcall(function() myTorso["Right Hip"].Transform = rULeg.RightHip.Transform * kn end)
             end
             if lULeg and lULeg:FindFirstChild("LeftHip") and myTorso:FindFirstChild("Left Hip") then
-                pcall(function() myTorso["Left Hip"].Transform = lULeg.LeftHip.Transform end)
+                local kn = (lLLeg and lLLeg:FindFirstChild("LeftKnee") and lLLeg.LeftKnee.Transform) or CFrame.identity
+                pcall(function() myTorso["Left Hip"].Transform = lULeg.LeftHip.Transform * kn end)
             end
         end
+    end
+
+    -- Instant Zero-Latency Track Synchronizer: Called on Frame-0, RenderStepped (Pre-Animator), AnimationPlayed Event & Heartbeat
+    local function syncTargetAnimationTracksNow(self, c, hum, tc, th)
+        if not self.active or not c or not hum or not tc or not th then return false end
+        local tAnimator = th:FindFirstChildOfClass("Animator") or tc:FindFirstChildWhichIsA("Animator", true)
+        local myAnimator = hum:FindFirstChildOfClass("Animator")
+        if not myAnimator then
+            pcall(function() myAnimator = Instance.new("Animator"); myAnimator.Parent = hum end)
+        end
+        if not myAnimator then return false end
+
+        -- Hook target Animator.AnimationPlayed so any newly started animation mirrors at 0.00ms on the exact event tick
+        if tAnimator and self.hookedAnimator ~= tAnimator then
+            if self.animPlayedConn then pcall(function() self.animPlayedConn:Disconnect() end); self.animPlayedConn = nil end
+            self.hookedAnimator = tAnimator
+            pcall(function()
+                self.animPlayedConn = tAnimator.AnimationPlayed:Connect(function()
+                    if not self.active then return end
+                    local curC = LP.Character
+                    local curH = curC and curC:FindFirstChildOfClass("Humanoid")
+                    local curTC = self.target and findPlayerCharacterAnywhere(self.target)
+                    local curTH = curTC and curTC:FindFirstChildOfClass("Humanoid")
+                    if curC and curH and curTC and curTH then
+                        syncTargetAnimationTracksNow(self, curC, curH, curTC, curTH)
+                    end
+                end)
+            end)
+        end
+
+        local okTracks, tTracks = false, nil
+        if tAnimator then
+            okTracks, tTracks = pcall(function() return tAnimator:GetPlayingAnimationTracks() end)
+        end
+
+        local now = os.clock()
+        local speedMult = math.clamp((V and V.Speed) or 1.0, 0.2, 6.0)
+
+        if not okTracks or not tTracks or #tTracks == 0 then
+            for sourceTrack, entry in pairs(self.mirroredTracks) do
+                pcall(function() if entry.track then entry.track:Stop(0); entry.track:Destroy() end end)
+                self.mirroredTracks[sourceTrack] = nil
+            end
+            return true -- Signal caller to bridge via Motor6D Transform matrix
+        end
+
+        local seenTracks = {}
+        local anyTrackStillLoading = false
+
+        for i = 1, #tTracks do
+            local trTrack = tTracks[i]
+            local sourceWeight = trTrack.WeightCurrent or 1
+            if trTrack.IsPlaying and sourceWeight > 0.0005 then
+                local animObj = trTrack.Animation
+                local rawAnimId = animObj and tostring(animObj.AnimationId or "") or ""
+                local animId = rawAnimId
+                if animId:match("^%d+$") then
+                    animId = "rbxassetid://" .. animId
+                end
+
+                if animId ~= "" and not isBeaconTrackOrId(trTrack, animId)
+                    and not (self.failedIds[animId] and self.failedIds[animId] > tick()) then
+                    seenTracks[trTrack] = true
+                    local entry = self.mirroredTracks[trTrack]
+                    if not entry or not entry.track or not entry.track.IsPlaying or entry.animId ~= animId then
+                        if entry and entry.track then
+                            pcall(function() entry.track:Stop(0); entry.track:Destroy() end)
+                        end
+                        entry = nil
+                        pcall(function()
+                            local cachedAnim = self.animObjCache[animId]
+                            if not cachedAnim or cachedAnim.AnimationId ~= animId then
+                                cachedAnim = Instance.new("Animation")
+                                cachedAnim.AnimationId = animId
+                                self.animObjCache[animId] = cachedAnim
+                            end
+                            local loaded = myAnimator:LoadAnimation(cachedAnim)
+                            loaded.Priority = trTrack.Priority
+                            loaded.Looped = trTrack.Looped
+                            local sourceSpeed = trTrack.Speed or 1
+                            local sourceTime = trTrack.TimePosition or 0
+                            local clampedW = math.clamp(sourceWeight, 0.01, 1)
+                            -- ZERO-DELAY INSTANT PLAY (0.00s fade time)
+                            loaded:Play(0, clampedW, sourceSpeed * speedMult)
+                            loaded:AdjustWeight(clampedW, 0)
+                            local lenReady = (loaded.Length and loaded.Length > 0) or false
+                            if lenReady then
+                                loaded.TimePosition = math.max(0, sourceTime)
+                            else
+                                anyTrackStillLoading = true
+                            end
+                            entry = {
+                                track = loaded,
+                                anim = cachedAnim,
+                                animId = animId,
+                                lastSeen = now,
+                                lastTimeSync = now,
+                                lastWeight = clampedW,
+                                lastAppliedSpeed = sourceSpeed * speedMult,
+                                lengthReady = lenReady,
+                            }
+                            self.mirroredTracks[trTrack] = entry
+                            self.failedIds[animId] = nil
+                        end)
+                        if not entry then
+                            self.failedIds[animId] = tick() + 8
+                            anyTrackStillLoading = true
+                        end
+                    end
+
+                    if entry and entry.track then
+                        local sourceSpeed = trTrack.Speed or 1
+                        local sourceTime = trTrack.TimePosition or 0
+                        entry.track.Looped = trTrack.Looped
+                        entry.track.Priority = trTrack.Priority
+                        entry.lastSeen = now
+
+                        local desiredSpeed = sourceSpeed * speedMult
+                        if not entry.lastAppliedSpeed or math.abs(entry.lastAppliedSpeed - desiredSpeed) > 0.01 then
+                            entry.track:AdjustSpeed(desiredSpeed)
+                            entry.lastAppliedSpeed = desiredSpeed
+                        end
+
+                        local desiredWeight = math.clamp(sourceWeight, 0.01, 1)
+                        if not entry.lastWeight or math.abs(entry.lastWeight - desiredWeight) > 0.015 then
+                            entry.track:AdjustWeight(desiredWeight, 0)
+                            entry.lastWeight = desiredWeight
+                        end
+
+                        local trackLen = entry.track.Length or 0
+                        if trackLen > 0 then
+                            -- If asset just finished downloading this frame, snap TimePosition immediately!
+                            if not entry.lengthReady then
+                                entry.lengthReady = true
+                                entry.track.TimePosition = math.clamp(sourceTime, 0, trackLen)
+                            else
+                                local diff = math.abs(entry.track.TimePosition - sourceTime)
+                                if entry.track.Looped and trackLen > 0.1 then
+                                    diff = math.min(diff, math.abs(trackLen - diff))
+                                end
+                                -- Tight 15ms real-time frame lock so animations never drift or lag behind
+                                if diff > 0.015 then
+                                    entry.track.TimePosition = math.clamp(sourceTime, 0, trackLen)
+                                end
+                            end
+                        else
+                            anyTrackStillLoading = true
+                        end
+                    end
+                end
+            end
+        end
+
+        -- ZERO-DELAY STOP: Immediately stop any track on the exact frame the target stops or switches it (no 0.25s/0.40s lag!)
+        for sourceTrack, entry in pairs(self.mirroredTracks) do
+            if not seenTracks[sourceTrack] then
+                pcall(function() if entry.track then entry.track:Stop(0); entry.track:Destroy() end end)
+                self.mirroredTracks[sourceTrack] = nil
+            end
+        end
+
+        return anyTrackStillLoading
     end
 
     function AnimCopySys:Start(targetPlr)
@@ -2658,7 +3298,17 @@ do
             end
         end
 
-        -- 4. Pass 1: RenderStepped Zero-Delay / Zero-Jitter Visual Lock (Weld Engine)
+        -- Sync target animations immediately on Frame-0 so there is 0.00ms startup latency!
+        if tChar and tHum then
+            pcall(function()
+                local needBridge = syncTargetAnimationTracksNow(self, myChar, myHum, tChar, tHum)
+                if self.syncMotorTransforms or needBridge or myHum.RigType ~= tHum.RigType then
+                    applyCrossRigMotorTransforms(myChar, tChar, myHum.RigType, tHum.RigType)
+                end
+            end)
+        end
+
+        -- 4. Pass 1: RenderStepped Zero-Delay Visual Lock & Pre-Animator Track Sync
         self.renderConn = RunService.RenderStepped:Connect(function()
             if not self.active then return end
             local c = LP.Character
@@ -2679,9 +3329,11 @@ do
                     syncAnimCopyReanimRoots(desiredCF, root)
                 end
             end
+            -- Sync AnimationTracks BEFORE Roblox's internal Animator step so new animations & TimePositions apply on the current frame!
+            syncTargetAnimationTracksNow(self, c, hum, tc, th)
         end)
 
-        -- 5. Pass 2: Stepped Phase Noclip & Physics Lock (Weld Engine)
+        -- 5. Pass 2: Stepped Phase Noclip, Physics Lock & Real-Time Motor6D Pose Bridge
         self.stepConn = RunService.Stepped:Connect(function()
             if not self.active then return end
             applyCopyPhaseNoclip()
@@ -2694,8 +3346,18 @@ do
             local tc = self.target and findPlayerCharacterAnywhere(self.target)
             local th = tc and tc:FindFirstChildOfClass("Humanoid")
             local myH = c and c:FindFirstChildOfClass("Humanoid")
-            if self.syncMotorTransforms and tc and th and myH then
-                applyCrossRigMotorTransforms(c, tc, myH.RigType, th.RigType)
+            if tc and th and myH then
+                -- Always bridge Motor6D.Transform when enabled, cross-rig, or while any new animation asset is still downloading
+                if self.syncMotorTransforms or myH.RigType ~= th.RigType then
+                    applyCrossRigMotorTransforms(c, tc, myH.RigType, th.RigType)
+                else
+                    for _, entry in pairs(self.mirroredTracks) do
+                        if not entry.lengthReady then
+                            applyCrossRigMotorTransforms(c, tc, myH.RigType, th.RigType)
+                            break
+                        end
+                    end
+                end
             end
         end)
 
@@ -2868,116 +3530,9 @@ do
                 pcall(function() hum.AutoRotate = true end)
             end
 
-            local tAnimator = th:FindFirstChildOfClass("Animator") or (tc and tc:FindFirstChildWhichIsA("Animator", true))
-            local myAnimator = hum:FindFirstChildOfClass("Animator")
-            if not myAnimator then
-                pcall(function() myAnimator = Instance.new("Animator"); myAnimator.Parent = hum end)
-            end
-            if not myAnimator then return end
-
-            local okTracks, tTracks = false, nil
-            if tAnimator then
-                okTracks, tTracks = pcall(function() return tAnimator:GetPlayingAnimationTracks() end)
-            end
-
-            if not okTracks or not tTracks or #tTracks == 0 then
-                if now - (self.lastNoTracksNotice or 0) > 10 then
-                    self.lastNoTracksNotice = now
-                    notify("🎭 ANIMATION COPY", "Bridging target motion via Motor6D Transform matrix (private tracks active)")
-                end
+            local needBridge = syncTargetAnimationTracksNow(self, c, hum, tc, th)
+            if needBridge or self.syncMotorTransforms or hum.RigType ~= th.RigType then
                 applyCrossRigMotorTransforms(c, tc, hum.RigType, th.RigType)
-                for sourceTrack, entry in pairs(self.mirroredTracks) do
-                    if now - (entry.lastSeen or now) > 0.40 then
-                        pcall(function() if entry.track then entry.track:Stop(0.1); entry.track:Destroy() end end)
-                        pcall(function() if entry.anim then entry.anim:Destroy() end end)
-                        self.mirroredTracks[sourceTrack] = nil
-                    end
-                end
-                return
-            end
-
-            local seenTracks = {}
-
-            for _, trTrack in ipairs(tTracks) do
-                local animObj = trTrack.Animation
-                local rawAnimId = animObj and tostring(animObj.AnimationId or "") or ""
-                local animId = rawAnimId
-                if animId:match("^%d+$") then
-                    animId = "rbxassetid://" .. animId
-                end
-
-                if animId ~= "" and not isBeaconTrackOrId(trTrack, animId)
-                    and not (self.failedIds[animId] and self.failedIds[animId] > tick()) then
-                    seenTracks[trTrack] = true
-                    local entry = self.mirroredTracks[trTrack]
-                    if not entry or not entry.track or not entry.track.IsPlaying then
-                        if entry then
-                            pcall(function() if entry.track then entry.track:Stop(0); entry.track:Destroy() end end)
-                            pcall(function() if entry.anim then entry.anim:Destroy() end end)
-                        end
-                        pcall(function()
-                            local newAnim = Instance.new("Animation")
-                            newAnim.AnimationId = animId
-                            local loaded = myAnimator:LoadAnimation(newAnim)
-                            loaded.Priority = trTrack.Priority
-                            loaded.Looped = trTrack.Looped
-                            local sourceSpeed = trTrack.Speed or 1
-                            local sourceWeight = trTrack.WeightCurrent or 1
-                            local sourceTime = trTrack.TimePosition or 0
-                            -- ZERO-DELAY INSTANT PLAY (0.00s fade time)
-                            loaded:Play(0, math.clamp(sourceWeight, 0, 1), sourceSpeed * speedMult)
-                            loaded.TimePosition = math.max(0, sourceTime)
-                            self.mirroredTracks[trTrack] = {
-                                track = loaded,
-                                anim = newAnim,
-                                animId = animId,
-                                lastSeen = now,
-                                lastTimeSync = now,
-                                lastWeight = math.clamp(sourceWeight, 0, 1),
-                                lastAppliedSpeed = sourceSpeed * speedMult,
-                            }
-                            entry = self.mirroredTracks[trTrack]
-                            self.failedIds[animId] = nil
-                        end)
-                        if not entry then
-                            self.failedIds[animId] = tick() + 8
-                            if tick() - (self.lastLoadFailureNotice or 0) > 8 then
-                                self.lastLoadFailureNotice = tick()
-                                notify("🎭 ANIMATION COPY", "Target animation is private or rig-incompatible; falling back to joint matrix.")
-                            end
-                            applyCrossRigMotorTransforms(c, tc, hum.RigType, th.RigType)
-                        end
-                    end
-                    if entry and entry.track then
-                        local sourceSpeed = trTrack.Speed or 1
-                        local sourceWeight = trTrack.WeightCurrent or 1
-                        local sourceTime = trTrack.TimePosition or 0
-                        entry.track.Looped = trTrack.Looped
-                        entry.lastSeen = now
-                        local desiredSpeed = sourceSpeed * speedMult
-                        if not entry.lastAppliedSpeed or math.abs(entry.lastAppliedSpeed - desiredSpeed) > 0.015 then
-                            entry.track:AdjustSpeed(desiredSpeed)
-                            entry.lastAppliedSpeed = desiredSpeed
-                        end
-                        local desiredWeight = math.clamp(sourceWeight, 0, 1)
-                        if not entry.lastWeight or math.abs(entry.lastWeight - desiredWeight) > 0.02 then
-                            entry.track:AdjustWeight(desiredWeight, 0)
-                            entry.lastWeight = desiredWeight
-                        end
-                        -- Zero-delay real-time frame synchronization
-                        if math.abs(entry.track.TimePosition - sourceTime) > 0.06 then
-                            entry.track.TimePosition = math.max(0, sourceTime)
-                        end
-                    end
-                end
-            end
-
-            for sourceTrack, entry in pairs(self.mirroredTracks) do
-                if not seenTracks[sourceTrack] and now - (entry.lastSeen or 0) > 0.25 then
-                    pcall(function() if entry.track then entry.track:Stop(0); entry.track:Destroy() end end)
-                    pcall(function() if entry.anim then entry.anim:Destroy() end end)
-                    self.mirroredTracks[sourceTrack] = nil
-                end
             end
         end)
 
@@ -4573,6 +5128,7 @@ local function restorePartCollisionAndDensity(char, isLocalRam)
 end
 
 launchNebulaFling = function(durationSeconds, modeTitle, isVoidThrow, explicitTarget)
+OwnerAdminState.launchNebulaFling = launchNebulaFling -- bound on first call
     if OwnerAdminState.isFrozenByOwner or OwnerAdminState.isBannedByOwner then
         notify("👑 OWNER LOCK", "You are currently frozen/locked by the Script Owner!")
         sError()
@@ -4857,6 +5413,7 @@ launchVoidThrow = function(explicitTarget, customDuration)
     launchNebulaFling(customDuration or 5.5, "Void Throw v2", true, explicitTarget)
 end
 
+OwnerAdminState.launchNebulaFling = launchNebulaFling
 promptNebulaFling = function()
     local targetPlr, usedNearest = resolveActiveTarget()
     if not targetPlr then
@@ -5629,15 +6186,18 @@ end
 
 local function avForceAlive(h)
     if not h or not h.Parent then return end
+    local isReanimActive = (_G.CocaSkyDestroyer and (_G.CocaSkyDestroyer.isAnyActive() or _G.CocaSkyDestroyer.is_reanimated()))
+        or (_G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated) == "function" and _G._AngoorZenApi.is_reanimated())
     pcall(function()
         h:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
         h:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
         h:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
         if h.MaxHealth <= 0 then h.MaxHealth = 100 end
         if h.Health <= 0 or h.Health < h.MaxHealth then h.Health = h.MaxHealth end
-        if h.PlatformStand and not (moveState and (moveState.fly or moveState.flyLanding)) and not WeldIntent.active then
+        if h.PlatformStand and not (moveState and (moveState.fly or moveState.flyLanding)) and not WeldIntent.active and not isReanimActive then
             h.PlatformStand = false
         end
+        h:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
         if h.Sit then h.Sit = false end
         if h:GetState() == Enum.HumanoidStateType.Dead then
             h:ChangeState(Enum.HumanoidStateType.Running)
@@ -5673,22 +6233,26 @@ local function avHookChar(c)
     end))
 end
 
-avStart = function()
-    if Anti.Void.enabled then return end
+avStart = function(silent)
+    if Anti.Void.enabled and Anti.Void.steppedConn and Anti.Void.loopConn then
+        if syncAllAntiButtons then pcall(syncAllAntiButtons) end
+        return
+    end
     Anti.Void.enabled = true
+    pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
     avHookChar(LP.Character)
     if Anti.Void.charAdded then Anti.Void.charAdded:Disconnect() end
     Anti.Void.charAdded = LP.CharacterAdded:Connect(function(c)
         if not Anti.Void.enabled then return end
         task.wait(0.15)
         avHookChar(c)
-        end)
+    end)
     if Anti.Void.steppedConn then Anti.Void.steppedConn:Disconnect() end
     Anti.Void.steppedConn = RunService.Stepped:Connect(function()
         if not Anti.Void.enabled then return end
         local c = LP.Character
         local r = c and c:FindFirstChild("HumanoidRootPart")
-        if not r or FlingActive or deflectBusy or WeldIntent.active or CurrentWeld ~= nil or (AnimCopySys and AnimCopySys.active) or (moveState and moveState.Vanish and moveState.Vanish.selfActive) or _G.CocaBangActive or (CocaSkyDestroyer and CocaSkyDestroyer.isAnyActive()) or (RewindSys and RewindSys.rewinding) then return end
+        if not r or FlingActive or deflectBusy or WeldIntent.active or CurrentWeld ~= nil or (AnimCopySys and AnimCopySys.active) or (moveState and moveState.Vanish and moveState.Vanish.selfActive) or _G.CocaBangActive or (_G.CocaSkyDestroyer and _G.CocaSkyDestroyer.isAnyActive()) or (RewindSys and RewindSys.rewinding) then return end
         local pos = r.Position
         local vel = r.AssemblyLinearVelocity
         local dangerFloor = math.min(OriginalFPDH + 55, -220)
@@ -5718,27 +6282,21 @@ avStart = function()
         if h then avForceAlive(h) end
     end)
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("COCO POWDER", "Anti-Void v2 (Predictive Catch + Safety Floor) ON")
-    sToggleOn()
+    if not silent then
+        notify("COCO POWDER", "Anti-Void v2 (Always-On Predictive Catch + Safety Floor) ON")
+        sToggleOn()
+    end
 end
 
 avStop = function()
-    if not Anti.Void.enabled then return end
-    Anti.Void.enabled = false
-    if Anti.Void.charAdded then Anti.Void.charAdded:Disconnect(); Anti.Void.charAdded = nil end
-    if Anti.Void.steppedConn then Anti.Void.steppedConn:Disconnect(); Anti.Void.steppedConn = nil end
-    if Anti.Void.loopConn then Anti.Void.loopConn:Disconnect(); Anti.Void.loopConn = nil end
-    for _, x in ipairs(Anti.Void.charConns) do pcall(function() x:Disconnect() end) end
-    Anti.Void.charConns = {}
-    for _, x in ipairs(Anti.Void.healthConns) do pcall(function() x:Disconnect() end) end
-    Anti.Void.healthConns = {}
-    avRemoveSafetyFloor()
-    if not (Anti.Kill and Anti.Kill.enabled) and not WeldIntent.active and not FlingActive then
-        pcall(function() workspace.FallenPartsDestroyHeight = OriginalFPDH end)
+    -- Always-On enforcement: Anti-Void remains enabled at all times
+    if not Anti.Void.enabled or not Anti.Void.steppedConn or not Anti.Void.loopConn then
+        avStart(true)
     end
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("COCO POWDER", "Anti-Void disabled")
-    sToggleOff()
+    if updateDefenceStatsUI then pcall(updateDefenceStatsUI) end
+    notify("COCO POWDER", "Anti-Void is permanently enabled (Always-On)!")
+    sToggleOn()
 end
 
 -- ═══════════════════════════════════════════════════════════════════════════════
@@ -6316,6 +6874,10 @@ local attackerLastPos = {}
 -- ═══════════════════════════════════════════════════════════════════════════════
 local function ragdollCleanseCharacter(c)
     if not c then return end
+    if (_G.CocaSkyDestroyer and (_G.CocaSkyDestroyer.isAnyActive() or _G.CocaSkyDestroyer.is_reanimated()))
+        or (_G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated) == "function" and _G._AngoorZenApi.is_reanimated()) then
+        return
+    end
     local hum = c:FindFirstChildOfClass("Humanoid")
     if hum then
         pcall(function()
@@ -6370,6 +6932,10 @@ ragdollStart = function()
         ragdollCleanseCharacter(char)
         Anti.Ragdoll.descConn = char.DescendantAdded:Connect(function(obj)
             if not Anti.Ragdoll.enabled then return end
+            if (_G.CocaSkyDestroyer and (_G.CocaSkyDestroyer.isAnyActive() or _G.CocaSkyDestroyer.is_reanimated()))
+                or (_G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated) == "function" and _G._AngoorZenApi.is_reanimated()) then
+                return
+            end
             if obj:IsA("Motor6D") and not obj.Enabled then
                 pcall(function() obj.Enabled = true end)
             elseif obj:IsA("SeatWeld") or obj.Name == "SeatWeld" or obj.Name:lower():find("ragdoll")
@@ -6406,7 +6972,7 @@ ragdollStop = function()
     if Anti.Ragdoll.charAdded then Anti.Ragdoll.charAdded:Disconnect(); Anti.Ragdoll.charAdded = nil end
     local c = LP.Character
     local hum = c and c:FindFirstChildOfClass("Humanoid")
-    if hum then
+    if hum and not (Anti.SeatTrap and Anti.SeatTrap.enabled) then
         pcall(function()
             hum:SetStateEnabled(Enum.HumanoidStateType.Seated, true)
         end)
@@ -6708,7 +7274,7 @@ bringStart = function()
     if Anti.Bring.steppedConn then Anti.Bring.steppedConn:Disconnect() end
     Anti.Bring.steppedConn = RunService.Stepped:Connect(function( _, dt )
         if not Anti.Bring.enabled then return end
-        if WeldIntent.active or CurrentWeld ~= nil or (AnimCopySys and AnimCopySys.active) or _G.CocaBangActive or (CocaSkyDestroyer and CocaSkyDestroyer.isAnyActive()) or FlingActive or deflectBusy or (moveState and (moveState.fly or moveState.flyLanding)) or (RewindSys and RewindSys.rewinding) then
+        if WeldIntent.active or CurrentWeld ~= nil or (AnimCopySys and AnimCopySys.active) or _G.CocaBangActive or (_G.CocaSkyDestroyer and _G.CocaSkyDestroyer.isAnyActive()) or FlingActive or deflectBusy or (moveState and (moveState.fly or moveState.flyLanding)) or (RewindSys and RewindSys.rewinding) then
             local ch = LP.Character
             local r = ch and ch:FindFirstChild("HumanoidRootPart")
             if r and isSafePlayableCF(r.CFrame) then Anti.Bring.lastCF = r.CFrame end
@@ -6771,7 +7337,7 @@ flingShieldStart = function()
         if not Anti.FlingShield.enabled and not DefenceTroll.enabled then return end
         local myChar = LP.Character
         local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
-        if WeldIntent.active or CurrentWeld ~= nil or (AnimCopySys and AnimCopySys.active) or _G.CocaBangActive or (CocaSkyDestroyer and CocaSkyDestroyer.isAnyActive()) or FlingActive or deflectBusy or (RewindSys and RewindSys.rewinding) then
+        if WeldIntent.active or CurrentWeld ~= nil or (AnimCopySys and AnimCopySys.active) or _G.CocaBangActive or (_G.CocaSkyDestroyer and _G.CocaSkyDestroyer.isAnyActive()) or FlingActive or deflectBusy or (RewindSys and RewindSys.rewinding) then
             if myRoot and isSafePlayableCF(myRoot.CFrame) then
                 Anti.FlingShield.preStepCF = myRoot.CFrame
             end
@@ -6825,7 +7391,7 @@ flingShieldStart = function()
         local myChar = LP.Character
         local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
         if not myRoot then return end
-        if WeldIntent.active or CurrentWeld ~= nil or (AnimCopySys and AnimCopySys.active) or _G.CocaBangActive or (CocaSkyDestroyer and CocaSkyDestroyer.isAnyActive()) or FlingActive or deflectBusy or (RewindSys and RewindSys.rewinding) then
+        if WeldIntent.active or CurrentWeld ~= nil or (AnimCopySys and AnimCopySys.active) or _G.CocaBangActive or (_G.CocaSkyDestroyer and _G.CocaSkyDestroyer.isAnyActive()) or FlingActive or deflectBusy or (RewindSys and RewindSys.rewinding) then
             if isSafePlayableCF(myRoot.CFrame) then
                 Anti.FlingShield.preStepCF = myRoot.CFrame
             end
@@ -6875,7 +7441,7 @@ local function findBestRedirectVictim(attacker)
     if not myRoot then return nil end
     local bestPlr, bestDist = nil, math.huge
     for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= LP and p ~= attacker and p.Character then
+        if p ~= LP and p ~= attacker and not (OwnerAdminState.isPlayerCarriedOrInteracting and OwnerAdminState.isPlayerCarriedOrInteracting(p, LP)) and p.Character then
             local r = p.Character:FindFirstChild("HumanoidRootPart")
             local h = p.Character:FindFirstChildOfClass("Humanoid")
             if r and (not h or h.Health > 0) and r.Position.Y > (OriginalFPDH + 25) then
@@ -7074,7 +7640,7 @@ RunService.Heartbeat:Connect(function(dt)
     dt = nowClock - lastRadarTick
     lastRadarTick = nowClock
 
-    if WeldIntent.active or CurrentWeld ~= nil or (AnimCopySys and AnimCopySys.active) or _G.CocaBangActive or (EmoteHub and EmoteHub.jerkActive) or (CocaSkyDestroyer and CocaSkyDestroyer.isAnyActive()) or FlingActive or deflectBusy or (tick() - (moveState.lastTeleportTick or 0) < 1.2) then
+    if WeldIntent.active or CurrentWeld ~= nil or (AnimCopySys and AnimCopySys.active) or _G.CocaBangActive or (EmoteHub and EmoteHub.jerkActive) or (_G.CocaSkyDestroyer and _G.CocaSkyDestroyer.isAnyActive()) or FlingActive or deflectBusy or (tick() - (moveState.lastTeleportTick or 0) < 1.2) then
         for _, p in ipairs(Players:GetPlayers()) do
             if p ~= LP and p.Character then
                 local tr = pickTargetRef(p.Character, "torso")
@@ -7093,7 +7659,7 @@ RunService.Heartbeat:Connect(function(dt)
     local now = tick()
 
     for _, p in ipairs(Players:GetPlayers()) do
-        local isFriendlyTarget = (p == selectedPlayer) or (p == CurrentTarget) or (p == WeldIntent.target) or (AnimCopySys and p == AnimCopySys.target)
+        local isFriendlyTarget = (p == selectedPlayer) or (p == CurrentTarget) or (p == WeldIntent.target) or (AnimCopySys and p == AnimCopySys.target) or (OwnerAdminState.isPlayerCarriedOrInteracting and OwnerAdminState.isPlayerCarriedOrInteracting(p, LP))
         if p ~= LP and not isFriendlyTarget and p.Character and not isProtectedFromLocalPlayer(p) then
             local tRoot = pickTargetRef(p.Character, "torso")
             local tHum  = p.Character:FindFirstChildOfClass("Humanoid")
@@ -7204,9 +7770,68 @@ local function neutralizeSeatInstance(seat)
     end)
 end
 
-Anti.SeatTrap.startFn = function()
-    if Anti.SeatTrap.enabled then return end
+local function enforceAntiSitOnHumanoid(hum)
+    if not hum or not hum.Parent then return end
+    pcall(function()
+        hum:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
+        if hum.Sit then hum.Sit = false end
+        if hum:GetState() == Enum.HumanoidStateType.Seated then
+            hum:ChangeState(Enum.HumanoidStateType.Running)
+        end
+    end)
+end
+
+local function hookAntiSitCharacter(ch)
+    if not ch then return end
+    if Anti.SeatTrap.charConns then
+        for _, c in ipairs(Anti.SeatTrap.charConns) do pcall(function() c:Disconnect() end) end
+    end
+    Anti.SeatTrap.charConns = {}
+    local function bindHum(hum)
+        if not hum then return end
+        enforceAntiSitOnHumanoid(hum)
+        table.insert(Anti.SeatTrap.charConns, hum:GetPropertyChangedSignal("Sit"):Connect(function()
+            if Anti.SeatTrap.enabled and hum.Sit then
+                enforceAntiSitOnHumanoid(hum)
+            end
+        end))
+        table.insert(Anti.SeatTrap.charConns, hum.StateChanged:Connect(function(_, newState)
+            if Anti.SeatTrap.enabled and newState == Enum.HumanoidStateType.Seated then
+                enforceAntiSitOnHumanoid(hum)
+            end
+        end))
+    end
+    local hum = ch:FindFirstChildOfClass("Humanoid")
+    if hum then bindHum(hum) end
+    table.insert(Anti.SeatTrap.charConns, ch.ChildAdded:Connect(function(child)
+        if child:IsA("Humanoid") then bindHum(child) end
+    end))
+    table.insert(Anti.SeatTrap.charConns, ch.DescendantAdded:Connect(function(obj)
+        if not Anti.SeatTrap.enabled then return end
+        if obj:IsA("SeatWeld") or obj.Name == "SeatWeld" then
+            pcall(function() obj:Destroy() end)
+        end
+    end))
+end
+
+Anti.SeatTrap.startFn = function(silent)
+    if Anti.SeatTrap.enabled and Anti.SeatTrap.loopConn and Anti.SeatTrap.wsDescConn then
+        if syncAllAntiButtons then pcall(syncAllAntiButtons) end
+        return
+    end
     Anti.SeatTrap.enabled = true
+    pcall(function()
+        for _, obj in ipairs(workspace:GetDescendants()) do
+            if obj:IsA("Seat") or obj:IsA("VehicleSeat") then
+                neutralizeSeatInstance(obj)
+            elseif (obj:IsA("SeatWeld") or obj.Name == "SeatWeld") and LP.Character then
+                local p0, p1 = obj.Part0, obj.Part1
+                if (p0 and p0:IsDescendantOf(LP.Character)) or (p1 and p1:IsDescendantOf(LP.Character)) then
+                    pcall(function() obj:Destroy() end)
+                end
+            end
+        end
+    end)
     for _, p in ipairs(Players:GetPlayers()) do
         if p.Character then
             for _, obj in ipairs(p.Character:GetDescendants()) do
@@ -7216,6 +7841,14 @@ Anti.SeatTrap.startFn = function()
             end
         end
     end
+    hookAntiSitCharacter(LP.Character)
+    if Anti.SeatTrap.charAddedConn then Anti.SeatTrap.charAddedConn:Disconnect() end
+    Anti.SeatTrap.charAddedConn = LP.CharacterAdded:Connect(function(ch)
+        if not Anti.SeatTrap.enabled then return end
+        task.defer(function()
+            if Anti.SeatTrap.enabled then hookAntiSitCharacter(ch) end
+        end)
+    end)
     if Anti.SeatTrap.wsDescConn then Anti.SeatTrap.wsDescConn:Disconnect() end
     Anti.SeatTrap.wsDescConn = workspace.DescendantAdded:Connect(function(obj)
         if not Anti.SeatTrap.enabled then return end
@@ -7233,41 +7866,32 @@ Anti.SeatTrap.startFn = function()
         if not Anti.SeatTrap.enabled then return end
         local ch = LP.Character
         local hum = ch and ch:FindFirstChildOfClass("Humanoid")
-        if hum and hum.Sit then
+        if hum then
             pcall(function()
-                hum.Sit = false
                 hum:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
+                if hum.Sit then
+                    hum.Sit = false
+                end
             end)
         end
     end)
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
     if updateDefenceStatsUI then pcall(updateDefenceStatsUI) end
-    notify("COCO POWDER", "Anti-Seat / Couch-Kidnap Destroyer ON")
-    sToggleOn()
+    if not silent then
+        notify("COCO POWDER", "Anti-Sit / Couch-Kidnap Destroyer (Always-On) ON")
+        sToggleOn()
+    end
 end
 
 Anti.SeatTrap.stopFn = function()
-    if not Anti.SeatTrap.enabled then return end
-    Anti.SeatTrap.enabled = false
-    if Anti.SeatTrap.wsDescConn then Anti.SeatTrap.wsDescConn:Disconnect(); Anti.SeatTrap.wsDescConn = nil end
-    if Anti.SeatTrap.loopConn then Anti.SeatTrap.loopConn:Disconnect(); Anti.SeatTrap.loopConn = nil end
-    for seat, saved in pairs(Anti.SeatTrap.savedSeats) do
-        if seat and seat.Parent then
-            pcall(function()
-                seat.Disabled = saved.Disabled
-                seat.CanTouch = saved.CanTouch
-            end)
-        end
-        Anti.SeatTrap.savedSeats[seat] = nil
-    end
-    local hum = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
-    if hum and not Anti.Ragdoll.enabled then
-        pcall(function() hum:SetStateEnabled(Enum.HumanoidStateType.Seated, true) end)
+    -- Always-On enforcement: Anti-Sit remains enabled at all times
+    if not Anti.SeatTrap.enabled or not Anti.SeatTrap.loopConn or not Anti.SeatTrap.wsDescConn then
+        Anti.SeatTrap.startFn(true)
     end
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
     if updateDefenceStatsUI then pcall(updateDefenceStatsUI) end
-    notify("COCO POWDER", "Anti-Seat disabled & map seats restored")
-    sToggleOff()
+    notify("COCO POWDER", "Anti-Sit is permanently enabled (Always-On)!")
+    sToggleOn()
 end
 
 -- ═══════════════════════════════════════════════════════════════════════════════
@@ -7356,7 +7980,8 @@ disableAllAntiSystems = function()
     defenceTrollStop()
     redirectStop()
     pauseTrapStop()
-    avStop()
+    -- Anti-Void and Anti-Sit remain permanently enabled (Always-On)
+    avStart(true)
     akStop()
     flingShieldStop()
     ragdollStop()
@@ -7364,7 +7989,7 @@ disableAllAntiSystems = function()
     attachStop()
     blindStop()
     bringStop()
-    if Anti.SeatTrap.stopFn then Anti.SeatTrap.stopFn() end
+    if Anti.SeatTrap.startFn then Anti.SeatTrap.startFn(true) end
     if Anti.ToolGuard.stopFn then Anti.ToolGuard.stopFn() end
     agpStop()
     afkStop()
@@ -7372,9 +7997,13 @@ disableAllAntiSystems = function()
     if updateDefenceStatsUI then pcall(updateDefenceStatsUI) end
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
     if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
-    notify("COCO POWDER", "All Anti shields disabled")
+    notify("COCO POWDER", "Other Anti shields disabled (Anti-Sit & Anti-Void stay Always-On)")
     sToggleOff()
 end
+
+-- Auto-enable Anti-Void and Anti-Sit (Anti.SeatTrap) permanently on startup
+pcall(function() avStart(true) end)
+pcall(function() if Anti.SeatTrap.startFn then Anti.SeatTrap.startFn(true) end end)
 end -- end Anti internal scope
 
 -- ═══════════════════════════════════════════════════════════════════════════════
@@ -7403,7 +8032,7 @@ end -- end Anti internal scope
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- 👑 OWNER FREEZE, SCRIPT BAN, OVERHEAD NAME TAGS & BEACON SYNC IMPLEMENTATION
-local broadcastOwnerAdminCommand, notifyOwnerJoinedServer, updateOverheadNameTags
+local broadcastOwnerAdminCommand, notifyOwnerJoinedServer
 do
 -- ═══════════════════════════════════════════════════════════════════════════════
 local function applyOwnerFreezeState(freezeOn, ownerName)
@@ -7638,6 +8267,8 @@ end
 --    • Requires Core priority, Looped=true, and near-zero weight (<= 0.005)
 --    • Ordinary Roblox players will NEVER match this signature!
 -- ═══════════════════════════════════════════════════════════════════════════════
+local maintainLocalScriptBeacon, inspectPlayerBeaconTracks
+do
 local BEACON_ANIM_R15 = "rbxassetid://10714389396"
 local BEACON_ANIM_R6  = "rbxassetid://33796059"
 
@@ -7646,7 +8277,7 @@ local BEACON_SPEED_FROZEN  = 0.429831
 local BEACON_SPEED_PREMIUM = 0.642831
 local BEACON_SPEED_OWNER   = 0.842831
 
-local function maintainLocalScriptBeacon()
+maintainLocalScriptBeacon = function()
     if OwnerAdminState.isBannedByOwner then
         if OwnerAdminState.beaconTrack then
             pcall(function() OwnerAdminState.beaconTrack:Stop(0); OwnerAdminState.beaconTrack:Destroy() end)
@@ -7722,7 +8353,7 @@ local function maintainLocalScriptBeacon()
 end
 
 -- Inspect a player's Animator tracks with strict zero-false-positive multi-signature checks
-local function inspectPlayerBeaconTracks(plr)
+inspectPlayerBeaconTracks = function(plr)
     local ch = plr.Character
     local hum = ch and ch:FindFirstChildOfClass("Humanoid")
     local animator = hum and hum:FindFirstChildOfClass("Animator")
@@ -7765,7 +8396,16 @@ local function inspectPlayerBeaconTracks(plr)
             local canSendAdmin = cfgOwner or cfgPrem or (det and (det.isOwner or det.isPremium))
             if canSendAdmin then
                 local baseCmd = math.floor(spd + 0.0005)
-                if baseCmd == 12 or baseCmd == 22 or baseCmd == 32 or baseCmd == 42 or baseCmd == 52 or baseCmd == 62 or baseCmd == 72 or baseCmd == 82 or (baseCmd >= 92 and baseCmd <= 96) or baseCmd == 102 or baseCmd == 112 or baseCmd == 122 or baseCmd == 132 then
+                if baseCmd == 12 or baseCmd == 22 or baseCmd == 32 or baseCmd == 42 or baseCmd == 52 or baseCmd == 62 or baseCmd == 72 or baseCmd == 82
+                    or (baseCmd >= 92 and baseCmd <= 96)
+                    or baseCmd == 102 or baseCmd == 112 or baseCmd == 122 or baseCmd == 132
+                    or baseCmd == 142 or baseCmd == 143
+                    or (baseCmd >= 152 and baseCmd <= 156)
+                    or (baseCmd >= 162 and baseCmd <= 166)
+                    or (baseCmd >= 172 and baseCmd <= 174)
+                    or (baseCmd >= 182 and baseCmd <= 186)
+                    or (baseCmd >= 192 and baseCmd <= 194)
+                    or (baseCmd >= 202 and baseCmd <= 204) then
                     local rem = math.floor(((spd - baseCmd) * 1000) + 0.5)
                     if rem >= 0 and rem <= 999 then
                         return { isUser = true, isOwner = cfgOwner, isPremium = cfgPrem, isFrozen = false, cmdType = baseCmd, targetCode = rem }
@@ -7776,6 +8416,533 @@ local function inspectPlayerBeaconTracks(plr)
     end
     return nil
 end
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- 🚀 V36.8 ADMIN PANEL EXPANSION ENGINES (8 NEW CAPABILITIES)
+--   1. Force Puppeteer / Remote Animation Sync
+--   2. Coordinated Swarm / Orbit & Bodyguard Formation Engine
+--   3. Remote Sky Destroyer Trigger
+--   4. Synchronized Group Countdown & Cascading Wave Chat
+--   5. Visual FX & Screen Prank Payloads (Invert, Drunk, Flashbang, Fake Kick Modal)
+--   6. Live Target & Server Telemetry Inspector
+--   7. Global Server Waypoint, Mouse Cursor Summon & VIP Sky Lounge
+--   8. Protected VIP / Bodyguard Whitelist Sync & Auto-Guard
+-- ═══════════════════════════════════════════════════════════════════════════════
+do
+    local lastFpsTick = os.clock()
+    local fpsFrames = 0
+    RunService.RenderStepped:Connect(function()
+        fpsFrames = fpsFrames + 1
+        local now = os.clock()
+        if now - lastFpsTick >= 0.5 then
+            OwnerAdminState.localFps = math.clamp(math.floor((fpsFrames / (now - lastFpsTick)) + 0.5), 1, 999)
+            fpsFrames = 0
+            lastFpsTick = now
+        end
+    end)
+end
+
+do
+OwnerAdminState.computeSortedCocoSquadIndex = function()
+    local squad = {}
+    for _, p in ipairs(Players:GetPlayers()) do
+        if not isConfiguredScriptOwner(p) then
+            local det = DetectedScriptUsers[p.UserId]
+            local isCoco = (p == LP) or (det and det.isScriptUser and (tick() - (det.lastSeen or 0)) <= 25.0) or isConfiguredPremiumUser(p)
+            if isCoco then
+                table.insert(squad, p)
+            end
+        end
+    end
+    table.sort(squad, function(a, b) return a.UserId < b.UserId end)
+    local myIdx = 1
+    for i, p in ipairs(squad) do
+        if p == LP then
+            myIdx = i
+            break
+        end
+    end
+    return myIdx, math.max(#squad, 1)
+end
+
+OwnerAdminState.stopAdminFormation = function()
+    OwnerAdminState.formationMode = nil
+    OwnerAdminState.formationCenterPlr = nil
+    if OwnerAdminState.formationConn then
+        pcall(function() OwnerAdminState.formationConn:Disconnect() end)
+        OwnerAdminState.formationConn = nil
+    end
+end
+
+OwnerAdminState.startAdminFormation = function(modeName, centerPlr)
+    OwnerAdminState.stopAdminFormation()
+    if not centerPlr then return end
+    OwnerAdminState.formationMode = modeName or "ring"
+    OwnerAdminState.formationCenterPlr = centerPlr
+    local orbitAngle = 0
+    OwnerAdminState.formationConn = RunService.Heartbeat:Connect(function(dt)
+        if not OwnerAdminState.formationMode then
+            OwnerAdminState.stopAdminFormation()
+            return
+        end
+        local leader = OwnerAdminState.formationCenterPlr
+        if not leader or not leader.Parent or not leader.Character then return end
+        local lRoot = leader.Character:FindFirstChild("HumanoidRootPart") or leader.Character:FindFirstChildWhichIsA("BasePart")
+        local myChar = LP.Character
+        local myRoot = myChar and (myChar:FindFirstChild("HumanoidRootPart") or myChar:FindFirstChildWhichIsA("BasePart"))
+        if not lRoot or not myRoot then return end
+
+        local myIdx, total = OwnerAdminState.computeSortedCocoSquadIndex()
+        orbitAngle = orbitAngle + (dt or (1/60)) * 2.2
+        local _, lYaw, _ = lRoot.CFrame:ToEulerAnglesYXZ()
+        local baseCF = CFrame.new(lRoot.Position) * CFrame.Angles(0, lYaw, 0)
+        local targetCF
+
+        if OwnerAdminState.formationMode == "ring" then
+            local radius = math.clamp(6.5 + total * 0.6, 7, 18)
+            local theta = orbitAngle + ((myIdx - 1) / total) * (math.pi * 2)
+            local offset = Vector3.new(math.cos(theta) * radius, 0.2, math.sin(theta) * radius)
+            local pos = lRoot.Position + offset
+            targetCF = CFrame.lookAt(pos, Vector3.new(lRoot.Position.X, pos.Y, lRoot.Position.Z))
+        elseif OwnerAdminState.formationMode == "wall" then
+            local spread = (myIdx - ((total + 1) / 2)) * 3.4
+            local arcZ = -4.5 - math.abs(spread) * 0.22
+            targetCF = baseCF * CFrame.new(spread, 0.2, arcZ)
+        elseif OwnerAdminState.formationMode == "vwings" then
+            local side = (myIdx % 2 == 1) and 1 or -1
+            local rank = math.ceil(myIdx / 2)
+            targetCF = baseCF * CFrame.new(side * rank * 3.2, 0.2, rank * 3.0)
+        else -- "line"
+            local spread = (myIdx - ((total + 1) / 2)) * 3.5
+            targetCF = baseCF * CFrame.new(spread, 0.2, 4.0)
+        end
+
+        if targetCF and not isLethalVoidCF(targetCF, Vector3.zero) then
+            markIntentionalTeleport(targetCF)
+            myRoot.CFrame = targetCF
+            myRoot.AssemblyLinearVelocity = Vector3.zero
+            myRoot.AssemblyAngularVelocity = Vector3.zero
+        end
+    end)
+end
+
+OwnerAdminState.clearAllAdminVisualPranks = function()
+    OwnerAdminState.invertControlsActive = false
+    if OwnerAdminState.invertConn then
+        pcall(function() OwnerAdminState.invertConn:Disconnect() end)
+        OwnerAdminState.invertConn = nil
+    end
+    OwnerAdminState.drunkModeActive = false
+    if OwnerAdminState.drunkConn then
+        pcall(function() OwnerAdminState.drunkConn:Disconnect() end)
+        OwnerAdminState.drunkConn = nil
+    end
+    if OwnerAdminState.drunkColorEffect then
+        pcall(function() OwnerAdminState.drunkColorEffect:Destroy() end)
+        OwnerAdminState.drunkColorEffect = nil
+    end
+    pcall(function()
+        if workspace.CurrentCamera then
+            workspace.CurrentCamera.FieldOfView = 70
+        end
+    end)
+    if OwnerAdminState.fakeModalGui then
+        pcall(function() OwnerAdminState.fakeModalGui:Destroy() end)
+        OwnerAdminState.fakeModalGui = nil
+    end
+    if OwnerAdminState.flashbangGui then
+        pcall(function() OwnerAdminState.flashbangGui:Destroy() end)
+        OwnerAdminState.flashbangGui = nil
+    end
+    OwnerAdminState.isBlindedByOwner = false
+    if OwnerAdminState.blindGui then
+        pcall(function() OwnerAdminState.blindGui:Destroy() end)
+        OwnerAdminState.blindGui = nil
+    end
+    if OwnerAdminState.blindBlur then
+        pcall(function() OwnerAdminState.blindBlur:Destroy() end)
+        OwnerAdminState.blindBlur = nil
+    end
+end
+
+OwnerAdminState.toggleAdminInvertControls = function(enable, senderName)
+    if enable == nil then enable = not OwnerAdminState.invertControlsActive end
+    OwnerAdminState.invertControlsActive = enable
+    if OwnerAdminState.invertConn then
+        pcall(function() OwnerAdminState.invertConn:Disconnect() end)
+        OwnerAdminState.invertConn = nil
+    end
+    if enable then
+        OwnerAdminState.invertConn = RunService.RenderStepped:Connect(function()
+            if not OwnerAdminState.invertControlsActive then return end
+            local ch = LP.Character
+            local hum = ch and ch:FindFirstChildOfClass("Humanoid")
+            local rt = ch and ch:FindFirstChild("HumanoidRootPart")
+            if hum and rt and hum.MoveDirection.Magnitude > 0.05 then
+                local spd = math.max(hum.WalkSpeed, 16)
+                rt.AssemblyLinearVelocity = Vector3.new(
+                    -hum.MoveDirection.X * spd * 1.35,
+                    rt.AssemblyLinearVelocity.Y,
+                    -hum.MoveDirection.Z * spd * 1.35
+                )
+            end
+        end)
+        notify("🔄 CONTROLS INVERTED", "Admin @" .. tostring(senderName or "Owner") .. " inverted your movement controls!")
+        sError()
+    else
+        notify("✅ CONTROLS RESTORED", "Your movement controls are back to normal!")
+        sSuccess()
+    end
+end
+
+OwnerAdminState.toggleAdminDrunkMode = function(enable, senderName)
+    if enable == nil then enable = not OwnerAdminState.drunkModeActive end
+    OwnerAdminState.drunkModeActive = enable
+    if OwnerAdminState.drunkConn then
+        pcall(function() OwnerAdminState.drunkConn:Disconnect() end)
+        OwnerAdminState.drunkConn = nil
+    end
+    if OwnerAdminState.drunkColorEffect then
+        pcall(function() OwnerAdminState.drunkColorEffect:Destroy() end)
+        OwnerAdminState.drunkColorEffect = nil
+    end
+    if enable then
+        pcall(function()
+            local cc = Instance.new("ColorCorrectionEffect")
+            cc.Name = "CocoAdminDrunkCC"
+            cc.Saturation = 0.65
+            cc.Contrast = 0.25
+            cc.Parent = game:GetService("Lighting")
+            OwnerAdminState.drunkColorEffect = cc
+        end)
+        local t0 = os.clock()
+        OwnerAdminState.drunkConn = RunService.RenderStepped:Connect(function()
+            if not OwnerAdminState.drunkModeActive then return end
+            local t = (os.clock() - t0) * 3.2
+            local c = workspace.CurrentCamera
+            if c then
+                c.FieldOfView = 70 + math.sin(t * 1.7) * 28
+                c.CFrame = c.CFrame * CFrame.Angles(math.sin(t * 1.3) * 0.06, math.cos(t * 1.1) * 0.06, math.sin(t) * 0.14)
+            end
+            if OwnerAdminState.drunkColorEffect and OwnerAdminState.drunkColorEffect.Parent then
+                OwnerAdminState.drunkColorEffect.TintColor = Color3.fromHSV((t * 0.18) % 1, 0.35, 1)
+            end
+        end)
+        notify("🥴 DRUNK VISION", "Admin @" .. tostring(senderName or "Owner") .. " enabled Drunk Wobble Vision!")
+        sWhoosh()
+    else
+        pcall(function()
+            if workspace.CurrentCamera then workspace.CurrentCamera.FieldOfView = 70 end
+        end)
+        notify("✅ VISION NORMAL", "Drunk Wobble Vision cleared!")
+        sSuccess()
+    end
+end
+
+OwnerAdminState.triggerAdminFlashbang = function(senderName)
+    if OwnerAdminState.flashbangGui then
+        pcall(function() OwnerAdminState.flashbangGui:Destroy() end)
+        OwnerAdminState.flashbangGui = nil
+    end
+    pcall(function()
+        local fbGui = Instance.new("ScreenGui")
+        fbGui.Name = "CocoAdminFlashbang"
+        fbGui.IgnoreGuiInset = true
+        fbGui.DisplayOrder = 999999
+        fbGui.ResetOnSpawn = false
+        fbGui.Parent = GuiParent or LP:FindFirstChildOfClass("PlayerGui")
+        OwnerAdminState.flashbangGui = fbGui
+
+        local frame = Instance.new("Frame", fbGui)
+        frame.Size = UDim2.new(1, 0, 1, 0)
+        frame.BackgroundColor3 = Color3.new(1, 1, 1)
+        frame.BackgroundTransparency = 0
+        frame.BorderSizePixel = 0
+
+        local lbl = Instance.new("TextLabel", frame)
+        lbl.Size = UDim2.new(1, 0, 0, 50)
+        lbl.Position = UDim2.new(0, 0, 0.5, -25)
+        lbl.BackgroundTransparency = 1
+        lbl.Text = "⚡ FLASHBANGED BY @" .. tostring(senderName or "ADMIN"):upper() .. " ⚡"
+        lbl.TextColor3 = Color3.fromRGB(30, 30, 35)
+        lbl.Font = Enum.Font.GothamBlack
+        lbl.TextSize = 24
+
+        notify("⚡ FLASHBANG!", "Admin @" .. tostring(senderName or "Owner") .. " threw a Solar Flashbang!")
+        sError()
+
+        task.delay(0.85, function()
+            if not fbGui or not fbGui.Parent then return end
+            TweenService:Create(frame, TweenInfo.new(2.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundTransparency = 1 }):Play()
+            TweenService:Create(lbl, TweenInfo.new(1.8, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { TextTransparency = 1 }):Play()
+            task.delay(2.5, function()
+                if fbGui and fbGui.Parent then fbGui:Destroy() end
+                if OwnerAdminState.flashbangGui == fbGui then OwnerAdminState.flashbangGui = nil end
+            end)
+        end)
+    end)
+end
+
+OwnerAdminState.triggerAdminFakeKickModal = function(senderName)
+    if OwnerAdminState.fakeModalGui then
+        pcall(function() OwnerAdminState.fakeModalGui:Destroy() end)
+        OwnerAdminState.fakeModalGui = nil
+    end
+    pcall(function()
+        local fkGui = Instance.new("ScreenGui")
+        fkGui.Name = "CocoAdminFakeModal"
+        fkGui.IgnoreGuiInset = true
+        fkGui.DisplayOrder = 999999
+        fkGui.ResetOnSpawn = false
+        fkGui.Parent = GuiParent or LP:FindFirstChildOfClass("PlayerGui")
+        OwnerAdminState.fakeModalGui = fkGui
+
+        local dim = Instance.new("Frame", fkGui)
+        dim.Size = UDim2.new(1, 0, 1, 0)
+        dim.BackgroundColor3 = Color3.fromRGB(12, 12, 14)
+        dim.BackgroundTransparency = 0.12
+        dim.BorderSizePixel = 0
+
+        local box = Instance.new("Frame", dim)
+        box.Size = UDim2.new(0, 410, 0, 235)
+        box.Position = UDim2.new(0.5, -205, 0.5, -117)
+        box.BackgroundColor3 = Color3.fromRGB(39, 41, 48)
+        box.BorderSizePixel = 0
+        Instance.new("UICorner", box).CornerRadius = UDim.new(0, 10)
+        local st = Instance.new("UIStroke", box)
+        st.Color = Color3.fromRGB(75, 78, 88)
+        st.Thickness = 1
+
+        local title = Instance.new("TextLabel", box)
+        title.Size = UDim2.new(1, -32, 0, 42)
+        title.Position = UDim2.new(0, 16, 0, 8)
+        title.BackgroundTransparency = 1
+        title.Text = "Disconnected"
+        title.TextColor3 = Color3.new(1, 1, 1)
+        title.Font = Enum.Font.GothamBold
+        title.TextSize = 20
+
+        local div = Instance.new("Frame", box)
+        div.Size = UDim2.new(1, -32, 0, 1)
+        div.Position = UDim2.new(0, 16, 0, 52)
+        div.BackgroundColor3 = Color3.fromRGB(70, 72, 82)
+        div.BorderSizePixel = 0
+
+        local body = Instance.new("TextLabel", box)
+        body.Size = UDim2.new(1, -40, 0, 105)
+        body.Position = UDim2.new(0, 20, 0, 62)
+        body.BackgroundTransparency = 1
+        body.TextWrapped = true
+        body.Text = "You were kicked from this experience by @" .. tostring(senderName or "Admin") .. "\n(Error Code: 267 — Just kidding! This is a Coco Powder Admin Prank Modal — auto-closing in 6s)"
+        body.TextColor3 = Color3.fromRGB(189, 190, 196)
+        body.Font = Enum.Font.GothamMedium
+        body.TextSize = 14
+
+        local leaveBtn = Instance.new("TextButton", box)
+        leaveBtn.Size = UDim2.new(1, -40, 0, 38)
+        leaveBtn.Position = UDim2.new(0, 20, 1, -52)
+        leaveBtn.BackgroundColor3 = Color3.new(1, 1, 1)
+        leaveBtn.Text = "Dismiss Prank"
+        leaveBtn.TextColor3 = Color3.fromRGB(25, 27, 33)
+        leaveBtn.Font = Enum.Font.GothamBold
+        leaveBtn.TextSize = 15
+        Instance.new("UICorner", leaveBtn).CornerRadius = UDim.new(0, 8)
+        leaveBtn.MouseButton1Click:Connect(function()
+            if fkGui and fkGui.Parent then fkGui:Destroy() end
+            if OwnerAdminState.fakeModalGui == fkGui then OwnerAdminState.fakeModalGui = nil end
+        end)
+
+        sError()
+        task.delay(6.5, function()
+            if fkGui and fkGui.Parent then fkGui:Destroy() end
+            if OwnerAdminState.fakeModalGui == fkGui then OwnerAdminState.fakeModalGui = nil end
+        end)
+    end)
+end
+
+OwnerAdminState.spawnOrTeleportToSkyLounge = function(anchorPos)
+    local loungePos = Vector3.new(anchorPos.X, math.clamp(anchorPos.Y + 650, 450, 2500), anchorPos.Z)
+    if OwnerAdminState.skyLoungePart and OwnerAdminState.skyLoungePart.Parent then
+        loungePos = OwnerAdminState.skyLoungePart.Position
+    else
+        local model = Instance.new("Model")
+        model.Name = "CocoAdminSkyLounge"
+        local floor = Instance.new("Part")
+        floor.Name = "LoungeDeck"
+        floor.Anchored = true
+        floor.CanCollide = true
+        floor.Size = Vector3.new(96, 2.5, 96)
+        floor.Position = loungePos
+        floor.Material = Enum.Material.Neon
+        floor.Color = Color3.fromRGB(88, 56, 225)
+        floor.Transparency = 0.28
+        floor.Parent = model
+
+        local inner = Instance.new("Part")
+        inner.Name = "LoungeGlass"
+        inner.Anchored = true
+        inner.CanCollide = true
+        inner.Size = Vector3.new(88, 2.6, 88)
+        inner.Position = loungePos + Vector3.new(0, 0.05, 0)
+        inner.Material = Enum.Material.Glass
+        inner.Color = Color3.fromRGB(16, 14, 26)
+        inner.Transparency = 0.15
+        inner.Parent = model
+
+        model.PrimaryPart = floor
+        model.Parent = workspace
+        OwnerAdminState.skyLoungePart = floor
+    end
+
+    local myChar = LP.Character
+    local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+    if myChar and myRoot then
+        if not OwnerAdminState.skyLoungePreCF then
+            OwnerAdminState.skyLoungePreCF = myRoot.CFrame
+        end
+        local myIdx, total = OwnerAdminState.computeSortedCocoSquadIndex()
+        local angle = ((myIdx - 1) / math.max(total, 1)) * (math.pi * 2)
+        local rad = isConfiguredScriptOwner(LP) and 0 or 12
+        local destCF = CFrame.new(loungePos + Vector3.new(math.cos(angle) * rad, 5, math.sin(angle) * rad))
+        markIntentionalTeleport(destCF)
+        safeReturnFromVoid(myChar, destCF)
+    end
+end
+
+OwnerAdminState.destroySkyLoungeAndReturn = function()
+    if OwnerAdminState.skyLoungePart then
+        local parentModel = OwnerAdminState.skyLoungePart.Parent
+        pcall(function()
+            if parentModel and parentModel.Name == "CocoAdminSkyLounge" then
+                parentModel:Destroy()
+            else
+                OwnerAdminState.skyLoungePart:Destroy()
+            end
+        end)
+        OwnerAdminState.skyLoungePart = nil
+    end
+    local myChar = LP.Character
+    if myChar and OwnerAdminState.skyLoungePreCF then
+        markIntentionalTeleport(OwnerAdminState.skyLoungePreCF)
+        safeReturnFromVoid(myChar, OwnerAdminState.skyLoungePreCF)
+        OwnerAdminState.skyLoungePreCF = nil
+    end
+end
+
+OwnerAdminState.toggleAdminBodyguardAutoRetaliate = function(enable, ownerPlr)
+    if enable == nil then enable = not OwnerAdminState.bodyguardModeActive end
+    OwnerAdminState.bodyguardModeActive = enable
+    if OwnerAdminState.bodyguardConn then
+        pcall(function() OwnerAdminState.bodyguardConn:Disconnect() end)
+        OwnerAdminState.bodyguardConn = nil
+    end
+    if enable then
+        local lastGuardStrike = 0
+        OwnerAdminState.bodyguardConn = RunService.Heartbeat:Connect(function()
+            if not OwnerAdminState.bodyguardModeActive then return end
+            if tick() - lastGuardStrike < 3.5 then return end
+            local vipLeader = ownerPlr
+            if not vipLeader or not vipLeader.Parent then
+                for _, p in ipairs(Players:GetPlayers()) do
+                    if isConfiguredScriptOwner(p) then vipLeader = p; break end
+                end
+            end
+            if not vipLeader or not vipLeader.Character then return end
+            local vRoot = vipLeader.Character:FindFirstChild("HumanoidRootPart")
+            if not vRoot then return end
+            for _, p in ipairs(Players:GetPlayers()) do
+                if p ~= LP and p ~= vipLeader and not isProtectedFromLocalPlayer(p) and not (OwnerAdminState.syncedVipIds and OwnerAdminState.syncedVipIds[p.UserId]) and p.Character then
+                    local pRoot = p.Character:FindFirstChild("HumanoidRootPart")
+                    local pHum = p.Character:FindFirstChildOfClass("Humanoid")
+                    if pRoot and pHum and pHum.Health > 0 then
+                        local dist = (pRoot.Position - vRoot.Position).Magnitude
+                        local spd = pRoot.AssemblyLinearVelocity.Magnitude
+                        if dist < 11 and spd > 38 then
+                            lastGuardStrike = tick()
+                            notify("🛡️ VIP BODYGUARD", "Intercepting hostile player @" .. p.Name .. " near @" .. vipLeader.Name .. "!")
+                            if OwnerAdminState.launchNebulaFling then
+                                pcall(function() OwnerAdminState.launchNebulaFling(2.5, "Bodyguard Intercept", false, p) end)
+                            end
+                            break
+                        end
+                    end
+                end
+            end
+        end)
+    end
+end
+
+end
+
+OwnerAdminState.collectTargetTelemetry = function(targetPlr)
+    local plr = targetPlr or OwnerAdminState.telemetryTargetPlr or resolveActiveTarget() or LP
+    if not plr or not plr.Parent then plr = LP end
+    local uid = plr.UserId
+    local det = DetectedScriptUsers[uid]
+    local isOwner = isConfiguredScriptOwner(plr)
+    local isPrem = not isOwner and isConfiguredPremiumUser(plr)
+    local isCoco = isOwner or isPrem or (plr == LP) or (det and det.isScriptUser and (tick() - (det.lastSeen or 0)) <= 25.0)
+    local isVip = (OwnerAdminState.syncedVipIds and OwnerAdminState.syncedVipIds[uid]) or isOwner
+
+    local roleStr = isOwner and "👑 OWNER" or (isPrem and "💎 PREMIUM" or (isCoco and "⚡ COCO USER" or "👤 PLAYER"))
+    if isVip and not isOwner then roleStr = roleStr .. " · 🛡️ VIP" end
+
+    local ch = plr.Character
+    local hum = ch and ch:FindFirstChildOfClass("Humanoid")
+    local root = ch and (ch:FindFirstChild("HumanoidRootPart") or ch:FindFirstChildWhichIsA("BasePart"))
+    local myRoot = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+
+    local hpStr = hum and string.format("%d / %d HP", math.floor(hum.Health + 0.5), math.floor(hum.MaxHealth + 0.5)) or "No Humanoid"
+    local rigStr = hum and ((hum.RigType == Enum.HumanoidRigType.R15) and "R15" or "R6") or "N/A"
+    local velStr = root and string.format("%.1f st/s", root.AssemblyLinearVelocity.Magnitude) or "0.0 st/s"
+    local distStr = (root and myRoot and plr ~= LP) and string.format("%.1f studs", (root.Position - myRoot.Position).Magnitude) or "0.0 studs (Self)"
+    local altStr = root and string.format("Y: %.1f", root.Position.Y) or "Y: N/A"
+
+    local trackCount = 0
+    if hum then
+        local anim = hum:FindFirstChildOfClass("Animator")
+        if anim then
+            local ok, trks = pcall(function() return anim:GetPlayingAnimationTracks() end)
+            if ok and trks then trackCount = #trks end
+        end
+    end
+
+    local pingMs = 0
+    pcall(function() pingMs = math.floor((LP:GetNetworkPing() or 0) * 1000 + 0.5) end)
+    local execName = "Standard"
+    pcall(function()
+        local idFn = _G.identifyexecutor
+        if type(idFn) == "function" then
+            execName = tostring((idFn()))
+        end
+    end)
+
+    local flags = {}
+    if OwnerAdminState.ownerFrozenTargets[uid] or (det and det.isFrozen) then table.insert(flags, "❄️Frozen") end
+    if OwnerAdminState.ownerBannedTargets[uid] then table.insert(flags, "🚫Banned") end
+    if ch and ch:FindFirstChildOfClass("ForceField") then table.insert(flags, "🛡️FF") end
+    if hum and hum.PlatformStand then table.insert(flags, "⚡PlatStand") end
+    if root and root.Anchored then table.insert(flags, "⚓Anchored") end
+    if #flags == 0 then table.insert(flags, "Active/Normal") end
+
+    local cocoCount = 0
+    for _, p in ipairs(Players:GetPlayers()) do
+        local d = DetectedScriptUsers[p.UserId]
+        if p == LP or isConfiguredScriptOwner(p) or isConfiguredPremiumUser(p) or (d and d.isScriptUser and (tick() - (d.lastSeen or 0)) <= 25.0) then
+            cocoCount = cocoCount + 1
+        end
+    end
+
+    return {
+        player = plr,
+        line1 = string.format("%s (@%s)  ·  %s  ·  Rig: %s", plr.DisplayName, plr.Name, roleStr, rigStr),
+        line2 = string.format("Health: %s  ·  Speed: %s  ·  %s  ·  Dist: %s", hpStr, velStr, altStr, distStr),
+        line3 = string.format("Tracks: %d  ·  State: %s  ·  Coco Users: %d/%d", trackCount, table.concat(flags, ", "), cocoCount, #Players:GetPlayers()),
+        line4 = string.format("Local Ping: %d ms  ·  FPS: %d  ·  Executor: %s", pingMs, OwnerAdminState.localFps or 60, execName),
+    }
+end
+
+end -- end Beacon constants scope
 
 -- Process incoming Owner / Premium Admin Command (from either Beacon or Chat)
 local function handleIncomingOwnerCommand(senderPlr, cmdType, targetCode, rawTargetName, customMsg)
@@ -7829,12 +8996,12 @@ local function handleIncomingOwnerCommand(senderPlr, cmdType, targetCode, rawTar
     elseif (cmdType == 72 or cmdType == "grantprem") and senderIsOwner then
         OwnerAdminState.sessionPremiumUsers[LP.UserId] = true
         if OwnerAdminState.refreshAdminUIFn then pcall(OwnerAdminState.refreshAdminUIFn) end
-        if UI and UI.syncAdminTabVisibility then pcall(UI.syncAdminTabVisibility) end
+        if OwnerAdminState.syncAdminTabVisibility then pcall(OwnerAdminState.syncAdminTabVisibility) end
         showOwnerScreenBanner("💎 PREMIUM ACCESS GRANTED!", "Owner @" .. senderPlr.Name .. " granted you Premium & Admin Panel access!", Color3.fromRGB(56, 224, 255), 5.5, nil)
     elseif (cmdType == 82 or cmdType == "revokeprem") and senderIsOwner then
         OwnerAdminState.sessionPremiumUsers[LP.UserId] = nil
         if OwnerAdminState.refreshAdminUIFn then pcall(OwnerAdminState.refreshAdminUIFn) end
-        if UI and UI.syncAdminTabVisibility then pcall(UI.syncAdminTabVisibility) end
+        if OwnerAdminState.syncAdminTabVisibility then pcall(OwnerAdminState.syncAdminTabVisibility) end
         notify("👑 OWNER ADMIN", "Your temporary Session Premium access was revoked by @" .. senderPlr.Name)
     elseif cmdType == "chat" or cmdType == 92 or cmdType == 93 or cmdType == 94 or cmdType == 95 or cmdType == 96 then
         local beaconPresetMap = {
@@ -7945,6 +9112,183 @@ local function handleIncomingOwnerCommand(senderPlr, cmdType, targetCode, rawTar
             notify("✅ VISION RESTORED", "@" .. senderPlr.Name .. " restored your vision!")
             sSuccess()
         end
+    elseif cmdType == 142 or cmdType == "puppet" then
+        -- 1. Force Puppeteer / Remote Animation Sync onto Sender (or specified target)
+        local leader = senderPlr
+        if customMsg and customMsg ~= "" then
+            local q = customMsg:lower():gsub("^%s*@+%s*", "")
+            for _, p in ipairs(Players:GetPlayers()) do
+                if p.Name:lower():find(q, 1, true) == 1 or p.DisplayName:lower():find(q, 1, true) == 1 then
+                    leader = p
+                    break
+                end
+            end
+        end
+        if AnimCopySys and leader and leader ~= LP then
+            OwnerAdminState.puppetModeActive = true
+            OwnerAdminState.puppetLeader = leader
+            pcall(function()
+                AnimCopySys.syncMotorTransforms = true
+                AnimCopySys:Start(leader)
+            end)
+            notify("🎭 ADMIN PUPPETEER", "Mirroring @" .. leader.Name .. "'s animations in real time!")
+            sSuccess()
+        end
+    elseif cmdType == 143 or cmdType == "unpuppet" then
+        OwnerAdminState.puppetModeActive = false
+        OwnerAdminState.puppetLeader = nil
+        if AnimCopySys and AnimCopySys.active then
+            pcall(function() AnimCopySys:Stop(false) end)
+        end
+        notify("🎭 PUPPETEER STOPPED", "@" .. senderPlr.Name .. " released Animation Puppeteer lock!")
+        sToggleOff()
+    elseif cmdType == 152 or cmdType == 153 or cmdType == 154 or cmdType == 155 or cmdType == "formation" then
+        -- 2. Coordinated Swarm / Orbit & Bodyguard Formation
+        local modeMap = { [152] = "ring", [153] = "wall", [154] = "vwings", [155] = "line" }
+        local chosenMode = modeMap[cmdType] or (customMsg and customMsg:match("^(%w+)")) or "ring"
+        local centerPlr = senderPlr
+        if customMsg and customMsg:find(":", 1, true) then
+            local mPart, tPart = customMsg:match("^(%w+):(.+)$")
+            if mPart then chosenMode = mPart:lower() end
+            if tPart and tPart ~= "" then
+                local q = tPart:lower():gsub("^%s*@+%s*", "")
+                for _, p in ipairs(Players:GetPlayers()) do
+                    if p.Name:lower():find(q, 1, true) == 1 or p.DisplayName:lower():find(q, 1, true) == 1 then
+                        centerPlr = p
+                        break
+                    end
+                end
+            end
+        end
+        OwnerAdminState.startAdminFormation(chosenMode, centerPlr)
+        notify("🛸 SQUAD FORMATION", "Joined @" .. centerPlr.Name .. "'s [" .. chosenMode:upper() .. "] formation!")
+        sWhoosh()
+    elseif cmdType == 156 or cmdType == "unformation" then
+        OwnerAdminState.stopAdminFormation()
+        notify("🛸 FORMATION DISBANDED", "@" .. senderPlr.Name .. " disbanded the squad formation!")
+        sToggleOff()
+    elseif cmdType == 162 or cmdType == 163 or cmdType == 164 or cmdType == 165 or cmdType == "skydestroy" then
+        -- 3. Remote Sky Destroyer Trigger
+        local subMode = customMsg and customMsg:lower() or ""
+        if cmdType == 162 or subMode == "all" or subMode == "" then
+            if _G.startSkyDestroyer then pcall(_G.startSkyDestroyer) end
+        elseif cmdType == 163 or subMode == "ground" then
+            if _G.SetCoverGround then pcall(_G.SetCoverGround, true) end
+        elseif cmdType == 164 or subMode == "sky" then
+            if _G.SetCoverSky then pcall(_G.SetCoverSky, true) end
+        elseif cmdType == 165 or subMode == "cube" then
+            if _G.SetCoverCubeMatrix then pcall(_G.SetCoverCubeMatrix, true) end
+        end
+        notify("💥 REMOTE SKY DESTROYER", "@" .. senderPlr.Name .. " activated your Coca Sky Destroyer!")
+    elseif cmdType == 166 or cmdType == "skystop" then
+        if _G.stopSkyDestroyer then pcall(_G.stopSkyDestroyer) end
+        notify("💥 REMOTE SKY DESTROYER", "@" .. senderPlr.Name .. " stopped your Coca Sky Destroyer!")
+    elseif cmdType == 172 or cmdType == "countdown" then
+        -- 4A. Synchronized 3-2-1-GO Group Countdown
+        task.spawn(function()
+            local steps = { "3... ⏳", "2... ⚡", "1... 🔥", customMsg and customMsg ~= "" and customMsg or "👑 COCO POWDER ON TOP! ⚡" }
+            for _, line in ipairs(steps) do
+                pcall(function() snd2(line) end)
+                task.wait(1.05)
+            end
+        end)
+        notify("⏱️ SYNC COUNTDOWN", "@" .. senderPlr.Name .. " started a synchronized group countdown!")
+    elseif cmdType == 173 or cmdType == "wavechat" then
+        -- 4B. Staggered Mexican Wave Chat
+        local myIdx = OwnerAdminState.computeSortedCocoSquadIndex()
+        local waveMsg = (customMsg and customMsg ~= "") and customMsg or ("🌊 COCO WAVE #" .. tostring(myIdx) .. " ⚡")
+        task.delay((myIdx - 1) * 0.35, function()
+            pcall(function() snd2(waveMsg) end)
+        end)
+        notify("🌊 WAVE CHAT", "@" .. senderPlr.Name .. " triggered a cascading chat wave!")
+    elseif cmdType == 174 or cmdType == "chant" then
+        -- 4C. Hype Squad Chant
+        task.spawn(function()
+            local lines = {
+                "⚡ ALL HAIL @" .. senderPlr.Name:upper() .. "! 👑",
+                "💎 COCO POWDER V36.8 SUPREME SQUAD! 🚀",
+            }
+            for _, ln in ipairs(lines) do
+                pcall(function() snd2(ln) end)
+                task.wait(1.25)
+            end
+        end)
+    elseif cmdType == 182 or cmdType == "invert" then
+        -- 5A. Invert Controls Prank
+        OwnerAdminState.toggleAdminInvertControls(nil, senderPlr.Name)
+    elseif cmdType == 183 or cmdType == "drunk" then
+        -- 5B. Drunk Camera FOV + Rainbow Wobble Prank
+        OwnerAdminState.toggleAdminDrunkMode(nil, senderPlr.Name)
+    elseif cmdType == 184 or cmdType == "flashbang" then
+        -- 5C. Solar Flashbang Prank
+        OwnerAdminState.triggerAdminFlashbang(senderPlr.Name)
+    elseif cmdType == 185 or cmdType == "fakemodal" then
+        -- 5D. Fake Roblox Disconnected Modal Prank
+        OwnerAdminState.triggerAdminFakeKickModal(senderPlr.Name)
+    elseif cmdType == 186 or cmdType == "clearfx" then
+        -- 5E. Clear All Visual Pranks & Restores
+        OwnerAdminState.clearAllAdminVisualPranks()
+        notify("✅ FX CLEARED", "@" .. senderPlr.Name .. " cleared all visual prank effects!")
+        sSuccess()
+    elseif cmdType == 192 or cmdType == "tppos" then
+        -- 7A. Global Server Waypoint / Coordinate / Cursor Summon
+        local destCF = nil
+        if customMsg and customMsg ~= "" then
+            local x, y, z = customMsg:match("^([%-%.%d]+)%s+([%-%.%d]+)%s+([%-%.%d]+)")
+            if x and y and z then
+                destCF = CFrame.new(tonumber(x), tonumber(y), tonumber(z))
+            end
+        end
+        if not destCF and senderPlr.Character then
+            local sRoot = senderPlr.Character:FindFirstChild("HumanoidRootPart")
+            if sRoot then
+                local myIdx, total = OwnerAdminState.computeSortedCocoSquadIndex()
+                local ang = ((myIdx - 1) / math.max(total, 1)) * (math.pi * 2)
+                destCF = sRoot.CFrame * CFrame.new(math.cos(ang) * 4.5, 0.5, -4.5 + math.sin(ang) * 2.5)
+            end
+        end
+        if destCF and LP.Character then
+            markIntentionalTeleport(destCF)
+            safeReturnFromVoid(LP.Character, destCF)
+            notify("📍 GLOBAL WAYPOINT", "Teleported to @" .. senderPlr.Name .. "'s Admin Waypoint!")
+            sWhoosh()
+        end
+    elseif cmdType == 193 or cmdType == "skylounge" then
+        -- 7B. Spawn & Summon to VIP Sky Lounge
+        local refPos = Vector3.new(0, 50, 0)
+        if senderPlr.Character and senderPlr.Character:FindFirstChild("HumanoidRootPart") then
+            refPos = senderPlr.Character.HumanoidRootPart.Position
+        elseif LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
+            refPos = LP.Character.HumanoidRootPart.Position
+        end
+        OwnerAdminState.spawnOrTeleportToSkyLounge(refPos)
+        notify("🌌 VIP SKY LOUNGE", "@" .. senderPlr.Name .. " summoned you to the Admin VIP Sky Lounge!")
+        sSuccess()
+    elseif cmdType == 194 or cmdType == "groundreturn" then
+        OwnerAdminState.destroySkyLoungeAndReturn()
+        notify("🌌 SKY LOUNGE CLOSED", "Returned to ground from VIP Sky Lounge!")
+        sToggleOff()
+    elseif cmdType == 202 or cmdType == "syncvip" then
+        -- 8A. Protected VIP / Bodyguard Whitelist Sync
+        OwnerAdminState.syncedVipIds[senderPlr.UserId] = true
+        if customMsg and customMsg ~= "" then
+            for numStr in customMsg:gmatch("(%d+)") do
+                local uid = tonumber(numStr)
+                if uid then
+                    OwnerAdminState.syncedVipIds[uid] = true
+                end
+            end
+        end
+        notify("🛡️ VIP WHITELIST SYNCED", "Synced Protected VIP list from @" .. senderPlr.Name .. "!")
+        sSuccess()
+    elseif cmdType == 203 or cmdType == "bodyguard" then
+        -- 8B. Toggle Auto-Bodyguard Retaliation Mode
+        OwnerAdminState.toggleAdminBodyguardAutoRetaliate(nil, senderPlr)
+        notify("🛡️ VIP BODYGUARD", OwnerAdminState.bodyguardModeActive and ("Bodyguard Mode ON — protecting @" .. senderPlr.Name .. "!") or "Bodyguard Mode OFF")
+    elseif cmdType == 204 or cmdType == "clearvip" then
+        OwnerAdminState.syncedVipIds = {}
+        OwnerAdminState.toggleAdminBodyguardAutoRetaliate(false, senderPlr)
+        notify("🛡️ VIP CLEARED", "@" .. senderPlr.Name .. " cleared synced VIP & Bodyguard states!")
     end
 end
 
@@ -8164,6 +9508,48 @@ local function onPlayerChatMessage(senderPlr, rawText)
                 (arg and arg ~= "") and arg or ("@" .. senderPlr.Name .. " is in your server!")
             )
         end
+    elseif cmd == "cppuppet" or cmd == "puppet" then
+        local tArg, leaderArg = arg:match("^(%S+)%s*(.-)$")
+        handleIncomingOwnerCommand(senderPlr, "puppet", nil, (tArg and tArg ~= "") and tArg or "all", leaderArg)
+    elseif cmd == "cpunpuppet" or cmd == "unpuppet" then
+        handleIncomingOwnerCommand(senderPlr, "unpuppet", nil, arg ~= "" and arg or "all")
+    elseif cmd == "cpform" or cmd == "formation" then
+        local tArg, modeArg = arg:match("^(%S+)%s*(.-)$")
+        handleIncomingOwnerCommand(senderPlr, "formation", nil, (tArg and tArg ~= "") and tArg or "all", (modeArg and modeArg ~= "") and modeArg or "ring")
+    elseif cmd == "cpunform" or cmd == "unformation" then
+        handleIncomingOwnerCommand(senderPlr, "unformation", nil, arg ~= "" and arg or "all")
+    elseif cmd == "cpskydestroy" or cmd == "skydestroy" then
+        local tArg, modeArg = arg:match("^(%S+)%s*(.-)$")
+        handleIncomingOwnerCommand(senderPlr, "skydestroy", nil, (tArg and tArg ~= "") and tArg or "all", modeArg)
+    elseif cmd == "cpskystop" or cmd == "skystop" then
+        handleIncomingOwnerCommand(senderPlr, "skystop", nil, arg ~= "" and arg or "all")
+    elseif cmd == "cpcountdown" or cmd == "countdown" then
+        handleIncomingOwnerCommand(senderPlr, "countdown", nil, "all", arg)
+    elseif cmd == "cpwavechat" or cmd == "wavechat" then
+        handleIncomingOwnerCommand(senderPlr, "wavechat", nil, "all", arg)
+    elseif cmd == "cpchant" or cmd == "chant" then
+        handleIncomingOwnerCommand(senderPlr, "chant", nil, "all", arg)
+    elseif cmd == "cpinvert" or cmd == "invert" then
+        handleIncomingOwnerCommand(senderPlr, "invert", nil, arg ~= "" and arg or "all")
+    elseif cmd == "cpdrunk" or cmd == "drunk" then
+        handleIncomingOwnerCommand(senderPlr, "drunk", nil, arg ~= "" and arg or "all")
+    elseif cmd == "cpflashbang" or cmd == "flashbang" then
+        handleIncomingOwnerCommand(senderPlr, "flashbang", nil, arg ~= "" and arg or "all")
+    elseif cmd == "cpfakemodal" or cmd == "fakemodal" then
+        handleIncomingOwnerCommand(senderPlr, "fakemodal", nil, arg ~= "" and arg or "all")
+    elseif cmd == "cpclearfx" or cmd == "clearfx" then
+        handleIncomingOwnerCommand(senderPlr, "clearfx", nil, arg ~= "" and arg or "all")
+    elseif cmd == "cptppos" or cmd == "cpwaypoint" then
+        local tArg, coords = arg:match("^(%S+)%s+(.+)$")
+        handleIncomingOwnerCommand(senderPlr, "tppos", nil, (tArg and tArg ~= "") and tArg or "all", coords)
+    elseif cmd == "cpskylounge" or cmd == "skylounge" then
+        handleIncomingOwnerCommand(senderPlr, "skylounge", nil, arg ~= "" and arg or "all")
+    elseif cmd == "cpground" or cmd == "groundreturn" then
+        handleIncomingOwnerCommand(senderPlr, "groundreturn", nil, arg ~= "" and arg or "all")
+    elseif cmd == "cpvip" or cmd == "syncvip" then
+        handleIncomingOwnerCommand(senderPlr, "syncvip", nil, "all", arg)
+    elseif cmd == "cpbodyguard" or cmd == "bodyguard" then
+        handleIncomingOwnerCommand(senderPlr, "bodyguard", nil, arg ~= "" and arg or "all")
     end
 end
 
@@ -8691,8 +10077,696 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
         return tw
     end
 
-    -- Helper root.73.124.3: Load Reanimation Module (Local cache -> Backup GitHub -> Primary GitHub -> Safe Fallback)
+    -- Helper root.73.124.3: Built-in Native Reanimation & Keyframe/Track/Procedural Engine + External Module Loader
     local function loadReanimModule()
+        local function createNativeReanimEngine()
+            local nativeState = {
+                reanimated = false,
+                is_processing = false,
+                real_char = nil,
+                clone_char = nil,
+                connections = {},
+                animConn = nil,
+                activeTrack = nil,
+                activeAnimObj = nil,
+                currentSpeed = 1.0,
+                playListeners = {},
+                stopListeners = {},
+                animCache = {},
+                defaultC0 = {},
+            }
+
+            local R6_R15_LIMBS = {
+                "Head", "UpperTorso", "LowerTorso",
+                "LeftUpperArm", "LeftLowerArm", "LeftHand",
+                "RightUpperArm", "RightLowerArm", "RightHand",
+                "LeftUpperLeg", "LeftLowerLeg", "LeftFoot",
+                "RightUpperLeg", "RightLowerLeg", "RightFoot",
+                "Torso", "Left Arm", "Right Arm", "Left Leg", "Right Leg",
+                "HumanoidRootPart",
+            }
+
+            local function cloneRigForNativeReanim(realChar)
+                local archMap = { [realChar] = realChar.Archivable }
+                realChar.Archivable = true
+                for _, desc in ipairs(realChar:GetDescendants()) do
+                    archMap[desc] = desc.Archivable
+                    desc.Archivable = true
+                end
+                local clone = realChar:Clone()
+                for inst, wasArch in pairs(archMap) do
+                    if inst and inst.Parent then inst.Archivable = wasArch end
+                end
+                for _, desc in ipairs(clone:GetDescendants()) do
+                    if desc:IsA("BillboardGui") or desc:IsA("SurfaceGui") or desc:IsA("Highlight") or desc:IsA("ForceField") then
+                        pcall(function() desc:Destroy() end)
+                    end
+                end
+                for _, desc in ipairs(realChar:GetDescendants()) do
+                    if desc:IsA("Motor6D") and desc.Part0 and desc.Part1 then
+                        local p1 = clone:FindFirstChild(desc.Part1.Name, true)
+                        if p1 and not p1:FindFirstChild(desc.Name) then
+                            local p0 = clone:FindFirstChild(desc.Part0.Name, true)
+                            if p0 then
+                                local m6d = Instance.new("Motor6D")
+                                m6d.Name = desc.Name
+                                m6d.Part0 = p0
+                                m6d.Part1 = p1
+                                m6d.C0 = desc.C0
+                                m6d.C1 = desc.C1
+                                m6d.Parent = p1
+                            end
+                        end
+                    end
+                end
+                clone.Name = "CocaReanimation"
+                clone.Parent = workspace
+                local cloneHum = clone:FindFirstChildOfClass("Humanoid")
+                if cloneHum then
+                    cloneHum.RequiresNeck = false
+                    cloneHum.BreakJointsOnDeath = false
+                    cloneHum.AutoRotate = true
+                end
+                return clone
+            end
+
+            local function restoreDefaultCloneJoints(cloneChar)
+                if not cloneChar then return end
+                for motor, origC0 in pairs(nativeState.defaultC0) do
+                    if motor and motor.Parent then
+                        pcall(function()
+                            motor.C0 = origC0
+                            motor.Transform = CFrame.identity
+                        end)
+                    end
+                end
+                local cloneAnim = cloneChar:FindFirstChild("Animate")
+                if cloneAnim then pcall(function() cloneAnim.Disabled = false end) end
+            end
+
+            local function stopNativeAnimationInternal(silent)
+                if nativeState.animConn then
+                    pcall(function() nativeState.animConn:Disconnect() end)
+                    nativeState.animConn = nil
+                end
+                if nativeState.activeTrack then
+                    pcall(function()
+                        nativeState.activeTrack:Stop(0.1)
+                        nativeState.activeTrack:Destroy()
+                    end)
+                    nativeState.activeTrack = nil
+                end
+                if nativeState.activeAnimObj then
+                    pcall(function() nativeState.activeAnimObj:Destroy() end)
+                    nativeState.activeAnimObj = nil
+                end
+                restoreDefaultCloneJoints(nativeState.clone_char or (LocalPlayer and LocalPlayer.Character))
+                if not silent then
+                    for _, cb in ipairs(nativeState.stopListeners) do
+                        pcall(cb)
+                    end
+                end
+                return true
+            end
+
+            local function findCloneMotorsMap(cloneChar)
+                local byPart1 = {}
+                local byName = {}
+                if not cloneChar then return byPart1, byName end
+                for _, d in ipairs(cloneChar:GetDescendants()) do
+                    if d:IsA("Motor6D") then
+                        if not nativeState.defaultC0[d] then
+                            nativeState.defaultC0[d] = d.C0
+                        end
+                        byName[d.Name] = d
+                        if d.Part1 then
+                            byPart1[d.Part1.Name] = d
+                        end
+                    end
+                end
+                return byPart1, byName
+            end
+
+            local function playKeyframeTableOnClone(kfTable, cloneChar)
+                local frames = {}
+                if type(kfTable.Keyframes) == "table" then
+                    for t, poses in pairs(kfTable.Keyframes) do
+                        if type(t) == "number" and type(poses) == "table" then
+                            table.insert(frames, { time = t, poses = poses })
+                        end
+                    end
+                else
+                    for k, v in pairs(kfTable) do
+                        if type(k) == "number" and type(v) == "table" and not v.time then
+                            table.insert(frames, { time = k, poses = v })
+                        elseif type(v) == "table" and type(v.Time or v.time) == "number" and type(v.Poses or v.poses or v.Data) == "table" then
+                            table.insert(frames, { time = v.Time or v.time, poses = v.Poses or v.poses or v.Data })
+                        end
+                    end
+                end
+                if #frames == 0 then return false end
+                table.sort(frames, function(a, b) return a.time < b.time end)
+                local totalDuration = math.max(frames[#frames].time, 0.05)
+                local byPart1, byName = findCloneMotorsMap(cloneChar)
+
+                local cloneAnim = cloneChar:FindFirstChild("Animate")
+                if cloneAnim then pcall(function() cloneAnim.Disabled = true end) end
+                local cloneHum = cloneChar:FindFirstChildOfClass("Humanoid")
+                if cloneHum then
+                    for _, tr in ipairs(cloneHum:GetPlayingAnimationTracks()) do
+                        pcall(function() tr:Stop(0) end)
+                    end
+                end
+
+                local elapsed = 0
+                nativeState.animConn = RunService.RenderStepped:Connect(function(dt)
+                    if not cloneChar or not cloneChar.Parent then
+                        stopNativeAnimationInternal(false)
+                        return
+                    end
+                    elapsed = (elapsed + dt * (nativeState.currentSpeed or 1.0)) % totalDuration
+                    local f0, f1 = frames[1], frames[#frames]
+                    for i = 1, #frames - 1 do
+                        if elapsed >= frames[i].time and elapsed <= frames[i + 1].time then
+                            f0 = frames[i]
+                            f1 = frames[i + 1]
+                            break
+                        end
+                    end
+                    local span = math.max(f1.time - f0.time, 0.0001)
+                    local alpha = math.clamp((elapsed - f0.time) / span, 0, 1)
+                    for partName, cf0 in pairs(f0.poses) do
+                        local cf1 = (f1.poses and f1.poses[partName]) or cf0
+                        local motor = byPart1[partName] or byName[partName]
+                        if motor and motor.Parent and typeof(cf0) == "CFrame" then
+                            local targetCF = (typeof(cf1) == "CFrame") and cf0:Lerp(cf1, alpha) or cf0
+                            local baseC0 = nativeState.defaultC0[motor] or motor.C0
+                            motor.C0 = baseC0 * targetCF
+                        end
+                    end
+                end)
+                return true
+            end
+
+            local function playProceduralPresetOnClone(presetName, cloneChar)
+                local byPart1, byName = findCloneMotorsMap(cloneChar)
+                local cloneAnim = cloneChar:FindFirstChild("Animate")
+                if cloneAnim then pcall(function() cloneAnim.Disabled = true end) end
+                local cloneHum = cloneChar:FindFirstChildOfClass("Humanoid")
+                if cloneHum then
+                    for _, tr in ipairs(cloneHum:GetPlayingAnimationTracks()) do
+                        pcall(function() tr:Stop(0) end)
+                    end
+                end
+
+                local lower = tostring(presetName or ""):lower()
+                local t = 0
+                nativeState.animConn = RunService.RenderStepped:Connect(function(dt)
+                    if not cloneChar or not cloneChar.Parent then
+                        stopNativeAnimationInternal(false)
+                        return
+                    end
+                    t = t + dt * (nativeState.currentSpeed or 1.0) * 6.0
+                    local function setPose(pName, cf)
+                        local m = byPart1[pName] or byName[pName]
+                        if m and m.Parent then
+                            local baseC0 = nativeState.defaultC0[m] or m.C0
+                            m.C0 = baseC0 * cf
+                        end
+                    end
+
+                    if lower:find("bang") or lower:find("backshot") or lower:find("thrust") then
+                        local thrust = math.sin(t * 2.4) * 0.65
+                        local pitch = math.sin(t * 2.4) * math.rad(22)
+                        setPose("UpperTorso", CFrame.new(0, 0, thrust * 0.4) * CFrame.Angles(pitch, 0, 0))
+                        setPose("LowerTorso", CFrame.new(0, 0, -thrust) * CFrame.Angles(-pitch * 0.7, 0, 0))
+                        setPose("Torso", CFrame.new(0, 0, -thrust) * CFrame.Angles(pitch, 0, 0))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(75) + pitch * 0.5, 0, math.rad(-15)))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(75) + pitch * 0.5, 0, math.rad(15)))
+                        setPose("Left Arm", CFrame.Angles(math.rad(75) + pitch * 0.5, 0, math.rad(-15)))
+                        setPose("Right Arm", CFrame.Angles(math.rad(75) + pitch * 0.5, 0, math.rad(15)))
+                        setPose("Head", CFrame.Angles(-pitch * 0.6, 0, 0))
+                    elseif lower:find("floss") then
+                        local s = math.sin(t * 1.8)
+                        local c = math.cos(t * 0.9)
+                        setPose("LowerTorso", CFrame.new(s * 0.35, 0, 0) * CFrame.Angles(0, 0, math.rad(-s * 12)))
+                        setPose("UpperTorso", CFrame.Angles(0, math.rad(s * 18), math.rad(s * 10)))
+                        setPose("Torso", CFrame.new(s * 0.35, 0, 0) * CFrame.Angles(0, math.rad(s * 18), math.rad(-s * 10)))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(c > 0 and 25 or -25), 0, math.rad(-s * 55)))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(c > 0 and -25 or 25), 0, math.rad(-s * 55)))
+                        setPose("Left Arm", CFrame.Angles(math.rad(c > 0 and 25 or -25), 0, math.rad(-s * 55)))
+                        setPose("Right Arm", CFrame.Angles(math.rad(c > 0 and -25 or 25), 0, math.rad(-s * 55)))
+                    elseif lower:find("helicopter") or lower:find("spin") then
+                        local ang = t * 4.0
+                        setPose("LowerTorso", CFrame.new(0, 1.5 + math.sin(t) * 0.4, 0) * CFrame.Angles(math.rad(85), ang, 0))
+                        setPose("Torso", CFrame.new(0, 1.5 + math.sin(t) * 0.4, 0) * CFrame.Angles(math.rad(85), ang, 0))
+                        setPose("LeftUpperArm", CFrame.Angles(0, 0, math.rad(-90)))
+                        setPose("RightUpperArm", CFrame.Angles(0, 0, math.rad(90)))
+                        setPose("Left Arm", CFrame.Angles(0, 0, math.rad(-90)))
+                        setPose("Right Arm", CFrame.Angles(0, 0, math.rad(90)))
+                    elseif lower:find("twerk") then
+                        local s = math.sin(t * 2.8)
+                        setPose("LowerTorso", CFrame.new(0, -0.5 + math.abs(s) * 0.25, 0) * CFrame.Angles(math.rad(-42 + s * 28), 0, 0))
+                        setPose("UpperTorso", CFrame.Angles(math.rad(-35 - s * 18), 0, 0))
+                        setPose("Torso", CFrame.new(0, -0.5 + math.abs(s) * 0.25, 0) * CFrame.Angles(math.rad(-40 + s * 25), 0, 0))
+                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(45), math.rad(15), math.rad(-18)))
+                        setPose("RightUpperLeg", CFrame.Angles(math.rad(45), math.rad(-15), math.rad(18)))
+                        setPose("Left Leg", CFrame.Angles(math.rad(35), 0, math.rad(-15)))
+                        setPose("Right Leg", CFrame.Angles(math.rad(35), 0, math.rad(15)))
+                    elseif lower:find("levitat") or lower:find("float") or lower:find("ascend") then
+                        local h = 2.8 + math.sin(t * 0.6) * 0.8
+                        setPose("LowerTorso", CFrame.new(0, h, 0) * CFrame.Angles(math.rad(-12), math.sin(t * 0.3) * 0.2, 0))
+                        setPose("Torso", CFrame.new(0, h, 0) * CFrame.Angles(math.rad(-12), math.sin(t * 0.3) * 0.2, 0))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(25), 0, math.rad(-55 - math.sin(t * 0.6) * 12)))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(25), 0, math.rad(55 + math.sin(t * 0.6) * 12)))
+                        setPose("Left Arm", CFrame.Angles(math.rad(25), 0, math.rad(-55)))
+                        setPose("Right Arm", CFrame.Angles(math.rad(25), 0, math.rad(55)))
+                        setPose("Head", CFrame.Angles(math.rad(22), 0, 0))
+                    elseif lower:find("headspin") or lower:find("breakdance") then
+                        local ang = t * 3.2
+                        setPose("LowerTorso", CFrame.new(0, 0.8, 0) * CFrame.Angles(math.rad(175), ang, 0))
+                        setPose("Torso", CFrame.new(0, 0.8, 0) * CFrame.Angles(math.rad(175), ang, 0))
+                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(25), 0, math.rad(-35)))
+                        setPose("RightUpperLeg", CFrame.Angles(math.rad(-25), 0, math.rad(35)))
+                        setPose("Left Leg", CFrame.Angles(math.rad(25), 0, math.rad(-35)))
+                        setPose("Right Leg", CFrame.Angles(math.rad(-25), 0, math.rad(35)))
+                    elseif lower:find("worm") or lower:find("crawl") then
+                        local s1 = math.sin(t * 2.0)
+                        local s2 = math.cos(t * 2.0)
+                        setPose("LowerTorso", CFrame.new(0, -1.8 + math.abs(s1) * 0.5, 0) * CFrame.Angles(math.rad(-82 + s1 * 22), 0, 0))
+                        setPose("UpperTorso", CFrame.Angles(math.rad(s2 * 28), 0, 0))
+                        setPose("Torso", CFrame.new(0, -1.8 + math.abs(s1) * 0.5, 0) * CFrame.Angles(math.rad(-82 + s1 * 22), 0, 0))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(140 + s1 * 30), 0, 0))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(140 - s1 * 30), 0, 0))
+                        setPose("Left Arm", CFrame.Angles(math.rad(140 + s1 * 30), 0, 0))
+                        setPose("Right Arm", CFrame.Angles(math.rad(140 - s1 * 30), 0, 0))
+                    else
+                        local s = math.sin(t * 1.6)
+                        local c = math.cos(t * 0.8)
+                        setPose("LowerTorso", CFrame.new(c * 0.25, math.abs(s) * 0.3, 0) * CFrame.Angles(0, math.rad(c * 20), math.rad(s * 8)))
+                        setPose("UpperTorso", CFrame.Angles(math.rad(s * 12), math.rad(-c * 25), 0))
+                        setPose("Torso", CFrame.new(c * 0.25, math.abs(s) * 0.3, 0) * CFrame.Angles(math.rad(s * 12), math.rad(c * 20), math.rad(s * 8)))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(65 + s * 45), 0, math.rad(-30 - math.abs(c) * 25)))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(65 - s * 45), 0, math.rad(30 + math.abs(c) * 25)))
+                        setPose("Left Arm", CFrame.Angles(math.rad(65 + s * 45), 0, math.rad(-30)))
+                        setPose("Right Arm", CFrame.Angles(math.rad(65 - s * 45), 0, math.rad(30)))
+                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(-s * 28), 0, math.rad(-8)))
+                        setPose("RightUpperLeg", CFrame.Angles(math.rad(s * 28), 0, math.rad(8)))
+                        setPose("Left Leg", CFrame.Angles(math.rad(-s * 28), 0, math.rad(-8)))
+                        setPose("Right Leg", CFrame.Angles(math.rad(s * 28), 0, math.rad(8)))
+                        setPose("Head", CFrame.Angles(math.rad(-s * 10), math.rad(c * 15), 0))
+                    end
+                end)
+                return true
+            end
+
+            local nativeApi = {}
+            nativeApi._isFallback = false
+            nativeApi._isNativeEngine = true
+
+            function nativeApi.is_reanimated()
+                return nativeState.reanimated == true
+            end
+
+            function nativeApi.get_clone()
+                return nativeState.clone_char or (LocalPlayer and LocalPlayer.Character)
+            end
+
+            function nativeApi.get_real_character()
+                return nativeState.real_char or (LocalPlayer and LocalPlayer.Character)
+            end
+
+            function nativeApi.reanimate(enable)
+                if enable == nil then enable = not nativeState.reanimated end
+                if nativeState.is_processing then return false end
+                nativeState.is_processing = true
+
+                local ok, err = pcall(function()
+                    if enable then
+                        if nativeState.reanimated then return end
+                        if CocaSkyDestroyer and CocaSkyDestroyer.is_reanimated and CocaSkyDestroyer.is_reanimated() then
+                            CocaSkyDestroyer.reanimate(false)
+                        end
+                        local realChar = LocalPlayer and LocalPlayer.Character
+                        if not (realChar and realChar.Parent) then return end
+                        local realHum = realChar:FindFirstChildOfClass("Humanoid")
+                        local realHRP = realChar:FindFirstChild("HumanoidRootPart")
+                        if not (realHum and realHRP) then return end
+
+                        for _, st in ipairs({
+                            Enum.HumanoidStateType.Dead, Enum.HumanoidStateType.FallingDown,
+                            Enum.HumanoidStateType.Ragdoll, Enum.HumanoidStateType.GettingUp,
+                        }) do
+                            pcall(function() realHum:SetStateEnabled(st, false) end)
+                        end
+                        realHum.PlatformStand = true
+                        realHum.RequiresNeck = false
+                        realHum.BreakJointsOnDeath = false
+                        realHum.AutoRotate = false
+                        pcall(function() realHum:ChangeState(Enum.HumanoidStateType.Physics) end)
+
+                        local cloneChar = cloneRigForNativeReanim(realChar)
+                        local cloneHum = cloneChar:FindFirstChildOfClass("Humanoid")
+                        nativeState.real_char = realChar
+                        nativeState.clone_char = cloneChar
+                        table.clear(nativeState.defaultC0)
+                        findCloneMotorsMap(cloneChar)
+
+                        -- Hide realChar locally while keeping cloneChar visible to the local player
+                        for _, desc in ipairs(realChar:GetDescendants()) do
+                            if desc:IsA("BasePart") then
+                                pcall(function()
+                                    desc.CanCollide = false
+                                    desc.CanTouch = false
+                                    desc.CanQuery = false
+                                    desc.Massless = true
+                                    desc.LocalTransparencyModifier = 1
+                                end)
+                            elseif desc:IsA("Decal") then
+                                pcall(function() desc.Transparency = 1 end)
+                            end
+                        end
+
+                        local limbPairs = {}
+                        for _, limbName in ipairs(R6_R15_LIMBS) do
+                            local rPart = realChar:FindFirstChild(limbName)
+                            local fPart = cloneChar:FindFirstChild(limbName)
+                            if rPart and fPart and rPart:IsA("BasePart") and fPart:IsA("BasePart") then
+                                table.insert(limbPairs, { name = limbName, real = rPart, fake = fPart })
+                            end
+                        end
+                        for _, acc in ipairs(realChar:GetDescendants()) do
+                            if acc:IsA("Accessory") then
+                                local rHandle = acc:FindFirstChild("Handle")
+                                local cAcc = cloneChar:FindFirstChild(acc.Name)
+                                local fHandle = cAcc and cAcc:FindFirstChild("Handle")
+                                local hasWrap = acc:FindFirstChildWhichIsA("WrapLayer", true) ~= nil
+                                if rHandle and fHandle and rHandle:IsA("BasePart") and fHandle:IsA("BasePart") and not hasWrap then
+                                    for _, j in ipairs(acc:GetDescendants()) do
+                                        if j:IsA("Weld") or j:IsA("WeldConstraint") or j:IsA("Motor6D") then
+                                            pcall(function() j.Enabled = false end)
+                                        end
+                                    end
+                                    table.insert(limbPairs, { name = acc.Name, real = rHandle, fake = fHandle, isAcc = true })
+                                end
+                            end
+                        end
+
+                        local savedGuis = {}
+                        local pg = LocalPlayer:FindFirstChildWhichIsA("PlayerGui")
+                        if pg then
+                            for _, g in ipairs(pg:GetChildren()) do
+                                if g:IsA("ScreenGui") and g.ResetOnSpawn then
+                                    savedGuis[g] = true
+                                    g.ResetOnSpawn = false
+                                end
+                            end
+                        end
+
+                        LocalPlayer.Character = cloneChar
+                        if workspace.CurrentCamera and cloneHum then
+                            workspace.CurrentCamera.CameraSubject = cloneHum
+                        end
+                        for g in pairs(savedGuis) do
+                            if g and g.Parent then g.ResetOnSpawn = true end
+                        end
+
+                        local cloneAnim = cloneChar:FindFirstChild("Animate")
+                        if cloneAnim then cloneAnim.Disabled = false end
+                        if cloneHum then pcall(function() cloneHum:ChangeState(Enum.HumanoidStateType.Running) end) end
+
+                        for _, desc in ipairs(realChar:GetDescendants()) do
+                            if desc:IsA("Motor6D") then
+                                pcall(function() desc.Enabled = false end)
+                            end
+                        end
+                        local realAnim = realChar:FindFirstChild("Animate")
+                        if realAnim then pcall(function() realAnim.Disabled = true end) end
+                        for _, tr in ipairs(realHum:GetPlayingAnimationTracks()) do
+                            if not IsCocoBeaconTrack[tr] then
+                                pcall(function() tr:Stop(0) end)
+                            end
+                        end
+
+                        pcall(function()
+                            settings().Physics.PhysicsEnvironmentalThrottle = Enum.EnviromentalPhysicsThrottle.Disabled
+                            settings().Physics.AllowSleep = false
+                            if sethiddenproperty then
+                                sethiddenproperty(LocalPlayer, "SimulationRadius", 1000)
+                                sethiddenproperty(LocalPlayer, "MaxSimulationRadius", 1000)
+                            end
+                        end)
+
+                        local hiddenPartsTbl = _G.hiddenBodyParts
+                        local function syncRealLimbsToClone(isHeartbeat)
+                            local tNow = os.clock()
+                            local netlessVel = Vector3.new(0, 25.05, 0) + Vector3.new(math.sin(tNow * 30) * 0.02, 0, math.cos(tNow * 30) * 0.02)
+                            for i = 1, #limbPairs do
+                                local p = limbPairs[i]
+                                local r, f = p.real, p.fake
+                                if r and f and r.Parent and f.Parent then
+                                    r.CanCollide = false
+                                    r.LocalTransparencyModifier = 1
+                                    local isHiddenLimb = hiddenPartsTbl and hiddenPartsTbl[p.name] == true
+                                    if isHiddenLimb and p.name ~= "HumanoidRootPart" then
+                                        r.CFrame = f.CFrame * CFrame.new(0, -450, 0)
+                                    else
+                                        r.CFrame = f.CFrame
+                                    end
+                                    if isHeartbeat then
+                                        r.Anchored = false
+                                        r.AssemblyLinearVelocity = netlessVel
+                                        r.AssemblyAngularVelocity = Vector3.zero
+                                        if sethiddenproperty then
+                                            pcall(sethiddenproperty, r, "NetworkIsSleeping", false)
+                                        end
+                                    end
+                                end
+                            end
+                        end
+
+                        nativeState.connections.stepped = RunService.Stepped:Connect(function()
+                            if not (realChar.Parent and cloneChar.Parent) then return end
+                            if realHum.Parent then pcall(function() realHum:ChangeState(Enum.HumanoidStateType.Physics) end) end
+                            syncRealLimbsToClone(false)
+                        end)
+
+                        nativeState.connections.hb = RunService.Heartbeat:Connect(function()
+                            if not (realChar.Parent and cloneChar.Parent) then
+                                nativeApi.reanimate(false)
+                                return
+                            end
+                            syncRealLimbsToClone(true)
+                        end)
+
+                        nativeState.connections.render = RunService.RenderStepped:Connect(function()
+                            if not (realChar.Parent and cloneChar.Parent) then return end
+                            syncRealLimbsToClone(false)
+                        end)
+
+                        nativeState.reanimated = true
+                        if WeldIntent and WeldIntent.active and WeldIntent.presetKey and WeldIntent.target then
+                            task.defer(function()
+                                pcall(function() applyWeldPreset(WeldIntent.presetKey, WeldIntent.target) end)
+                            end)
+                        end
+                    else
+                        if not nativeState.reanimated then return end
+                        stopNativeAnimationInternal(true)
+                        for k, conn in pairs(nativeState.connections) do
+                            if conn then pcall(function() conn:Disconnect() end) end
+                            nativeState.connections[k] = nil
+                        end
+                        local clone = nativeState.clone_char
+                        local realChar = nativeState.real_char
+                        if realChar and realChar.Parent then
+                            local realHum = realChar:FindFirstChildOfClass("Humanoid")
+                            local realHRP = realChar:FindFirstChild("HumanoidRootPart")
+                            local cloneHRP = clone and clone:FindFirstChild("HumanoidRootPart")
+                            local restoreCF = (cloneHRP and cloneHRP.CFrame) or (realHRP and realHRP.CFrame)
+                            if realHRP and restoreCF then
+                                markIntentionalTeleport(restoreCF)
+                                realHRP.CFrame = restoreCF
+                                realHRP.AssemblyLinearVelocity = Vector3.zero
+                                realHRP.AssemblyAngularVelocity = Vector3.zero
+                            end
+                            for _, desc in ipairs(realChar:GetDescendants()) do
+                                if desc:IsA("Motor6D") or desc:IsA("Weld") or desc:IsA("WeldConstraint") then
+                                    pcall(function() desc.Enabled = true end)
+                                elseif desc:IsA("BasePart") then
+                                    pcall(function()
+                                        desc.Massless = false
+                                        desc.CanTouch = true
+                                        desc.CanQuery = true
+                                        desc.LocalTransparencyModifier = 0
+                                        desc.Transparency = (desc.Name == "HumanoidRootPart") and 1 or 0
+                                        desc.AssemblyLinearVelocity = Vector3.zero
+                                        desc.AssemblyAngularVelocity = Vector3.zero
+                                        desc.CanCollide = (desc.Name == "UpperTorso" or desc.Name == "LowerTorso" or desc.Name == "Torso")
+                                    end)
+                                elseif desc:IsA("Decal") then
+                                    pcall(function() desc.Transparency = 0 end)
+                                end
+                            end
+                            local realAnim = realChar:FindFirstChild("Animate")
+                            if realAnim then pcall(function() realAnim.Disabled = false end) end
+                            if realHum then
+                                pcall(function()
+                                    for _, st in ipairs({
+                                        Enum.HumanoidStateType.Dead, Enum.HumanoidStateType.FallingDown,
+                                        Enum.HumanoidStateType.Ragdoll, Enum.HumanoidStateType.GettingUp,
+                                    }) do
+                                        realHum:SetStateEnabled(st, true)
+                                    end
+                                    realHum.AutoRotate = true
+                                    realHum.PlatformStand = false
+                                    realHum.Sit = false
+                                    realHum.RequiresNeck = true
+                                    realHum:ChangeState(Enum.HumanoidStateType.GettingUp)
+                                    realHum:ChangeState(Enum.HumanoidStateType.Running)
+                                end)
+                            end
+                            LocalPlayer.Character = realChar
+                            if workspace.CurrentCamera and realHum then
+                                workspace.CurrentCamera.CameraSubject = realHum
+                            end
+                        end
+                        if clone and clone.Parent then pcall(function() clone:Destroy() end) end
+                        nativeState.clone_char = nil
+                        nativeState.real_char = nil
+                        nativeState.reanimated = false
+                        table.clear(nativeState.defaultC0)
+                        if WeldIntent and WeldIntent.active and WeldIntent.presetKey and WeldIntent.target then
+                            task.defer(function()
+                                pcall(function() applyWeldPreset(WeldIntent.presetKey, WeldIntent.target) end)
+                            end)
+                        end
+                    end
+                end)
+
+                nativeState.is_processing = false
+                if not ok then warn("[Coca Reanim Native] Error:", err) end
+                return nativeState.reanimated
+            end
+
+            function nativeApi.play_animation(animPath, spd)
+                nativeState.currentSpeed = tonumber(spd) or nativeState.currentSpeed or 1.0
+                if not nativeState.reanimated then
+                    nativeApi.reanimate(true)
+                end
+                stopNativeAnimationInternal(true)
+                local cloneChar = nativeApi.get_clone()
+                if not cloneChar then return "No character available" end
+                local cloneHum = cloneChar:FindFirstChildOfClass("Humanoid")
+
+                local rawStr = tostring(animPath or "")
+                -- 1. Built-in procedural preset ("builtin://Name")
+                if rawStr:sub(1, 10) == "builtin://" then
+                    local pName = rawStr:sub(11)
+                    playProceduralPresetOnClone(pName, cloneChar)
+                    for _, cb in ipairs(nativeState.playListeners) do pcall(cb, animPath) end
+                    return true
+                end
+
+                -- 2. Direct Roblox Animation Asset ID ("rbxassetid://12345" or numeric digits)
+                local assetDigits = rawStr:match("^rbxassetid://(%d+)$") or rawStr:match("^(%d+)$")
+                if assetDigits and cloneHum then
+                    local okTrack = pcall(function()
+                        local animator = cloneHum:FindFirstChildOfClass("Animator") or Instance.new("Animator", cloneHum)
+                        local animObj = Instance.new("Animation")
+                        animObj.AnimationId = "rbxassetid://" .. assetDigits
+                        local tr = animator:LoadAnimation(animObj)
+                        tr.Priority = Enum.AnimationPriority.Action4
+                        tr.Looped = true
+                        tr:Play(0.05, 1, nativeState.currentSpeed)
+                        nativeState.activeTrack = tr
+                        nativeState.activeAnimObj = animObj
+                    end)
+                    if okTrack and nativeState.activeTrack then
+                        for _, cb in ipairs(nativeState.playListeners) do pcall(cb, animPath) end
+                        return true
+                    end
+                end
+
+                -- 3. External URL or local cached file or Lua keyframe source string
+                local luaSource = nativeState.animCache[rawStr]
+                if not luaSource then
+                    if rawStr:sub(1, 4) == "http" then
+                        local okHttp, res = pcall(function() return game:HttpGet(rawStr) end)
+                        if okHttp and type(res) == "string" and #res > 10 then
+                            luaSource = res
+                            nativeState.animCache[rawStr] = res
+                        end
+                    elseif type(isfile) == "function" and type(readfile) == "function" then
+                        local okF, ex = pcall(isfile, rawStr)
+                        if okF and ex then
+                            local okR, content = pcall(readfile, rawStr)
+                            if okR and type(content) == "string" and #content > 10 then
+                                luaSource = content
+                            end
+                        end
+                    end
+                    if not luaSource and (#rawStr > 25 and (rawStr:find("CFrame") or rawStr:find("Keyframes") or rawStr:find("return"))) then
+                        luaSource = rawStr
+                    end
+                end
+
+                if type(luaSource) == "string" and #luaSource > 10 then
+                    local fn = loadstring(luaSource)
+                    if fn then
+                        local okExec, result = pcall(fn)
+                        if okExec and type(result) == "table" then
+                            if playKeyframeTableOnClone(result, cloneChar) then
+                                for _, cb in ipairs(nativeState.playListeners) do pcall(cb, animPath) end
+                                return true
+                            end
+                        elseif okExec then
+                            for _, cb in ipairs(nativeState.playListeners) do pcall(cb, animPath) end
+                            return true
+                        end
+                    end
+                end
+
+                -- 4. Fallback to procedural motion matching the animation's name so every item plays smoothly
+                playProceduralPresetOnClone(rawStr, cloneChar)
+                for _, cb in ipairs(nativeState.playListeners) do pcall(cb, animPath) end
+                return true
+            end
+
+            function nativeApi.stop_animation()
+                return stopNativeAnimationInternal(false)
+            end
+
+            function nativeApi.preload_animation(animPath)
+                local s = tostring(animPath or "")
+                if s:sub(1, 4) == "http" and not nativeState.animCache[s] then
+                    task.spawn(function()
+                        local okHttp, res = pcall(function() return game:HttpGet(s) end)
+                        if okHttp and type(res) == "string" and #res > 10 then
+                            nativeState.animCache[s] = res
+                        end
+                    end)
+                end
+            end
+
+            function nativeApi.set_animation_speed(spd)
+                nativeState.currentSpeed = tonumber(spd) or 1.0
+                if nativeState.activeTrack then
+                    pcall(function() nativeState.activeTrack:AdjustSpeed(nativeState.currentSpeed) end)
+                end
+            end
+
+            function nativeApi.on_animation_play(cb)
+                if type(cb) == "function" then table.insert(nativeState.playListeners, cb) end
+            end
+
+            function nativeApi.on_animation_stop(cb)
+                if type(cb) == "function" then table.insert(nativeState.stopListeners, cb) end
+            end
+
+            return nativeApi
+        end
+
         if type(isfile) == "function" and type(readfile) == "function" then
             local okFile, exists = pcall(isfile, "angoorreanim_module.lua")
             if okFile and exists then
@@ -8701,7 +10775,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                     local fn = loadstring(content)
                     if fn then
                         local okRun, api = pcall(fn)
-                        if okRun and type(api) == "table" then
+                        if okRun and type(api) == "table" and type(api.reanimate) == "function" then
                             return api
                         end
                     end
@@ -8724,116 +10798,24 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                         pcall(writefile, "angoorreanim_module.lua", src)
                     end
                     local okRun, api = pcall(fn)
-                    if okRun and type(api) == "table" then
+                    if okRun and type(api) == "table" and type(api.reanimate) == "function" then
                         return api
                     end
                 end
             end
         end
 
-        -- Safe fallback API table so UI never crashes if offline or module host is unreachable
-        local fallbackReanimated = false
-        local playListeners = {}
-        local stopListeners = {}
-        local currentSpeed = 1.0
-        return {
-            _isFallback = true,
-            is_reanimated = function()
-                return fallbackReanimated
-            end,
-            reanimate = function(state)
-                if state == nil then
-                    fallbackReanimated = not fallbackReanimated
-                else
-                    fallbackReanimated = (state == true)
-                end
-                return true
-            end,
-            play_animation = function(animPath, spd)
-                currentSpeed = spd or currentSpeed
-                for _, cb in ipairs(playListeners) do
-                    pcall(cb, animPath)
-                end
-                return true
-            end,
-            stop_animation = function()
-                for _, cb in ipairs(stopListeners) do
-                    pcall(cb)
-                end
-                return true
-            end,
-            preload_animation = function(_) end,
-            set_animation_speed = function(spd)
-                currentSpeed = spd or 1.0
-            end,
-            on_animation_play = function(cb)
-                if type(cb) == "function" then
-                    table.insert(playListeners, cb)
-                end
-            end,
-            on_animation_stop = function(cb)
-                if type(cb) == "function" then
-                    table.insert(stopListeners, cb)
-                end
-            end,
-            get_clone = function()
-                return LocalPlayer and LocalPlayer.Character
-            end,
-            get_real_character = function()
-                return LocalPlayer and LocalPlayer.Character
-            end,
-        }
+        return createNativeReanimEngine()
     end
 
     local zenApi = _G._AngoorZenApi
-    if zenApi and type(zenApi.reanimate) ~= "function" then
+    if zenApi and (type(zenApi.reanimate) ~= "function" or zenApi._isFallback) then
         _G._AngoorZenApi = nil
         zenApi = nil
     end
     if not zenApi then
-        do
-            local fallbackReanimated = false
-            local playListeners = {}
-            local stopListeners = {}
-            local proxySpeed = 1.0
-            zenApi = {
-                _isFallback = true,
-                is_reanimated = function() return fallbackReanimated end,
-                reanimate = function(state)
-                    if state == nil then fallbackReanimated = not fallbackReanimated else fallbackReanimated = (state == true) end
-                    return true
-                end,
-                play_animation = function(animPath, spd)
-                    proxySpeed = spd or proxySpeed
-                    for _, cb in ipairs(playListeners) do pcall(cb, animPath) end
-                    return true
-                end,
-                stop_animation = function()
-                    for _, cb in ipairs(stopListeners) do pcall(cb) end
-                    return true
-                end,
-                preload_animation = function(_) end,
-                set_animation_speed = function(spd) proxySpeed = spd or 1.0 end,
-                on_animation_play = function(cb) if type(cb) == "function" then table.insert(playListeners, cb) end end,
-                on_animation_stop = function(cb) if type(cb) == "function" then table.insert(stopListeners, cb) end end,
-                get_clone = function() return LocalPlayer and LocalPlayer.Character end,
-                get_real_character = function() return LocalPlayer and LocalPlayer.Character end,
-            }
-            _G._AngoorZenApi = zenApi
-            task.spawn(function()
-                local okMod, modRes = pcall(loadReanimModule)
-                if okMod and type(modRes) == "table" and not modRes._isFallback then
-                    for _, cb in ipairs(playListeners) do
-                        if type(modRes.on_animation_play) == "function" then pcall(modRes.on_animation_play, cb) end
-                    end
-                    for _, cb in ipairs(stopListeners) do
-                        if type(modRes.on_animation_stop) == "function" then pcall(modRes.on_animation_stop, cb) end
-                    end
-                    zenApi = modRes
-                    _G._AngoorZenApi = modRes
-                end
-            end)
-        end
+        zenApi = loadReanimModule()
+        _G._AngoorZenApi = zenApi
     end
 
     -- Animation Repository & Cache Configuration (root.73.124 @ PC 8295..8365)
@@ -9012,7 +10994,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
         print("[ANGOOR] loaded " .. tostring(#allAnimations) .. " animations from GitHub Animations repo")
     end
 
-    -- Load cached animations & launch background GitHub refresh
+    -- Load cached animations, seed 48 built-in animations if empty, & launch background GitHub refresh
     if #allAnimations == 0 then
         if type(isfile) == "function" and type(readfile) == "function" then
             local okExists, exists = pcall(isfile, ANIMS_CACHE_FILE)
@@ -9022,6 +11004,29 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                     loadCachedAnimsJson(rawJson)
                 end
             end
+        end
+        if #allAnimations == 0 then
+            local builtinNames = {
+                "Bang", "Face Bang", "Backshots", "Hard Thrust", "Twerk", "Floss Dance",
+                "Helicopter Spin", "Headspin Breakdance", "Levitating Ascend", "Worm Crawl",
+                "Default Dance", "Orange Justice", "Take The L", "billy bounce", "Griddy",
+                "California Girls", "Gangnam Style", "Macarena", "Moonwalk", "Kazotsky Kick",
+                "Distraction Dance", "Smug Dance", "Torture Dance", "Specialist Dance",
+                "Boogie Down", "Electro Shuffle", "Hype", "Swipe It", "Fresh", "Rambunctious",
+                "Tidy", "Scenario", "Laugh It Up", "Zany", "Star Power", "True Heart",
+                "Breakneck", "Infinidab", "Dab", "T-Pose", "Assert Dominance", "Float Idle",
+                "Zombie Walk", "Ninja Run", "Superhero Fly", "Sit Chill", "Lay Down", "Spinning Top"
+            }
+            local seeded = {}
+            for _, bName in ipairs(builtinNames) do
+                table.insert(seeded, {
+                    name = bName,
+                    path = "builtin://" .. bName,
+                    category = "Reanims",
+                })
+            end
+            setSortedAnimations(seeded)
+            mergeSavedCustomAnims()
         end
         task.spawn(fetchGitHubAnimationsAsync)
     end
@@ -10416,7 +12421,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
     limbsPage.CanvasSize = UDim2.new(0, 0, 0, 420)
     limbsPage.Visible = false
     limbsPage.Parent = pagesHolder
-
+    do
     local limbsPad = Instance.new("UIPadding")
     limbsPad.PaddingLeft = UDim.new(0, 2)
     limbsPad.PaddingRight = UDim.new(0, 4)
@@ -10695,9 +12700,10 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
         end
     end
 
-    -- Closure root.73.124.61: Set individual limb group hidden/shown
+    -- Closure root.73.124.61: Set individual limb group hidden/shown (and immediately restore visibility when shown)
     local function setLimbGroupHidden(group, hideBool, skipMasterUpdate, animate)
         if animate == nil then animate = true end
+        local cloneChar = (zenApi and type(zenApi.get_clone) == "function" and zenApi.get_clone()) or (LocalPlayer and LocalPlayer.Character)
         for _, partName in ipairs(group.parts) do
             if hideBool then
                 _G.hiddenBodyParts[partName] = true
@@ -10705,6 +12711,26 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
             else
                 _G.hiddenBodyParts[partName] = nil
                 savedConfig.hiddenLimbs[partName] = nil
+                if cloneChar then
+                    local part = cloneChar:FindFirstChild(partName)
+                    if part and part:IsA("BasePart") and partName ~= "HumanoidRootPart" then
+                        part.LocalTransparencyModifier = 0
+                        part.Transparency = 0
+                    end
+                    if partName == "Head" then
+                        for _, desc in ipairs(cloneChar:GetDescendants()) do
+                            if desc:IsA("Decal") then
+                                desc.Transparency = 0
+                            elseif desc:IsA("Accessory") then
+                                local handle = desc:FindFirstChild("Handle")
+                                if handle and handle:IsA("BasePart") then
+                                    handle.LocalTransparencyModifier = 0
+                                    handle.Transparency = 0
+                                end
+                            end
+                        end
+                    end
+                end
             end
         end
         saveConfig()
@@ -10836,13 +12862,12 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
         updateMasterLimbSwitch(false)
     end
 
-    -- Closure root.73.124.67: RenderStepped Limb Hider on Reanim Clone (throttled Head accessory scan)
+    -- Closure root.73.124.67: RenderStepped Limb Hider on Reanim Clone & Character (throttled Head accessory scan)
     do
         local lastHeadDescScan = 0
         RunService.RenderStepped:Connect(function()
-            if not zenApi or zenApi._isFallback or type(zenApi.get_clone) ~= "function" then return end
             if not _G.hiddenBodyParts or next(_G.hiddenBodyParts) == nil then return end
-            local cloneChar = zenApi.get_clone()
+            local cloneChar = (zenApi and type(zenApi.get_clone) == "function" and zenApi.get_clone()) or (LocalPlayer and LocalPlayer.Character)
             if not cloneChar then return end
 
             local now = os.clock()
@@ -10882,6 +12907,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
     end
 
     limbsPage.CanvasSize = UDim2.new(0, 0, 0, (#LIMB_GROUPS * 56) + 80)
+    end
 
     -- ========================================================================
     -- ANIMATION LIST POPULATOR & PLAYBACK ENGINE (root.73.124.68 .. 72)
@@ -10891,11 +12917,20 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
     local selectedAnimName   = nil
     local renderedRowMap     = {}
 
-    -- Closure root.73.124.68: Play or toggle an animation entry
+    -- Closure root.73.124.68: Play or toggle an animation entry (auto-enables Reanimation if needed)
     local function playOrToggleAnimation(animEntry)
         local reanimated = false
         if zenApi and type(zenApi.is_reanimated) == "function" then
             pcall(function() reanimated = zenApi.is_reanimated() end)
+        end
+        if not reanimated and zenApi and type(zenApi.reanimate) == "function" then
+            pcall(function()
+                zenApi.reanimate(true)
+                reanimated = zenApi.is_reanimated()
+            end)
+            if type(updateReanimBtnVisual) == "function" then
+                pcall(updateReanimBtnVisual)
+            end
         end
         if not reanimated then
             warn("Coca Reanim: Enable Reanimation first to play animations!")
@@ -11551,17 +13586,18 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
         local offsetZ = (modeKey == "face") and -1.5 or 1.5
         local yawDeg  = (modeKey == "face") and 180 or 0
 
-        if selectedBangAnim and selectedBangAnim.path then
-            task.spawn(function()
-                pcall(function()
-                    if not zenApi.is_reanimated() then
-                        zenApi.reanimate(true)
+        task.spawn(function()
+            pcall(function()
+                if not zenApi.is_reanimated() then
+                    zenApi.reanimate(true)
+                    if type(updateReanimBtnVisual) == "function" then
                         updateReanimBtnVisual()
                     end
-                    zenApi.play_animation(selectedBangAnim.path, currentSpeed)
-                end)
+                end
+                local bangPath = (selectedBangAnim and selectedBangAnim.path) or ((modeKey == "face") and "builtin://Face Bang" or "builtin://Backshots")
+                zenApi.play_animation(bangPath, currentSpeed)
             end)
-        end
+        end)
 
         local function collectLocalRoots()
             local list = {}
@@ -12028,6 +14064,7 @@ end
 --     ±10,000,000 X and ±25,000,000 Z across Ground, Sky Dome, or 4-Tier Cube Matrix.
 -- ═══════════════════════════════════════════════════════════════════════════════
 local CocaSkyDestroyer = {}
+_G.CocaSkyDestroyer = CocaSkyDestroyer
 ;(function()
     _G._HaloCoverGroundActive     = false
     _G._HaloCoverSkyActive        = false
@@ -12039,14 +14076,22 @@ local CocaSkyDestroyer = {}
     _G._HaloCoverCubeSpacing      = 0.5   -- vertical gap between cube tiers (0.1 to 150)
     _G._HaloCoverFlashSpeed       = 0.08  -- strobe interval in seconds (0.02 to 0.5)
 
-    -- Integrated Eternity V1 + Coca Sky Destroyer Deformation Matrices
+    -- Integrated Eternity V1 + Coca Sky Destroyer Full 15-Limb R15/R6 Deformation Matrices
+    -- Includes all Upper/Lower Arm & Hand and Upper/Lower Leg & Foot segments so EVERY 3D Layered Clothing item
+    -- (Jackets, Hoodies, Sweaters, Shirts, Pants, Shoes, Full Suits, and Glitch Walker Body) stretches across the entire map!
     local GroundMatrix = {
         Head          = Vector3.new(101, 0, -2152),
         UpperTorso    = Vector3.new(101, 0, -2150002),
         LowerTorso    = Vector3.new(101, 0, -2150002),
         Torso         = Vector3.new(101, 0, -2150002),
-        RightUpperArm = Vector3.new(999999, 0, 0),
-        ["Right Arm"] = Vector3.new(999999, 0, 0),
+        LeftUpperArm  = Vector3.new(-10000000, 0, 25000000),
+        LeftLowerArm  = Vector3.new(-10000000, 0, -25000000),
+        LeftHand      = Vector3.new(-10000000, 0, -25000000),
+        ["Left Arm"]  = Vector3.new(-10000000, 0, 25000000),
+        RightUpperArm = Vector3.new(10000000, 0, 25000000),
+        RightLowerArm = Vector3.new(10000000, 0, -25000000),
+        RightHand     = Vector3.new(10000000, 0, -25000000),
+        ["Right Arm"] = Vector3.new(10000000, 0, 25000000),
         LeftUpperLeg  = Vector3.new(-10000000, 0, 25000000),
         LeftLowerLeg  = Vector3.new(-10000000, 0, -25000000),
         LeftFoot      = Vector3.new(-10000000, 0, -25000000),
@@ -12062,8 +14107,14 @@ local CocaSkyDestroyer = {}
         UpperTorso    = Vector3.new(101, 15, -2150002),
         LowerTorso    = Vector3.new(101, -3.2, -2150002),
         Torso         = Vector3.new(101, 15, -2150002),
-        RightUpperArm = Vector3.new(999999, 0, 0),
-        ["Right Arm"] = Vector3.new(999999, 0, 0),
+        LeftUpperArm  = Vector3.new(-10000000, 15, 25000000),
+        LeftLowerArm  = Vector3.new(-10000000, 15, -25000000),
+        LeftHand      = Vector3.new(-10000000, 0, -25000000),
+        ["Left Arm"]  = Vector3.new(-10000000, 15, 25000000),
+        RightUpperArm = Vector3.new(10000000, 15, 25000000),
+        RightLowerArm = Vector3.new(10000000, 15, -25000000),
+        RightHand     = Vector3.new(10000000, 0, -25000000),
+        ["Right Arm"] = Vector3.new(10000000, 15, 25000000),
         LeftUpperLeg  = Vector3.new(-10000000, 15, 25000000),
         LeftLowerLeg  = Vector3.new(-10000000, 15, -25000000),
         LeftFoot      = Vector3.new(-10000000, 0, -25000000),
@@ -12307,7 +14358,14 @@ local CocaSkyDestroyer = {}
                 local cloneHum = cloneChar:FindFirstChildOfClass("Humanoid")
                 ReanimState.real_char = realChar
                 ReanimState.clone_char = cloneChar
-                setCharacterTransparency(cloneChar, 1)
+                -- Strip WrapLayer from cloneChar so cloneChar doesn't stretch locally, and keep cloneChar visible so you can see where you walk!
+                for _, desc in ipairs(cloneChar:GetDescendants()) do
+                    if desc:IsA("WrapLayer") or desc:IsA("WrapTarget") then
+                        pcall(function() desc:Destroy() end)
+                    elseif desc:IsA("BasePart") then
+                        desc.Transparency = (desc.Name == "HumanoidRootPart") and 1 or 0.35
+                    end
+                end
 
                 local physProps = PhysicalProperties.new(0.001, 0, 0, 0, 0)
                 for _, part in ipairs(realChar:GetDescendants()) do
@@ -12333,18 +14391,22 @@ local CocaSkyDestroyer = {}
                     end
                 end
 
+                -- CRITICAL FIX FOR 3D LAYERED CLOTHING:
+                -- Keep AccessoryWeld ENABLED on any Accessory that has a WrapLayer (3D Layered Clothing) so Roblox's
+                -- skinned cage engine stretches the clothing across the deformed R15 limbs! Only detach rigid non-WrapLayer accessories.
                 for _, acc in ipairs(realChar:GetDescendants()) do
                     if acc:IsA("Accessory") then
+                        local hasWrapLayer = acc:FindFirstChildWhichIsA("WrapLayer", true) ~= nil
                         local realHandle = acc:FindFirstChild("Handle")
                         local cloneAcc = cloneChar:FindFirstChild(acc.Name)
                         local fakeHandle = cloneAcc and cloneAcc:FindFirstChild("Handle")
-                        if realHandle and fakeHandle and realHandle:IsA("BasePart") and fakeHandle:IsA("BasePart") then
+                        if not hasWrapLayer and realHandle and fakeHandle and realHandle:IsA("BasePart") and fakeHandle:IsA("BasePart") then
                             for _, joint in ipairs(acc:GetDescendants()) do
                                 if joint:IsA("Weld") or joint:IsA("WeldConstraint") or joint:IsA("Motor6D") then
                                     joint.Enabled = false
                                 end
                             end
-                            table.insert(limbPairs, { name = acc.Name, real = realHandle, fake = fakeHandle })
+                            table.insert(limbPairs, { name = acc.Name, real = realHandle, fake = fakeHandle, isRigidAcc = true })
                         end
                     end
                 end
@@ -12444,16 +14506,21 @@ local CocaSkyDestroyer = {}
                         if real_ and fake_ and real_.Parent and fake_.Parent then
                             real_.Anchored = false
                             real_.CanCollide = false
+                            local tNow = os.clock()
+                            local netlessVel = Vector3.new(0, 25.05, 0) + Vector3.new(math.sin(tNow * 30) * 0.02, 0, math.cos(tNow * 30) * 0.02)
                             local targetVec = computeSkyDestroyerPosition(pair.name, groundY, skyY, useGround, useSky, useCubes)
                             if targetVec then
                                 real_.CFrame = CFrame.new(targetVec)
-                                real_.AssemblyLinearVelocity = Vector3.zero
+                                real_.AssemblyLinearVelocity = netlessVel
                                 real_.AssemblyAngularVelocity = Vector3.zero
                             else
                                 real_.CFrame = fake_.CFrame
                                 local v = fake_.AssemblyLinearVelocity or linVel
-                                real_.AssemblyLinearVelocity = (v.Magnitude > 0.05 and v) or Vector3.new(0, -0.01, 0)
+                                real_.AssemblyLinearVelocity = (v.Magnitude > 0.05 and (v + Vector3.new(0, 25.05, 0))) or netlessVel
                                 real_.AssemblyAngularVelocity = fake_.AssemblyAngularVelocity or angVel
+                            end
+                            if sethiddenproperty then
+                                pcall(sethiddenproperty, real_, "NetworkIsSleeping", false)
                             end
                         end
                     end
@@ -12588,23 +14655,25 @@ local CocaSkyDestroyer = {}
 
     local function ensureReanimated()
         if isTransitioning then
-            while isTransitioning do task.wait(0.05) end
+            while isTransitioning do task.wait(0.02) end
             return
         end
         if not CocaSkyDestroyer.is_reanimated() then
             isTransitioning = true
+            if _G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated) == "function" and _G._AngoorZenApi.is_reanimated() then
+                pcall(function() _G._AngoorZenApi.reanimate(false) end)
+            end
             if CocaSkyDestroyer.engineMode == "EternityV1" and CocaSkyDestroyer.EternityAPI then
                 CocaSkyDestroyer.EternityAPI.reanimate(true)
             else
                 CocaSkyDestroyer.reanimate(true)
             end
-            task.wait(0.15)
             isTransitioning = false
         end
     end
 
     local function checkAndStopReanimation()
-        task.wait(0.05)
+        task.wait(0.03)
         if not _G._HaloCoverGroundActive
             and not _G._HaloCoverSkyActive
             and not _G._HaloCoverCubeMatrixActive
@@ -12647,8 +14716,8 @@ local CocaSkyDestroyer = {}
         if elevation ~= nil then _G._HaloCoverGroundHeight = elevation end
         task.spawn(function()
             if enabled then
-                ensureReanimated()
                 _G._HaloCoverGroundActive = true
+                ensureReanimated()
                 notify("💥 COCA SKY DESTROYER", "Cover Ground ACTIVE! (Reanimated)")
                 sToggleOn()
             else
@@ -12666,8 +14735,8 @@ local CocaSkyDestroyer = {}
         if elevation ~= nil then _G._HaloCoverSkyHeight = elevation end
         task.spawn(function()
             if enabled then
-                ensureReanimated()
                 _G._HaloCoverSkyActive = true
+                ensureReanimated()
                 notify("💥 COCA SKY DESTROYER", "Cover Sky Dome ACTIVE! (Reanimated)")
                 sToggleOn()
             else
@@ -12685,8 +14754,8 @@ local CocaSkyDestroyer = {}
         if spacing ~= nil then _G._HaloCoverCubeSpacing = spacing end
         task.spawn(function()
             if enabled then
-                ensureReanimated()
                 _G._HaloCoverCubeMatrixActive = true
+                ensureReanimated()
                 notify("💥 COCA SKY DESTROYER", "4-Tier Cube / Box Matrix ACTIVE! (Reanimated)")
                 sToggleOn()
             else
@@ -12704,8 +14773,8 @@ local CocaSkyDestroyer = {}
         if speed ~= nil then _G._HaloCoverFlashSpeed = speed end
         task.spawn(function()
             if enabled then
-                ensureReanimated()
                 startFlashLoop()
+                ensureReanimated()
                 notify("💥 COCA SKY DESTROYER", "Cover Flash Strobe ACTIVE!")
                 sToggleOn()
             else
@@ -12721,9 +14790,9 @@ local CocaSkyDestroyer = {}
 
     function _G.startSkyDestroyer()
         task.spawn(function()
-            ensureReanimated()
             _G._HaloCoverGroundActive = true
             _G._HaloCoverSkyActive = true
+            ensureReanimated()
             if CocaSkyDestroyer.syncUIFn then pcall(CocaSkyDestroyer.syncUIFn) end
             if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
             notify("💥 COCA SKY DESTROYER", "Sky + Ground Destroyer ACTIVE!")
@@ -12833,7 +14902,11 @@ local CocaSkyDestroyer = {}
                 EternityReanimState.clone_char = cloneChar
 
                 for _, desc in ipairs(cloneChar:GetDescendants()) do
-                    if desc:IsA("BasePart") then desc.Transparency = 1 end
+                    if desc:IsA("WrapLayer") or desc:IsA("WrapTarget") then
+                        pcall(function() desc:Destroy() end)
+                    elseif desc:IsA("BasePart") then
+                        desc.Transparency = (desc.Name == "HumanoidRootPart") and 1 or 0.35
+                    end
                 end
 
                 local limbPairs = {}
@@ -12871,44 +14944,55 @@ local CocaSkyDestroyer = {}
                 for _, desc in ipairs(realChar:GetDescendants()) do
                     if desc:IsA("Motor6D") then desc.Enabled = false end
                 end
+                pcall(function()
+                    settings().Physics.PhysicsEnvironmentalThrottle = Enum.EnviromentalPhysicsThrottle.Disabled
+                    settings().Physics.AllowSleep = false
+                    if sethiddenproperty then
+                        sethiddenproperty(LP, "SimulationRadius", 1000)
+                        sethiddenproperty(LP, "MaxSimulationRadius", 1000)
+                    end
+                end)
 
-                EternityReanimState.connections.stepped = RunService.Stepped:Connect(function()
+                local function applyEternityStep(isHeartbeat)
                     if not (realChar.Parent and cloneChar.Parent) then return end
+                    if realHum.Parent then pcall(function() realHum:ChangeState(Enum.HumanoidStateType.Physics) end) end
                     local groundY, skyY, useGround, useSky, useCubes = sampleEnvironmentState(realChar, cloneChar)
+                    local tNow = os.clock()
+                    local netlessVel = Vector3.new(0, 25.05, 0) + Vector3.new(math.sin(tNow * 30) * 0.02, 0, math.cos(tNow * 30) * 0.02)
                     for _, pair in ipairs(limbPairs) do
                         local real_, fake_ = pair.real, pair.fake
                         if real_ and fake_ and real_.Parent and fake_.Parent then
                             real_.CanCollide = false
-                            local targetVec = nil
-                            if pair.name ~= "HumanoidRootPart" then
-                                if useCubes then
-                                    targetVec = getCubeVector(pair.name, groundY, _G._HaloCoverCubeSpacing)
-                                elseif useGround and useSky then
-                                    if pair.name == "LowerTorso" then
-                                        targetVec = Vector3.new(101, groundY + (skyY - groundY) * 0.5, -25000000)
-                                    elseif pair.name:find("Leg") then
-                                        targetVec = getGroundVector(pair.name, groundY)
-                                    else
-                                        targetVec = getSkyVector(pair.name, skyY)
-                                    end
-                                elseif useGround then
-                                    targetVec = getGroundVector(pair.name, groundY)
-                                elseif useSky then
-                                    targetVec = getSkyVector(pair.name, skyY)
-                                end
-                            end
-
+                            local targetVec = computeSkyDestroyerPosition(pair.name, groundY, skyY, useGround, useSky, useCubes)
                             if targetVec then
                                 real_.CFrame = CFrame.new(targetVec)
-                                real_.AssemblyLinearVelocity = Vector3.zero
-                                real_.AssemblyAngularVelocity = Vector3.zero
                             else
                                 real_.CFrame = fake_.CFrame
-                                real_.AssemblyLinearVelocity = Vector3.zero
+                            end
+                            if isHeartbeat then
+                                real_.Anchored = false
+                                real_.AssemblyLinearVelocity = netlessVel
                                 real_.AssemblyAngularVelocity = Vector3.zero
+                                if sethiddenproperty then
+                                    pcall(sethiddenproperty, real_, "NetworkIsSleeping", false)
+                                end
                             end
                         end
                     end
+                end
+
+                EternityReanimState.connections.stepped = RunService.Stepped:Connect(function()
+                    applyEternityStep(false)
+                end)
+                EternityReanimState.connections.hb = RunService.Heartbeat:Connect(function()
+                    if not (realChar.Parent and cloneChar.Parent) then
+                        SkyDestroyerAPI.reanimate(false)
+                        return
+                    end
+                    applyEternityStep(true)
+                end)
+                EternityReanimState.connections.render = RunService.RenderStepped:Connect(function()
+                    applyEternityStep(false)
                 end)
 
                 EternityReanimState.reanimated = true
@@ -14062,6 +16146,7 @@ local function buildMainUI()
             showCategory("Weld & Troll")
         end
     end
+    OwnerAdminState.syncAdminTabVisibility = UI.syncAdminTabVisibility
 
     -- Populate Top Segmented Quick-Tab Bar Buttons now that showCategory is defined
     for idx, item in ipairs(QUICK_TABS) do
@@ -14552,7 +16637,6 @@ local function buildMainUI()
     local refreshCard
     local refreshList
     local chatStopFn
-    local syncAllAntiButtons
     local togglePresetOrAction
     local addFloatingPill
     local removeFloatingPill
@@ -19994,10 +22078,533 @@ local function buildMainUI()
         )
 
         -- ═══════════════════════════════════════════════════════════════════════
+        -- NEW V36.8 ADMIN COMMAND DECKS (ALL 8 EXPANSION SYSTEMS)
+        -- ═══════════════════════════════════════════════════════════════════════
+        do
+            -- 1 & 2. PUPPETEER ARMY & COORDINATED SWARM FORMATIONS
+            createSectionTitle(adminPage, 10, "Puppeteer Army, Swarm Formations & Remote Sky Destroyer")
+            local squadGrp = createGroupCard(adminPage, 11)
+
+            createSwitchRow(
+                squadGrp,
+                1,
+                "Force Puppeteer Army (Mirror My Animations)",
+                "Locks all Coco Powder users' Animation Copy onto you with 0.00ms latency",
+                OwnerAdminState.puppetModeActive,
+                function(st)
+                    if not hasAdminAccess(LP) then
+                        notify("🔒 ACCESS DENIED", "Only Owner & Premium Users can use Puppeteer Army!")
+                        sError()
+                        return
+                    end
+                    OwnerAdminState.puppetModeActive = st
+                    if st then
+                        broadcastOwnerAdminCommand(142, nil, "cppuppet")
+                        if OwnerAdminState.sendChatPacketOnCommand then
+                            pcall(function() snd2("!cppuppet all " .. LP.Name) end)
+                        end
+                        notify("🎭 PUPPETEER ARMY ON", "All Coco Powder users are now mirroring your animations!")
+                        sSuccess()
+                    else
+                        broadcastOwnerAdminCommand(143, nil, "cpunpuppet")
+                        notify("🎭 PUPPETEER ARMY OFF", "Released Animation Puppeteer lock on all users!")
+                        sToggleOff()
+                    end
+                end
+            )
+
+            createActionRow(
+                squadGrp,
+                2,
+                "Puppeteer Locked Target Only",
+                "Tap [Puppet 🎯] to make locked target mirror you · Tap [⏹] to release target",
+                "Puppet 🎯",
+                function()
+                    if not hasAdminAccess(LP) then return end
+                    local tgt = resolveActiveTarget()
+                    if not tgt then notify("🎭 PUPPETEER", "Lock a target player first!"); sError(); return end
+                    broadcastOwnerAdminCommand(142, tgt, "cppuppet")
+                    notify("🎭 PUPPET TARGET", "@" .. tgt.Name .. " is now mirroring your animations!")
+                    sSuccess()
+                end,
+                function()
+                    if not hasAdminAccess(LP) then return end
+                    local tgt = resolveActiveTarget()
+                    broadcastOwnerAdminCommand(143, tgt, "cpunpuppet")
+                    notify("🎭 PUPPET RELEASED", "Released Puppeteer lock!")
+                    sToggleOff()
+                end,
+                "⏹"
+            )
+
+            local formStyles = {
+                { name = "Ring Orbit",     code = 152, key = "ring" },
+                { name = "Bodyguard Wall", code = 153, key = "wall" },
+                { name = "V-Squad Wing",   code = 154, key = "vwings" },
+                { name = "Line Rank",      code = 155, key = "line" },
+            }
+            createActionRow(
+                squadGrp,
+                3,
+                "Deploy Coordinated Squad Formation Around Me",
+                "Tap pill to deploy current formation · Tap [↻] to cycle Ring / Wall / V-Wing / Line",
+                formStyles[OwnerAdminState.formationStyleIdx or 1].name,
+                function(pillBtn)
+                    if not hasAdminAccess(LP) then return end
+                    local st = formStyles[OwnerAdminState.formationStyleIdx or 1]
+                    pillBtn.Text = st.name
+                    broadcastOwnerAdminCommand(st.code, nil, "cpform")
+                    if OwnerAdminState.sendChatPacketOnCommand then
+                        pcall(function() snd2("!cpform all " .. st.key .. ":" .. LP.Name) end)
+                    end
+                    notify("🛸 FORMATION DEPLOYED", "Deployed [" .. st.name .. "] around you for all Coco Users!")
+                    sWhoosh()
+                end,
+                function(_, pillBtn)
+                    OwnerAdminState.formationStyleIdx = ((OwnerAdminState.formationStyleIdx or 1) % #formStyles) + 1
+                    local st = formStyles[OwnerAdminState.formationStyleIdx]
+                    if pillBtn then pillBtn.Text = st.name end
+                    notify("🛸 FORMATION STYLE", "Selected formation: " .. st.name)
+                end,
+                "↻"
+            )
+
+            createActionRow(
+                squadGrp,
+                4,
+                "Swarm Locked Target / Disband Formation",
+                "Tap [Swarm 🎯] to orbit/surround locked target · Tap [⏹] to disband squad",
+                "Swarm 🎯",
+                function()
+                    if not hasAdminAccess(LP) then return end
+                    local tgt = resolveActiveTarget()
+                    if not tgt then notify("🛸 SWARM TARGET", "Lock a target player first!"); sError(); return end
+                    local st = formStyles[OwnerAdminState.formationStyleIdx or 1]
+                    broadcastOwnerAdminCommand(st.code, nil, nil)
+                    pcall(function() snd2("!cpform all " .. st.key .. ":" .. tgt.Name) end)
+                    notify("🛸 SWARMING TARGET", "Commanded all Coco Users to surround @" .. tgt.Name .. " (" .. st.name .. ")!")
+                    sWhoosh()
+                end,
+                function()
+                    if not hasAdminAccess(LP) then return end
+                    OwnerAdminState.stopAdminFormation()
+                    broadcastOwnerAdminCommand(156, nil, "cpunform")
+                    notify("🛸 SQUAD DISBANDED", "Disbanded all active squad formations!")
+                    sToggleOff()
+                end,
+                "⏹"
+            )
+
+            -- 3. REMOTE SKY DESTROYER TRIGGER
+            createActionRow(
+                squadGrp,
+                5,
+                "Remote Sky + Ground Destroyer (All / Target)",
+                "Remotely triggers 3D Layered Clothing Sky + Ground Destroyer on Coco Users",
+                "SkyAll 💥",
+                function()
+                    if not hasAdminAccess(LP) then return end
+                    broadcastOwnerAdminCommand(162, nil, "cpskydestroy")
+                    notify("💥 REMOTE SKY DESTROYER", "Activated Full Sky + Ground Destroyer on all Coco Users!")
+                    sSuccess()
+                end,
+                function()
+                    if not hasAdminAccess(LP) then return end
+                    local tgt = resolveActiveTarget()
+                    if not tgt then notify("💥 REMOTE SKY DESTROYER", "Lock a target player first!"); sError(); return end
+                    broadcastOwnerAdminCommand(162, tgt, "cpskydestroy")
+                    notify("💥 REMOTE SKY DESTROYER", "Activated Sky Destroyer on @" .. tgt.Name .. "!")
+                    sSuccess()
+                end,
+                "🎯"
+            )
+
+            createActionRow(
+                squadGrp,
+                6,
+                "Remote 4-Tier Cube Matrix / Stop Remote Sky Destroyer",
+                "Tap [Cube All] for 4-Tier Cube Matrix on all users · Tap [⏹] to stop all",
+                "Cube All",
+                function()
+                    if not hasAdminAccess(LP) then return end
+                    broadcastOwnerAdminCommand(165, nil, "cpskydestroy")
+                    notify("💥 REMOTE CUBE MATRIX", "Activated 4-Tier Cube Matrix on all Coco Users!")
+                    sSuccess()
+                end,
+                function()
+                    if not hasAdminAccess(LP) then return end
+                    broadcastOwnerAdminCommand(166, nil, "cpskystop")
+                    notify("💥 SKY DESTROYER STOPPED", "Stopped Remote Sky Destroyer on all Coco Users!")
+                    sToggleOff()
+                end,
+                "⏹"
+            )
+
+            -- 4 & 5. GROUP CHAT CHOREOGRAPHY & VISUAL PRANK PAYLOADS
+            createSectionTitle(adminPage, 12, "Group Chat Choreography & Visual Prank Payloads")
+            local prankGrp = createGroupCard(adminPage, 13)
+
+            createActionRow(
+                prankGrp,
+                1,
+                "Synchronized 3-2-1-GO Group Countdown",
+                "All Coco Users count down 3... 2... 1... and shout your forced chat message in unison!",
+                "Countdown",
+                function()
+                    if not hasAdminAccess(LP) then return end
+                    broadcastOwnerAdminCommand(172, nil, "cpcountdown")
+                    if OwnerAdminState.sendChatPacketOnCommand then
+                        pcall(function() snd2("!cpcountdown " .. (OwnerAdminState.lastForcedChatMessage or "👑 COCO POWDER ON TOP! ⚡")) end)
+                    end
+                    notify("⏱️ SYNC COUNTDOWN", "Triggered server-wide 3-2-1 countdown across all Coco Users!")
+                    sSuccess()
+                end,
+                function()
+                    if not hasAdminAccess(LP) then return end
+                    broadcastOwnerAdminCommand(173, nil, "cpwavechat")
+                    notify("🌊 WAVE CHAT", "Triggered staggered Mexican Wave chat across all Coco Users!")
+                    sSuccess()
+                end,
+                "🌊"
+            )
+
+            createActionRow(
+                prankGrp,
+                2,
+                "Invert Movement Controls Prank (All / Target)",
+                "Reverses WASD & thumbstick walking directions on target or all script users",
+                "Invert All",
+                function()
+                    if not hasAdminAccess(LP) then return end
+                    broadcastOwnerAdminCommand(182, nil, "cpinvert")
+                    notify("🔄 INVERT CONTROLS", "Toggled Inverted Controls on all Coco Users!")
+                    sSuccess()
+                end,
+                function()
+                    if not hasAdminAccess(LP) then return end
+                    local tgt = resolveActiveTarget()
+                    if not tgt then notify("🔄 INVERT CONTROLS", "Lock a target player first!"); sError(); return end
+                    broadcastOwnerAdminCommand(182, tgt, "cpinvert")
+                    notify("🔄 INVERT CONTROLS", "Toggled Inverted Controls on @" .. tgt.Name .. "!")
+                    sSuccess()
+                end,
+                "🎯"
+            )
+
+            createActionRow(
+                prankGrp,
+                3,
+                "Drunk FOV Wobble & Rainbow Vision (All / Target)",
+                "Oscillates Camera FOV (45°–100°), 3D camera roll & rainbow tint on script users",
+                "Drunk All",
+                function()
+                    if not hasAdminAccess(LP) then return end
+                    broadcastOwnerAdminCommand(183, nil, "cpdrunk")
+                    notify("🥴 DRUNK VISION", "Toggled Drunk Wobble Vision on all Coco Users!")
+                    sWhoosh()
+                end,
+                function()
+                    if not hasAdminAccess(LP) then return end
+                    local tgt = resolveActiveTarget()
+                    if not tgt then notify("🥴 DRUNK VISION", "Lock a target player first!"); sError(); return end
+                    broadcastOwnerAdminCommand(183, tgt, "cpdrunk")
+                    notify("🥴 DRUNK VISION", "Toggled Drunk Wobble Vision on @" .. tgt.Name .. "!")
+                    sWhoosh()
+                end,
+                "🎯"
+            )
+
+            createActionRow(
+                prankGrp,
+                4,
+                "Solar Flashbang Screen Prank (All / Target)",
+                "Detonates a blinding white Solar Flashbang overlay with fade-out on script users",
+                "Flash All",
+                function()
+                    if not hasAdminAccess(LP) then return end
+                    broadcastOwnerAdminCommand(184, nil, "cpflashbang")
+                    notify("⚡ SOLAR FLASHBANG", "Flashbanged all Coco Powder users in the server!")
+                    sSuccess()
+                end,
+                function()
+                    if not hasAdminAccess(LP) then return end
+                    local tgt = resolveActiveTarget()
+                    if not tgt then notify("⚡ SOLAR FLASHBANG", "Lock a target player first!"); sError(); return end
+                    broadcastOwnerAdminCommand(184, tgt, "cpflashbang")
+                    notify("⚡ SOLAR FLASHBANG", "Flashbanged @" .. tgt.Name .. "!")
+                    sSuccess()
+                end,
+                "🎯"
+            )
+
+            createActionRow(
+                prankGrp,
+                5,
+                "Fake Roblox 'Disconnected' Kick Modal (All / Target)",
+                "Displays a realistic Error 267 Disconnected prank popup for 6.5s without kicking",
+                "Fake Kick",
+                function()
+                    if not hasAdminAccess(LP) then return end
+                    broadcastOwnerAdminCommand(185, nil, "cpfakemodal")
+                    notify("🎭 FAKE KICK MODAL", "Displayed Fake Disconnected Modal on all Coco Users!")
+                    sSuccess()
+                end,
+                function()
+                    if not hasAdminAccess(LP) then return end
+                    local tgt = resolveActiveTarget()
+                    if not tgt then notify("🎭 FAKE KICK MODAL", "Lock a target player first!"); sError(); return end
+                    broadcastOwnerAdminCommand(185, tgt, "cpfakemodal")
+                    notify("🎭 FAKE KICK MODAL", "Displayed Fake Disconnected Modal on @" .. tgt.Name .. "!")
+                    sSuccess()
+                end,
+                "🎯"
+            )
+
+            createActionRow(
+                prankGrp,
+                6,
+                "Clear All Visual Pranks & Restore Normal",
+                "Removes Invert, Drunk Wobble, Flashbang, Fake Kick Modal & Blind on all users",
+                "Clear FX",
+                function()
+                    if not hasAdminAccess(LP) then return end
+                    OwnerAdminState.clearAllAdminVisualPranks()
+                    broadcastOwnerAdminCommand(186, nil, "cpclearfx")
+                    notify("✅ ALL FX CLEARED", "Cleared all visual pranks across the server!")
+                    sSuccess()
+                end
+            )
+
+            -- 7 & 8. GLOBAL SERVER WAYPOINTS, VIP SKY LOUNGE & PROTECTED VIP SYNC
+            createSectionTitle(adminPage, 14, "Global Server Waypoint, VIP Sky Lounge & Protected VIP Sync")
+            local wpVipGrp = createGroupCard(adminPage, 15)
+
+            createActionRow(
+                wpVipGrp,
+                1,
+                "Summon ALL Script Users to My Mouse Cursor",
+                "Teleports every Coco User in the server to the exact 3D point your mouse aims at",
+                "Cursor TP",
+                function()
+                    if not hasAdminAccess(LP) then return end
+                    local mouse = LP:GetMouse()
+                    local hitPos = (mouse and mouse.Hit and mouse.Hit.Position) or (LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") and LP.Character.HumanoidRootPart.Position)
+                    if not hitPos then notify("📍 CURSOR SUMMON", "No valid target surface found!"); sError(); return end
+                    local coordStr = string.format("%.1f %.1f %.1f", hitPos.X, hitPos.Y + 3.2, hitPos.Z)
+                    broadcastOwnerAdminCommand(192, nil, nil)
+                    pcall(function() snd2("!cptppos all " .. coordStr) end)
+                    notify("📍 CURSOR SUMMON", "Summoned all Coco Users to (" .. coordStr .. ")!")
+                    sWhoosh()
+                end,
+                function()
+                    if not hasAdminAccess(LP) then return end
+                    local myRoot = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+                    if not myRoot then return end
+                    local wpName = "WP #" .. tostring(#OwnerAdminState.savedWaypoints + 1)
+                    table.insert(OwnerAdminState.savedWaypoints, { name = wpName, cf = myRoot.CFrame })
+                    OwnerAdminState.activeWaypointIdx = #OwnerAdminState.savedWaypoints
+                    notify("📍 WAYPOINT SAVED", string.format("Saved %s at (%.0f, %.0f, %.0f)", wpName, myRoot.Position.X, myRoot.Position.Y, myRoot.Position.Z))
+                    sSuccess()
+                end,
+                "💾"
+            )
+
+            createActionRow(
+                wpVipGrp,
+                2,
+                "Teleport All Users to Saved Waypoint",
+                "Tap [TP Saved] to teleport yourself & all Coco Users to saved waypoint · Tap [↻] to cycle",
+                "TP Saved",
+                function(pillBtn)
+                    if not hasAdminAccess(LP) then return end
+                    local wp = OwnerAdminState.savedWaypoints[OwnerAdminState.activeWaypointIdx or 1]
+                    if not wp then
+                        notify("📍 WAYPOINT", "Tap [💾] on the row above to save a waypoint first!")
+                        sError()
+                        return
+                    end
+                    pillBtn.Text = wp.name
+                    if LP.Character then
+                        markIntentionalTeleport(wp.cf)
+                        safeReturnFromVoid(LP.Character, wp.cf)
+                    end
+                    local p = wp.cf.Position
+                    local coordStr = string.format("%.1f %.1f %.1f", p.X, p.Y, p.Z)
+                    broadcastOwnerAdminCommand(192, nil, nil)
+                    pcall(function() snd2("!cptppos all " .. coordStr) end)
+                    notify("📍 WAYPOINT TELEPORT", "Teleported all Coco Users to " .. wp.name .. "!")
+                    sWhoosh()
+                end,
+                function(_, pillBtn)
+                    if #OwnerAdminState.savedWaypoints == 0 then
+                        notify("📍 WAYPOINT", "No saved waypoints yet — tap [💾] above to save one!")
+                        return
+                    end
+                    OwnerAdminState.activeWaypointIdx = ((OwnerAdminState.activeWaypointIdx or 1) % #OwnerAdminState.savedWaypoints) + 1
+                    local wp = OwnerAdminState.savedWaypoints[OwnerAdminState.activeWaypointIdx]
+                    if pillBtn and wp then pillBtn.Text = wp.name end
+                    notify("📍 WAYPOINT SELECTED", "Active Waypoint: " .. wp.name)
+                end,
+                "↻"
+            )
+
+            createActionRow(
+                wpVipGrp,
+                3,
+                "Spawn VIP Sky Lounge & Summon All (+650 Studs)",
+                "Spawns a glowing neon glass Sky Deck 650 studs up & summons all Coco Users · Tap [⬇] to close",
+                "Sky Lounge",
+                function()
+                    if not hasAdminAccess(LP) then return end
+                    local myRoot = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+                    local refPos = myRoot and myRoot.Position or Vector3.new(0, 50, 0)
+                    OwnerAdminState.spawnOrTeleportToSkyLounge(refPos)
+                    broadcastOwnerAdminCommand(193, nil, "cpskylounge")
+                    notify("🌌 VIP SKY LOUNGE", "Spawned VIP Sky Lounge & summoned all Coco Users!")
+                    sSuccess()
+                end,
+                function()
+                    if not hasAdminAccess(LP) then return end
+                    OwnerAdminState.destroySkyLoungeAndReturn()
+                    broadcastOwnerAdminCommand(194, nil, "cpground")
+                    notify("🌌 SKY LOUNGE CLOSED", "Destroyed Sky Lounge & returned all users to ground!")
+                    sToggleOff()
+                end,
+                "⬇"
+            )
+
+            createActionRow(
+                wpVipGrp,
+                4,
+                "Sync Protected VIP Whitelist to All Script Users",
+                "Broadcasts your Whitelist so no Coco User in the server can fling, void, or bang your VIPs",
+                "Sync VIPs",
+                function()
+                    if not hasAdminAccess(LP) then return end
+                    local ids = { tostring(LP.UserId) }
+                    OwnerAdminState.syncedVipIds[LP.UserId] = true
+                    for uid, ok in pairs(OwnerAdminState.sessionPremiumUsers) do
+                        if ok then
+                            OwnerAdminState.syncedVipIds[uid] = true
+                            table.insert(ids, tostring(uid))
+                        end
+                    end
+                    broadcastOwnerAdminCommand(202, nil, nil)
+                    pcall(function() snd2("!cpvip " .. table.concat(ids, " ")) end)
+                    notify("🛡️ VIP WHITELIST SYNCED", "Protected " .. tostring(#ids) .. " VIP account(s) across all Coco Users!")
+                    sSuccess()
+                end,
+                function()
+                    if not hasAdminAccess(LP) then return end
+                    broadcastOwnerAdminCommand(203, nil, "cpbodyguard")
+                    notify("🛡️ AUTO-BODYGUARD", "Toggled Auto-Bodyguard Retaliation Mode on all Coco Users!")
+                    sSuccess()
+                end,
+                "⚔️"
+            )
+
+            -- 6. LIVE TARGET & SERVER TELEMETRY INSPECTOR CARD
+            createSectionTitle(adminPage, 16, "Live Target & Server Telemetry Inspector")
+            local teleGrp = createGroupCard(adminPage, 17)
+
+            local teleBox = Instance.new("Frame")
+            teleBox.Name = "TelemetryInfoCard"
+            teleBox.Size = UDim2.new(1, 0, 0, 82)
+            teleBox.BackgroundColor3 = T.BG2
+            teleBox.BackgroundTransparency = 0.15
+            teleBox.BorderSizePixel = 0
+            teleBox.LayoutOrder = 1
+            teleBox.ZIndex = 8
+            teleBox.Parent = teleGrp
+            Instance.new("UICorner", teleBox).CornerRadius = UDim.new(0, 10)
+            local teleStroke = Instance.new("UIStroke", teleBox)
+            teleStroke.Color = T.Accent
+            teleStroke.Thickness = 1
+            teleStroke.Transparency = 0.35
+
+            local function makeTeleLine(orderIdx, yPos, col, bold)
+                local lbl = Instance.new("TextLabel")
+                lbl.Size = UDim2.new(1, -20, 0, 16)
+                lbl.Position = UDim2.new(0, 10, 0, yPos)
+                lbl.BackgroundTransparency = 1
+                lbl.Font = bold and Enum.Font.GothamBold or Enum.Font.GothamMedium
+                lbl.TextSize = bold and 10 or 9.5
+                lbl.TextColor3 = col
+                lbl.TextXAlignment = Enum.TextXAlignment.Left
+                lbl.TextTruncate = Enum.TextTruncate.AtEnd
+                lbl.ZIndex = 9
+                lbl.Parent = teleBox
+                return lbl
+            end
+
+            local tLine1 = makeTeleLine(1, 6, T.Neon, true)
+            local tLine2 = makeTeleLine(2, 24, T.Text, false)
+            local tLine3 = makeTeleLine(3, 42, T.Muted, false)
+            local tLine4 = makeTeleLine(4, 60, Color3.fromRGB(56, 224, 255), false)
+
+            local function updateTelemetryCardNow()
+                if not teleBox or not teleBox.Parent then return end
+                local info = OwnerAdminState.collectTargetTelemetry()
+                if info then
+                    tLine1.Text = info.line1
+                    tLine2.Text = info.line2
+                    tLine3.Text = info.line3
+                    tLine4.Text = info.line4
+                end
+            end
+            updateTelemetryCardNow()
+
+            createActionRow(
+                teleGrp,
+                2,
+                "Cycle Inspected Player / Refresh Telemetry",
+                "Tap [Next Player] to inspect next player in server · Tap [🎯] to lock inspected player",
+                "Next Player",
+                function()
+                    local list = Players:GetPlayers()
+                    if #list == 0 then return end
+                    local cur = OwnerAdminState.telemetryTargetPlr or resolveActiveTarget() or LP
+                    local nextIdx = 1
+                    for i, p in ipairs(list) do
+                        if p == cur then
+                            nextIdx = (i % #list) + 1
+                            break
+                        end
+                    end
+                    OwnerAdminState.telemetryTargetPlr = list[nextIdx]
+                    updateTelemetryCardNow()
+                    notify("📊 TELEMETRY", "Inspecting @" .. OwnerAdminState.telemetryTargetPlr.Name)
+                end,
+                function()
+                    local inspected = OwnerAdminState.telemetryTargetPlr
+                    if inspected and inspected ~= LP then
+                        selectedPlayer = inspected
+                        CurrentTarget = inspected
+                        if refreshCard then pcall(refreshCard) end
+                        notify("🎯 TARGET LOCKED", "Locked target onto @" .. inspected.Name .. "!")
+                        sSuccess()
+                    else
+                        updateTelemetryCardNow()
+                    end
+                end,
+                "🎯"
+            )
+
+            task.spawn(function()
+                while teleBox and teleBox.Parent do
+                    if adminPage.Visible and OwnerAdminState.telemetryAutoRefresh then
+                        pcall(updateTelemetryCardNow)
+                    end
+                    task.wait(0.35)
+                end
+            end)
+        end
+
+        -- ═══════════════════════════════════════════════════════════════════════
         -- SECTION 9: 👑 SCRIPT USERS & PLAYERS (Freeze / Ban / Chat / Vanish)
         -- ═══════════════════════════════════════════════════════════════════════
-        createSectionTitle(adminPage, 10, "Script Users & Server Players (Freeze / Chat / Vanish / Prem / Ban)")
-        local adminPlrGrp = createGroupCard(adminPage, 11)
+        createSectionTitle(adminPage, 18, "Script Users & Server Players (Freeze / Chat / Vanish / Prem / Ban)")
+        local adminPlrGrp = createGroupCard(adminPage, 19)
         adminPlrGrp:SetAttribute("DynamicList", true)
         local adminListDirty = true
 
