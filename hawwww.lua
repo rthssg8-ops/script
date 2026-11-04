@@ -660,8 +660,8 @@ do
     end
 end
 
-local Anti, moveState, AnimCopySys, hookTargetRespawn, removeOverheadTagForUser, updateOverheadNameTags, CocaSkyDestroyer
-local recoverCharacterState, safeReturnFromVoid, syncAllActiveIndicators, launchNebulaFling
+local Anti, moveState, AnimCopySys, hookTargetRespawn, removeOverheadTagForUser, updateOverheadNameTags
+local recoverCharacterState, safeReturnFromVoid, syncAllActiveIndicators
 
 local StateManager = {}
 
@@ -983,7 +983,7 @@ end
 do
     local lastSafeSampleTick = 0
     RunService.Heartbeat:Connect(function()
-        if FlingActive or WeldIntent.active or CurrentWeld ~= nil or (AnimCopySys and AnimCopySys.active) or (moveState and moveState.Vanish and moveState.Vanish.selfActive) or _G.CocaBangActive or (CocaSkyDestroyer and (CocaSkyDestroyer.isAnyActive() or CocaSkyDestroyer.is_reanimated())) or (_G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated) == "function" and _G._AngoorZenApi.is_reanimated()) then return end
+        if FlingActive or WeldIntent.active or CurrentWeld ~= nil or (AnimCopySys and AnimCopySys.active) or (moveState and moveState.Vanish and moveState.Vanish.selfActive) or _G.CocaBangActive or (_G.CocaSkyDestroyer and (_G.CocaSkyDestroyer.isAnyActive() or _G.CocaSkyDestroyer.is_reanimated())) or (_G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated) == "function" and _G._AngoorZenApi.is_reanimated()) then return end
         local now = os.clock()
         local inVoidWindow = (Anti and Anti.Void and Anti.Void.enabled) or (tick() - LastVoidActionEnd < 6.0)
         if not inVoidWindow and (now - lastSafeSampleTick < 0.15) then return end
@@ -4648,7 +4648,7 @@ end
 -- 4) Never stops prematurely from small horizontal bumps — continues until the target is
 --    confirmed dead (Health <= 0) or deep in the Void killzone!
 
-local launchVoidThrow, promptNebulaFling
+local launchNebulaFling, launchVoidThrow, promptNebulaFling
 do
 local FlingPartCache = setmetatable({}, { __mode = "k" })
 local HEAVY_PHYS_PROPS = PhysicalProperties.new(100, 0.3, 0.5, 100, 100)
@@ -4693,6 +4693,7 @@ local function restorePartCollisionAndDensity(char, isLocalRam)
 end
 
 launchNebulaFling = function(durationSeconds, modeTitle, isVoidThrow, explicitTarget)
+OwnerAdminState.launchNebulaFling = launchNebulaFling -- bound on first call
     if OwnerAdminState.isFrozenByOwner or OwnerAdminState.isBannedByOwner then
         notify("👑 OWNER LOCK", "You are currently frozen/locked by the Script Owner!")
         sError()
@@ -4977,6 +4978,7 @@ launchVoidThrow = function(explicitTarget, customDuration)
     launchNebulaFling(customDuration or 5.5, "Void Throw v2", true, explicitTarget)
 end
 
+OwnerAdminState.launchNebulaFling = launchNebulaFling
 promptNebulaFling = function()
     local targetPlr, usedNearest = resolveActiveTarget()
     if not targetPlr then
@@ -5749,7 +5751,7 @@ end
 
 local function avForceAlive(h)
     if not h or not h.Parent then return end
-    local isReanimActive = (CocaSkyDestroyer and (CocaSkyDestroyer.isAnyActive() or CocaSkyDestroyer.is_reanimated()))
+    local isReanimActive = (_G.CocaSkyDestroyer and (_G.CocaSkyDestroyer.isAnyActive() or _G.CocaSkyDestroyer.is_reanimated()))
         or (_G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated) == "function" and _G._AngoorZenApi.is_reanimated())
     pcall(function()
         h:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
@@ -5810,7 +5812,7 @@ avStart = function()
         if not Anti.Void.enabled then return end
         local c = LP.Character
         local r = c and c:FindFirstChild("HumanoidRootPart")
-        if not r or FlingActive or deflectBusy or WeldIntent.active or CurrentWeld ~= nil or (AnimCopySys and AnimCopySys.active) or (moveState and moveState.Vanish and moveState.Vanish.selfActive) or _G.CocaBangActive or (CocaSkyDestroyer and CocaSkyDestroyer.isAnyActive()) or (RewindSys and RewindSys.rewinding) then return end
+        if not r or FlingActive or deflectBusy or WeldIntent.active or CurrentWeld ~= nil or (AnimCopySys and AnimCopySys.active) or (moveState and moveState.Vanish and moveState.Vanish.selfActive) or _G.CocaBangActive or (_G.CocaSkyDestroyer and _G.CocaSkyDestroyer.isAnyActive()) or (RewindSys and RewindSys.rewinding) then return end
         local pos = r.Position
         local vel = r.AssemblyLinearVelocity
         local dangerFloor = math.min(OriginalFPDH + 55, -220)
@@ -6438,7 +6440,7 @@ local attackerLastPos = {}
 -- ═══════════════════════════════════════════════════════════════════════════════
 local function ragdollCleanseCharacter(c)
     if not c then return end
-    if (CocaSkyDestroyer and (CocaSkyDestroyer.isAnyActive() or CocaSkyDestroyer.is_reanimated()))
+    if (_G.CocaSkyDestroyer and (_G.CocaSkyDestroyer.isAnyActive() or _G.CocaSkyDestroyer.is_reanimated()))
         or (_G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated) == "function" and _G._AngoorZenApi.is_reanimated()) then
         return
     end
@@ -6496,7 +6498,7 @@ ragdollStart = function()
         ragdollCleanseCharacter(char)
         Anti.Ragdoll.descConn = char.DescendantAdded:Connect(function(obj)
             if not Anti.Ragdoll.enabled then return end
-            if (CocaSkyDestroyer and (CocaSkyDestroyer.isAnyActive() or CocaSkyDestroyer.is_reanimated()))
+            if (_G.CocaSkyDestroyer and (_G.CocaSkyDestroyer.isAnyActive() or _G.CocaSkyDestroyer.is_reanimated()))
                 or (_G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated) == "function" and _G._AngoorZenApi.is_reanimated()) then
                 return
             end
@@ -6838,7 +6840,7 @@ bringStart = function()
     if Anti.Bring.steppedConn then Anti.Bring.steppedConn:Disconnect() end
     Anti.Bring.steppedConn = RunService.Stepped:Connect(function( _, dt )
         if not Anti.Bring.enabled then return end
-        if WeldIntent.active or CurrentWeld ~= nil or (AnimCopySys and AnimCopySys.active) or _G.CocaBangActive or (CocaSkyDestroyer and CocaSkyDestroyer.isAnyActive()) or FlingActive or deflectBusy or (moveState and (moveState.fly or moveState.flyLanding)) or (RewindSys and RewindSys.rewinding) then
+        if WeldIntent.active or CurrentWeld ~= nil or (AnimCopySys and AnimCopySys.active) or _G.CocaBangActive or (_G.CocaSkyDestroyer and _G.CocaSkyDestroyer.isAnyActive()) or FlingActive or deflectBusy or (moveState and (moveState.fly or moveState.flyLanding)) or (RewindSys and RewindSys.rewinding) then
             local ch = LP.Character
             local r = ch and ch:FindFirstChild("HumanoidRootPart")
             if r and isSafePlayableCF(r.CFrame) then Anti.Bring.lastCF = r.CFrame end
@@ -6901,7 +6903,7 @@ flingShieldStart = function()
         if not Anti.FlingShield.enabled and not DefenceTroll.enabled then return end
         local myChar = LP.Character
         local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
-        if WeldIntent.active or CurrentWeld ~= nil or (AnimCopySys and AnimCopySys.active) or _G.CocaBangActive or (CocaSkyDestroyer and CocaSkyDestroyer.isAnyActive()) or FlingActive or deflectBusy or (RewindSys and RewindSys.rewinding) then
+        if WeldIntent.active or CurrentWeld ~= nil or (AnimCopySys and AnimCopySys.active) or _G.CocaBangActive or (_G.CocaSkyDestroyer and _G.CocaSkyDestroyer.isAnyActive()) or FlingActive or deflectBusy or (RewindSys and RewindSys.rewinding) then
             if myRoot and isSafePlayableCF(myRoot.CFrame) then
                 Anti.FlingShield.preStepCF = myRoot.CFrame
             end
@@ -6955,7 +6957,7 @@ flingShieldStart = function()
         local myChar = LP.Character
         local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
         if not myRoot then return end
-        if WeldIntent.active or CurrentWeld ~= nil or (AnimCopySys and AnimCopySys.active) or _G.CocaBangActive or (CocaSkyDestroyer and CocaSkyDestroyer.isAnyActive()) or FlingActive or deflectBusy or (RewindSys and RewindSys.rewinding) then
+        if WeldIntent.active or CurrentWeld ~= nil or (AnimCopySys and AnimCopySys.active) or _G.CocaBangActive or (_G.CocaSkyDestroyer and _G.CocaSkyDestroyer.isAnyActive()) or FlingActive or deflectBusy or (RewindSys and RewindSys.rewinding) then
             if isSafePlayableCF(myRoot.CFrame) then
                 Anti.FlingShield.preStepCF = myRoot.CFrame
             end
@@ -7204,7 +7206,7 @@ RunService.Heartbeat:Connect(function(dt)
     dt = nowClock - lastRadarTick
     lastRadarTick = nowClock
 
-    if WeldIntent.active or CurrentWeld ~= nil or (AnimCopySys and AnimCopySys.active) or _G.CocaBangActive or (EmoteHub and EmoteHub.jerkActive) or (CocaSkyDestroyer and CocaSkyDestroyer.isAnyActive()) or FlingActive or deflectBusy or (tick() - (moveState.lastTeleportTick or 0) < 1.2) then
+    if WeldIntent.active or CurrentWeld ~= nil or (AnimCopySys and AnimCopySys.active) or _G.CocaBangActive or (EmoteHub and EmoteHub.jerkActive) or (_G.CocaSkyDestroyer and _G.CocaSkyDestroyer.isAnyActive()) or FlingActive or deflectBusy or (tick() - (moveState.lastTeleportTick or 0) < 1.2) then
         for _, p in ipairs(Players:GetPlayers()) do
             if p ~= LP and p.Character then
                 local tr = pickTargetRef(p.Character, "torso")
@@ -7768,6 +7770,8 @@ end
 --    • Requires Core priority, Looped=true, and near-zero weight (<= 0.005)
 --    • Ordinary Roblox players will NEVER match this signature!
 -- ═══════════════════════════════════════════════════════════════════════════════
+local maintainLocalScriptBeacon, inspectPlayerBeaconTracks
+do
 local BEACON_ANIM_R15 = "rbxassetid://10714389396"
 local BEACON_ANIM_R6  = "rbxassetid://33796059"
 
@@ -7776,7 +7780,7 @@ local BEACON_SPEED_FROZEN  = 0.429831
 local BEACON_SPEED_PREMIUM = 0.642831
 local BEACON_SPEED_OWNER   = 0.842831
 
-local function maintainLocalScriptBeacon()
+maintainLocalScriptBeacon = function()
     if OwnerAdminState.isBannedByOwner then
         if OwnerAdminState.beaconTrack then
             pcall(function() OwnerAdminState.beaconTrack:Stop(0); OwnerAdminState.beaconTrack:Destroy() end)
@@ -7852,7 +7856,7 @@ local function maintainLocalScriptBeacon()
 end
 
 -- Inspect a player's Animator tracks with strict zero-false-positive multi-signature checks
-local function inspectPlayerBeaconTracks(plr)
+inspectPlayerBeaconTracks = function(plr)
     local ch = plr.Character
     local hum = ch and ch:FindFirstChildOfClass("Humanoid")
     local animator = hum and hum:FindFirstChildOfClass("Animator")
@@ -8232,8 +8236,7 @@ OwnerAdminState.triggerAdminFakeKickModal = function(senderName)
         body.Position = UDim2.new(0, 20, 0, 62)
         body.BackgroundTransparency = 1
         body.TextWrapped = true
-        body.Text = "You were kicked from this experience by @" .. tostring(senderName or "Admin") .. "
-(Error Code: 267 — Just kidding! This is a Coco Powder Admin Prank Modal — auto-closing in 6s)"
+        body.Text = "You were kicked from this experience by @" .. tostring(senderName or "Admin") .. "\n(Error Code: 267 — Just kidding! This is a Coco Powder Admin Prank Modal — auto-closing in 6s)"
         body.TextColor3 = Color3.fromRGB(189, 190, 196)
         body.Font = Enum.Font.GothamMedium
         body.TextSize = 14
@@ -8360,8 +8363,8 @@ OwnerAdminState.toggleAdminBodyguardAutoRetaliate = function(enable, ownerPlr)
                         if dist < 11 and spd > 38 then
                             lastGuardStrike = tick()
                             notify("🛡️ VIP BODYGUARD", "Intercepting hostile player @" .. p.Name .. " near @" .. vipLeader.Name .. "!")
-                            if launchNebulaFling then
-                                pcall(function() launchNebulaFling(2.5, "Bodyguard Intercept", false, p) end)
+                            if OwnerAdminState.launchNebulaFling then
+                                pcall(function() OwnerAdminState.launchNebulaFling(2.5, "Bodyguard Intercept", false, p) end)
                             end
                             break
                         end
@@ -8441,6 +8444,8 @@ OwnerAdminState.collectTargetTelemetry = function(targetPlr)
         line4 = string.format("Local Ping: %d ms  ·  FPS: %d  ·  Executor: %s", pingMs, OwnerAdminState.localFps or 60, execName),
     }
 end
+
+end -- end Beacon constants scope
 
 -- Process incoming Owner / Premium Admin Command (from either Beacon or Chat)
 local function handleIncomingOwnerCommand(senderPlr, cmdType, targetCode, rawTargetName, customMsg)
@@ -11919,7 +11924,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
     limbsPage.CanvasSize = UDim2.new(0, 0, 0, 420)
     limbsPage.Visible = false
     limbsPage.Parent = pagesHolder
-
+    do
     local limbsPad = Instance.new("UIPadding")
     limbsPad.PaddingLeft = UDim.new(0, 2)
     limbsPad.PaddingRight = UDim.new(0, 4)
@@ -12405,6 +12410,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
     end
 
     limbsPage.CanvasSize = UDim2.new(0, 0, 0, (#LIMB_GROUPS * 56) + 80)
+    end
 
     -- ========================================================================
     -- ANIMATION LIST POPULATOR & PLAYBACK ENGINE (root.73.124.68 .. 72)
@@ -13560,7 +13566,8 @@ end
 --   • Reanimates your character locally while stretching real character limbs to
 --     ±10,000,000 X and ±25,000,000 Z across Ground, Sky Dome, or 4-Tier Cube Matrix.
 -- ═══════════════════════════════════════════════════════════════════════════════
-CocaSkyDestroyer = CocaSkyDestroyer or {}
+local CocaSkyDestroyer = {}
+_G.CocaSkyDestroyer = CocaSkyDestroyer
 ;(function()
     _G._HaloCoverGroundActive     = false
     _G._HaloCoverSkyActive        = false
