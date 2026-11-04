@@ -612,23 +612,24 @@ local function isSafePlayableCF(cf)
     if not cf then return false end
     local pos = cf.Position
     if pos.X ~= pos.X or pos.Y ~= pos.Y or pos.Z ~= pos.Z then return false end
-    local voidFloor = math.min(OriginalFPDH + 10, -485)
-    if pos.Y <= voidFloor or pos.Y > 500000 then return false end
-    if pos.Magnitude > 850000 then return false end
+    local voidFloor = math.min(OriginalFPDH + 25, -350)
+    -- Exclude deep void and extreme sky/null-zone pockets (such as Y=85,000 vanish pocket) where meshes render invisible
+    if pos.Y <= voidFloor or pos.Y > 25000 then return false end
+    if pos.Magnitude > 45000 then return false end
     return true
 end
 
--- Distinguish true lethal void freefall from hidden underground rooms, house interiors, custom realms, or skyboxes!
--- Allows attaching in EVERY place in the server (underground bunkers, high skyboxes, distant teleport maps, etc.).
--- A target is ONLY in the lethal void if they are below the extreme void kill plane AND plummeting at terminal speed.
+-- Distinguish true lethal void / null-zone coordinates from playable rooms, underground interiors, or skyboxes
 local function isLethalVoidCF(cf, velocity)
     if not cf then return true end
     local pos = cf.Position
     if pos.X ~= pos.X or pos.Y ~= pos.Y or pos.Z ~= pos.Z then return true end
-    if pos.Magnitude > 950000 then return true end
+    if pos.Magnitude > 85000 or pos.Y > 45000 then return true end
+    local hardFloor = math.min(OriginalFPDH - 10, -520)
+    if pos.Y <= hardFloor then return true end
     local vy = velocity and velocity.Y or 0
-    local killLine = math.min(OriginalFPDH + 2, -495)
-    if pos.Y <= killLine and vy < -135 then return true end
+    local killLine = math.min(OriginalFPDH + 15, -450)
+    if pos.Y <= killLine and vy < -120 then return true end
     return false
 end
 
@@ -685,15 +686,40 @@ function StateManager:ResetPhysics(character)
         root.AssemblyLinearVelocity = Vector3.zero
         root.AssemblyAngularVelocity = Vector3.zero
     end
+    pcall(function() LP.ReplicationFocus = nil end)
     local keepNoclip = (moveState and moveState.noclip) == true
     local keepNoTouch = (Anti and Anti.Kill and Anti.Kill.enabled) == true
+    local isReanimActive = (_G.CocaSkyDestroyer and (_G.CocaSkyDestroyer.isAnyActive() or _G.CocaSkyDestroyer.is_reanimated()))
+        or (_G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated) == "function" and _G._AngoorZenApi.is_reanimated())
+    local hiddenMap = type(_G.hiddenBodyParts) == "table" and _G.hiddenBodyParts or nil
     for _, part in ipairs(character:GetDescendants()) do
         if part:IsA("BasePart") then
+            part.Anchored = false
             part.Massless = false
             part.CanTouch = not keepNoTouch
+            part.CanQuery = true
+            pcall(function() part.CustomPhysicalProperties = nil end)
+            if not isReanimActive and not (moveState and moveState.Vanish and moveState.Vanish.selfActive) then
+                pcall(function() part.LocalTransparencyModifier = 0 end)
+                if part.Name ~= "HumanoidRootPart" and not (hiddenMap and hiddenMap[part.Name]) then
+                    if part.Transparency >= 0.95 and (
+                        part.Name == "Head" or part.Name == "Torso" or part.Name == "UpperTorso" or part.Name == "LowerTorso"
+                        or part.Name:find("Arm") or part.Name:find("Hand") or part.Name:find("Leg") or part.Name:find("Foot")
+                        or part.Name == "Handle"
+                    ) then
+                        pcall(function() part.Transparency = 0 end)
+                    end
+                end
+            end
             if part.Name == "HumanoidRootPart" or part.Name == "Torso" or part.Name == "UpperTorso" or part.Name == "LowerTorso" or part.Name == "Head" then
                 part.CanCollide = not keepNoclip
             end
+        elseif part:IsA("Decal") and not isReanimActive and not (moveState and moveState.Vanish and moveState.Vanish.selfActive) then
+            if part.Name == "face" and part.Transparency >= 0.95 then
+                pcall(function() part.Transparency = 0 end)
+            end
+        elseif part:IsA("Motor6D") and not isReanimActive then
+            pcall(function() part.Enabled = true end)
         end
     end
 end
@@ -704,12 +730,19 @@ function StateManager:StopFling(skipReturn)
     if FlingConn then FlingConn:Disconnect(); FlingConn = nil end
     if self.FlingStepConn then self.FlingStepConn:Disconnect(); self.FlingStepConn = nil end
     if LP.Character then
+        local myRoot = LP.Character:FindFirstChild("HumanoidRootPart")
+        if myRoot and sethiddenproperty then
+            pcall(function() sethiddenproperty(myRoot, "PhysicsRepRootPart", nil) end)
+            pcall(function() sethiddenproperty(myRoot, "PhysicsRepRootRef", nil) end)
+        end
         for _, part in ipairs(LP.Character:GetDescendants()) do
             if part:IsA("BasePart") then
                 pcall(function() part.CustomPhysicalProperties = nil end)
+                pcall(function() part.LocalTransparencyModifier = 0 end)
             end
         end
     end
+    pcall(function() LP.ReplicationFocus = nil end)
     FlingActive = false
     FlingOriginCF = nil
     if FlingSidePanel then FlingSidePanel.Visible = false end
@@ -727,11 +760,26 @@ function StateManager:StopFling(skipReturn)
     if wasActive and not skipReturn and LP.Character then
         LastVoidActionEnd = tick()
         safeReturnFromVoid(LP.Character, savedOrigin)
+    elseif wasActive and skipReturn and LP.Character then
+        self:ResetPhysics(LP.Character)
     end
     if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
 end
 
 function StateManager:Cleanup(keepTarget, switchingWeld)
+    -- Stop conflicting movement/vanish/bang modes first so they never fight a new troll or leave the player invisible
+    if moveState and moveState.Vanish and moveState.Vanish.selfActive then
+        pcall(function() moveState.Vanish:StopSelfVanish(true) end)
+    end
+    if _G.CocaBangActive and type(_G.StopCocaBangLock) == "function" then
+        pcall(_G.StopCocaBangLock)
+    end
+    if RewindSys and RewindSys.rewinding and RewindSys.StopRewind then
+        pcall(function() RewindSys:StopRewind() end)
+    end
+    if moveState and (moveState.fly or moveState.flyLanding) and moveState.stopFlyImmediate then
+        pcall(moveState.stopFlyImmediate)
+    end
     if CurrentWeld then
         pcall(function() CurrentWeld:Destroy(switchingWeld) end)
         CurrentWeld = nil
@@ -742,7 +790,8 @@ function StateManager:Cleanup(keepTarget, switchingWeld)
         pcall(function()
             local currentCam = workspace.CurrentCamera
             if currentCam then
-                currentCam.CameraSubject = OriginalCameraSubject
+                local myHum = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
+                currentCam.CameraSubject = myHum or OriginalCameraSubject
                 currentCam.CameraType = Enum.CameraType.Custom
             end
         end)
@@ -753,6 +802,8 @@ function StateManager:Cleanup(keepTarget, switchingWeld)
         local root = LP.Character:FindFirstChild("HumanoidRootPart")
         if root and not isSafePlayableCF(root.CFrame) then
             safeReturnFromVoid(LP.Character, LastKnownSafeCF)
+        else
+            recoverCharacterState(LP.Character, root and root.CFrame or LastKnownSafeCF)
         end
     end
     if not keepTarget then CurrentTarget = nil end
@@ -868,6 +919,7 @@ recoverCharacterState = function(char, safeCF)
     if not char then return end
     local root = char:FindFirstChild("HumanoidRootPart")
     local hum  = char:FindFirstChildOfClass("Humanoid")
+    pcall(function() LP.ReplicationFocus = nil end)
     if root then
         if sethiddenproperty then
             pcall(function() sethiddenproperty(root, "PhysicsRepRootPart", nil) end)
@@ -894,36 +946,80 @@ recoverCharacterState = function(char, safeCF)
     end
     local keepNoclip = (moveState and moveState.noclip) == true
     local keepNoTouch = (Anti and Anti.Kill and Anti.Kill.enabled) == true
+    local isReanimActive = (_G.CocaSkyDestroyer and (_G.CocaSkyDestroyer.isAnyActive() or _G.CocaSkyDestroyer.is_reanimated()))
+        or (_G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated) == "function" and _G._AngoorZenApi.is_reanimated())
+    local hiddenMap = type(_G.hiddenBodyParts) == "table" and _G.hiddenBodyParts or nil
     for _, part in ipairs(char:GetDescendants()) do
         if part:IsA("BasePart") then
+            part.Anchored = false
             part.Massless = false
             part.CanTouch = not keepNoTouch
+            part.CanQuery = true
+            pcall(function() part.CustomPhysicalProperties = nil end)
+            if not isReanimActive and not (moveState and moveState.Vanish and moveState.Vanish.selfActive) then
+                pcall(function() part.LocalTransparencyModifier = 0 end)
+                if part.Name ~= "HumanoidRootPart" and not (hiddenMap and hiddenMap[part.Name]) then
+                    if part.Transparency >= 0.95 and (
+                        part.Name == "Head" or part.Name == "Torso" or part.Name == "UpperTorso" or part.Name == "LowerTorso"
+                        or part.Name:find("Arm") or part.Name:find("Hand") or part.Name:find("Leg") or part.Name:find("Foot")
+                        or part.Name == "Handle"
+                    ) then
+                        pcall(function() part.Transparency = 0 end)
+                    end
+                end
+            end
             if part.Name == "HumanoidRootPart" or part.Name == "Torso" or part.Name == "UpperTorso" or part.Name == "LowerTorso" or part.Name == "Head" then
                 part.CanCollide = not keepNoclip
             end
+        elseif part:IsA("Decal") and not isReanimActive and not (moveState and moveState.Vanish and moveState.Vanish.selfActive) then
+            if part.Name == "face" and part.Transparency >= 0.95 then
+                pcall(function() part.Transparency = 0 end)
+            end
+        elseif part:IsA("Motor6D") and not isReanimActive then
+            pcall(function()
+                part.Enabled = true
+                part.Transform = CFrame.identity
+            end)
         end
     end
     if moveState and moveState.restoreFlyJoints then
         pcall(function() moveState.restoreFlyJoints(char) end)
     end
-    restoreAnimate(char)
+    -- Always ensure Animate is re-enabled when not actively welded or flying
+    local animate = char:FindFirstChild("Animate")
+    if animate and animate.Disabled and CurrentWeld == nil and not (moveState and (moveState.fly or moveState.flyLanding)) and not isReanimActive then
+        pcall(function() animate.Disabled = false end)
+    end
+    AnimateWasDisabled = false
     stopDefaultTracks(char)
     if hum and hum.Health > 0 then
+        pcall(function() hum:SetStateEnabled(Enum.HumanoidStateType.Running, true) end)
+        pcall(function() hum:SetStateEnabled(Enum.HumanoidStateType.Jumping, true) end)
+        pcall(function() hum:SetStateEnabled(Enum.HumanoidStateType.Freefall, true) end)
+        pcall(function() hum:SetStateEnabled(Enum.HumanoidStateType.Landed, true) end)
+        pcall(function() hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true) end)
         pcall(function() hum.PlatformStand = false end)
         pcall(function() hum.Sit = false end)
         pcall(function() hum.AutoRotate = true end)
         pcall(function() hum:ChangeState(Enum.HumanoidStateType.GettingUp) end)
         pcall(function() hum:ChangeState(Enum.HumanoidStateType.Running) end)
     end
+    local currentCam = workspace.CurrentCamera
+    if currentCam and hum and not SpectatingTarget and not FlingActive then
+        pcall(function()
+            currentCam.CameraType = Enum.CameraType.Custom
+            currentCam.CameraSubject = hum
+        end)
+    end
 end
 
--- Multi-frame anchored void rescue (from khaman_dhokla.lua): aborts immediately if a new Weld or Fling starts so it NEVER fights player connections!
+-- Multi-frame anchored void rescue: only aborts if an active CurrentWeld or FlingActive is running (NEVER aborts when CurrentWeld == nil!)
 local RescueGeneration = 0
 
 safeReturnFromVoid = function(char, preferredCF)
     char = char or (LP and LP.Character)
     if not char then return end
-    if WeldIntent.active or FlingActive then return end
+    if CurrentWeld ~= nil or FlingActive then return end
     local root = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChildWhichIsA("BasePart")
     local hum  = char:FindFirstChildOfClass("Humanoid")
     local resolvedCF = isSafePlayableCF(preferredCF) and preferredCF
@@ -942,7 +1038,7 @@ safeReturnFromVoid = function(char, preferredCF)
         pcall(function()
             root.Anchored = true
             for _ = 1, 4 do
-                if not root.Parent or myRescueGen ~= RescueGeneration or WeldIntent.active or CurrentWeld ~= nil or FlingActive then
+                if not root.Parent or myRescueGen ~= RescueGeneration or CurrentWeld ~= nil or FlingActive then
                     break
                 end
                 root.AssemblyLinearVelocity = Vector3.zero
@@ -952,13 +1048,13 @@ safeReturnFromVoid = function(char, preferredCF)
             end
             if root.Parent then
                 root.Anchored = false
-                if myRescueGen == RescueGeneration and not WeldIntent.active and CurrentWeld == nil and not FlingActive then
+                if myRescueGen == RescueGeneration and CurrentWeld == nil and not FlingActive then
                     root.AssemblyLinearVelocity = Vector3.zero
                     root.AssemblyAngularVelocity = Vector3.zero
                     root.CFrame = cleanCF
                 end
             end
-            if myRescueGen == RescueGeneration and not WeldIntent.active and CurrentWeld == nil and not FlingActive then
+            if myRescueGen == RescueGeneration and CurrentWeld == nil and not FlingActive then
                 if hum and hum.Parent and hum.Health > 0 then
                     hum.PlatformStand = false
                     hum.Sit = false
@@ -973,17 +1069,17 @@ safeReturnFromVoid = function(char, preferredCF)
                 end
             end
         end)
-        if not (Anti and Anti.Void and Anti.Void.enabled) and not (Anti and Anti.Kill and Anti.Kill.enabled) and not WeldIntent.active and not FlingActive then
+        if not (Anti and Anti.Void and Anti.Void.enabled) and not (Anti and Anti.Kill and Anti.Kill.enabled) and CurrentWeld == nil and not FlingActive then
             pcall(function() workspace.FallenPartsDestroyHeight = OriginalFPDH end)
         end
     end)
 end
 
--- Continuously record LastKnownSafeCF when on safe ground (throttled to 7Hz) & instant auto-rescue if stranded in void
+-- Continuously record LastKnownSafeCF when on safe ground (throttled to 7Hz) & instant auto-rescue/self-heal if stranded in void or invisible
 do
     local lastSafeSampleTick = 0
     RunService.Heartbeat:Connect(function()
-        if FlingActive or WeldIntent.active or CurrentWeld ~= nil or (AnimCopySys and AnimCopySys.active) or (moveState and moveState.Vanish and moveState.Vanish.selfActive) or _G.CocaBangActive or (_G.CocaSkyDestroyer and (_G.CocaSkyDestroyer.isAnyActive() or _G.CocaSkyDestroyer.is_reanimated())) or (_G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated) == "function" and _G._AngoorZenApi.is_reanimated()) then return end
+        if FlingActive or CurrentWeld ~= nil or (AnimCopySys and AnimCopySys.active) or (moveState and moveState.Vanish and moveState.Vanish.selfActive) or _G.CocaBangActive or (_G.CocaSkyDestroyer and (_G.CocaSkyDestroyer.isAnyActive() or _G.CocaSkyDestroyer.is_reanimated())) or (_G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated) == "function" and _G._AngoorZenApi.is_reanimated()) then return end
         local now = os.clock()
         local inVoidWindow = (Anti and Anti.Void and Anti.Void.enabled) or (tick() - LastVoidActionEnd < 6.0)
         if not inVoidWindow and (now - lastSafeSampleTick < 0.15) then return end
@@ -995,12 +1091,33 @@ do
 
         local pos = root.Position
         local voidFloor = math.min(OriginalFPDH + 22, -260)
-        if pos.Y <= voidFloor or pos.Magnitude > 45000 then
-            if inVoidWindow then
-                safeReturnFromVoid(char, LastKnownSafeCF)
-            end
+        if pos.Y <= voidFloor or pos.Y > 25000 or pos.Magnitude > 45000 or pos.X ~= pos.X then
+            safeReturnFromVoid(char, LastKnownSafeCF)
         elseif now - lastSafeSampleTick >= 0.15 then
             lastSafeSampleTick = now
+            -- Self-heal stuck invisibility or PlatformStand when no troll/fly/reanim is active
+            local head = char:FindFirstChild("Head")
+            if head and head:IsA("BasePart") and head.LocalTransparencyModifier > 0.5 then
+                for _, p in ipairs(char:GetChildren()) do
+                    if p:IsA("BasePart") then
+                        pcall(function() p.LocalTransparencyModifier = 0 end)
+                    end
+                end
+            end
+            if not (moveState and (moveState.fly or moveState.flyLanding)) then
+                if hum.PlatformStand then
+                    pcall(function()
+                        hum.PlatformStand = false
+                        hum.AutoRotate = true
+                        hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+                        hum:ChangeState(Enum.HumanoidStateType.Running)
+                    end)
+                end
+                local animScr = char:FindFirstChild("Animate")
+                if animScr and animScr.Disabled then
+                    pcall(function() animScr.Disabled = false end)
+                end
+            end
             local vel = root.AssemblyLinearVelocity.Magnitude
             if isSafePlayableCF(root.CFrame) and vel < 110 then
                 local _, yYaw, _ = root.CFrame:ToEulerAnglesYXZ()
@@ -1826,24 +1943,13 @@ end
 -- Instant return when target is already streamed; throttled async stream requests when unstreamed.
 streamAndTeleportToTarget = function(targetPlr, refMode, maxWaitSeconds, allowSweepOrOffset)
     if not targetPlr or targetPlr.Parent ~= Players then return nil, nil end
-    maxWaitSeconds = maxWaitSeconds or 2.0
+    maxWaitSeconds = math.min(maxWaitSeconds or 0.55, 0.65)
     local allowSweep = (allowSweepOrOffset == true)
     local stepOffset = (typeof(allowSweepOrOffset) == "CFrame") and allowSweepOrOffset or CFrame.new(0, 1.5, 2)
     local myChar = LP.Character
     local myRoot = myChar and (myChar:FindFirstChild("HumanoidRootPart") or myChar:FindFirstChildWhichIsA("BasePart"))
     local myHum  = myChar and myChar:FindFirstChildOfClass("Humanoid")
-
-    if myChar then
-        breakAllSeatsAndExternalJoints(myChar, myHum, myRoot)
-        for _, v in ipairs(myChar:GetDescendants()) do
-            if v:IsA("BasePart") then
-                v.CanCollide = false
-                v.CanTouch = false
-                v.Anchored = false
-            end
-        end
-        if myHum and myHum.Sit then pcall(function() myHum.Sit = false end) end
-    end
+    local originSafeCF = (myRoot and isSafePlayableCF(myRoot.CFrame) and myRoot.CFrame) or LastKnownSafeCF or findFallbackSafeCF()
 
     -- Fast path: if target's reference part is already streamed in, connect immediately with zero wait!
     local tChar = findPlayerCharacterAnywhere(targetPlr)
@@ -1853,7 +1959,13 @@ streamAndTeleportToTarget = function(targetPlr, refMode, maxWaitSeconds, allowSw
     end
     local tRef = tChar and pickTargetRef(tChar, refMode or "torso")
     if tRef and tRef.Parent then
-        if myRoot then
+        if isLethalVoidCF(tRef.CFrame, tRef.AssemblyLinearVelocity) then
+            return tChar, nil
+        end
+        if myChar and myRoot then
+            breakAllSeatsAndExternalJoints(myChar, myHum, myRoot)
+            if myHum and myHum.Sit then pcall(function() myHum.Sit = false end) end
+            myRoot.Anchored = false
             local destCF = tRef.CFrame * stepOffset
             markIntentionalTeleport(destCF)
             myRoot.AssemblyLinearVelocity = Vector3.zero
@@ -1863,34 +1975,55 @@ streamAndTeleportToTarget = function(targetPlr, refMode, maxWaitSeconds, allowSw
         return tChar, tRef
     end
 
-    -- Step 1: Target is in an unstreamed chunk. Stream around their replicated Model:GetPivot() or cached location.
+    -- Step 1: Target is in an unstreamed chunk. Request stream around their known/pivot location WITHOUT stripping collision!
     local started = tick()
     local lastStreamCall = 0
-    while tick() - started < (maxWaitSeconds * 0.75) do
-        if targetPlr.Parent ~= Players then return nil, nil end
+    local didTeleportFromOrigin = false
+    while tick() - started < maxWaitSeconds do
+        if targetPlr.Parent ~= Players then break end
         tChar = findPlayerCharacterAnywhere(targetPlr)
         tHum  = tChar and tChar:FindFirstChildOfClass("Humanoid")
-        if tHum and tHum.Health <= 0 then return tChar, nil end
+        if tHum and tHum.Health <= 0 then break end
         tRef  = tChar and pickTargetRef(tChar, refMode or "torso")
         if tRef and tRef.Parent then
-            return tChar, tRef
-        end
-        local targetCF = getBestTargetCFrame(targetPlr)
-        if targetCF then
-            local now = tick()
-            if now - lastStreamCall > 0.30 then
-                lastStreamCall = now
-                task.spawn(function()
-                    pcall(function() LP:RequestStreamAroundAsync(targetCF.Position, 1.5) end)
-                end)
+            if isLethalVoidCF(tRef.CFrame, tRef.AssemblyLinearVelocity) then
+                tRef = nil
+                break
             end
             myChar = LP.Character
             myRoot = myChar and (myChar:FindFirstChild("HumanoidRootPart") or myChar:FindFirstChildWhichIsA("BasePart"))
-            if myRoot then
-                markIntentionalTeleport(targetCF)
+            myHum  = myChar and myChar:FindFirstChildOfClass("Humanoid")
+            if myChar and myRoot then
+                breakAllSeatsAndExternalJoints(myChar, myHum, myRoot)
+                if myHum and myHum.Sit then pcall(function() myHum.Sit = false end) end
+                myRoot.Anchored = false
+                local destCF = tRef.CFrame * stepOffset
+                markIntentionalTeleport(destCF)
                 myRoot.AssemblyLinearVelocity = Vector3.zero
                 myRoot.AssemblyAngularVelocity = Vector3.zero
-                myRoot.CFrame = targetCF * CFrame.new(0, 2, 0)
+                myRoot.CFrame = destCF
+            end
+            return tChar, tRef
+        end
+        local targetCF = getBestTargetCFrame(targetPlr)
+        if targetCF and isSafePlayableCF(targetCF) then
+            local now = tick()
+            if now - lastStreamCall > 0.20 then
+                lastStreamCall = now
+                task.spawn(function()
+                    pcall(function() LP:RequestStreamAroundAsync(targetCF.Position, 1.0) end)
+                end)
+            end
+            if allowSweep then
+                myChar = LP.Character
+                myRoot = myChar and (myChar:FindFirstChild("HumanoidRootPart") or myChar:FindFirstChildWhichIsA("BasePart"))
+                if myRoot then
+                    didTeleportFromOrigin = true
+                    moveState.lastTeleportTick = tick()
+                    myRoot.AssemblyLinearVelocity = Vector3.zero
+                    myRoot.AssemblyAngularVelocity = Vector3.zero
+                    myRoot.CFrame = targetCF * CFrame.new(0, 2, 0)
+                end
             end
         else
             break
@@ -1899,58 +2032,30 @@ streamAndTeleportToTarget = function(targetPlr, refMode, maxWaitSeconds, allowSw
     end
 
     tChar = findPlayerCharacterAnywhere(targetPlr)
-    tRef  = tChar and pickTargetRef(tChar, refMode or "torso")
-    if tRef and tRef.Parent then return tChar, tRef end
-
-    -- Step 2: Only sweep distant map structures if explicitly requested (never during background auto-reweld loops)
-    if not allowSweep or not tChar then
+    tHum  = tChar and tChar:FindFirstChildOfClass("Humanoid")
+    tRef  = (not (tHum and tHum.Health <= 0)) and tChar and pickTargetRef(tChar, refMode or "torso") or nil
+    if tRef and tRef.Parent and not isLethalVoidCF(tRef.CFrame, tRef.AssemblyLinearVelocity) then
+        myChar = LP.Character
+        myRoot = myChar and (myChar:FindFirstChild("HumanoidRootPart") or myChar:FindFirstChildWhichIsA("BasePart"))
+        myHum  = myChar and myChar:FindFirstChildOfClass("Humanoid")
+        if myChar and myRoot then
+            breakAllSeatsAndExternalJoints(myChar, myHum, myRoot)
+            if myHum and myHum.Sit then pcall(function() myHum.Sit = false end) end
+            myRoot.Anchored = false
+            local destCF = tRef.CFrame * stepOffset
+            markIntentionalTeleport(destCF)
+            myRoot.AssemblyLinearVelocity = Vector3.zero
+            myRoot.AssemblyAngularVelocity = Vector3.zero
+            myRoot.CFrame = destCF
+        end
         return tChar, tRef
     end
 
-    local probePoints = {}
-    for _, child in ipairs(workspace:GetChildren()) do
-        if child:IsA("SpawnLocation") or child:IsA("Seat") or child:IsA("VehicleSeat") then
-            if not isLethalVoidCF(child.CFrame) then
-                table.insert(probePoints, child.CFrame)
-            end
-        elseif child:IsA("Model") and child ~= LP.Character then
-            local okP, pCF = pcall(function() return child:GetPivot() end)
-            if okP and pCF and pCF.Position.Magnitude > 10 and not isLethalVoidCF(pCF) then
-                table.insert(probePoints, pCF)
-            end
-        elseif child:IsA("BasePart") and child.Position.Magnitude > 50 and not isLethalVoidCF(child.CFrame) then
-            table.insert(probePoints, child.CFrame)
-        end
+    -- Target could not be streamed or is in the void: restore local player cleanly to originSafeCF so we NEVER get stranded!
+    if didTeleportFromOrigin and LP.Character then
+        recoverCharacterState(LP.Character, originSafeCF)
     end
-
-    for idx, probeCF in ipairs(probePoints) do
-        if tick() - started > maxWaitSeconds or idx > 18 then break end
-        tChar = findPlayerCharacterAnywhere(targetPlr)
-        tRef  = tChar and pickTargetRef(tChar, refMode or "torso")
-        if tRef and tRef.Parent then return tChar, tRef end
-
-        local knownCF = getBestTargetCFrame(targetPlr)
-        local hopCF = knownCF or probeCF
-        local now = tick()
-        if now - lastStreamCall > 0.25 then
-            lastStreamCall = now
-            task.spawn(function()
-                pcall(function() LP:RequestStreamAroundAsync(hopCF.Position, 1) end)
-            end)
-        end
-        myChar = LP.Character
-        myRoot = myChar and (myChar:FindFirstChild("HumanoidRootPart") or myChar:FindFirstChildWhichIsA("BasePart"))
-        if myRoot then
-            markIntentionalTeleport(hopCF)
-            myRoot.CFrame = hopCF + Vector3.new(0, 3, 0)
-            myRoot.AssemblyLinearVelocity = Vector3.zero
-        end
-        RunService.Heartbeat:Wait()
-    end
-
-    tChar = findPlayerCharacterAnywhere(targetPlr)
-    tRef  = tChar and pickTargetRef(tChar, refMode or "torso")
-    return tChar, tRef
+    return tChar, nil
 end
 
 local getNearestPlayer
@@ -2165,14 +2270,20 @@ do
     pcall(function()
         local pgui = LP:FindFirstChildOfClass("PlayerGui")
         if pgui then
-            for _, obj in ipairs(pgui:GetDescendants()) do
-                if obj:IsA("TextButton") or obj:IsA("ImageButton") then
-                    inspectAndHookGuiButton(obj)
-                end
-            end
             pgui.DescendantAdded:Connect(function(obj)
                 if obj:IsA("TextButton") or obj:IsA("ImageButton") then
                     inspectAndHookGuiButton(obj)
+                end
+            end)
+            task.spawn(function()
+                local list = pgui:GetDescendants()
+                for idx, obj in ipairs(list) do
+                    if obj:IsA("TextButton") or obj:IsA("ImageButton") then
+                        inspectAndHookGuiButton(obj)
+                    end
+                    if idx % 600 == 0 then
+                        RunService.Heartbeat:Wait()
+                    end
                 end
             end)
         end
@@ -2221,7 +2332,8 @@ do
                 end
             end
         end
-        for _, child in ipairs(sourceInst:GetDescendants()) do
+        -- Check direct children (and one folder level) instead of Player:GetDescendants() which would scan 5,000+ PlayerGui instances!
+        for _, child in ipairs(sourceInst:GetChildren()) do
             if child:IsA("ValueBase") then
                 local okV, v = pcall(function() return child.Value end)
                 if okV then
@@ -2230,6 +2342,15 @@ do
                     end
                     if isCloseEnough and textMatchesAny(child.Name, CARRY_INTERACT_KEYWORDS) then
                         if v == true or (typeof(v) == "Instance") or (type(v) == "number" and v ~= 0) or (type(v) == "string" and v ~= "" and v:lower() ~= "none" and v:lower() ~= "false") then
+                            return true
+                        end
+                    end
+                end
+            elseif child:IsA("Folder") or child:IsA("Configuration") then
+                for _, sub in ipairs(child:GetChildren()) do
+                    if sub:IsA("ValueBase") then
+                        local okV, v = pcall(function() return sub.Value end)
+                        if okV and valueReferencesPlayer(v, targetPlr, targetChar) then
                             return true
                         end
                     end
@@ -2261,6 +2382,8 @@ do
         return false
     end
 
+    local CarryCheckCache = {}
+
     local function isPlayerCarriedOrInteracting(p, speaker)
         speaker = speaker or LP
         if not p or p == speaker or p.Parent ~= Players then return false end
@@ -2273,96 +2396,95 @@ do
             return false
         end
 
+        local now = os.clock()
+        local cacheKey = tostring(speaker.UserId) .. "_" .. tostring(p.UserId)
+        local cached = CarryCheckCache[cacheKey]
+        if cached and (now - cached.t) < 0.25 then
+            return cached.v
+        end
+
         local myChar = speaker and speaker.Character
         local tChar  = findPlayerCharacterAnywhere(p, true)
         local myRoot = myChar and (myChar:FindFirstChild("HumanoidRootPart") or myChar:FindFirstChildWhichIsA("BasePart"))
         local tRoot  = tChar and pickTargetRef(tChar, "torso")
         local myHum  = myChar and myChar:FindFirstChildOfClass("Humanoid")
         local tHum   = tChar and tChar:FindFirstChildOfClass("Humanoid")
+        local dist   = (myRoot and tRoot) and (tRoot.Position - myRoot.Position).Magnitude or math.huge
 
-        if myChar and tChar then
-            -- 1. Direct character hierarchy or SeatPart parenting
-            if tChar:IsDescendantOf(myChar) or myChar:IsDescendantOf(tChar) then
-                return true
-            end
-            if (tHum and tHum.SeatPart and tHum.SeatPart:IsDescendantOf(myChar))
-                or (myHum and myHum.SeatPart and myHum.SeatPart:IsDescendantOf(tChar)) then
-                return true
-            end
-
-            -- 2. Shared physics assembly or connected rigid parts (catches all Weld/Motor6D/Carry tools)
-            if myRoot and tRoot then
-                local okAssy, sameAssy = pcall(function()
-                    local a1 = myRoot.AssemblyRootPart
-                    local a2 = tRoot.AssemblyRootPart
-                    return (a1 ~= nil and a1 == a2)
-                end)
-                if okAssy and sameAssy then
-                    return true
-                end
-
-                local okConn, connParts = pcall(function() return myRoot:GetConnectedParts(true) end)
-                if okConn and connParts then
-                    for i = 1, #connParts do
-                        local cp = connParts[i]
-                        if cp and cp:IsDescendantOf(tChar) then
-                            return true
-                        end
-                    end
-                end
-            end
-
-            -- 3. JointInstance / WeldConstraint / Constraint links between characters or equipped tools
-            for _, obj in ipairs(tChar:GetDescendants()) do
-                if isJointOrConstraintBetween(obj, myChar, tChar) then
-                    return true
-                end
-                if obj:IsA("BasePart") then
-                    local okJ, joints = pcall(function() return obj:GetJoints() end)
-                    if okJ and joints then
-                        for jIdx = 1, #joints do
-                            if isJointOrConstraintBetween(joints[jIdx], myChar, tChar) then
-                                return true
-                            end
-                        end
-                    end
-                end
-            end
-            for _, obj in ipairs(myChar:GetDescendants()) do
-                if isJointOrConstraintBetween(obj, myChar, tChar) then
-                    return true
-                end
-            end
-        end
-
-        local dist = (myRoot and tRoot) and (tRoot.Position - myRoot.Position).Magnitude or math.huge
-
-        -- 4. Event-driven ProximityPrompt / UI Carry & Interact tracker
+        -- Event-driven ProximityPrompt / UI Carry & Interact tracker
         local entry = InteractedCarryPlayers[p.UserId]
         if entry then
             if tHum and tHum.Health <= 0 then
                 InteractedCarryPlayers[p.UserId] = nil
             elseif dist <= 11.5 then
                 entry.lastNearAt = tick()
+                CarryCheckCache[cacheKey] = { t = now, v = true }
                 return true
             elseif (tick() - entry.triggeredAt) <= 2.5 or (tick() - entry.lastNearAt) <= 1.2 then
+                CarryCheckCache[cacheKey] = { t = now, v = true }
                 return true
             else
                 InteractedCarryPlayers[p.UserId] = nil
             end
         end
 
-        -- 5. Game Attributes & ValueObjects (CarriedBy, Carrier, InteractingWith, Sync, Partner, etc.)
-        local isClose = (dist <= 10.5)
-        if hasCrossReferenceOrCarryState(p, speaker, myChar, isClose)
-            or (tChar and hasCrossReferenceOrCarryState(tChar, speaker, myChar, isClose))
-            or hasCrossReferenceOrCarryState(speaker, p, tChar, false)
-            or (myChar and hasCrossReferenceOrCarryState(myChar, p, tChar, false)) then
-            return true
+        -- Fast distance gate: if player is > 14 studs away and not parented to us, they cannot be physically carried!
+        if dist > 14 then
+            local parented = (myChar and tChar and (tChar:IsDescendantOf(myChar) or myChar:IsDescendantOf(tChar))) or false
+            CarryCheckCache[cacheKey] = { t = now, v = parented }
+            return parented
         end
 
-        -- 6. Close-range Physical Carry / Piggyback / Synced Interact state heuristic
-        if dist <= 5.2 and myRoot and tRoot and tChar then
+        local result = false
+        if myChar and tChar then
+            if tChar:IsDescendantOf(myChar) or myChar:IsDescendantOf(tChar) then
+                result = true
+            elseif (tHum and tHum.SeatPart and tHum.SeatPart:IsDescendantOf(myChar))
+                or (myHum and myHum.SeatPart and myHum.SeatPart:IsDescendantOf(tChar)) then
+                result = true
+            elseif myRoot and tRoot then
+                local okAssy, sameAssy = pcall(function()
+                    local a1 = myRoot.AssemblyRootPart
+                    local a2 = tRoot.AssemblyRootPart
+                    return (a1 ~= nil and a1 == a2)
+                end)
+                if okAssy and sameAssy then
+                    result = true
+                else
+                    local okConn, connParts = pcall(function() return myRoot:GetConnectedParts(true) end)
+                    if okConn and connParts then
+                        for i = 1, #connParts do
+                            local cp = connParts[i]
+                            if cp and cp:IsDescendantOf(tChar) then
+                                result = true
+                                break
+                            end
+                        end
+                    end
+                end
+            end
+
+            if not result then
+                for _, obj in ipairs(tChar:GetDescendants()) do
+                    if isJointOrConstraintBetween(obj, myChar, tChar) then
+                        result = true
+                        break
+                    end
+                end
+            end
+        end
+
+        if not result then
+            local isClose = (dist <= 10.5)
+            if hasCrossReferenceOrCarryState(p, speaker, myChar, isClose)
+                or (tChar and hasCrossReferenceOrCarryState(tChar, speaker, myChar, isClose))
+                or hasCrossReferenceOrCarryState(speaker, p, tChar, false)
+                or (myChar and hasCrossReferenceOrCarryState(myChar, p, tChar, false)) then
+                result = true
+            end
+        end
+
+        if not result and dist <= 5.2 and myRoot and tRoot and tChar then
             if tHum then
                 local okSt, tState = pcall(function() return tHum:GetState() end)
                 local sitOnMe = tHum.Sit and (not tHum.SeatPart or (myChar and tHum.SeatPart:IsDescendantOf(myChar)))
@@ -2372,17 +2494,13 @@ do
                     or (okSt and tState == Enum.HumanoidStateType.Physics)
                     or seatedStateOnMe
                     or tRoot.Massless then
-                    return true
-                end
-            end
-            for _, obj in ipairs(tChar:GetDescendants()) do
-                if obj:IsA("AlignPosition") or obj:IsA("AlignOrientation") or obj:IsA("BodyPosition") or obj:IsA("BodyGyro") then
-                    return true
+                    result = true
                 end
             end
         end
 
-        return false
+        CarryCheckCache[cacheKey] = { t = now, v = result }
+        return result
     end
 
     OwnerAdminState.isPlayerCarriedOrInteracting = isPlayerCarriedOrInteracting
@@ -4270,16 +4388,27 @@ local function weldToTarget(target, speaker, offset, animId, osc, refMode, animF
         -- Capture safe origin BEFORE streaming/teleporting to the target
         local preSeekSafeCF = isSafePlayableCF(myRoot.CFrame) and myRoot.CFrame or LastKnownSafeCF or findFallbackSafeCF()
 
-        -- Stream & teleport directly to the target even if they are hiding in an unstreamed area (instant 0ms return when already streamed!)
-        local char, TRoot = streamAndTeleportToTarget(TPlayer, refMode or "torso", 2.0, true)
-        if myGen ~= StopGeneration then return end
+        -- Stream & teleport directly to the target (instant 0ms return when already streamed!)
+        local char, TRoot = streamAndTeleportToTarget(TPlayer, refMode or "torso", 0.55, true)
+        if myGen ~= StopGeneration then
+            if LP.Character and CurrentWeld == nil then
+                recoverCharacterState(LP.Character, preSeekSafeCF)
+            end
+            return
+        end
         if not TRoot or not TRoot.Parent then
+            if LP.Character and CurrentWeld == nil then
+                recoverCharacterState(LP.Character, preSeekSafeCF)
+            end
             -- Keep WeldIntent active so the continuous watchdog immediately locks on as soon as they stream/respawn
             return
         end
 
         local tHum = char and char:FindFirstChildOfClass("Humanoid")
         if tHum and tHum.Health <= 0 then
+            if LP.Character and CurrentWeld == nil then
+                recoverCharacterState(LP.Character, preSeekSafeCF)
+            end
             WeldIntent.waitingForSpawn = true
             WeldIntent.bottomStatusText = "target respawning · will attach on spawn"
             WeldIntent.bottomStatusColor = T.Warning
@@ -4480,9 +4609,12 @@ task.spawn(function()
                     if myRoot and myHum and myHum.Health > 0 then
                         reweldWatchdogBusy = true
                         pcall(function()
+                            local quickChar = findPlayerCharacterAnywhere(tgt)
+                            local quickHum = quickChar and quickChar:FindFirstChildOfClass("Humanoid")
+                            if quickHum and quickHum.Health <= 0 then return end
                             local preset = WELD_PRESETS[WeldIntent.presetKey]
                             local refMode = preset and preset.refMode or "torso"
-                            local tChar, tRef = streamAndTeleportToTarget(tgt, refMode, 1.2, false)
+                            local tChar, tRef = streamAndTeleportToTarget(tgt, refMode, 0.35, false)
                             local tHum = tChar and tChar:FindFirstChildOfClass("Humanoid")
                             if WeldIntent.active and not CurrentWeld and tRef and tRef.Parent and (not tHum or tHum.Health > 0) then
                                 if not isLethalVoidCF(tRef.CFrame, tRef.AssemblyLinearVelocity) then
@@ -5161,9 +5293,12 @@ OwnerAdminState.launchNebulaFling = launchNebulaFling -- bound on first call
 
     -- Save origin BEFORE streaming/teleporting to a hidden target so we always return to our original spot!
     local preSeekOriginCF = isSafePlayableCF(myRoot.CFrame) and myRoot.CFrame or findFallbackSafeCF()
-    local tChar, targetRoot = streamAndTeleportToTarget(targetPlr, "torso", 2.2)
+    local tChar, targetRoot = streamAndTeleportToTarget(targetPlr, "torso", 0.55)
     local targetHum = tChar and tChar:FindFirstChildOfClass("Humanoid")
     if not targetRoot or not targetRoot.Parent then
+        if LP.Character then
+            recoverCharacterState(LP.Character, preSeekOriginCF)
+        end
         notify("COCO POWDER", "Could not stream target — try again!")
         sError()
         return
@@ -5398,7 +5533,7 @@ OwnerAdminState.launchNebulaFling = launchNebulaFling -- bound on first call
             nextAngularVel = Vector3.new(135000, 135000, 135000)
         end
 
-        markIntentionalTeleport(nextTargetCFrame)
+        moveState.lastTeleportTick = tick()
         myRoot.CFrame = nextTargetCFrame
         myRoot.AssemblyLinearVelocity = nextLinearVel
         myRoot.AssemblyAngularVelocity = nextAngularVel
@@ -5953,7 +6088,13 @@ do
                 hiddenCF = CFrame.new(newPos.X, 85000, newPos.Z)
             end
 
-            markIntentionalTeleport(hiddenCF)
+            moveState.lastTeleportTick = tick()
+            if isSafePlayableCF(self.ghostCF) then
+                Anti.Bring.lastCF = self.ghostCF
+                Anti.Bring.lastSafeTime = tick()
+                Anti.FlingShield.preStepCF = self.ghostCF
+                LastKnownSafeCF = self.ghostCF
+            end
             myRoot.Anchored = false
             myRoot.CFrame = hiddenCF
             myRoot.AssemblyLinearVelocity = Vector3.new(0, 0.02, 0)
@@ -6142,7 +6283,7 @@ end
 -- Helper: Mark an intentional local teleport so Anti-Bring, Anti-FlingShield, and DefenceTroll never fight our own teleports/welds
 markIntentionalTeleport = function(cf)
     moveState.lastTeleportTick = tick()
-    if cf then
+    if cf and isSafePlayableCF(cf) then
         Anti.Bring.lastCF = cf
         Anti.Bring.lastSafeTime = tick()
         Anti.FlingShield.preStepCF = cf
@@ -6194,7 +6335,7 @@ local function avForceAlive(h)
         h:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
         if h.MaxHealth <= 0 then h.MaxHealth = 100 end
         if h.Health <= 0 or h.Health < h.MaxHealth then h.Health = h.MaxHealth end
-        if h.PlatformStand and not (moveState and (moveState.fly or moveState.flyLanding)) and not WeldIntent.active and not isReanimActive then
+        if h.PlatformStand and not (moveState and (moveState.fly or moveState.flyLanding)) and CurrentWeld == nil and not isReanimActive then
             h.PlatformStand = false
         end
         h:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
@@ -6252,7 +6393,7 @@ avStart = function(silent)
         if not Anti.Void.enabled then return end
         local c = LP.Character
         local r = c and c:FindFirstChild("HumanoidRootPart")
-        if not r or FlingActive or deflectBusy or WeldIntent.active or CurrentWeld ~= nil or (AnimCopySys and AnimCopySys.active) or (moveState and moveState.Vanish and moveState.Vanish.selfActive) or _G.CocaBangActive or (_G.CocaSkyDestroyer and _G.CocaSkyDestroyer.isAnyActive()) or (RewindSys and RewindSys.rewinding) then return end
+        if not r or FlingActive or deflectBusy or CurrentWeld ~= nil or (AnimCopySys and AnimCopySys.active) or (moveState and moveState.Vanish and moveState.Vanish.selfActive) or _G.CocaBangActive or (_G.CocaSkyDestroyer and _G.CocaSkyDestroyer.isAnyActive()) or (RewindSys and RewindSys.rewinding) then return end
         local pos = r.Position
         local vel = r.AssemblyLinearVelocity
         local dangerFloor = math.min(OriginalFPDH + 55, -220)
@@ -6498,17 +6639,101 @@ afkStop = function()
 end
 
 -- ═══════════════════════════════════════════════════════════════════════════════
--- 5. COCO ANTI-VC / VC BYPASS V2 (VoiceChatService + VoiceChatInternal + Custom Mic Clone)
---    • Scans CoreGui for "toggle_mic_mute" (auto-calls VoiceChatService:joinVoice() if missing)
---    • Waits for microphone unmute, leaves voice, disables StateChanged[7..#conns], rejoins voice
---    • Moves original mic button to CocoVCBypassStore & mounts "toggle_mic_mute_new" bound to PublishPause
+-- 5. COCO ANTI-VC / VC BYPASS V4 SUPREME (Multi-Layout + Auto-Unmute + Moderation Shield + Watchdog)
+--    • Zero-hang instant multi-layout TopBar / Unibar / Chrome mic button & icon resolver
+--    • Smart Unmute Detection (VoiceChatInternal:IsPublishPaused() + icon texture + Force-Now override)
+--    • Selective StateChanged suspension/ban connection disabler with reversible state tracking
+--    • Custom TopBar "toggle_mic_mute_new" clone + Direct GUI Mic Toggle + Self-Healing Watchdog
 -- ═══════════════════════════════════════════════════════════════════════════════
+local vcDisabledConns = {}
+local vcWatchdogConn = nil
+local vcSkipWaitRequested = false
+local vcAutoGuardEnabled = true
+
+local VC_MUTED_ICON = "rbxasset://textures/ui/VoiceChat/MicLight/Muted.png"
+local VC_UNMUTED_ICON = "rbxasset://textures/ui/VoiceChat/MicLight/Unmuted.png"
+
+local function getVoiceServices()
+    local safeCloneref = cloneref or function(...) return ... end
+    local vcs, vci = nil, nil
+    pcall(function() vcs = safeCloneref(game:GetService("VoiceChatService")) end)
+    pcall(function() vci = safeCloneref(game:GetService("VoiceChatInternal")) end)
+    return vcs, vci
+end
+
+-- Instant 0ms non-blocking Mic Icon resolver (supports Classic TopBar, Unibar, Chrome & custom containers)
 local function findMicIcon(btn)
-    local ok, res = pcall(function()
-        return btn:WaitForChild("IntegrationIconFrame", 15)
-            :WaitForChild("IntegrationIcon", 15)["1"]
+    if not btn then return nil end
+    local frame = btn:FindFirstChild("IntegrationIconFrame")
+    local integ = frame and frame:FindFirstChild("IntegrationIcon")
+    local direct = integ and (integ:FindFirstChild("1") or integ:FindFirstChildWhichIsA("ImageLabel"))
+    if direct and direct:IsA("ImageLabel") then
+        return direct
+    end
+    for _, d in ipairs(btn:GetDescendants()) do
+        if d:IsA("ImageLabel") then
+            local img = tostring(d.Image or "")
+            if d.Name == "1" or d.Name:lower():find("icon") or d.Name:lower():find("mic") or img:find("VoiceChat") or img:find("Mic") then
+                return d
+            end
+        end
+    end
+    return btn:FindFirstChildWhichIsA("ImageLabel", true)
+end
+
+-- Instant multi-layout Mic Button locator in CoreGui (ignores stored original inside CocoVCBypassStore)
+local function findMicButtonAndParent(coreGui, preferCustom)
+    coreGui = coreGui or CoreGui or game:GetService("CoreGui")
+    if not coreGui then return nil, nil end
+    local store = coreGui:FindFirstChild("CocoVCBypassStore") or coreGui:FindFirstChild("AngoorVCBypassStore")
+    local fallbackBtn, fallbackParent = nil, nil
+    pcall(function()
+        for _, v in ipairs(coreGui:GetDescendants()) do
+            if not (store and v:IsDescendantOf(store)) then
+                if preferCustom and v.Name == "toggle_mic_mute_new" and v.Parent then
+                    fallbackBtn, fallbackParent = v, v.Parent
+                    break
+                elseif v.Name == "toggle_mic_mute" and v.Parent then
+                    fallbackBtn, fallbackParent = v, v.Parent
+                    break
+                elseif not fallbackBtn and v.Name == "IconHitArea_toggle_mic_mute" and v.Parent then
+                    local cand = v.Parent
+                    if cand.Parent and cand.Parent.Name:find("toggle_mic") then
+                        cand = cand.Parent
+                    end
+                    fallbackBtn, fallbackParent = cand, cand.Parent
+                end
+            end
+        end
     end)
-    return (ok and res) or nil
+    return fallbackBtn, fallbackParent
+end
+
+local function isMicMutedIcon(imgStr)
+    local s = tostring(imgStr or ""):lower()
+    if s == "" then return false end
+    return (s:find("muted") ~= nil and s:find("unmuted") == nil) or s:find("micoff") ~= nil
+end
+
+local function getVCMicPausedState(vci, iconObj)
+    if vci then
+        local okP, paused = pcall(function() return vci:IsPublishPaused() end)
+        if okP and type(paused) == "boolean" then
+            return paused
+        end
+    end
+    if iconObj and iconObj.Parent then
+        return isMicMutedIcon(iconObj.Image)
+    end
+    return true
+end
+
+local function setVCMicPausedState(vci, pausedState)
+    if not vci then return false end
+    local okP = pcall(function()
+        vci:PublishPause(pausedState == true)
+    end)
+    return okP
 end
 
 local function updateAntiVCVisuals(statusStr, statusCol, btnStr)
@@ -6521,184 +6746,325 @@ local function updateAntiVCVisuals(statusStr, statusCol, btnStr)
         Anti.VC.activateBtn.Text = btnStr
     end
     if Anti.VC.rowSubLbl and Anti.VC.rowSubLbl.Parent then
-        Anti.VC.rowSubLbl.Text = (statusStr or "Status: Idle") .. " · Tap switch or open Coco Anti-VC panel"
+        Anti.VC.rowSubLbl.Text = (statusStr or "Status: Idle") .. " · Tap switch or open Coco Anti-VC V4 panel"
+    end
+    if Anti.VC.micStateLbl and Anti.VC.micStateLbl.Parent then
+        local _, vci = getVoiceServices()
+        local customBtn = findMicButtonAndParent(nil, true)
+        local ic = findMicIcon(customBtn)
+        local paused = getVCMicPausedState(vci, ic)
+        if Anti.VC.enabled then
+            Anti.VC.micStateLbl.Text = paused and "Mic State: 🔇 MUTED (Protected)" or "Mic State: 🎙️ LIVE / UNMUTED (Bypassed)"
+            Anti.VC.micStateLbl.TextColor3 = paused and Color3.fromRGB(255, 190, 90) or Color3.fromRGB(80, 235, 135)
+        else
+            Anti.VC.micStateLbl.Text = paused and "Mic State: 🔇 Muted" or "Mic State: 🎙️ Unmuted"
+            Anti.VC.micStateLbl.TextColor3 = Color3.fromRGB(165, 170, 190)
+        end
     end
 end
 
-vcStart = function()
-    if Anti.VC.enabled then
-        notify("Coco Anti-VC", "Coco Anti-VC is already active")
+local function disableVCStateChangedConns(vci)
+    if not vci or type(getconnections) ~= "function" then return 0 end
+    local disabledCount = 0
+    pcall(function()
+        local conns = getconnections(vci.StateChanged)
+        if type(conns) == "table" and #conns > 0 then
+            local startIdx = (#conns >= 7) and 7 or math.max(2, math.floor(#conns * 0.5))
+            for i = startIdx, #conns do
+                local c = conns[i]
+                if c then
+                    pcall(function()
+                        c:Disable()
+                        table.insert(vcDisabledConns, c)
+                        disabledCount = disabledCount + 1
+                    end)
+                end
+            end
+        end
+    end)
+    return disabledCount
+end
+
+local function restoreVCStateChangedConns()
+    for i = #vcDisabledConns, 1, -1 do
+        local c = vcDisabledConns[i]
+        if c then
+            pcall(function() c:Enable() end)
+        end
+        vcDisabledConns[i] = nil
+    end
+end
+
+local function syncCustomMicIconVisual(newIcon, origIcon, paused)
+    if not newIcon or not newIcon.Parent then return end
+    pcall(function()
+        if paused then
+            newIcon.Image = VC_MUTED_ICON
+        else
+            local liveImg = (origIcon and origIcon.Parent and origIcon.Image ~= "" and not isMicMutedIcon(origIcon.Image))
+                and origIcon.Image or VC_UNMUTED_ICON
+            newIcon.Image = liveImg
+        end
+    end)
+end
+
+local function toggleCocoVCMic(explicitPauseState)
+    local _, vci = getVoiceServices()
+    if not vci then
+        notify("Coco Anti-VC V4", "VoiceChatInternal unavailable on this client")
+        return false
+    end
+    local customBtn = findMicButtonAndParent(nil, true) or findMicButtonAndParent(nil, false)
+    local customIcon = findMicIcon(customBtn)
+    local coreGui = CoreGui or game:GetService("CoreGui")
+    local store = coreGui and coreGui:FindFirstChild("CocoVCBypassStore")
+    local origBtn = store and store:FindFirstChild("toggle_mic_mute")
+    local origIcon = findMicIcon(origBtn)
+
+    local currentPaused = getVCMicPausedState(vci, customIcon)
+    local nextPaused = (type(explicitPauseState) == "boolean") and explicitPauseState or (not currentPaused)
+    setVCMicPausedState(vci, nextPaused)
+    syncCustomMicIconVisual(customIcon, origIcon, nextPaused)
+    updateAntiVCVisuals(
+        Anti.VC.enabled and (nextPaused and "Status: Active (Mic Muted)" or "Status: Active (Mic LIVE)") or nil,
+        Anti.VC.enabled and Color3.fromRGB(80, 220, 120) or nil,
+        nil
+    )
+    return not nextPaused
+end
+
+_G.ToggleCocoVCMic = toggleCocoVCMic
+
+local function mountCustomMicButton(coreGui, vci)
+    coreGui = coreGui or CoreGui or game:GetService("CoreGui")
+    if not coreGui then return false end
+    local micBtn, micParent = findMicButtonAndParent(coreGui, false)
+    if not micBtn or not micParent then return false end
+
+    local oldStore = coreGui:FindFirstChild("CocoVCBypassStore") or coreGui:FindFirstChild("AngoorVCBypassStore")
+    if oldStore then
+        local prevOrig = oldStore:FindFirstChild("toggle_mic_mute")
+        if prevOrig and prevOrig ~= micBtn then
+            pcall(function() prevOrig:Destroy() end)
+        end
+        pcall(function() oldStore:Destroy() end)
+    end
+    local oldCustom = micParent:FindFirstChild("toggle_mic_mute_new")
+    if oldCustom then pcall(function() oldCustom:Destroy() end) end
+
+    local storeFolder = Instance.new("Folder")
+    storeFolder.Name = "CocoVCBypassStore"
+    storeFolder.Parent = coreGui
+
+    local newBtn = micBtn:Clone()
+    micBtn.Parent = storeFolder
+
+    newBtn.Name = "toggle_mic_mute_new"
+    newBtn.Parent = micParent
+
+    local newIcon = findMicIcon(newBtn)
+    local origIcon = findMicIcon(micBtn)
+
+    setVCMicPausedState(vci, true)
+    syncCustomMicIconVisual(newIcon, origIcon, true)
+
+    local lastClickTick = 0
+    local function onMicButtonPressed()
+        if tick() - lastClickTick < 0.12 then return end
+        lastClickTick = tick()
+        toggleCocoVCMic()
+    end
+
+    local hitArea = newBtn:FindFirstChild("IconHitArea_toggle_mic_mute", true) or newBtn:FindFirstChildWhichIsA("GuiButton", true)
+    if hitArea and hitArea:IsA("GuiButton") then
+        pcall(function() hitArea.Activated:Connect(onMicButtonPressed) end)
+        pcall(function() hitArea.MouseButton1Click:Connect(onMicButtonPressed) end)
+    end
+    if newBtn:IsA("GuiButton") then
+        pcall(function() newBtn.Activated:Connect(onMicButtonPressed) end)
+        pcall(function() newBtn.MouseButton1Click:Connect(onMicButtonPressed) end)
+    end
+    return true
+end
+
+local function startVCWatchdog()
+    if vcWatchdogConn then vcWatchdogConn:Disconnect(); vcWatchdogConn = nil end
+    local lastCheck = 0
+    vcWatchdogConn = RunService.Heartbeat:Connect(function()
+        if not Anti.VC.enabled or not vcAutoGuardEnabled then return end
+        local now = os.clock()
+        if now - lastCheck < 1.25 then return end
+        lastCheck = now
+        pcall(function()
+            local coreGui = CoreGui or game:GetService("CoreGui")
+            local _, vci = getVoiceServices()
+            if not vci then return end
+            -- Re-disable any newly attached suspension/moderation StateChanged hooks
+            disableVCStateChangedConns(vci)
+            -- If Roblox TopBar rebuilt toggle_mic_mute (e.g. after respawn), re-mount toggle_mic_mute_new automatically
+            local customBtn = findMicButtonAndParent(coreGui, true)
+            if not customBtn or not customBtn.Parent then
+                local rawBtn = findMicButtonAndParent(coreGui, false)
+                if rawBtn and rawBtn.Parent then
+                    mountCustomMicButton(coreGui, vci)
+                end
+            end
+            updateAntiVCVisuals(nil, nil, nil)
+        end)
+    end)
+end
+
+local function forceRejoinAndBypassVC()
+    task.spawn(function()
+        local vcs, vci = getVoiceServices()
+        if not vcs or not vci then
+            notify("Coco Anti-VC V4", "VoiceChat services unavailable")
+            return
+        end
+        updateAntiVCVisuals("Status: Rejoining Voice...", Color3.fromRGB(130, 195, 255), "REJOINING...")
+        pcall(function() vcs:leaveVoice() end)
+        task.wait(0.85)
+        disableVCStateChangedConns(vci)
+        task.wait(0.35)
+        pcall(function() vcs:joinVoice() end)
+        task.wait(0.85)
+        disableVCStateChangedConns(vci)
+        local coreGui = CoreGui or game:GetService("CoreGui")
+        mountCustomMicButton(coreGui, vci)
+        Anti.VC.enabled = true
+        Anti.VC.running = false
+        startVCWatchdog()
+        updateAntiVCVisuals("Status: Active (Rejoined)", Color3.fromRGB(80, 220, 120), "COCO ANTI VC ACTIVE")
+        if syncAllAntiButtons then pcall(syncAllAntiButtons) end
+        notify("Coco Anti-VC V4", "Voice stream rejoined & anti-suspension shield locked!")
+        sSuccess()
+    end)
+end
+
+_G.RejoinCocoVC = forceRejoinAndBypassVC
+
+vcStart = function(forceImmediate)
+    if Anti.VC.enabled and not forceImmediate then
+        notify("Coco Anti-VC V4", "Coco Anti-VC V4 is already active!")
         return
     end
     if Anti.VC.running then
-        notify("Coco Anti-VC", "Coco Anti-VC bypass is waiting for mic unmute...")
+        if forceImmediate then
+            vcSkipWaitRequested = true
+            notify("Coco Anti-VC V4", "Skipping unmute wait — executing bypass now!")
+        else
+            notify("Coco Anti-VC V4", "Bypass is waiting for mic unmute (or click Force Now in panel)")
+        end
         return
     end
 
     Anti.VC.running = true
-    updateAntiVCVisuals("Status: Waiting for unmute...", Color3.fromRGB(255, 200, 80), "WAITING...")
+    vcSkipWaitRequested = (forceImmediate == true)
+    updateAntiVCVisuals("Status: Initializing V4 Bypass...", Color3.fromRGB(255, 200, 80), "STARTING...")
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
     sToggleOn()
 
     task.spawn(function()
         local ok, err = pcall(function()
-            local safeCloneref = cloneref or function(...)
-                return ...
+            local VoiceChatService, VoiceChatInternal = getVoiceServices()
+            if not VoiceChatService or not VoiceChatInternal then
+                error("VoiceChatService / VoiceChatInternal not available")
             end
-
-            local VoiceChatService = safeCloneref(game:GetService("VoiceChatService"))
-            local VoiceChatInternal = safeCloneref(game:GetService("VoiceChatInternal"))
             local coreGui = CoreGui or game:GetService("CoreGui")
 
-            local micBtn = nil
-            local micParent = nil
-
-            pcall(function()
-                for _, v in ipairs(coreGui:GetDescendants()) do
-                    if v.Name == "toggle_mic_mute" then
-                        micBtn = v
-                        micParent = v.Parent
-                        break
-                    end
-                end
-            end)
-
-            local function isPaused()
-                return VoiceChatInternal:IsPublishPaused()
-            end
-
-            local function setPaused(state)
-                VoiceChatInternal:PublishPause(state)
-            end
-
+            local micBtn, micParent = findMicButtonAndParent(coreGui, false)
             if not micBtn then
-                pcall(function()
-                    VoiceChatService:joinVoice()
-                end)
-                task.wait(1)
-
-                pcall(function()
-                    for _, v in ipairs(coreGui:GetDescendants()) do
-                        if v.Name == "toggle_mic_mute" then
-                            micBtn = v
-                            micParent = v.Parent
-                            break
-                        end
-                    end
-                end)
-
-                if not micBtn then
-                    error("Mic button not found — open Voice Chat first")
+                updateAntiVCVisuals("Status: Joining Voice Chat...", Color3.fromRGB(255, 200, 80), "JOINING VC...")
+                pcall(function() VoiceChatService:joinVoice() end)
+                local joinWaitStart = tick()
+                while not micBtn and (tick() - joinWaitStart) < 2.2 do
+                    task.wait(0.15)
+                    micBtn, micParent = findMicButtonAndParent(coreGui, false)
                 end
             end
-
-            notify("Coco Anti-VC", "Unmute your mic to continue")
 
             local icon = findMicIcon(micBtn)
-            local mutedImg = "rbxasset://textures/ui/VoiceChat/MicLight/Muted.png"
-            local startTick = tick()
+            local alreadyUnmuted = not getVCMicPausedState(VoiceChatInternal, icon)
 
-            while icon and icon.Image == mutedImg and (tick() - startTick) < 60 do
-                if not Anti.VC.running then
-                    error("Cancelled")
-                end
-                task.wait(0.5)
+            -- Try direct programmatic unmute pulse first so users don't even have to click if executor allows PublishPause(false)
+            if not alreadyUnmuted then
+                pcall(function() VoiceChatInternal:PublishPause(false) end)
+                task.wait(0.15)
                 icon = findMicIcon(micBtn) or icon
+                alreadyUnmuted = not getVCMicPausedState(VoiceChatInternal, icon)
             end
 
-            -- Step 1: Leave Voice Chat
+            if not alreadyUnmuted and not vcSkipWaitRequested then
+                updateAntiVCVisuals("Status: Unmute Mic (or tap Force)...", Color3.fromRGB(255, 200, 80), "WAITING UNMUTE...")
+                notify("Coco Anti-VC V4", "Unmute your mic once (or tap Force Bypass in panel) to lock V4 bypass")
+                local startTick = tick()
+                while (tick() - startTick) < 45 do
+                    if not Anti.VC.running then
+                        error("Cancelled")
+                    end
+                    if vcSkipWaitRequested then
+                        break
+                    end
+                    micBtn, micParent = findMicButtonAndParent(coreGui, false)
+                    icon = findMicIcon(micBtn) or icon
+                    local pausedNow = getVCMicPausedState(VoiceChatInternal, icon)
+                    if not pausedNow then
+                        break
+                    end
+                    task.wait(0.08)
+                end
+            end
+
+            if not Anti.VC.running then
+                error("Cancelled")
+            end
+
+            -- Stage 1: Leave Voice Chat cleanly
+            updateAntiVCVisuals("Status: Stage 1/3 Leaving Voice...", Color3.fromRGB(130, 195, 255), "STAGE 1/3...")
             pcall(function()
                 VoiceChatService:leaveVoice()
             end)
-            task.wait(2)
+            task.wait(1.15)
 
-            -- Step 2: Disable StateChanged connections from index 7..#conns
-            pcall(function()
-                if type(getconnections) == "function" then
-                    local conns = getconnections(VoiceChatInternal.StateChanged)
-                    for i = 7, #conns, 1 do
-                        pcall(function()
-                            conns[i]:Disable()
-                        end)
-                    end
-                end
-            end)
-            task.wait(2)
+            -- Stage 2: Neutralize VoiceChatInternal.StateChanged moderation & disconnect handlers
+            updateAntiVCVisuals("Status: Stage 2/3 Hooking StateChanged...", Color3.fromRGB(175, 130, 255), "STAGE 2/3...")
+            disableVCStateChangedConns(VoiceChatInternal)
+            task.wait(0.85)
 
-            -- Step 3: Rejoin Voice Chat
+            -- Stage 3: Rejoin Voice Chat & mount custom TopBar controller
+            updateAntiVCVisuals("Status: Stage 3/3 Rejoining Voice...", Color3.fromRGB(110, 225, 175), "STAGE 3/3...")
             pcall(function()
                 VoiceChatService:joinVoice()
             end)
-            task.wait(1)
+            task.wait(0.95)
+            disableVCStateChangedConns(VoiceChatInternal)
 
-            -- Step 4: Re-locate "toggle_mic_mute" in CoreGui
-            pcall(function()
-                for _, v in ipairs(coreGui:GetDescendants()) do
-                    if v.Name == "toggle_mic_mute" then
-                        micBtn = v
-                        micParent = v.Parent
-                        break
-                    end
-                end
-            end)
-
-            -- Step 5: Replace original mic button with custom clone bound to PublishPause
-            if micBtn and micParent then
-                local oldStore = coreGui:FindFirstChild("CocoVCBypassStore") or coreGui:FindFirstChild("AngoorVCBypassStore")
-                if oldStore then pcall(function() oldStore:Destroy() end) end
-                local oldCustom = micParent:FindFirstChild("toggle_mic_mute_new")
-                if oldCustom then pcall(function() oldCustom:Destroy() end) end
-
-                local storeFolder = Instance.new("Folder")
-                storeFolder.Name = "CocoVCBypassStore"
-                storeFolder.Parent = coreGui
-
-                local newBtn = micBtn:Clone()
-                micBtn.Parent = storeFolder
-
-                newBtn.Name = "toggle_mic_mute_new"
-                newBtn.Parent = micParent
-
-                local newIcon = findMicIcon(newBtn)
-                local origIcon = findMicIcon(micBtn)
-
-                setPaused(true)
-                if newIcon then
-                    newIcon.Image = mutedImg
-                end
-
-                local hitArea = newBtn:FindFirstChild("IconHitArea_toggle_mic_mute", true)
-                if hitArea then
-                    hitArea.Activated:Connect(function()
-                        local nextPaused = not isPaused()
-                        setPaused(nextPaused)
-                        if newIcon then
-                            if nextPaused then
-                                newIcon.Image = mutedImg
-                            elseif origIcon then
-                                newIcon.Image = origIcon.Image
-                            end
-                        end
-                    end)
-                end
-            end
+            mountCustomMicButton(coreGui, VoiceChatInternal)
 
             Anti.VC.running = false
             Anti.VC.enabled = true
-            updateAntiVCVisuals("Status: Active", Color3.fromRGB(80, 220, 120), "COCO ANTI VC ACTIVE")
+            vcSkipWaitRequested = false
+            startVCWatchdog()
+            updateAntiVCVisuals("Status: Active (V4 Shield ON)", Color3.fromRGB(80, 220, 120), "COCO ANTI VC V4 ACTIVE")
             if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-            notify("Coco Anti-VC", "Coco Anti-VC activated successfully")
+            notify("Coco Anti-VC V4", "Coco Anti-VC V4 activated! Use TopBar mic or panel to mute/unmute.")
             sSuccess()
         end)
 
         if not ok then
             Anti.VC.running = false
             Anti.VC.enabled = false
-            updateAntiVCVisuals("Status: Failed", Color3.fromRGB(255, 80, 80), "RETRY")
+            vcSkipWaitRequested = false
+            local errMsg = tostring(err)
+            if errMsg:find("Cancelled") then
+                updateAntiVCVisuals("Status: Idle", Color3.fromRGB(160, 165, 185), "ACTIVATE COCO ANTI VC V4")
+            else
+                updateAntiVCVisuals("Status: Failed (" .. errMsg:sub(1, 26) .. ")", Color3.fromRGB(255, 80, 80), "RETRY V4 BYPASS")
+                notify("Coco Anti-VC V4", "Error: " .. errMsg)
+                warn("[COCO POWDER] Coco Anti-VC V4 error:", err)
+                sError()
+            end
             if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-            notify("Coco Anti-VC", "Error: " .. tostring(err))
-            warn("[COCO POWDER] Coco Anti-VC error:", err)
-            sError()
         end
     end)
 end
@@ -6707,6 +7073,12 @@ vcStop = function()
     if not Anti.VC.enabled and not Anti.VC.running then return end
     Anti.VC.running = false
     Anti.VC.enabled = false
+    vcSkipWaitRequested = false
+    if vcWatchdogConn then
+        vcWatchdogConn:Disconnect()
+        vcWatchdogConn = nil
+    end
+    restoreVCStateChangedConns()
     pcall(function()
         local coreGui = CoreGui or game:GetService("CoreGui")
         local store = coreGui and (coreGui:FindFirstChild("CocoVCBypassStore") or coreGui:FindFirstChild("AngoorVCBypassStore"))
@@ -6724,9 +7096,9 @@ vcStop = function()
             store:Destroy()
         end
     end)
-    updateAntiVCVisuals("Status: Idle", Color3.fromRGB(160, 165, 185), "ACTIVATE COCO ANTI VC")
+    updateAntiVCVisuals("Status: Idle", Color3.fromRGB(160, 165, 185), "ACTIVATE COCO ANTI VC V4")
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("Coco Anti-VC", "Coco Anti-VC Bypass reset to Idle")
+    notify("Coco Anti-VC V4", "Coco Anti-VC V4 reset to Idle")
     sToggleOff()
 end
 
@@ -6758,28 +7130,28 @@ Anti.VC.openPanelFn = function()
 
     local mainCard = Instance.new("Frame", screenGui)
     mainCard.Name = "CocoAntiVCCard"
-    mainCard.Size = UDim2.new(0, 280, 0, 215)
-    mainCard.Position = UDim2.new(0.5, -140, 0.5, -107)
-    mainCard.BackgroundColor3 = Color3.fromRGB(18, 18, 26)
+    mainCard.Size = UDim2.new(0, 310, 0, 318)
+    mainCard.Position = UDim2.new(0.5, -155, 0.5, -159)
+    mainCard.BackgroundColor3 = Color3.fromRGB(16, 16, 24)
     mainCard.BorderSizePixel = 0
     mainCard.Active = true
     pcall(function() mainCard.Draggable = true end)
 
     local cardCorner = Instance.new("UICorner", mainCard)
-    cardCorner.CornerRadius = UDim.new(0, 10)
+    cardCorner.CornerRadius = UDim.new(0, 12)
 
     local cardStroke = Instance.new("UIStroke", mainCard)
-    cardStroke.Color = Color3.fromRGB(90, 40, 160)
-    cardStroke.Thickness = 1.5
+    cardStroke.Color = Color3.fromRGB(115, 55, 210)
+    cardStroke.Thickness = 1.6
 
     local closeBtn = Instance.new("TextButton", mainCard)
-    closeBtn.Size = UDim2.new(0, 22, 0, 20)
-    closeBtn.Position = UDim2.new(1, -22, 0, 0)
+    closeBtn.Size = UDim2.new(0, 24, 0, 22)
+    closeBtn.Position = UDim2.new(1, -24, 0, 0)
     closeBtn.BackgroundTransparency = 1
     closeBtn.Text = "✕"
     closeBtn.Font = Enum.Font.GothamBold
-    closeBtn.TextSize = 12
-    closeBtn.TextColor3 = Color3.fromRGB(160, 165, 185)
+    closeBtn.TextSize = 13
+    closeBtn.TextColor3 = Color3.fromRGB(170, 175, 195)
     closeBtn.ZIndex = 5
     closeBtn.MouseButton1Click:Connect(function()
         sClick()
@@ -6799,17 +7171,17 @@ Anti.VC.openPanelFn = function()
 
     local headerLbl = Instance.new("TextLabel", mainCard)
     headerLbl.LayoutOrder = 1
-    headerLbl.Size = UDim2.new(1, -24, 0, 20)
+    headerLbl.Size = UDim2.new(1, -26, 0, 20)
     headerLbl.BackgroundTransparency = 1
-    headerLbl.Text = "COCO ANTI VC / VC BYPASS"
+    headerLbl.Text = "⚡ COCO ANTI-VC / VC BYPASS V4"
     headerLbl.Font = Enum.Font.GothamBold
     headerLbl.TextSize = 13
-    headerLbl.TextColor3 = Color3.fromRGB(160, 100, 255)
+    headerLbl.TextColor3 = Color3.fromRGB(175, 115, 255)
     headerLbl.TextXAlignment = Enum.TextXAlignment.Left
 
     local stLbl = Instance.new("TextLabel", mainCard)
     stLbl.LayoutOrder = 2
-    stLbl.Size = UDim2.new(1, 0, 0, 24)
+    stLbl.Size = UDim2.new(1, 0, 0, 18)
     stLbl.BackgroundTransparency = 1
     stLbl.Text = Anti.VC.statusText or "Status: Idle"
     stLbl.Font = Enum.Font.GothamMedium
@@ -6819,15 +7191,26 @@ Anti.VC.openPanelFn = function()
     stLbl.TextXAlignment = Enum.TextXAlignment.Left
     Anti.VC.statusLbl = stLbl
 
+    local micLbl = Instance.new("TextLabel", mainCard)
+    micLbl.LayoutOrder = 3
+    micLbl.Size = UDim2.new(1, 0, 0, 18)
+    micLbl.BackgroundTransparency = 1
+    micLbl.Text = "Mic State: Checking..."
+    micLbl.Font = Enum.Font.GothamMedium
+    micLbl.TextSize = 11
+    micLbl.TextColor3 = Color3.fromRGB(165, 170, 190)
+    micLbl.TextXAlignment = Enum.TextXAlignment.Left
+    Anti.VC.micStateLbl = micLbl
+
     local infoLbl = Instance.new("TextLabel", mainCard)
-    infoLbl.LayoutOrder = 3
-    infoLbl.Size = UDim2.new(1, 0, 0, 90)
-    infoLbl.BackgroundColor3 = Color3.fromRGB(24, 24, 34)
+    infoLbl.LayoutOrder = 4
+    infoLbl.Size = UDim2.new(1, 0, 0, 74)
+    infoLbl.BackgroundColor3 = Color3.fromRGB(24, 24, 35)
     infoLbl.BorderSizePixel = 0
-    infoLbl.Text = "1. Click Activate Coco Anti-VC\n2. Unmute your mic when prompted\n3. Wait ~6s for bypass to finish\n4. Use the custom mic button after"
+    infoLbl.Text = "• Auto-detects Classic, Unibar & Chrome TopBar mic\n• Disables VC suspension hooks & keeps voice alive\n• Tap Activate (or Force Now to skip unmute wait)\n• Toggle Mic anytime from TopBar or button below"
     infoLbl.Font = Enum.Font.Gotham
     infoLbl.TextSize = 11
-    infoLbl.TextColor3 = Color3.fromRGB(180, 180, 200)
+    infoLbl.TextColor3 = Color3.fromRGB(185, 188, 210)
     infoLbl.TextXAlignment = Enum.TextXAlignment.Left
     infoLbl.TextYAlignment = Enum.TextYAlignment.Top
     infoLbl.TextWrapped = true
@@ -6836,17 +7219,18 @@ Anti.VC.openPanelFn = function()
     infoCorner.CornerRadius = UDim.new(0, 8)
 
     local infoPad = Instance.new("UIPadding", infoLbl)
-    infoPad.PaddingTop = UDim.new(0, 8)
-    infoPad.PaddingLeft = UDim.new(0, 10)
+    infoPad.PaddingTop = UDim.new(0, 7)
+    infoPad.PaddingLeft = UDim.new(0, 9)
+    infoPad.PaddingRight = UDim.new(0, 9)
 
     local actBtn = Instance.new("TextButton", mainCard)
-    actBtn.LayoutOrder = 4
-    actBtn.Size = UDim2.new(1, 0, 0, 40)
-    actBtn.BackgroundColor3 = Color3.fromRGB(90, 40, 160)
+    actBtn.LayoutOrder = 5
+    actBtn.Size = UDim2.new(1, 0, 0, 36)
+    actBtn.BackgroundColor3 = Color3.fromRGB(105, 45, 185)
     actBtn.BorderSizePixel = 0
-    actBtn.Text = Anti.VC.enabled and "COCO ANTI VC ACTIVE" or (Anti.VC.running and "WAITING..." or "ACTIVATE COCO ANTI VC")
+    actBtn.Text = Anti.VC.enabled and "COCO ANTI VC V4 ACTIVE" or (Anti.VC.running and "FORCE BYPASS NOW ⚡" or "ACTIVATE COCO ANTI VC V4")
     actBtn.Font = Enum.Font.GothamBold
-    actBtn.TextSize = 13
+    actBtn.TextSize = 12
     actBtn.TextColor3 = Color3.new(1, 1, 1)
     actBtn.AutoButtonColor = true
     Anti.VC.activateBtn = actBtn
@@ -6856,8 +7240,87 @@ Anti.VC.openPanelFn = function()
 
     actBtn.MouseButton1Click:Connect(function()
         sClick()
-        vcStart()
+        if Anti.VC.running then
+            vcStart(true)
+        else
+            vcStart(false)
+        end
     end)
+
+    local rowFrame1 = Instance.new("Frame", mainCard)
+    rowFrame1.LayoutOrder = 6
+    rowFrame1.Size = UDim2.new(1, 0, 0, 34)
+    rowFrame1.BackgroundTransparency = 1
+
+    local micToggleBtn = Instance.new("TextButton", rowFrame1)
+    micToggleBtn.Size = UDim2.new(0.5, -3, 1, 0)
+    micToggleBtn.Position = UDim2.new(0, 0, 0, 0)
+    micToggleBtn.BackgroundColor3 = Color3.fromRGB(32, 34, 48)
+    micToggleBtn.BorderSizePixel = 0
+    micToggleBtn.Text = "🎙️ Toggle Mic"
+    micToggleBtn.Font = Enum.Font.GothamBold
+    micToggleBtn.TextSize = 11
+    micToggleBtn.TextColor3 = Color3.fromRGB(220, 225, 245)
+    Instance.new("UICorner", micToggleBtn).CornerRadius = UDim.new(0, 7)
+    micToggleBtn.MouseButton1Click:Connect(function()
+        sClick()
+        toggleCocoVCMic()
+    end)
+
+    local rejoinBtn = Instance.new("TextButton", rowFrame1)
+    rejoinBtn.Size = UDim2.new(0.5, -3, 1, 0)
+    rejoinBtn.Position = UDim2.new(0.5, 3, 0, 0)
+    rejoinBtn.BackgroundColor3 = Color3.fromRGB(32, 34, 48)
+    rejoinBtn.BorderSizePixel = 0
+    rejoinBtn.Text = "🔄 Force Rejoin VC"
+    rejoinBtn.Font = Enum.Font.GothamBold
+    rejoinBtn.TextSize = 11
+    rejoinBtn.TextColor3 = Color3.fromRGB(150, 210, 255)
+    Instance.new("UICorner", rejoinBtn).CornerRadius = UDim.new(0, 7)
+    rejoinBtn.MouseButton1Click:Connect(function()
+        sClick()
+        forceRejoinAndBypassVC()
+    end)
+
+    local rowFrame2 = Instance.new("Frame", mainCard)
+    rowFrame2.LayoutOrder = 7
+    rowFrame2.Size = UDim2.new(1, 0, 0, 34)
+    rowFrame2.BackgroundTransparency = 1
+
+    local guardBtn = Instance.new("TextButton", rowFrame2)
+    guardBtn.Size = UDim2.new(0.5, -3, 1, 0)
+    guardBtn.Position = UDim2.new(0, 0, 0, 0)
+    guardBtn.BackgroundColor3 = Color3.fromRGB(28, 44, 36)
+    guardBtn.BorderSizePixel = 0
+    guardBtn.Text = vcAutoGuardEnabled and "🛡️ Auto-Guard: ON" or "🛡️ Auto-Guard: OFF"
+    guardBtn.Font = Enum.Font.GothamBold
+    guardBtn.TextSize = 11
+    guardBtn.TextColor3 = vcAutoGuardEnabled and Color3.fromRGB(95, 235, 145) or Color3.fromRGB(165, 170, 190)
+    Instance.new("UICorner", guardBtn).CornerRadius = UDim.new(0, 7)
+    guardBtn.MouseButton1Click:Connect(function()
+        sClick()
+        vcAutoGuardEnabled = not vcAutoGuardEnabled
+        guardBtn.Text = vcAutoGuardEnabled and "🛡️ Auto-Guard: ON" or "🛡️ Auto-Guard: OFF"
+        guardBtn.TextColor3 = vcAutoGuardEnabled and Color3.fromRGB(95, 235, 145) or Color3.fromRGB(165, 170, 190)
+        guardBtn.BackgroundColor3 = vcAutoGuardEnabled and Color3.fromRGB(28, 44, 36) or Color3.fromRGB(32, 34, 48)
+    end)
+
+    local resetBtn = Instance.new("TextButton", rowFrame2)
+    resetBtn.Size = UDim2.new(0.5, -3, 1, 0)
+    resetBtn.Position = UDim2.new(0.5, 3, 0, 0)
+    resetBtn.BackgroundColor3 = Color3.fromRGB(48, 28, 34)
+    resetBtn.BorderSizePixel = 0
+    resetBtn.Text = "⏹ Reset / Stop VC"
+    resetBtn.Font = Enum.Font.GothamBold
+    resetBtn.TextSize = 11
+    resetBtn.TextColor3 = Color3.fromRGB(255, 120, 130)
+    Instance.new("UICorner", resetBtn).CornerRadius = UDim.new(0, 7)
+    resetBtn.MouseButton1Click:Connect(function()
+        sClick()
+        vcStop()
+    end)
+
+    updateAntiVCVisuals(nil, nil, nil)
 end
 end
 do -- Sub-scope 2 for Anti (Ragdoll, Anchor, Attach, Blind, Bring, FlingShield, DefenceTroll)
@@ -6885,7 +7348,7 @@ local function ragdollCleanseCharacter(c)
             hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
             hum:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
             hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
-            if not WeldIntent.active and not (AnimCopySys and AnimCopySys.active) and not FlingActive and not (moveState and (moveState.fly or moveState.flyLanding)) then
+            if CurrentWeld == nil and not (AnimCopySys and AnimCopySys.active) and not FlingActive and not (moveState and (moveState.fly or moveState.flyLanding)) then
                 hum:SetStateEnabled(Enum.HumanoidStateType.Physics, false)
                 if hum.PlatformStand then hum.PlatformStand = false end
                 if hum.Sit then hum.Sit = false end
@@ -7820,17 +8283,24 @@ Anti.SeatTrap.startFn = function(silent)
         return
     end
     Anti.SeatTrap.enabled = true
-    pcall(function()
-        for _, obj in ipairs(workspace:GetDescendants()) do
-            if obj:IsA("Seat") or obj:IsA("VehicleSeat") then
-                neutralizeSeatInstance(obj)
-            elseif (obj:IsA("SeatWeld") or obj.Name == "SeatWeld") and LP.Character then
-                local p0, p1 = obj.Part0, obj.Part1
-                if (p0 and p0:IsDescendantOf(LP.Character)) or (p1 and p1:IsDescendantOf(LP.Character)) then
-                    pcall(function() obj:Destroy() end)
+    task.spawn(function()
+        pcall(function()
+            local list = workspace:GetDescendants()
+            for idx, obj in ipairs(list) do
+                if not Anti.SeatTrap.enabled then break end
+                if obj:IsA("Seat") or obj:IsA("VehicleSeat") then
+                    neutralizeSeatInstance(obj)
+                elseif (obj:IsA("SeatWeld") or obj.Name == "SeatWeld") and LP.Character then
+                    local p0, p1 = obj.Part0, obj.Part1
+                    if (p0 and p0:IsDescendantOf(LP.Character)) or (p1 and p1:IsDescendantOf(LP.Character)) then
+                        pcall(function() obj:Destroy() end)
+                    end
+                end
+                if idx % 800 == 0 then
+                    RunService.Heartbeat:Wait()
                 end
             end
-        end
+        end)
     end)
     for _, p in ipairs(Players:GetPlayers()) do
         if p.Character then
@@ -9972,13 +10442,28 @@ local function safeResetVelocityHooks()
     end
 end
 
+local BangCharPartsCache = setmetatable({}, { __mode = "k" })
 local function safeSyncPhysicsStep(myRoot, targetRoot)
     if type(_G.syncBangPhysics) == "function" then
         pcall(_G.syncBangPhysics, myRoot, targetRoot)
     elseif myRoot and myRoot.Parent then
-        for _, part in ipairs(myRoot.Parent:GetDescendants()) do
-            if part:IsA("BasePart") then
-                part.CanCollide = false
+        local charModel = myRoot.Parent
+        local entry = BangCharPartsCache[charModel]
+        local now = os.clock()
+        if not entry or (now - entry.t) > 1.0 then
+            local parts = {}
+            for _, part in ipairs(charModel:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    parts[#parts + 1] = part
+                end
+            end
+            entry = { t = now, parts = parts }
+            BangCharPartsCache[charModel] = entry
+        end
+        for i = 1, #entry.parts do
+            local p = entry.parts[i]
+            if p and p.Parent then
+                p.CanCollide = false
             end
         end
     end
@@ -10413,6 +10898,25 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                         local realHRP = realChar:FindFirstChild("HumanoidRootPart")
                         if not (realHum and realHRP) then return end
 
+                        -- Clone BEFORE disabling states or setting PlatformStand on realHum so cloneHum never inherits a paralyzed state!
+                        local cloneChar = cloneRigForNativeReanim(realChar)
+                        local cloneHum = cloneChar:FindFirstChildOfClass("Humanoid")
+                        nativeState.real_char = realChar
+                        nativeState.clone_char = cloneChar
+                        table.clear(nativeState.defaultC0)
+                        findCloneMotorsMap(cloneChar)
+
+                        for _, desc in ipairs(cloneChar:GetDescendants()) do
+                            if desc:IsA("BasePart") then
+                                pcall(function()
+                                    desc.LocalTransparencyModifier = 0
+                                    if desc.Name ~= "HumanoidRootPart" and desc.Transparency > 0.5 then
+                                        desc.Transparency = 0
+                                    end
+                                end)
+                            end
+                        end
+
                         for _, st in ipairs({
                             Enum.HumanoidStateType.Dead, Enum.HumanoidStateType.FallingDown,
                             Enum.HumanoidStateType.Ragdoll, Enum.HumanoidStateType.GettingUp,
@@ -10425,12 +10929,17 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                         realHum.AutoRotate = false
                         pcall(function() realHum:ChangeState(Enum.HumanoidStateType.Physics) end)
 
-                        local cloneChar = cloneRigForNativeReanim(realChar)
-                        local cloneHum = cloneChar:FindFirstChildOfClass("Humanoid")
-                        nativeState.real_char = realChar
-                        nativeState.clone_char = cloneChar
-                        table.clear(nativeState.defaultC0)
-                        findCloneMotorsMap(cloneChar)
+                        if cloneHum then
+                            pcall(function()
+                                cloneHum.PlatformStand = false
+                                cloneHum.Sit = false
+                                cloneHum.AutoRotate = true
+                                cloneHum:SetStateEnabled(Enum.HumanoidStateType.Running, true)
+                                cloneHum:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
+                                cloneHum:SetStateEnabled(Enum.HumanoidStateType.Freefall, true)
+                                cloneHum:SetStateEnabled(Enum.HumanoidStateType.Landed, true)
+                            end)
+                        end
 
                         -- Hide realChar locally while keeping cloneChar visible to the local player
                         for _, desc in ipairs(realChar:GetDescendants()) do
@@ -10767,44 +11276,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
             return nativeApi
         end
 
-        if type(isfile) == "function" and type(readfile) == "function" then
-            local okFile, exists = pcall(isfile, "angoorreanim_module.lua")
-            if okFile and exists then
-                local okRead, content = pcall(readfile, "angoorreanim_module.lua")
-                if okRead and type(content) == "string" and #content > 50 then
-                    local fn = loadstring(content)
-                    if fn then
-                        local okRun, api = pcall(fn)
-                        if okRun and type(api) == "table" and type(api.reanimate) == "function" then
-                            return api
-                        end
-                    end
-                end
-            end
-        end
-
-        local urls = {
-            "https://raw.githubusercontent.com/teslapapa50-source/Module/refs/heads/main/Module",
-            "https://raw.githubusercontent.com/horizen-rblx/reanimsource/main/module.lua",
-        }
-        for _, url in ipairs(urls) do
-            local okHttp, src = pcall(function()
-                return game:HttpGet(url)
-            end)
-            if okHttp and type(src) == "string" and #src > 50 then
-                local fn = loadstring(src)
-                if fn then
-                    if type(writefile) == "function" then
-                        pcall(writefile, "angoorreanim_module.lua", src)
-                    end
-                    local okRun, api = pcall(fn)
-                    if okRun and type(api) == "table" and type(api.reanimate) == "function" then
-                        return api
-                    end
-                end
-            end
-        end
-
+        -- Always use the built-in self-contained Native Reanimation Engine (avoids external HttpGet freezes or stale cached modules)
         return createNativeReanimEngine()
     end
 
@@ -11051,16 +11523,8 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
         end
     end
 
-    if type(_G.hiddenBodyParts) ~= "table" then
-        _G.hiddenBodyParts = {}
-    end
-    if type(savedConfig.hiddenLimbs) == "table" then
-        for partName, isHidden in pairs(savedConfig.hiddenLimbs) do
-            if isHidden then
-                _G.hiddenBodyParts[partName] = true
-            end
-        end
-    end
+    -- Always start with all body parts visible so stale config files never make the character invisible on launch
+    _G.hiddenBodyParts = {}
 
     if type(savedConfig.customAnims) == "table" and #savedConfig.customAnims > 0 then
         mergeSavedCustomAnims()
@@ -13502,7 +13966,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                         hum.PlatformStand = false
                         hum.WalkSpeed = 16
                         hum.JumpPower = 50
-                        hum:ChangeState(Enum.HumanoidStateType.RunningNoPhysics)
+                        hum:ChangeState(Enum.HumanoidStateType.Running)
                     end
                 end)
             end
@@ -14334,6 +14798,12 @@ _G.CocaSkyDestroyer = CocaSkyDestroyer
                 local nameDist = (realHum.NameDisplayDistance > 0 and realHum.NameDisplayDistance) or 100
                 local healthDist = (realHum.HealthDisplayDistance > 0 and realHum.HealthDisplayDistance) or 100
 
+                -- Clone BEFORE disabling states or setting PlatformStand on realHum so cloneHum stays fully controllable!
+                local cloneChar = cloneCharacterRig(realChar)
+                local cloneHum = cloneChar:FindFirstChildOfClass("Humanoid")
+                ReanimState.real_char = realChar
+                ReanimState.clone_char = cloneChar
+
                 pcall(function()
                     for _, state in ipairs({
                         Enum.HumanoidStateType.Dead, Enum.HumanoidStateType.FallingDown,
@@ -14354,10 +14824,13 @@ _G.CocaSkyDestroyer = CocaSkyDestroyer
                     realHum:ChangeState(Enum.HumanoidStateType.Physics)
                 end)
 
-                local cloneChar = cloneCharacterRig(realChar)
-                local cloneHum = cloneChar:FindFirstChildOfClass("Humanoid")
-                ReanimState.real_char = realChar
-                ReanimState.clone_char = cloneChar
+                if cloneHum then
+                    pcall(function()
+                        cloneHum.PlatformStand = false
+                        cloneHum.Sit = false
+                        cloneHum.AutoRotate = true
+                    end)
+                end
                 -- Strip WrapLayer from cloneChar so cloneChar doesn't stretch locally, and keep cloneChar visible so you can see where you walk!
                 for _, desc in ipairs(cloneChar:GetDescendants()) do
                     if desc:IsA("WrapLayer") or desc:IsA("WrapTarget") then
@@ -14893,13 +15366,20 @@ _G.CocaSkyDestroyer = CocaSkyDestroyer
                 local realHRP = realChar:FindFirstChild("HumanoidRootPart")
                 if not (realHum and realHRP) then return end
 
-                realHum.PlatformStand = true
-                realHum.RequiresNeck = false
-
                 local cloneChar = cloneEternityCharacterRig(realChar)
                 local cloneHum = cloneChar:FindFirstChildOfClass("Humanoid")
                 EternityReanimState.real_char = realChar
                 EternityReanimState.clone_char = cloneChar
+
+                realHum.PlatformStand = true
+                realHum.RequiresNeck = false
+                if cloneHum then
+                    pcall(function()
+                        cloneHum.PlatformStand = false
+                        cloneHum.Sit = false
+                        cloneHum.AutoRotate = true
+                    end)
+                end
 
                 for _, desc in ipairs(cloneChar:GetDescendants()) do
                     if desc:IsA("WrapLayer") or desc:IsA("WrapTarget") then
@@ -20121,6 +20601,7 @@ local function buildMainUI()
             ActiveFlyPhaseKey = nil
         end
 
+        local FlyLoadCooldowns = {}
         local function switchFlyAnimPhase(char, hum, phaseKey, speedMult)
             if not char or not hum then return end
             local styleCfg = FLY_STYLES[moveState.flyStyle] or FLY_STYLES[1]
@@ -20137,7 +20618,11 @@ local function buildMainUI()
                     pcall(function() existing:AdjustSpeed(speedMult or 1.0) end)
                     return
                 end
+                if (os.clock() - (FlyLoadCooldowns[fullKey] or 0)) < 1.25 then
+                    return
+                end
             end
+            FlyLoadCooldowns[fullKey] = os.clock()
 
             local animator = hum:FindFirstChildOfClass("Animator")
             if not animator then
@@ -20190,16 +20675,7 @@ local function buildMainUI()
         end
 
         local function restoreAllFlyJoints(char)
-            char = char or (LP and LP.Character)
-            if char then
-                for _, d in ipairs(char:GetDescendants()) do
-                    if d:IsA("Motor6D") and SavedMotorC0[d] then
-                        pcall(function() d.C0 = SavedMotorC0[d] end)
-                        SavedMotorC0[d] = nil
-                        CurrentPoseAngles[d] = nil
-                    end
-                end
-            end
+            if next(SavedMotorC0) == nil then return end
             for m, orig in pairs(SavedMotorC0) do
                 if m and m.Parent then
                     pcall(function() m.C0 = orig end)
@@ -20647,7 +21123,7 @@ local function buildMainUI()
                     end
                 end
             end
-            if ch and FlyAnimateWasDisabled and not WeldIntent.active then
+            if ch and FlyAnimateWasDisabled and CurrentWeld == nil then
                 local animScript = ch:FindFirstChild("Animate")
                 if animScript then animScript.Disabled = false end
                 FlyAnimateWasDisabled = false
@@ -20657,7 +21133,7 @@ local function buildMainUI()
                 hum.Sit = false
                 hum.Jump = false
                 hum.AutoRotate = true
-                if hum.Health > 0 and not WeldIntent.active then
+                if hum.Health > 0 and CurrentWeld == nil then
                     pcall(function() hum:ChangeState(Enum.HumanoidStateType.GettingUp) end)
                     pcall(function() hum:ChangeState(Enum.HumanoidStateType.Running) end)
                 end
@@ -20754,7 +21230,7 @@ local function buildMainUI()
 
                     -- Keep Animate suppressed and prevent Mobile TouchJump from latching hum.Jump = true while PlatformStand is active
                     if hum.Jump then hum.Jump = false end
-                    if not WeldIntent.active then
+                    if CurrentWeld == nil then
                         local aScr = ch:FindFirstChild("Animate")
                         if aScr and not aScr.Disabled then
                             aScr.Disabled = true
@@ -21276,19 +21752,19 @@ local function buildMainUI()
         registerAntiSwitch(bypassGrp, 2, "Redirect Attacker",      "Slingshots incoming attacker onto nearest bystander",           function() return Anti.Redirect.enabled end, redirectStart, redirectStop)
         registerAntiSwitch(bypassGrp, 3, "Anti-GameplayPaused",    "Prevents streaming pause & network freeze screens",             function() return Anti.GamePaused.enabled end, agpStart, agpStop)
         registerAntiSwitch(bypassGrp, 4, "Anti-AFK v2",            "Idled connection + VirtualUser anti-kick pulse",                function() return Anti.AFK.enabled end, afkStart, afkStop)
-        local vcSw = createSwitchRow(bypassGrp, 5, "Coco Anti-VC / VC Bypass", "Status: Idle · Unmute mic when prompted (~6s)", Anti.VC.enabled, function(st)
-            if st then vcStart() else vcStop() end
+        local vcSw = createSwitchRow(bypassGrp, 5, "Coco Anti-VC / VC Bypass V4", "Status: Idle · Auto-Unmute + TopBar Clone + Watchdog Shield", Anti.VC.enabled, function(st)
+            if st then vcStart(false) else vcStop() end
             syncAllAntiButtons()
         end)
         Anti.VC.rowSubLbl = vcSw.subLbl
         table.insert(antiToggleRegistry, { sw = vcSw, getState = function() return Anti.VC.enabled or Anti.VC.running end })
 
-        createActionRow(bypassGrp, 6, "Coco Anti-VC Floating Panel", "Opens the standalone Coco Anti-VC card with 4-step guide & status", "Open UI", function()
+        createActionRow(bypassGrp, 6, "Coco Anti-VC V4 Floating Panel", "Opens V4 dashboard with Mic Toggle, Force Rejoin, Auto-Guard & Force Bypass", "Open V4", function()
             if Anti.VC.openPanelFn then
                 Anti.VC.openPanelFn()
             end
         end, function()
-            vcStart()
+            vcStart(true)
         end, "⚡")
         updateDefenceStatsUI()
     end
