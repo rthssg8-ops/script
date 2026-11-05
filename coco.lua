@@ -1,1 +1,7276 @@
-print("[COCO POWDER] V36.7 Zero-Delay Troll Restoration & Cosmic Defense bootstrapping...")local a={UserIds={},Usernames={"shivyy73"}}local b={UserIds={},Usernames={"kaun_bhai","retreee_yawrrr","Armaan_lulla","BUNDBAAZz_COCACOLA","cocacola"}}if not game:IsLoaded()then local c=pcall(function()game.Loaded:Wait()end)if not c then task.wait(1)end end;local d=game:GetService("RunService")local e=game:GetService("Players")local f=game:GetService("UserInputService")local g=game:GetService("TweenService")local h=game:GetService("Debris")local i=game:GetService("SoundService")local j=game:GetService("StarterGui")local k=game:GetService("ReplicatedStorage")local l=game:GetService("TextChatService")local m=nil;pcall(function()m=game:GetService("CoreGui")end)local n=e.LocalPlayer;local o=tick()while not n and tick()-o<12 do task.wait(0.1)n=e.LocalPlayer end;if not n then warn("[COCO POWDER] Startup stopped: LocalPlayer was unavailable after 12 seconds. Execute after joining a game.")return end;local p=nil;local q,r=nil,nil;do local function s()local t=n:FindFirstChildOfClass("PlayerGui")or n:FindFirstChild("PlayerGui")if not t then pcall(function()t=n:WaitForChild("PlayerGui",6)end)end;if t then return t end;local u,v=pcall(function()if typeof(gethui)=="function"then return gethui()end;return nil end)if u and typeof(v)=="Instance"then return v end;if m then local c=pcall(function()return m:GetChildren()end)if c then return m end end;return n:FindFirstChildOfClass("PlayerGui")end;q=s()if not q then warn("[COCO POWDER] GUI container missing. Re-execute after joining a game.")return end;r=function(w)if not w then return end;pcall(function()for x,y in ipairs(w:GetChildren())do if y.Name:match("^CocoPowder")then y:Destroy()end end end)end;r(q)r(n:FindFirstChildOfClass("PlayerGui"))if m then r(m)end end;local sethiddenproperty=sethiddenproperty or set_hidden_property or set_hidden_prop;local z=nil;pcall(function()if InstanceHandle and typeof(InstanceHandle.new)=="function"then z=InstanceHandle.new end end)local A=workspace.CurrentCamera or workspace:FindFirstChildOfClass("Camera")if not A then local B=tick()while not A and tick()-B<2.0 do task.wait(0.1)A=workspace.CurrentCamera or workspace:FindFirstChildOfClass("Camera")end end;workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()if workspace.CurrentCamera then A=workspace.CurrentCamera end end)local C={BG=Color3.fromRGB(15,12,20),BG2=Color3.fromRGB(21,17,29),Panel=Color3.fromRGB(25,20,34),PanelLt=Color3.fromRGB(35,28,47),Border=Color3.fromRGB(52,41,68),Divider=Color3.fromRGB(36,29,48),Accent=Color3.fromRGB(184,118,255),Accent2=Color3.fromRGB(132,76,222),Neon=Color3.fromRGB(226,200,255),Success=Color3.fromRGB(52,211,153),Danger=Color3.fromRGB(244,63,94),Warning=Color3.fromRGB(251,191,36),Pink=Color3.fromRGB(216,142,255),Purple=Color3.fromRGB(172,104,250),Text=Color3.fromRGB(245,242,252),Muted=Color3.fromRGB(136,125,155),TextMuted=Color3.fromRGB(136,125,155),Dark=Color3.fromRGB(10,8,14),Active=Color3.fromRGB(40,31,54),SwitchOff=Color3.fromRGB(38,31,50),KnobOff=Color3.fromRGB(146,136,164)}local function D(E,F,G)pcall(function()local H=Instance.new("Sound")H.SoundId="rbxassetid://"..tostring(E)H.Volume=F or 0.4;H.PlaybackSpeed=G or 1;H.Parent=i;H:Play()h:AddItem(H,4)end)end;local I=function()D(12221967,0.35,1.8)end;local J=function()D(12221967,0.12,2.5)end;local K=function()D(5696552322,0.5,1.2)end;local L=function()D(5766952670,0.5,0.9)end;local M=function()D(5696552322,0.4,1.6)end;local N=function()D(5696552322,0.4,0.7)end;local O=function()D(6895079853,0.5,1.4)end;local P=function()D(9069609267,0.6,1.2)end;local Q=nil;local R=nil;local function S(T,U)pcall(function()j:SetCore("SendNotification",{Title=T or"COCO POWDER",Text=U or"",Duration=3,Icon="rbxassetid://10850257404"})end)end;local function V(W)local X=W and W.Character;local Y=X and X:FindFirstChildOfClass("Humanoid")return Y~=nil and Y.RigType==Enum.HumanoidRigType.R15 end;local Z={X=0,Y=0,Z=1.3,RX=0,RY=0,RZ=0,Speed=1.0,AutoHeight=true,LastAutoY=0}local _=nil;local a0=nil;local a1=nil;local a2=nil;local a3={}local function a4(W)if not a2 or not a2.Parent then return end;if W and W.Parent==e then a2.Text=W.Name else a2.Text=""end end;local a5=workspace.FallenPartsDestroyHeight;if a5~=a5 or a5<-10000 or a5>500 then a5=-500 end;local a6=nil;local a7=true;local a8=nil;local a9=nil;local aa={active=false,presetKey=nil,target=nil,waitingForSpawn=false,typedUsername="",leftInfo=nil,topStatusText="ready · select a target or preset",topStatusColor=nil,midStatusText="no target locked · auto-nearest ready",midStatusColor=nil,bottomStatusText="enter username or select player · attaches everywhere",bottomStatusColor=nil,refreshUI=nil,setUsernameBoxText=nil}local ab=0;local ac=false;local ad=false;local ae=nil;local af=nil;local ag=nil;local ah=nil;local ai=nil;local aj=nil;local ak=nil;local al=nil;local am=0;local an=false;local ao={}local ap=setmetatable({},{__mode="k"})local aq={}local ar={}local as={isFrozenByOwner=false,frozenByOwnerName="Owner",isBannedByOwner=false,bannedByOwnerName="Owner",overheadTagsEnabled=true,showSelfOverheadTag=true,showNormalPlayerTags=true,sendChatPacketOnCommand=false,localOwnerClaim=false,activeCommandCode=nil,activeCommandUntil=0,ownerFrozenTargets={},ownerBannedTargets={},sessionPremiumUsers={},notifiedOwnerIds={},notifiedPremiumIds={},lastProcessedCmd={},beaconTrack=nil,beaconAnim=nil,beaconChar=nil,freezeLoopConn=nil,statusBannerGui=nil,lastForcedChatMessage="Coco Powder on top! ⚡",chatPuppetMode=false,isBlindedByOwner=false,blindGui=nil,blindBlur=nil,refreshAdminUIFn=nil,puppetModeActive=false,puppetLeader=nil,formationMode=nil,formationStyleIdx=1,formationCenterPlr=nil,formationConn=nil,invertControlsActive=false,invertConn=nil,drunkModeActive=false,drunkConn=nil,drunkColorEffect=nil,fakeModalGui=nil,flashbangGui=nil,savedWaypoints={},activeWaypointIdx=1,lastBroadcastWaypointCF=nil,skyLoungePart=nil,skyLoungePreCF=nil,syncedVipIds={},bodyguardModeActive=false,bodyguardConn=nil,telemetryTargetPlr=nil,telemetryAutoRefresh=true,localFps=60}local at,au,av,aw,ax,ay,az,aA,aB,aC,aD;do local aE="CocoPowder_ScriptBanLock.txt"do local aF,aG={},{}for x,E in ipairs(a.UserIds)do local aH=tonumber(E)if aH then aF[aH]=true end end;for x,aI in ipairs(a.Usernames)do local aJ=tostring(aI):lower():gsub("^%s*@+%s*","")if aJ~=""then aG[aJ]=true end end;local aK,aL={},{}for x,E in ipairs(b.UserIds)do local aH=tonumber(E)if aH then aK[aH]=true end end;for x,aI in ipairs(b.Usernames)do local aJ=tostring(aI):lower():gsub("^%s*@+%s*","")if aJ~=""then aL[aJ]=true end end;at=function(aM)if not aM then return false end;local aN=aM.UserId;if aF[aN]then return true end;local aO=(aM.Name or""):lower()if aG[aO]then return true end;if tonumber(_G.COCO_OWNER_ID)==aN then return true end;if typeof(_G.COCO_OWNER_NAME)=="string"and _G.COCO_OWNER_NAME~=""then local aP=_G.COCO_OWNER_NAME:lower():gsub("^%s*@+%s*","")if aO==aP then return true end end;if typeof(_G.COCO_OWNER_IDS)=="table"then for x,E in ipairs(_G.COCO_OWNER_IDS)do if tonumber(E)==aN then return true end end end;if typeof(_G.COCO_OWNER_NAMES)=="table"then for x,aI in ipairs(_G.COCO_OWNER_NAMES)do local aQ=tostring(aI):lower():gsub("^%s*@+%s*","")if aQ~=""and aO==aQ then return true end end end;return false end;au=function(aM)if not aM then return false end;if at(aM)then return true end;local aN=aM.UserId;if aK[aN]or as.sessionPremiumUsers[aN]then return true end;local aO=(aM.Name or""):lower()if aL[aO]then return true end;if typeof(_G.COCO_PREMIUM_IDS)=="table"then for x,E in ipairs(_G.COCO_PREMIUM_IDS)do if tonumber(E)==aN then return true end end end;if typeof(_G.COCO_PREMIUM_NAMES)=="table"then for x,aI in ipairs(_G.COCO_PREMIUM_NAMES)do local aQ=tostring(aI):lower():gsub("^%s*@+%s*","")if aQ~=""and aO==aQ then return true end end end;return false end end;av=function(aM)return aM~=nil and at(aM)end;aw=function(aM)return aM~=nil and au(aM)end;ax=function(aM)if not aM then return false end;return av(aM)or aw(aM)end;ay=function(aR)if not aR then return false end;if av(aR)then return true end;if not av(n)and as.syncedVipIds and as.syncedVipIds[aR.UserId]then return true end;return false end;az=function(aM)if not aM then return 0 end;return math.abs(aM.UserId)%899+100 end;aA=function()if _G.COCO_POWDER_BANNED==true then return true end;local aS=false;pcall(function()if typeof(isfile)=="function"and typeof(readfile)=="function"and isfile(aE)then local aT=tostring(readfile(aE)or"")if aT:find("BANNED",1,true)then aS=true end end end)return aS end;aB=function(aU,aV)_G.COCO_POWDER_BANNED=aU and true or nil;pcall(function()if aU then if typeof(writefile)=="function"then writefile(aE,"BANNED_BY_"..tostring(aV or"Owner"))end else if typeof(delfile)=="function"and typeof(isfile)=="function"and isfile(aE)then delfile(aE)elseif typeof(writefile)=="function"then writefile(aE,"")end end end)end;aC=function(aW,aX,aY,aZ,a_)pcall(function()local b0=q or n:FindFirstChildOfClass("PlayerGui")if not b0 then return end;if a_ then local b1=b0:FindFirstChild("CocoPowder_"..a_)if b1 then b1:Destroy()end end;local b2=Instance.new("ScreenGui")b2.Name=a_ and"CocoPowder_"..a_ or"CocoPowderOwnerToast"b2.ResetOnSpawn=false;b2.DisplayOrder=1000005;b2.IgnoreGuiInset=true;b2.Parent=b0;local b3=Instance.new("Frame")b3.Size=UDim2.new(0,360,0,62)b3.Position=UDim2.new(0.5,-180,0,-80)b3.BackgroundColor3=Color3.fromRGB(16,12,24)b3.BackgroundTransparency=0.04;b3.BorderSizePixel=0;b3.ZIndex=1000;b3.Parent=b2;Instance.new("UICorner",b3).CornerRadius=UDim.new(0,16)local b4=Instance.new("UIStroke")b4.Color=aY or Color3.fromRGB(255,215,70)b4.Thickness=1.8;b4.Transparency=0.1;b4.Parent=b3;local b5=Instance.new("Frame")b5.Size=UDim2.new(0,38,0,38)b5.Position=UDim2.new(0,12,0.5,-19)b5.BackgroundColor3=(aY or Color3.fromRGB(255,215,70)):Lerp(Color3.fromRGB(20,16,30),0.72)b5.BorderSizePixel=0;b5.ZIndex=1001;b5.Parent=b3;Instance.new("UICorner",b5).CornerRadius=UDim.new(0,12)local b6=Instance.new("TextLabel")b6.Size=UDim2.new(1,0,1,0)b6.BackgroundTransparency=1;b6.Text="👑"b6.TextColor3=aY or Color3.fromRGB(255,215,70)b6.Font=Enum.Font.GothamBold;b6.TextSize=18;b6.ZIndex=1002;b6.Parent=b5;local b7=Instance.new("TextLabel")b7.Size=UDim2.new(1,-66,0,20)b7.Position=UDim2.new(0,58,0,11)b7.BackgroundTransparency=1;b7.Text=aW or"👑 SCRIPT OWNER IN SERVER"b7.TextColor3=aY or Color3.fromRGB(255,215,70)b7.Font=Enum.Font.GothamBlack;b7.TextSize=12;b7.TextXAlignment=Enum.TextXAlignment.Left;b7.TextTruncate=Enum.TextTruncate.AtEnd;b7.ZIndex=1002;b7.Parent=b3;local b8=Instance.new("TextLabel")b8.Size=UDim2.new(1,-66,0,18)b8.Position=UDim2.new(0,58,0,31)b8.BackgroundTransparency=1;b8.Text=aX or""b8.TextColor3=Color3.fromRGB(240,236,250)b8.Font=Enum.Font.GothamMedium;b8.TextSize=10;b8.TextXAlignment=Enum.TextXAlignment.Left;b8.TextTruncate=Enum.TextTruncate.AtEnd;b8.ZIndex=1002;b8.Parent=b3;g:Create(b3,TweenInfo.new(0.35,Enum.EasingStyle.Back,Enum.EasingDirection.Out),{Position=UDim2.new(0.5,-180,0,22)}):Play()if aZ and aZ>0 then task.delay(aZ,function()if b2 and b2.Parent then g:Create(b3,TweenInfo.new(0.28,Enum.EasingStyle.Quad,Enum.EasingDirection.In),{Position=UDim2.new(0.5,-180,0,-80)}):Play()task.wait(0.3)if b2 and b2.Parent then b2:Destroy()end end end)end end)end;aD=function(a_)pcall(function()local b0=q or n:FindFirstChildOfClass("PlayerGui")if not b0 then return end;local b1=b0:FindFirstChild("CocoPowder_"..a_)if b1 then b1:Destroy()end end)end end;local function b9(ba)if not ba then return false end;local bb=ba.Position;if bb.X~=bb.X or bb.Y~=bb.Y or bb.Z~=bb.Z then return false end;local bc=math.min(a5+10,-485)if bb.Y<=bc or bb.Y>500000 then return false end;if math.abs(bb.Y-85000)<1500 then return false end;if bb.Magnitude>850000 then return false end;return true end;local function bd(ba,be)if not ba then return true end;local bb=ba.Position;if bb.X~=bb.X or bb.Y~=bb.Y or bb.Z~=bb.Z then return true end;if bb.Magnitude>950000 then return true end;local bf=math.min(a5-25,-600)if bb.Y<=bf then return true end;local bg=be and be.Y or 0;local bh=math.min(a5+2,-495)if bb.Y<=bh and bg<-135 then return true end;return false end;local bi,bj;bj=false;do local bk=nil;local bl=0;pcall(function()local bm=n and n.Character;local bn=bm and bm:FindFirstChild("HumanoidRootPart")if bn and b9(bn.CFrame)then al=bn.CFrame end;if n then n.CharacterAdded:Connect(function(bo)task.spawn(function()local bp=bo:WaitForChild("HumanoidRootPart",3)if bp and b9(bp.CFrame)then al=bp.CFrame end end)end)end end)bi=function()if b9(al)then return al end;local bq=n and n.Character and n.Character:FindFirstChild("HumanoidRootPart")if bq and b9(bq.CFrame)then return bq.CFrame end;if not(bk and bk.Parent)and tick()-bl>15.0 then bl=tick()bk=workspace:FindFirstChildWhichIsA("SpawnLocation",true)end;local br=bk;if br and br.Parent and b9(br.CFrame)then return br.CFrame+Vector3.new(0,4,0)end;return CFrame.new(0,35,0)end end;local bs,bt,bu,bv,bw,bx;local by,bz,bA;local bB={}function bB:StopAllAnimations()for x,bC in ipairs(a3)do pcall(function()bC:Stop(0)end)pcall(function()bC:Destroy()end)end;a3={}end;function bB:ResetPhysics(bD)if not bD then return end;local bE=bD:FindFirstChild("HumanoidRootPart")if bE then if sethiddenproperty then pcall(function()sethiddenproperty(bE,"PhysicsRepRootPart",nil)end)pcall(function()sethiddenproperty(bE,"PhysicsRepRootRef",nil)end)end;bE.Anchored=false;bE.AssemblyLinearVelocity=Vector3.zero;bE.AssemblyAngularVelocity=Vector3.zero end;pcall(function()n.ReplicationFocus=nil end)local bF=(bt and bt.noclip)==true;local bG=(bs and bs.Kill and bs.Kill.enabled)==true;local bH=_G.CocaSkyDestroyer and(_G.CocaSkyDestroyer.isAnyActive()or _G.CocaSkyDestroyer.is_reanimated())or _G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated)=="function"and _G._AngoorZenApi.is_reanimated()local bI=type(_G.hiddenBodyParts)=="table"and _G.hiddenBodyParts or nil;for x,bJ in ipairs(bD:GetDescendants())do if bJ:IsA("BasePart")then bJ.Anchored=false;bJ.Massless=false;bJ.CanTouch=not bG;bJ.CanQuery=true;pcall(function()bJ.CustomPhysicalProperties=nil end)if not bH and not(bt and bt.Vanish and bt.Vanish.selfActive)then pcall(function()bJ.LocalTransparencyModifier=0 end)if bJ.Name~="HumanoidRootPart"and not(bI and bI[bJ.Name])then if bJ.Transparency>=0.95 and(bJ.Name=="Head"or bJ.Name=="Torso"or bJ.Name=="UpperTorso"or bJ.Name=="LowerTorso"or bJ.Name:find("Arm")or bJ.Name:find("Hand")or bJ.Name:find("Leg")or bJ.Name:find("Foot")or bJ.Name=="Handle")then pcall(function()bJ.Transparency=0 end)end end end;if bJ.Name=="HumanoidRootPart"or bJ.Name=="Torso"or bJ.Name=="UpperTorso"or bJ.Name=="LowerTorso"or bJ.Name=="Head"then bJ.CanCollide=not bF end elseif bJ:IsA("Decal")and not bH and not(bt and bt.Vanish and bt.Vanish.selfActive)then if bJ.Name=="face"and bJ.Transparency>=0.95 then pcall(function()bJ.Transparency=0 end)end elseif bJ:IsA("Motor6D")and not bH then pcall(function()bJ.Enabled=true end)end end end;function bB:StopFling(bK)local bL=ad;local bM=af;if ae then ae:Disconnect()ae=nil end;if self.FlingStepConn then self.FlingStepConn:Disconnect()self.FlingStepConn=nil end;if n.Character then local bq=n.Character:FindFirstChild("HumanoidRootPart")if bq and sethiddenproperty then pcall(function()sethiddenproperty(bq,"PhysicsRepRootPart",nil)end)pcall(function()sethiddenproperty(bq,"PhysicsRepRootRef",nil)end)end;for x,bJ in ipairs(n.Character:GetDescendants())do if bJ:IsA("BasePart")then pcall(function()bJ.CustomPhysicalProperties=nil end)pcall(function()bJ.LocalTransparencyModifier=0 end)end end end;pcall(function()n.ReplicationFocus=nil end)ad=false;af=nil;if aj then aj.Visible=false end;local bN=workspace.CurrentCamera;if bN and(ag or ah)then pcall(function()bN.CameraType=ag or Enum.CameraType.Custom;local bO=n.Character and n.Character:FindFirstChildOfClass("Humanoid")bN.CameraSubject=bO or ah end)end;ag=nil;ah=nil;ai=nil;if bL and not bK and n.Character then am=tick()bz(n.Character,bM)elseif bL and bK and n.Character then self:ResetPhysics(n.Character)end;if bA then pcall(bA)end end;function bB:Cleanup(bP,bQ)if bt and bt.Vanish and bt.Vanish.selfActive then pcall(function()bt.Vanish:StopSelfVanish(true)end)end;if _G.CocaBangActive and type(_G.stopCocaBangLock)=="function"then pcall(_G.stopCocaBangLock)end;if RewindSys and RewindSys.rewinding and RewindSys.StopRewind then pcall(function()RewindSys:StopRewind()end)end;if bt and(bt.fly or bt.flyLanding)and bt.stopFlyImmediate then pcall(bt.stopFlyImmediate)end;if _ then pcall(function()_:Destroy(bQ)end)_=nil end;self:StopAllAnimations()self:StopFling(bQ)if a6 then pcall(function()local bN=workspace.CurrentCamera;if bN then local bO=n.Character and n.Character:FindFirstChildOfClass("Humanoid")bN.CameraSubject=bO or a6;bN.CameraType=Enum.CameraType.Custom end end)a6=nil end;if n.Character and not bQ then self:ResetPhysics(n.Character)local bE=n.Character:FindFirstChild("HumanoidRootPart")if bE and not b9(bE.CFrame)then bz(n.Character,al)else by(n.Character,bE and bE.CFrame or al)end end;if not bP then a0=nil end end;local function bR(Y)if not Y then return end;pcall(function()Y:SetStateEnabled(Enum.HumanoidStateType.Physics,true)end)pcall(function()Y:ChangeState(Enum.HumanoidStateType.Physics)end)end;local bS;do local bT=0.06;local bU=2;local function bV(bW,bX,Y,bY)local bZ=tostring(bX or""):gsub("%D","")if bZ==""then return nil,nil,false,nil end;local b_=Instance.new("Animation")b_.AnimationId="rbxassetid://"..bZ;local c0,bC=pcall(function()return bW:LoadAnimation(b_)end)if not c0 or not bC then b_:Destroy()return nil,nil,false,nil end;local c1=bY or Enum.AnimationPriority.Action4;pcall(function()bC.Priority=c1 end)pcall(function()bC.Looped=true end)pcall(function()bC:AdjustSpeed(1)end)bR(Y)local c2=pcall(function()bC:Play(0,1.0,1.0)end)if not c2 then pcall(function()bC:Stop(0)end)pcall(function()bC:Destroy()end)return nil,nil,false,nil end;return bC,b_,true,bZ end;bS=function(bW,bX,c3,Y,bY)if not bW or not bX then return nil,nil,nil end;local c4={}local c5={}local function c6(c7)local H=tostring(c7 or""):gsub("%D","")if H~=""and not c5[H]then c5[H]=true;c4[#c4+1]=H end end;c6(bX)for x,c8 in ipairs(c3 or{})do c6(c8)end;for x,E in ipairs(c4)do for c9=1,bU do local bC,b_,c,ca=bV(bW,E,Y,bY)if c then return bC,b_,ca end;if b_ then pcall(function()b_:Destroy()end)end;if c9<bU then d.Heartbeat:Wait()end end end;return nil,nil,nil end end;local cb=false;local function cc(X)local Y=X and X:FindFirstChildOfClass("Humanoid")if not Y then return end;local cd=Y:FindFirstChildOfClass("Animator")if cd then local c,ce=pcall(function()return cd:GetPlayingAnimationTracks()end)if c and ce then for x,cf in ipairs(ce)do if not ap[cf]then pcall(function()cf:Stop(0)end)pcall(function()cf:Destroy()end)end end end end end;local function cg(X)if not X then return end;local ch=X:FindFirstChild("Animate")if ch and not ch.Disabled then ch.Disabled=true;cb=true end;cc(X)end;local function ci(X)if not cb then return end;if X then local ch=X:FindFirstChild("Animate")if ch then ch.Disabled=false end end;cb=false end;by=function(cj,ck)cj=cj or n and n.Character;if not cj then return end;local bE=cj:FindFirstChild("HumanoidRootPart")local Y=cj:FindFirstChildOfClass("Humanoid")pcall(function()n.ReplicationFocus=nil end)if bE then if sethiddenproperty then pcall(function()sethiddenproperty(bE,"PhysicsRepRootPart",nil)end)pcall(function()sethiddenproperty(bE,"PhysicsRepRootRef",nil)end)end;bE.Anchored=false;bE.AssemblyLinearVelocity=Vector3.zero;bE.AssemblyAngularVelocity=Vector3.zero;local cl=nil;if b9(ck)then cl=ck elseif b9(bE.CFrame)then cl=bE.CFrame+Vector3.new(0,1.5,0)else cl=bi()end;if cl then local bb=cl.Position;local x,cm,x=cl:ToEulerAnglesYXZ()bE.CFrame=CFrame.new(bb)*CFrame.Angles(0,cm,0)end end;local bF=(bt and bt.noclip)==true;local bG=(bs and bs.Kill and bs.Kill.enabled)==true;local bH=_G.CocaSkyDestroyer and(_G.CocaSkyDestroyer.isAnyActive()or _G.CocaSkyDestroyer.is_reanimated())or _G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated)=="function"and _G._AngoorZenApi.is_reanimated()local bI=type(_G.hiddenBodyParts)=="table"and _G.hiddenBodyParts or nil;for x,bJ in ipairs(cj:GetDescendants())do if bJ:IsA("BasePart")then bJ.Anchored=false;bJ.Massless=false;bJ.CanTouch=not bG;bJ.CanQuery=true;pcall(function()bJ.CustomPhysicalProperties=nil end)if not bH and not(bt and bt.Vanish and bt.Vanish.selfActive)then pcall(function()bJ.LocalTransparencyModifier=0 end)if bJ.Name~="HumanoidRootPart"and not(bI and bI[bJ.Name])then if bJ.Transparency>=0.95 and(bJ.Name=="Head"or bJ.Name=="Torso"or bJ.Name=="UpperTorso"or bJ.Name=="LowerTorso"or bJ.Name:find("Arm")or bJ.Name:find("Hand")or bJ.Name:find("Leg")or bJ.Name:find("Foot")or bJ.Name=="Handle")then pcall(function()bJ.Transparency=0 end)end end end;if bJ.Name=="HumanoidRootPart"or bJ.Name=="Torso"or bJ.Name=="UpperTorso"or bJ.Name=="LowerTorso"or bJ.Name=="Head"then bJ.CanCollide=not bF end elseif bJ:IsA("Decal")and not bH and not(bt and bt.Vanish and bt.Vanish.selfActive)then if bJ.Name=="face"and bJ.Transparency>=0.95 then pcall(function()bJ.Transparency=0 end)end elseif bJ:IsA("Motor6D")and not bH then pcall(function()bJ.Enabled=true;bJ.Transform=CFrame.identity end)end end;if bt and bt.restoreFlyJoints then pcall(function()bt.restoreFlyJoints(cj)end)end;local ch=cj:FindFirstChild("Animate")if ch and ch.Disabled and _==nil and not bj and not(bt and(bt.fly or bt.flyLanding))and not bH then pcall(function()ch.Disabled=false end)end;cb=false;cc(cj)if Y and Y.Health>0 then pcall(function()Y:SetStateEnabled(Enum.HumanoidStateType.Running,true)end)pcall(function()Y:SetStateEnabled(Enum.HumanoidStateType.Jumping,true)end)pcall(function()Y:SetStateEnabled(Enum.HumanoidStateType.Freefall,true)end)pcall(function()Y:SetStateEnabled(Enum.HumanoidStateType.Landed,true)end)pcall(function()Y:SetStateEnabled(Enum.HumanoidStateType.GettingUp,true)end)pcall(function()Y.PlatformStand=false end)pcall(function()Y.Sit=false end)pcall(function()Y.AutoRotate=true end)pcall(function()Y:ChangeState(Enum.HumanoidStateType.GettingUp)end)pcall(function()Y:ChangeState(Enum.HumanoidStateType.Running)end)end;local bN=workspace.CurrentCamera;if bN and Y and not an and not ad then pcall(function()bN.CameraType=Enum.CameraType.Custom;bN.CameraSubject=Y end)end end;local cn=0;bz=function(cj,co)cj=cj or n and n.Character;if not cj then return end;if _~=nil or bj or ad then return end;local bE=cj:FindFirstChild("HumanoidRootPart")or cj:FindFirstChildWhichIsA("BasePart")local Y=cj:FindFirstChildOfClass("Humanoid")local cp=b9(co)and co or(bE and b9(bE.CFrame)and bE.CFrame or bi())local bb=cp.Position;local x,cm,x=cp:ToEulerAnglesYXZ()local cq=CFrame.new(bb+Vector3.new(0,1.2,0))*CFrame.Angles(0,cm,0)by(cj,cq)if not bE or not bE.Parent then return end;cn=cn+1;local cr=cn;task.spawn(function()pcall(function()bE.Anchored=true;for x=1,4 do if not bE.Parent or cr~=cn or _~=nil or bj or ad then break end;bE.AssemblyLinearVelocity=Vector3.zero;bE.AssemblyAngularVelocity=Vector3.zero;bE.CFrame=cq;d.Heartbeat:Wait()end;if bE.Parent then bE.Anchored=false;if cr==cn and _==nil and not bj and not ad then bE.AssemblyLinearVelocity=Vector3.zero;bE.AssemblyAngularVelocity=Vector3.zero;bE.CFrame=cq end end;if cr==cn and _==nil and not bj and not ad then if Y and Y.Parent and Y.Health>0 then Y.PlatformStand=false;Y.Sit=false;Y.AutoRotate=true;Y:ChangeState(Enum.HumanoidStateType.GettingUp)Y:ChangeState(Enum.HumanoidStateType.Running)end;local bN=workspace.CurrentCamera;if bN and Y and not an then bN.CameraType=Enum.CameraType.Custom;bN.CameraSubject=Y end end end)if not(bs and bs.Void and bs.Void.enabled)and not(bs and bs.Kill and bs.Kill.enabled)and _==nil and not bj and not ad then pcall(function()workspace.FallenPartsDestroyHeight=a5 end)end end)end;do local cs=0;d.Heartbeat:Connect(function()if ad or _~=nil or bj or bu and bu.active or bt and bt.Vanish and bt.Vanish.selfActive or _G.CocaBangActive or _G.CocaSkyDestroyer and(_G.CocaSkyDestroyer.isAnyActive()or _G.CocaSkyDestroyer.is_reanimated())or _G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated)=="function"and _G._AngoorZenApi.is_reanimated()then return end;local ct=os.clock()local cu=bs and bs.Void and bs.Void.enabled or tick()-am<6.0;if not cu and ct-cs<0.15 then return end;local cj=n.Character;local bE=cj and cj:FindFirstChild("HumanoidRootPart")local Y=cj and cj:FindFirstChildOfClass("Humanoid")if not bE or not Y or Y.Health<=0 then return end;local bb=bE.Position;local bc=math.min(a5+22,-260)if bb.Y<=bc or math.abs(bb.Y-85000)<3500 or bb.Magnitude>250000 or bb.X~=bb.X then if cu or math.abs(bb.Y-85000)<3500 or bb.Y<=math.min(a5+5,-450)then bz(cj,al)end elseif ct-cs>=0.15 then cs=ct;local cv=cj:FindFirstChild("Head")if cv and cv:IsA("BasePart")and cv.LocalTransparencyModifier>0.5 then for x,cw in ipairs(cj:GetChildren())do if cw:IsA("BasePart")then pcall(function()cw.LocalTransparencyModifier=0 end)end end end;if not(bt and(bt.fly or bt.flyLanding))then if Y.PlatformStand then pcall(function()Y.PlatformStand=false;Y.AutoRotate=true;Y:ChangeState(Enum.HumanoidStateType.GettingUp)Y:ChangeState(Enum.HumanoidStateType.Running)end)end;local cx=cj:FindFirstChild("Animate")if cx and cx.Disabled then pcall(function()cx.Disabled=false end)end end;local cy=bE.AssemblyLinearVelocity.Magnitude;if b9(bE.CFrame)and cy<110 then local x,cm,x=bE.CFrame:ToEulerAnglesYXZ()al=CFrame.new(bb)*CFrame.Angles(0,cm,0)end end end)end;local cz;local cA;local cB;local cC;local cD;local cE;local cF;local cG=function()return 0,1.0,1.0 end;local function cH(cj,Y,bE)if not cj then return end;Y=Y or cj:FindFirstChildOfClass("Humanoid")bE=bE or cj:FindFirstChild("HumanoidRootPart")pcall(function()if Y then local cI=Y.SeatPart;if cI and cI:IsA("BasePart")then pcall(function()cI.CanTouch=false end)for x,bm in ipairs(cI:GetChildren())do if bm:IsA("JointInstance")or bm:IsA("WeldConstraint")or bm.Name=="SeatWeld"then pcall(function()bm:Destroy()end)end end;task.delay(0.45,function()if cI and cI.Parent and not(bs and bs.SeatTrap and bs.SeatTrap.enabled)then pcall(function()cI.CanTouch=true end)end end)end;if Y.Sit then Y.Sit=false end end;for x,bJ in ipairs(cj:GetDescendants())do if bJ:IsA("BasePart")then local cJ,cK=pcall(function()return bJ:GetJoints()end)if cJ and cK then for x,cL in ipairs(cK)do if cL:IsA("JointInstance")or cL:IsA("WeldConstraint")then local cM,cN=cL.Part0,cL.Part1;local cO=cM and cM:IsDescendantOf(cj)local cP=cN and cN:IsDescendantOf(cj)if cO and cN and not cP or cP and cM and not cO or cL.Name=="SeatWeld"then pcall(function()cL:Destroy()end)end end end end elseif bJ:IsA("SeatWeld")or bJ.Name=="SeatWeld"then pcall(function()bJ:Destroy()end)end end end)end;local cQ;do local cR={}local cS=0;cQ=function()local ct=tick()if#cR>0 and ct-cS<8.0 then return cR end;cS=ct;local cT={}pcall(function()for x,cU in ipairs(workspace:GetDescendants())do if cU:IsA("SpawnLocation")or cU:IsA("Seat")or cU:IsA("VehicleSeat")then if not bd(cU.CFrame)then cT[#cT+1]=cU.CFrame end end end end)for x,y in ipairs(workspace:GetChildren())do if y:IsA("Model")and y~=n.Character and not e:GetPlayerFromCharacter(y)then local cV,cW=pcall(function()return y:GetPivot()end)if cV and cW and cW.Position.Magnitude>10 and cW.Position.Magnitude<100000 and not bd(cW)then cT[#cT+1]=cW end elseif y:IsA("BasePart")and y.Position.Magnitude>50 and y.Position.Magnitude<100000 and not bd(y.CFrame)then cT[#cT+1]=y.CFrame end end;cR=cT;return cT end end;local function cX(cY,cZ,c_,d0,d1,d2,d3,d4,d5,d6)local d7=c_.Character;if not d7 then return nil end;local d8=d7:FindFirstChild("HumanoidRootPart")or d7:FindFirstChildWhichIsA("BasePart")local d9=d7:FindFirstChildWhichIsA("Humanoid")if not d8 or not d9 or d9.Health<=0 then return nil end;if type(_G.stopCocaBangLock)=="function"then pcall(_G.stopCocaBangLock)end;cn=cn+1;d8.Anchored=false;cH(d7,d9,d8)local da=cY and cY.Parent or d3 and cA(d3)local db=da and da:FindFirstChildOfClass("Humanoid")local dc=d5 and typeof(d5)=="CFrame"and b9(d5)and d5 or b9(al)and al or b9(d8.CFrame)and d8.CFrame or bi()local dd=d3 and d3.UserId or nil;local de=d3 and d3.Name or"Target"local df=d3 and d3.DisplayName or de;pcall(function()workspace.FallenPartsDestroyHeight=0/0 end)pcall(function()d9.Sit=false end)pcall(function()d9.PlatformStand=true end)pcall(function()d9.AutoRotate=false end)bR(d9)cg(d7)local dg,dh=nil,nil;local di=false;local dj=0;local dk={destroyed=false}local function dl(dm)if not d0 or dk.destroyed or di then return end;if dg and not dm then local dn=false;pcall(function()dn=dg.IsPlaying;if dn and dg.Length>0 and dg.TimePosition>=dg.Length-0.04 then dg.TimePosition=0 end end)if dn then pcall(function()dg:AdjustSpeed(math.clamp(Z.Speed or 1.0,0.2,6.0))end)return end end;dj=dj+1;if not dm and dj%15~=0 and dg then return end;di=true;task.spawn(function()pcall(function()if dk.destroyed or not d7.Parent then return end;local bW=d7:FindFirstChildWhichIsA("Animator",true)if not bW and d9 then bW=Instance.new("Animator")bW.Parent=d9 end;if not bW then return end;local bC,b_=bS(bW,d0,d2,d9)if dk.destroyed then if bC then pcall(function()bC:Stop(0)bC:Destroy()end)end;if b_ then pcall(function()b_:Destroy()end)end;return end;if bC then pcall(function()bC.Looped=true;bC:AdjustSpeed(math.clamp(Z.Speed or 1.0,0.2,6.0))end)if dg and dg~=bC then pcall(function()dg:Stop(0)dg:Destroy()end)end;if dh and dh~=b_ then pcall(function()dh:Destroy()end)end;dg=bC;dh=b_ end end)di=false end)end;dl(true)local dp={}local dq=nil;if d7 then for x,c7 in ipairs(d7:GetDescendants())do if c7:IsA("BasePart")then dp[#dp+1]=c7 elseif c7:IsA("SeatWeld")or c7.Name=="SeatWeld"then pcall(function()c7:Destroy()end)end end;dq=d7.DescendantAdded:Connect(function(c7)if dk.destroyed then return end;if c7:IsA("BasePart")then dp[#dp+1]=c7;c7.CanCollide=false;c7.CanTouch=false;c7.CanQuery=false;c7.Massless=true;c7.Anchored=false elseif c7:IsA("Tool")then for x,dr in ipairs(c7:GetDescendants())do if dr:IsA("BasePart")then dp[#dp+1]=dr;dr.CanCollide=false;dr.CanTouch=false;dr.CanQuery=false;dr.Massless=true;dr.Anchored=false end end elseif c7:IsA("SeatWeld")or c7.Name=="SeatWeld"then pcall(function()c7:Destroy()end)end end)end;local function ds()if not d7 or not d7.Parent then return end;for dt=1,#dp do local c7=dp[dt]if c7 and c7.Parent then if c7.CanCollide then c7.CanCollide=false end;if c7.CanTouch then c7.CanTouch=false end;if c7.CanQuery then c7.CanQuery=false end;if not c7.Massless then c7.Massless=true end;if c7.Anchored then c7.Anchored=false end end end;if d9 and d9.Sit then pcall(function()d9.Sit=false end)end end;ds()local du=nil;local dv=nil;local dw=nil;local dx=0;local dy=0;local dz=0;local dA=nil;local function dB(dC)local dD=_G._AngoorZenApi;if dD and type(dD.is_reanimated)=="function"and type(dD.get_real_character)=="function"then local dE,dF=pcall(dD.is_reanimated)if dE and dF then local dG,dH=pcall(dD.get_real_character)local dI=dG and dH and dH:FindFirstChild("HumanoidRootPart")if dI and dI~=d8 and dI.Parent then dI.Anchored=false;dI.CFrame=dC;dI.AssemblyLinearVelocity=Vector3.zero;dI.AssemblyAngularVelocity=Vector3.zero end end end;local dJ=_G.CocaSkyDestroyer;if dJ and type(dJ.is_reanimated)=="function"and type(dJ.get_real_character)=="function"then local dK,dL=pcall(dJ.is_reanimated)if dK and dL then local dM,dN=pcall(dJ.get_real_character)local dO=dM and dN and dN:FindFirstChild("HumanoidRootPart")if dO and dO~=d8 and dO.Parent then dO.Anchored=false;dO.CFrame=dC;dO.AssemblyLinearVelocity=Vector3.zero;dO.AssemblyAngularVelocity=Vector3.zero end end end end;function dk:Destroy(bK)if self.destroyed then return end;self.destroyed=true;pcall(function()d:UnbindFromRenderStep("CocoWeldZeroDelayPreCam")end)pcall(function()d:UnbindFromRenderStep("CocoWeldZeroDelayLock")end)if dq then dq:Disconnect()dq=nil end;if du then du:Disconnect()du=nil end;if dv then dv:Disconnect()dv=nil end;if dw then dw:Disconnect()dw=nil end;pcall(function()n.ReplicationFocus=nil end)if d8 and sethiddenproperty then pcall(function()sethiddenproperty(d8,"PhysicsRepRootPart",nil)end)pcall(function()sethiddenproperty(d8,"PhysicsRepRootRef",nil)end)end;if dg then pcall(function()dg:Stop(0)end)pcall(function()dg:Destroy()end)dg=nil end;if dh then pcall(function()dh:Destroy()end)dh=nil end;if _==self then _=nil end;if not bK then am=tick()bz(d7,dc)if n.Character and n.Character~=d7 then bz(n.Character,dc)end end end;local function dP()if dk.destroyed then return end;if cY and cY.Parent and d8 and d8.Parent then local dQ=CFrame.new(Z.X or 0,Z.Y or 0,(Z.Z or 1.3)-1.3)local dR=cZ*dQ;if d1 and d1.period and d1.period>0 then local dS=(math.sin(dx*2*math.pi/d1.period)+1)*0.5;dR=dR*CFrame.new(0,0,-d1.distance*dS)end;dA=cY.CFrame*dR;d8.CFrame=dA;dB(dA)end end;if cY and cY.Parent and d8 and d8.Parent then local dT=da and(da:FindFirstChild("HumanoidRootPart")or cY)or cY;pcall(function()n.ReplicationFocus=dT end)if sethiddenproperty then pcall(function()sethiddenproperty(d8,"PhysicsRepRootPart",dT)if z then sethiddenproperty(d8,"PhysicsRepRootRef",z(dT))end;sethiddenproperty(d8,"NetworkIsSleeping",false)end)end;dP()end;pcall(function()d:BindToRenderStep("CocoWeldZeroDelayPreCam",Enum.RenderPriority.Camera.Value-1,dP)d:BindToRenderStep("CocoWeldZeroDelayLock",Enum.RenderPriority.Character.Value+1,dP)end)dw=d.Stepped:Connect(function()if dk.destroyed then return end;ds()dP()end)dv=d.RenderStepped:Connect(function()if dk.destroyed then return end;dP()end)du=d.Heartbeat:Connect(function(dU)if not d7.Parent or d7~=n.Character or not d8.Parent or not d9.Parent or d9.Health<=0 then dk:Destroy(true)return end;if d3 and d3.Parent~=e then local dV=d6 or aa.presetKey or a9 or"facebang"aa.leftInfo={userId=dd,name=de,displayName=df,accountAge="—",friendsText="—",leftAt=tick(),wasWelded=true,presetKey=dV}aa.active=false;aa.target=nil;aa.waitingForSpawn=true;aa.topStatusText="target left · weld stopped"aa.topStatusColor=C.Danger;aa.midStatusText="target left · "..de;aa.midStatusColor=C.Danger;aa.bottomStatusText="target offline · will attach on spawn"aa.bottomStatusColor=C.Warning;dk:Destroy(false)if bA then pcall(bA)end;if aa.refreshUI then pcall(aa.refreshUI)end;aC("🚨 TARGET HAS LEFT THE GAME","@"..de.." ("..df..") left — weld stopped · will attach on spawn",C.Danger,4.5,"TargetLeftBanner")S("COCO POWDER","Target left server — safely returned")return end;if db and db.Parent and db.Health<=0 then aa.waitingForSpawn=true;aa.topStatusText="target respawning · waiting"aa.topStatusColor=C.Warning;aa.midStatusText="respawning · "..de;aa.midStatusColor=C.Warning;aa.bottomStatusText="target respawning · will attach on spawn"aa.bottomStatusColor=C.Warning;if aa.refreshUI then pcall(aa.refreshUI)end;dk:Destroy(false)return end;if not cY or not cY.Parent or d3 and cA(d3)~=da then if d3 then local bo=cA(d3)local dW=bo and bo:FindFirstChildOfClass("Humanoid")if dW and dW.Health<=0 then aa.waitingForSpawn=true;dk:Destroy(false)return end;local dX=bo and cB(bo,d4 or"torso")if dX and dX.Parent then da=bo;db=dW;cY=dX;dy=0 else dy=dy+1;local dY=cD(d3)if dY and not bd(dY)then local ct=tick()if ct-dz>0.35 then dz=ct;task.spawn(function()pcall(function()n:RequestStreamAroundAsync(dY.Position,1)end)end)end;d8.CFrame=dY*cZ;d8.AssemblyLinearVelocity=Vector3.zero;d8.AssemblyAngularVelocity=Vector3.zero;cF(d8.CFrame)end;if dy>120 then dk:Destroy(false)end;return end else dk:Destroy(false)return end else dy=0 end;local dZ=cY.AssemblyLinearVelocity;if bd(cY.CFrame,dZ)then dk:Destroy(false)S("COCO POWDER","Target fell into lethal Void — detached safely!")return end;local d_=da and(da:FindFirstChild("HumanoidRootPart")or cY)or cY;pcall(function()n.ReplicationFocus=d_ end)if d3 then ao[d3.UserId]={cf=cY.CFrame,time=tick(),verified=true}aa.waitingForSpawn=false end;if not bd(cY.CFrame,dZ)and math.abs(dZ.Y)<45 and(not db or db.FloorMaterial~=Enum.Material.Air)then local x,cm,x=cY.CFrame:ToEulerAnglesYXZ()dc=CFrame.new(cY.Position+Vector3.new(0,2.5,0))*CFrame.Angles(0,cm,0)al=dc end;local ch=d7:FindFirstChild("Animate")if ch and not ch.Disabled then ch.Disabled=true;cb=true end;local e0=math.clamp(Z.Speed or 1.0,0.2,6.0)dx=dx+dU*e0;local dQ=CFrame.new(Z.X or 0,Z.Y or 0,(Z.Z or 1.3)-1.3)local dR=cZ*dQ;if d1 and d1.period and d1.period>0 then local dS=(math.sin(dx*2*math.pi/d1.period)+1)*0.5;dR=dR*CFrame.new(0,0,-d1.distance*dS)end;dA=cY.CFrame*dR;d8.CFrame=dA;dB(dA)local e1=Vector3.new(0,math.sin(dx*24)*0.03,0)d8.AssemblyLinearVelocity=(dZ.Magnitude<350 and dZ*0.85 or Vector3.zero)+e1;d8.AssemblyAngularVelocity=Vector3.zero;cF(d8.CFrame)if sethiddenproperty then pcall(function()sethiddenproperty(d8,"PhysicsRepRootPart",d_)if z then sethiddenproperty(d8,"PhysicsRepRootRef",z(d_))end;sethiddenproperty(d8,"NetworkIsSleeping",false)end)end;pcall(function()dl(false)end)pcall(function()if not d9.PlatformStand then d9.PlatformStand=true end;if d9.Sit then d9.Sit=false end end)end)return dk end;local function e2(bK)if _ then pcall(function()_:Destroy(bK)end)_=nil end;if not bK and n.Character then pcall(function()bz(n.Character,al)end)end;if not(bs and bs.Void and bs.Void.enabled)and not(bs and bs.Kill and bs.Kill.enabled)then pcall(function()workspace.FallenPartsDestroyHeight=a5 end)end end;local e3;do local e4=116235062592344;local e5={128342454196913,5918726674,148840371,4555808220,109168916859109,85194549268064,10714010337,5915714366,3333499508,507771019}local e6={128342454196913,5918726674,148840371,4555808220,109168916859109,178130996,182436842,180435571,182435998}local e7={72042024,698251653,136828069054505,5918726674}local e8={72042024,136828069054505,178130996,148840371}local e9={136828069054505,72042024,116235062592344,698251653,5918726674}local ea={136828069054505,72042024,178130996,148840371}e3={facebang={offset=CFrame.new(0,2.5,-3.8)*CFrame.Angles(0,math.rad(180),0),anim15=e4,anim6=e4,animFallbacks=e5,animFallbacks6=e6,osc={distance=2.9,period=0.22},refMode="head",label="Face Bang"},backshots={offset=CFrame.new(0,0,3.2),anim15=e4,anim6=e4,animFallbacks=e5,animFallbacks6=e6,osc={distance=2.9,period=0.22},refMode="torso",label="Bang / Backshots"},bang={offset=CFrame.new(0,0,3.2),anim15=e4,anim6=e4,animFallbacks=e5,animFallbacks6=e6,osc={distance=2.9,period=0.22},refMode="torso",label="Bang"},goon={offset=CFrame.new(0,0,-1.45)*CFrame.Angles(0,math.rad(180),0),anim15=136828069054505,anim6=136828069054505,animFallbacks=e9,animFallbacks6=ea,osc=nil,refMode="torso",label="Goon"},jerk={offset=CFrame.new(0,0,-1.45)*CFrame.Angles(0,math.rad(180),0),anim15=72042024,anim6=72042024,animFallbacks=e7,animFallbacks6=e8,osc=nil,refMode="torso",label="Jerk"},headsit={offset=CFrame.new(0,1.2,0),anim15=2506281703,anim6=2506281703,animFallbacks={2510238627,507768375,180426354},animFallbacks6={178130996,2510238627,507768375,180426354},osc=nil,refMode="head",label="Headsit"},kiss={offset=CFrame.new(0,0,-1.1)*CFrame.Angles(0,math.rad(180),0),anim15=81124524945738,anim6=81124524945738,animFallbacks={3576686446,3019619673,15849372443},animFallbacks6={128777973,180435571,3576686446},osc=nil,refMode="torso",label="Kiss"},backpack={offset=CFrame.new(0,0,1.05)*CFrame.Angles(0,math.rad(180),0),anim15=2506281703,anim6=2506281703,animFallbacks={2510238627,507768375,180426354},animFallbacks6={178130996,2510238627,180426354},osc=nil,refMode="torso",label="Backpack"},headpat={offset=CFrame.new(0,0,-1.9)*CFrame.Angles(0,math.rad(180),0),anim15=114313599861536,anim6=114313599861536,animFallbacks={114022540397953,3344650532,507770239},animFallbacks6={128777973,180435571},osc=nil,refMode="torso",label="Headpat"},propose={offset=CFrame.new(0,0,-3.5)*CFrame.Angles(0,math.rad(180),0),anim15=70639053125611,anim6=70639053125611,animFallbacks={107416091886634,4555816777,3333474484},animFallbacks6={178130996,129423030},osc=nil,refMode="torso",label="Propose"},lawl={offset=CFrame.new(0,0,-2.4)*CFrame.Angles(0,math.rad(180),0),anim15=507770818,anim6=129423131,animFallbacks={507770239,33796059,5918726674},animFallbacks6={129423131,33796059,180435571},osc=nil,refMode="torso",label="Lawl"},hug={offset=CFrame.new(0,0,-1.4)*CFrame.Angles(0,math.rad(180),0),anim15=95247520541805,anim6=95247520541805,animFallbacks={117991975031893,3338010159,4940563117},animFallbacks6={180435571,128777973},osc=nil,refMode="torso",label="Hug"},chootlelo={offset=CFrame.new(0,2.2,-3.8)*CFrame.Angles(0,math.rad(180),0),anim15=e4,anim6=e4,animFallbacks=e5,animFallbacks6=e6,osc={distance=2.9,period=0.22},refMode="torso",label="Choot Lelo"}}e3.chase={offset=CFrame.new(0,0,2.2),anim15=nil,anim6=nil,animFallbacks={},osc=nil,refMode="torso",label="Auto-Chase (Follow)"}end;cC=function(ba,eb)if not ba then return CFrame.new()end;local bb=eb or ba.Position;local ec=ba.LookVector;local ed=Vector3.new(ec.X,0,ec.Z)if ed.Magnitude>0.001 then return CFrame.lookAt(bb,bb+ed.Unit,Vector3.yAxis)end;local x,cm,x=ba:ToEulerAnglesYXZ()return CFrame.new(bb)*CFrame.Angles(0,cm,0)end;do local ee={}local ef={"Characters","Players","Entities","Live","Units","Ingame","Chars"}local eg=0;local eh=setmetatable({},{__mode="k"})cA=function(aM,ei)if not aM then return nil end;if aM.Character and aM.Character.Parent then ee[aM.UserId]={model=aM.Character,lastScan=tick()}return aM.Character end;local ej=ee[aM.UserId]if ej and ej.model and ej.model.Parent then return ej.model end;local ek=workspace:FindFirstChild(aM.Name)if ek and ek:IsA("Model")and ek~=n.Character then ee[aM.UserId]={model=ek,lastScan=tick()}return ek end;for x,el in ipairs(ef)do local em=workspace:FindFirstChild(el)local en=em and em:FindFirstChild(aM.Name)if en and en:IsA("Model")and en~=n.Character then ee[aM.UserId]={model=en,lastScan=tick()}return en end end;if not ei then local ct=tick()if ct-eg>2.5 and(not ej or ct-(ej.lastScan or 0)>6.0)then eg=ct;ee[aM.UserId]={model=nil,lastScan=ct}local eo=workspace:FindFirstChild(aM.Name,true)if eo and eo:IsA("Model")and eo~=n.Character and(eo:FindFirstChildOfClass("Humanoid")or eo.PrimaryPart or eo:FindFirstChildWhichIsA("BasePart",true))then ee[aM.UserId]={model=eo,lastScan=ct}return eo end end end;return aM.Character end;cB=function(cj,ep)if not cj then return nil end;local eq=ep=="head"and"head"or"torso"local er=eh[cj]if er and er[eq]and er[eq].Parent and er[eq]:IsDescendantOf(cj)then return er[eq]end;local es=nil;if ep=="head"then local et=cj:FindFirstChild("Head")or cj:FindFirstChild("head",true)if et and et:IsA("BasePart")then es=et else for x,eu in ipairs(cj:GetDescendants())do if eu:IsA("BasePart")and eu.Name:lower():find("head",1,true)then es=eu;break end end end end;if not es then local Y=cj:FindFirstChildOfClass("Humanoid")local ev=cj:FindFirstChild("HumanoidRootPart")or Y and Y.RootPart or cj.PrimaryPart or cj:FindFirstChild("UpperTorso")or cj:FindFirstChild("LowerTorso")or cj:FindFirstChild("Torso")or cj:FindFirstChild("Head")if ev and ev:IsA("BasePart")then es=ev elseif Y and Y.SeatPart and Y.SeatPart:IsA("BasePart")then es=Y.SeatPart else es=cj:FindFirstChildWhichIsA("BasePart",true)end end;if es then if not er then er={}eh[cj]=er end;er[eq]=es end;return es end end;local function ew(aM)if not aM then return nil end;local cj=cA(aM)if cj and cj.Parent then local bJ=cB(cj,"torso")if bJ and bJ.Parent then local ba=bJ.CFrame;if not bd(ba,bJ.AssemblyLinearVelocity)then ao[aM.UserId]={cf=ba,time=tick(),verified=true}return ba end end end;return nil end;cD=function(aM,ei)if not aM then return nil end;local cj=cA(aM,ei)if cj then local bJ=cB(cj,"torso")if bJ and bJ.Parent then local ba=bJ.CFrame;if not bd(ba,bJ.AssemblyLinearVelocity)then ao[aM.UserId]={cf=ba,time=tick(),verified=true}return ba end end;local ex,ey=pcall(function()return cj:GetPivot()end)if ex and ey and ey.Position.Magnitude>0.5 and not bd(ey)then ao[aM.UserId]={cf=ey,time=tick()}return ey end;local ez,eA=pcall(function()return cj.WorldPivot end)if ez and eA and eA.Position.Magnitude>0.5 and not bd(eA)then ao[aM.UserId]={cf=eA,time=tick()}return eA end end;local ej=ao[aM.UserId]if ej and ej.cf and not bd(ej.cf)then return ej.cf end;return nil end;local function eB(aM)return cD(aM)end;local function eC(eD)local bb=nil;if typeof(eD)=="CFrame"then bb=eD.Position elseif typeof(eD)=="Vector3"then bb=eD end;if not bb then return end;task.spawn(function()pcall(function()n:RequestStreamAroundAsync(bb,1)end)end)end;do local eE=0;d.Heartbeat:Connect(function()local ct=os.clock()if ct-eE<0.40 then return end;eE=ct;for x,cw in ipairs(e:GetPlayers())do if cw~=n then pcall(function()cD(cw,true)end)end end end)end;cE=function(aR,eF,eG,eH)if not aR or aR.Parent~=e then return nil,nil end;eG=eG or 1.8;local eI=eH==true;local eJ=typeof(eH)=="CFrame"and eH or CFrame.new(0,1.5,2)local eK=n.Character;local bq=eK and(eK:FindFirstChild("HumanoidRootPart")or eK:FindFirstChildWhichIsA("BasePart"))local bO=eK and eK:FindFirstChildOfClass("Humanoid")local eL=bq and b9(bq.CFrame)and bq.CFrame or al or bi()local function eM(eN,eO)eK=n.Character;bq=eK and(eK:FindFirstChild("HumanoidRootPart")or eK:FindFirstChildWhichIsA("BasePart"))bO=eK and eK:FindFirstChildOfClass("Humanoid")if eK and bq then if sethiddenproperty then pcall(function()sethiddenproperty(bq,"PhysicsRepRootPart",nil)end)pcall(function()sethiddenproperty(bq,"PhysicsRepRootRef",nil)end)end;cH(eK,bO,bq)if bO and bO.Sit then pcall(function()bO.Sit=false end)end;bq.Anchored=false;local eP=eO.CFrame*eJ;cF(eP)bq.AssemblyLinearVelocity=Vector3.zero;bq.AssemblyAngularVelocity=Vector3.zero;bq.CFrame=eP end;return eN,eO end;local eQ=cA(aR)local eR=eQ and eQ:FindFirstChildOfClass("Humanoid")if eR and eR.Health<=0 then return eQ,nil end;local eS=eQ and cB(eQ,eF or"torso")if eS and eS.Parent and not bd(eS.CFrame,eS.AssemblyLinearVelocity)then return eM(eQ,eS)end;local eT=bj;bj=true;local eU=false;if eK then cH(eK,bO,bq)if bO and bO.Sit then pcall(function()bO.Sit=false end)end end;local eV=tick()local eW=0;while tick()-eV<eG*0.75 do if aR.Parent~=e then break end;eQ=cA(aR)eR=eQ and eQ:FindFirstChildOfClass("Humanoid")if eR and eR.Health<=0 then break end;eS=eQ and cB(eQ,eF or"torso")if eS and eS.Parent and not bd(eS.CFrame,eS.AssemblyLinearVelocity)then bj=eT;return eM(eQ,eS)end;local cl=cD(aR)if cl and not bd(cl)then local ct=tick()if ct-eW>0.22 then eW=ct;task.spawn(function()pcall(function()n:RequestStreamAroundAsync(cl.Position,1.5)end)end)end;eK=n.Character;bq=eK and(eK:FindFirstChild("HumanoidRootPart")or eK:FindFirstChildWhichIsA("BasePart"))if bq then eU=true;bt.lastTeleportTick=tick()for x,c7 in ipairs(eK:GetChildren())do if c7:IsA("BasePart")then c7.CanCollide=false end end;bq.AssemblyLinearVelocity=Vector3.zero;bq.AssemblyAngularVelocity=Vector3.zero;bq.CFrame=cl*CFrame.new(0,2,0)end else break end;d.Heartbeat:Wait()end;eQ=cA(aR)eR=eQ and eQ:FindFirstChildOfClass("Humanoid")eS=not(eR and eR.Health<=0)and eQ and cB(eQ,eF or"torso")or nil;if eS and eS.Parent and not bd(eS.CFrame,eS.AssemblyLinearVelocity)then bj=eT;return eM(eQ,eS)end;if eI and eQ and not(eR and eR.Health<=0)then local eX=cQ and cQ()or{}for eY,eZ in ipairs(eX)do if tick()-eV>eG or eY>14 then break end;if aR.Parent~=e then break end;eQ=cA(aR)eR=eQ and eQ:FindFirstChildOfClass("Humanoid")if eR and eR.Health<=0 then break end;eS=eQ and cB(eQ,eF or"torso")if eS and eS.Parent and not bd(eS.CFrame,eS.AssemblyLinearVelocity)then bj=eT;return eM(eQ,eS)end;local e_=cD(aR)local f0=e_ and not bd(e_)and e_ or eZ;if f0 and b9(f0)then local ct=tick()if ct-eW>0.22 then eW=ct;task.spawn(function()pcall(function()n:RequestStreamAroundAsync(f0.Position,1.0)end)end)end;eK=n.Character;bq=eK and(eK:FindFirstChild("HumanoidRootPart")or eK:FindFirstChildWhichIsA("BasePart"))if bq then eU=true;bt.lastTeleportTick=tick()for x,c7 in ipairs(eK:GetChildren())do if c7:IsA("BasePart")then c7.CanCollide=false end end;bq.AssemblyLinearVelocity=Vector3.zero;bq.AssemblyAngularVelocity=Vector3.zero;bq.CFrame=f0+Vector3.new(0,3,0)end end;d.Heartbeat:Wait()end end;bj=eT;eQ=cA(aR)eR=eQ and eQ:FindFirstChildOfClass("Humanoid")eS=not(eR and eR.Health<=0)and eQ and cB(eQ,eF or"torso")or nil;if eS and eS.Parent and not bd(eS.CFrame,eS.AssemblyLinearVelocity)then return eM(eQ,eS)end;if eU and n.Character and _==nil then by(n.Character,eL)end;return eQ,nil end;local f1;do local f2=nil;pcall(function()f2=game:GetService("ProximityPromptService")end)local f3={}local f4={"carry","carried","carrying","carrier","interact","interacting","interaction","piggyback","cradle","shoulder","bridal","hug","hugging","cuddle","hold","holding","held","grab","grabbed","grabbing","pickup","pick up","lift","sync","synced","couple","coupled","partner","paired","duet","weld","welded","attached","linked"}local f5={"drop","release","put down","putdown","uncarry","stop carry","stop interact","let go","detach"}local function f6(f7,f8)if type(f7)~="string"or f7==""then return false end;local f9=f7:lower()for dt=1,#f8 do if f9:find(f8[dt],1,true)then return true end end;return false end;local function fa(fb)if not fb then return nil end;local fc=fb;while fc and fc~=workspace and fc~=game do if fc:IsA("Player")then return fc end;if fc:IsA("Model")then local aM=e:GetPlayerFromCharacter(fc)if aM then return aM end;local fd=e:FindFirstChild(fc.Name)if fd and fd:IsA("Player")then return fd end end;if fc:IsA("BillboardGui")or fc:IsA("SurfaceGui")or fc:IsA("ProximityPrompt")then local fe=nil;pcall(function()fe=fc.Adornee end)if fe then local ff=fe;while ff and ff~=workspace and ff~=game do if ff:IsA("Model")then local fg=e:GetPlayerFromCharacter(ff)or e:FindFirstChild(ff.Name)if fg and fg:IsA("Player")then return fg end end;ff=ff.Parent end end end;fc=fc.Parent end;return nil end;local function fh(fi,fj,fk)local fl,fm=nil,fj or 14;for x,cw in ipairs(e:GetPlayers())do if cw~=n and cw~=fk then local X=cA(cw,true)local bp=X and cB(X,"torso")if bp and bp.Parent then local fn=(bp.Position-fi).Magnitude;if fn<=fm then fm=fn;fl=cw end end end end;return fl end;local function fo(aM)if not aM or aM==n or not aM.UserId then return end;local ct=tick()f3[aM.UserId]={triggeredAt=ct,lastNearAt=ct}end;local function fp(aM)if not aM or not aM.UserId then return end;f3[aM.UserId]=nil end;if f2 then local function fq(fr,fs)if fs and fs~=n then return end;if not fr then return end;pcall(function()local ft=tostring(fr.ActionText or"").." "..tostring(fr.ObjectText or"").." "..tostring(fr.Name or"")local fu=fa(fr)local eK=n.Character;local bq=eK and(eK:FindFirstChild("HumanoidRootPart")or eK:FindFirstChildWhichIsA("BasePart"))if f6(ft,f5)then if fu and fu~=n then fp(fu)else for aN,x in pairs(f3)do f3[aN]=nil end end;return end;if fu and fu~=n then fo(fu)return end;if f6(ft,f4)then local fv=nil;local fw=fr.Parent;if fw and fw:IsA("BasePart")then fv=fw.Position elseif fw and fw:IsA("Attachment")then fv=fw.WorldPosition elseif fw and fw:IsA("Model")then local cV,fx=pcall(function()return fw:GetPivot()end)if cV and fx then fv=fx.Position end end;local fy=fv or bq and bq.Position;if fy then local fz=fh(fy,14)if fz then fo(fz)end end end end)end;pcall(function()f2.PromptTriggered:Connect(fq)end)pcall(function()f2.PromptButtonHoldEnded:Connect(fq)end)end;local fA=setmetatable({},{__mode="k"})local function fB(fC)if not fC or fA[fC]then return end;if not(fC:IsA("TextButton")or fC:IsA("ImageButton"))then return end;local fD=fC;while fD do if fD.Name:match("^Coco")then return end;fD=fD.Parent end;fA[fC]=true;pcall(function()fC.Activated:Connect(function()pcall(function()local fE=""if fC:IsA("TextButton")then fE=tostring(fC.Text or"")end;for x,eu in ipairs(fC:GetDescendants())do if eu:IsA("TextLabel")or eu:IsA("TextButton")then fE=fE.." "..tostring(eu.Text or"")end end;local fF=fE.." "..tostring(fC.Name or"").." "..tostring(fC.Parent and fC.Parent.Name or"")if f6(fF,f5)then for aN,x in pairs(f3)do f3[aN]=nil end;return end;local fG=fa(fC)if fG and fG~=n then fo(fG)return end;if f6(fF,f4)then local fH=fC.Parent and fC.Parent.Parent or fC.Parent;if fH then for x,fn in ipairs(fH:GetDescendants())do if fn:IsA("TextLabel")or fn:IsA("TextButton")then local fI=tostring(fn.Text or""):lower()if fI~=""then for x,cw in ipairs(e:GetPlayers())do if cw~=n and(fI:find(cw.Name:lower(),1,true)or cw.DisplayName~=""and fI:find(cw.DisplayName:lower(),1,true))then fo(cw)return end end end end end end;local eK=n.Character;local bq=eK and(eK:FindFirstChild("HumanoidRootPart")or eK:FindFirstChildWhichIsA("BasePart"))if bq then local fz=fh(bq.Position,14)if fz then fo(fz)end end end end)end)end)end;pcall(function()local t=n:FindFirstChildOfClass("PlayerGui")if t then t.DescendantAdded:Connect(function(cU)if cU:IsA("TextButton")or cU:IsA("ImageButton")then fB(cU)end end)task.spawn(function()local fJ=t:GetDescendants()for eY,cU in ipairs(fJ)do if cU:IsA("TextButton")or cU:IsA("ImageButton")then fB(cU)end;if eY%600==0 then d.Heartbeat:Wait()end end end)end end)n.CharacterAdded:Connect(function()f3={}end)local function fK(fL,aR,fM)if fL==nil or not aR then return false end;local cf=typeof(fL)if cf=="Instance"then if fL==aR or fM and(fL==fM or fL:IsDescendantOf(fM))then return true end elseif cf=="number"then if fL==aR.UserId then return true end elseif cf=="string"and fL~=""then local f9=fL:lower()local fN=(aR.Name or""):lower()local fO=(aR.DisplayName or""):lower()local fP=tostring(aR.UserId)if f9==fN or fO~=""and f9==fO or f9==fP then return true end;if fN~=""and f9:find(fN,1,true)then return true end end;return false end;local function fQ(fR,aR,fM,fS)if not fR then return false end;local fT,fU=pcall(function()return fR:GetAttributes()end)if fT and fU then for fV,c7 in pairs(fU)do if fK(c7,aR,fM)then return true end;if fS and f6(tostring(fV),f4)then if c7==true or type(c7)=="number"and c7~=0 or type(c7)=="string"and c7~=""and c7:lower()~="none"and c7:lower()~="false"then return true end end end end;for x,y in ipairs(fR:GetDescendants())do if y:IsA("ValueBase")then local fW,c7=pcall(function()return y.Value end)if fW then if fK(c7,aR,fM)then return true end;if fS and f6(y.Name,f4)then if c7==true or typeof(c7)=="Instance"or type(c7)=="number"and c7~=0 or type(c7)=="string"and c7~=""and c7:lower()~="none"and c7:lower()~="false"then return true end end end end end;return false end;local function fX(cU,fY,fZ)if not cU or not fY or not fZ then return false end;if cU:IsA("JointInstance")or cU:IsA("WeldConstraint")then local cM,cN=cU.Part0,cU.Part1;if cM and cN then if cM:IsDescendantOf(fY)and cN:IsDescendantOf(fZ)or cN:IsDescendantOf(fY)and cM:IsDescendantOf(fZ)then return true end end elseif cU:IsA("Constraint")then local f_,g0=cU.Attachment0,cU.Attachment1;if f_ and g0 then if f_:IsDescendantOf(fY)and g0:IsDescendantOf(fZ)or g0:IsDescendantOf(fY)and f_:IsDescendantOf(fZ)then return true end end end;return false end;local g1={}local function g2(cw,g3)g3=g3 or n;if not cw or cw==g3 or cw.Parent~=e then return false end;if cw==a1 or cw==a0 or aa and aa.target==cw or bu and bu.target==cw then return false end;local ct=os.clock()local eq=tostring(g3.UserId).."_"..tostring(cw.UserId)local ej=g1[eq]if ej and ct-ej.t<0.25 then return ej.v end;local eK=g3 and g3.Character;local eQ=cA(cw,true)if not eK or not eQ then g1[eq]={t=ct,v=false}return false end;if eQ:IsDescendantOf(eK)or eK:IsDescendantOf(eQ)then g1[eq]={t=ct,v=true}return true end;local bq=eK:FindFirstChild("HumanoidRootPart")or eK:FindFirstChildWhichIsA("BasePart")local g4=cB(eQ,"torso")local g5=bq and g4 and(g4.Position-bq.Position).Magnitude or math.huge;if g5>6.5 then g1[eq]={t=ct,v=false}return false end;local bO=eK:FindFirstChildOfClass("Humanoid")local eR=eQ:FindFirstChildOfClass("Humanoid")if eR and eR.SeatPart and eR.SeatPart:IsDescendantOf(eK)or bO and bO.SeatPart and bO.SeatPart:IsDescendantOf(eQ)then g1[eq]={t=ct,v=true}return true end;local g6=false;if bq and g4 and _==nil then local g7,g8=pcall(function()local g0=bq.AssemblyRootPart;local g9=g4.AssemblyRootPart;return g0~=nil and g0==g9 end)if g7 and g8 then g6=true end end;g1[eq]={t=ct,v=g6}return g6 end;as.isPlayerCarriedOrInteracting=g2;f1=function(g3)g3=g3 or n;local eK=g3 and g3.Character;local bq=eK and(eK:FindFirstChild("HumanoidRootPart")or eK:FindFirstChildWhichIsA("BasePart"))local ga=bq and bq.Position or Vector3.zero;local gb,gc=nil,math.huge;for x,cw in ipairs(e:GetPlayers())do if cw~=g3 and not g2(cw,g3)then local X=cA(cw)local et=X and X:FindFirstChildOfClass("Humanoid")local gd=ew(cw)if gd and(not et or et.Health>0)then local fn=(gd.Position-ga).Magnitude;if fn<gc then gc=fn;gb=cw end end end end;if gb then return gb,gc end;for x,cw in ipairs(e:GetPlayers())do if cw~=g3 and not g2(cw,g3)then local X=cA(cw)local et=X and X:FindFirstChildOfClass("Humanoid")local ba=cD(cw)if ba and(not et or et.Health>0)then local fn=(ba.Position-ga).Magnitude;if fn<gc then gc=fn;gb=cw end end end end;if not gb then for x,cw in ipairs(e:GetPlayers())do if cw~=g3 and not g2(cw,g3)then return cw,math.huge end end end;return gb,gc end end;local function ge(gf,g3)g3=g3 or n;if not gf then return nil end;local gg=tostring(gf):gsub("^%s*@+%s*",""):gsub("^%s+",""):gsub("%s+$",""):lower()if gg==""then return nil end;for x,cw in ipairs(e:GetPlayers())do if cw~=g3 and(cw.Name:lower()==gg or cw.DisplayName:lower()==gg)then return cw end end;for x,cw in ipairs(e:GetPlayers())do if cw~=g3 and(cw.Name:lower():sub(1,#gg)==gg or cw.DisplayName:lower():sub(1,#gg)==gg)then return cw end end;return nil end;local gh=nil;local function gi()if gh and gh.Parent then local gj=(gh.Text or""):gsub("^%s*@+%s*",""):gsub("^%s+",""):gsub("%s+$","")if gj~=""then local gk=ge(gj,n)if gk and gk.Parent==e and gk~=n then return gk,false end end end;if a1 and a1.Parent==e and a1~=n then return a1,false end;if a2 and a2.Parent then local gl=(a2.Text or""):gsub("^%s*@+%s*",""):gsub("^%s+",""):gsub("%s+$","")if gl~=""then local eo=ge(gl,n)if eo and eo.Parent==e then return eo,false end end end;local gm=f1(n)return gm,true end;local function gn(go,g3)g3=g3 or n;if typeof(go)=="Instance"and go:IsA("Player")then if go.Parent==e and go~=g3 then return go end elseif go~=nil and tostring(go)~=""then local en=ge(go,g3)if en and en.Parent==e and en~=g3 then return en end end;local gp=gi()if gp and gp.Parent==e and gp~=g3 then return gp end;return f1(g3)end;bu={active=false,target=nil,sideMode="right",sideDistance=3.2,syncMotorTransforms=true,renderConn=nil,stepConn=nil,hbConn=nil,descConn=nil,animPlayedConn=nil,hookedAnimator=nil,currentLockCF=nil,preCopySafeCF=nil,clock=0,missingFrames=0,lastStreamReq=0,mirroredTracks={},animObjCache={},failedIds={},lastNoTracksNotice=0,lastLoadFailureNotice=0,lastTargetAvailable=0,boundCharacter=nil}local gq={currentEmoteTrack=nil,currentEmoteAnim=nil,currentEmoteName=nil,emoteSpeed=1.0,emoteLooped=true,emoteFrozen=false,allowWalkDuringEmote=false,activePackName="Default",savedDefaultPack=nil,packCharConn=nil,jerkActive=false,jerkSpeed=1.6,jerkConn=nil,jerkTrack=nil,jerkAnim=nil}do local function gr(dC,gs)local dD=_G._AngoorZenApi;if dD and type(dD.is_reanimated)=="function"and type(dD.get_real_character)=="function"then local dE,dF=pcall(dD.is_reanimated)if dE and dF then local dG,dH=pcall(dD.get_real_character)local dI=dG and dH and dH:FindFirstChild("HumanoidRootPart")if dI and dI~=gs and dI.Parent then dI.Anchored=false;dI.CFrame=dC;dI.AssemblyLinearVelocity=Vector3.zero;dI.AssemblyAngularVelocity=Vector3.zero end end end;local dJ=_G.CocaSkyDestroyer;if dJ and type(dJ.is_reanimated)=="function"and type(dJ.get_real_character)=="function"then local dK,dL=pcall(dJ.is_reanimated)if dK and dL then local dM,dN=pcall(dJ.get_real_character)local dO=dM and dN and dN:FindFirstChild("HumanoidRootPart")if dO and dO~=gs and dO.Parent then dO.Anchored=false;dO.CFrame=dC;dO.AssemblyLinearVelocity=Vector3.zero;dO.AssemblyAngularVelocity=Vector3.zero end end end end;local function gt(g4,bO,eR,ep,g5)if not g4 then return nil end;g5=g5 or 3.2;local ec=g4.CFrame.LookVector;local ed=Vector3.new(ec.X,0,ec.Z)if ed.Magnitude<0.001 then ed=Vector3.new(0,0,-1)else ed=ed.Unit end;local gu=ed:Cross(Vector3.yAxis)if gu.Magnitude<0.001 then gu=Vector3.new(1,0,0)else gu=gu.Unit end;local gv=bO and bO.HipHeight and bO.HipHeight>0.2 and bO.HipHeight or 2.0;local gw=eR and eR.HipHeight and eR.HipHeight>0.2 and eR.HipHeight or 2.0;local gx=math.clamp(gv-gw,-2.5,2.5)local gy=Z and Z.X or 0;local gz=(Z and Z.Y or 0)+gx;local gA=(Z and Z.Z or 1.3)-1.3;local gB=g4.Position+Vector3.new(0,gz,0)if ep=="left"then local gC=gB-gu*(g5-gy)-ed*gA;return CFrame.fromMatrix(gC,gu,Vector3.yAxis,-ed)elseif ep=="front"then local gC=gB+ed*(g5-gA)+gu*gy;return CFrame.fromMatrix(gC,-gu,Vector3.yAxis,ed)elseif ep=="back"then local gC=gB-ed*(g5+gA)+gu*gy;return CFrame.fromMatrix(gC,gu,Vector3.yAxis,-ed)elseif ep=="above"then local gC=gB+Vector3.new(0,(g5 or 3.8)+1.2,0)+gu*gy-ed*gA;return CFrame.fromMatrix(gC,gu,Vector3.yAxis,-ed)elseif ep=="orbit"then local gD=os.clock()*2.8;local gE=math.max(1.8,(g5 or 3.6)+gy)local gF=Vector3.new(math.cos(gD)*gE,0,math.sin(gD)*gE)local gC=gB+gF;local gG=Vector3.new(gB.X-gC.X,0,gB.Z-gC.Z)if gG.Magnitude<0.001 then gG=ed else gG=gG.Unit end;local gH=gG:Cross(Vector3.yAxis)if gH.Magnitude<0.001 then gH=Vector3.new(1,0,0)else gH=gH.Unit end;return CFrame.fromMatrix(gC,gH,Vector3.yAxis,-gG)else local gC=gB+gu*(g5+gy)-ed*gA;return CFrame.fromMatrix(gC,gu,Vector3.yAxis,-ed)end end;bu.ComputeSideBySideCF=gt;local function gI(gJ)if gJ then local cw=gn(gJ,n)if cw and cw.Parent==e and cw~=n then return cw end end;if a1 and a1.Parent==e and a1~=n and not(as.isPlayerCarriedOrInteracting and as.isPlayerCarriedOrInteracting(a1,n))then return a1 end;if bu.active and bu.target and bu.target.Parent==e and bu.target~=n then return bu.target end;local gK,x=gi()if gK and gK.Parent==e and gK~=n then return gK end;return f1(n)end;bu.ResolveTarget=gI;local function gL(bC,gM)if not bC then return true end;return ap[bC]==true end;local function gN(gO)gO=gO==nil and 0.12 or gO;for gP,gQ in pairs(bu.mirroredTracks)do if gQ.track then pcall(function()gQ.track:Stop(gO)end)pcall(function()gQ.track:Destroy()end)end;if gQ.anim then pcall(function()gQ.anim:Destroy()end)end;bu.mirroredTracks[gP]=nil end end;function bu:SnapSideBySideOnce(aR)local gR=gI(aR)if not gR or gR.Parent~=e then S("COCO POWDER","No target player found!")L()return false end;local gS=self.sideMode or"right"local eK=n.Character;local bq=eK and(eK:FindFirstChild("HumanoidRootPart")or eK:FindFirstChildWhichIsA("BasePart"))local bO=eK and eK:FindFirstChildOfClass("Humanoid")if eK and bq then cH(eK,bO,bq)end;local eQ=cA(gR)local g4=eQ and cB(eQ,"root")local eR=eQ and eQ:FindFirstChildOfClass("Humanoid")if g4 and g4.Parent and bq then local gT=gt(g4,bO,eR,gS,self.sideDistance or 3.2)if gT then cF(gT)al=gT;bq.Anchored=false;bq.AssemblyLinearVelocity=Vector3.zero;bq.AssemblyAngularVelocity=Vector3.zero;bq.CFrame=gT;gr(gT,bq)S("🎭 SIDE-BY-SIDE","Snapped to "..gS:upper().." of "..gR.DisplayName.." (0ms)!")K()return true end end;task.spawn(function()local gU=gS=="left"and CFrame.new(-3.2,0,0)or gS=="front"and CFrame.new(0,0,-3.2)*CFrame.Angles(0,math.pi,0)or gS=="back"and CFrame.new(0,0,3.2)or gS=="above"and CFrame.new(0,4.2,0)or CFrame.new(3.2,0,0)local gV,gW=cE(gR,"root",1.8,gU)local gX=n.Character;local gY=gX and(gX:FindFirstChild("HumanoidRootPart")or gX:FindFirstChildWhichIsA("BasePart"))local gZ=gX and gX:FindFirstChildOfClass("Humanoid")local g_=gV and gV:FindFirstChildOfClass("Humanoid")if gW and gW.Parent and gY then local gT=gt(gW,gZ,g_,gS,self.sideDistance or 3.2)if gT then cF(gT)al=gT;gY.Anchored=false;gY.AssemblyLinearVelocity=Vector3.zero;gY.AssemblyAngularVelocity=Vector3.zero;gY.CFrame=gT;gr(gT,gY)S("🎭 SIDE-BY-SIDE","Snapped to "..gS:upper().." of "..gR.DisplayName.."!")K()end end end)return true end;function bu:CopyTargetAnimatePack(aR)local gR=gI(aR)if not gR then S("🎭 ANIM COPY","No target player found to steal animation pack!")L()return false end;local eQ=cA(gR)if not eQ then S("🎭 ANIM COPY","Target character not streamed in yet!")L()return false end;local h0=eQ:FindFirstChild("Animate")local eK=n.Character;local h1=eK and eK:FindFirstChild("Animate")if not h0 or not h1 then S("🎭 ANIM COPY","Animate script not found on character!")L()return false end;if gq and gq.SaveDefaultPack then pcall(function()gq:SaveDefaultPack(eK)end)end;local h2=0;for x,h3 in ipairs(h0:GetChildren())do local h4=h1:FindFirstChild(h3.Name)if h4 then for x,h5 in ipairs(h3:GetChildren())do if h5:IsA("Animation")and h5.AnimationId~=""then local h6=h4:FindFirstChild(h5.Name)or h4:FindFirstChildOfClass("Animation")if h6 and h6:IsA("Animation")then h6.AnimationId=h5.AnimationId;h2=h2+1 end end end end end;local bO=eK:FindFirstChildOfClass("Humanoid")if bO then cc(eK)pcall(function()bO:ChangeState(Enum.HumanoidStateType.Landed)end)end;S("🎭 PACK COPIED","Copied "..tostring(h2).." Animation Pack tracks from "..gR.DisplayName.."!")K()return true end;function bu:Stop(h7)if not self.active and not self.hbConn and not self.stepConn and not self.renderConn then return end;self.active=false;self.target=nil;self.currentLockCF=nil;if aa.presetKey=="animcopy"then aa.active=false;aa.presetKey=nil;aa.target=nil end;if self.animPlayedConn then pcall(function()self.animPlayedConn:Disconnect()end)self.animPlayedConn=nil end;self.hookedAnimator=nil;if self.renderConn then self.renderConn:Disconnect()self.renderConn=nil end;if self.stepConn then self.stepConn:Disconnect()self.stepConn=nil end;if self.hbConn then self.hbConn:Disconnect()self.hbConn=nil end;if self.descConn then self.descConn:Disconnect()self.descConn=nil end;gN(0)self.lastTargetAvailable=0;self.boundCharacter=nil;pcall(function()n.ReplicationFocus=nil end)local eK=n.Character;local bq=eK and(eK:FindFirstChild("HumanoidRootPart")or eK:FindFirstChildWhichIsA("BasePart"))local bO=eK and eK:FindFirstChildOfClass("Humanoid")if bq and sethiddenproperty then pcall(function()sethiddenproperty(bq,"PhysicsRepRootPart",nil)end)pcall(function()sethiddenproperty(bq,"PhysicsRepRootRef",nil)end)end;if eK then local bF=(bt and bt.noclip)==true;local bG=(bs and bs.Kill and bs.Kill.enabled)==true;for x,fn in ipairs(eK:GetDescendants())do if fn:IsA("BasePart")then fn.Massless=false;fn.CanQuery=true;fn.CanTouch=not bG;if fn.Name=="HumanoidRootPart"or fn.Name=="Torso"or fn.Name=="UpperTorso"or fn.Name=="LowerTorso"or fn.Name=="Head"then fn.CanCollide=not bF end elseif fn:IsA("Motor6D")then pcall(function()fn.Transform=CFrame.identity end)end end;ci(eK)end;if bO and bO.Health>0 then pcall(function()bO.PlatformStand=false;bO.Sit=false;bO.AutoRotate=true;bO:ChangeState(Enum.HumanoidStateType.GettingUp)bO:ChangeState(Enum.HumanoidStateType.Running)end)end;if not h7 and eK and bq then if b9(bq.CFrame)then local cq=cC(bq.CFrame)cF(cq)al=cq;bq.AssemblyLinearVelocity=Vector3.zero;bq.AssemblyAngularVelocity=Vector3.zero;bq.CFrame=cq else am=tick()bz(eK,self.preCopySafeCF or al)end end;if not(bs and bs.Void and bs.Void.enabled)and not(bs and bs.Kill and bs.Kill.enabled)and not aa.active and not ad then pcall(function()workspace.FallenPartsDestroyHeight=a5 end)end;if bA then pcall(bA)end end;local h8=setmetatable({},{__mode="k"})local function h9(eK,eQ,ha,hb)if not eK or not eQ then return end;if ha==hb then local hc=h8[eQ]if not hc or hc.myChar~=eK or os.clock()-hc.builtAt>1.5 then local hd={}for x,he in ipairs(eQ:GetDescendants())do if he:IsA("Motor6D")and he.Parent then local hf=eK:FindFirstChild(he.Parent.Name)local hg=hf and hf:FindFirstChild(he.Name)if hg and hg:IsA("Motor6D")then hd[#hd+1]={src=he,dst=hg}end end end;hc={myChar=eK,builtAt=os.clock(),pairs=hd}h8[eQ]=hc end;for dt=1,#hc.pairs do local hh=hc.pairs[dt]if hh.src.Parent and hh.dst.Parent then hh.dst.Transform=hh.src.Transform end end elseif ha==Enum.HumanoidRigType.R15 and hb==Enum.HumanoidRigType.R6 then local hi=eQ:FindFirstChild("Torso")if not hi then return end;local hj=hi:FindFirstChild("Neck")local hk=hi:FindFirstChild("Right Shoulder")local hl=hi:FindFirstChild("Left Shoulder")local hm=hi:FindFirstChild("Right Hip")local hn=hi:FindFirstChild("Left Hip")local ho=eQ:FindFirstChild("HumanoidRootPart")and eQ.HumanoidRootPart:FindFirstChild("RootJoint")or hi:FindFirstChild("RootJoint")local cv=eK:FindFirstChild("Head")local hp=eK:FindFirstChild("LowerTorso")local hq=eK:FindFirstChild("RightUpperArm")local hr=eK:FindFirstChild("LeftUpperArm")local hs=eK:FindFirstChild("RightUpperLeg")local ht=eK:FindFirstChild("LeftUpperLeg")if hj and cv and cv:FindFirstChild("Neck")then pcall(function()cv.Neck.Transform=hj.Transform end)end;if ho and hp and hp:FindFirstChild("Root")then pcall(function()hp.Root.Transform=ho.Transform end)end;if hk and hq and hq:FindFirstChild("RightShoulder")then pcall(function()hq.RightShoulder.Transform=hk.Transform end)end;if hl and hr and hr:FindFirstChild("LeftShoulder")then pcall(function()hr.LeftShoulder.Transform=hl.Transform end)end;if hm and hs and hs:FindFirstChild("RightHip")then pcall(function()hs.RightHip.Transform=hm.Transform end)end;if hn and ht and ht:FindFirstChild("LeftHip")then pcall(function()ht.LeftHip.Transform=hn.Transform end)end elseif ha==Enum.HumanoidRigType.R6 and hb==Enum.HumanoidRigType.R15 then local hu=eK:FindFirstChild("Torso")if not hu then return end;local cv=eQ:FindFirstChild("Head")local hv=eQ:FindFirstChild("UpperTorso")local hp=eQ:FindFirstChild("LowerTorso")local hq=eQ:FindFirstChild("RightUpperArm")local hw=eQ:FindFirstChild("RightLowerArm")local hr=eQ:FindFirstChild("LeftUpperArm")local hx=eQ:FindFirstChild("LeftLowerArm")local hs=eQ:FindFirstChild("RightUpperLeg")local hy=eQ:FindFirstChild("RightLowerLeg")local ht=eQ:FindFirstChild("LeftUpperLeg")local hz=eQ:FindFirstChild("LeftLowerLeg")if cv and cv:FindFirstChild("Neck")and hu:FindFirstChild("Neck")then pcall(function()hu.Neck.Transform=cv.Neck.Transform end)end;local hA=eK:FindFirstChild("HumanoidRootPart")and eK.HumanoidRootPart:FindFirstChild("RootJoint")or hu:FindFirstChild("RootJoint")if hp and hp:FindFirstChild("Root")and hA then local hB=hv and hv:FindFirstChild("Waist")and hv.Waist.Transform or CFrame.identity;pcall(function()hA.Transform=hp.Root.Transform*hB end)end;if hq and hq:FindFirstChild("RightShoulder")and hu:FindFirstChild("Right Shoulder")then local hC=hw and hw:FindFirstChild("RightElbow")and hw.RightElbow.Transform or CFrame.identity;pcall(function()hu["Right Shoulder"].Transform=hq.RightShoulder.Transform*hC end)end;if hr and hr:FindFirstChild("LeftShoulder")and hu:FindFirstChild("Left Shoulder")then local hC=hx and hx:FindFirstChild("LeftElbow")and hx.LeftElbow.Transform or CFrame.identity;pcall(function()hu["Left Shoulder"].Transform=hr.LeftShoulder.Transform*hC end)end;if hs and hs:FindFirstChild("RightHip")and hu:FindFirstChild("Right Hip")then local hD=hy and hy:FindFirstChild("RightKnee")and hy.RightKnee.Transform or CFrame.identity;pcall(function()hu["Right Hip"].Transform=hs.RightHip.Transform*hD end)end;if ht and ht:FindFirstChild("LeftHip")and hu:FindFirstChild("Left Hip")then local hD=hz and hz:FindFirstChild("LeftKnee")and hz.LeftKnee.Transform or CFrame.identity;pcall(function()hu["Left Hip"].Transform=ht.LeftHip.Transform*hD end)end end end;local function hE(self,X,Y,hF,hG)if not self.active or not X or not Y or not hF or not hG then return false end;local hH=hG:FindFirstChildOfClass("Animator")or hF:FindFirstChildWhichIsA("Animator",true)local hI=Y:FindFirstChildOfClass("Animator")if not hI then pcall(function()hI=Instance.new("Animator")hI.Parent=Y end)end;if not hI then return false end;if hH and self.hookedAnimator~=hH then if self.animPlayedConn then pcall(function()self.animPlayedConn:Disconnect()end)self.animPlayedConn=nil end;self.hookedAnimator=hH;pcall(function()self.animPlayedConn=hH.AnimationPlayed:Connect(function()if not self.active then return end;local hJ=n.Character;local hK=hJ and hJ:FindFirstChildOfClass("Humanoid")local hL=self.target and cA(self.target)local hM=hL and hL:FindFirstChildOfClass("Humanoid")if hJ and hK and hL and hM then hE(self,hJ,hK,hL,hM)end end)end)end;local hN,hO=false,nil;if hH then hN,hO=pcall(function()return hH:GetPlayingAnimationTracks()end)end;local ct=os.clock()local e0=math.clamp(Z and Z.Speed or 1.0,0.2,6.0)if not hN or not hO or#hO==0 then for gP,hP in pairs(self.mirroredTracks)do pcall(function()if hP.track then hP.track:Stop(0)hP.track:Destroy()end end)self.mirroredTracks[gP]=nil end;return true end;local hQ={}local hR=false;for dt=1,#hO do local hS=hO[dt]local hT=hS.WeightCurrent or 1;if hS.IsPlaying and hT>0.0005 then local hU=hS.Animation;local hV=hU and tostring(hU.AnimationId or"")or""local bX=hV;if bX:match("^%d+$")then bX="rbxassetid://"..bX end;if bX~=""and not gL(hS,bX)and not(self.failedIds[bX]and self.failedIds[bX]>tick())then hQ[hS]=true;local hP=self.mirroredTracks[hS]if not hP or not hP.track or not hP.track.IsPlaying or hP.animId~=bX then if hP and hP.track then pcall(function()hP.track:Stop(0)hP.track:Destroy()end)end;hP=nil;pcall(function()local hW=self.animObjCache[bX]if not hW or hW.AnimationId~=bX then hW=Instance.new("Animation")hW.AnimationId=bX;self.animObjCache[bX]=hW end;local hX=hI:LoadAnimation(hW)hX.Priority=hS.Priority;hX.Looped=hS.Looped;local hY=hS.Speed or 1;local hZ=hS.TimePosition or 0;local h_=math.clamp(hT,0.01,1)hX:Play(0,h_,hY*e0)hX:AdjustWeight(h_,0)local i0=hX.Length and hX.Length>0 or false;if i0 then hX.TimePosition=math.max(0,hZ)else hR=true end;hP={track=hX,anim=hW,animId=bX,lastSeen=ct,lastTimeSync=ct,lastWeight=h_,lastAppliedSpeed=hY*e0,lengthReady=i0}self.mirroredTracks[hS]=hP;self.failedIds[bX]=nil end)if not hP then self.failedIds[bX]=tick()+8;hR=true end end;if hP and hP.track then local hY=hS.Speed or 1;local hZ=hS.TimePosition or 0;hP.track.Looped=hS.Looped;hP.track.Priority=hS.Priority;hP.lastSeen=ct;local i1=hY*e0;if not hP.lastAppliedSpeed or math.abs(hP.lastAppliedSpeed-i1)>0.01 then hP.track:AdjustSpeed(i1)hP.lastAppliedSpeed=i1 end;local i2=math.clamp(hT,0.01,1)if not hP.lastWeight or math.abs(hP.lastWeight-i2)>0.015 then hP.track:AdjustWeight(i2,0)hP.lastWeight=i2 end;local i3=hP.track.Length or 0;if i3>0 then if not hP.lengthReady then hP.lengthReady=true;hP.track.TimePosition=math.clamp(hZ,0,i3)else local i4=math.abs(hP.track.TimePosition-hZ)if hP.track.Looped and i3>0.1 then i4=math.min(i4,math.abs(i3-i4))end;if i4>0.015 then hP.track.TimePosition=math.clamp(hZ,0,i3)end end else hR=true end end end end end;for gP,hP in pairs(self.mirroredTracks)do if not hQ[gP]then pcall(function()if hP.track then hP.track:Stop(0)hP.track:Destroy()end end)self.mirroredTracks[gP]=nil end end;return hR end;function bu:Start(aR)if as.isFrozenByOwner or as.isBannedByOwner then S("👑 ADMIN LOCK","You are currently frozen/locked by an Admin!")L()return false end;local gR=gI(aR)if not gR or gR.Parent~=e then S("COCO POWDER","No target player found to copy animations!")L()return false end;if ay(gR)then S("👑 IMMUNITY","Cannot target the Coco Powder Script Owner!")L()return false end;local eK=n.Character;local bq=eK and(eK:FindFirstChild("HumanoidRootPart")or eK:FindFirstChildWhichIsA("BasePart"))local bO=eK and eK:FindFirstChildOfClass("Humanoid")if not eK or not bq or not bO or bO.Health<=0 then S("COCO POWDER","Character not ready to copy animations!")L()return false end;if _ then pcall(function()_:Destroy(true)end)_=nil end;if gq and gq.StopEmote then pcall(function()gq:StopEmote()end)end;if gq and gq.StopJerk then pcall(function()gq:StopJerk()end)end;self:Stop(true)pcall(function()workspace.FallenPartsDestroyHeight=0/0 end)self.preCopySafeCF=b9(bq.CFrame)and bq.CFrame or al or bi()gN(0)self.failedIds={}self.lastTargetAvailable=os.clock()self.boundCharacter=eK;self.clock=0;self.missingFrames=0;self.lastStreamReq=0;self.active=true;self.target=gR;a0=gR;aa.active=true;aa.presetKey="animcopy"aa.target=gR;aa.waitingForSpawn=false;aa.leftInfo=nil;aa.topStatusText="active · Copy Animation (Side-by-Side)"aa.topStatusColor=C.Success;aa.midStatusText="attached · "..gR.Name;aa.midStatusColor=C.Success;aa.bottomStatusText="target online · attached (Copy Animation)"aa.bottomStatusColor=C.Success;a9="animcopy"a8=gR.UserId;bv(gR)if aa.refreshUI then pcall(aa.refreshUI)end;if bA then pcall(bA)end;cH(eK,bO,bq)cg(eK)local i5={}for x,bJ in ipairs(eK:GetDescendants())do if bJ:IsA("BasePart")then i5[#i5+1]=bJ;bJ.CanCollide=false;bJ.CanTouch=false;bJ.CanQuery=false;bJ.Massless=true;bJ.Anchored=false elseif bJ:IsA("SeatWeld")or bJ.Name=="SeatWeld"then pcall(function()bJ:Destroy()end)end end;self.descConn=eK.DescendantAdded:Connect(function(c7)if not self.active then return end;if c7:IsA("BasePart")then i5[#i5+1]=c7;c7.CanCollide=false;c7.CanTouch=false;c7.CanQuery=false;c7.Massless=true;c7.Anchored=false elseif c7:IsA("Tool")then for x,dr in ipairs(c7:GetDescendants())do if dr:IsA("BasePart")then i5[#i5+1]=dr;dr.CanCollide=false;dr.CanTouch=false;dr.CanQuery=false;dr.Massless=true;dr.Anchored=false end end elseif c7:IsA("SeatWeld")or c7.Name=="SeatWeld"then pcall(function()c7:Destroy()end)end end)local function i6()for dt=1,#i5 do local c7=i5[dt]if c7 and c7.Parent then if c7.CanCollide then c7.CanCollide=false end;if c7.CanTouch then c7.CanTouch=false end;if c7.CanQuery then c7.CanQuery=false end;if not c7.Massless then c7.Massless=true end;if c7.Anchored then c7.Anchored=false end end end;if bO and bO.Sit then pcall(function()bO.Sit=false end)end end;i6()local eQ=cA(gR)local g4=eQ and cB(eQ,"root")local eR=eQ and eQ:FindFirstChildOfClass("Humanoid")if self.sideMode~="free"then if g4 and g4.Parent then local i7=gt(g4,bO,eR,self.sideMode,self.sideDistance or 3.2)if i7 then self.currentLockCF=i7;cF(i7)al=i7;bq.Anchored=false;bq.CFrame=i7;bq.AssemblyLinearVelocity=g4.AssemblyLinearVelocity;bq.AssemblyAngularVelocity=Vector3.zero;pcall(function()n.ReplicationFocus=g4 end)if sethiddenproperty then pcall(function()sethiddenproperty(bq,"PhysicsRepRootPart",g4)if z then sethiddenproperty(bq,"PhysicsRepRootRef",z(g4))end;sethiddenproperty(bq,"NetworkIsSleeping",false)end)end;gr(i7,bq)end else task.spawn(function()local gU=self.sideMode=="left"and CFrame.new(-3.2,0,0)or self.sideMode=="front"and CFrame.new(0,0,-3.2)*CFrame.Angles(0,math.pi,0)or self.sideMode=="back"and CFrame.new(0,0,3.2)or self.sideMode=="above"and CFrame.new(0,4.2,0)or CFrame.new(3.2,0,0)cE(gR,"root",1.8,gU)end)end end;if eQ and eR then pcall(function()local i8=hE(self,eK,bO,eQ,eR)if self.syncMotorTransforms or i8 or bO.RigType~=eR.RigType then h9(eK,eQ,bO.RigType,eR.RigType)end end)end;self.renderConn=d.RenderStepped:Connect(function()if not self.active then return end;local X=n.Character;local bE=X and(X:FindFirstChild("HumanoidRootPart")or X:FindFirstChildWhichIsA("BasePart"))local Y=X and X:FindFirstChildOfClass("Humanoid")if not X or not bE or not Y then return end;local hF=self.target and cA(self.target)local i9=hF and cB(hF,"root")local hG=hF and hF:FindFirstChildOfClass("Humanoid")if not hF or not i9 or not i9.Parent or not hG or hG.Health<=0 then return end;if self.sideMode~="free"and not bd(i9.CFrame,i9.AssemblyLinearVelocity)then local ia=gt(i9,Y,hG,self.sideMode,self.sideDistance or 3.2)if ia then self.currentLockCF=ia;bE.CFrame=ia;gr(ia,bE)end end;hE(self,X,Y,hF,hG)end)self.stepConn=d.Stepped:Connect(function()if not self.active then return end;i6()local X=n.Character;local bE=X and(X:FindFirstChild("HumanoidRootPart")or X:FindFirstChildWhichIsA("BasePart"))if self.sideMode~="free"and self.currentLockCF and bE and bE.Parent then bE.CFrame=self.currentLockCF;gr(self.currentLockCF,bE)end;local hF=self.target and cA(self.target)local hG=hF and hF:FindFirstChildOfClass("Humanoid")local ib=X and X:FindFirstChildOfClass("Humanoid")if hF and hG and ib then if self.syncMotorTransforms or ib.RigType~=hG.RigType then h9(X,hF,ib.RigType,hG.RigType)else for x,hP in pairs(self.mirroredTracks)do if not hP.lengthReady then h9(X,hF,ib.RigType,hG.RigType)break end end end end end)self.hbConn=d.Heartbeat:Connect(function(dU)if not self.active then return end;local X=n.Character;local bE=X and(X:FindFirstChild("HumanoidRootPart")or X:FindFirstChildWhichIsA("BasePart"))local Y=X and X:FindFirstChildOfClass("Humanoid")if not X or not bE or not Y or Y.Health<=0 then local ic=self.target;self:Stop(true)if a7 and ic and ic.Parent==e then aa.active=true;aa.presetKey="animcopy"aa.target=ic end;return end;if not self.target or self.target.Parent~=e then local id=self.target;local ie=id and id.Name or tostring(aa.typedUsername or"Target")local ig=id and id.DisplayName or ie;local ih=id and id.UserId or a8;self:Stop(false)aa.leftInfo={userId=ih,name=ie,displayName=ig,accountAge="—",friendsText="—",leftAt=tick(),wasWelded=true,presetKey="animcopy"}aa.presetKey="animcopy"a9="animcopy"aa.typedUsername=ie;aa.waitingForSpawn=true;aa.topStatusText="target left · weld stopped"aa.topStatusColor=C.Danger;aa.midStatusText="target left · "..ie;aa.midStatusColor=C.Danger;aa.bottomStatusText="target offline · will attach on spawn"aa.bottomStatusColor=C.Warning;if aa.refreshUI then pcall(aa.refreshUI)end;aC("🚨 TARGET HAS LEFT THE GAME","@"..ie.." ("..ig..") left — weld stopped · will attach on spawn",C.Danger,4.5,"TargetLeftBanner")S("COCO POWDER","Target has left the game: @"..ie.." (weld stopped)")return end;local ct=os.clock()if self.boundCharacter~=X then gN(0)self.boundCharacter=X;cH(X,Y,bE)cg(X)end;local hF=cA(self.target)local i9=hF and cB(hF,"root")local hG=hF and hF:FindFirstChildOfClass("Humanoid")if not i9 or not i9.Parent or not hG or hG.Health<=0 then if hG and hG.Health<=0 then aa.waitingForSpawn=true;aa.topStatusText="target respawning · waiting"aa.topStatusColor=C.Warning;aa.midStatusText="respawning · "..self.target.Name;aa.midStatusColor=C.Warning;aa.bottomStatusText="target respawning · will attach on spawn"aa.bottomStatusColor=C.Warning;if aa.refreshUI then pcall(aa.refreshUI)end elseif self.sideMode~="free"then self.missingFrames=(self.missingFrames or 0)+1;local dY=cD(self.target)or eB(self.target)if dY and not bd(dY)then local ii=tick()if ii-(self.lastStreamReq or 0)>0.35 then self.lastStreamReq=ii;eC(dY)task.spawn(function()pcall(function()n:RequestStreamAroundAsync(dY.Position,1.5)end)end)end;local ij=dY*CFrame.new(self.sideDistance or 3.2,0,0)self.currentLockCF=ij;bE.CFrame=ij;bE.AssemblyLinearVelocity=Vector3.zero;bE.AssemblyAngularVelocity=Vector3.zero;cF(ij)end end;if self.lastTargetAvailable>0 and ct-self.lastTargetAvailable>1.25 then gN(0.18)end;return end;self.missingFrames=0;self.lastTargetAvailable=ct;local dZ=i9.AssemblyLinearVelocity;if self.sideMode~="free"and bd(i9.CFrame,dZ)then self:Stop(false)S("COCO POWDER","Target fell into lethal Void — detached safely!")return end;local d_=hF and(hF:FindFirstChild("HumanoidRootPart")or i9)or i9;pcall(function()n.ReplicationFocus=d_ end)ao[self.target.UserId]={cf=i9.CFrame,time=tick(),verified=true}if aa.waitingForSpawn then aa.waitingForSpawn=false;if aa.refreshUI then pcall(aa.refreshUI)end end;if not bd(i9.CFrame,dZ)and math.abs(dZ.Y)<45 and(not hG or hG.FloorMaterial~=Enum.Material.Air)then local x,cm,x=i9.CFrame:ToEulerAnglesYXZ()self.preCopySafeCF=CFrame.new(i9.Position+Vector3.new(0,2.5,0))*CFrame.Angles(0,cm,0)al=self.preCopySafeCF end;local ch=X:FindFirstChild("Animate")if ch and not ch.Disabled then ch.Disabled=true;cb=true end;local e0=math.clamp(Z and Z.Speed or 1.0,0.2,6.0)self.clock=(self.clock or 0)+dU*e0;if self.sideMode~="free"then local ia=gt(i9,Y,hG,self.sideMode,self.sideDistance or 3.2)if ia then self.currentLockCF=ia;bE.Anchored=false;bE.CFrame=ia;gr(ia,bE)local e1=Vector3.new(0,math.sin(self.clock*24)*0.03,0)bE.AssemblyLinearVelocity=(dZ.Magnitude<350 and dZ*0.85 or Vector3.zero)+e1;bE.AssemblyAngularVelocity=Vector3.zero;cF(ia)if sethiddenproperty then pcall(function()sethiddenproperty(bE,"PhysicsRepRootPart",d_)if z then sethiddenproperty(bE,"PhysicsRepRootRef",z(d_))end;sethiddenproperty(bE,"NetworkIsSleeping",false)end)end;pcall(function()if Y.Sit then Y.Sit=false end;Y.AutoRotate=false end)end else pcall(function()Y.AutoRotate=true end)end;local i8=hE(self,X,Y,hF,hG)if i8 or self.syncMotorTransforms or Y.RigType~=hG.RigType then h9(X,hF,Y.RigType,hG.RigType)end end)return true,gR end;local ik=setmetatable({},{__mode="k"})function gq:StopJerk()self.jerkActive=false;if self.jerkConn then self.jerkConn:Disconnect()self.jerkConn=nil end;if self.jerkTrack then pcall(function()self.jerkTrack:Stop(0.12)self.jerkTrack:Destroy()end)self.jerkTrack=nil end;if self.jerkAnim then pcall(function()self.jerkAnim:Destroy()end)self.jerkAnim=nil end;local bm=n.Character;if bm then for x,il in ipairs(bm:GetDescendants())do if il:IsA("Motor6D")and ik[il]then pcall(function()il.C0=ik[il]end)ik[il]=nil end end end;if bA then pcall(bA)end end;function gq:StartJerk()if as.isFrozenByOwner or as.isBannedByOwner then S("👑 ADMIN LOCK","You are currently frozen/locked by an Admin!")L()return end;if self.jerkActive then self:StopJerk()S("COCO POWDER","Jerk Troll stopped")N()return end;self:StopJerk()local bm=n.Character;local Y=bm and bm:FindFirstChildOfClass("Humanoid")if not bm or not Y or Y.Health<=0 then S("COCO POWDER","Character not ready!")L()return end;self.jerkActive=true;local cd=Y:FindFirstChildOfClass("Animator")or Instance.new("Animator",Y)local im=Y.RigType==Enum.HumanoidRigType.R15;pcall(function()local b_=Instance.new("Animation")b_.AnimationId="rbxassetid://72042024"local c0,i9=pcall(function()return cd:LoadAnimation(b_)end)if c0 and i9 then i9.Priority=Enum.AnimationPriority.Action4;i9.Looped=true;pcall(function()i9:Play(0.1,1.0,self.jerkSpeed or 1.6)end)self.jerkTrack=i9;self.jerkAnim=b_ else pcall(function()b_:Destroy()end)end end)local dx=0;self.jerkConn=d.RenderStepped:Connect(function(dU)if not self.jerkActive or not bm.Parent or n.Character~=bm or not Y.Parent or Y.Health<=0 then self:StopJerk()return end;local io=math.clamp(self.jerkSpeed or 1.6,0.5,5.0)dx=dx+dU*io*14;local ip=math.sin(dx)local iq=math.cos(dx*2)if self.jerkTrack and self.jerkTrack.IsPlaying then if not im then pcall(function()if self.jerkTrack.TimePosition>0.72 or self.jerkTrack.TimePosition<0.52 then self.jerkTrack.TimePosition=0.58 end end)end end;if im then local hq=bm:FindFirstChild("RightUpperArm")local hw=bm:FindFirstChild("RightLowerArm")local ir=bm:FindFirstChild("RightHand")local hv=bm:FindFirstChild("UpperTorso")local cv=bm:FindFirstChild("Head")local is=hq and hq:FindFirstChild("RightShoulder")local it=hw and hw:FindFirstChild("RightElbow")local iu=ir and ir:FindFirstChild("RightWrist")local iv=hv and hv:FindFirstChild("Waist")local iw=cv and cv:FindFirstChild("Neck")if is then if not ik[is]then ik[is]=is.C0 end;is.C0=ik[is]*CFrame.Angles(math.rad(38+ip*16),math.rad(-28),math.rad(-26))end;if it then if not ik[it]then ik[it]=it.C0 end;it.C0=ik[it]*CFrame.Angles(math.rad(68+ip*28),0,math.rad(-18))end;if iu then if not ik[iu]then ik[iu]=iu.C0 end;iu.C0=ik[iu]*CFrame.Angles(math.rad(ip*18),0,0)end;if iv then if not ik[iv]then ik[iv]=iv.C0 end;iv.C0=ik[iv]*CFrame.Angles(math.rad(-4+iq*2.5),0,0)end;if iw then if not ik[iw]then ik[iw]=iw.C0 end;iw.C0=ik[iw]*CFrame.Angles(math.rad(-14+ip*4),0,0)end else local ix=bm:FindFirstChild("Torso")local is=ix and ix:FindFirstChild("Right Shoulder")local iw=ix and ix:FindFirstChild("Neck")if is then if not ik[is]then ik[is]=is.C0 end;is.C0=ik[is]*CFrame.new(-0.25,-0.15,-0.35)*CFrame.Angles(math.rad(ip*24),math.rad(-35),math.rad(-68-ip*22))end;if iw then if not ik[iw]then ik[iw]=iw.C0 end;iw.C0=ik[iw]*CFrame.Angles(math.rad(14-ip*4),0,0)end end end)if bA then pcall(bA)end;S("🍆 JERK TROLL","Jerk Troll ON (Speed: "..string.format("%.1fx",self.jerkSpeed or 1.6)..")")M()end;function gq:GiveJerkTool()local iy=n:FindFirstChildOfClass("Backpack")local bm=n.Character;if not iy then S("COCO POWDER","Backpack not found!")L()return end;if iy:FindFirstChild("Jerk Off")or bm and bm:FindFirstChild("Jerk Off")then S("🍆 JERK TOOL","You already have the 'Jerk Off' tool in your inventory!")K()return end;local iz=Instance.new("Tool")iz.Name="Jerk Off"iz.RequiresHandle=false;iz.CanBeDropped=false;iz.ToolTip="Coco Powder Jerk Troll Tool (Equip to activate)"iz.Equipped:Connect(function()if not self.jerkActive then self:StartJerk()end end)iz.Unequipped:Connect(function()if self.jerkActive then self:StopJerk()end end)iz.Parent=iy;S("🍆 JERK TOOL","Added 'Jerk Off' tool to your Backpack! Equip it anytime.")K()end;gq.CatalogPacks={{name="Vampire",idle1="1083445855",idle2="1083450166",walk="1083473930",run="1083462077",jump="1083455352",fall="1083443587",climb="1083439238",swim="1083468726",swimidle="1083471239"},{name="Superhero",idle1="616111295",idle2="616113536",walk="616122287",run="616117076",jump="616115533",fall="616108001",climb="616104706",swim="616119360",swimidle="616120861"},{name="Zombie",idle1="616158929",idle2="616160636",walk="616168032",run="616163682",jump="616161997",fall="616157476",climb="616156119",swim="616165109",swimidle="616166655"},{name="Ninja",idle1="656117400",idle2="656118341",walk="656121766",run="656118852",jump="656117878",fall="656115606",climb="656114359",swim="656119721",swimidle="656121397"},{name="Mage",idle1="707742142",idle2="707855907",walk="707897309",run="707861613",jump="707853694",fall="707829716",climb="707826056",swim="707876443",swimidle="707894699"},{name="Levitation",idle1="616006778",idle2="616008087",walk="616013216",run="616010382",jump="616008936",fall="616005863",climb="616003713",swim="616011509",swimidle="616012453"},{name="Astronaut",idle1="891621366",idle2="891633237",walk="891667138",run="891636393",jump="891627522",fall="891617961",climb="891609353",swim="891639666",swimidle="891663592"},{name="Werewolf",idle1="1083195517",idle2="1083214717",walk="1083178339",run="1083216690",jump="1083218792",fall="1083189019",climb="1083182000",swim="1083222527",swimidle="1083225406"},{name="Cartoony",idle1="742637544",idle2="742638445",walk="742640026",run="742638842",jump="742637942",fall="742636889",climb="742636889",swim="742639220",swimidle="742639812"},{name="Pirate",idle1="750781874",idle2="750782770",walk="750785693",run="750783738",jump="750782230",fall="750780242",climb="750779899",swim="750784579",swimidle="750785176"},{name="Sneaky",idle1="1132473842",idle2="1132477671",walk="1132510133",run="1132494274",jump="1132489853",fall="1132469004",climb="1132461372",swim="1132500520",swimidle="1132506407"},{name="Toy",idle1="782841498",idle2="782845736",walk="782843345",run="782842708",jump="782847020",fall="782846423",climb="782843869",swim="782844582",swimidle="782845186"},{name="Knight",idle1="657595757",idle2="657568135",walk="657552124",run="657564596",jump="658409194",fall="657600338",climb="658360781",swim="657560551",swimidle="657557095"},{name="Confident",idle1="1069977950",idle2="1069987858",walk="1070017263",run="1070001516",jump="1069984524",fall="1069973677",climb="1069946257",swim="1070009914",swimidle="1070012137"},{name="Popstar",idle1="1212900985",idle2="1212900985",walk="1212980338",run="1212980348",jump="1212954642",fall="1212900995",climb="1213044953",swim="1212852603",swimidle="1212998578"},{name="Princess",idle1="941003647",idle2="941013098",walk="941028902",run="941015281",jump="941008832",fall="941000007",climb="940996062",swim="941018893",swimidle="941025398"},{name="Cowboy",idle1="1014390418",idle2="1014398616",walk="1014421541",run="1014401683",jump="1014394726",fall="1014384571",climb="1014380606",swim="1014406523",swimidle="1014411816"},{name="Patrol",idle1="1149612882",idle2="1150842221",walk="1151231493",run="1150967949",jump="1150944216",fall="1148863382",climb="1148811837",swim="1151204998",swimidle="1151221899"},{name="Elder",idle1="845397899",idle2="845400520",walk="845403856",run="845386501",jump="845398858",fall="845396048",climb="845392038",swim="845401742",swimidle="845403127"},{name="Ghost",idle1="616006778",idle2="616008087",walk="616010382",run="616013216",jump="616008936",fall="616005863",climb="616003713",swim="616011509",swimidle="616012453"},{name="Bubbly",idle1="910004836",idle2="910009958",walk="910034870",run="910025107",jump="910016857",fall="910001910",climb="909997997",swim="910028158",swimidle="910030921"},{name="Robot",idle1="616088211",idle2="616089559",walk="616095330",run="616091570",jump="616090535",fall="616087089",climb="616086039",swim="616092998",swimidle="616094091"},{name="Stylish",idle1="616136790",idle2="616138447",walk="616146177",run="616140816",jump="616139451",fall="616134815",climb="616133594",swim="616143378",swimidle="616144772"},{name="Oldschool",idle1="5319828216",idle2="5319831086",walk="5319847204",run="5319844329",jump="5319841935",fall="5319839762",climb="5319816685",swim="5319850266",swimidle="5319852613"},{name="Rthro",idle1="2510196951",idle2="2510197257",walk="2510202577",run="2510198475",jump="2510197830",fall="2510195892",climb="2510192778",swim="2510199791",swimidle="2510201162"},{name="Bold",idle1="16738333868",idle2="16738334710",walk="16738340646",run="16738337225",jump="16738336650",fall="16738333171",climb="16738332469",swim="16738339158",swimidle="16738339817"},{name="Adidas Sports",idle1="18537376492",idle2="18537371272",walk="18537392113",run="18537384940",jump="18537380791",fall="18537367238",climb="18537363391",swim="18537389531",swimidle="18537387180"},{name="FE Zombie",idle1="3489171152",idle2="3489171152",walk="3489174223",run="3489173414",jump="616161997",fall="616157476",climb="616156119",swim="616165109",swimidle="616166655"},{name="Cyberpunk Scout",idle1="10921132962",idle2="10921132962",walk="10921134268",run="10921135644",jump="10921137402",fall="10921136539",climb="10921138241",swim="10921139120",swimidle="10921140012"},{name="Anime Champion",idle1="10921291831",idle2="10921291831",walk="10921292940",run="10921293815",jump="10921294559",fall="10921295240",climb="10921296011",swim="10921296719",swimidle="10921297424"},{name="Shinobi Assassin",idle1="10921157929",idle2="10921157929",walk="10921158562",run="10921159222",jump="10921159841",fall="10921160455",climb="10921161042",swim="10921161661",swimidle="10921162294"},{name="Levitation Celestial",idle1="10921147841",idle2="10921147841",walk="10921148560",run="10921149231",jump="10921149864",fall="10921150482",climb="10921151104",swim="10921151739",swimidle="10921152382"},{name="Titan Brute",idle1="10921167421",idle2="10921167421",walk="10921168054",run="10921168691",jump="10921169324",fall="10921169950",climb="10921170577",swim="10921171204",swimidle="10921171831"},{name="Feline Beast",idle1="10921176840",idle2="10921176840",walk="10921177473",run="10921178106",jump="10921178739",fall="10921179372",climb="10921180005",swim="10921180638",swimidle="10921181271"},{name="Matrix Glitch",idle1="10921186280",idle2="10921186280",walk="10921186913",run="10921187546",jump="10921188179",fall="10921188812",climb="10921189445",swim="10921190078",swimidle="10921190711"},{name="Chrono Warp",idle1="10921195720",idle2="10921195720",walk="10921196353",run="10921196986",jump="10921197619",fall="10921198252",climb="10921198885",swim="10921199518",swimidle="10921200151"}}local function iA(iB,el,iC,iD)if not iB or not iD then return end;local em=iB:FindFirstChild(el)if not em then return end;local hU=iC and em:FindFirstChild(iC)or em:FindFirstChildOfClass("Animation")if hU and hU:IsA("Animation")then hU.AnimationId="rbxassetid://"..tostring(iD):gsub("%D","")end end;function gq:SaveDefaultPack(cj)cj=cj or n.Character;local ch=cj and cj:FindFirstChild("Animate")if not ch or self.savedDefaultPack then return end;local iE={}for x,em in ipairs(ch:GetChildren())do iE[em.Name]={}for x,iF in ipairs(em:GetChildren())do if iF:IsA("Animation")then iE[em.Name][iF.Name]=iF.AnimationId end end end;self.savedDefaultPack=iE end;function gq:ApplyCatalogPack(iG)local bm=n.Character;local Y=bm and bm:FindFirstChildOfClass("Humanoid")local ch=bm and bm:FindFirstChild("Animate")if not bm or not Y or not ch then S("📦 ANIM PACK","Character or Animate script not ready!")L()return false end;self:SaveDefaultPack(bm)ch.Disabled=true;cc(bm)iA(ch,"idle","Animation1",iG.idle1)iA(ch,"idle","Animation2",iG.idle2)iA(ch,"walk","WalkAnim",iG.walk)iA(ch,"run","RunAnim",iG.run)iA(ch,"jump","JumpAnim",iG.jump)iA(ch,"fall","FallAnim",iG.fall)iA(ch,"climb","ClimbAnim",iG.climb)iA(ch,"swim","Swim",iG.swim)iA(ch,"swimidle","SwimIdle",iG.swimidle)ch.Disabled=false;pcall(function()Y:ChangeState(Enum.HumanoidStateType.Landed)end)self.activePackName=iG.name;S("📦 CATALOG PACK","Applied '"..iG.name.."' Animation Pack!")K()return true end;function gq:RestoreDefaultPack()local bm=n.Character;local Y=bm and bm:FindFirstChildOfClass("Humanoid")local ch=bm and bm:FindFirstChild("Animate")if not bm or not ch or not self.savedDefaultPack then S("📦 ANIM PACK","Default Animation Pack is already active!")return end;ch.Disabled=true;cc(bm)for el,iH in pairs(self.savedDefaultPack)do local em=ch:FindFirstChild(el)if em then for iI,bX in pairs(iH)do local iF=em:FindFirstChild(iI)if iF and iF:IsA("Animation")then iF.AnimationId=bX end end end end;ch.Disabled=false;if Y then pcall(function()Y:ChangeState(Enum.HumanoidStateType.Landed)end)end;self.activePackName="Default"S("📦 CATALOG PACK","Restored Default Animation Pack!")K()end;n.CharacterAdded:Connect(function(bo)task.defer(function()local dW=bo:WaitForChild("Humanoid",3.0)local A=workspace.CurrentCamera;if dW and A and not an and not(bt and bt.Vanish and bt.Vanish.selfActive)then pcall(function()A.CameraType=Enum.CameraType.Custom;A.CameraSubject=dW end)end end)task.wait(0.6)if gq.activePackName and gq.activePackName~="Default"then for x,cw in ipairs(gq.CatalogPacks)do if cw.name==gq.activePackName then pcall(function()gq:ApplyCatalogPack(cw)end)break end end end end)gq.CatalogEmotes={{name="Bang (Coco)",id="116235062592344",cat="Trending"},{name="Jerk (Coco)",id="72042024",cat="Trending"},{name="Goon (Coco)",id="136828069054505",cat="Trending"},{name="Floss Dance",id="5917459365",cat="Dances"},{name="Hype Dance",id="3695333486",cat="Dances"},{name="Orange Justice / Mania",id="4555782893",cat="Dances"},{name="Billy Bounce",id="10714010337",cat="Trending"},{name="Griddy Walk / Strut",id="10714360164",cat="Trending"},{name="Sturdy Dance",id="10714389396",cat="Trending"},{name="Slickback Glide",id="15693621070",cat="Trending"},{name="California Gurls Dance",id="10714347256",cat="Trending"},{name="Hakari Dance (Idle Death)",id="16553163212",cat="Trending"},{name="Lethal Company Dance",id="15694504637",cat="Trending"},{name="Skibidi Dop Dop",id="15694504637",cat="Trending"},{name="CaramellDansen Swedish Dance",id="10714347256",cat="Trending"},{name="Smug Dancin (Hat Kid)",id="10714389396",cat="Trending"},{name="Specialist Dance (Persona)",id="16553163212",cat="Trending"},{name="Torture Dance (JoJo)",id="15693621070",cat="Trending"},{name="Bye Bye Bye (Deadpool)",id="18537392113",cat="Trending"},{name="Kazotsky Russian Cossack Kick",id="10714010337",cat="Trending"},{name="Rickroll / Never Gonna Give Up",id="10714360164",cat="Trending"},{name="Moonwalk Billie Jean Slide",id="4349242221",cat="Trending"},{name="Thriller Zombie Dance",id="616168032",cat="Trending"},{name="Gangnam Style Ride",id="4555808220",cat="Dances"},{name="Default Fortnite Dance",id="3333499508",cat="Dances"},{name="Take The L",id="3333136415",cat="Actions"},{name="Electro Swing",id="3333432454",cat="Dances"},{name="Shuffle Dance",id="4349242221",cat="Dances"},{name="Breakdance Spin",id="5915648917",cat="Dances"},{name="Dolphin Dance",id="5918726674",cat="Dances"},{name="Panini / Lil Nas X Dance",id="5915714366",cat="Dances"},{name="Rodeo Line Dance",id="5918728267",cat="Dances"},{name="Old Town Road",id="5937558680",cat="Dances"},{name="Holiday Dance",id="5937560570",cat="Dances"},{name="Twirl & Spin Dance",id="3334968680",cat="Dances"},{name="Monkey Dance",id="3333499508",cat="Dances"},{name="Dorky Dance",id="4212455378",cat="Dances"},{name="Bodybuilder Flex",id="3333387824",cat="Poses"},{name="Fancy Feet Footwork",id="3333432454",cat="Dances"},{name="Fast Hands Dance",id="4265725525",cat="Dances"},{name="Saturday Night Fever",id="3338025566",cat="Dances"},{name="Idol K-Pop Dance",id="4101966434",cat="Dances"},{name="Macarena Classic",id="4555808220",cat="Dances"},{name="Samba Carnival Dance",id="3333499508",cat="Dances"},{name="Cha-Cha Slide",id="3695333486",cat="Dances"},{name="Waltz Ballroom Elegance",id="4555816777",cat="Dances"},{name="Tango Passionate Step",id="3695333486",cat="Dances"},{name="Irish Riverdance Tap",id="4349242221",cat="Dances"},{name="Belly Dance Wave",id="4555782893",cat="Dances"},{name="Cupid Shuffle",id="5918728267",cat="Dances"},{name="Cotton Eye Joe Hoedown",id="5937558680",cat="Dances"},{name="Sirtaki Greek Dance",id="3333432454",cat="Dances"},{name="BLACKPINK DDU-DU DDU-DU",id="10714340543",cat="Trending"},{name="TWICE Feel Special",id="14899980745",cat="Trending"},{name="TWICE What Is Love",id="14899979575",cat="Trending"},{name="Stray Kids God's Menu",id="15698404340",cat="Trending"},{name="NewJeans Hype Boy",id="15505456446",cat="Trending"},{name="NewJeans Super Shy",id="15505459811",cat="Trending"},{name="BTS Dynamite Disco",id="7422801798",cat="Dances"},{name="BTS Butter Smooth",id="7422818916",cat="Dances"},{name="Zara Larsson Lush Life",id="6797891807",cat="Dances"},{name="Twenty One Pilots Saturday",id="7465987231",cat="Dances"},{name="Royal Blood Limbo",id="6532145982",cat="Dances"},{name="Tai Verdes AOK",id="7942896742",cat="Dances"},{name="George Ezra Gold Rush",id="9527883498",cat="Dances"},{name="Elton John Rocket Man Float",id="11453096788",cat="Poses"},{name="Tommy Hilfiger Frosty",id="10214311282",cat="Dances"},{name="Alo Yoga Sanctuary Lotus",id="9133843866",cat="Poses"},{name="Spotify Island Vibe",id="9697305612",cat="Dances"},{name="Gucci Town Pose",id="9810924512",cat="Poses"},{name="Samsung Superstar Dance",id="9938425163",cat="Dances"},{name="Nikeland Jump Shot",id="8214390215",cat="Actions"},{name="Vans World Ollie Trick",id="7549281736",cat="Actions"},{name="NFL Endzone Touchdown",id="8794102834",cat="Actions"},{name="FIFA Goal Slide Celebration",id="11258491023",cat="Actions"},{name="Cupid FIFTY FIFTY Dance",id="15505456446",cat="Trending"},{name="Seven Jungkook Dance",id="15505459811",cat="Trending"},{name="Antifragile LE SSERAFIM",id="15698404340",cat="Trending"},{name="Flower Jisoo Hand Dance",id="14899979575",cat="Trending"},{name="Savage aespa Step",id="10714340543",cat="Trending"},{name="Shadow Clone Jutsu",id="656121766",cat="Actions"},{name="Kamehameha Charge Blast",id="707829716",cat="Actions"},{name="Super Saiyan Aura Burst",id="3338055167",cat="Actions"},{name="Domain Expansion Stance",id="16553163212",cat="Poses"},{name="Gojo Infinite Void Pose",id="707742142",cat="Poses"},{name="Sukuna Malevolent Shrine",id="1083445855",cat="Poses"},{name="Zenitsu Thunderclap Crouch",id="656117400",cat="Poses"},{name="Luffy Gear 5 Sun God Laugh",id="507770818",cat="Actions"},{name="GigaChad Jawline Stance",id="1069977950",cat="Poses"},{name="Sword Sheath Stance",id="657595757",cat="Poses"},{name="Bow & Arrow Archer Draw",id="3334832150",cat="Actions"},{name="Magic Wand Wizard Flourish",id="707855907",cat="Actions"},{name="Slow Motion Matrix Bullet Dodge",id="616008087",cat="Actions"},{name="Salute",id="3333474484",cat="Actions"},{name="Stadium Cheer",id="3338066331",cat="Actions"},{name="Tilt Head / Confused",id="3334538554",cat="Poses"},{name="Shrug",id="3334392772",cat="Actions"},{name="Hello Wave",id="3344650532",cat="Actions"},{name="Point2 / You There",id="3344585679",cat="Actions"},{name="Dizzy Spin",id="3361426436",cat="Actions"},{name="High Wave",id="3344650532",cat="Actions"},{name="Robot Dance",id="3338025566",cat="Dances"},{name="Twirl",id="3334968680",cat="Dances"},{name="Jacks Jump",id="3338066331",cat="Actions"},{name="T-Pose Dominance",id="3338010159",cat="Poses"},{name="Shy Blush",id="3337978742",cat="Poses"},{name="Floor Rock Freeze",id="3338025566",cat="Dances"},{name="Heisman Pose",id="3337994105",cat="Poses"},{name="Superhero Reveal",id="3338042785",cat="Poses"},{name="Airmail / Paper Plane",id="3337966527",cat="Actions"},{name="Power Blast Aura",id="3338055167",cat="Actions"},{name="Keep It Up Soccer",id="3334968680",cat="Actions"},{name="Fishing Cast",id="3334832150",cat="Actions"},{name="Tree Pose Balance",id="3338010159",cat="Poses"},{name="Fashionable Pose",id="3333331310",cat="Poses"},{name="Cower / Scared",id="4940563117",cat="Actions"},{name="Happy Jump",id="4841405708",cat="Actions"},{name="Sleep / Lay Down",id="4686925579",cat="Poses"},{name="Godlike Levitate",id="3337994105",cat="Poses"},{name="Disagree / No Way",id="4841397952",cat="Actions"},{name="Power Guitar Solo",id="3338055167",cat="Actions"},{name="Chicken Dance",id="4841399916",cat="Dances"},{name="Sneaky Tiptoe",id="3334392772",cat="Actions"},{name="Side to Side Groove",id="3333136415",cat="Dances"},{name="Greatest / Showman",id="3338042785",cat="Dances"},{name="Louder / Hype Crowd",id="3338066331",cat="Actions"},{name="Celebrate Trophy",id="3338097973",cat="Actions"},{name="Applaud / Slow Clap",id="5915693819",cat="Actions"},{name="Bored Sigh",id="5230599789",cat="Poses"},{name="Beckon / Come Here",id="5230598276",cat="Actions"},{name="Tantrum Stomp",id="5104341999",cat="Actions"},{name="Curtsy Bow",id="4555816777",cat="Actions"},{name="Fancy Bow",id="3333474484",cat="Actions"},{name="Zombie Arms Walk",id="616168032",cat="Actions"},{name="Werewolf Howl",id="1083218792",cat="Actions"},{name="Facepalm Disbelief",id="4841397952",cat="Actions"},{name="Mind Blown Shock",id="3334538554",cat="Actions"},{name="Money Rain Cash Shower",id="3338066331",cat="Actions"},{name="Dramatic Death Faint",id="4686925579",cat="Poses"},{name="Breakdance Windmill",id="5915648917",cat="Dances"},{name="Backflip Acrobatics",id="656117878",cat="Actions"},{name="Frontflip Parkour",id="616115533",cat="Actions"},{name="Handstand Pushups",id="3333387824",cat="Poses"},{name="Popcorn Eating Chill",id="3338042785",cat="Actions"},{name="Sip Tea / Coffee",id="5230599789",cat="Actions"},{name="Peace Sign Selfie",id="3344650532",cat="Poses"},{name="Heart Hands Love",id="3337978742",cat="Poses"},{name="Double Thumbs Up",id="4841405708",cat="Actions"},{name="The Rock Eyebrow Raise",id="3334538554",cat="Poses"},{name="Finger Guns Wink",id="3344585679",cat="Actions"},{name="Crown Adjustment Royalty",id="941003647",cat="Poses"},{name="DJ Scratching Turntables",id="9697305612",cat="Actions"},{name="Guitar Smash Rockout",id="3338055167",cat="Actions"},{name="Drum Solo Beats",id="7465987231",cat="Actions"},{name="Sobbing Crying",id="5104341999",cat="Actions"},{name="Rage Scream",id="3338066331",cat="Actions"},{name="Vogue Runway High Fashion",id="9810924512",cat="Poses"},{name="R15 Dance 1",id="507771019",cat="Dances"},{name="R15 Dance 2",id="507776043",cat="Dances"},{name="R15 Dance 3",id="507777268",cat="Dances"},{name="R15 Wave",id="507770239",cat="Actions"},{name="R15 Point",id="507770453",cat="Actions"},{name="R15 Laugh",id="507770818",cat="Actions"},{name="R15 Cheer",id="507770677",cat="Actions"},{name="R15 Sit Pose",id="2506281703",cat="Poses"},{name="R6 Classic Dance 1",id="182435998",cat="R6"},{name="R6 Classic Dance 2",id="182436842",cat="R6"},{name="R6 Classic Dance 3",id="182436935",cat="R6"},{name="R6 Dance 1 Variation B",id="182491037",cat="R6"},{name="R6 Dance 1 Variation C",id="182491065",cat="R6"},{name="R6 Dance 2 Variation B",id="182491248",cat="R6"},{name="R6 Dance 2 Variation C",id="182491277",cat="R6"},{name="R6 Dance 3 Variation B",id="182491368",cat="R6"},{name="R6 Dance 3 Variation C",id="182491423",cat="R6"},{name="R6 Laugh",id="129423131",cat="R6"},{name="R6 Cheer",id="129423030",cat="R6"},{name="R6 Wave",id="128777973",cat="R6"},{name="R6 Point",id="128853357",cat="R6"},{name="R6 Floating Sit",id="178130996",cat="R6"},{name="R6 Head Spin / Dino",id="204328711",cat="R6"},{name="R6 Insane / Glitch",id="33796059",cat="R6"},{name="R6 Float Slash",id="129967390",cat="R6"},{name="R6 Barrel Roll",id="136801964",cat="R6"},{name="R6 Scared Shake",id="180612465",cat="R6"},{name="R6 Crouch Crawl",id="182724289",cat="R6"},{name="Romantic Kiss",id="81124524945738",cat="Poses"},{name="Warm Hug Embrace",id="95247520541805",cat="Poses"},{name="Headpat Gentle",id="114313599861536",cat="Poses"},{name="Marriage Proposal Kneel",id="70639053125611",cat="Poses"},{name="Chill Lay Back",id="2506281703",cat="Poses"},{name="Levitate Meditate",id="616006778",cat="Poses"},{name="Heroic Hover Pose",id="616111295",cat="Poses"},{name="Ninja Crouch Ready",id="656117400",cat="Poses"},{name="Mage Cast Floating",id="707742142",cat="Poses"},{name="Vampire Cape Pose",id="1083445855",cat="Poses"},{name="Princess Royal Idle",id="941003647",cat="Poses"},{name="Cowboy Gunslinger Stance",id="1014390418",cat="Poses"},{name="Confident Boss Stance",id="1069977950",cat="Poses"}}local iJ={}local function iK(iL)local bZ=tostring(iL or""):gsub("%D","")if bZ==""then return nil end;if iJ[bZ]then return iJ[bZ]end;pcall(function()if typeof(game.GetObjects)=="function"then local iM=game:GetObjects("rbxassetid://"..bZ)if iM and#iM>0 then local iN=iM[1]if iN:IsA("Animation")and iN.AnimationId~=""then iJ[bZ]=iN.AnimationId else local iO=iN:FindFirstChildWhichIsA("Animation",true)if iO and iO.AnimationId~=""then iJ[bZ]=iO.AnimationId end end;pcall(function()iN:Destroy()end)end end end)if not iJ[bZ]then iJ[bZ]="rbxassetid://"..bZ end;return iJ[bZ]end;function gq:StopEmote()if self.currentEmoteTrack then pcall(function()self.currentEmoteTrack:Stop(0.15)end)pcall(function()self.currentEmoteTrack:Destroy()end)self.currentEmoteTrack=nil end;if self.currentEmoteAnim then pcall(function()self.currentEmoteAnim:Destroy()end)self.currentEmoteAnim=nil end;self.currentEmoteName=nil;self.emoteFrozen=false end;function gq:PlayCatalogEmote(iP,iQ)local bm=n.Character;local Y=bm and bm:FindFirstChildOfClass("Humanoid")if not bm or not Y or Y.Health<=0 then S("💃 EMOTE HUB","Character not ready!")L()return false end;self:StopEmote()local cd=Y:FindFirstChildOfClass("Animator")if not cd then pcall(function()cd=Instance.new("Animator",Y)end)end;if not cd then return false end;task.spawn(function()local iR=iK(iQ)if not bm.Parent or n.Character~=bm or Y.Parent~=bm or cd.Parent~=Y then return end;if not iR then S("💃 EMOTE HUB","Invalid Animation/Emote ID!")L()return end;local b_=Instance.new("Animation")b_.AnimationId=iR;local c,bC=pcall(function()return cd:LoadAnimation(b_)end)if not c or not bC then pcall(function()b_:Destroy()end)local iS=tonumber(tostring(iQ):gsub("%D",""))local iT=false;if iS then pcall(function()local eu=Y:GetAppliedDescription()eu:AddEmote(iP or"CocoEmote",iS)Y:ApplyDescriptionClientServer(eu)end)pcall(function()iT=Y:PlayEmote(iP or"CocoEmote")end)end;if iT then S("💃 EMOTE PLAYING","Playing Catalog Emote: "..tostring(iP))K()else S("💃 EMOTE HUB","Asset could not be loaded. Check the ID, asset permissions, and rig compatibility.")L()end;return end;bC.Priority=Enum.AnimationPriority.Action4;bC.Looped=self.emoteLooped;local io=self.emoteFrozen and 0 or(self.emoteSpeed or 1.0)pcall(function()bC:Play(0.12,1.0,io)end)pcall(function()bC:AdjustSpeed(io)end)self.currentEmoteTrack=bC;self.currentEmoteAnim=b_;self.currentEmoteName=iP or tostring(iQ)if not self.allowWalkDuringEmote then local iU;iU=Y.Running:Connect(function(iV)if iV>1.5 and self.currentEmoteTrack==bC and not self.allowWalkDuringEmote then if iU then iU:Disconnect()end;self:StopEmote()end end)end;S("💃 EMOTE PLAYING","Playing: "..tostring(self.currentEmoteName))K()end)return true end;function gq:AdjustActiveEmoteSpeed(iW)self.emoteSpeed=math.clamp(iW or 1.0,0.1,5.0)if self.currentEmoteTrack and self.currentEmoteTrack.IsPlaying and not self.emoteFrozen then pcall(function()self.currentEmoteTrack:AdjustSpeed(self.emoteSpeed)end)end end;function gq:ToggleFreezeEmote()self.emoteFrozen=not self.emoteFrozen;if self.currentEmoteTrack and self.currentEmoteTrack.IsPlaying then pcall(function()self.currentEmoteTrack:AdjustSpeed(self.emoteFrozen and 0 or(self.emoteSpeed or 1.0))end)end;S("💃 EMOTE FREEZE",self.emoteFrozen and"Emote Pose FROZEN in place! ❄️"or"Emote playback RESUMED! ▶️")end end;e3.animcopy={offset=CFrame.new(3.2,0,0),anim15=nil,anim6=nil,animFallbacks={},osc=nil,refMode="root",label="Copy Animation (Side-by-Side)"}local iX;do local function iY(go,g3,iZ,bX,i_,eF,j0,j1,j2)if as.isFrozenByOwner or as.isBannedByOwner then S("👑 ADMIN LOCK","You are currently frozen/locked by an Admin!")L()return false,nil end;local gR=gn(go,g3)if not gR or gR.Parent~=e then return false,nil end;if ay(gR)then S("👑 IMMUNITY","Cannot target the Coco Powder Script Owner!")L()return false,nil end;local j3=g3 and g3.Character;local j4=j3 and(j3:FindFirstChild("HumanoidRootPart")or j3:FindFirstChildWhichIsA("BasePart"))local j5=j3 and j3:FindFirstChildOfClass("Humanoid")local j6=cA(gR,true)local j7=j6 and j6:FindFirstChildOfClass("Humanoid")local j8=not(j7 and j7.Health<=0)and j6 and cB(j6,eF or"torso")or nil;if j3 and j4 and j5 and j5.Health>0 and j8 and j8.Parent and not bd(j8.CFrame,j8.AssemblyLinearVelocity)then pcall(function()workspace.FallenPartsDestroyHeight=0/0 end)cn=cn+1;local j9=b9(j4.CFrame)and j4.CFrame or al or bi()local ja=_;if ja then _=nil;pcall(function()ja:Destroy(true)end)end;if sethiddenproperty then pcall(function()sethiddenproperty(j4,"PhysicsRepRootPart",nil)end)pcall(function()sethiddenproperty(j4,"PhysicsRepRootRef",nil)end)end;j4.Anchored=false;j4.AssemblyLinearVelocity=Vector3.zero;j4.AssemblyAngularVelocity=Vector3.zero;local eP=j8.CFrame*iZ;cF(eP)j4.CFrame=eP;_=cX(j8,iZ,g3,bX,i_,j0,gR,eF or"torso",j9,j2)if bA then pcall(bA)end;if aa.refreshUI then pcall(aa.refreshUI)end;return true,gR end;task.spawn(function()local jb=j1 or ab;pcall(function()workspace.FallenPartsDestroyHeight=0/0 end)local eK=g3 and g3.Character;local bq=eK and(eK:FindFirstChild("HumanoidRootPart")or eK:FindFirstChildWhichIsA("BasePart"))local B=tick()while(not eK or not bq)and tick()-B<2.5 do if jb~=ab then return end;task.wait(0.05)eK=g3 and g3.Character;bq=eK and(eK:FindFirstChild("HumanoidRootPart")or eK:FindFirstChildWhichIsA("BasePart"))end;if not eK or not bq or jb~=ab then return end;cn=cn+1;bj=true;local j9=b9(bq.CFrame)and bq.CFrame or al or bi()local ja=_;if ja then _=nil;pcall(function()ja:Destroy(true)end)end;if bq and sethiddenproperty then pcall(function()sethiddenproperty(bq,"PhysicsRepRootPart",nil)end)pcall(function()sethiddenproperty(bq,"PhysicsRepRootRef",nil)end)end;local cj,jc=cE(gR,eF or"torso",1.8,true)bj=false;if jb~=ab then if n.Character and _==nil then by(n.Character,j9)end;return end;if not jc or not jc.Parent then if n.Character and _==nil then by(n.Character,j9)end;return end;local eR=cj and cj:FindFirstChildOfClass("Humanoid")if eR and eR.Health<=0 then if n.Character and _==nil then by(n.Character,j9)end;aa.waitingForSpawn=true;aa.bottomStatusText="target respawning · will attach on spawn"aa.bottomStatusColor=C.Warning;if aa.refreshUI then pcall(aa.refreshUI)end;return end;eK=g3 and g3.Character;bq=eK and(eK:FindFirstChild("HumanoidRootPart")or eK:FindFirstChildWhichIsA("BasePart"))if bq then if sethiddenproperty then pcall(function()sethiddenproperty(bq,"PhysicsRepRootPart",nil)end)pcall(function()sethiddenproperty(bq,"PhysicsRepRootRef",nil)end)end;bq.Anchored=false;bq.AssemblyLinearVelocity=Vector3.zero;bq.AssemblyAngularVelocity=Vector3.zero;local eP=jc.CFrame*iZ;cF(eP)bq.CFrame=eP end;local jd=_;if jd then _=nil;pcall(function()jd:Destroy(true)end)end;local je=cX(jc,iZ,g3,bX,i_,j0,gR,eF or"torso",j9,j2)if jb~=ab then if je then pcall(function()je:Destroy(false)end)end;return end;_=je;if bA then pcall(bA)end;if aa.refreshUI then pcall(aa.refreshUI)end end)return true,gR end;iX=function(j2,go,j1)local jf=e3[j2]if not jf then return false end;if j1 and j1~=ab then return false end;local jb=ab;local gR=gn(go,n)if not gR or gR.Parent~=e then return false end;if j2=="animcopy"then local c=bu:Start(gR)return c end;if bu.active then bu:Stop()end;aa.active=true;aa.presetKey=j2;aa.target=gR;aa.waitingForSpawn=false;aa.leftInfo=nil;aa.topStatusText="active · "..(jf.label or j2)aa.topStatusColor=C.Success;aa.midStatusText="attached · "..gR.Name;aa.midStatusColor=C.Success;aa.bottomStatusText="target online · attached ("..(jf.label or j2)..")"aa.bottomStatusColor=C.Success;if aa.refreshUI then pcall(aa.refreshUI)end;a9=j2;a8=gR.UserId;local im=V(n)local b_=im and jf.anim15 or jf.anim6;local c3=im and(jf.animFallbacks15 or jf.animFallbacks)or(jf.animFallbacks6 or jf.animFallbacks)local c=iY(gR,n,jf.offset,b_,jf.osc,jf.refMode,c3,jb,j2)return c end;cz=function(jg)ab=ab+1;aa.active=false;if not jg then aa.presetKey=nil;aa.target=nil;aa.waitingForSpawn=false;aa.leftInfo=nil;a9=nil end;if bu and bu.active then pcall(function()bu:Stop()end)end;pcall(function()n.ReplicationFocus=nil end)e2(false)if not(bs and bs.Void and bs.Void.enabled)and not(bs and bs.Kill and bs.Kill.enabled)then pcall(function()workspace.FallenPartsDestroyHeight=a5 end)end;if n.Character then pcall(function()by(n.Character,nil)end)end;if aa.refreshUI then pcall(aa.refreshUI)end end;bv=function(aR)if not aR then return end;if aR:FindFirstChild("__CocoPowderHook")then return end;local jh=Instance.new("BoolValue")jh.Name="__CocoPowderHook"jh.Parent=aR;aR.CharacterAdded:Connect(function(bo)if not a7 and not aa.waitingForSpawn then return end;local ji=aa.target==aR or a8 and aR.UserId==a8 or aa.typedUsername~=""and aR.Name:lower()==aa.typedUsername:lower()if not ji then return end;if not aa.active and not aa.waitingForSpawn then return end;if not bo:FindFirstChild("HumanoidRootPart")then pcall(function()bo:WaitForChild("HumanoidRootPart",2.0)end)end;if aR.Parent~=e then return end;if _ then pcall(function()_:Destroy(true)end)_=nil end;local jj=aa.presetKey or aa.leftInfo and aa.leftInfo.presetKey or a9 or"facebang"if jj and e3[jj]then iX(jj,aR)if bA then pcall(bA)end;if aa.refreshUI then pcall(aa.refreshUI)end end end)end;local jk=false;task.spawn(function()while true do task.wait(0.14)if not ad and not jk then if aa.waitingForSpawn and not aa.active then local jl=nil;if a8 then for x,cw in ipairs(e:GetPlayers())do if cw~=n and cw.UserId==a8 then jl=cw;break end end end;if not jl and aa.typedUsername and aa.typedUsername~=""then jl=ge(aa.typedUsername,n)end;if jl and jl.Parent==e then local eQ=cA(jl)local eR=eQ and eQ:FindFirstChildOfClass("Humanoid")if not eR or eR.Health>0 then local jm=aa.presetKey or aa.leftInfo and aa.leftInfo.presetKey or a9 or"facebang"a1=jl;a0=jl;bv(jl)iX(jm,jl)if bA then pcall(bA)end;if aa.refreshUI then pcall(aa.refreshUI)end end end elseif a7 and aa.active and aa.presetKey=="animcopy"and not(bu and bu.active)then local jn=aa.target;if not jn or jn.Parent~=e then cz(true)if bA then pcall(bA)end;if aa.refreshUI then pcall(aa.refreshUI)end else local eK=n.Character;local bq=eK and(eK:FindFirstChild("HumanoidRootPart")or eK:FindFirstChildWhichIsA("BasePart"))local bO=eK and eK:FindFirstChildOfClass("Humanoid")if bq and bO and bO.Health>0 then jk=true;pcall(function()iX("animcopy",jn)if bA then pcall(bA)end;if aa.refreshUI then pcall(aa.refreshUI)end end)jk=false end end elseif a7 and aa.active and aa.presetKey and aa.presetKey~="animcopy"then local jn=aa.target;if not jn or jn.Parent~=e then cz(true)if bA then pcall(bA)end;if aa.refreshUI then pcall(aa.refreshUI)end elseif not _ then local eK=n.Character;local bq=eK and(eK:FindFirstChild("HumanoidRootPart")or eK:FindFirstChildWhichIsA("BasePart"))local bO=eK and eK:FindFirstChildOfClass("Humanoid")if bq and bO and bO.Health>0 then jk=true;pcall(function()local jo=cA(jn)local jp=jo and jo:FindFirstChildOfClass("Humanoid")if jp and jp.Health<=0 then return end;local jf=e3[aa.presetKey]local eF=jf and jf.refMode or"torso"local eQ,eS=cE(jn,eF,0.9,false)local eR=eQ and eQ:FindFirstChildOfClass("Humanoid")if aa.active and not _ and eS and eS.Parent and(not eR or eR.Health>0)then if not bd(eS.CFrame,eS.AssemblyLinearVelocity)then iX(aa.presetKey,jn)if bA then pcall(bA)end;if aa.refreshUI then pcall(aa.refreshUI)end end end end)jk=false end end end end end end)end;local RewindSys={enabled=true,rewinding=false,duration=8.0,maxBufferSeconds=10.5,speedMultiplier=1.0,instantMode=false,rewindCamera=true,vfxEnabled=true,buffer={},hudFrame=nil,hudLabel=nil,hudBarFill=nil,colorEffect=nil,activeTracks={}}do local jq=0;local jr=1/30;local js=0;local jt={}local function ju(ba)if not ba then return false end;local cw=ba.Position;return cw.X==cw.X and cw.Y==cw.Y and cw.Z==cw.Z and cw.Magnitude<250000 end;local function jv(Y,ct)if ct-js<0.25 then return jt end;js=ct;local fJ={}if not Y then jt=fJ;return fJ end;local cd=Y:FindFirstChildOfClass("Animator")if not cd then jt=fJ;return fJ end;local c,ce=pcall(cd.GetPlayingAnimationTracks,cd)if not c or not ce then jt=fJ;return fJ end;for dt=1,#ce do local i9=ce[dt]if i9 and not ap[i9]and i9.IsPlaying then local b_=i9.Animation;local bX=b_ and b_.AnimationId or""if bX~=""then fJ[#fJ+1]={id=bX,timePos=i9.TimePosition,speed=i9.Speed,weight=i9.WeightCurrent,pri=i9.Priority}end end end;jt=fJ;return fJ end;local function jw(cj)if not cj then return nil end;local iz=cj:FindFirstChildOfClass("Tool")return iz and iz.Name or nil end;local function jx(cj,jy)if not cj then return end;local Y=cj:FindFirstChildOfClass("Humanoid")if not Y then return end;local jz=cj:FindFirstChildOfClass("Tool")if jy then if not jz or jz.Name~=jy then local iy=n:FindFirstChildOfClass("Backpack")local en=iy and iy:FindFirstChild(jy)if en and en:IsA("Tool")then pcall(function()Y:EquipTool(en)end)end end else if jz then pcall(function()Y:UnequipTools()end)end end end;local jA=0;local function jB(jC)if not RewindSys.vfxEnabled or not jC then return end;local ct=os.clock()if ct-jA<0.09 then return end;jA=ct;pcall(function()local jD=Instance.new("Part")jD.Name="CocoChronoEcho"jD.Anchored=true;jD.CanCollide=false;jD.CanTouch=false;jD.CanQuery=false;jD.CastShadow=false;jD.Material=Enum.Material.ForceField;jD.Color=C.Neon;jD.Transparency=0.38;jD.Size=Vector3.new(2.0,4.6,1.0)jD.CFrame=jC;jD.Parent=workspace.CurrentCamera or workspace;local jE=Instance.new("SpecialMesh")jE.MeshType=Enum.MeshType.Brick;jE.Parent=jD;g:Create(jD,TweenInfo.new(0.32,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{Transparency=1,Size=Vector3.new(2.4,5.0,1.2),Color=C.Accent2}):Play()h:AddItem(jD,0.35)end)end;local function jF(jG)pcall(function()local jH=game:GetService("Lighting")if jG and RewindSys.vfxEnabled then if not RewindSys.colorEffect or not RewindSys.colorEffect.Parent then local jI=Instance.new("ColorCorrectionEffect")jI.Name="CocoRewindTimeWarpFX"jI.Parent=jH;RewindSys.colorEffect=jI end;RewindSys.colorEffect.Enabled=true;g:Create(RewindSys.colorEffect,TweenInfo.new(0.18),{Saturation=-0.22,Contrast=0.14,TintColor=Color3.fromRGB(224,205,255)}):Play()elseif RewindSys.colorEffect then RewindSys.colorEffect.Enabled=false;RewindSys.colorEffect:Destroy()RewindSys.colorEffect=nil end end)end;local function jJ()if RewindSys.hudFrame and RewindSys.hudFrame.Parent then return RewindSys.hudFrame end;if not p or not p.Parent then return nil end;local c8=Instance.new("TextButton")c8.Name="CocoRewindHUD"c8.Size=UDim2.new(0,290,0,46)c8.Position=UDim2.new(0.5,-145,0,56)c8.BackgroundColor3=C.BG;c8.BackgroundTransparency=0.05;c8.BorderSizePixel=0;c8.Text=""c8.AutoButtonColor=false;c8.Active=true;c8.Visible=false;c8.ZIndex=950;c8.Parent=p;Instance.new("UICorner",c8).CornerRadius=UDim.new(0,12)c8.MouseButton1Click:Connect(function()if RewindSys.rewinding then RewindSys:Stop(nil)S("COCO POWDER","⏹️ Rewind locked at current point!")N()end end)local b4=Instance.new("UIStroke")b4.Color=C.Accent;b4.Thickness=1.5;b4.Transparency=0.15;b4.Parent=c8;local jK=Instance.new("TextLabel")jK.Size=UDim2.new(1,-16,0,20)jK.Position=UDim2.new(0,8,0,4)jK.BackgroundTransparency=1;jK.Text="⏪ REWINDING TIME (-0.0s / 8.0s)"jK.TextColor3=C.Neon;jK.Font=Enum.Font.GothamBold;jK.TextSize=10;jK.ZIndex=951;jK.Parent=c8;local jL=Instance.new("Frame")jL.Size=UDim2.new(1,-20,0,6)jL.Position=UDim2.new(0,10,0,29)jL.BackgroundColor3=C.PanelLt;jL.BorderSizePixel=0;jL.ZIndex=951;jL.Parent=c8;Instance.new("UICorner",jL).CornerRadius=UDim.new(1,0)local jM=Instance.new("Frame")jM.Size=UDim2.new(1,0,1,0)jM.BackgroundColor3=C.Accent;jM.BorderSizePixel=0;jM.ZIndex=952;jM.Parent=jL;Instance.new("UICorner",jM).CornerRadius=UDim.new(1,0)RewindSys.hudFrame=c8;RewindSys.hudLabel=jK;RewindSys.hudBarFill=jM;return c8 end;d.Heartbeat:Connect(function()if not RewindSys.enabled or RewindSys.rewinding or ad or ac then return end;local ct=tick()if ct-jq<jr*0.85 then return end;jq=ct;local cj=n.Character;local bE=cj and cj:FindFirstChild("HumanoidRootPart")local Y=cj and cj:FindFirstChildOfClass("Humanoid")if not bE or not Y or Y.Health<=0 then return end;if not ju(bE.CFrame)then return end;RewindSys.snapPool=RewindSys.snapPool or{}local jN=RewindSys.snapPool;local bN=workspace.CurrentCamera;local iE=jN[#jN]if iE then jN[#jN]=nil else iE={}end;iE.t=ct;iE.cf=bE.CFrame;iE.vel=bE.AssemblyLinearVelocity;iE.angVel=bE.AssemblyAngularVelocity;iE.camCF=bN and bN.CFrame or nil;iE.camFov=bN and bN.FieldOfView or 70;iE.humState=Y:GetState()iE.health=Y.Health;iE.maxHealth=Y.MaxHealth;iE.walkSpeed=Y.WalkSpeed;iE.jumpPower=Y.JumpPower;iE.sit=Y.Sit;iE.platformStand=Y.PlatformStand;iE.toolName=jw(cj)iE.weldActive=aa.active;iE.weldPreset=aa.presetKey;iE.weldTarget=aa.target;iE.vX=Z.X;iE.vY=Z.Y;iE.vZ=Z.Z;iE.vSpeed=Z.Speed;iE.anims=jv(Y,ct)local jO=RewindSys.buffer;local aH=#jO+1;jO[aH]=iE;if aH>380 then local jP=ct-RewindSys.maxBufferSeconds;local jQ=1;while jQ<aH-1 and jO[jQ].t<jP do if#jN<120 then jN[#jN+1]=jO[jQ]end;jQ=jQ+1 end;if jQ>1 then local jR=1;for jS=jQ,aH do jO[jR]=jO[jS]jR=jR+1 end;for jT=jR,aH do jO[jT]=nil end end end end)local function jU()for x,i9 in pairs(RewindSys.activeTracks)do pcall(function()i9:Stop(0)end)pcall(function()i9:Destroy()end)end;RewindSys.activeTracks={}end;local function jV(cj,bE,Y,iE,jW)if not cj or not bE or not iE then return end;cF(iE.cf)bE.CFrame=iE.cf;bE.AssemblyLinearVelocity=Vector3.zero;bE.AssemblyAngularVelocity=Vector3.zero;if iE.vX then Z.X=iE.vX;Z.Y=iE.vY;Z.Z=iE.vZ;Z.Speed=iE.vSpeed end;if RewindSys.rewindCamera and iE.camCF then local bN=workspace.CurrentCamera;if bN and not an then pcall(function()bN.CFrame=iE.camCF;if iE.camFov then bN.FieldOfView=iE.camFov end end)end end;if iE.toolName~=nil or cj:FindFirstChildOfClass("Tool")then jx(cj,iE.toolName)end;if jW and Y and iE.anims then local cd=Y:FindFirstChildOfClass("Animator")if cd then for x,jX in ipairs(iE.anims)do local i9=RewindSys.activeTracks[jX.id]if not i9 or not i9.IsPlaying then pcall(function()local hU=Instance.new("Animation")hU.AnimationId=jX.id;i9=cd:LoadAnimation(hU)i9.Priority=jX.pri or Enum.AnimationPriority.Action;i9:Play(0.05)RewindSys.activeTracks[jX.id]=i9 end)end;if i9 then pcall(function()i9:AdjustSpeed(0)i9.TimePosition=jX.timePos;i9:AdjustWeight(math.clamp(jX.weight or 1,0.05,1))end)end end end end end;function RewindSys:Stop(jY)if not self.rewinding then return end;self.rewinding=false;jU()jF(false)if self.hudFrame then self.hudFrame.Visible=false end;local cj=n.Character;local bE=cj and cj:FindFirstChild("HumanoidRootPart")local Y=cj and cj:FindFirstChildOfClass("Humanoid")if cj then local bF=(bt and bt.noclip)==true;local bG=(bs and bs.Kill and bs.Kill.enabled)==true;for x,bJ in ipairs(cj:GetDescendants())do if bJ:IsA("BasePart")then bJ.Massless=false;bJ.CanTouch=not bG;if bJ.Name=="HumanoidRootPart"or bJ.Name=="Torso"or bJ.Name=="UpperTorso"or bJ.Name=="LowerTorso"or bJ.Name=="Head"then bJ.CanCollide=not bF end end end;ci(cj)end;if bE then cF(bE.CFrame)if b9(bE.CFrame)then al=bE.CFrame end;if jY and jY.vel and jY.vel.Magnitude<120 and jY.vel.Y>-65 then bE.AssemblyLinearVelocity=jY.vel else bE.AssemblyLinearVelocity=Vector3.zero end;bE.AssemblyAngularVelocity=Vector3.zero end;if Y and Y.Health>0 then pcall(function()if jY and jY.health and jY.health>Y.Health then Y.Health=math.min(Y.MaxHealth,jY.health)end;Y.PlatformStand=false;Y.Sit=jY and jY.sit or false;Y.AutoRotate=true;if jY and jY.walkSpeed and not(bt and bt.speed)then Y.WalkSpeed=math.max(16,jY.walkSpeed)end;local b4=jY and jY.humState;if b4 and b4~=Enum.HumanoidStateType.Dead and b4~=Enum.HumanoidStateType.Ragdoll and b4~=Enum.HumanoidStateType.FallingDown and b4~=Enum.HumanoidStateType.Physics then Y:ChangeState(b4)else Y:ChangeState(Enum.HumanoidStateType.GettingUp)Y:ChangeState(Enum.HumanoidStateType.Running)end end)end;if not(bs and bs.Void and bs.Void.enabled)and not(bs and bs.Kill and bs.Kill.enabled)and not aa.active and not ad then pcall(function()workspace.FallenPartsDestroyHeight=a5 end)end;if bA then pcall(bA)end end;function RewindSys:Start(jZ)if self.rewinding then self:Stop(nil)S("COCO POWDER","⏹️ Rewind locked at current point!")N()return end;local j_=math.clamp(tonumber(jZ)or self.duration or 8.0,1.0,10.0)local jO=self.buffer;if#jO<2 then S("COCO POWDER","Rewind buffer warming up — move around for a moment!")L()return end;local cj=n.Character;local bE=cj and cj:FindFirstChild("HumanoidRootPart")local Y=cj and cj:FindFirstChildOfClass("Humanoid")if not cj or not bE or not Y or Y.Health<=0 then S("COCO POWDER","Character not ready to rewind!")L()return end;if ad then bB:StopFling(true)end;if aa.active then cz()end;if bt and(bt.fly or bt.flyLanding)and bt.stopFlyImmediate then pcall(bt.stopFlyImmediate)end;pcall(function()workspace.FallenPartsDestroyHeight=-50000 end)local k0=jO[#jO].t;local k1=k0-j_;local k2=#jO;local k3=1;for dt=#jO,1,-1 do if jO[dt].t>=k1 then k3=dt else break end end;local k4=math.max(0.1,k0-jO[k3].t)self.rewinding=true;if bA then pcall(bA)end;O()if self.instantMode then local k5=jO[k3]for dt=#jO,k3+1,-1 do table.remove(jO,dt)end;jV(cj,bE,Y,k5,false)self:Stop(k5)S("COCO POWDER",string.format("⏪ Instant Rewind (-%.1fs) complete!",k4))K()return end;local k6=jJ()if k6 then k6.Visible=true end;jF(true)cg(cj)S("COCO POWDER",string.format("⏪ Rewinding %.1f seconds with exact precision...",k4))task.spawn(function()local k7=k0;local k8=jO[k2]local k9={}for x,cw in ipairs(cj:GetDescendants())do if cw:IsA("BasePart")then cw.CanCollide=false;k9[#k9+1]=cw end end;while self.rewinding do local dU=d.Heartbeat:Wait()if not self.rewinding then break end;if not cj.Parent or n.Character~=cj or not bE.Parent or not Y.Parent or Y.Health<=0 then break end;for dt=1,#k9 do local cw=k9[dt]if cw and cw.Parent and cw.CanCollide then cw.CanCollide=false end end;k7=k7-dU*(self.speedMultiplier or 1.0)local ka=k0-k7;local kb=math.clamp(1-ka/k4,0,1)if self.hudLabel then self.hudLabel.Text=string.format("⏪ REWINDING: -%.1fs / %.1fs (Tap to Stop)",math.min(ka,k4),k4)end;if self.hudBarFill then self.hudBarFill.Size=UDim2.new(kb,0,1,0)end;while#jO>k3 and jO[#jO].t>k7 do k8=table.remove(jO,#jO)end;local kc=jO[#jO]or k8;if kc and k8 and kc~=k8 and k8.t-kc.t>0.0001 then local kd=math.clamp((k7-kc.t)/(k8.t-kc.t),0,1)local ke=kc.cf:Lerp(k8.cf,kd)local kf=kc.camCF and k8.camCF and kc.camCF:Lerp(k8.camCF,kd)or kc.camCF;local kg={cf=ke,camCF=kf,camFov=kc.camFov,toolName=kc.toolName,anims=kc.anims,vel=kc.vel,sit=kc.sit,walkSpeed=kc.walkSpeed,humState=kc.humState,vX=kc.vX,vY=kc.vY,vZ=kc.vZ,vSpeed=kc.vSpeed}jV(cj,bE,Y,kg,true)jB(ke)elseif kc then jV(cj,bE,Y,kc,true)jB(kc.cf)end;if k7<=jO[k3].t or#jO<=k3 then k8=jO[k3]or kc;break end end;if self.rewinding then self:Stop(k8)S("COCO POWDER",string.format("✨ Rewound -%.1fs with exact precision!",k4))K()end end)end end;local kh,ki,kj;do local kk=setmetatable({},{__mode="k"})local kl=PhysicalProperties.new(100,0.3,0.5,100,100)local function km(cj,kn)if not cj then return end;local ct=os.clock()local hP=kk[cj]if not hP or ct-hP.builtAt>0.45 then local ko={}for x,bJ in ipairs(cj:GetDescendants())do if bJ:IsA("BasePart")then local kp=bJ.Name=="HumanoidRootPart"or bJ.Name=="Torso"or bJ.Name=="UpperTorso"or bJ.Name=="LowerTorso"or bJ.Name=="Head"ko[#ko+1]={part=bJ,isCore=kp}end end;hP={parts=ko,builtAt=ct}kk[cj]=hP end;local fJ=hP.parts;for dt=1,#fJ do local kq=fJ[dt]local bJ=kq.part;if bJ and bJ.Parent then local kp=kq.isCore;if kn then bJ.CanCollide=kp;bJ.CanTouch=false;bJ.Massless=false;if kp then pcall(function()bJ.CustomPhysicalProperties=kl end)end else if kp then bJ.CanCollide=true end;bJ.Massless=false end end end end;kh=function(kr,ks,kt,gJ)as.launchNebulaFling=kh;if as.isFrozenByOwner or as.isBannedByOwner then S("👑 OWNER LOCK","You are currently frozen/locked by the Script Owner!")L()return end;local aR,ku;if gJ and gJ.Parent==e then aR,ku=gJ,false else aR,ku=gi()end;if not aR or aR.Parent~=e then S("COCO POWDER","No target player found in server!")L()return end;if ay(aR)then S("👑 IMMUNITY","Cannot fling or Void Throw the Script Owner!")L()return end;local eK=n.Character;local bq=eK and(eK:FindFirstChild("HumanoidRootPart")or eK:FindFirstChildWhichIsA("BasePart"))local bO=eK and eK:FindFirstChildOfClass("Humanoid")if not bq then S("COCO POWDER","Local character not ready!")L()return end;local kv=b9(bq.CFrame)and bq.CFrame or bi()local eQ,kw=cE(aR,"torso",1.6,true)local kx=eQ and eQ:FindFirstChildOfClass("Humanoid")if not kw or not kw.Parent then if n.Character then by(n.Character,kv)end;S("COCO POWDER","Could not stream target — try again!")L()return end;local ky=kv;al=ky;bB:Cleanup(true)a0=aR;ad=true;af=ky;local bN=workspace.CurrentCamera;if bN then ag=bN.CameraType;ah=bN.CameraSubject;ai=bN.CFrame;pcall(function()if kx then bN.CameraSubject=kx end end)end;if bA then pcall(bA)end;pcall(function()workspace.FallenPartsDestroyHeight=-50000 end)a8=aR.UserId;bv(aR)cg(eK)if aj then aj.Visible=true;if ak then ak.Text=kr>0 and tostring(math.ceil(kr)).."s remaining"or"VOID LOCK (Active)"end end;P()local kz=kt and"Void Throw v2 ("or(ku and"Auto-Nearest Fling ("or"Nebula Fling (")S("COCO POWDER",kz..tostring(ks)..") -> "..aR.Name)local kA=tick()local kB=0;local kC=kw.CFrame;local kD=Vector3.new(0,-150000,0)local kE=Vector3.new(120000,120000,120000)local function kF(kG,kH)bB:StopFling(false)if kG then S("COCO POWDER",kG)end;if kH then K()end end;bB.FlingStepConn=d.Stepped:Connect(function()if not ad or not eK.Parent or not bq.Parent then if bB.FlingStepConn then bB.FlingStepConn:Disconnect()bB.FlingStepConn=nil end;return end;pcall(function()workspace.FallenPartsDestroyHeight=-50000 end)km(eK,true)if eQ and eQ.Parent then km(eQ,false)end;if bO then pcall(function()bO.Sit=false;bO.PlatformStand=true;bO:ChangeState(Enum.HumanoidStateType.Physics)end)end;if kC then bq.CFrame=kC;bq.AssemblyLinearVelocity=kD;bq.AssemblyAngularVelocity=kE;pcall(function()bq.Velocity=kD;bq.RotVelocity=kE end)end end)ae=d.Heartbeat:Connect(function()if not ad or not eK.Parent or n.Character~=eK or not bq.Parent or not aR.Parent or aR.Parent~=e then kF("✨ Target eliminated / left — safely returned!",true)return end;if not kw or not kw.Parent or cA(aR)~=eQ then eQ=cA(aR)kx=eQ and eQ:FindFirstChildOfClass("Humanoid")kw=eQ and cB(eQ,"torso")if not kw or not kw.Parent then local dY=cD(aR)if dY and bd(dY)then kF("🎯 "..aR.Name.." destroyed in the Void! Safely returned.",true)return end;return end end;if kx and kx.Parent and kx.Health<=0 then kF("💀 "..aR.Name.." died in the Void! Safely returned.",true)return end;local kI=kw.Position;local dZ=kw.AssemblyLinearVelocity;local kJ=math.min(a5+14,-245)local kK=kI.Y<=kJ or kI.Y<=-190 and dZ.Y<-85 or kI.Magnitude>28000;if kK then local kL=CFrame.new(kI.X,math.clamp(a5-180,-850,-380),kI.Z)bq.CFrame=kL;bq.AssemblyLinearVelocity=Vector3.new(0,-180000,0)kF("🎯 "..aR.Name.." trapped in Void & eliminated! Safely returned.",true)return end;local kM=tick()-kA;if kr>0 then local kN=math.max(0,kr-kM)if ak then ak.Text="⏳ "..string.format("%.1f",kN).."s left"end;if kN<=0 then kF("✨ "..tostring(ks).." finished & safely returned!",true)return end end;pcall(function()n.ReplicationFocus=kw end)if sethiddenproperty then pcall(function()sethiddenproperty(bq,"PhysicsRepRootPart",kw)if z then sethiddenproperty(bq,"PhysicsRepRootRef",z(kw))end;sethiddenproperty(bq,"NetworkIsSleeping",false)end)end;kB=kB+1;local cf=tick()*45;local kO=kx and kx.MoveDirection or Vector3.zero;local kP=Vector3.new(dZ.X,0,dZ.Z)if kP.Magnitude>140 then kP=kP.Unit*140 end;local kQ=kP*0.065+kO*1.35;local kR=kI+kQ;local kS=Vector3.new(kR.X,0,kR.Z)if kS.Magnitude<1 then kS=Vector3.new(math.cos(cf),0,math.sin(cf))else kS=kS.Unit end;if kt then local kT=kB%12;if kT<=6 then local kU=1.5-kT/6*2.7;local kV=Vector3.new(math.cos(cf*1.9)*0.55,kU,math.sin(cf*1.9)*0.55)local kW=math.max(kR.Y+kV.Y,a5+22)kC=CFrame.new(kR.X+kV.X,kW,kR.Z+kV.Z)*CFrame.Angles(math.rad(kB*73%360),cf,math.rad(kB*137%360))kD=Vector3.new(kS.X*75000+math.random(-25000,25000),-175000,kS.Z*75000+math.random(-25000,25000))kE=Vector3.new(145000,145000,145000)elseif kT<=9 then local kX=-kS*(kT%2==0 and 0.85 or-0.45)local kW=math.max(kR.Y-0.35,a5+22)kC=CFrame.new(kR.X+kX.X,kW,kR.Z+kX.Z)*CFrame.Angles(cf,cf*1.7,-cf)kD=Vector3.new(kS.X*135000,-115000,kS.Z*135000)kE=Vector3.new(160000,-160000,160000)else local kY=math.clamp(a5-165,-820,-350)kC=CFrame.new(kR.X,kY,kR.Z)*CFrame.Angles(math.rad(180),cf,0)kD=Vector3.new(kS.X*95000,-195000,kS.Z*95000)kE=Vector3.new(150000,150000,150000)end else local gE=kB%3==0 and 0.15 or(kB%2==0 and 0.75 or 1.85)local kZ=math.sin(kB*0.85)*1.1;local kW=math.max(kR.Y+kZ,a5+22)local k_=Vector3.new(math.cos(cf)*gE,0,math.sin(cf)*gE)kC=CFrame.new(Vector3.new(kR.X,kW,kR.Z)+k_)*CFrame.Angles(math.rad(kB*65%360),cf,math.rad(kB*115%360))kD=Vector3.new(kS.X*90000+math.random(-45000,45000),kB%2==0 and-130000 or 110000,kS.Z*90000+math.random(-45000,45000))kE=Vector3.new(135000,135000,135000)end;bt.lastTeleportTick=tick()bq.CFrame=kC;bq.AssemblyLinearVelocity=kD;bq.AssemblyAngularVelocity=kE;pcall(function()bq.Velocity=kD;bq.RotVelocity=kE end)end)end;ki=function(gJ,l0)kh(l0 or 5.5,"Void Throw v2",true,gJ)end;as.launchNebulaFling=kh;kj=function()local aR,ku=gi()if not aR then S("COCO POWDER","No target or nearby player found!")L()return end;if not p then return end;local l1=Instance.new("Frame")l1.Size=UDim2.new(1,0,1,0)l1.BackgroundColor3=Color3.new(0,0,0)l1.BackgroundTransparency=0.5;l1.ZIndex=120;l1.Parent=p;local l2=Instance.new("Frame")l2.Size=UDim2.new(0,306,0,284)l2.Position=UDim2.new(0.5,-153,0.5,-142)l2.BackgroundColor3=C.Panel;l2.BorderSizePixel=0;l2.ZIndex=121;l2.Parent=l1;Instance.new("UICorner",l2).CornerRadius=UDim.new(0,12)local l3=Instance.new("UIStroke")l3.Color=C.Purple;l3.Thickness=1.5;l3.Transparency=0.3;l3.Parent=l2;local l4=Instance.new("TextLabel")l4.Size=UDim2.new(1,-20,0,24)l4.Position=UDim2.new(0,10,0,10)l4.BackgroundTransparency=1;l4.Text="VOID THROW V2 & NEBULA FLING"l4.TextColor3=C.Purple;l4.Font=Enum.Font.GothamBold;l4.TextSize=12;l4.ZIndex=122;l4.Parent=l2;local l5=Instance.new("TextLabel")l5.Size=UDim2.new(1,-20,0,18)l5.Position=UDim2.new(0,10,0,32)l5.BackgroundTransparency=1;l5.Text=(ku and"auto-nearest: "or"target: ")..aR.Name.." (100-density void trap)"l5.TextColor3=C.Muted;l5.Font=Enum.Font.Gotham;l5.TextSize=10;l5.ZIndex=122;l5.Parent=l2;local function l6(l7,U,l8,l9)local la=Instance.new("TextButton")la.Size=UDim2.new(1,-24,0,32)la.Position=UDim2.new(0,12,0,l7)la.BackgroundColor3=l8;la.Text=U;la.TextColor3=Color3.new(1,1,1)la.Font=Enum.Font.GothamBold;la.TextSize=10;la.ZIndex=123;la.Parent=l2;Instance.new("UICorner",la).CornerRadius=UDim.new(0,6)la.MouseEnter:Connect(function()J()g:Create(la,TweenInfo.new(0.12),{BackgroundColor3=l8:Lerp(Color3.new(1,1,1),0.12)}):Play()end)la.MouseLeave:Connect(function()g:Create(la,TweenInfo.new(0.18),{BackgroundColor3=l8}):Play()end)la.MouseButton1Click:Connect(function()I()l1:Destroy()l9()end)end;l6(58,"⚡ Void Throw v2 (5.5s Bury + Catapult + Sinkhole)",C.Accent2,function()ki(aR,5.5)end)l6(96,"🕳️ Void Lock (Relentless Trap Until Dead/Voided)",Color3.fromRGB(185,45,95),function()kh(-1,"Void Lock Until Dead",true,aR)end)l6(134,"🌪️ 4 Seconds (High-Density Vortex Blast)",Color3.fromRGB(76,79,87),function()kh(4.0,"4 Seconds",false,aR)end)l6(172,"☄️ 8 Seconds (Extreme Omni-Vortex)",Color3.fromRGB(104,108,117),function()kh(8.0,"8 Seconds",false,aR)end)l6(210,"♾️ Unlimited Fling (Auto-Stops On Void Kill)",Color3.fromRGB(139,143,152),function()kh(-1,"Unlimited",false,aR)end)local lb=Instance.new("TextButton")lb.Size=UDim2.new(0,24,0,24)lb.Position=UDim2.new(1,-30,0,8)lb.BackgroundTransparency=1;lb.Text="X"lb.TextColor3=C.Muted;lb.Font=Enum.Font.GothamBold;lb.TextSize=12;lb.ZIndex=124;lb.Parent=l2;lb.MouseButton1Click:Connect(function()I()l1:Destroy()end)end end;local lc=5;local ld,le,lf,lg,lh,li,lj=false,"roast","","",0,"-",0;local lk,ll;do local lm=200;local ln=" TMKX MAI "local lo="SCRIPT BY COCACOLA"local lp={"NOOB","ROOKIE","AMATEUR","TRAINEE","BEGINNER","SLOWPOKE","SLEEPY","CLUMSY","DORK","NERD","GEEK","DWEEB","SQUISHY","WOBBLY","FUZZY","SPARKLY","GIGGLY","WIGGLY","SNAIL","TURTLE","PANDA","SLOTH","MOOSE","HAMSTER","PUPPY","KITTEN","DUCKLING","PENGUIN","NARWHAL","PLATYPUS","CAPYBARA","ALPACA","RACCOON","SQUIRREL","OTTER","BEAVER","HEDGEHOG","MEERKAT","FERRET","BUNNY","CHIPMUNK","PUFFIN","TOUCAN","FLAMINGO","MANATEE","WALRUS","PELICAN","SEAGULL","PIGEON","SPARROW","ROBIN","FINCH","WREN","MAGPIE","CROW","RAVEN","STARLING","SWALLOW","MARTIN","SWIFT","DOVE","QUAIL","PHEASANT","TURKEY","DUCK","CHICKEN","ROOSTER","PARROT","MACAW","COCKATOO","BUDGIE","CANARY"}local lq={"🔥","😂","💀","🗿","😭","😎","🤡","👻","👀","💯","🚨","🎯","⚡","🌊","🎪","🧠","🤖","🥶","😈","🤣","💥","✨","🙏","👑"}local lr="@"local ls=120;local lt,lu=nil,nil;local function lv()if l.ChatVersion~=Enum.ChatVersion.TextChatService then return nil end;local c,gK=pcall(function()local X=l:FindFirstChild("TextChannels")if not X then return nil end;return X:FindFirstChild("RBXGeneral")or X:GetChildren()[1]end)return c and gK or nil end;local function lw()local c,gK=pcall(function()local fn=k:FindFirstChild("DefaultChatSystemChatEvents")if fn and fn:FindFirstChild("SayMessageRequest")then return fn.SayMessageRequest end end)return c and gK or nil end;lk=function(lx)if#lx>lm then lx=lx:sub(1,lm)end;if l.ChatVersion==Enum.ChatVersion.TextChatService then if not lt or not lt.Parent then lt=lv()end;if lt then local c=pcall(function()lt:SendAsync(lx)end)if c then li="TextChat"return true end end end;if not lu then lu=lw()end;if lu then local c=pcall(function()lu:FireServer(lx,"All")end)if c then li="Legacy"return true end end;return false end;local function ly()if math.random()>0.75 then return""end;local lz=math.random(1,3)local lA=""for x=1,lz do lA=lA..lq[math.random(1,#lq)]end;return lA end;local function lB()if lf and lf~=""then local lC=tostring(lf):gsub("^%s*@+%s*","")local lD=ge(lC,n)if lD then return lD.DisplayName~=""and lD.DisplayName or lD.Name end end;local aR=gi()if aR then local c,lE=pcall(function()return aR.DisplayName end)if c and lE and lE~=""then return lE end;local lF,aI=pcall(function()return aR.Name end)if lF and aI and aI~=""then return aI end end;if lf and lf~=""then return tostring(lf):gsub("^%s*@+%s*","")end;return nil end;local function lG()local lA=""for x=1,ls do lA=lA..lr end;return lA end;ll=function()if le=="message"then return(lo.." "..lg:upper()..lG()..ly()):sub(1,lm)end;local lH=lB()if not lH or lH==""then lH=lf end;if not lH or lH==""then lH="everyone"end;lH=tostring(lH):gsub("^%s*@+%s*","")local lI="@"..lH..ln..lp[math.random(1,#lp)]return(lo.." "..lG().." "..lI:upper()..ly()):sub(1,lm)end end;bt={speed=false,jump=false,infiniteJump=false,noclip=false,fly=false,flyLanding=false,flyPhase="OFF",flyStyle=1,flyVFX=true,spiderWalk=false,airWalk=false,airWalkY=nil,airWalkPart=nil,fpsBoost=false,fullbright=false,dashDistance=32,flyConn=nil,jumpConn=nil,noclipConn=nil,speedLoopConn=nil,spiderConn=nil,airWalkConn=nil,fullbrightConn=nil,savedLighting=nil,savedFpsParts=setmetatable({},{__mode="k"}),savedFpsEffects=setmetatable({},{__mode="k"}),lastTeleportTick=0,restoreFlyJoints=nil,stopFlyImmediate=nil,Vanish={selfActive=false,hideMode="Skybox",unvanishAtGhost=true,ghostModel=nil,originCF=nil,ghostCF=nil,stepConn=nil,hbConn=nil,vanishedTargets={},savedTargetParts=setmetatable({},{__mode="k"}),targetLoopConn=nil,uiSwitchSetters={}}}local lJ=nil;bs={Void={enabled=false,charAdded=nil,healthConns={},charConns={},loopConn=nil,steppedConn=nil,safetyFloor=nil,rescues=0},Kill={enabled=false,charAdded=nil,descConn=nil,loopConn=nil,wsDescConn=nil,blockedTouches=0,originalPartFlags=setmetatable({},{__mode="k"})},GamePaused={enabled=false,childAdded=nil,propConn=nil,loopConn=nil},AFK={enabled=false,conn=nil,loopConn=nil},VC={enabled=false,running=false,statusText="Status: Idle",statusLbl=nil,activateBtn=nil,rowSubLbl=nil,openPanelFn=nil},Redirect={enabled=false},PauseTrap={enabled=false},FlingShield={enabled=false,steppedConn=nil,heartbeatConn=nil,preStepCF=nil,blockedFlings=0},Ragdoll={enabled=false,steppedConn=nil,stateConn=nil,descConn=nil,charAdded=nil,recoveries=0},Anchor={enabled=false,steppedConn=nil,descConn=nil,charAdded=nil,partConns=setmetatable({},{__mode="k"}),purgedMovers=0},Attach={enabled=false,steppedConn=nil,descConn=nil,severedCount=0},Blind={enabled=false,loopConn=nil,lightChildConn=nil,camChildConn=nil,guiChildConn=nil},Bring={enabled=false,steppedConn=nil,heartbeatConn=nil,lastCF=nil,lastSafeTime=0,blockedBrings=0},SeatTrap={enabled=false,wsDescConn=nil,loopConn=nil,savedSeats=setmetatable({},{__mode="k"}),neutralizedSeats=0,startFn=nil,stopFn=nil},ToolGuard={enabled=false,loopConn=nil,disarmedTools=0,startFn=nil,stopFn=nil}}local lK={enabled=false,mode="GodMatrix",range=7.5,deflectCount=0,lastAttackerName="None",lastThreatReason="Standby",modes={"GodMatrix","ReverseFling","VoidPause","Redirect","Blackhole","SkyOrbit"},modeLabels={GodMatrix="GOD MATRIX ⚡",ReverseFling="REVERSE FLING 🌪️",VoidPause="VOID-PAUSE ❄️",Redirect="REDIRECT 🎯",Blackhole="BLACKHOLE 🌀",SkyOrbit="SKY ORBIT 🚀"},ranges={5.0,7.5,11.0,16.0,22.0},rangeIdx=2,lastDeflect=0}do local lL=bt.Vanish;local lM=0;local function lN()for x,lO in ipairs(lL.uiSwitchSetters)do pcall(lO,lL.selfActive,false)end;if bA then pcall(bA)end;if aa and aa.refreshUI then pcall(aa.refreshUI)end end;local function lP()if lL.ghostModel then pcall(function()lL.ghostModel:Destroy()end)lL.ghostModel=nil end end;local function lQ(dH,lR)lP()if not dH then return nil end;local jD=Instance.new("Model")jD.Name="CocoVanishGhost"local lS=Instance.new("Humanoid")lS.Name="Humanoid"lS.WalkSpeed=16;lS.JumpPower=50;lS.DisplayDistanceType=Enum.HumanoidDisplayDistanceType.None;lS.Parent=jD;local lT=Instance.new("Part")lT.Name="HumanoidRootPart"lT.Size=Vector3.new(2,2,1)lT.Transparency=1;lT.CanCollide=false;lT.CanTouch=false;lT.CanQuery=false;lT.Anchored=true;lT.CFrame=lR;lT.Parent=jD;jD.PrimaryPart=lT;local lU=Instance.new("Part")lU.Name="Head"lU.Size=Vector3.new(2.1,4.6,1.1)lU.Material=Enum.Material.ForceField;lU.Color=C.Neon;lU.Transparency=0.42;lU.CanCollide=false;lU.CanTouch=false;lU.CanQuery=false;lU.Anchored=true;lU.CFrame=lR;lU.Parent=jD;local lV=Instance.new("Highlight")lV.Name="CocoGhostHighlight"lV.FillColor=C.Accent;lV.OutlineColor=C.Neon;lV.FillTransparency=0.55;lV.OutlineTransparency=0.15;lV.Parent=jD;jD.Parent=workspace.CurrentCamera or workspace;lL.ghostModel=jD;return jD,lT,lU,lS end;function lL:StopSelfVanish(lW)if not self.selfActive and not self.stepConn and not self.hbConn then return end;self.selfActive=false;if self.stepConn then self.stepConn:Disconnect()self.stepConn=nil end;if self.hbConn then self.hbConn:Disconnect()self.hbConn=nil end;local eP=self.unvanishAtGhost and self.ghostCF or self.originCF or al;lP()local bm=n.Character;local bE=bm and(bm:FindFirstChild("HumanoidRootPart")or bm:FindFirstChildWhichIsA("BasePart"))local Y=bm and bm:FindFirstChildOfClass("Humanoid")if bm then for x,cw in ipairs(bm:GetDescendants())do if cw:IsA("BasePart")then cw.LocalTransparencyModifier=0 end end end;local lX=workspace.CurrentCamera;if lX and Y and not an then pcall(function()lX.CameraType=Enum.CameraType.Custom;lX.CameraSubject=Y end)end;if not lW and bm and eP and b9(eP)then cF(eP)al=eP;bz(bm,eP)elseif bE then bE.Anchored=false;bE.AssemblyLinearVelocity=Vector3.zero;bE.AssemblyAngularVelocity=Vector3.zero end;if not(bs and bs.Void and bs.Void.enabled)and not(bs and bs.Kill and bs.Kill.enabled)and not aa.active and not ad then pcall(function()workspace.FallenPartsDestroyHeight=a5 end)end;lN()end;function lL:StartSelfVanish()if as.isFrozenByOwner or as.isBannedByOwner then S("👑 ADMIN LOCK","You are currently frozen/locked by an Admin!")L()return false end;local bm=n.Character;local bE=bm and(bm:FindFirstChild("HumanoidRootPart")or bm:FindFirstChildWhichIsA("BasePart"))local Y=bm and bm:FindFirstChildOfClass("Humanoid")if not bm or not bE or not Y or Y.Health<=0 then S("👻 VANISH","Character not ready to vanish!")L()return false end;if aa.active then cz(false)end;if ad then bB:StopFling(true)end;self:StopSelfVanish(true)self.selfActive=true;self.originCF=b9(bE.CFrame)and bE.CFrame or bi()self.ghostCF=self.originCF;al=self.originCF;pcall(function()workspace.FallenPartsDestroyHeight=0/0 end)local jD,lT,lU=lQ(bm,self.ghostCF)local lX=workspace.CurrentCamera;if lX and lU then pcall(function()lX.CameraSubject=lU end)end;local lY=0;local lZ=RaycastParams.new()lZ.FilterType=Enum.RaycastFilterType.Exclude;lZ.RespectCanCollide=true;self.stepConn=d.Stepped:Connect(function(x,dU)if not self.selfActive then return end;local eK=n.Character;if not eK then return end;for x,cw in ipairs(eK:GetChildren())do if cw:IsA("BasePart")then cw.CanCollide=false;cw.CanTouch=false;cw.CanQuery=false end end end)self.hbConn=d.Heartbeat:Connect(function(dU)if not self.selfActive then return end;dU=math.clamp(dU or 1/60,1/240,0.1)local eK=n.Character;local bq=eK and(eK:FindFirstChild("HumanoidRootPart")or eK:FindFirstChildWhichIsA("BasePart"))local bO=eK and eK:FindFirstChildOfClass("Humanoid")if not eK or not bq or not bO or bO.Health<=0 then self:StopSelfVanish(true)return end;local l_=workspace.CurrentCamera;if l_ and lU and l_.CameraSubject~=lU and not an then pcall(function()l_.CameraSubject=lU end)end;local io=math.max(22,bO.WalkSpeed and bO.WalkSpeed>16 and bO.WalkSpeed or 34)local m0=Vector3.zero;local m1=l_ and l_.CFrame.LookVector or Vector3.new(0,0,-1)local m2=l_ and l_.CFrame.RightVector or Vector3.new(1,0,0)local ed=Vector3.new(m1.X,0,m1.Z)local gu=Vector3.new(m2.X,0,m2.Z)ed=ed.Magnitude>0.01 and ed.Unit or Vector3.new(0,0,-1)gu=gu.Magnitude>0.01 and gu.Unit or Vector3.new(1,0,0)if not f:GetFocusedTextBox()then if f:IsKeyDown(Enum.KeyCode.W)then m0=m0+ed end;if f:IsKeyDown(Enum.KeyCode.S)then m0=m0-ed end;if f:IsKeyDown(Enum.KeyCode.D)then m0=m0+gu end;if f:IsKeyDown(Enum.KeyCode.A)then m0=m0-gu end end;if bO.MoveDirection.Magnitude>0.05 then m0=bO.MoveDirection end;if m0.Magnitude>0.05 then m0=m0.Unit*io end;local m3=self.ghostCF.Position;local m4=m3+Vector3.new(m0.X*dU,0,m0.Z*dU)lZ.FilterDescendantsInstances={eK,jD,l_}local m5=workspace:Raycast(m4+Vector3.new(0,4.5,0),Vector3.new(0,-14.0,0),lZ)local m6=bO.RigType==Enum.HumanoidRigType.R15 and math.max(2.2,bO.HipHeight+1.0)or 3.0;if not f:GetFocusedTextBox()and f:IsKeyDown(Enum.KeyCode.Space)then lY=38 elseif not f:GetFocusedTextBox()and(f:IsKeyDown(Enum.KeyCode.LeftControl)or f:IsKeyDown(Enum.KeyCode.C))then lY=-34 elseif m5 then local m7=m5.Position.Y+m6;if m4.Y<=m7+0.6 and lY<=0 then m4=Vector3.new(m4.X,m7,m4.Z)lY=0 else lY=math.max(lY-95*dU,-75)end else lY=0 end;local m8=Vector3.new(m4.X,m4.Y+lY*dU,m4.Z)local m9=m0.Magnitude>0.5 and Vector3.new(m0.X,0,m0.Z).Unit or ed;self.ghostCF=CFrame.lookAt(m8,m8+m9,Vector3.yAxis)if lT and lT.Parent then lT.CFrame=self.ghostCF end;if lU and lU.Parent then lU.CFrame=self.ghostCF end;lM=lM+1;local dY;if self.hideMode=="Underground"then local ma=math.max(a5+35,-185)dY=CFrame.new(m8.X,ma,m8.Z)elseif self.hideMode=="BlinkDesync"and lM%5==0 then dY=self.ghostCF else dY=CFrame.new(m8.X,85000,m8.Z)end;bt.lastTeleportTick=tick()if b9(self.ghostCF)then bs.Bring.lastCF=self.ghostCF;bs.Bring.lastSafeTime=tick()bs.FlingShield.preStepCF=self.ghostCF;al=self.ghostCF end;bq.Anchored=false;bq.CFrame=dY;bq.AssemblyLinearVelocity=Vector3.new(0,0.02,0)bq.AssemblyAngularVelocity=Vector3.zero end)lN()S("👻 SELF VANISH ON","You are now invisible to other players! Walk with your Ghost & toggle OFF to reappear.")M()return true end;function lL:ToggleSelfVanish()if self.selfActive then self:StopSelfVanish(false)S("👻 SELF VANISH OFF",self.unvanishAtGhost and"Reappeared at your Ghost position!"or"Returned to starting position!")N()else self:StartSelfVanish()end end;local function mb(cj)if not cj then return end;for x,cU in ipairs(cj:GetDescendants())do if cU:IsA("BasePart")then if not lL.savedTargetParts[cU]then lL.savedTargetParts[cU]={Transparency=cU.Transparency,CanCollide=cU.CanCollide,CanTouch=cU.CanTouch,CanQuery=cU.CanQuery}end;cU.LocalTransparencyModifier=1;cU.Transparency=1;cU.CanCollide=false;cU.CanTouch=false;cU.CanQuery=false elseif cU:IsA("Decal")or cU:IsA("Texture")then if not lL.savedTargetParts[cU]then lL.savedTargetParts[cU]={Transparency=cU.Transparency}end;cU.Transparency=1 elseif cU:IsA("BillboardGui")or cU:IsA("ParticleEmitter")or cU:IsA("Beam")or cU:IsA("Trail")then if not lL.savedTargetParts[cU]then lL.savedTargetParts[cU]={Enabled=cU.Enabled}end;cU.Enabled=false elseif cU:IsA("Sound")and cU.IsPlaying then pcall(function()cU:Stop()end)end end;local Y=cj:FindFirstChildOfClass("Humanoid")if Y then pcall(function()Y.DisplayDistanceType=Enum.HumanoidDisplayDistanceType.None end)end end;local function mc(cj)if not cj then return end;for x,cU in ipairs(cj:GetDescendants())do local md=lL.savedTargetParts[cU]if cU:IsA("BasePart")then cU.LocalTransparencyModifier=0;if md then cU.Transparency=md.Transparency;cU.CanCollide=md.CanCollide;cU.CanTouch=md.CanTouch;cU.CanQuery=md.CanQuery;lL.savedTargetParts[cU]=nil elseif cU.Name~="HumanoidRootPart"then cU.Transparency=0 end elseif(cU:IsA("Decal")or cU:IsA("Texture"))and md then cU.Transparency=md.Transparency;lL.savedTargetParts[cU]=nil elseif(cU:IsA("BillboardGui")or cU:IsA("ParticleEmitter")or cU:IsA("Beam")or cU:IsA("Trail"))and md then cU.Enabled=md.Enabled;lL.savedTargetParts[cU]=nil end end;local Y=cj:FindFirstChildOfClass("Humanoid")if Y then pcall(function()Y.DisplayDistanceType=Enum.HumanoidDisplayDistanceType.Viewer end)end end;local function me()if lL.targetLoopConn then return end;local mf=0;lL.targetLoopConn=d.Heartbeat:Connect(function()if next(lL.vanishedTargets)==nil then if lL.targetLoopConn then lL.targetLoopConn:Disconnect()lL.targetLoopConn=nil end;return end;local ct=os.clock()if ct-mf<0.20 then return end;mf=ct;for aN,aM in pairs(lL.vanishedTargets)do if not aM or aM.Parent~=e then lL.vanishedTargets[aN]=nil else local bm=cA(aM,true)if bm then mb(bm)end;bw(aN)end end end)end;function lL:ToggleTargetVanish(gJ)local jn=gJ or gi()if not jn or jn.Parent~=e or jn==n then S("💨 VANISH TARGET","No target player found!")L()return false end;local aN=jn.UserId;if self.vanishedTargets[aN]then self.vanishedTargets[aN]=nil;local bm=cA(jn,true)if bm then mc(bm)end;pcall(bx)lN()S("💨 TARGET RESTORED","@"..jn.Name.." is visible again!")N()return false else if ay(jn)then S("👑 IMMUNITY","Cannot vanish the Script Owner!")L()return false end;self.vanishedTargets[aN]=jn;local bm=cA(jn,true)if bm then mb(bm)end;bw(aN)me()lN()S("💨 TARGET VANISHED","Erased @"..jn.Name.." from your screen & collisions! Tap again to restore.")M()return true end end;function lL:RestoreAllVanishedTargets()local lz=0;for aN,aM in pairs(self.vanishedTargets)do lz=lz+1;self.vanishedTargets[aN]=nil;local bm=aM and cA(aM,true)if bm then mc(bm)end end;if self.targetLoopConn then self.targetLoopConn:Disconnect()self.targetLoopConn=nil end;pcall(bx)lN()S("💨 RESTORED ALL","Restored "..tostring(lz).." vanished player(s)!")K()end;function lL:ServerBanishTarget(gJ)local jn=gJ or gi()if not jn or jn.Parent~=e then S("⚡ SERVER VANISH","No target player found!")L()return end;kh(3.6,"Server Void Vanish",true,jn)end end;cF=function(ba)bt.lastTeleportTick=tick()if ba and b9(ba)then bs.Bring.lastCF=ba;bs.Bring.lastSafeTime=tick()bs.FlingShield.preStepCF=ba;al=ba end end;local mg,mh,mi,mj,mk,ml,mm,mn,mo,mp;local mq,mr,ms,mt,mu,mv,mw,mx;local my,mz,mA,mB,mC,mD,mE,mF;local mG,mH,mI,mJ;do local function mK(bb)local mL=bs.Void.safetyFloor;if not mL or not mL.Parent then mL=Instance.new("Part")mL.Name="CocoVoidSafetyFloor"mL.Anchored=true;mL.CanCollide=true;mL.CanTouch=false;mL.CanQuery=false;mL.Size=Vector3.new(64,2,64)mL.Transparency=0.65;mL.Material=Enum.Material.ForceField;mL.Color=Color3.fromRGB(138,92,246)mL.Parent=workspace;bs.Void.safetyFloor=mL end;mL.CFrame=CFrame.new(bb.X,bb.Y-3.5,bb.Z)end;local function mM()if bs.Void.safetyFloor then pcall(function()bs.Void.safetyFloor:Destroy()end)bs.Void.safetyFloor=nil end end;local function mN(et)if not et or not et.Parent then return end;local bH=_G.CocaSkyDestroyer and(_G.CocaSkyDestroyer.isAnyActive()or _G.CocaSkyDestroyer.is_reanimated())or _G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated)=="function"and _G._AngoorZenApi.is_reanimated()pcall(function()et:SetStateEnabled(Enum.HumanoidStateType.Dead,false)et:SetStateEnabled(Enum.HumanoidStateType.FallingDown,false)et:SetStateEnabled(Enum.HumanoidStateType.Ragdoll,false)if et.MaxHealth<=0 then et.MaxHealth=100 end;if et.Health<=0 or et.Health<et.MaxHealth then et.Health=et.MaxHealth end;if et.PlatformStand and not(bt and(bt.fly or bt.flyLanding))and _==nil and not bj and not bH then et.PlatformStand=false end;et:SetStateEnabled(Enum.HumanoidStateType.Seated,false)if et.Sit then et.Sit=false end;if et:GetState()==Enum.HumanoidStateType.Dead then et:ChangeState(Enum.HumanoidStateType.Running)end end)end;local function mO(et)if not et or not et.Parent then return end;mN(et)table.insert(bs.Void.healthConns,et.HealthChanged:Connect(function(mP)if bs.Void.enabled and mP<et.MaxHealth then task.defer(function()mN(et)end)end end))table.insert(bs.Void.healthConns,et.StateChanged:Connect(function(x,mQ)if bs.Void.enabled and mQ==Enum.HumanoidStateType.Dead then mN(et)end end))end;local function mR(X)if not X then return end;for x,mS in ipairs(bs.Void.charConns)do pcall(function()mS:Disconnect()end)end;bs.Void.charConns={}for x,mS in ipairs(bs.Void.healthConns)do pcall(function()mS:Disconnect()end)end;bs.Void.healthConns={}local Y=X:FindFirstChildOfClass("Humanoid")if Y then mO(Y)end;table.insert(bs.Void.charConns,X.ChildAdded:Connect(function(bm)if bm:IsA("Humanoid")then mO(bm)end end))end;mg=function(mT)if bs.Void.enabled and bs.Void.steppedConn and bs.Void.loopConn then if lJ then pcall(lJ)end;return end;bs.Void.enabled=true;pcall(function()workspace.FallenPartsDestroyHeight=0/0 end)mR(n.Character)if bs.Void.charAdded then bs.Void.charAdded:Disconnect()end;bs.Void.charAdded=n.CharacterAdded:Connect(function(X)if not bs.Void.enabled then return end;task.wait(0.15)mR(X)end)if bs.Void.steppedConn then bs.Void.steppedConn:Disconnect()end;bs.Void.steppedConn=d.Stepped:Connect(function()if not bs.Void.enabled then return end;local X=n.Character;local bp=X and X:FindFirstChild("HumanoidRootPart")if not bp or ad or ac or _~=nil or bj or bu and bu.active or bt and bt.Vanish and bt.Vanish.selfActive or _G.CocaBangActive or _G.CocaSkyDestroyer and(_G.CocaSkyDestroyer.isAnyActive()or _G.CocaSkyDestroyer.is_reanimated())or _G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated)=="function"and _G._AngoorZenApi.is_reanimated()or RewindSys and RewindSys.rewinding then return end;local bb=bp.Position;local cy=bp.AssemblyLinearVelocity;local mU=math.min(a5+55,-220)local mV=bb.Y+cy.Y*0.055;if bb.Y<=mU or mV<=mU or bb.Y<=mU+45 and cy.Y<-95 or bb.Magnitude>45000 then bp.AssemblyLinearVelocity=Vector3.new(cy.X*0.05,math.max(0,cy.Y),cy.Z*0.05)bp.AssemblyAngularVelocity=Vector3.zero;mK(Vector3.new(bb.X,math.max(bb.Y,mU+12),bb.Z))bs.Void.rescues=bs.Void.rescues+1;cF(al)bz(X,al)elseif bs.Void.safetyFloor and bb.Y>-15 and math.abs(cy.Y)<25 then mM()end end)if bs.Void.loopConn then bs.Void.loopConn:Disconnect()end;local mW=0;bs.Void.loopConn=d.Heartbeat:Connect(function()if not bs.Void.enabled then return end;local ct=tick()if ct-mW<0.25 then return end;mW=ct;local X=n.Character;if not X then return end;local et=X:FindFirstChildOfClass("Humanoid")if et then mN(et)end end)if lJ then pcall(lJ)end;if not mT then S("COCO POWDER","Anti-Void v2 (Always-On Predictive Catch + Safety Floor) ON")M()end end;mh=function()if not bs.Void.enabled or not bs.Void.steppedConn or not bs.Void.loopConn then mg(true)end;if lJ then pcall(lJ)end;if R then pcall(R)end;S("COCO POWDER","Anti-Void is permanently enabled (Always-On)!")M()end;local function mX(cw)if not(cw and cw:IsA("BasePart"))then return end;local md=bs.Kill.originalPartFlags[cw]if not md then md={CanTouch=cw.CanTouch,CanQuery=cw.CanQuery}bs.Kill.originalPartFlags[cw]=md end;pcall(function()cw.CanTouch=false;cw.CanQuery=false end)end;local function mY(cj)if not cj then return end;for x,cw in ipairs(cj:GetDescendants())do if cw:IsA("BasePart")then mX(cw)end end;local Y=cj:FindFirstChildOfClass("Humanoid")if Y then pcall(function()Y:SetStateEnabled(Enum.HumanoidStateType.Dead,false)if Y.Health>0 and Y.Health<Y.MaxHealth then Y.Health=Y.MaxHealth end end)end end;local function mZ(cj)if bs.Kill.descConn then bs.Kill.descConn:Disconnect()bs.Kill.descConn=nil end;if not cj then return end;mY(cj)bs.Kill.descConn=cj.DescendantAdded:Connect(function(cU)if bs.Kill.enabled and cU:IsA("BasePart")then mX(cU)end end)end;mi=function()if bs.Kill.enabled then return end;bs.Kill.enabled=true;mZ(n.Character)if bs.Kill.charAdded then bs.Kill.charAdded:Disconnect()end;bs.Kill.charAdded=n.CharacterAdded:Connect(function(cj)if not bs.Kill.enabled then return end;task.defer(function()if bs.Kill.enabled then mZ(cj)end end)end)if bs.Kill.wsDescConn then bs.Kill.wsDescConn:Disconnect()end;bs.Kill.wsDescConn=workspace.DescendantAdded:Connect(function(cU)if bs.Kill.enabled and cU:IsA("Explosion")then pcall(function()cU.BlastPressure=0;cU.DestroyJointRadiusPercent=0 end)end end)if lJ then pcall(lJ)end;S("COCO POWDER","Local Anti-Kill safeguards ON (best-effort)")M()end;mj=function()if not bs.Kill.enabled then return end;bs.Kill.enabled=false;if bs.Kill.charAdded then bs.Kill.charAdded:Disconnect()bs.Kill.charAdded=nil end;if bs.Kill.descConn then bs.Kill.descConn:Disconnect()bs.Kill.descConn=nil end;if bs.Kill.wsDescConn then bs.Kill.wsDescConn:Disconnect()bs.Kill.wsDescConn=nil end;for bJ,md in pairs(bs.Kill.originalPartFlags)do if bJ and bJ.Parent then pcall(function()bJ.CanTouch=md.CanTouch;bJ.CanQuery=md.CanQuery end)end;bs.Kill.originalPartFlags[bJ]=nil end;local Y=n.Character and n.Character:FindFirstChildOfClass("Humanoid")if Y and not(bs.Void and bs.Void.enabled)then pcall(function()Y:SetStateEnabled(Enum.HumanoidStateType.Dead,true)end)end;if lJ then pcall(lJ)end;S("COCO POWDER","Anti-Kill disabled; local part settings restored")N()end;local function m_()pcall(function()game:GetService("GuiService"):SetGameplayPausedNotificationEnabled(false)end)pcall(function()if n.GameplayPaused then n.GameplayPaused=false end end)pcall(function()local n0=m and m:FindFirstChild("RobloxGui")if n0 then local n1=n0:FindFirstChild("CoreScripts/NetworkPause")if n1 then n1:Destroy()end end end)end;mk=function()if bs.GamePaused.enabled then return end;bs.GamePaused.enabled=true;m_()pcall(function()local n0=m and m:FindFirstChild("RobloxGui")if n0 then if bs.GamePaused.childAdded then bs.GamePaused.childAdded:Disconnect()end;bs.GamePaused.childAdded=n0.ChildAdded:Connect(function(cU)if bs.GamePaused.enabled and cU.Name:find("NetworkPause")then pcall(function()cU:Destroy()end)end end)end end)if bs.GamePaused.propConn then bs.GamePaused.propConn:Disconnect()end;pcall(function()bs.GamePaused.propConn=n:GetPropertyChangedSignal("GameplayPaused"):Connect(function()if bs.GamePaused.enabled then pcall(function()n.GameplayPaused=false end)m_()end end)end)if bs.GamePaused.loopConn then bs.GamePaused.loopConn:Disconnect()end;bs.GamePaused.loopConn=d.Heartbeat:Connect(function()if not bs.GamePaused.enabled then return end;if n.GameplayPaused then pcall(function()n.GameplayPaused=false end)end end)if lJ then pcall(lJ)end;S("COCO POWDER","Anti-GameplayPaused v2 ON")M()end;ml=function()if not bs.GamePaused.enabled then return end;bs.GamePaused.enabled=false;if bs.GamePaused.childAdded then bs.GamePaused.childAdded:Disconnect()bs.GamePaused.childAdded=nil end;if bs.GamePaused.propConn then bs.GamePaused.propConn:Disconnect()bs.GamePaused.propConn=nil end;if bs.GamePaused.loopConn then bs.GamePaused.loopConn:Disconnect()bs.GamePaused.loopConn=nil end;if lJ then pcall(lJ)end;S("COCO POWDER","Anti-GameplayPaused disabled")N()end;local function n2()pcall(function()local n3=game:GetService("VirtualUser")n3:CaptureController()n3:ClickButton2(Vector2.zero,workspace.CurrentCamera and workspace.CurrentCamera.CFrame or CFrame.new())end)pcall(function()local n4=game:GetService("VirtualInputManager")n4:SendMouseMoveEvent(1,1,game)end)end;mm=function()if bs.AFK.enabled then return end;bs.AFK.enabled=true;pcall(function()if getconnections then for x,X in ipairs(getconnections(n.Idled))do pcall(function()X:Disable()end)pcall(function()X:Disconnect()end)end end end)if bs.AFK.conn then bs.AFK.conn:Disconnect()end;bs.AFK.conn=n.Idled:Connect(function()if not bs.AFK.enabled then return end;n2()end)if lJ then pcall(lJ)end;S("COCO POWDER","Anti-AFK v2 (Multi-Hook) ON")M()end;mn=function()if not bs.AFK.enabled then return end;bs.AFK.enabled=false;if bs.AFK.conn then bs.AFK.conn:Disconnect()bs.AFK.conn=nil end;if lJ then pcall(lJ)end;S("COCO POWDER","Anti-AFK disabled")N()end;local n5={}local n6=nil;local n7=false;local n8=true;local n9=true;local na=0;local nb={{key="hybrid",name="Hybrid V6 (Full Shield)",desc="Leave + Hook Shield + Rejoin + TopBar Clone"},{key="instant",name="Instant 0s (No Leave)",desc="Direct 0.1s Hook Shield + TopBar Clone without leaving VC"},{key="deep",name="Deep Reset (Anti-Suspend)",desc="Double Re-Handshake + Full Signal Purge + Unmute Force"},{key="stealth",name="Stealth Desync (Fake Mute)",desc="Displays Muted Icon on TopBar while Mic transmits LIVE"}}local nc=1;local nd=false;local ne=false;local nf="rbxasset://textures/ui/VoiceChat/MicLight/Muted.png"local ng="rbxasset://textures/ui/VoiceChat/MicLight/Unmuted.png"local function nh()local ni=cloneref or function(...)return...end;local nj,nk=nil,nil;pcall(function()nj=ni(game:GetService("VoiceChatService"))end)pcall(function()nk=ni(game:GetService("VoiceChatInternal"))end)return nj,nk end;local function nl(fC)if not fC then return nil end;local nm=fC:FindFirstChild("IntegrationIconFrame")local nn=nm and nm:FindFirstChild("IntegrationIcon")local ek=nn and(nn:FindFirstChild("1")or nn:FindFirstChildWhichIsA("ImageLabel"))if ek and ek:IsA("ImageLabel")then return ek end;for x,fn in ipairs(fC:GetDescendants())do if fn:IsA("ImageLabel")then local no=tostring(fn.Image or"")if fn.Name=="1"or fn.Name:lower():find("icon")or fn.Name:lower():find("mic")or no:find("VoiceChat")or no:find("Mic")then return fn end end end;return fC:FindFirstChildWhichIsA("ImageLabel",true)end;local function np(nq,nr)nq=nq or m or game:GetService("CoreGui")if not nq then return nil,nil end;local ns=nq:FindFirstChild("CocoVCBypassStore")or nq:FindFirstChild("AngoorVCBypassStore")local nt,nu=nil,nil;pcall(function()for x,c7 in ipairs(nq:GetDescendants())do if not(ns and c7:IsDescendantOf(ns))then if nr and c7.Name=="toggle_mic_mute_new"and c7.Parent then nt,nu=c7,c7.Parent;break elseif c7.Name=="toggle_mic_mute"and c7.Parent then nt,nu=c7,c7.Parent;break elseif not nt and c7.Name=="IconHitArea_toggle_mic_mute"and c7.Parent then local nv=c7.Parent;if nv.Parent and nv.Parent.Name:find("toggle_mic")then nv=nv.Parent end;nt,nu=nv,nv.Parent end end end end)return nt,nu end;local function nw(nx)local H=tostring(nx or""):lower()if H==""then return false end;return H:find("muted")~=nil and H:find("unmuted")==nil or H:find("micoff")~=nil end;local function ny(nk,nz)if nk then local cV,nA=pcall(function()return nk:IsPublishPaused()end)if cV and type(nA)=="boolean"then return nA end end;if nz and nz.Parent then return nw(nz.Image)end;return true end;local function nB(nk,nC)if not nk then return false end;local cV=pcall(function()nk:PublishPause(nC==true)end)return cV end;local function nD(nE,nF,nG)bs.VC.statusText=nE or bs.VC.statusText;if bs.VC.statusLbl and bs.VC.statusLbl.Parent then bs.VC.statusLbl.Text=nE or"Status: Idle"if nF then bs.VC.statusLbl.TextColor3=nF end end;if bs.VC.activateBtn and bs.VC.activateBtn.Parent and nG then bs.VC.activateBtn.Text=nG end;if bs.VC.rowSubLbl and bs.VC.rowSubLbl.Parent then local nH=nb[nc]and nb[nc].name or"Hybrid V5"bs.VC.rowSubLbl.Text=(nE or"Status: Idle").." · ["..nH.."]"end;if bs.VC.micStateLbl and bs.VC.micStateLbl.Parent then local x,nk=nh()local nI=np(nil,true)local nJ=nl(nI)local nA=ny(nk,nJ)if bs.VC.enabled then bs.VC.micStateLbl.Text=string.format("Mic: %s  ·  Shielded Hooks: %d",nA and"🔇 MUTED"or"🎙️ LIVE / UNMUTED",na)bs.VC.micStateLbl.TextColor3=nA and Color3.fromRGB(255,190,90)or Color3.fromRGB(80,235,135)else bs.VC.micStateLbl.Text=string.format("Mic: %s  ·  Mode: %s",nA and"🔇 Muted"or"🎙️ Unmuted",nb[nc].name)bs.VC.micStateLbl.TextColor3=Color3.fromRGB(165,170,190)end end end;local function nK(nk)if not nk or type(getconnections)~="function"then return 0 end;local nL=0;pcall(function()local nM=getconnections(nk.StateChanged)if type(nM)=="table"and#nM>0 then local k2=#nM>=7 and 7 or math.max(2,math.floor(#nM*0.5))for dt=k2,#nM do local X=nM[dt]if X then pcall(function()X:Disable()table.insert(n5,X)nL=nL+1 end)end end end end)if nL>0 then na=na+nL end;return nL end;local function nN()for dt=#n5,1,-1 do local X=n5[dt]if X then pcall(function()X:Enable()end)end;n5[dt]=nil end;na=0 end;local function nO(nP,nQ,nA)if not nP or not nP.Parent then return end;pcall(function()local nR=nb[nc]if nR and nR.key=="stealth"then nP.Image=nf elseif nA then nP.Image=nf else local nS=nQ and nQ.Parent and nQ.Image~=""and not nw(nQ.Image)and nQ.Image or ng;nP.Image=nS end end)end;local function nT(nU)local x,nk=nh()if not nk then S("Coco Anti-VC V5","VoiceChatInternal unavailable on this client")return false end;local nI=np(nil,true)or np(nil,false)local nV=nl(nI)local nq=m or game:GetService("CoreGui")local ns=nq and nq:FindFirstChild("CocoVCBypassStore")local nW=ns and ns:FindFirstChild("toggle_mic_mute")local nQ=nl(nW)local nX=ny(nk,nV)local nY=type(nU)=="boolean"and nU or not nX;nB(nk,nY)nO(nV,nQ,nY)nD(bs.VC.enabled and(nY and"Status: Active (Mic Muted)"or"Status: Active (Mic LIVE)")or nil,bs.VC.enabled and Color3.fromRGB(80,220,120)or nil,nil)return not nY end;_G.ToggleCocoVCMic=nT;local function nZ(nq,nk)nq=nq or m or game:GetService("CoreGui")if not nq then return false end;local n_,o0=np(nq,false)if not n_ or not o0 then return false end;local o1=nq:FindFirstChild("CocoVCBypassStore")or nq:FindFirstChild("AngoorVCBypassStore")if o1 then local o2=o1:FindFirstChild("toggle_mic_mute")if o2 and o2~=n_ then pcall(function()o2:Destroy()end)end;pcall(function()o1:Destroy()end)end;local o3=o0:FindFirstChild("toggle_mic_mute_new")if o3 then pcall(function()o3:Destroy()end)end;local o4=Instance.new("Folder")o4.Name="CocoVCBypassStore"o4.Parent=nq;local o5=n_:Clone()n_.Parent=o4;o5.Name="toggle_mic_mute_new"o5.Parent=o0;local nP=nl(o5)local nQ=nl(n_)nB(nk,true)nO(nP,nQ,true)local o6=0;local function o7()if tick()-o6<0.12 then return end;o6=tick()nT()end;local o8=o5:FindFirstChild("IconHitArea_toggle_mic_mute",true)or o5:FindFirstChildWhichIsA("GuiButton",true)if o8 and o8:IsA("GuiButton")then pcall(function()o8.Activated:Connect(o7)end)pcall(function()o8.MouseButton1Click:Connect(o7)end)end;if o5:IsA("GuiButton")then pcall(function()o5.Activated:Connect(o7)end)pcall(function()o5.MouseButton1Click:Connect(o7)end)end;return true end;local function o9()if n6 then n6:Disconnect()n6=nil end;local oa=0;local ob=os.clock()local oc=0;local od=false;n6=d.Heartbeat:Connect(function()if not bs.VC.enabled then return end;local ct=os.clock()if nd and ct-oc>=0.085 then oc=ct;od=not od;local x,nk=nh()if nk then pcall(function()nk:PublishPause(od)end)end end;if ct-oa<1.1 then return end;oa=ct;pcall(function()local nq=m or game:GetService("CoreGui")local x,nk=nh()if not nk then return end;if n8 then nK(nk)local nI=np(nq,true)if not nI or not nI.Parent then local oe=np(nq,false)if oe and oe.Parent then nZ(nq,nk)end end end;if n9 and ct-ob>18.0 then ob=ct;local nI=np(nq,true)local nJ=nl(nI)local nA=ny(nk,nJ)pcall(function()nk:PublishPause(nA)end)end;nD(nil,nil,nil)end)end)end;local function of()task.spawn(function()local nj,nk=nh()if not nj or not nk then S("Coco Anti-VC V5","VoiceChat services unavailable")return end;nD("Status: Rejoining Voice...",Color3.fromRGB(130,195,255),"REJOINING...")pcall(function()nj:leaveVoice()end)task.wait(0.85)nK(nk)task.wait(0.35)pcall(function()nj:joinVoice()end)task.wait(0.85)nK(nk)local nq=m or game:GetService("CoreGui")nZ(nq,nk)bs.VC.enabled=true;bs.VC.running=false;o9()nD("Status: Active (Rejoined V5)",Color3.fromRGB(80,220,120),"COCO ANTI VC V5 ACTIVE")if lJ then pcall(lJ)end;S("Coco Anti-VC V5","Voice stream rejoined & V5 anti-suspension shield locked!")K()end)end;_G.RejoinCocoVC=of;mo=function(og)if bs.VC.enabled and not og then S("Coco Anti-VC V5","Coco Anti-VC V5 is already active!")return end;if bs.VC.running then if og then n7=true;S("Coco Anti-VC V5","Skipping unmute wait — executing V5 bypass now!")else S("Coco Anti-VC V5","Bypass is waiting for mic unmute (or click Force Now in panel)")end;return end;local nR=nb[nc]or nb[1]bs.VC.running=true;n7=og==true or nR.key=="instant"nD("Status: Initializing "..nR.name.."...",Color3.fromRGB(255,200,80),"STARTING V5...")if lJ then pcall(lJ)end;M()task.spawn(function()local c,oh=pcall(function()local oi,oj=nh()if not oi or not oj then error("VoiceChatService / VoiceChatInternal not available")end;local nq=m or game:GetService("CoreGui")local n_,o0=np(nq,false)if not n_ then nD("Status: Joining Voice Chat...",Color3.fromRGB(255,200,80),"JOINING VC...")pcall(function()oi:joinVoice()end)local ok=tick()while not n_ and tick()-ok<2.2 do task.wait(0.15)n_,o0=np(nq,false)end end;if nR.key=="instant"then nK(oj)nZ(nq,oj)pcall(function()oj:PublishPause(false)end)bs.VC.running=false;bs.VC.enabled=true;n7=false;o9()nD("Status: Active (Instant 0s Hook)",Color3.fromRGB(80,220,120),"COCO ANTI VC V5 ACTIVE")if lJ then pcall(lJ)end;S("Coco Anti-VC V5","Instant 0s Direct Hook Bypass active!")K()return end;local b6=nl(n_)local ol=not ny(oj,b6)if not ol then pcall(function()oj:PublishPause(false)end)task.wait(0.15)b6=nl(n_)or b6;ol=not ny(oj,b6)end;if not ol and not n7 then nD("Status: Unmute Mic (or tap Force)...",Color3.fromRGB(255,200,80),"WAITING UNMUTE...")S("Coco Anti-VC V5","Unmute your mic once (or tap Force Bypass in panel) to lock V5 bypass")local om=tick()while tick()-om<45 do if not bs.VC.running then error("Cancelled")end;if n7 then break end;n_,o0=np(nq,false)b6=nl(n_)or b6;local on=ny(oj,b6)if not on then break end;task.wait(0.08)end end;if not bs.VC.running then error("Cancelled")end;nD("Status: Stage 1/3 Leaving Voice...",Color3.fromRGB(130,195,255),"STAGE 1/3...")pcall(function()oi:leaveVoice()end)task.wait(nR.key=="deep"and 1.55 or 1.1)nD("Status: Stage 2/3 Hooking StateChanged...",Color3.fromRGB(175,130,255),"STAGE 2/3...")nK(oj)task.wait(nR.key=="deep"and 1.15 or 0.8)nD("Status: Stage 3/3 Rejoining Voice...",Color3.fromRGB(110,225,175),"STAGE 3/3...")pcall(function()oi:joinVoice()end)task.wait(0.95)nK(oj)if nR.key=="deep"then pcall(function()oj:PublishPause(false)end)task.wait(0.18)end;nZ(nq,oj)bs.VC.running=false;bs.VC.enabled=true;n7=false;o9()nD("Status: Active ("..nR.name..")",Color3.fromRGB(80,220,120),"COCO ANTI VC V5 ACTIVE")if lJ then pcall(lJ)end;S("Coco Anti-VC V5","Coco Anti-VC V5 ("..nR.name..") activated!")K()end)if not c then bs.VC.running=false;bs.VC.enabled=false;n7=false;local oo=tostring(oh)if oo:find("Cancelled")then nD("Status: Idle",Color3.fromRGB(160,165,185),"ACTIVATE COCO ANTI VC V5")else nD("Status: Failed ("..oo:sub(1,26)..")",Color3.fromRGB(255,80,80),"RETRY V5 BYPASS")S("Coco Anti-VC V5","Error: "..oo)warn("[COCO POWDER] Coco Anti-VC V5 error:",oh)L()end;if lJ then pcall(lJ)end end end)end;mp=function()if not bs.VC.enabled and not bs.VC.running then return end;bs.VC.running=false;bs.VC.enabled=false;n7=false;if n6 then n6:Disconnect()n6=nil end;nN()pcall(function()local nq=m or game:GetService("CoreGui")local ns=nq and(nq:FindFirstChild("CocoVCBypassStore")or nq:FindFirstChild("AngoorVCBypassStore"))if ns then local nW=ns:FindFirstChild("toggle_mic_mute")for x,c7 in ipairs(nq:GetDescendants())do if c7.Name=="toggle_mic_mute_new"and c7.Parent then if nW then nW.Parent=c7.Parent end;c7:Destroy()break end end;ns:Destroy()end end)nD("Status: Idle",Color3.fromRGB(160,165,185),"ACTIVATE COCO ANTI VC V5")if lJ then pcall(lJ)end;S("Coco Anti-VC V5","Coco Anti-VC V5 reset to Idle")N()end;_G.ActivateCocoAntiVC=mo;_G.ActivateTeslaAntiVC=mo;bs.VC.openPanelFn=function()local nq=m or game:GetService("CoreGui")local t=n and n:FindFirstChildOfClass("PlayerGui")local b1=nq and(nq:FindFirstChild("CocoAntiVCPanel")or nq:FindFirstChild("TeslaAntiVCPanel"))or t and(t:FindFirstChild("CocoAntiVCPanel")or t:FindFirstChild("TeslaAntiVCPanel"))if b1 then b1:Destroy()return end;local op=Instance.new("ScreenGui")op.Name="CocoAntiVCPanel"op.ResetOnSpawn=false;op.ZIndexBehavior=Enum.ZIndexBehavior.Sibling;op.DisplayOrder=1000002;local oq=pcall(function()op.Parent=nq end)if not oq or not op.Parent then op.Parent=t or n:WaitForChild("PlayerGui")end;local ot=Instance.new("Frame",op)ot.Name="CocoAntiVCCard"ot.Size=UDim2.new(0,324,0,396)ot.Position=UDim2.new(0.5,-162,0.5,-198)ot.BackgroundColor3=Color3.fromRGB(16,16,24)ot.BorderSizePixel=0;ot.Active=true;pcall(function()ot.Draggable=true end)local ou=Instance.new("UICorner",ot)ou.CornerRadius=UDim.new(0,12)local ov=Instance.new("UIStroke",ot)ov.Color=Color3.fromRGB(115,55,210)ov.Thickness=1.6;local lb=Instance.new("TextButton",ot)lb.Size=UDim2.new(0,24,0,22)lb.Position=UDim2.new(1,-24,0,0)lb.BackgroundTransparency=1;lb.Text="✕"lb.Font=Enum.Font.GothamBold;lb.TextSize=13;lb.TextColor3=Color3.fromRGB(170,175,195)lb.ZIndex=5;lb.MouseButton1Click:Connect(function()I()op:Destroy()end)local ow=Instance.new("UIPadding",ot)ow.PaddingTop=UDim.new(0,12)ow.PaddingBottom=UDim.new(0,12)ow.PaddingLeft=UDim.new(0,14)ow.PaddingRight=UDim.new(0,14)local ox=Instance.new("UIListLayout",ot)ox.FillDirection=Enum.FillDirection.Vertical;ox.Padding=UDim.new(0,6)ox.SortOrder=Enum.SortOrder.LayoutOrder;local oy=Instance.new("TextLabel",ot)oy.LayoutOrder=1;oy.Size=UDim2.new(1,-26,0,20)oy.BackgroundTransparency=1;oy.Text="⚡ COCO ANTI-VC / VC BYPASS V6 OMEGA"oy.Font=Enum.Font.GothamBold;oy.TextSize=13;oy.TextColor3=Color3.fromRGB(175,115,255)oy.TextXAlignment=Enum.TextXAlignment.Left;local oz=Instance.new("TextLabel",ot)oz.LayoutOrder=2;oz.Size=UDim2.new(1,0,0,18)oz.BackgroundTransparency=1;oz.Text=bs.VC.statusText or"Status: Idle"oz.Font=Enum.Font.GothamMedium;oz.TextSize=12;oz.TextColor3=bs.VC.enabled and Color3.fromRGB(80,220,120)or(bs.VC.running and Color3.fromRGB(255,200,80)or Color3.fromRGB(160,165,185))oz.TextXAlignment=Enum.TextXAlignment.Left;bs.VC.statusLbl=oz;local oA=Instance.new("TextLabel",ot)oA.LayoutOrder=3;oA.Size=UDim2.new(1,0,0,18)oA.BackgroundTransparency=1;oA.Text="Mic: Checking..."oA.Font=Enum.Font.GothamMedium;oA.TextSize=11;oA.TextColor3=Color3.fromRGB(165,170,190)oA.TextXAlignment=Enum.TextXAlignment.Left;bs.VC.micStateLbl=oA;local oB=Instance.new("TextLabel",ot)oB.LayoutOrder=4;oB.Size=UDim2.new(1,0,0,72)oB.BackgroundColor3=Color3.fromRGB(24,24,35)oB.BorderSizePixel=0;oB.Text="• 3 Bypass Modes: Hybrid V5, Instant 0s & Deep Reset\n• Neutralizes StateChanged suspension hooks + Keep-Alive\n• Tap Activate (or Force Now to skip unmute wait)\n• Toggle Mic anytime from TopBar or button below"oB.Font=Enum.Font.Gotham;oB.TextSize=10.5;oB.TextColor3=Color3.fromRGB(185,188,210)oB.TextXAlignment=Enum.TextXAlignment.Left;oB.TextYAlignment=Enum.TextYAlignment.Top;oB.TextWrapped=true;local oC=Instance.new("UICorner",oB)oC.CornerRadius=UDim.new(0,8)local oD=Instance.new("UIPadding",oB)oD.PaddingTop=UDim.new(0,6)oD.PaddingLeft=UDim.new(0,9)oD.PaddingRight=UDim.new(0,9)local oE=Instance.new("TextButton",ot)oE.LayoutOrder=5;oE.Size=UDim2.new(1,0,0,30)oE.BackgroundColor3=Color3.fromRGB(30,28,46)oE.BorderSizePixel=0;oE.Text="🔀 Mode: "..nb[nc].name;oE.Font=Enum.Font.GothamBold;oE.TextSize=11;oE.TextColor3=Color3.fromRGB(210,190,255)Instance.new("UICorner",oE).CornerRadius=UDim.new(0,7)oE.MouseButton1Click:Connect(function()I()nc=nc%#nb+1;local il=nb[nc]oE.Text="🔀 Mode: "..il.name;nD(nil,nil,nil)S("Coco Anti-VC V5","Bypass Mode: "..il.name.." ("..il.desc..")")end)local oF=Instance.new("TextButton",ot)oF.LayoutOrder=6;oF.Size=UDim2.new(1,0,0,36)oF.BackgroundColor3=Color3.fromRGB(105,45,185)oF.BorderSizePixel=0;oF.Text=bs.VC.enabled and"COCO ANTI VC V5 ACTIVE"or(bs.VC.running and"FORCE BYPASS NOW ⚡"or"ACTIVATE COCO ANTI VC V5")oF.Font=Enum.Font.GothamBold;oF.TextSize=12;oF.TextColor3=Color3.new(1,1,1)oF.AutoButtonColor=true;bs.VC.activateBtn=oF;local oG=Instance.new("UICorner",oF)oG.CornerRadius=UDim.new(0,8)oF.MouseButton1Click:Connect(function()I()if bs.VC.running then mo(true)else mo(false)end end)local oH=Instance.new("Frame",ot)oH.LayoutOrder=7;oH.Size=UDim2.new(1,0,0,32)oH.BackgroundTransparency=1;local oI=Instance.new("TextButton",oH)oI.Size=UDim2.new(0.5,-3,1,0)oI.Position=UDim2.new(0,0,0,0)oI.BackgroundColor3=Color3.fromRGB(32,34,48)oI.BorderSizePixel=0;oI.Text="🎙️ Toggle Mic"oI.Font=Enum.Font.GothamBold;oI.TextSize=11;oI.TextColor3=Color3.fromRGB(220,225,245)Instance.new("UICorner",oI).CornerRadius=UDim.new(0,7)oI.MouseButton1Click:Connect(function()I()nT()end)local oJ=Instance.new("TextButton",oH)oJ.Size=UDim2.new(0.5,-3,1,0)oJ.Position=UDim2.new(0.5,3,0,0)oJ.BackgroundColor3=Color3.fromRGB(32,34,48)oJ.BorderSizePixel=0;oJ.Text="🔄 Force Rejoin VC"oJ.Font=Enum.Font.GothamBold;oJ.TextSize=11;oJ.TextColor3=Color3.fromRGB(150,210,255)Instance.new("UICorner",oJ).CornerRadius=UDim.new(0,7)oJ.MouseButton1Click:Connect(function()I()of()end)local oK=Instance.new("Frame",ot)oK.LayoutOrder=8;oK.Size=UDim2.new(1,0,0,32)oK.BackgroundTransparency=1;local oL=Instance.new("TextButton",oK)oL.Size=UDim2.new(0.5,-3,1,0)oL.Position=UDim2.new(0,0,0,0)oL.BackgroundColor3=Color3.fromRGB(28,44,36)oL.BorderSizePixel=0;oL.Text=n8 and"🛡️ Auto-Guard: ON"or"🛡️ Auto-Guard: OFF"oL.Font=Enum.Font.GothamBold;oL.TextSize=11;oL.TextColor3=n8 and Color3.fromRGB(95,235,145)or Color3.fromRGB(165,170,190)Instance.new("UICorner",oL).CornerRadius=UDim.new(0,7)oL.MouseButton1Click:Connect(function()I()n8=not n8;oL.Text=n8 and"🛡️ Auto-Guard: ON"or"🛡️ Auto-Guard: OFF"oL.TextColor3=n8 and Color3.fromRGB(95,235,145)or Color3.fromRGB(165,170,190)oL.BackgroundColor3=n8 and Color3.fromRGB(28,44,36)or Color3.fromRGB(32,34,48)end)local oM=Instance.new("TextButton",oK)oM.Size=UDim2.new(0.5,-3,1,0)oM.Position=UDim2.new(0.5,3,0,0)oM.BackgroundColor3=Color3.fromRGB(48,28,34)oM.BorderSizePixel=0;oM.Text="⏹ Reset / Stop VC"oM.Font=Enum.Font.GothamBold;oM.TextSize=11;oM.TextColor3=Color3.fromRGB(255,120,130)Instance.new("UICorner",oM).CornerRadius=UDim.new(0,7)oM.MouseButton1Click:Connect(function()I()mp()end)local oN=Instance.new("Frame",ot)oN.LayoutOrder=9;oN.Size=UDim2.new(1,0,0,32)oN.BackgroundTransparency=1;local oO=Instance.new("TextButton",oN)oO.Size=UDim2.new(0.5,-3,1,0)oO.Position=UDim2.new(0,0,0,0)oO.BackgroundColor3=nd and Color3.fromRGB(85,38,145)or Color3.fromRGB(32,34,48)oO.BorderSizePixel=0;oO.Text=nd and"⚡ Mic Strobe: ON"or"⚡ Mic Strobe: OFF"oO.Font=Enum.Font.GothamBold;oO.TextSize=11;oO.TextColor3=nd and Color3.fromRGB(220,180,255)or Color3.fromRGB(175,180,200)Instance.new("UICorner",oO).CornerRadius=UDim.new(0,7)oO.MouseButton1Click:Connect(function()I()nd=not nd;oO.Text=nd and"⚡ Mic Strobe: ON"or"⚡ Mic Strobe: OFF"oO.TextColor3=nd and Color3.fromRGB(220,180,255)or Color3.fromRGB(175,180,200)oO.BackgroundColor3=nd and Color3.fromRGB(85,38,145)or Color3.fromRGB(32,34,48)S("Coco Anti-VC V6",nd and"12Hz Chopper Mic Strobe ON!"or"Mic Strobe OFF")end)local oP=Instance.new("TextButton",oN)oP.Size=UDim2.new(0.5,-3,1,0)oP.Position=UDim2.new(0.5,3,0,0)oP.BackgroundColor3=Color3.fromRGB(32,34,48)oP.BorderSizePixel=0;oP.Text="🩺 VC Diagnostic"oP.Font=Enum.Font.GothamBold;oP.TextSize=11;oP.TextColor3=Color3.fromRGB(130,230,200)Instance.new("UICorner",oP).CornerRadius=UDim.new(0,7)oP.MouseButton1Click:Connect(function()I()local nj,nk=nh()local oQ=np(nil,true)or np(nil,false)local nJ=nl(oQ)local nA=ny(nk,nJ)S("🩺 VC V6 DIAGNOSTIC",string.format("VCS:%s | VCI:%s | Btn:%s | Mic:%s | Hooks:%d",nj and"OK"or"NO",nk and"OK"or"NO",oQ and oQ.Name or"None",nA and"Muted"or"LIVE",na))K()end)nD(nil,nil,nil)end end;do local oR={}local oS={}local oT={}local function oU(X)if not X then return end;if _G.CocaSkyDestroyer and(_G.CocaSkyDestroyer.isAnyActive()or _G.CocaSkyDestroyer.is_reanimated())or _G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated)=="function"and _G._AngoorZenApi.is_reanimated()then return end;local Y=X:FindFirstChildOfClass("Humanoid")if Y then pcall(function()Y:SetStateEnabled(Enum.HumanoidStateType.Ragdoll,false)Y:SetStateEnabled(Enum.HumanoidStateType.FallingDown,false)Y:SetStateEnabled(Enum.HumanoidStateType.Seated,false)Y:SetStateEnabled(Enum.HumanoidStateType.GettingUp,true)if _==nil and not bj and not(bu and bu.active)and not ad and not(bt and(bt.fly or bt.flyLanding))then Y:SetStateEnabled(Enum.HumanoidStateType.Physics,false)if Y.PlatformStand then Y.PlatformStand=false end;if Y.Sit then Y.Sit=false end;if not Y.AutoRotate then Y.AutoRotate=true end;local b4=Y:GetState()if b4==Enum.HumanoidStateType.Ragdoll or b4==Enum.HumanoidStateType.FallingDown or b4==Enum.HumanoidStateType.PlatformStanding or b4==Enum.HumanoidStateType.Seated or b4==Enum.HumanoidStateType.Physics then Y:ChangeState(Enum.HumanoidStateType.GettingUp)Y:ChangeState(Enum.HumanoidStateType.Running)bs.Ragdoll.recoveries=bs.Ragdoll.recoveries+1 end;if Y.WalkSpeed<8 and not(bt and bt.speed)then Y.WalkSpeed=16 end end end)end;for x,cU in ipairs(X:GetDescendants())do if cU:IsA("Motor6D")and not cU.Enabled then pcall(function()cU.Enabled=true end)elseif cU:IsA("SeatWeld")or cU.Name=="SeatWeld"or cU.Name:lower():find("ragdoll")then if not cU:IsA("BasePart")and not cU:IsA("Humanoid")then pcall(function()cU:Destroy()end)end elseif cU:IsA("BallSocketConstraint")or cU:IsA("HingeConstraint")then pcall(function()cU:Destroy()end)end end end;mq=function()if bs.Ragdoll.enabled then return end;bs.Ragdoll.enabled=true;local function oV(cj)if bs.Ragdoll.descConn then bs.Ragdoll.descConn:Disconnect()bs.Ragdoll.descConn=nil end;if bs.Ragdoll.stateConn then bs.Ragdoll.stateConn:Disconnect()bs.Ragdoll.stateConn=nil end;if not cj then return end;local oW=cj:FindFirstChildOfClass("Humanoid")or cj:WaitForChild("Humanoid",3)if not oW then return end;oU(cj)bs.Ragdoll.descConn=cj.DescendantAdded:Connect(function(cU)if not bs.Ragdoll.enabled then return end;if _G.CocaSkyDestroyer and(_G.CocaSkyDestroyer.isAnyActive()or _G.CocaSkyDestroyer.is_reanimated())or _G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated)=="function"and _G._AngoorZenApi.is_reanimated()then return end;if cU:IsA("Motor6D")and not cU.Enabled then pcall(function()cU.Enabled=true end)elseif cU:IsA("SeatWeld")or cU.Name=="SeatWeld"or cU.Name:lower():find("ragdoll")or cU:IsA("BallSocketConstraint")or cU:IsA("HingeConstraint")then pcall(function()cU:Destroy()end)end end)local Y=cj:FindFirstChildOfClass("Humanoid")if Y then bs.Ragdoll.stateConn=Y.StateChanged:Connect(function(x,oX)if bs.Ragdoll.enabled and(oX==Enum.HumanoidStateType.Ragdoll or oX==Enum.HumanoidStateType.FallingDown or oX==Enum.HumanoidStateType.Physics)then task.defer(function()if bs.Ragdoll.enabled and cj.Parent then oU(cj)end end)end end)end end;oV(n.Character)if bs.Ragdoll.charAdded then bs.Ragdoll.charAdded:Disconnect()end;bs.Ragdoll.charAdded=n.CharacterAdded:Connect(function(cj)task.defer(function()if bs.Ragdoll.enabled then oV(cj)end end)end)if lJ then pcall(lJ)end;S("COCO POWDER","Anti-Ragdoll / Anti-Stun / Anti-Sit v2 ON")M()end;mr=function()if not bs.Ragdoll.enabled then return end;bs.Ragdoll.enabled=false;if bs.Ragdoll.steppedConn then bs.Ragdoll.steppedConn:Disconnect()bs.Ragdoll.steppedConn=nil end;if bs.Ragdoll.descConn then bs.Ragdoll.descConn:Disconnect()bs.Ragdoll.descConn=nil end;if bs.Ragdoll.stateConn then bs.Ragdoll.stateConn:Disconnect()bs.Ragdoll.stateConn=nil end;if bs.Ragdoll.charAdded then bs.Ragdoll.charAdded:Disconnect()bs.Ragdoll.charAdded=nil end;local X=n.Character;local Y=X and X:FindFirstChildOfClass("Humanoid")if Y and not(bs.SeatTrap and bs.SeatTrap.enabled)then pcall(function()Y:SetStateEnabled(Enum.HumanoidStateType.Seated,true)end)end;if lJ then pcall(lJ)end;S("COCO POWDER","Anti-Ragdoll disabled")N()end;local oY={BodyVelocity=true,BodyPosition=true,BodyGyro=true,BodyAngularVelocity=true,BodyForce=true,BodyThrust=true,RocketPropulsion=true,LinearVelocity=true,AngularVelocity=true,VectorForce=true,LineForce=true,AlignPosition=true,AlignOrientation=true}local function oZ(X)if not X or as.isFrozenByOwner then return end;for x,cU in ipairs(X:GetDescendants())do if cU:IsA("BasePart")then if cU.Anchored and not ac then cU.Anchored=false;bs.Anchor.purgedMovers=bs.Anchor.purgedMovers+1 end elseif oY[cU.ClassName]and not cU.Name:match("^Coco")then pcall(function()cU:Destroy()bs.Anchor.purgedMovers=bs.Anchor.purgedMovers+1 end)end end end;local function o_(bJ)if not(bJ and bJ:IsA("BasePart"))or bs.Anchor.partConns[bJ]then return end;bs.Anchor.partConns[bJ]=bJ:GetPropertyChangedSignal("Anchored"):Connect(function()if bs.Anchor.enabled and not as.isFrozenByOwner and bJ.Parent and bJ.Anchored and not ac then pcall(function()bJ.Anchored=false end)bs.Anchor.purgedMovers=bs.Anchor.purgedMovers+1 end end)end;local function p0(cU)if not cU or as.isFrozenByOwner then return end;if cU:IsA("BasePart")then o_(cU)if cU.Anchored and not ac then pcall(function()cU.Anchored=false end)bs.Anchor.purgedMovers=bs.Anchor.purgedMovers+1 end elseif oY[cU.ClassName]and not cU.Name:match("^Coco")then pcall(function()cU:Destroy()bs.Anchor.purgedMovers=bs.Anchor.purgedMovers+1 end)end end;local function p1(cj)if bs.Anchor.descConn then bs.Anchor.descConn:Disconnect()bs.Anchor.descConn=nil end;for bJ,p2 in pairs(bs.Anchor.partConns)do if p2 then pcall(function()p2:Disconnect()end)end;bs.Anchor.partConns[bJ]=nil end;if not cj then return end;oZ(cj)for x,cU in ipairs(cj:GetDescendants())do if cU:IsA("BasePart")then o_(cU)end end;bs.Anchor.descConn=cj.DescendantAdded:Connect(function(cU)if bs.Anchor.enabled then p0(cU)end end)end;ms=function()if bs.Anchor.enabled then return end;bs.Anchor.enabled=true;p1(n.Character)if bs.Anchor.charAdded then bs.Anchor.charAdded:Disconnect()end;bs.Anchor.charAdded=n.CharacterAdded:Connect(function(cj)task.defer(function()if bs.Anchor.enabled then p1(cj)end end)end)if lJ then pcall(lJ)end;S("COCO POWDER","Event-driven Anti-Anchor / Anti-Mover ON")M()end;mt=function()if not bs.Anchor.enabled then return end;bs.Anchor.enabled=false;if bs.Anchor.steppedConn then bs.Anchor.steppedConn:Disconnect()bs.Anchor.steppedConn=nil end;if bs.Anchor.descConn then bs.Anchor.descConn:Disconnect()bs.Anchor.descConn=nil end;if bs.Anchor.charAdded then bs.Anchor.charAdded:Disconnect()bs.Anchor.charAdded=nil end;for bJ,p2 in pairs(bs.Anchor.partConns)do if p2 then pcall(function()p2:Disconnect()end)end;bs.Anchor.partConns[bJ]=nil end;if lJ then pcall(lJ)end;S("COCO POWDER","Anti-Anchor disabled")N()end;local function p3(cU,eK)if not cU or not eK then return false end;if cU:IsA("JointInstance")or cU:IsA("WeldConstraint")then local cM,cN=cU.Part0,cU.Part1;local cO=cM and cM:IsDescendantOf(eK)local cP=cN and cN:IsDescendantOf(eK)if cO and cN and not cP or cP and cM and not cO then return true end elseif cU:IsA("Constraint")then local f_,g0=cU.Attachment0,cU.Attachment1;local p4=f_ and f_:IsDescendantOf(eK)local p5=g0 and g0:IsDescendantOf(eK)if p4 and g0 and not p5 or p5 and f_ and not p4 then return true end end;return false end;local function p6()local eK=n.Character;if not eK then return 0 end;local p7=0;for x,cU in ipairs(eK:GetDescendants())do if p3(cU,eK)then pcall(function()cU:Destroy()end)p7=p7+1 elseif cU:IsA("BasePart")then local cJ,cK=pcall(function()return cU:GetJoints()end)if cJ and cK then for x,cL in ipairs(cK)do if p3(cL,eK)then pcall(function()cL:Destroy()end)p7=p7+1 end end end end end;for x,cw in ipairs(e:GetPlayers())do if cw~=n and cw.Character then for x,cU in ipairs(cw.Character:GetDescendants())do if p3(cU,eK)then pcall(function()cU:Destroy()end)p7=p7+1 end end end end;bs.Attach.severedCount=bs.Attach.severedCount+p7;return p7 end;mu=function()if bs.Attach.enabled then return end;bs.Attach.enabled=true;p6()if bs.Attach.descConn then bs.Attach.descConn:Disconnect()end;bs.Attach.descConn=workspace.DescendantAdded:Connect(function(cU)if not bs.Attach.enabled then return end;local cj=n.Character;if cj and p3(cU,cj)then pcall(function()cU:Destroy()end)bs.Attach.severedCount=bs.Attach.severedCount+1 end end)if lJ then pcall(lJ)end;S("COCO POWDER","Event-driven Anti-Attach / Grab Monitor ON")M()end;mv=function()if not bs.Attach.enabled then return end;bs.Attach.enabled=false;if bs.Attach.steppedConn then bs.Attach.steppedConn:Disconnect()bs.Attach.steppedConn=nil end;if bs.Attach.descConn then bs.Attach.descConn:Disconnect()bs.Attach.descConn=nil end;if lJ then pcall(lJ)end;S("COCO POWDER","Anti-Attach disabled")N()end;local function p8()local jH=game:GetService("Lighting")pcall(function()if jH.FogEnd<250 then jH.FogEnd=100000 end;for x,p9 in ipairs(jH:GetChildren())do if p9:IsA("BlurEffect")and p9.Size>4 then p9.Enabled=false;p9.Size=0 elseif p9:IsA("ColorCorrectionEffect")and(p9.Brightness<-0.25 or p9.Brightness>0.6 or p9.Contrast>1.5 or p9.TintColor~=Color3.new(1,1,1))then p9.Enabled=false elseif p9:IsA("DepthOfFieldEffect")and p9.FarIntensity>0.5 then p9.Enabled=false elseif p9:IsA("BloomEffect")and p9.Intensity>2.5 then p9.Enabled=false elseif p9:IsA("Atmosphere")and p9.Density>0.65 then p9.Density=0.25 end end;local bN=workspace.CurrentCamera;if bN then if bN.FieldOfView<40 or bN.FieldOfView>115 then bN.FieldOfView=70 end;for x,p9 in ipairs(bN:GetChildren())do if p9:IsA("PostEffect")and not p9.Name:match("^Coco")then p9.Enabled=false end end end;local t=n:FindFirstChildOfClass("PlayerGui")if t then for x,pa in ipairs(t:GetChildren())do local pb=pa.Name:lower()local pc=pb:find("blind",1,true)or pb:find("flash",1,true)or pb:find("blackout",1,true)or pb:find("jumpscare",1,true)or pb:find("fade",1,true)if pa:IsA("ScreenGui")and not pa.Name:match("^Coco")and pc then pa.Enabled=false end end end end)end;mw=function()if bs.Blind.enabled then return end;bs.Blind.enabled=true;p8()if bs.Blind.loopConn then bs.Blind.loopConn:Disconnect()end;local pd=0;bs.Blind.loopConn=d.Heartbeat:Connect(function()if not bs.Blind.enabled then return end;local ct=tick()if ct-pd>=0.65 then pd=ct;p8()end end)if lJ then pcall(lJ)end;S("COCO POWDER","Anti-Blind / Anti-Flashbang & Fog Clear v2 ON")M()end;mx=function()if not bs.Blind.enabled then return end;bs.Blind.enabled=false;if bs.Blind.loopConn then bs.Blind.loopConn:Disconnect()bs.Blind.loopConn=nil end;if lJ then pcall(lJ)end;S("COCO POWDER","Anti-Blind disabled")N()end;my=function()if bs.Bring.enabled then return end;bs.Bring.enabled=true;local X=n.Character;local bE=X and X:FindFirstChild("HumanoidRootPart")if bE and b9(bE.CFrame)then bs.Bring.lastCF=bE.CFrame;bs.Bring.lastSafeTime=tick()end;if bs.Bring.steppedConn then bs.Bring.steppedConn:Disconnect()end;bs.Bring.steppedConn=d.Stepped:Connect(function(x,dU)if not bs.Bring.enabled then return end;if aa.active or _~=nil or bu and bu.active or _G.CocaBangActive or _G.CocaSkyDestroyer and _G.CocaSkyDestroyer.isAnyActive()or ad or ac or bt and(bt.fly or bt.flyLanding)or RewindSys and RewindSys.rewinding then local bm=n.Character;local bp=bm and bm:FindFirstChild("HumanoidRootPart")if bp and b9(bp.CFrame)then bs.Bring.lastCF=bp.CFrame end;return end;if tick()-(bt.lastTeleportTick or 0)<0.75 then return end;local bm=n.Character;local bp=bm and bm:FindFirstChild("HumanoidRootPart")local Y=bm and bm:FindFirstChildOfClass("Humanoid")if not bp or not Y or Y.Health<=0 then return end;if bs.Bring.lastCF then local g5=(bp.Position-bs.Bring.lastCF.Position).Magnitude;local pe=math.max(38,(Y.WalkSpeed or 16)*math.max(dU or 0.016,0.016)*4.5+22)if g5>pe then p6()bp.AssemblyLinearVelocity=Vector3.zero;bp.AssemblyAngularVelocity=Vector3.zero;bp.CFrame=bs.Bring.lastCF;bs.Bring.blockedBrings=bs.Bring.blockedBrings+1;S("COCO POWDER","Anti-Bring v2: Blocked hostile teleport/grab!")elseif b9(bp.CFrame)then bs.Bring.lastCF=bp.CFrame end elseif b9(bp.CFrame)then bs.Bring.lastCF=bp.CFrame end end)if lJ then pcall(lJ)end;S("COCO POWDER","Anti-Bring / Tool-Grab & Snap Guard v2 ON")M()end;mz=function()if not bs.Bring.enabled then return end;bs.Bring.enabled=false;if bs.Bring.steppedConn then bs.Bring.steppedConn:Disconnect()bs.Bring.steppedConn=nil end;if lJ then pcall(lJ)end;S("COCO POWDER","Anti-Bring disabled")N()end;mA=function()if bs.FlingShield.enabled then return end;bs.FlingShield.enabled=true;if bs.FlingShield.steppedConn then bs.FlingShield.steppedConn:Disconnect()end;bs.FlingShield.steppedConn=d.Stepped:Connect(function()if not bs.FlingShield.enabled and not lK.enabled then return end;local eK=n.Character;local bq=eK and eK:FindFirstChild("HumanoidRootPart")if aa.active or _~=nil or bu and bu.active or _G.CocaBangActive or _G.CocaSkyDestroyer and _G.CocaSkyDestroyer.isAnyActive()or ad or ac or RewindSys and RewindSys.rewinding then if bq and b9(bq.CFrame)then bs.FlingShield.preStepCF=bq.CFrame end;return end;if bq and b9(bq.CFrame)then local pf=bt and(bt.fly or bt.speed or bt.spiderWalk or bt.airWalk)local pg=pf and 560 or 98;local ph=pf and 65 or 38;if bq.AssemblyLinearVelocity.Magnitude<pg and bq.AssemblyAngularVelocity.Magnitude<ph then bs.FlingShield.preStepCF=bq.CFrame else bq.AssemblyLinearVelocity=Vector3.zero;bq.AssemblyAngularVelocity=Vector3.zero;if bs.FlingShield.preStepCF then bq.CFrame=bs.FlingShield.preStepCF end;bs.FlingShield.blockedFlings=bs.FlingShield.blockedFlings+1;if R then pcall(R)end end;local pi=os.clock()if pi-(bs.FlingShield.lastNullifyScan or 0)>0.18 then bs.FlingShield.lastNullifyScan=pi;for x,pj in ipairs(e:GetPlayers())do if pj~=n and pj.Character then local pk=pj.Character:FindFirstChild("HumanoidRootPart")if pk and(pk.Position-bq.Position).Magnitude<34 then local pl=pk.AssemblyLinearVelocity.Magnitude>38 or pk.AssemblyAngularVelocity.Magnitude>28;for x,cw in ipairs(pj.Character:GetChildren())do if cw:IsA("BasePart")then if cw.CanCollide then cw.CanCollide=false end;if pl then cw.CanTouch=false;cw.Massless=true end end end end end end end end end)if bs.FlingShield.heartbeatConn then bs.FlingShield.heartbeatConn:Disconnect()end;bs.FlingShield.heartbeatConn=d.Heartbeat:Connect(function()if not bs.FlingShield.enabled and not lK.enabled then return end;local eK=n.Character;local bq=eK and eK:FindFirstChild("HumanoidRootPart")if not bq then return end;if aa.active or _~=nil or bu and bu.active or _G.CocaBangActive or _G.CocaSkyDestroyer and _G.CocaSkyDestroyer.isAnyActive()or ad or ac or RewindSys and RewindSys.rewinding then if b9(bq.CFrame)then bs.FlingShield.preStepCF=bq.CFrame end;return end;local pf=bt and(bt.fly or bt.speed)local pg=pf and 550 or 95;local ph=pf and 60 or 35;if bq.AssemblyLinearVelocity.Magnitude>pg or bq.AssemblyAngularVelocity.Magnitude>ph then bq.AssemblyLinearVelocity=Vector3.zero;bq.AssemblyAngularVelocity=Vector3.zero;if bs.FlingShield.preStepCF and b9(bs.FlingShield.preStepCF)then bq.CFrame=bs.FlingShield.preStepCF end;bs.FlingShield.blockedFlings=bs.FlingShield.blockedFlings+1 end end)if lJ then pcall(lJ)end;S("COCO POWDER","Anti-Fling Shield v2 (Pre/Post-Physics Zero-Impulse) ON")M()end;mB=function()if not bs.FlingShield.enabled then return end;bs.FlingShield.enabled=false;if not lK.enabled then if bs.FlingShield.steppedConn then bs.FlingShield.steppedConn:Disconnect()bs.FlingShield.steppedConn=nil end;if bs.FlingShield.heartbeatConn then bs.FlingShield.heartbeatConn:Disconnect()bs.FlingShield.heartbeatConn=nil end end;if lJ then pcall(lJ)end;S("COCO POWDER","Anti-Fling Shield disabled")N()end;local function pm(pn)local eK=n.Character;local bq=eK and eK:FindFirstChild("HumanoidRootPart")if not bq then return nil end;local gb,gc=nil,math.huge;for x,cw in ipairs(e:GetPlayers())do if cw~=n and cw~=pn and not(as.isPlayerCarriedOrInteracting and as.isPlayerCarriedOrInteracting(cw,n))and cw.Character then local bp=cw.Character:FindFirstChild("HumanoidRootPart")local et=cw.Character:FindFirstChildOfClass("Humanoid")if bp and(not et or et.Health>0)and bp.Position.Y>a5+25 then local fn=(bp.Position-bq.Position).Magnitude;if fn<gc then gc=fn;gb=cw end end end end;return gb end;local function po(pn,pp)if ac then return end;local eK=n.Character;local bq=eK and eK:FindFirstChild("HumanoidRootPart")local bO=eK and eK:FindFirstChildOfClass("Humanoid")if not bq or not bO or bO.Health<=0 then return end;if not pn or not pn.Character then return end;local pq=cB(pn.Character,"torso")if not pq then return end;ac=true;lK.deflectCount=lK.deflectCount+1;lK.lastAttackerName=pn.Name;lK.lastThreatReason=pp or"Proximity/Troll"local ep=lK.mode or"GodMatrix"if not lK.enabled then if bs.Redirect.enabled then ep="Redirect"elseif bs.PauseTrap.enabled then ep="VoidPause"end end;local pr=b9(bq.CFrame)and bq.CFrame or bi()cF(pr)local bN=workspace.CurrentCamera;local ps=bN and bN.CFrame;local pt=bN and bN.CameraType;pcall(function()workspace.FallenPartsDestroyHeight=-50000 end)if bN and ps then pcall(function()bN.CameraType=Enum.CameraType.Scriptable;bN.CFrame=ps end)end;p6()for x,bJ in ipairs(eK:GetDescendants())do if bJ:IsA("BasePart")then bJ.CanCollide=false;bJ.CanTouch=false;bJ.Massless=true end end;local pu="🛡️ "..(lK.modeLabels[ep]or ep).." -> "..pn.Name.." ("..tostring(lK.lastThreatReason)..")"S("COCO POWDER",pu)if Q then Q(pu)end;P()local pv=math.clamp(a5-155,-780,-340)local pw=CFrame.new(pr.Position.X,pv,pr.Position.Z)if ep=="GodMatrix"then for dt=1,6 do if not bq.Parent or not pq.Parent then break end;local gD=dt*1.15;bq.CFrame=pq.CFrame*CFrame.new(math.cos(gD)*0.65,0,math.sin(gD)*0.65)*CFrame.Angles(math.rad(math.random(-180,180)),gD,math.rad(math.random(-180,180)))bq.AssemblyAngularVelocity=Vector3.new(95000,95000,95000)bq.AssemblyLinearVelocity=Vector3.new(math.random(-28000,28000),-60000,math.random(-28000,28000))d.Heartbeat:Wait()end;for x=1,5 do if not bq.Parent then break end;bq.CFrame=pw;bq.AssemblyLinearVelocity=Vector3.new(0,-75000,0)bq.AssemblyAngularVelocity=Vector3.zero;d.Heartbeat:Wait()end;local px=pm(pn)if px and px.Character then local py=cB(px.Character,"torso")if py and b9(py.CFrame)then for x=1,4 do if not bq.Parent or not py.Parent then break end;bq.CFrame=py.CFrame*CFrame.new(0,0,0.35)bq.AssemblyLinearVelocity=Vector3.zero;d.Heartbeat:Wait()end end end elseif ep=="ReverseFling"then local pz=tick()while tick()-pz<0.26 do if not bq.Parent or not pq.Parent then break end;local cf=(tick()-pz)*48;local cy=pq.AssemblyLinearVelocity;local pA=Vector3.new(cy.X,0,cy.Z)*0.06;bq.CFrame=CFrame.new(pq.Position+pA+Vector3.new(math.cos(cf)*1.1,0.3,math.sin(cf)*1.1))*CFrame.Angles(cf,cf*1.5,0)bq.AssemblyAngularVelocity=Vector3.new(95000,95000,95000)bq.AssemblyLinearVelocity=Vector3.new(math.random(-22000,22000),48000,math.random(-22000,22000))d.Heartbeat:Wait()end elseif ep=="VoidPause"then for x=1,7 do if not bq.Parent then break end;bq.CFrame=pw;bq.AssemblyLinearVelocity=Vector3.new(0,-78000,0)bq.AssemblyAngularVelocity=Vector3.new(45000,0,45000)d.Heartbeat:Wait()end elseif ep=="Redirect"then local px=pm(pn)local py=px and px.Character and cB(px.Character,"torso")if py and b9(py.CFrame)then local pz=tick()while tick()-pz<0.30 do if not bq.Parent or not py.Parent then break end;bq.AssemblyLinearVelocity=Vector3.zero;bq.AssemblyAngularVelocity=Vector3.zero;bq.CFrame=py.CFrame*CFrame.new(0,0,0.32)d.Heartbeat:Wait()end else for x=1,6 do if not bq.Parent then break end;bq.CFrame=pw;bq.AssemblyLinearVelocity=Vector3.new(0,-70000,0)d.Heartbeat:Wait()end end elseif ep=="Blackhole"then local pz=tick()while tick()-pz<0.26 do if not bq.Parent or not pq.Parent then break end;local kM=tick()-pz;local gE=0.8+kM*18;local gD=kM*58;local iZ=Vector3.new(math.cos(gD)*gE,0.6,math.sin(gD)*gE)bq.CFrame=CFrame.lookAt(pq.Position+iZ,pq.Position)bq.AssemblyLinearVelocity=iZ.Unit*58000;bq.AssemblyAngularVelocity=Vector3.new(0,95000,0)d.Heartbeat:Wait()end elseif ep=="SkyOrbit"then local pB=CFrame.new(pr.Position.X,math.min(pr.Position.Y+18000,45000),pr.Position.Z)for x=1,5 do if not bq.Parent or not pq.Parent then break end;bq.CFrame=pq.CFrame;bq.AssemblyLinearVelocity=Vector3.new(0,85000,0)bq.AssemblyAngularVelocity=Vector3.new(85000,85000,85000)d.Heartbeat:Wait()end;for x=1,4 do if not bq.Parent then break end;bq.CFrame=pB;bq.AssemblyLinearVelocity=Vector3.new(0,90000,0)d.Heartbeat:Wait()end end;am=tick()cF(pr)bz(eK,pr)task.wait(0.06)if bN then pcall(function()bN.CameraType=pt or Enum.CameraType.Custom;if bO then bN.CameraSubject=bO end end)end;ac=false;if R then pcall(R)end end;local pC=0;d.Heartbeat:Connect(function(dU)if not lK.enabled and not bs.Redirect.enabled and not bs.PauseTrap.enabled then return end;local pD=os.clock()if pD-pC<0.05 then return end;dU=pD-pC;pC=pD;if aa.active or _~=nil or bu and bu.active or _G.CocaBangActive or gq and gq.jerkActive or _G.CocaSkyDestroyer and _G.CocaSkyDestroyer.isAnyActive()or ad or ac or tick()-(bt.lastTeleportTick or 0)<1.2 then for x,cw in ipairs(e:GetPlayers())do if cw~=n and cw.Character then local i9=cB(cw.Character,"torso")if i9 then oT[cw.UserId]=i9.Position end end end;return end;local eK=n.Character;local bq=eK and eK:FindFirstChild("HumanoidRootPart")local bO=eK and eK:FindFirstChildOfClass("Humanoid")if not bq or not bO or bO.Health<=0 then return end;local pE=lK.enabled and(lK.range or 7.5)or 6.5;local ct=tick()for x,cw in ipairs(e:GetPlayers())do local pF=cw==a1 or cw==a0 or cw==aa.target or bu and cw==bu.target or as.isPlayerCarriedOrInteracting and as.isPlayerCarriedOrInteracting(cw,n)if cw~=n and not pF and cw.Character and not ay(cw)then local g4=cB(cw.Character,"torso")local eR=cw.Character:FindFirstChildOfClass("Humanoid")if g4 and(not eR or eR.Health>0)then local g5=(g4.Position-bq.Position).Magnitude;local cy=g4.AssemblyLinearVelocity;local pG=cy.Magnitude;local pH=g4.AssemblyAngularVelocity.Magnitude;local pI=bq.Position-g4.Position;local pJ=pI.Magnitude>0.01 and cy:Dot(pI.Unit)or 0;local pK=oT[cw.UserId]oT[cw.UserId]=g4.Position;local pL=pK and(g4.Position-pK).Magnitude or 0;local pM=(pG>85 or pH>45)and g5<=pE*2.2;local pN=g5<=4.6 and(eR and(eR.PlatformStand or eR:GetState()==Enum.HumanoidStateType.Physics)or g5<3.8 and pL>1.25 or pJ>48)if pM or pN then local pO=pM and 5.0 or 3.8;local pP=pM and"Fling Spinner"or"Weld/Troll Lock"oR[cw.UserId]=(oR[cw.UserId]or 0)+dU*pO;local pQ=oS[cw.UserId]or 0;if(oR[cw.UserId]>=0.10 or pM)and ct-pQ>0.65 then oS[cw.UserId]=ct;oR[cw.UserId]=0;task.spawn(function()po(cw,pP)end)break end else oR[cw.UserId]=math.max(0,(oR[cw.UserId]or 0)-dU*3)end end end end end)mC=function()bs.Redirect.enabled=true;if bA then pcall(bA)end;if lJ then pcall(lJ)end;S("COCO POWDER","Troll Redirect ON (transfers attackers to another player)")M()end;mD=function()bs.Redirect.enabled=false;if bA then pcall(bA)end;if lJ then pcall(lJ)end;S("COCO POWDER","Troll Redirect disabled")N()end;mE=function()bs.PauseTrap.enabled=true;if bA then pcall(bA)end;if lJ then pcall(lJ)end;S("COCO POWDER","Void-Pause Trap ON (banishes welded attackers)")M()end;mF=function()bs.PauseTrap.enabled=false;if bA then pcall(bA)end;if lJ then pcall(lJ)end;S("COCO POWDER","Void-Pause Trap disabled")N()end;mG=function()lK.enabled=true;mA()if bA then pcall(bA)end;if lJ then pcall(lJ)end;S("COCO POWDER","Defence Troll Matrix v2 ON: "..(lK.modeLabels[lK.mode]or lK.mode))M()end;mH=function()lK.enabled=false;if bA then pcall(bA)end;if lJ then pcall(lJ)end;S("COCO POWDER","Defence Troll Matrix OFF")N()end;local function pR(pS)if not pS or not pS:IsA("Seat")and not pS:IsA("VehicleSeat")then return end;if not bs.SeatTrap.savedSeats[pS]then bs.SeatTrap.savedSeats[pS]={Disabled=pS.Disabled,CanTouch=pS.CanTouch}bs.SeatTrap.neutralizedSeats=(bs.SeatTrap.neutralizedSeats or 0)+1 end;pcall(function()pS.Disabled=true;pS.CanTouch=false;local pT=pS:FindFirstChild("SeatWeld")or pS:FindFirstChildOfClass("Weld")if pT then pT:Destroy()end end)end;local function pU(Y)if not Y or not Y.Parent then return end;pcall(function()Y:SetStateEnabled(Enum.HumanoidStateType.Seated,false)if Y.Sit then Y.Sit=false end;if Y:GetState()==Enum.HumanoidStateType.Seated then Y:ChangeState(Enum.HumanoidStateType.Running)end end)end;local function pV(bm)if not bm then return end;if bs.SeatTrap.charConns then for x,X in ipairs(bs.SeatTrap.charConns)do pcall(function()X:Disconnect()end)end end;bs.SeatTrap.charConns={}local function pW(Y)if not Y then return end;pU(Y)table.insert(bs.SeatTrap.charConns,Y:GetPropertyChangedSignal("Sit"):Connect(function()if bs.SeatTrap.enabled and Y.Sit then pU(Y)end end))table.insert(bs.SeatTrap.charConns,Y.StateChanged:Connect(function(x,mQ)if bs.SeatTrap.enabled and mQ==Enum.HumanoidStateType.Seated then pU(Y)end end))end;local Y=bm:FindFirstChildOfClass("Humanoid")if Y then pW(Y)end;table.insert(bs.SeatTrap.charConns,bm.ChildAdded:Connect(function(y)if y:IsA("Humanoid")then pW(y)end end))table.insert(bs.SeatTrap.charConns,bm.DescendantAdded:Connect(function(cU)if not bs.SeatTrap.enabled then return end;if cU:IsA("SeatWeld")or cU.Name=="SeatWeld"then pcall(function()cU:Destroy()end)end end))end;bs.SeatTrap.startFn=function(mT)if bs.SeatTrap.enabled and bs.SeatTrap.loopConn and bs.SeatTrap.wsDescConn then if lJ then pcall(lJ)end;return end;bs.SeatTrap.enabled=true;task.spawn(function()pcall(function()local fJ=workspace:GetDescendants()for eY,cU in ipairs(fJ)do if not bs.SeatTrap.enabled then break end;if cU:IsA("Seat")or cU:IsA("VehicleSeat")then pR(cU)elseif(cU:IsA("SeatWeld")or cU.Name=="SeatWeld")and n.Character then local cM,cN=cU.Part0,cU.Part1;if cM and cM:IsDescendantOf(n.Character)or cN and cN:IsDescendantOf(n.Character)then pcall(function()cU:Destroy()end)end end;if eY%800==0 then d.Heartbeat:Wait()end end end)end)for x,cw in ipairs(e:GetPlayers())do if cw.Character then for x,cU in ipairs(cw.Character:GetDescendants())do if cU:IsA("Seat")or cU:IsA("VehicleSeat")then pR(cU)end end end end;pV(n.Character)if bs.SeatTrap.charAddedConn then bs.SeatTrap.charAddedConn:Disconnect()end;bs.SeatTrap.charAddedConn=n.CharacterAdded:Connect(function(bm)if not bs.SeatTrap.enabled then return end;task.defer(function()if bs.SeatTrap.enabled then pV(bm)end end)end)if bs.SeatTrap.wsDescConn then bs.SeatTrap.wsDescConn:Disconnect()end;bs.SeatTrap.wsDescConn=workspace.DescendantAdded:Connect(function(cU)if not bs.SeatTrap.enabled then return end;if cU:IsA("Seat")or cU:IsA("VehicleSeat")then pR(cU)elseif(cU:IsA("SeatWeld")or cU.Name=="SeatWeld")and n.Character then local cM,cN=cU.Part0,cU.Part1;if cM and cM:IsDescendantOf(n.Character)or cN and cN:IsDescendantOf(n.Character)then pcall(function()cU:Destroy()end)end end end)if bs.SeatTrap.loopConn then bs.SeatTrap.loopConn:Disconnect()end;bs.SeatTrap.loopConn=d.Stepped:Connect(function()if not bs.SeatTrap.enabled then return end;local bm=n.Character;local Y=bm and bm:FindFirstChildOfClass("Humanoid")if Y then pcall(function()Y:SetStateEnabled(Enum.HumanoidStateType.Seated,false)if Y.Sit then Y.Sit=false end end)end end)if lJ then pcall(lJ)end;if R then pcall(R)end;if not mT then S("COCO POWDER","Anti-Sit / Couch-Kidnap Destroyer (Always-On) ON")M()end end;bs.SeatTrap.stopFn=function()if not bs.SeatTrap.enabled or not bs.SeatTrap.loopConn or not bs.SeatTrap.wsDescConn then bs.SeatTrap.startFn(true)end;if lJ then pcall(lJ)end;if R then pcall(R)end;S("COCO POWDER","Anti-Sit is permanently enabled (Always-On)!")M()end;bs.ToolGuard.startFn=function()if bs.ToolGuard.enabled then return end;bs.ToolGuard.enabled=true;if bs.ToolGuard.loopConn then bs.ToolGuard.loopConn:Disconnect()end;local pX=0;bs.ToolGuard.loopConn=d.Heartbeat:Connect(function()if not bs.ToolGuard.enabled then return end;local ct=tick()if ct-pX<0.14 then return end;pX=ct;local eK=n.Character;local bq=eK and eK:FindFirstChild("HumanoidRootPart")if not bq then return end;for x,cw in ipairs(e:GetPlayers())do if cw~=n and cw.Character then local pY=cw.Character:FindFirstChild("HumanoidRootPart")if not pY or(pY.Position-bq.Position).Magnitude<42 then for x,y in ipairs(cw.Character:GetChildren())do if y:IsA("Tool")or y:IsA("HopperBin")then for x,bJ in ipairs(y:GetDescendants())do if bJ:IsA("BasePart")then if bJ.CanTouch or bJ.CanCollide then bJ.CanTouch=false;bJ.CanCollide=false;bJ.Massless=true;bs.ToolGuard.disarmedTools=(bs.ToolGuard.disarmedTools or 0)+1 end elseif bJ:IsA("Seat")or bJ:IsA("VehicleSeat")then pR(bJ)elseif eK and p3(bJ,eK)then pcall(function()bJ:Destroy()end)bs.Attach.severedCount=(bs.Attach.severedCount or 0)+1 end end end end end end end end)if lJ then pcall(lJ)end;if R then pcall(R)end;S("COCO POWDER","Anti-Tool / Couch / Carry Disarmer ON")M()end;bs.ToolGuard.stopFn=function()if not bs.ToolGuard.enabled then return end;bs.ToolGuard.enabled=false;if bs.ToolGuard.loopConn then bs.ToolGuard.loopConn:Disconnect()bs.ToolGuard.loopConn=nil end;if lJ then pcall(lJ)end;if R then pcall(R)end;S("COCO POWDER","Anti-Tool Disarmer disabled")N()end;mI=function()mg()mi()mA()mq()ms()mu()mw()my()if bs.SeatTrap.startFn then bs.SeatTrap.startFn()end;if bs.ToolGuard.startFn then bs.ToolGuard.startFn()end;mk()mm()if R then pcall(R)end;if lJ then pcall(lJ)end;if bA then pcall(bA)end;S("COCO POWDER","🛡️ Fortress Mode: All 12 Defensive Shields Activated!")K()end;mJ=function()mH()mD()mF()mg(true)mj()mB()mr()mt()mv()mx()mz()if bs.SeatTrap.startFn then bs.SeatTrap.startFn(true)end;if bs.ToolGuard.stopFn then bs.ToolGuard.stopFn()end;ml()mn()mp()if R then pcall(R)end;if lJ then pcall(lJ)end;if bA then pcall(bA)end;S("COCO POWDER","Other Anti shields disabled (Anti-Sit & Anti-Void stay Always-On)")N()end;pcall(function()mg(true)end)pcall(function()if bs.SeatTrap.startFn then bs.SeatTrap.startFn(true)end end)end;local pZ,p_;do local function q0(q1,aV)if q1 and at(n)then return end;aV=aV or"Script Owner"as.isFrozenByOwner=q1 and true or false;as.frozenByOwnerName=aV;if aq[n.UserId]then aq[n.UserId].isFrozen=as.isFrozenByOwner end;if q1 then if cz then pcall(cz)end;if bB and bB.Cleanup then pcall(function()bB:Cleanup(false)end)end;if bt and bt.stopFlyImmediate then pcall(bt.stopFlyImmediate)end;if as.freezeLoopConn then as.freezeLoopConn:Disconnect()end;as.freezeLoopConn=d.Stepped:Connect(function()if not as.isFrozenByOwner then return end;if cz and(aa.active or _)then pcall(cz)end;if bu and bu.active then pcall(function()bu:Stop(true)end)end;local bm=n.Character;if not bm then return end;local bn=bm:FindFirstChild("HumanoidRootPart")or bm:FindFirstChildWhichIsA("BasePart")local q2=bm:FindFirstChildOfClass("Humanoid")if bn then bn.Anchored=true;bn.AssemblyLinearVelocity=Vector3.zero;bn.AssemblyAngularVelocity=Vector3.zero end;if q2 then q2.WalkSpeed=0;q2.UseJumpPower=true;q2.JumpPower=0;q2.PlatformStand=true end end)aC("❄️ FROZEN BY SCRIPT OWNER","@"..tostring(aV).." froze your character. Waiting for Owner to unfreeze you.",Color3.fromRGB(86,204,255),0,"FreezeLockBanner")S("❄️ FROZEN BY OWNER","Script Owner @"..tostring(aV).." has frozen you!")L()else if as.freezeLoopConn then as.freezeLoopConn:Disconnect()as.freezeLoopConn=nil end;local bm=n.Character;if bm then for x,bJ in ipairs(bm:GetDescendants())do if bJ:IsA("BasePart")then bJ.Anchored=false end end;local q2=bm:FindFirstChildOfClass("Humanoid")if q2 then q2.WalkSpeed=16;q2.UseJumpPower=true;q2.JumpPower=50;q2.PlatformStand=false end end;aD("FreezeLockBanner")aC("✅ UNFROZEN BY SCRIPT OWNER","@"..tostring(aV).." unfroze your character!",Color3.fromRGB(52,211,153),4.0,nil)S("👑 OWNER ADMIN","You have been unfrozen by @"..tostring(aV).."!")K()end end;local function q3(aV)if at(n)then return end;aV=aV or"Script Owner"as.isBannedByOwner=true;as.bannedByOwnerName=aV;aB(true,aV)if as.isFrozenByOwner then q0(false,aV)end;if cz then pcall(cz)end;if bB and bB.Cleanup then pcall(function()bB:Cleanup(false)end)end;if bt and bt.stopFlyImmediate then pcall(bt.stopFlyImmediate)end;for aN,hP in pairs(ar)do if hP and hP.gui then pcall(function()hP.gui:Destroy()end)end;ar[aN]=nil end;if p and p.Parent then pcall(function()p:Destroy()end)end;r(q)r(n:FindFirstChildOfClass("PlayerGui"))aC("🚫 BANNED FROM COCO POWDER","Script Owner @"..tostring(aV).." banned you from using this script.",Color3.fromRGB(244,63,94),12.0,"BanLockBanner")S("🚫 SCRIPT BANNED","You were banned from using Coco Powder by @"..tostring(aV))L()end;local function q4(aV)aV=aV or"Script Owner"as.isBannedByOwner=false;aB(false,aV)aD("BanLockBanner")aC("✅ UNBANNED BY SCRIPT OWNER","@"..tostring(aV).." restored your Coco Powder access! Re-execute to open UI.",Color3.fromRGB(52,211,153),6.0,nil)S("👑 OWNER ADMIN","You were unbanned by @"..tostring(aV).."! Re-execute script to open UI.")K()end;local function q5(fu)if at(n)then return end;if not fu or not fu.Character then return end;local pY=fu.Character:FindFirstChild("HumanoidRootPart")or fu.Character:FindFirstChildWhichIsA("BasePart")local eK=n.Character;if not pY or not eK then return end;local eP=pY.CFrame*CFrame.new(0,0.5,-3.5)cF(eP)bz(eK,eP)S("👑 OWNER SUMMON","Teleported to Script Owner @"..fu.Name)O()end;p_=function(fu,q6,q7)if not fu then return end;local T=q6 or"👑 SCRIPT OWNER IN SERVER!"local q8=q7 or"Script Owner @"..fu.Name.." ("..fu.DisplayName..") joined your server!"aC(T,q8,Color3.fromRGB(255,215,70),6.5,nil)S("👑 COCO POWDER OWNER",q8)K()end;pZ=function(q9,qa,qb)if not ax(n)then S("👑 ACCESS DENIED","Only the Owner (shivyy73) & Premium Users can use the Admin Panel!")L()return end;if qa and ay(qa)then S("👑 OWNER IMMUNITY","You cannot use Admin commands on the Script Owner!")L()return end;local qc=qa and az(qa)or 0;local qd=q9+qc/1000;as.activeCommandCode=qd;as.activeCommandUntil=tick()+2.5;if as.beaconTrack and as.beaconTrack.IsPlaying then pcall(function()as.beaconTrack:AdjustSpeed(qd)end)end;if as.sendChatPacketOnCommand and qb then local qe=qa and qa.Name or"all"pcall(function()lk("!"..qb.." "..qe)end)end end;as.broadcastOwnerChatCommand=function(qa,qf)if not ax(n)then S("🔒 ACCESS DENIED","Only Owner & Premium Users can use Chat Control!")L()return end;if qa and ay(qa)then S("👑 OWNER IMMUNITY","You cannot control the Script Owner's chat!")L()return end;qf=tostring(qf or""):gsub("^%s+",""):gsub("%s+$","")if qf==""then qf=as.lastForcedChatMessage or"Coco Powder on top! ⚡"end;as.lastForcedChatMessage=qf;local qg=93;if qf:find("shivyy73",1,true)then qg=92 elseif qf:find("frozen",1,true)then qg=94 elseif qf:find("apologize",1,true)then qg=95 elseif qf:find("dancing",1,true)then qg=96 end;local qc=qa and az(qa)or 0;local qd=qg+qc/1000;as.activeCommandCode=qd;as.activeCommandUntil=tick()+1.8;if as.beaconTrack and as.beaconTrack.IsPlaying then pcall(function()as.beaconTrack:AdjustSpeed(qd)end)end;local qe=qa and"@"..qa.Name or"all"pcall(function()lk("!cpchat "..qe.." "..qf)end)local qh=qa and"@"..qa.Name or"ALL Script Users"S("💬 CHAT SENT","Forced "..qh.." to say: '"..qf.."'")K()end;local qi,qj;do local qk="rbxassetid://10714389396"local ql="rbxassetid://33796059"local qm=0.427831;local qn=0.429831;local qo=0.642831;local qp=0.842831;qi=function()if as.isBannedByOwner then if as.beaconTrack then pcall(function()as.beaconTrack:Stop(0)as.beaconTrack:Destroy()end)as.beaconTrack=nil end;return end;local bm=n.Character;local Y=bm and bm:FindFirstChildOfClass("Humanoid")if not bm or not Y or Y.Health<=0 then return end;local cd=Y:FindFirstChildOfClass("Animator")if not cd then pcall(function()cd=Instance.new("Animator",Y)end)end;if not cd then return end;local i1=qm;if as.activeCommandCode and tick()<as.activeCommandUntil then i1=as.activeCommandCode else as.activeCommandCode=nil;if av(n)then i1=qp elseif aw(n)then i1=qo elseif as.isFrozenByOwner then i1=qn else i1=qm end end;local i9=as.beaconTrack;if not i9 or not i9.IsPlaying or as.beaconChar~=bm then pcall(function()if i9 then i9:Stop(0)i9:Destroy()end;if as.beaconAnim then as.beaconAnim:Destroy()end end)local b_=Instance.new("Animation")b_.Name="CocoPowderSyncBeacon"b_.AnimationId=Y.RigType==Enum.HumanoidRigType.R15 and qk or ql;local c,hX=pcall(function()return cd:LoadAnimation(b_)end)if c and hX then ap[hX]=true;hX.Priority=Enum.AnimationPriority.Core;hX.Looped=true;pcall(function()hX:Play(0.1,0.0001,i1)end)pcall(function()hX:AdjustWeight(0.0001,0)end)pcall(function()hX:AdjustSpeed(i1)end)as.beaconTrack=hX;as.beaconAnim=b_;as.beaconChar=bm else pcall(function()b_:Destroy()end)end else ap[i9]=true;pcall(function()i9:AdjustWeight(0.0001,0)end)if math.abs(i9.Speed-i1)>0.0001 then pcall(function()i9:AdjustSpeed(i1)end)end end;aq[n.UserId]={player=n,isOwner=av(n),isPremium=aw(n),isScriptUser=true,isFrozen=as.isFrozenByOwner,lastSeen=tick()}end;qj=function(aM)local bm=aM.Character;local Y=bm and bm:FindFirstChildOfClass("Humanoid")local cd=Y and Y:FindFirstChildOfClass("Animator")if not cd then return nil end;local c,ce=pcall(function()return cd:GetPlayingAnimationTracks()end)if not c or not ce then return nil end;local qq=at(aM)local qr=au(aM)for dt=1,#ce do local cf=ce[dt]local io=cf.Speed;local hU=cf.Animation;local bX=hU and hU.AnimationId or""local qs=bX:find("10714389396",1,true)~=nil or bX:find("33796059",1,true)~=nil;local qt=tonumber(cf.WeightCurrent)or 1;local qu=cf.Priority==Enum.AnimationPriority.Core;qs=qs and cf.IsPlaying==true and cf.Looped==true and qt<=0.005 and qu;if qs then if math.abs(io-qm)<0.0003 then return{isUser=true,isOwner=qq,isPremium=qr,isFrozen=false,cmdType=nil,targetCode=nil}elseif math.abs(io-qn)<0.0003 then return{isUser=true,isOwner=qq,isPremium=qr,isFrozen=true,cmdType=nil,targetCode=nil}elseif math.abs(io-qo)<0.0003 then return{isUser=true,isOwner=qq,isPremium=qr,isFrozen=false,cmdType=nil,targetCode=nil}elseif math.abs(io-qp)<0.0003 then return{isUser=true,isOwner=qq,isPremium=qr,isFrozen=false,cmdType=nil,targetCode=nil}end;local qv=aq[aM.UserId]local qw=qq or qr or qv and(qv.isOwner or qv.isPremium)if qw then local qx=math.floor(io+0.0005)if qx==12 or qx==22 or qx==32 or qx==42 or qx==52 or qx==62 or qx==72 or qx==82 or qx>=92 and qx<=96 or qx==102 or qx==112 or qx==122 or qx==132 or qx==142 or qx==143 or qx>=152 and qx<=156 or qx>=162 and qx<=166 or qx>=172 and qx<=174 or qx>=182 and qx<=186 or qx>=192 and qx<=194 or qx>=202 and qx<=204 then local qy=math.floor((io-qx)*1000+0.5)if qy>=0 and qy<=999 then return{isUser=true,isOwner=qq,isPremium=qr,isFrozen=false,cmdType=qx,targetCode=qy}end end end end end;return nil end;do local qz=os.clock()local qA=0;d.RenderStepped:Connect(function()qA=qA+1;local ct=os.clock()if ct-qz>=0.5 then as.localFps=math.clamp(math.floor(qA/(ct-qz)+0.5),1,999)qA=0;qz=ct end end)end;do as.computeSortedCocoSquadIndex=function()local qB={}for x,cw in ipairs(e:GetPlayers())do if not at(cw)then local qv=aq[cw.UserId]local qC=cw==n or qv and qv.isScriptUser and tick()-(qv.lastSeen or 0)<=25.0 or au(cw)if qC then table.insert(qB,cw)end end end;table.sort(qB,function(iF,la)return iF.UserId<la.UserId end)local qD=1;for dt,cw in ipairs(qB)do if cw==n then qD=dt;break end end;return qD,math.max(#qB,1)end;as.stopAdminFormation=function()as.formationMode=nil;as.formationCenterPlr=nil;if as.formationConn then pcall(function()as.formationConn:Disconnect()end)as.formationConn=nil end end;as.startAdminFormation=function(nH,qE)as.stopAdminFormation()if not qE then return end;as.formationMode=nH or"ring"as.formationCenterPlr=qE;local qF=0;as.formationConn=d.Heartbeat:Connect(function(dU)if not as.formationMode then as.stopAdminFormation()return end;local qG=as.formationCenterPlr;if not qG or not qG.Parent or not qG.Character then return end;local qH=qG.Character:FindFirstChild("HumanoidRootPart")or qG.Character:FindFirstChildWhichIsA("BasePart")local eK=n.Character;local bq=eK and(eK:FindFirstChild("HumanoidRootPart")or eK:FindFirstChildWhichIsA("BasePart"))if not qH or not bq then return end;local qD,qI=as.computeSortedCocoSquadIndex()qF=qF+(dU or 1/60)*2.2;local x,qJ,x=qH.CFrame:ToEulerAnglesYXZ()local qK=CFrame.new(qH.Position)*CFrame.Angles(0,qJ,0)local cl;if as.formationMode=="ring"then local gE=math.clamp(6.5+qI*0.6,7,18)local qL=qF+(qD-1)/qI*math.pi*2;local iZ=Vector3.new(math.cos(qL)*gE,0.2,math.sin(qL)*gE)local bb=qH.Position+iZ;cl=CFrame.lookAt(bb,Vector3.new(qH.Position.X,bb.Y,qH.Position.Z))elseif as.formationMode=="wall"then local qM=(qD-(qI+1)/2)*3.4;local qN=-4.5-math.abs(qM)*0.22;cl=qK*CFrame.new(qM,0.2,qN)elseif as.formationMode=="vwings"then local qO=qD%2==1 and 1 or-1;local qP=math.ceil(qD/2)cl=qK*CFrame.new(qO*qP*3.2,0.2,qP*3.0)else local qM=(qD-(qI+1)/2)*3.5;cl=qK*CFrame.new(qM,0.2,4.0)end;if cl and not bd(cl,Vector3.zero)then cF(cl)bq.CFrame=cl;bq.AssemblyLinearVelocity=Vector3.zero;bq.AssemblyAngularVelocity=Vector3.zero end end)end;as.clearAllAdminVisualPranks=function()as.invertControlsActive=false;if as.invertConn then pcall(function()as.invertConn:Disconnect()end)as.invertConn=nil end;as.drunkModeActive=false;if as.drunkConn then pcall(function()as.drunkConn:Disconnect()end)as.drunkConn=nil end;if as.drunkColorEffect then pcall(function()as.drunkColorEffect:Destroy()end)as.drunkColorEffect=nil end;pcall(function()if workspace.CurrentCamera then workspace.CurrentCamera.FieldOfView=70 end end)if as.fakeModalGui then pcall(function()as.fakeModalGui:Destroy()end)as.fakeModalGui=nil end;if as.flashbangGui then pcall(function()as.flashbangGui:Destroy()end)as.flashbangGui=nil end;as.isBlindedByOwner=false;if as.blindGui then pcall(function()as.blindGui:Destroy()end)as.blindGui=nil end;if as.blindBlur then pcall(function()as.blindBlur:Destroy()end)as.blindBlur=nil end end;as.toggleAdminInvertControls=function(qQ,qR)if qQ==nil then qQ=not as.invertControlsActive end;as.invertControlsActive=qQ;if as.invertConn then pcall(function()as.invertConn:Disconnect()end)as.invertConn=nil end;if qQ then as.invertConn=d.RenderStepped:Connect(function()if not as.invertControlsActive then return end;local bm=n.Character;local Y=bm and bm:FindFirstChildOfClass("Humanoid")local bn=bm and bm:FindFirstChild("HumanoidRootPart")if Y and bn and Y.MoveDirection.Magnitude>0.05 then local io=math.max(Y.WalkSpeed,16)bn.AssemblyLinearVelocity=Vector3.new(-Y.MoveDirection.X*io*1.35,bn.AssemblyLinearVelocity.Y,-Y.MoveDirection.Z*io*1.35)end end)S("🔄 CONTROLS INVERTED","Admin @"..tostring(qR or"Owner").." inverted your movement controls!")L()else S("✅ CONTROLS RESTORED","Your movement controls are back to normal!")K()end end;as.toggleAdminDrunkMode=function(qQ,qR)if qQ==nil then qQ=not as.drunkModeActive end;as.drunkModeActive=qQ;if as.drunkConn then pcall(function()as.drunkConn:Disconnect()end)as.drunkConn=nil end;if as.drunkColorEffect then pcall(function()as.drunkColorEffect:Destroy()end)as.drunkColorEffect=nil end;if qQ then pcall(function()local jI=Instance.new("ColorCorrectionEffect")jI.Name="CocoAdminDrunkCC"jI.Saturation=0.65;jI.Contrast=0.25;jI.Parent=game:GetService("Lighting")as.drunkColorEffect=jI end)local qS=os.clock()as.drunkConn=d.RenderStepped:Connect(function()if not as.drunkModeActive then return end;local cf=(os.clock()-qS)*3.2;local X=workspace.CurrentCamera;if X then X.FieldOfView=70+math.sin(cf*1.7)*28;X.CFrame=X.CFrame*CFrame.Angles(math.sin(cf*1.3)*0.06,math.cos(cf*1.1)*0.06,math.sin(cf)*0.14)end;if as.drunkColorEffect and as.drunkColorEffect.Parent then as.drunkColorEffect.TintColor=Color3.fromHSV(cf*0.18%1,0.35,1)end end)S("🥴 DRUNK VISION","Admin @"..tostring(qR or"Owner").." enabled Drunk Wobble Vision!")O()else pcall(function()if workspace.CurrentCamera then workspace.CurrentCamera.FieldOfView=70 end end)S("✅ VISION NORMAL","Drunk Wobble Vision cleared!")K()end end;as.triggerAdminFlashbang=function(qR)if as.flashbangGui then pcall(function()as.flashbangGui:Destroy()end)as.flashbangGui=nil end;pcall(function()local qT=Instance.new("ScreenGui")qT.Name="CocoAdminFlashbang"qT.IgnoreGuiInset=true;qT.DisplayOrder=999999;qT.ResetOnSpawn=false;qT.Parent=q or n:FindFirstChildOfClass("PlayerGui")as.flashbangGui=qT;local nm=Instance.new("Frame",qT)nm.Size=UDim2.new(1,0,1,0)nm.BackgroundColor3=Color3.new(1,1,1)nm.BackgroundTransparency=0;nm.BorderSizePixel=0;local jK=Instance.new("TextLabel",nm)jK.Size=UDim2.new(1,0,0,50)jK.Position=UDim2.new(0,0,0.5,-25)jK.BackgroundTransparency=1;jK.Text="⚡ FLASHBANGED BY @"..tostring(qR or"ADMIN"):upper().." ⚡"jK.TextColor3=Color3.fromRGB(30,30,35)jK.Font=Enum.Font.GothamBlack;jK.TextSize=24;S("⚡ FLASHBANG!","Admin @"..tostring(qR or"Owner").." threw a Solar Flashbang!")L()task.delay(0.85,function()if not qT or not qT.Parent then return end;g:Create(nm,TweenInfo.new(2.4,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{BackgroundTransparency=1}):Play()g:Create(jK,TweenInfo.new(1.8,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{TextTransparency=1}):Play()task.delay(2.5,function()if qT and qT.Parent then qT:Destroy()end;if as.flashbangGui==qT then as.flashbangGui=nil end end)end)end)end;as.triggerAdminFakeKickModal=function(qR)if as.fakeModalGui then pcall(function()as.fakeModalGui:Destroy()end)as.fakeModalGui=nil end;pcall(function()local qU=Instance.new("ScreenGui")qU.Name="CocoAdminFakeModal"qU.IgnoreGuiInset=true;qU.DisplayOrder=999999;qU.ResetOnSpawn=false;qU.Parent=q or n:FindFirstChildOfClass("PlayerGui")as.fakeModalGui=qU;local qV=Instance.new("Frame",qU)qV.Size=UDim2.new(1,0,1,0)qV.BackgroundColor3=Color3.fromRGB(12,12,14)qV.BackgroundTransparency=0.12;qV.BorderSizePixel=0;local qW=Instance.new("Frame",qV)qW.Size=UDim2.new(0,410,0,235)qW.Position=UDim2.new(0.5,-205,0.5,-117)qW.BackgroundColor3=Color3.fromRGB(39,41,48)qW.BorderSizePixel=0;Instance.new("UICorner",qW).CornerRadius=UDim.new(0,10)local b4=Instance.new("UIStroke",qW)b4.Color=Color3.fromRGB(75,78,88)b4.Thickness=1;local T=Instance.new("TextLabel",qW)T.Size=UDim2.new(1,-32,0,42)T.Position=UDim2.new(0,16,0,8)T.BackgroundTransparency=1;T.Text="Disconnected"T.TextColor3=Color3.new(1,1,1)T.Font=Enum.Font.GothamBold;T.TextSize=20;local qX=Instance.new("Frame",qW)qX.Size=UDim2.new(1,-32,0,1)qX.Position=UDim2.new(0,16,0,52)qX.BackgroundColor3=Color3.fromRGB(70,72,82)qX.BorderSizePixel=0;local qY=Instance.new("TextLabel",qW)qY.Size=UDim2.new(1,-40,0,105)qY.Position=UDim2.new(0,20,0,62)qY.BackgroundTransparency=1;qY.TextWrapped=true;qY.Text="You were kicked from this experience by @"..tostring(qR or"Admin").."\n(Error Code: 267 — Just kidding! This is a Coco Powder Admin Prank Modal — auto-closing in 6s)"qY.TextColor3=Color3.fromRGB(189,190,196)qY.Font=Enum.Font.GothamMedium;qY.TextSize=14;local qZ=Instance.new("TextButton",qW)qZ.Size=UDim2.new(1,-40,0,38)qZ.Position=UDim2.new(0,20,1,-52)qZ.BackgroundColor3=Color3.new(1,1,1)qZ.Text="Dismiss Prank"qZ.TextColor3=Color3.fromRGB(25,27,33)qZ.Font=Enum.Font.GothamBold;qZ.TextSize=15;Instance.new("UICorner",qZ).CornerRadius=UDim.new(0,8)qZ.MouseButton1Click:Connect(function()if qU and qU.Parent then qU:Destroy()end;if as.fakeModalGui==qU then as.fakeModalGui=nil end end)L()task.delay(6.5,function()if qU and qU.Parent then qU:Destroy()end;if as.fakeModalGui==qU then as.fakeModalGui=nil end end)end)end;as.spawnOrTeleportToSkyLounge=function(q_)local r0=Vector3.new(q_.X,math.clamp(q_.Y+650,450,2500),q_.Z)if as.skyLoungePart and as.skyLoungePart.Parent then r0=as.skyLoungePart.Position else local r1=Instance.new("Model")r1.Name="CocoAdminSkyLounge"local mL=Instance.new("Part")mL.Name="LoungeDeck"mL.Anchored=true;mL.CanCollide=true;mL.Size=Vector3.new(96,2.5,96)mL.Position=r0;mL.Material=Enum.Material.Neon;mL.Color=Color3.fromRGB(88,56,225)mL.Transparency=0.28;mL.Parent=r1;local r2=Instance.new("Part")r2.Name="LoungeGlass"r2.Anchored=true;r2.CanCollide=true;r2.Size=Vector3.new(88,2.6,88)r2.Position=r0+Vector3.new(0,0.05,0)r2.Material=Enum.Material.Glass;r2.Color=Color3.fromRGB(16,14,26)r2.Transparency=0.15;r2.Parent=r1;r1.PrimaryPart=mL;r1.Parent=workspace;as.skyLoungePart=mL end;local eK=n.Character;local bq=eK and eK:FindFirstChild("HumanoidRootPart")if eK and bq then if not as.skyLoungePreCF then as.skyLoungePreCF=bq.CFrame end;local qD,qI=as.computeSortedCocoSquadIndex()local gD=(qD-1)/math.max(qI,1)*math.pi*2;local r3=at(n)and 0 or 12;local eP=CFrame.new(r0+Vector3.new(math.cos(gD)*r3,5,math.sin(gD)*r3))cF(eP)bz(eK,eP)end end;as.destroySkyLoungeAndReturn=function()if as.skyLoungePart then local r4=as.skyLoungePart.Parent;pcall(function()if r4 and r4.Name=="CocoAdminSkyLounge"then r4:Destroy()else as.skyLoungePart:Destroy()end end)as.skyLoungePart=nil end;local eK=n.Character;if eK and as.skyLoungePreCF then cF(as.skyLoungePreCF)bz(eK,as.skyLoungePreCF)as.skyLoungePreCF=nil end end;as.toggleAdminBodyguardAutoRetaliate=function(qQ,fu)if qQ==nil then qQ=not as.bodyguardModeActive end;as.bodyguardModeActive=qQ;if as.bodyguardConn then pcall(function()as.bodyguardConn:Disconnect()end)as.bodyguardConn=nil end;if qQ then local r5=0;as.bodyguardConn=d.Heartbeat:Connect(function()if not as.bodyguardModeActive then return end;if tick()-r5<3.5 then return end;local r6=fu;if not r6 or not r6.Parent then for x,cw in ipairs(e:GetPlayers())do if at(cw)then r6=cw;break end end end;if not r6 or not r6.Character then return end;local py=r6.Character:FindFirstChild("HumanoidRootPart")if not py then return end;for x,cw in ipairs(e:GetPlayers())do if cw~=n and cw~=r6 and not ay(cw)and not(as.syncedVipIds and as.syncedVipIds[cw.UserId])and cw.Character then local r7=cw.Character:FindFirstChild("HumanoidRootPart")local r8=cw.Character:FindFirstChildOfClass("Humanoid")if r7 and r8 and r8.Health>0 then local g5=(r7.Position-py.Position).Magnitude;local io=r7.AssemblyLinearVelocity.Magnitude;if g5<11 and io>38 then r5=tick()S("🛡️ VIP BODYGUARD","Intercepting hostile player @"..cw.Name.." near @"..r6.Name.."!")if as.launchNebulaFling then pcall(function()as.launchNebulaFling(2.5,"Bodyguard Intercept",false,cw)end)end;break end end end end end)end end end;as.collectTargetTelemetry=function(aR)local aM=aR or as.telemetryTargetPlr or gi()or n;if not aM or not aM.Parent then aM=n end;local aN=aM.UserId;local qv=aq[aN]local r9=at(aM)local ra=not r9 and au(aM)local qC=r9 or ra or aM==n or qv and qv.isScriptUser and tick()-(qv.lastSeen or 0)<=25.0;local rb=as.syncedVipIds and as.syncedVipIds[aN]or r9;local rc=r9 and"👑 OWNER"or(ra and"💎 PREMIUM"or(qC and"⚡ COCO USER"or"👤 PLAYER"))if rb and not r9 then rc=rc.." · 🛡️ VIP"end;local bm=aM.Character;local Y=bm and bm:FindFirstChildOfClass("Humanoid")local bE=bm and(bm:FindFirstChild("HumanoidRootPart")or bm:FindFirstChildWhichIsA("BasePart"))local bq=n.Character and n.Character:FindFirstChild("HumanoidRootPart")local rd=Y and string.format("%d / %d HP",math.floor(Y.Health+0.5),math.floor(Y.MaxHealth+0.5))or"No Humanoid"local re=Y and(Y.RigType==Enum.HumanoidRigType.R15 and"R15"or"R6")or"N/A"local rf=bE and string.format("%.1f st/s",bE.AssemblyLinearVelocity.Magnitude)or"0.0 st/s"local rg=bE and bq and aM~=n and string.format("%.1f studs",(bE.Position-bq.Position).Magnitude)or"0.0 studs (Self)"local rh=bE and string.format("Y: %.1f",bE.Position.Y)or"Y: N/A"local ri=0;if Y then local b_=Y:FindFirstChildOfClass("Animator")if b_ then local c,rj=pcall(function()return b_:GetPlayingAnimationTracks()end)if c and rj then ri=#rj end end end;local rk=0;pcall(function()rk=math.floor((n:GetNetworkPing()or 0)*1000+0.5)end)local rl="Standard"pcall(function()local rm=_G.identifyexecutor;if type(rm)=="function"then rl=tostring(rm())end end)local rn={}if as.ownerFrozenTargets[aN]or qv and qv.isFrozen then table.insert(rn,"❄️Frozen")end;if as.ownerBannedTargets[aN]then table.insert(rn,"🚫Banned")end;if bm and bm:FindFirstChildOfClass("ForceField")then table.insert(rn,"🛡️FF")end;if Y and Y.PlatformStand then table.insert(rn,"⚡PlatStand")end;if bE and bE.Anchored then table.insert(rn,"⚓Anchored")end;if#rn==0 then table.insert(rn,"Active/Normal")end;local ro=0;for x,cw in ipairs(e:GetPlayers())do local fn=aq[cw.UserId]if cw==n or at(cw)or au(cw)or fn and fn.isScriptUser and tick()-(fn.lastSeen or 0)<=25.0 then ro=ro+1 end end;return{player=aM,line1=string.format("%s (@%s)  ·  %s  ·  Rig: %s",aM.DisplayName,aM.Name,rc,re),line2=string.format("Health: %s  ·  Speed: %s  ·  %s  ·  Dist: %s",rd,rf,rh,rg),line3=string.format("Tracks: %d  ·  State: %s  ·  Coco Users: %d/%d",ri,table.concat(rn,", "),ro,#e:GetPlayers()),line4=string.format("Local Ping: %d ms  ·  FPS: %d  ·  Executor: %s",rk,as.localFps or 60,rl)}end end;local function rp(rq,rr,qc,rs,rt)if not rq or rq==n then return end;local ru=at(rq)local rv=au(rq)if not ru and not rv then return end;if at(n)then return end;local rw=az(n)local rx=false;if qc~=nil then rx=qc==0 or qc==rw elseif rs and rs~=""then local gg=rs:lower():gsub("^%s*@+%s*","")if gg=="all"or gg=="everyone"or gg=="others"then rx=true elseif n.Name:lower():find(gg,1,true)==1 or n.DisplayName:lower():find(gg,1,true)==1 then rx=true end end;if not rx then return end;local ry=tostring(rq.UserId).."_"..tostring(rr).."_"..tostring(qc or rs or"0").."_"..tostring(rt or"")local rz=as.lastProcessedCmd[ry]or 0;local rA=(rr=="chat"or type(rr)=="number"and rr>=92)and 0.45 or 2.6;if tick()-rz<rA then return end;as.lastProcessedCmd[ry]=tick()if rr==12 or rr=="freeze"then q0(true,rq.Name)elseif rr==22 or rr=="unfreeze"then q0(false,rq.Name)elseif rr==32 or rr=="ban"then q3(rq.Name)elseif rr==42 or rr=="unban"then q4(rq.Name)elseif rr==52 or rr=="bring"then q5(rq)elseif rr==62 or rr=="notify"then local rB=ru and"👑 SCRIPT OWNER BROADCAST"or"💎 PREMIUM ADMIN BROADCAST"p_(rq,rB,"@"..rq.Name.." sent a server-wide alert to all Coco Powder users!")elseif(rr==72 or rr=="grantprem")and ru then as.sessionPremiumUsers[n.UserId]=true;if as.refreshAdminUIFn then pcall(as.refreshAdminUIFn)end;if as.syncAdminTabVisibility then pcall(as.syncAdminTabVisibility)end;aC("💎 PREMIUM ACCESS GRANTED!","Owner @"..rq.Name.." granted you Premium & Admin Panel access!",Color3.fromRGB(56,224,255),5.5,nil)elseif(rr==82 or rr=="revokeprem")and ru then as.sessionPremiumUsers[n.UserId]=nil;if as.refreshAdminUIFn then pcall(as.refreshAdminUIFn)end;if as.syncAdminTabVisibility then pcall(as.syncAdminTabVisibility)end;S("👑 OWNER ADMIN","Your temporary Session Premium access was revoked by @"..rq.Name)elseif rr=="chat"or rr==92 or rr==93 or rr==94 or rr==95 or rr==96 then local rC={[92]="shivyy73 is the goat 👑",[93]="Coco Powder on top! ⚡",[94]="Help I got frozen by admin! 🥶",[95]="I apologize to the Admin! 🏳️",[96]="I love dancing in public! 💃"}local rD=rt and rt~=""and tostring(rt)or rC[rr]or"Coco Powder on top! ⚡"if rD~=""then pcall(function()lk(rD)end)S("💬 CHAT CONTROLLED","@"..rq.Name.." forced you to say: '"..rD.."'")end elseif rr==102 or rr=="dance"or rr=="emote"then local bm=n.Character;local Y=bm and bm:FindFirstChildOfClass("Humanoid")local b_=Y and(Y:FindFirstChildOfClass("Animator")or Instance.new("Animator",Y))if b_ and Y then pcall(function()local rE=Y.RigType==Enum.HumanoidRigType.R6 and"rbxassetid://182436935"or"rbxassetid://10714389396"local rF=Instance.new("Animation")rF.AnimationId=rE;local rG=b_:LoadAnimation(rF)rG.Priority=Enum.AnimationPriority.Action4;rG.Looped=true;rG:Play(0.1,1,1.35)task.delay(9.0,function()pcall(function()rG:Stop(0.2)rG:Destroy()rF:Destroy()end)end)end)S("💃 ADMIN EMOTE","@"..rq.Name.." forced your character to dance!")K()end elseif rr==112 or rr=="skylaunch"or rr=="launch"then local bm=n.Character;local bn=bm and(bm:FindFirstChild("HumanoidRootPart")or bm:FindFirstChildWhichIsA("BasePart"))local Y=bm and bm:FindFirstChildOfClass("Humanoid")if bn then pcall(function()bn.Anchored=false;if Y then Y.Sit=false end;local rH=bn.CFrame+Vector3.new(0,180,0)cF(rH)bn.CFrame=rH;bn.AssemblyLinearVelocity=Vector3.new(math.random(-35,35),260,math.random(-35,35))end)S("🚀 SKY LAUNCHED","@"..rq.Name.." launched you into the stratosphere!")O()end elseif rr==122 or rr=="reset"or rr=="kill"then local bm=n.Character;local Y=bm and bm:FindFirstChildOfClass("Humanoid")if Y then pcall(function()Y.Health=0 end)end;if bm then pcall(function()bm:BreakJoints()end)end;S("💀 ADMIN RESET","@"..rq.Name.." forced your character to reset!")L()elseif rr==132 or rr=="blind"or rr=="unblind"then local rI=rr=="blind"and true or(rr=="unblind"and false or not as.isBlindedByOwner)as.isBlindedByOwner=rI;if as.blindGui then pcall(function()as.blindGui:Destroy()end)as.blindGui=nil end;if as.blindBlur then pcall(function()as.blindBlur:Destroy()end)as.blindBlur=nil end;if rI then pcall(function()local rJ=Instance.new("BlurEffect")rJ.Name="CocoAdminBlindBlur"rJ.Size=56;rJ.Parent=game:GetService("Lighting")as.blindBlur=rJ;local b2=Instance.new("ScreenGui")b2.Name="CocoAdminBlindGui"b2.IgnoreGuiInset=true;b2.DisplayOrder=999999;b2.ResetOnSpawn=false;b2.Parent=q or n:FindFirstChildOfClass("PlayerGui")local rK=Instance.new("Frame",b2)rK.Size=UDim2.new(1,0,1,0)rK.BackgroundColor3=Color3.fromRGB(6,5,10)rK.BackgroundTransparency=0.03;local jK=Instance.new("TextLabel",rK)jK.Size=UDim2.new(1,-40,0,80)jK.Position=UDim2.new(0,20,0.5,-40)jK.BackgroundTransparency=1;jK.Text="👁️ BLINDED BY ADMIN @"..rq.Name:upper().." — Waiting for Admin to restore your vision..."jK.TextColor3=Color3.fromRGB(244,63,94)jK.Font=Enum.Font.GothamBold;jK.TextSize=18;jK.TextWrapped=true;as.blindGui=b2 end)S("👁️ BLINDED BY ADMIN","@"..rq.Name.." blinded your screen!")L()else S("✅ VISION RESTORED","@"..rq.Name.." restored your vision!")K()end elseif rr==142 or rr=="puppet"then local qG=rq;if rt and rt~=""then local gg=rt:lower():gsub("^%s*@+%s*","")for x,cw in ipairs(e:GetPlayers())do if cw.Name:lower():find(gg,1,true)==1 or cw.DisplayName:lower():find(gg,1,true)==1 then qG=cw;break end end end;if bu and qG and qG~=n then as.puppetModeActive=true;as.puppetLeader=qG;pcall(function()bu.syncMotorTransforms=true;bu:Start(qG)end)S("🎭 ADMIN PUPPETEER","Mirroring @"..qG.Name.."'s animations in real time!")K()end elseif rr==143 or rr=="unpuppet"then as.puppetModeActive=false;as.puppetLeader=nil;if bu and bu.active then pcall(function()bu:Stop(false)end)end;S("🎭 PUPPETEER STOPPED","@"..rq.Name.." released Animation Puppeteer lock!")N()elseif rr==152 or rr==153 or rr==154 or rr==155 or rr=="formation"then local rL={[152]="ring",[153]="wall",[154]="vwings",[155]="line"}local rM=rL[rr]or rt and rt:match("^(%w+)")or"ring"local qE=rq;if rt and rt:find(":",1,true)then local rN,rO=rt:match("^(%w+):(.+)$")if rN then rM=rN:lower()end;if rO and rO~=""then local gg=rO:lower():gsub("^%s*@+%s*","")for x,cw in ipairs(e:GetPlayers())do if cw.Name:lower():find(gg,1,true)==1 or cw.DisplayName:lower():find(gg,1,true)==1 then qE=cw;break end end end end;as.startAdminFormation(rM,qE)S("🛸 SQUAD FORMATION","Joined @"..qE.Name.."'s ["..rM:upper().."] formation!")O()elseif rr==156 or rr=="unformation"then as.stopAdminFormation()S("🛸 FORMATION DISBANDED","@"..rq.Name.." disbanded the squad formation!")N()elseif rr==162 or rr==163 or rr==164 or rr==165 or rr=="skydestroy"then local rP=rt and rt:lower()or""if rr==162 or rP=="all"or rP==""then if _G.startSkyDestroyer then pcall(_G.startSkyDestroyer)end elseif rr==163 or rP=="ground"then if _G.SetCoverGround then pcall(_G.SetCoverGround,true)end elseif rr==164 or rP=="sky"then if _G.SetCoverSky then pcall(_G.SetCoverSky,true)end elseif rr==165 or rP=="cube"then if _G.SetCoverCubeMatrix then pcall(_G.SetCoverCubeMatrix,true)end end;S("💥 REMOTE SKY DESTROYER","@"..rq.Name.." activated your Coca Sky Destroyer!")elseif rr==166 or rr=="skystop"then if _G.stopSkyDestroyer then pcall(_G.stopSkyDestroyer)end;S("💥 REMOTE SKY DESTROYER","@"..rq.Name.." stopped your Coca Sky Destroyer!")elseif rr==172 or rr=="countdown"then task.spawn(function()local rQ={"3... ⏳","2... ⚡","1... 🔥",rt and rt~=""and rt or"👑 COCO POWDER ON TOP! ⚡"}for x,rR in ipairs(rQ)do pcall(function()lk(rR)end)task.wait(1.05)end end)S("⏱️ SYNC COUNTDOWN","@"..rq.Name.." started a synchronized group countdown!")elseif rr==173 or rr=="wavechat"then local qD=as.computeSortedCocoSquadIndex()local rS=rt and rt~=""and rt or"🌊 COCO WAVE #"..tostring(qD).." ⚡"task.delay((qD-1)*0.35,function()pcall(function()lk(rS)end)end)S("🌊 WAVE CHAT","@"..rq.Name.." triggered a cascading chat wave!")elseif rr==174 or rr=="chant"then task.spawn(function()local rT={"⚡ ALL HAIL @"..rq.Name:upper().."! 👑","💎 COCO POWDER V36.8 SUPREME SQUAD! 🚀"}for x,rU in ipairs(rT)do pcall(function()lk(rU)end)task.wait(1.25)end end)elseif rr==182 or rr=="invert"then as.toggleAdminInvertControls(nil,rq.Name)elseif rr==183 or rr=="drunk"then as.toggleAdminDrunkMode(nil,rq.Name)elseif rr==184 or rr=="flashbang"then as.triggerAdminFlashbang(rq.Name)elseif rr==185 or rr=="fakemodal"then as.triggerAdminFakeKickModal(rq.Name)elseif rr==186 or rr=="clearfx"then as.clearAllAdminVisualPranks()S("✅ FX CLEARED","@"..rq.Name.." cleared all visual prank effects!")K()elseif rr==192 or rr=="tppos"then local eP=nil;if rt and rt~=""then local mS,l7,rV=rt:match("^([%-%.%d]+)%s+([%-%.%d]+)%s+([%-%.%d]+)")if mS and l7 and rV then eP=CFrame.new(tonumber(mS),tonumber(l7),tonumber(rV))end end;if not eP and rq.Character then local gW=rq.Character:FindFirstChild("HumanoidRootPart")if gW then local qD,qI=as.computeSortedCocoSquadIndex()local rW=(qD-1)/math.max(qI,1)*math.pi*2;eP=gW.CFrame*CFrame.new(math.cos(rW)*4.5,0.5,-4.5+math.sin(rW)*2.5)end end;if eP and n.Character then cF(eP)bz(n.Character,eP)S("📍 GLOBAL WAYPOINT","Teleported to @"..rq.Name.."'s Admin Waypoint!")O()end elseif rr==193 or rr=="skylounge"then local fy=Vector3.new(0,50,0)if rq.Character and rq.Character:FindFirstChild("HumanoidRootPart")then fy=rq.Character.HumanoidRootPart.Position elseif n.Character and n.Character:FindFirstChild("HumanoidRootPart")then fy=n.Character.HumanoidRootPart.Position end;as.spawnOrTeleportToSkyLounge(fy)S("🌌 VIP SKY LOUNGE","@"..rq.Name.." summoned you to the Admin VIP Sky Lounge!")K()elseif rr==194 or rr=="groundreturn"then as.destroySkyLoungeAndReturn()S("🌌 SKY LOUNGE CLOSED","Returned to ground from VIP Sky Lounge!")N()elseif rr==202 or rr=="syncvip"then as.syncedVipIds[rq.UserId]=true;if rt and rt~=""then for rX in rt:gmatch("(%d+)")do local aN=tonumber(rX)if aN then as.syncedVipIds[aN]=true end end end;S("🛡️ VIP WHITELIST SYNCED","Synced Protected VIP list from @"..rq.Name.."!")K()elseif rr==203 or rr=="bodyguard"then as.toggleAdminBodyguardAutoRetaliate(nil,rq)S("🛡️ VIP BODYGUARD",as.bodyguardModeActive and"Bodyguard Mode ON — protecting @"..rq.Name.."!"or"Bodyguard Mode OFF")elseif rr==204 or rr=="clearvip"then as.syncedVipIds={}as.toggleAdminBodyguardAutoRetaliate(false,rq)S("🛡️ VIP CLEARED","@"..rq.Name.." cleared synced VIP & Bodyguard states!")elseif rr==212 or rr=="swarmfling"then local px=nil;if rt and rt~=""then local gg=rt:lower():gsub("^%s*@+%s*","")for x,cw in ipairs(e:GetPlayers())do if cw~=n and not ay(cw)and(cw.Name:lower():find(gg,1,true)==1 or cw.DisplayName:lower():find(gg,1,true)==1)then px=cw;break end end end;if px and as.launchNebulaFling then pcall(function()as.launchNebulaFling(4.5,"Admin Swarm Fling",true,px)end)S("🌪️ ADMIN SWARM FLING","@"..rq.Name.." ordered a Swarm Void-Fling on @"..px.Name.."!")end elseif rr==213 or rr=="massweld"then local j2="facebang"local rY=rt or""if rt and rt:find(":",1,true)then local rZ,rO=rt:match("^(%w+):(.+)$")if rZ then j2=rZ:lower()end;if rO then rY=rO end end;local px=rq;if rY~=""then local gg=rY:lower():gsub("^%s*@+%s*","")for x,cw in ipairs(e:GetPlayers())do if cw~=n and not ay(cw)and(cw.Name:lower():find(gg,1,true)==1 or cw.DisplayName:lower():find(gg,1,true)==1)then px=cw;break end end end;if px and px~=n and iX then pcall(function()iX(j2,px)end)S("⚡ ADMIN MASS WELD","@"..rq.Name.." locked your weld ("..j2 ..") onto @"..px.Name.."!")end elseif rr==214 or rr=="stopall"then if cz then pcall(cz,false)end;if bB and bB.Cleanup then pcall(function()bB:Cleanup(false,false)end)end;as.stopAdminFormation()S("⏹ ADMIN STOP ALL","@"..rq.Name.." stopped all active welds, flings & formations!")elseif rr==215 or rr=="gravity"then local r_=workspace.Gravity>100;pcall(function()workspace.Gravity=r_ and 28 or 196.2 end)S("🌙 ADMIN GRAVITY",r_ and"@"..rq.Name.." enabled Low-G Moon Gravity (28)!"or"Gravity restored to normal (196.2)!")elseif rr==216 or rr=="speedprank"then local Y=n.Character and n.Character:FindFirstChildOfClass("Humanoid")if Y then local ep=tostring(rt or""):lower()local s0=ep=="hyper"and 95 or ep=="normal"and 16 or(Y.WalkSpeed<8 and 16 or 3.5)pcall(function()Y.WalkSpeed=s0 end)S("🐌 ADMIN SPEED","@"..rq.Name.." set your WalkSpeed to "..tostring(s0).."!")end end end;bw=function(aN)local hP=ar[aN]if hP then if hP.gui then pcall(function()hP.gui:Destroy()end)end;ar[aN]=nil end end;bx=function()if not as.overheadTagsEnabled or as.isBannedByOwner then if next(ar)~=nil then for aN,x in pairs(ar)do bw(aN)end end;return end;local b0=q or n:FindFirstChildOfClass("PlayerGui")if not b0 then return end;local s1={}for x,aM in ipairs(e:GetPlayers())do local aN=aM.UserId;local qv=aq[aN]local s2=at(aM)local s3=not s2 and au(aM)local s4=qv~=nil and qv.isScriptUser==true and tick()-(tonumber(qv.lastSeen)or 0)<=25.0;local s5=s2 or s3 or s4 and as.showNormalPlayerTags==true;if aM==n and not as.showSelfOverheadTag then s5=false end;local bm=aM.Character;local s6=bm and(bm:FindFirstChild("Head")or bm:FindFirstChild("HumanoidRootPart"))if s5 and s6 then s1[aN]=true;local hP=ar[aN]if not hP or not hP.gui or not hP.gui.Parent then local s7=Instance.new("BillboardGui")s7.Name="CocoPowderTag_"..tostring(aN)s7.Size=UDim2.new(0,152,0,26)s7.StudsOffset=Vector3.new(0,2.2,0)s7.AlwaysOnTop=true;s7.MaxDistance=350;s7.ResetOnSpawn=false;s7.Adornee=s6;s7.Parent=b0;local rK=Instance.new("Frame")rK.Size=UDim2.new(1,0,1,0)rK.Position=UDim2.new(0,0,0,0)rK.BackgroundColor3=Color3.fromRGB(14,11,20)rK.BackgroundTransparency=0.12;rK.BorderSizePixel=0;rK.Parent=s7;Instance.new("UICorner",rK).CornerRadius=UDim.new(1,0)local b4=Instance.new("UIStroke")b4.Thickness=1.0;b4.Transparency=0.22;b4.Parent=rK;local s8=Instance.new("TextLabel")s8.Size=UDim2.new(1,-12,0,12)s8.Position=UDim2.new(0,6,0,2)s8.BackgroundTransparency=1;s8.Font=Enum.Font.GothamBold;s8.TextSize=8;s8.TextTruncate=Enum.TextTruncate.AtEnd;s8.Parent=rK;local s9=Instance.new("TextLabel")s9.Size=UDim2.new(1,-12,0,10)s9.Position=UDim2.new(0,6,0,13)s9.BackgroundTransparency=1;s9.Font=Enum.Font.GothamMedium;s9.TextSize=7.5;s9.TextColor3=Color3.fromRGB(220,215,235)s9.TextTruncate=Enum.TextTruncate.AtEnd;s9.Parent=rK;hP={gui=s7,bg=rK,stroke=b4,roleLbl=s8,nameLbl=s9}ar[aN]=hP end;if hP.gui.Adornee~=s6 then hP.gui.Adornee=s6 end;local sa=qv and qv.isFrozen or as.ownerFrozenTargets[aN]or aM==n and as.isFrozenByOwner;local aU=as.ownerBannedTargets[aN]local sb=s2 and"OWNER"or(s3 and"PREMIUM"or(aU and"BANNED"or(sa and"FROZEN"or"USER")))if hP.lastRoleKey~=sb then hP.lastRoleKey=sb;if sb=="OWNER"then hP.roleLbl.Text="👑 COCO POWDER OWNER"hP.roleLbl.TextColor3=Color3.fromRGB(255,215,70)hP.stroke.Color=Color3.fromRGB(255,215,70)elseif sb=="PREMIUM"then hP.roleLbl.Text="💎 COCO POWDER PREMIUM"hP.roleLbl.TextColor3=Color3.fromRGB(56,224,255)hP.stroke.Color=Color3.fromRGB(56,224,255)elseif sb=="BANNED"then hP.roleLbl.Text="🚫 SCRIPT BANNED · CP USER"hP.roleLbl.TextColor3=Color3.fromRGB(244,63,94)hP.stroke.Color=Color3.fromRGB(244,63,94)elseif sb=="FROZEN"then hP.roleLbl.Text="❄️ FROZEN BY ADMIN · CP USER"hP.roleLbl.TextColor3=Color3.fromRGB(86,204,255)hP.stroke.Color=Color3.fromRGB(86,204,255)else hP.roleLbl.Text="⚡ COCO POWDER USER"hP.roleLbl.TextColor3=C.Neon;hP.stroke.Color=C.Accent end end;local sc=aM.DisplayName.." (@"..aM.Name..")"if hP.lastNameText~=sc then hP.lastNameText=sc;hP.nameLbl.Text=sc end end end;for aN,x in pairs(ar)do if not s1[aN]then bw(aN)end end end;local function sd(rq,se)if not rq or not se or se==""then return end;local sf=at(rq)or au(rq)or as and as.sessionPremiumUsers and as.sessionPremiumUsers[rq.UserId]or ax and ax(rq)if not sf then return end;local aJ=se:gsub("^/e%s+",""):gsub("^/w%s+%S+%s+","")local sg,sh=aJ:match("^!([%w_]+)%s*(.-)%s*$")if not sg then if rq==n and as.chatPuppetMode and ax(n)and aJ~=""then if tick()-(as.lastPuppetBroadcastTick or 0)>0.6 then as.lastPuppetBroadcastTick=tick()task.defer(function()as.broadcastOwnerChatCommand(nil,aJ)end)end end;return end;sg=sg:lower()if sg=="cpfreeze"or sg=="freeze"then rp(rq,"freeze",nil,sh~=""and sh or"all")elseif sg=="cpunfreeze"or sg=="unfreeze"then rp(rq,"unfreeze",nil,sh~=""and sh or"all")elseif sg=="cpban"or sg=="scban"or sg=="scriptban"then rp(rq,"ban",nil,sh)elseif sg=="cpunban"or sg=="unban"then rp(rq,"unban",nil,sh~=""and sh or"all")elseif sg=="cpbring"or sg=="bring"then rp(rq,"bring",nil,sh~=""and sh or"all")elseif sg=="cpdance"or sg=="dance"or sg=="cpemote"then rp(rq,"dance",nil,sh~=""and sh or"all")elseif sg=="cplaunch"or sg=="skylaunch"or sg=="launch"then rp(rq,"skylaunch",nil,sh~=""and sh or"all")elseif sg=="cpreset"or sg=="reset"or sg=="cpkill"then rp(rq,"reset",nil,sh~=""and sh or"all")elseif sg=="cpblind"or sg=="blind"then rp(rq,"blind",nil,sh~=""and sh or"all")elseif sg=="cpunblind"or sg=="unblind"then rp(rq,"unblind",nil,sh~=""and sh or"all")elseif sg=="cpgrantprem"or sg=="grantprem"then rp(rq,"grantprem",nil,sh)elseif sg=="cprevokeprem"or sg=="revokeprem"then rp(rq,"revokeprem",nil,sh)elseif sg=="cpchat"or sg=="forcesay"or sg=="say"or sg=="chat"or sg=="cpsay"or sg=="controlchat"then local qe,si=sh:match("^(@?[%w_]+)%s+(.+)$")if not qe then qe="all"si=sh end;if si and si~=""then rp(rq,"chat",nil,qe,si)end elseif sg=="cpnotify"or sg=="ownermsg"then if rq~=n then local T=at(rq)and"👑 OWNER ANNOUNCEMENT"or"💎 PREMIUM ANNOUNCEMENT"p_(rq,T,sh and sh~=""and sh or"@"..rq.Name.." is in your server!")end elseif sg=="cppuppet"or sg=="puppet"then local sj,sk=sh:match("^(%S+)%s*(.-)$")rp(rq,"puppet",nil,sj and sj~=""and sj or"all",sk)elseif sg=="cpunpuppet"or sg=="unpuppet"then rp(rq,"unpuppet",nil,sh~=""and sh or"all")elseif sg=="cpform"or sg=="formation"then local sj,sl=sh:match("^(%S+)%s*(.-)$")rp(rq,"formation",nil,sj and sj~=""and sj or"all",sl and sl~=""and sl or"ring")elseif sg=="cpunform"or sg=="unformation"then rp(rq,"unformation",nil,sh~=""and sh or"all")elseif sg=="cpskydestroy"or sg=="skydestroy"then local sj,sl=sh:match("^(%S+)%s*(.-)$")rp(rq,"skydestroy",nil,sj and sj~=""and sj or"all",sl)elseif sg=="cpskystop"or sg=="skystop"then rp(rq,"skystop",nil,sh~=""and sh or"all")elseif sg=="cpcountdown"or sg=="countdown"then rp(rq,"countdown",nil,"all",sh)elseif sg=="cpwavechat"or sg=="wavechat"then rp(rq,"wavechat",nil,"all",sh)elseif sg=="cpchant"or sg=="chant"then rp(rq,"chant",nil,"all",sh)elseif sg=="cpinvert"or sg=="invert"then rp(rq,"invert",nil,sh~=""and sh or"all")elseif sg=="cpdrunk"or sg=="drunk"then rp(rq,"drunk",nil,sh~=""and sh or"all")elseif sg=="cpflashbang"or sg=="flashbang"then rp(rq,"flashbang",nil,sh~=""and sh or"all")elseif sg=="cpfakemodal"or sg=="fakemodal"then rp(rq,"fakemodal",nil,sh~=""and sh or"all")elseif sg=="cpclearfx"or sg=="clearfx"then rp(rq,"clearfx",nil,sh~=""and sh or"all")elseif sg=="cptppos"or sg=="cpwaypoint"then local sj,sm=sh:match("^(%S+)%s+(.+)$")rp(rq,"tppos",nil,sj and sj~=""and sj or"all",sm)elseif sg=="cpskylounge"or sg=="skylounge"then rp(rq,"skylounge",nil,sh~=""and sh or"all")elseif sg=="cpground"or sg=="groundreturn"then rp(rq,"groundreturn",nil,sh~=""and sh or"all")elseif sg=="cpvip"or sg=="syncvip"then rp(rq,"syncvip",nil,"all",sh)elseif sg=="cpbodyguard"or sg=="bodyguard"then rp(rq,"bodyguard",nil,sh~=""and sh or"all")elseif sg=="cpfling"or sg=="swarmfling"then local sj,sn=sh:match("^(%S+)%s+(.+)$")if not sj then sj="all"sn=sh end;rp(rq,"swarmfling",nil,sj,sn)elseif sg=="cpweld"or sg=="massweld"then local sj,so=sh:match("^(%S+)%s+(.+)$")if not sj then sj="all"so=sh end;rp(rq,"massweld",nil,sj,so)elseif sg=="cpstopall"or sg=="stopall"then rp(rq,"stopall",nil,sh~=""and sh or"all")elseif sg=="cpgravity"or sg=="gravity"then rp(rq,"gravity",nil,sh~=""and sh or"all")elseif sg=="cpspeed"or sg=="speedprank"then local sj,sp=sh:match("^(%S+)%s*(.-)$")rp(rq,"speedprank",nil,sj and sj~=""and sj or"all",sp)end end;pcall(function()if l and l.MessageReceived then l.MessageReceived:Connect(function(kG)pcall(function()local sq=kG.TextSource;local sr=sq and e:GetPlayerByUserId(sq.UserId)if sr then sd(sr,kG.Text or"")end end)end)end end)for x,cw in ipairs(e:GetPlayers())do pcall(function()cw.Chatted:Connect(function(kG)sd(cw,kG)end)end)end;e.PlayerAdded:Connect(function(cw)pcall(function()cw.Chatted:Connect(function(kG)sd(cw,kG)end)end)pcall(function()cw.CharacterAdded:Connect(function()task.defer(function()task.wait(0.15)pcall(bx)end)end)end)task.defer(function()task.wait(0.15)pcall(bx)end)if cw~=n and at(cw)then as.notifiedOwnerIds[cw.UserId]=true;aq[cw.UserId]={player=cw,isOwner=true,isPremium=true,isFrozen=false,lastSeen=tick()}task.defer(function()p_(cw)if as.refreshAdminUIFn then pcall(as.refreshAdminUIFn)end end)elseif cw~=n and au(cw)then as.notifiedPremiumIds[cw.UserId]=true;aq[cw.UserId]={player=cw,isOwner=false,isPremium=true,isFrozen=false,lastSeen=tick()}task.defer(function()aC("💎 PREMIUM USER IN SERVER!","Premium User @"..cw.Name.." ("..cw.DisplayName..") joined your server!",Color3.fromRGB(56,224,255),5.0,nil)if as.refreshAdminUIFn then pcall(as.refreshAdminUIFn)end end)end end)e.PlayerRemoving:Connect(function(cw)bw(cw.UserId)aq[cw.UserId]=nil;as.notifiedOwnerIds[cw.UserId]=nil;as.notifiedPremiumIds[cw.UserId]=nil end)task.spawn(function()task.wait(0.85)while true do pcall(qi)local ss=false;local st=0;for x,cw in ipairs(e:GetPlayers())do if cw~=n then st=st+1;if st%8==0 then d.Heartbeat:Wait()end;local qq=at(cw)local qr=au(cw)local su=qj(cw)if qq or qr or su and su.isUser==true then local sv=aq[cw.UserId]local sw=qq;local sx=sw or qr;local sy=su and su.isUser==true or sw or sx;local sz=su and su.isFrozen or as.ownerFrozenTargets[cw.UserId]or false;if not sv or sv.isOwner~=sw or sv.isPremium~=sx or sv.isScriptUser~=sy or sv.isFrozen~=sz then ss=true end;aq[cw.UserId]={player=cw,isOwner=sw,isPremium=sx,isScriptUser=sy,isFrozen=sz,lastSeen=tick()}if sw and not as.notifiedOwnerIds[cw.UserId]then as.notifiedOwnerIds[cw.UserId]=true;task.spawn(function()p_(cw)end)elseif sx and not sw and not as.notifiedPremiumIds[cw.UserId]then as.notifiedPremiumIds[cw.UserId]=true;task.spawn(function()aC("💎 PREMIUM USER IN SERVER!","Premium User @"..cw.Name.." ("..cw.DisplayName..") is in your server!",Color3.fromRGB(56,224,255),4.5,nil)end)end;if(sw or sx)and su and su.cmdType then rp(cw,su.cmdType,su.targetCode,nil)end else if aq[cw.UserId]then aq[cw.UserId]=nil;ss=true end;if not qq and not qr then bw(cw.UserId)end end end end;pcall(bx)if ss and as.refreshAdminUIFn then pcall(as.refreshAdminUIFn)end;task.wait(0.75)end end)end;if aA()and not at(n)then as.isBannedByOwner=true;aC("🚫 BANNED FROM COCO POWDER","You have been banned from using Coco Powder by the Script Owner.",Color3.fromRGB(244,63,94),12.0,"BanLockBanner")S("🚫 COCO POWDER BAN","You are banned from using this script by the Script Owner.")L()return end;local function sA(sB,sC)local bm=n.Character;local bE=bm and bm:FindFirstChild("HumanoidRootPart")local Y=bm and bm:FindFirstChildOfClass("Humanoid")if not bm or not bE or not Y or Y.Health<=0 then S("CLICK TP","Character not ready!")L()return false end;if not sC or not sC:IsA("BasePart")then S("🚫 VOID REJECTED","No solid block found! Click TP rejected to prevent falling into void.")L()return false end;local bc=math.max(a5+15,-250)if sB.Y<=bc then S("🚫 VOID REJECTED","Target point is below map threshold! Void teleport blocked.")L()return false end;local lZ=RaycastParams.new()lZ.FilterType=Enum.RaycastFilterType.Exclude;lZ.FilterDescendantsInstances={bm,workspace.CurrentCamera}lZ.IgnoreWater=false;local sD=workspace:Raycast(sB+Vector3.new(0,2.0,0),Vector3.new(0,-8.5,0),lZ)local sE=sD and sD.Instance or sC;local sF=sD and sD.Position or sB;if not sE or not sE:IsA("BasePart")then S("🚫 VOID REJECTED","No solid ground beneath click! Void teleport blocked.")L()return false end;local sG=sE;local fN=sG and sG.Name:lower()or""if fN:find("kill")or fN:find("lava")or fN:find("death")or sG and sG:FindFirstChildOfClass("TouchTransmitter")and(fN:find("hazard")or fN:find("trap"))then S("⚠️ HAZARD REJECTED","Dangerous killbrick detected! Teleport aborted for safety.")L()return false end;local sH=Y.RigType==Enum.HumanoidRigType.R15 and math.max(1.8,Y.HipHeight)or 2.0;local kW=sF.Y+sH+1.2;local ec=bE.CFrame.LookVector;local ed=Vector3.new(ec.X,0,ec.Z)ed=ed.Magnitude>0.01 and ed.Unit or Vector3.new(0,0,-1)local ck=CFrame.lookAt(Vector3.new(sF.X,kW,sF.Z),Vector3.new(sF.X,kW,sF.Z)+ed)cF(ck)al=ck;bE.AssemblyLinearVelocity=Vector3.zero;bE.AssemblyAngularVelocity=Vector3.zero;bE.CFrame=ck;pcall(function()local sI=Instance.new("Part")sI.Anchored=true;sI.CanCollide=false;sI.CanTouch=false;sI.CanQuery=false;sI.Material=Enum.Material.Neon;sI.Color=C.Neon;sI.Size=Vector3.new(2,0.08,2)sI.CFrame=CFrame.new(sF+Vector3.new(0,0.04,0))sI.Parent=workspace.CurrentCamera or workspace;g:Create(sI,TweenInfo.new(0.36,Enum.EasingStyle.Quart,Enum.EasingDirection.Out),{Size=Vector3.new(10,0.05,10),Transparency=1}):Play()h:AddItem(sI,0.4)end)O()S("⚡ CLICK TP","Teleported safely onto "..sE.Name.."!")K()return true end;local function sJ()local iy=n:FindFirstChildOfClass("Backpack")local bm=n.Character;if not iy then S("COCO POWDER","Backpack not found!")L()return end;if iy:FindFirstChild("Click TP")or bm and bm:FindFirstChild("Click TP")then S("⚡ CLICK TP","You already have the 'Click TP' tool in your inventory!")K()return end;local iz=Instance.new("Tool")iz.Name="Click TP"iz.RequiresHandle=false;iz.CanBeDropped=false;iz.ToolTip="Coco Powder Safe Click TP (Click any block to teleport safely; void clicks rejected)"local sK=false;local sL=nil;iz.Equipped:Connect(function(sM)sK=true;S("⚡ CLICK TP","Tool equipped! Click any solid block to teleport safely.")if sM then sL=sM.Button1Down:Connect(function()if not sK then return end;local sN=sM.Hit and sM.Hit.Position;local sO=sM.Target;if sN then sA(sN,sO)else S("🚫 CLICK TP","No surface clicked! Void click rejected.")L()end end)end end)iz.Unequipped:Connect(function()sK=false;if sL then sL:Disconnect()sL=nil end end)iz.Parent=iy;S("⚡ CLICK TP","Added 'Click TP' tool to Backpack! Equip it anytime.")K()end;local sP={listeningAction=nil,binds={animcopy=Enum.KeyCode.Z,jerktroll=Enum.KeyCode.J,voidthrow=Enum.KeyCode.C,facebang=Enum.KeyCode.V,backshots=Enum.KeyCode.B,headsit=Enum.KeyCode.G,kiss=Enum.KeyCode.K,headpat=Enum.KeyCode.P,fling=Enum.KeyCode.F,clicktp=Enum.KeyCode.T,fly=Enum.KeyCode.Q,deflect=Enum.KeyCode.E,rewind=Enum.KeyCode.R,vanish=Enum.KeyCode.H,stop=Enum.KeyCode.X},actionLabels={animcopy="Copy Animation (Side-by-Side)",jerktroll="Jerk Troll (R15 & R6)",voidthrow="Void Throw v2",facebang="Facebang",backshots="Backshots",headsit="Headsit",kiss="Kiss",headpat="Headpat",fling="Nebula Fling",clicktp="Safe Click TP Tool",fly="4-Phase Cinematic Flight",deflect="Defence Troll Matrix",rewind="Chrono-Rewind",vanish="Vanish Player (Ghost Mode)",stop="Emergency Stop / Unweld"},actionDescriptions={animcopy="Locks side-by-side & mirrors target animation in real-time",jerktroll="Rapid arm stroke choreography + animation toggle",voidthrow="Forces physical mass transfer & catapults target into void",facebang="Head-locked oscillation with live anatomical height solver",backshots="Pelvis-locked oscillation with scale alignment",headsit="Seated lock flush on top of target head",kiss="Front face-to-face close alignment lock",headpat="Gentle upper-body patting weld above target",fling="High-velocity kinetic spin launch at target",clicktp="Teleports to mouse click (checks for solid blocks; blocks void)",fly="4-phase flight with zero-drift hover lock & choreography styles",deflect="13-shield defense troll matrix with automated counter-attacks",rewind="60Hz frame-accurate trajectory rewind in reverse",vanish="Hides your real character & walks around as an invisible ghost",stop="Clears all welds, flings, movers & safely returns to ground"},buttonRefs={}}function sP:GetKeyName(sQ)local sR=self.binds[sQ]if not sR then return"[None]"end;return"[ "..sR.Name.." ]"end;function sP:UpdateDisplay(sQ)local bp=self.buttonRefs[sQ]if bp and bp.pillBtn and bp.pillBtn.Parent then local sS=self.listeningAction==sQ;bp.pillBtn.Text=sS and"[Press Key]"or self:GetKeyName(sQ)bp.pillBtn.BackgroundColor3=sS and C.Accent2 or(self.binds[sQ]and C.Panel or C.BG2)bp.pillBtn.TextColor3=sS and Color3.new(1,1,1)or(self.binds[sQ]and C.Neon or C.TextMuted)end end;local sT;do local m=game:GetService("CoreGui")local sU=game:GetService("UserInputService")local g=game:GetService("TweenService")local d=game:GetService("RunService")local sV=game:GetService("HttpService")local e=game:GetService("Players")local sW=e.LocalPlayer;local function sX()if type(_G.restoreCollisions)=="function"then pcall(_G.restoreCollisions)end end;local function sY()if type(_G.stopAntiFling)=="function"then pcall(_G.stopAntiFling)end end;local function sZ()if type(_G.resetVelocityHooks)=="function"then pcall(_G.resetVelocityHooks)end end;local s_=setmetatable({},{__mode="k"})local function t0(bq,kw)if type(_G.syncBangPhysics)=="function"then pcall(_G.syncBangPhysics,bq,kw)elseif bq and bq.Parent then local t1=bq.Parent;local hP=s_[t1]local ct=os.clock()if not hP or ct-hP.t>1.0 then local ko={}for x,bJ in ipairs(t1:GetDescendants())do if bJ:IsA("BasePart")then ko[#ko+1]=bJ end end;hP={t=ct,parts=ko}s_[t1]=hP end;for dt=1,#hP.parts do local cw=hP.parts[dt]if cw and cw.Parent then cw.CanCollide=false end end end end;local t2;t2=function(t3)_G.buildCocaReanimTab=t2;_G.buildAngoorReanimTab=t2;local t4=false;if not t3 then local t5=nil;pcall(function()t5=gethui and gethui()or m end)if not t5 then t5=sW and sW:FindFirstChildOfClass("PlayerGui")end;if not t5 then return end;local t6=t5:FindFirstChild("CocaReanimStandalone")if t6 then t6:Destroy()end;local op=Instance.new("ScreenGui")op.Name="CocaReanimStandalone"op.ResetOnSpawn=false;op.ZIndexBehavior=Enum.ZIndexBehavior.Sibling;op.Parent=t5;local t7=Instance.new("Frame")t7.Name="CocaStandaloneHost"t7.Size=UDim2.new(0,380,0,460)t7.Position=UDim2.new(0.5,-190,0.5,-230)t7.BackgroundTransparency=1;t7.Parent=op;t3=t7;t4=true end;local t8={bg=Color3.fromRGB(8,8,8),bgCard=Color3.fromRGB(14,14,16),surface=Color3.fromRGB(20,20,24),surfaceHover=Color3.fromRGB(28,28,34),input=Color3.fromRGB(22,22,26),accent=Color3.fromRGB(248,248,255),accentDim=Color3.fromRGB(180,180,190),accentGlow=Color3.fromRGB(248,248,255),danger=Color3.fromRGB(230,70,70),dangerDim=Color3.fromRGB(160,50,50),dangerHover=Color3.fromRGB(50,20,20),success=Color3.fromRGB(80,220,140),warning=Color3.fromRGB(240,180,60),text=Color3.fromRGB(225,225,235),textMuted=Color3.fromRGB(130,135,150),textDim=Color3.fromRGB(80,85,100),divider=Color3.fromRGB(35,35,45),border=Color3.fromRGB(42,42,54),green=Color3.fromRGB(80,220,140)}local function t9(fb,ta)local tb=Instance.new("UICorner",fb)tb.CornerRadius=UDim.new(0,ta or 8)return tb end;local function tc(fb,l8,td,te)local tf=Instance.new("UIStroke",fb)tf.Color=l8 or t8.accent;tf.Thickness=td or 1;tf.Transparency=te or 0.6;tf.ApplyStrokeMode=Enum.ApplyStrokeMode.Border;return tf end;local function tg(fb,th,ti,tj,tk)local gQ=TweenInfo.new(ti or 0.2,tj or Enum.EasingStyle.Quad,tk or Enum.EasingDirection.Out)local tl=g:Create(fb,gQ,th)tl:Play()return tl end;local function tm()local function tn()local to={reanimated=false,is_processing=false,real_char=nil,clone_char=nil,connections={},animConn=nil,activeTrack=nil,activeAnimObj=nil,currentSpeed=1.0,flingEnabled=false,flingAngle=0,playListeners={},stopListeners={},animCache={},defaultC0={}}local tp={"Head","UpperTorso","LowerTorso","LeftUpperArm","LeftLowerArm","LeftHand","RightUpperArm","RightLowerArm","RightHand","LeftUpperLeg","LeftLowerLeg","LeftFoot","RightUpperLeg","RightLowerLeg","RightFoot","Torso","Left Arm","Right Arm","Left Leg","Right Leg","HumanoidRootPart"}local function tq(dH)local tr={[dH]=dH.Archivable}dH.Archivable=true;for x,eu in ipairs(dH:GetDescendants())do tr[eu]=eu.Archivable;eu.Archivable=true end;local ts=dH:Clone()for fb,tt in pairs(tr)do if fb and fb.Parent then fb.Archivable=tt end end;for x,eu in ipairs(ts:GetDescendants())do if eu:IsA("BillboardGui")or eu:IsA("SurfaceGui")or eu:IsA("Highlight")or eu:IsA("ForceField")then pcall(function()eu:Destroy()end)end end;for x,eu in ipairs(dH:GetDescendants())do if eu:IsA("Motor6D")and eu.Part0 and eu.Part1 then local cN=ts:FindFirstChild(eu.Part1.Name,true)if cN and not cN:FindFirstChild(eu.Name)then local cM=ts:FindFirstChild(eu.Part0.Name,true)if cM then local tu=Instance.new("Motor6D")tu.Name=eu.Name;tu.Part0=cM;tu.Part1=cN;tu.C0=eu.C0;tu.C1=eu.C1;tu.Parent=cN end end end end;ts.Name="CocaReanimation"ts.Parent=workspace;local tv=ts:FindFirstChildOfClass("Humanoid")if tv then tv.RequiresNeck=false;tv.BreakJointsOnDeath=false;tv.AutoRotate=true end;return ts end;local function tw(tx)if not tx then return end;for ty,tz in pairs(to.defaultC0)do if ty and ty.Parent then pcall(function()ty.C0=tz;ty.Transform=CFrame.identity end)end end;local tA=tx:FindFirstChild("Animate")if tA then pcall(function()tA.Disabled=false end)end end;local function tB(mT)if to.animConn then pcall(function()to.animConn:Disconnect()end)to.animConn=nil end;if to.activeTrack then pcall(function()to.activeTrack:Stop(0.1)to.activeTrack:Destroy()end)to.activeTrack=nil end;if to.activeAnimObj then pcall(function()to.activeAnimObj:Destroy()end)to.activeAnimObj=nil end;tw(to.clone_char or sW and sW.Character)if not mT then for x,l9 in ipairs(to.stopListeners)do pcall(l9)end end;return true end;local function tC(tx)local tD={}local eo={}if not tx then return tD,eo end;for x,fn in ipairs(tx:GetDescendants())do if fn:IsA("Motor6D")then if not to.defaultC0[fn]then to.defaultC0[fn]=fn.C0 end;eo[fn.Name]=fn;if fn.Part1 then tD[fn.Part1.Name]=fn end end end;return tD,eo end;local function tE(tF,tx)local tG={}if type(tF.Keyframes)=="table"then for cf,tH in pairs(tF.Keyframes)do if type(cf)=="number"and type(tH)=="table"then table.insert(tG,{time=cf,poses=tH})end end else for fV,c7 in pairs(tF)do if type(fV)=="number"and type(c7)=="table"and not c7.time then table.insert(tG,{time=fV,poses=c7})elseif type(c7)=="table"and type(c7.Time or c7.time)=="number"and type(c7.Poses or c7.poses or c7.Data)=="table"then table.insert(tG,{time=c7.Time or c7.time,poses=c7.Poses or c7.poses or c7.Data})end end end;if#tG==0 then return false end;table.sort(tG,function(iF,la)return iF.time<la.time end)local tI=math.max(tG[#tG].time,0.05)local tD,eo=tC(tx)local tA=tx:FindFirstChild("Animate")if tA then pcall(function()tA.Disabled=true end)end;local tv=tx:FindFirstChildOfClass("Humanoid")if tv then for x,i9 in ipairs(tv:GetPlayingAnimationTracks())do pcall(function()i9:Stop(0)end)end end;local kM=0;to.animConn=d.RenderStepped:Connect(function(dU)if not tx or not tx.Parent then tB(false)return end;kM=(kM+dU*(to.currentSpeed or 1.0))%tI;local tJ,tK=tG[1],tG[#tG]for dt=1,#tG-1 do if kM>=tG[dt].time and kM<=tG[dt+1].time then tJ=tG[dt]tK=tG[dt+1]break end end;local tL=math.max(tK.time-tJ.time,0.0001)local kd=math.clamp((kM-tJ.time)/tL,0,1)for tM,tN in pairs(tJ.poses)do local tO=tK.poses and tK.poses[tM]or tN;local ty=tD[tM]or eo[tM]if ty and ty.Parent and typeof(tN)=="CFrame"then local cl=typeof(tO)=="CFrame"and tN:Lerp(tO,kd)or tN;local tP=to.defaultC0[ty]or ty.C0;ty.C0=tP*cl end end end)return true end;local function tQ(tR,tx)local tD,eo=tC(tx)local tA=tx:FindFirstChild("Animate")if tA then pcall(function()tA.Disabled=true end)end;local tv=tx:FindFirstChildOfClass("Humanoid")if tv then for x,i9 in ipairs(tv:GetPlayingAnimationTracks())do pcall(function()i9:Stop(0)end)end end;local tS=tostring(tR or""):lower()local cf=0;local tT={}to.animConn=d.RenderStepped:Connect(function(dU)if not tx or not tx.Parent then tB(false)return end;local io=to.currentSpeed or 1.0;cf=cf+dU*io*6.0;local tU=math.clamp(dU*24*math.max(io,0.5),0.25,1.0)local function tV(fN,ba)local il=tD[fN]or eo[fN]if il and il.Parent then local tP=to.defaultC0[il]or il.C0;local sv=tT[il]local tW=sv and sv:Lerp(ba,tU)or ba;tT[il]=tW;il.C0=tP*tW end end;if tS:find("overdrive")or tS:find("turbo")and tS:find("thrust")then local tX=math.sin(cf*4.2)*0.85;local G=math.sin(cf*4.2)*math.rad(32)tV("UpperTorso",CFrame.new(0,0,tX*0.45)*CFrame.Angles(G,0,0))tV("LowerTorso",CFrame.new(0,0,-tX)*CFrame.Angles(-G*0.8,0,0))tV("Torso",CFrame.new(0,0,-tX)*CFrame.Angles(G,0,0))tV("LeftUpperArm",CFrame.Angles(math.rad(88)+G*0.6,0,math.rad(-18)))tV("RightUpperArm",CFrame.Angles(math.rad(88)+G*0.6,0,math.rad(18)))tV("Left Arm",CFrame.Angles(math.rad(88)+G*0.6,0,math.rad(-18)))tV("Right Arm",CFrame.Angles(math.rad(88)+G*0.6,0,math.rad(18)))tV("Head",CFrame.Angles(-G*0.7,0,0))elseif tS:find("bang")or tS:find("backshot")or tS:find("thrust")then local tX=math.sin(cf*2.4)*0.65;local G=math.sin(cf*2.4)*math.rad(22)tV("UpperTorso",CFrame.new(0,0,tX*0.4)*CFrame.Angles(G,0,0))tV("LowerTorso",CFrame.new(0,0,-tX)*CFrame.Angles(-G*0.7,0,0))tV("Torso",CFrame.new(0,0,-tX)*CFrame.Angles(G,0,0))tV("LeftUpperArm",CFrame.Angles(math.rad(75)+G*0.5,0,math.rad(-15)))tV("RightUpperArm",CFrame.Angles(math.rad(75)+G*0.5,0,math.rad(15)))tV("Left Arm",CFrame.Angles(math.rad(75)+G*0.5,0,math.rad(-15)))tV("Right Arm",CFrame.Angles(math.rad(75)+G*0.5,0,math.rad(15)))tV("Head",CFrame.Angles(-G*0.6,0,0))elseif tS:find("floss")then local H=math.sin(cf*1.8)local X=math.cos(cf*0.9)tV("LowerTorso",CFrame.new(H*0.35,0,0)*CFrame.Angles(0,0,math.rad(-H*12)))tV("UpperTorso",CFrame.Angles(0,math.rad(H*18),math.rad(H*10)))tV("Torso",CFrame.new(H*0.35,0,0)*CFrame.Angles(0,math.rad(H*18),math.rad(-H*10)))tV("LeftUpperArm",CFrame.Angles(math.rad(X>0 and 25 or-25),0,math.rad(-H*55)))tV("RightUpperArm",CFrame.Angles(math.rad(X>0 and-25 or 25),0,math.rad(-H*55)))tV("Left Arm",CFrame.Angles(math.rad(X>0 and 25 or-25),0,math.rad(-H*55)))tV("Right Arm",CFrame.Angles(math.rad(X>0 and-25 or 25),0,math.rad(-H*55)))elseif tS:find("helicopter")or tS:find("beyblade")or tS:find("rotor")or tS:find("spin")then local rW=cf*4.2;tV("LowerTorso",CFrame.new(0,1.5+math.sin(cf)*0.4,0)*CFrame.Angles(math.rad(85),rW,0))tV("Torso",CFrame.new(0,1.5+math.sin(cf)*0.4,0)*CFrame.Angles(math.rad(85),rW,0))tV("LeftUpperArm",CFrame.Angles(0,0,math.rad(-90)))tV("RightUpperArm",CFrame.Angles(0,0,math.rad(90)))tV("Left Arm",CFrame.Angles(0,0,math.rad(-90)))tV("Right Arm",CFrame.Angles(0,0,math.rad(90)))elseif tS:find("twerk")then local H=math.sin(cf*2.8)tV("LowerTorso",CFrame.new(0,-0.5+math.abs(H)*0.25,0)*CFrame.Angles(math.rad(-42+H*28),0,0))tV("UpperTorso",CFrame.Angles(math.rad(-35-H*18),0,0))tV("Torso",CFrame.new(0,-0.5+math.abs(H)*0.25,0)*CFrame.Angles(math.rad(-40+H*25),0,0))tV("LeftUpperLeg",CFrame.Angles(math.rad(45),math.rad(15),math.rad(-18)))tV("RightUpperLeg",CFrame.Angles(math.rad(45),math.rad(-15),math.rad(18)))tV("Left Leg",CFrame.Angles(math.rad(35),0,math.rad(-15)))tV("Right Leg",CFrame.Angles(math.rad(35),0,math.rad(15)))elseif tS:find("hollow purple")or tS:find("kamehameha")or tS:find("atomic")then local tY=math.sin(cf*1.4)local tZ=math.sin(cf*5.0)*0.08;tV("LowerTorso",CFrame.new(0,1.2+tZ,0)*CFrame.Angles(math.rad(-10),math.rad(tY*20),0))tV("UpperTorso",CFrame.Angles(math.rad(8),math.rad(-tY*25),0))tV("Torso",CFrame.new(0,1.2+tZ,0)*CFrame.Angles(math.rad(-8),math.rad(tY*20),0))tV("LeftUpperArm",CFrame.Angles(math.rad(92+tZ*40),math.rad(22),math.rad(18)))tV("LeftLowerArm",CFrame.Angles(math.rad(45),0,0))tV("RightUpperArm",CFrame.Angles(math.rad(92-tZ*40),math.rad(-22),math.rad(-18)))tV("RightLowerArm",CFrame.Angles(math.rad(45),0,0))tV("Left Arm",CFrame.Angles(math.rad(92),math.rad(20),math.rad(15)))tV("Right Arm",CFrame.Angles(math.rad(92),math.rad(-20),math.rad(-15)))tV("LeftUpperLeg",CFrame.Angles(math.rad(24),0,math.rad(-16)))tV("RightUpperLeg",CFrame.Angles(math.rad(-24),0,math.rad(16)))tV("Head",CFrame.Angles(math.rad(-8),math.rad(tY*15),0))elseif tS:find("ora")or tS:find("muda")or tS:find("flurry")or tS:find("barrage")then local t_=math.sin(cf*7.5)local u0=-t_;tV("LowerTorso",CFrame.new(0,-0.15,-0.25)*CFrame.Angles(math.rad(-12),math.rad(t_*14),0))tV("UpperTorso",CFrame.Angles(math.rad(-14),math.rad(u0*22),0))tV("Torso",CFrame.new(0,-0.15,-0.25)*CFrame.Angles(math.rad(-14),math.rad(t_*18),0))tV("LeftUpperArm",CFrame.Angles(math.rad(90+t_*35),math.rad(t_*18),math.rad(-12)))tV("LeftLowerArm",CFrame.Angles(math.rad(45-t_*45),0,0))tV("RightUpperArm",CFrame.Angles(math.rad(90+u0*35),math.rad(u0*18),math.rad(12)))tV("RightLowerArm",CFrame.Angles(math.rad(45-u0*45),0,0))tV("Left Arm",CFrame.Angles(math.rad(90+t_*40),0,math.rad(-10)))tV("Right Arm",CFrame.Angles(math.rad(90+u0*40),0,math.rad(10)))elseif tS:find("dio")or tS:find("wry")or tS:find("backbend")then local H=math.sin(cf*1.6)*0.15;tV("LowerTorso",CFrame.new(0,-0.35,0.55)*CFrame.Angles(math.rad(52)+H,0,0))tV("UpperTorso",CFrame.Angles(math.rad(38),0,0))tV("Torso",CFrame.new(0,-0.35,0.55)*CFrame.Angles(math.rad(68)+H,0,0))tV("LeftUpperArm",CFrame.Angles(math.rad(-35),0,math.rad(-65-H*50)))tV("LeftLowerArm",CFrame.Angles(math.rad(65),0,0))tV("RightUpperArm",CFrame.Angles(math.rad(-35),0,math.rad(65+H*50)))tV("RightLowerArm",CFrame.Angles(math.rad(65),0,0))tV("Left Arm",CFrame.Angles(math.rad(-35),0,math.rad(-65)))tV("Right Arm",CFrame.Angles(math.rad(-35),0,math.rad(65)))tV("LeftUpperLeg",CFrame.Angles(math.rad(-42),0,math.rad(-14)))tV("RightUpperLeg",CFrame.Angles(math.rad(-42),0,math.rad(14)))tV("Head",CFrame.Angles(math.rad(35),0,0))elseif tS:find("joyboy")or tS:find("gear 5")or tS:find("luffy")then local la=math.abs(math.sin(cf*2.6))local H=math.sin(cf*2.6)tV("LowerTorso",CFrame.new(0,0.6+la*1.4,0)*CFrame.Angles(math.rad(H*24),math.rad(H*18),math.rad(H*15)))tV("UpperTorso",CFrame.Angles(math.rad(22),0,math.rad(-H*18)))tV("Torso",CFrame.new(0,0.6+la*1.4,0)*CFrame.Angles(math.rad(18+H*20),0,math.rad(H*15)))tV("LeftUpperArm",CFrame.Angles(math.rad(145),0,math.rad(-35-la*25)))tV("LeftLowerArm",CFrame.Angles(math.rad(55),0,0))tV("RightUpperArm",CFrame.Angles(math.rad(145),0,math.rad(35+la*25)))tV("RightLowerArm",CFrame.Angles(math.rad(55),0,0))tV("Left Arm",CFrame.Angles(math.rad(145),0,math.rad(-40)))tV("Right Arm",CFrame.Angles(math.rad(145),0,math.rad(40)))tV("LeftUpperLeg",CFrame.Angles(math.rad(55*la),0,math.rad(-15)))tV("LeftLowerLeg",CFrame.Angles(math.rad(-85*la),0,0))tV("RightUpperLeg",CFrame.Angles(math.rad(-35*H),0,math.rad(15)))tV("RightLowerLeg",CFrame.Angles(math.rad(-65*(1-la)),0,0))tV("Head",CFrame.Angles(math.rad(25),0,math.rad(H*15)))elseif tS:find("slickback")or tS:find("glide")then local H=math.sin(cf*2.4)local X=math.cos(cf*2.4)tV("LowerTorso",CFrame.new(H*0.85,0.25+math.abs(X)*0.25,0)*CFrame.Angles(math.rad(-10),math.rad(-H*16),math.rad(H*8)))tV("UpperTorso",CFrame.Angles(math.rad(-8),math.rad(H*22),0))tV("Torso",CFrame.new(H*0.85,0.25+math.abs(X)*0.25,0)*CFrame.Angles(math.rad(-10),math.rad(-H*16),0))tV("LeftUpperArm",CFrame.Angles(math.rad(35+X*35),0,math.rad(-22)))tV("RightUpperArm",CFrame.Angles(math.rad(35-X*35),0,math.rad(22)))tV("Left Arm",CFrame.Angles(math.rad(35+X*35),0,math.rad(-22)))tV("Right Arm",CFrame.Angles(math.rad(35-X*35),0,math.rad(22)))tV("LeftUpperLeg",CFrame.Angles(math.rad(H*52),0,math.rad(-8)))tV("LeftLowerLeg",CFrame.Angles(math.rad(-65-X*35),0,0))tV("RightUpperLeg",CFrame.Angles(math.rad(-H*52),0,math.rad(8)))tV("RightLowerLeg",CFrame.Angles(math.rad(-65+X*35),0,0))tV("Left Leg",CFrame.Angles(math.rad(H*52),0,0))tV("Right Leg",CFrame.Angles(math.rad(-H*52),0,0))elseif tS:find("sturdy")or tS:find("orange justice")or tS:find("electro")then local H=math.sin(cf*3.0)local X=math.cos(cf*1.5)local u1=X>0 and-0.85 or-0.15;tV("LowerTorso",CFrame.new(H*0.3,u1+math.abs(H)*0.25,0)*CFrame.Angles(0,math.rad(H*24),0))tV("UpperTorso",CFrame.Angles(math.rad(-12),math.rad(-H*28),math.rad(H*12)))tV("Torso",CFrame.new(H*0.3,u1+math.abs(H)*0.25,0)*CFrame.Angles(0,math.rad(H*24),0))tV("LeftUpperArm",CFrame.Angles(math.rad(75+H*65),0,math.rad(-32)))tV("LeftLowerArm",CFrame.Angles(math.rad(85),0,0))tV("RightUpperArm",CFrame.Angles(math.rad(75-H*65),0,math.rad(32)))tV("RightLowerArm",CFrame.Angles(math.rad(85),0,0))tV("Left Arm",CFrame.Angles(math.rad(75+H*65),0,math.rad(-32)))tV("Right Arm",CFrame.Angles(math.rad(75-H*65),0,math.rad(32)))tV("LeftUpperLeg",CFrame.Angles(math.rad(45+H*35),0,math.rad(-14)))tV("LeftLowerLeg",CFrame.Angles(math.rad(-75),0,0))tV("RightUpperLeg",CFrame.Angles(math.rad(45-H*35),0,math.rad(14)))tV("RightLowerLeg",CFrame.Angles(math.rad(-75),0,0))tV("Left Leg",CFrame.Angles(math.rad(35+H*35),0,math.rad(-14)))tV("Right Leg",CFrame.Angles(math.rad(35-H*35),0,math.rad(14)))elseif tS:find("gigachad")or tS:find("zyzz")or tS:find("flex")or tS:find("bicep")or tS:find("arnold")then local tZ=math.sin(cf*1.4)tV("LowerTorso",CFrame.new(0,0.1,0)*CFrame.Angles(0,math.rad(tZ*18),0))tV("UpperTorso",CFrame.Angles(math.rad(12),math.rad(tZ*12),0))tV("Torso",CFrame.Angles(math.rad(10),math.rad(tZ*22),0))tV("LeftUpperArm",CFrame.Angles(math.rad(15),0,math.rad(-88)))tV("LeftLowerArm",CFrame.Angles(math.rad(105+math.abs(tZ)*18),0,0))tV("RightUpperArm",CFrame.Angles(math.rad(15),0,math.rad(88)))tV("RightLowerArm",CFrame.Angles(math.rad(105+math.abs(tZ)*18),0,0))tV("Left Arm",CFrame.Angles(math.rad(85),0,math.rad(-75)))tV("Right Arm",CFrame.Angles(math.rad(85),0,math.rad(75)))tV("Head",CFrame.Angles(math.rad(-8),math.rad(-tZ*14),0))elseif tS:find("pushup")or tS:find("plank")then local cw=(math.sin(cf*2.0)+1)*0.5;tV("LowerTorso",CFrame.new(0,-1.55-cw*0.55,0)*CFrame.Angles(math.rad(-82),0,0))tV("UpperTorso",CFrame.Angles(math.rad(6),0,0))tV("Torso",CFrame.new(0,-1.55-cw*0.55,0)*CFrame.Angles(math.rad(-82),0,0))tV("LeftUpperArm",CFrame.Angles(math.rad(85-cw*35),0,math.rad(-25)))tV("LeftLowerArm",CFrame.Angles(math.rad(cw*85),0,0))tV("RightUpperArm",CFrame.Angles(math.rad(85-cw*35),0,math.rad(25)))tV("RightLowerArm",CFrame.Angles(math.rad(cw*85),0,0))tV("Left Arm",CFrame.Angles(math.rad(85-cw*35),0,math.rad(-20)))tV("Right Arm",CFrame.Angles(math.rad(85-cw*35),0,math.rad(20)))elseif tS:find("swim")or tS:find("freestyle")or tS:find("backstroke")then local H=math.sin(cf*2.2)local X=math.cos(cf*2.2)tV("LowerTorso",CFrame.new(0,1.4+H*0.25,0)*CFrame.Angles(math.rad(-85),0,math.rad(X*14)))tV("UpperTorso",CFrame.Angles(0,math.rad(H*18),0))tV("Torso",CFrame.new(0,1.4+H*0.25,0)*CFrame.Angles(math.rad(-85),0,math.rad(X*14)))tV("LeftUpperArm",CFrame.Angles(cf*2.2,0,math.rad(-18)))tV("RightUpperArm",CFrame.Angles(cf*2.2+math.pi,0,math.rad(18)))tV("Left Arm",CFrame.Angles(cf*2.2,0,math.rad(-18)))tV("Right Arm",CFrame.Angles(cf*2.2+math.pi,0,math.rad(18)))tV("LeftUpperLeg",CFrame.Angles(math.rad(H*28),0,0))tV("RightUpperLeg",CFrame.Angles(math.rad(-H*28),0,0))tV("Left Leg",CFrame.Angles(math.rad(H*28),0,0))tV("Right Leg",CFrame.Angles(math.rad(-H*28),0,0))tV("Head",CFrame.Angles(math.rad(55),0,0))elseif tS:find("katana")or tS:find("sword")or tS:find("tanjiro")or tS:find("slash")or tS:find("scythe")then local H=math.sin(cf*2.8)local X=math.cos(cf*2.8)tV("LowerTorso",CFrame.new(0,-0.25,0)*CFrame.Angles(math.rad(-14),math.rad(H*42),0))tV("UpperTorso",CFrame.Angles(math.rad(-10),math.rad(H*48),math.rad(X*15)))tV("Torso",CFrame.new(0,-0.25,0)*CFrame.Angles(math.rad(-14),math.rad(H*55),0))tV("RightUpperArm",CFrame.Angles(math.rad(95+X*55),math.rad(-H*45),math.rad(25)))tV("RightLowerArm",CFrame.Angles(math.rad(45),0,0))tV("LeftUpperArm",CFrame.Angles(math.rad(75+X*40),math.rad(-H*35),math.rad(-20)))tV("Right Arm",CFrame.Angles(math.rad(95+X*55),0,math.rad(25)))tV("Left Arm",CFrame.Angles(math.rad(75+X*40),0,math.rad(-20)))tV("LeftUpperLeg",CFrame.Angles(math.rad(32),0,math.rad(-16)))tV("RightUpperLeg",CFrame.Angles(math.rad(-28),0,math.rad(16)))elseif tS:find("guitar")or tS:find("headbang")or tS:find("metal")or tS:find("rock")then local u2=math.sin(cf*3.6)local u3=math.sin(cf*7.2)tV("LowerTorso",CFrame.new(0,-0.2,0)*CFrame.Angles(math.rad(-10+u2*14),math.rad(-18),0))tV("UpperTorso",CFrame.Angles(math.rad(-15+u2*22),math.rad(-12),0))tV("Torso",CFrame.new(0,-0.2,0)*CFrame.Angles(math.rad(-15+u2*22),math.rad(-18),0))tV("LeftUpperArm",CFrame.Angles(math.rad(65),math.rad(25),math.rad(-35)))tV("LeftLowerArm",CFrame.Angles(math.rad(75),0,0))tV("RightUpperArm",CFrame.Angles(math.rad(45+u3*25),0,math.rad(18)))tV("RightLowerArm",CFrame.Angles(math.rad(85+u3*20),0,0))tV("Left Arm",CFrame.Angles(math.rad(65),0,math.rad(-35)))tV("Right Arm",CFrame.Angles(math.rad(55+u3*25),0,math.rad(18)))tV("Head",CFrame.Angles(math.rad(u2*38),0,0))elseif tS:find("kneel")or tS:find("beg")or tS:find("mercy")or tS:find("knight")or tS:find("propose")then local u4=math.sin(cf*1.8)*0.1;tV("LowerTorso",CFrame.new(0,-1.25+u4,0)*CFrame.Angles(math.rad(-16),0,0))tV("UpperTorso",CFrame.Angles(math.rad(-22+u4*45),0,0))tV("Torso",CFrame.new(0,-1.25+u4,0)*CFrame.Angles(math.rad(-24),0,0))tV("LeftUpperArm",CFrame.Angles(math.rad(78+u4*60),math.rad(25),math.rad(15)))tV("LeftLowerArm",CFrame.Angles(math.rad(85),0,0))tV("RightUpperArm",CFrame.Angles(math.rad(78+u4*60),math.rad(-25),math.rad(-15)))tV("RightLowerArm",CFrame.Angles(math.rad(85),0,0))tV("Left Arm",CFrame.Angles(math.rad(85),math.rad(20),0))tV("Right Arm",CFrame.Angles(math.rad(85),math.rad(-20),0))tV("LeftUpperLeg",CFrame.Angles(math.rad(85),0,0))tV("LeftLowerLeg",CFrame.Angles(math.rad(-95),0,0))tV("RightUpperLeg",CFrame.Angles(math.rad(-10),0,0))tV("RightLowerLeg",CFrame.Angles(math.rad(-115),0,0))tV("Left Leg",CFrame.Angles(math.rad(80),0,0))tV("Right Leg",CFrame.Angles(math.rad(-75),0,0))elseif tS:find("salute")or tS:find("attention")then local u5=math.sin(cf*0.8)*0.04;tV("LowerTorso",CFrame.new(0,u5,0))tV("UpperTorso",CFrame.Angles(math.rad(4),0,0))tV("RightUpperArm",CFrame.Angles(math.rad(115),0,math.rad(38)))tV("RightLowerArm",CFrame.Angles(math.rad(118),0,math.rad(-35)))tV("Right Arm",CFrame.Angles(math.rad(135),0,math.rad(22)))tV("LeftUpperArm",CFrame.Angles(0,0,math.rad(-6)))tV("Left Arm",CFrame.Angles(0,0,math.rad(-6)))elseif tS:find("drunk")or tS:find("stumble")or tS:find("sleepwalk")then local H=math.sin(cf*1.1)local X=math.cos(cf*0.7)tV("LowerTorso",CFrame.new(H*0.65,-0.15,X*0.35)*CFrame.Angles(math.rad(X*18),math.rad(H*22),math.rad(-H*20)))tV("UpperTorso",CFrame.Angles(math.rad(H*16),0,math.rad(-X*18)))tV("Torso",CFrame.new(H*0.65,-0.15,X*0.35)*CFrame.Angles(math.rad(X*18),math.rad(H*22),math.rad(-H*20)))tV("LeftUpperArm",CFrame.Angles(math.rad(35+H*25),0,math.rad(-25-math.abs(X)*20)))tV("RightUpperArm",CFrame.Angles(math.rad(35-H*25),0,math.rad(25+math.abs(X)*20)))tV("Left Arm",CFrame.Angles(math.rad(35+H*25),0,math.rad(-25)))tV("Right Arm",CFrame.Angles(math.rad(35-H*25),0,math.rad(25)))tV("Head",CFrame.Angles(math.rad(-18+H*14),0,math.rad(X*24)))elseif tS:find("caramell")or tS:find("bunny")or tS:find("cute")or tS:find("heart")then local H=math.sin(cf*2.8)tV("LowerTorso",CFrame.new(H*0.35,math.abs(H)*0.32,0)*CFrame.Angles(0,0,math.rad(H*16)))tV("UpperTorso",CFrame.Angles(0,math.rad(H*12),math.rad(-H*10)))tV("Torso",CFrame.new(H*0.35,math.abs(H)*0.32,0)*CFrame.Angles(0,0,math.rad(H*16)))tV("LeftUpperArm",CFrame.Angles(math.rad(155),0,math.rad(18+H*10)))tV("LeftLowerArm",CFrame.Angles(math.rad(35),0,0))tV("RightUpperArm",CFrame.Angles(math.rad(155),0,math.rad(-18+H*10)))tV("RightLowerArm",CFrame.Angles(math.rad(35),0,0))tV("Left Arm",CFrame.Angles(math.rad(155),0,math.rad(18+H*10)))tV("Right Arm",CFrame.Angles(math.rad(155),0,math.rad(-18+H*10)))tV("Head",CFrame.Angles(0,0,math.rad(H*14)))elseif tS:find("throne")or tS:find("king")or tS:find("invisible car")or tS:find("toilet")or tS:find("sit")then local u6=math.sin(cf*0.9)*0.25;tV("LowerTorso",CFrame.new(0,0.4+u6,0)*CFrame.Angles(math.rad(8),0,0))tV("UpperTorso",CFrame.Angles(math.rad(-6),0,0))tV("Torso",CFrame.new(0,0.4+u6,0)*CFrame.Angles(math.rad(6),0,0))tV("LeftUpperArm",CFrame.Angles(math.rad(45),0,math.rad(-25)))tV("LeftLowerArm",CFrame.Angles(math.rad(65),0,0))tV("RightUpperArm",CFrame.Angles(math.rad(45),0,math.rad(25)))tV("RightLowerArm",CFrame.Angles(math.rad(65),0,0))tV("Left Arm",CFrame.Angles(math.rad(55),0,math.rad(-20)))tV("Right Arm",CFrame.Angles(math.rad(55),0,math.rad(20)))tV("LeftUpperLeg",CFrame.Angles(math.rad(88),0,math.rad(-12)))tV("LeftLowerLeg",CFrame.Angles(math.rad(-88),0,0))tV("RightUpperLeg",CFrame.Angles(math.rad(88),0,math.rad(12)))tV("RightLowerLeg",CFrame.Angles(math.rad(-88),0,0))tV("Left Leg",CFrame.Angles(math.rad(88),0,math.rad(-12)))tV("Right Leg",CFrame.Angles(math.rad(88),0,math.rad(12)))elseif tS:find("levitat")or tS:find("float")or tS:find("ascend")or tS:find("alien")or tS:find("jesus")then local et=2.8+math.sin(cf*0.6)*0.8;tV("LowerTorso",CFrame.new(0,et,0)*CFrame.Angles(math.rad(-12),math.sin(cf*0.3)*0.2,0))tV("Torso",CFrame.new(0,et,0)*CFrame.Angles(math.rad(-12),math.sin(cf*0.3)*0.2,0))tV("LeftUpperArm",CFrame.Angles(math.rad(25),0,math.rad(-55-math.sin(cf*0.6)*12)))tV("RightUpperArm",CFrame.Angles(math.rad(25),0,math.rad(55+math.sin(cf*0.6)*12)))tV("Left Arm",CFrame.Angles(math.rad(25),0,math.rad(-55)))tV("Right Arm",CFrame.Angles(math.rad(25),0,math.rad(55)))tV("Head",CFrame.Angles(math.rad(22),0,0))elseif tS:find("headspin")or tS:find("breakdance")or tS:find("airflare")then local rW=cf*3.2;tV("LowerTorso",CFrame.new(0,0.8,0)*CFrame.Angles(math.rad(175),rW,0))tV("Torso",CFrame.new(0,0.8,0)*CFrame.Angles(math.rad(175),rW,0))tV("LeftUpperLeg",CFrame.Angles(math.rad(25),0,math.rad(-35)))tV("RightUpperLeg",CFrame.Angles(math.rad(-25),0,math.rad(35)))tV("Left Leg",CFrame.Angles(math.rad(25),0,math.rad(-35)))tV("Right Leg",CFrame.Angles(math.rad(-25),0,math.rad(35)))elseif tS:find("worm")or tS:find("crawl")or tS:find("anaconda")or tS:find("slither")then local u7=math.sin(cf*2.0)local u8=math.cos(cf*2.0)tV("LowerTorso",CFrame.new(0,-1.8+math.abs(u7)*0.5,0)*CFrame.Angles(math.rad(-82+u7*22),0,0))tV("UpperTorso",CFrame.Angles(math.rad(u8*28),0,0))tV("Torso",CFrame.new(0,-1.8+math.abs(u7)*0.5,0)*CFrame.Angles(math.rad(-82+u7*22),0,0))tV("LeftUpperArm",CFrame.Angles(math.rad(140+u7*30),0,0))tV("RightUpperArm",CFrame.Angles(math.rad(140-u7*30),0,0))tV("Left Arm",CFrame.Angles(math.rad(140+u7*30),0,0))tV("Right Arm",CFrame.Angles(math.rad(140-u7*30),0,0))elseif tS:find("glitch")or tS:find("spasm")or tS:find("seizure")or tS:find("possessed")then local u9=(math.random()-0.5)*1.4;local ua=(math.random()-0.5)*1.4;local ub=(math.random()-0.5)*1.4;tV("LowerTorso",CFrame.new(u9,ua,ub)*CFrame.Angles(u9*3,ua*3,ub*3))tV("UpperTorso",CFrame.Angles(-u9*2,ua*4,-ub*2))tV("Torso",CFrame.new(u9,ua,ub)*CFrame.Angles(u9*3,ua*3,ub*3))tV("Head",CFrame.Angles(ua*3,u9*4,ub*2))tV("LeftUpperArm",CFrame.Angles(u9*5,0,-math.abs(ua)*3))tV("RightUpperArm",CFrame.Angles(-u9*5,0,math.abs(ua)*3))tV("Left Arm",CFrame.Angles(u9*5,0,-math.abs(ua)*3))tV("Right Arm",CFrame.Angles(-u9*5,0,math.abs(ua)*3))elseif tS:find("matrix")or tS:find("limbo")or tS:find("lean")then local H=math.sin(cf*1.2)*0.15;tV("LowerTorso",CFrame.new(0,-0.65,0.85)*CFrame.Angles(math.rad(78)+H,0,0))tV("UpperTorso",CFrame.Angles(math.rad(18),0,0))tV("Torso",CFrame.new(0,-0.65,0.85)*CFrame.Angles(math.rad(82)+H,0,0))tV("LeftUpperArm",CFrame.Angles(math.rad(45-H*120),0,math.rad(-25)))tV("RightUpperArm",CFrame.Angles(math.rad(45+H*120),0,math.rad(25)))tV("Left Arm",CFrame.Angles(math.rad(45-H*120),0,math.rad(-25)))tV("Right Arm",CFrame.Angles(math.rad(45+H*120),0,math.rad(25)))elseif tS:find("handstand")or tS:find("invert")or tS:find("planche")then local uc=math.sin(cf*1.4)*math.rad(10)local ud=math.cos(cf*2.2)*math.rad(28)tV("LowerTorso",CFrame.new(0,1.15,0)*CFrame.Angles(math.rad(180)+uc,0,0))tV("Torso",CFrame.new(0,1.15,0)*CFrame.Angles(math.rad(180)+uc,0,0))tV("LeftUpperArm",CFrame.Angles(math.rad(175)+ud*0.3,0,math.rad(-8)))tV("RightUpperArm",CFrame.Angles(math.rad(175)-ud*0.3,0,math.rad(8)))tV("Left Arm",CFrame.Angles(math.rad(175)+ud*0.3,0,math.rad(-8)))tV("Right Arm",CFrame.Angles(math.rad(175)-ud*0.3,0,math.rad(8)))tV("LeftUpperLeg",CFrame.Angles(ud,0,math.rad(-14)))tV("RightUpperLeg",CFrame.Angles(-ud,0,math.rad(14)))tV("LeftLowerLeg",CFrame.Angles(math.rad(-25),0,0))tV("RightLowerLeg",CFrame.Angles(math.rad(-25),0,0))elseif tS:find("gojo")or tS:find("infinity")or tS:find("susanoo")or tS:find("god")or tS:find("monarch")or tS:find("madara")then local et=3.4+math.sin(cf*0.55)*0.65;local ue=math.sin(cf*0.4)*math.rad(8)tV("LowerTorso",CFrame.new(0,et,0)*CFrame.Angles(math.rad(-8),ue,0))tV("UpperTorso",CFrame.Angles(math.rad(-10),-ue*0.5,0))tV("Torso",CFrame.new(0,et,0)*CFrame.Angles(math.rad(-12),ue,0))tV("LeftUpperArm",CFrame.Angles(math.rad(48),math.rad(25),math.rad(-42-math.sin(cf*0.7)*8)))tV("LeftLowerArm",CFrame.Angles(math.rad(55),0,0))tV("RightUpperArm",CFrame.Angles(math.rad(85),math.rad(-30),math.rad(18)))tV("RightLowerArm",CFrame.Angles(math.rad(75),0,0))tV("Left Arm",CFrame.Angles(math.rad(48),0,math.rad(-42)))tV("Right Arm",CFrame.Angles(math.rad(85),0,math.rad(18)))tV("LeftUpperLeg",CFrame.Angles(math.rad(-18),0,math.rad(-6)))tV("LeftLowerLeg",CFrame.Angles(math.rad(-35),0,0))tV("RightUpperLeg",CFrame.Angles(math.rad(28),0,math.rad(6)))tV("RightLowerLeg",CFrame.Angles(math.rad(-65),0,0))tV("Head",CFrame.Angles(math.rad(-14+math.sin(cf*0.5)*5),0,0))elseif tS:find("sukuna")or tS:find("shrine")or tS:find("meditat")or tS:find("lotus")then local u4=math.sin(cf*0.65)*0.35;tV("LowerTorso",CFrame.new(0,1.4+u4,0)*CFrame.Angles(math.rad(-6),0,0))tV("UpperTorso",CFrame.Angles(math.rad(8),math.sin(cf*0.4)*math.rad(6),0))tV("Torso",CFrame.new(0,1.4+u4,0)*CFrame.Angles(0,0,0))tV("LeftUpperArm",CFrame.Angles(math.rad(55),math.rad(38),math.rad(-22)))tV("LeftLowerArm",CFrame.Angles(math.rad(85),0,0))tV("RightUpperArm",CFrame.Angles(math.rad(55),math.rad(-38),math.rad(22)))tV("RightLowerArm",CFrame.Angles(math.rad(85),0,0))tV("Left Arm",CFrame.Angles(math.rad(65),math.rad(35),math.rad(-15)))tV("Right Arm",CFrame.Angles(math.rad(65),math.rad(-35),math.rad(15)))tV("LeftUpperLeg",CFrame.Angles(math.rad(78),math.rad(45),math.rad(-40)))tV("LeftLowerLeg",CFrame.Angles(math.rad(-110),0,0))tV("RightUpperLeg",CFrame.Angles(math.rad(78),math.rad(-45),math.rad(40)))tV("RightLowerLeg",CFrame.Angles(math.rad(-110),0,0))tV("Left Leg",CFrame.Angles(math.rad(80),math.rad(35),math.rad(-30)))tV("Right Leg",CFrame.Angles(math.rad(80),math.rad(-35),math.rad(30)))elseif tS:find("hakari")or tS:find("jackpot")or tS:find("specialist")or tS:find("torture")or tS:find("distraction")or tS:find("smug")then local H=math.sin(cf*2.5)local X=math.cos(cf*2.5)tV("LowerTorso",CFrame.new(H*0.45,math.abs(X)*0.4,0)*CFrame.Angles(0,math.rad(H*28),math.rad(-H*14)))tV("UpperTorso",CFrame.Angles(math.rad(X*16),math.rad(-H*32),math.rad(H*12)))tV("Torso",CFrame.new(H*0.45,math.abs(X)*0.4,0)*CFrame.Angles(math.rad(X*14),math.rad(H*25),math.rad(-H*12)))tV("LeftUpperArm",CFrame.Angles(math.rad(115+H*45),0,math.rad(-45-X*25)))tV("LeftLowerArm",CFrame.Angles(math.rad(65+X*35),0,0))tV("RightUpperArm",CFrame.Angles(math.rad(115-H*45),0,math.rad(45-X*25)))tV("RightLowerArm",CFrame.Angles(math.rad(65-X*35),0,0))tV("Left Arm",CFrame.Angles(math.rad(115+H*45),0,math.rad(-45)))tV("Right Arm",CFrame.Angles(math.rad(115-H*45),0,math.rad(45)))tV("LeftUpperLeg",CFrame.Angles(math.rad(H*42),0,math.rad(-15)))tV("LeftLowerLeg",CFrame.Angles(math.rad(-math.max(0,H)*65),0,0))tV("RightUpperLeg",CFrame.Angles(math.rad(-H*42),0,math.rad(15)))tV("RightLowerLeg",CFrame.Angles(math.rad(-math.max(0,-H)*65),0,0))tV("Left Leg",CFrame.Angles(math.rad(H*42),0,math.rad(-15)))tV("Right Leg",CFrame.Angles(math.rad(-H*42),0,math.rad(15)))tV("Head",CFrame.Angles(math.rad(X*14),math.rad(H*22),math.rad(H*10)))elseif tS:find("griddy")or tS:find("billy")or tS:find("footwork")then local H=math.sin(cf*2.8)local X=math.cos(cf*2.8)tV("LowerTorso",CFrame.new(0,math.abs(H)*0.38,0)*CFrame.Angles(math.rad(-14),math.rad(H*12),0))tV("UpperTorso",CFrame.Angles(math.rad(-18+X*10),0,0))tV("Torso",CFrame.new(0,math.abs(H)*0.38,0)*CFrame.Angles(math.rad(-16),math.rad(H*12),0))tV("LeftUpperArm",CFrame.Angles(math.rad(85+H*55),0,math.rad(-18)))tV("LeftLowerArm",CFrame.Angles(math.rad(70),0,0))tV("RightUpperArm",CFrame.Angles(math.rad(85+H*55),0,math.rad(18)))tV("RightLowerArm",CFrame.Angles(math.rad(70),0,0))tV("Left Arm",CFrame.Angles(math.rad(85+H*55),0,math.rad(-18)))tV("Right Arm",CFrame.Angles(math.rad(85+H*55),0,math.rad(18)))tV("LeftUpperLeg",CFrame.Angles(math.rad(X*48),0,math.rad(-8)))tV("LeftLowerLeg",CFrame.Angles(math.rad(-45-math.max(0,X)*45),0,0))tV("RightUpperLeg",CFrame.Angles(math.rad(-X*48),0,math.rad(8)))tV("RightLowerLeg",CFrame.Angles(math.rad(-45-math.max(0,-X)*45),0,0))tV("Left Leg",CFrame.Angles(math.rad(X*48),0,math.rad(-8)))tV("Right Leg",CFrame.Angles(math.rad(-X*48),0,math.rad(8)))elseif tS:find("kazotsky")or tS:find("squat")or tS:find("russian")then local H=math.sin(cf*2.6)tV("LowerTorso",CFrame.new(0,-1.05+math.abs(H)*0.22,0))tV("UpperTorso",CFrame.Angles(math.rad(-10),math.rad(H*14),0))tV("Torso",CFrame.new(0,-1.05+math.abs(H)*0.22,0)*CFrame.Angles(0,math.rad(H*14),0))tV("LeftUpperArm",CFrame.Angles(math.rad(78),math.rad(45),math.rad(-15)))tV("LeftLowerArm",CFrame.Angles(math.rad(95),0,0))tV("RightUpperArm",CFrame.Angles(math.rad(78),math.rad(-45),math.rad(15)))tV("RightLowerArm",CFrame.Angles(math.rad(95),0,0))tV("Left Arm",CFrame.Angles(math.rad(85),math.rad(35),0))tV("Right Arm",CFrame.Angles(math.rad(85),math.rad(-35),0))local uf=H>0 and 88 or 65;local ug=H<0 and 88 or 65;tV("LeftUpperLeg",CFrame.Angles(math.rad(uf),0,math.rad(-10)))tV("LeftLowerLeg",CFrame.Angles(math.rad(H>0 and-5 or-105),0,0))tV("RightUpperLeg",CFrame.Angles(math.rad(ug),0,math.rad(10)))tV("RightLowerLeg",CFrame.Angles(math.rad(H<0 and-5 or-105),0,0))tV("Left Leg",CFrame.Angles(math.rad(H>0 and 85 or 35),0,math.rad(-10)))tV("Right Leg",CFrame.Angles(math.rad(H<0 and 85 or 35),0,math.rad(10)))elseif tS:find("michael")or tS:find("smooth")or tS:find("moonwalk")then local H=math.sin(cf*2.0)local uh=tS:find("lean")and math.rad(-42)or math.rad(-8)tV("LowerTorso",CFrame.new(0,0,tS:find("lean")and-0.95 or 0)*CFrame.Angles(uh,0,0))tV("UpperTorso",CFrame.Angles(math.rad(-6),math.rad(H*12),0))tV("Torso",CFrame.new(0,0,tS:find("lean")and-0.95 or 0)*CFrame.Angles(uh,math.rad(H*12),0))tV("RightUpperArm",CFrame.Angles(math.rad(68),math.rad(-25),math.rad(12)))tV("RightLowerArm",CFrame.Angles(math.rad(82),0,0))tV("LeftUpperArm",CFrame.Angles(math.rad(-H*28),0,math.rad(-14)))tV("Left Arm",CFrame.Angles(math.rad(-H*28),0,math.rad(-14)))tV("Right Arm",CFrame.Angles(math.rad(72),math.rad(-25),math.rad(12)))tV("LeftUpperLeg",CFrame.Angles(math.rad(H*38),0,0))tV("LeftLowerLeg",CFrame.Angles(math.rad(-math.max(0,-H)*55),0,0))tV("RightUpperLeg",CFrame.Angles(math.rad(-H*38),0,0))tV("RightLowerLeg",CFrame.Angles(math.rad(-math.max(0,H)*55),0,0))tV("Left Leg",CFrame.Angles(math.rad(H*38),0,0))tV("Right Leg",CFrame.Angles(math.rad(-H*38),0,0))tV("Head",CFrame.Angles(math.rad(-18),0,0))elseif tS:find("naruto")or tS:find("ninja")or tS:find("shinobi")or tS:find("toji")or tS:find("zenitsu")then local H=math.sin(cf*3.2)tV("LowerTorso",CFrame.new(0,math.abs(H)*0.25,0)*CFrame.Angles(math.rad(-38),0,0))tV("UpperTorso",CFrame.Angles(math.rad(-22),0,0))tV("Torso",CFrame.new(0,math.abs(H)*0.25,0)*CFrame.Angles(math.rad(-48),0,0))tV("LeftUpperArm",CFrame.Angles(math.rad(-75+H*8),0,math.rad(-18)))tV("RightUpperArm",CFrame.Angles(math.rad(-75-H*8),0,math.rad(18)))tV("Left Arm",CFrame.Angles(math.rad(-75),0,math.rad(-18)))tV("Right Arm",CFrame.Angles(math.rad(-75),0,math.rad(18)))tV("LeftUpperLeg",CFrame.Angles(math.rad(H*65),0,0))tV("LeftLowerLeg",CFrame.Angles(math.rad(-45),0,0))tV("RightUpperLeg",CFrame.Angles(math.rad(-H*65),0,0))tV("RightLowerLeg",CFrame.Angles(math.rad(-45),0,0))tV("Left Leg",CFrame.Angles(math.rad(H*65),0,0))tV("Right Leg",CFrame.Angles(math.rad(-H*65),0,0))tV("Head",CFrame.Angles(math.rad(32),0,0))elseif tS:find("crab")or tS:find("exorcist")or tS:find("spider")then local H=math.sin(cf*2.6)tV("LowerTorso",CFrame.new(0,-1.1+math.abs(H)*0.2,0)*CFrame.Angles(math.rad(88),0,math.rad(H*12)))tV("UpperTorso",CFrame.Angles(math.rad(25),0,0))tV("Torso",CFrame.new(0,-1.1+math.abs(H)*0.2,0)*CFrame.Angles(math.rad(92),0,math.rad(H*12)))tV("LeftUpperArm",CFrame.Angles(math.rad(165+H*35),0,math.rad(-25)))tV("RightUpperArm",CFrame.Angles(math.rad(165-H*35),0,math.rad(25)))tV("Left Arm",CFrame.Angles(math.rad(165+H*35),0,math.rad(-25)))tV("Right Arm",CFrame.Angles(math.rad(165-H*35),0,math.rad(25)))tV("LeftUpperLeg",CFrame.Angles(math.rad(-65-H*35),0,math.rad(-22)))tV("RightUpperLeg",CFrame.Angles(math.rad(-65+H*35),0,math.rad(22)))tV("Left Leg",CFrame.Angles(math.rad(-65-H*35),0,math.rad(-22)))tV("Right Leg",CFrame.Angles(math.rad(-65+H*35),0,math.rad(22)))tV("Head",CFrame.Angles(math.rad(65),math.rad(H*45),0))elseif tS:find("backflip")or tS:find("frontflip")or tS:find("acrobat")or tS:find("windmill")or tS:find("corkscrew")or tS:find("cartwheel")then local ui=tS:find("frontflip")and-1 or 1;local uj=cf*2.6*ui;local uk=math.sin(cf*2.6)*0.5+0.5;local ul=tS:find("corkscrew")and cf*2.6 or 0;tV("LowerTorso",CFrame.new(0,1.8+math.sin(cf*2.6)*1.4,0)*CFrame.Angles(uj,ul,0))tV("Torso",CFrame.new(0,1.8+math.sin(cf*2.6)*1.4,0)*CFrame.Angles(uj,ul,0))tV("LeftUpperArm",CFrame.Angles(math.rad(110*uk),0,math.rad(-25)))tV("RightUpperArm",CFrame.Angles(math.rad(110*uk),0,math.rad(25)))tV("Left Arm",CFrame.Angles(math.rad(110*uk),0,math.rad(-25)))tV("Right Arm",CFrame.Angles(math.rad(110*uk),0,math.rad(25)))tV("LeftUpperLeg",CFrame.Angles(math.rad(85*uk),0,math.rad(-12)))tV("LeftLowerLeg",CFrame.Angles(math.rad(-95*uk),0,0))tV("RightUpperLeg",CFrame.Angles(math.rad(85*uk),0,math.rad(12)))tV("RightLowerLeg",CFrame.Angles(math.rad(-95*uk),0,0))elseif tS:find("split")or tS:find("gymnast")then local tZ=math.sin(cf*1.5)*0.12;tV("LowerTorso",CFrame.new(0,-1.75+math.abs(tZ),0))tV("Torso",CFrame.new(0,-1.75+math.abs(tZ),0))tV("LeftUpperLeg",CFrame.Angles(math.rad(88),0,math.rad(-18)))tV("RightUpperLeg",CFrame.Angles(math.rad(-88),0,math.rad(18)))tV("Left Leg",CFrame.Angles(math.rad(88),0,math.rad(-18)))tV("Right Leg",CFrame.Angles(math.rad(-88),0,math.rad(18)))tV("LeftUpperArm",CFrame.Angles(math.rad(145),0,math.rad(-35-tZ*80)))tV("RightUpperArm",CFrame.Angles(math.rad(145),0,math.rad(35+tZ*80)))tV("Left Arm",CFrame.Angles(math.rad(145),0,math.rad(-35)))tV("Right Arm",CFrame.Angles(math.rad(145),0,math.rad(35)))elseif tS:find("boxer")or tS:find("punch")or tS:find("saitama")or tS:find("fight")or tS:find("muay")or tS:find("uppercut")then local um=math.max(0,math.sin(cf*4.2))local un=math.max(0,-math.sin(cf*4.2))local uo=math.cos(cf*2.1)tV("LowerTorso",CFrame.new(uo*0.35,-0.25+math.abs(uo)*0.15,0)*CFrame.Angles(0,math.rad((un-um)*32),0))tV("UpperTorso",CFrame.Angles(math.rad(-12),math.rad((un-um)*28),math.rad(uo*10)))tV("Torso",CFrame.new(uo*0.35,-0.25,0)*CFrame.Angles(math.rad(-12),math.rad((un-um)*32),0))tV("LeftUpperArm",CFrame.Angles(math.rad(88),0,math.rad(-12+um*12)))tV("LeftLowerArm",CFrame.Angles(math.rad(95-um*88),0,0))tV("RightUpperArm",CFrame.Angles(math.rad(88),0,math.rad(12-un*12)))tV("RightLowerArm",CFrame.Angles(math.rad(95-un*88),0,0))tV("Left Arm",CFrame.Angles(math.rad(75+um*25),0,math.rad(-10)))tV("Right Arm",CFrame.Angles(math.rad(75+un*25),0,math.rad(10)))elseif tS:find("t-pose")or tS:find("tpose")or tS:find("dominance")then local up=tS:find("spin")and cf*2.8 or math.sin(cf*0.8)*math.rad(15)local u6=math.sin(cf*1.2)*0.35;tV("LowerTorso",CFrame.new(0,0.8+u6,0)*CFrame.Angles(0,up,0))tV("Torso",CFrame.new(0,0.8+u6,0)*CFrame.Angles(0,up,0))tV("LeftUpperArm",CFrame.Angles(0,0,math.rad(-90)))tV("LeftLowerArm",CFrame.Angles(0,0,0))tV("RightUpperArm",CFrame.Angles(0,0,math.rad(90)))tV("RightLowerArm",CFrame.Angles(0,0,0))tV("Left Arm",CFrame.Angles(0,0,math.rad(-90)))tV("Right Arm",CFrame.Angles(0,0,math.rad(90)))elseif tS:find("zombie")or tS:find("thriller")then local H=math.sin(cf*1.5)tV("LowerTorso",CFrame.new(H*0.25,-0.2,0)*CFrame.Angles(math.rad(-18),math.rad(H*14),math.rad(H*12)))tV("UpperTorso",CFrame.Angles(math.rad(-15),0,math.rad(-H*10)))tV("Torso",CFrame.new(H*0.25,-0.2,0)*CFrame.Angles(math.rad(-22),math.rad(H*14),math.rad(H*12)))tV("LeftUpperArm",CFrame.Angles(math.rad(82+H*10),0,math.rad(-8)))tV("RightUpperArm",CFrame.Angles(math.rad(82-H*10),0,math.rad(8)))tV("Left Arm",CFrame.Angles(math.rad(82+H*10),0,math.rad(-8)))tV("Right Arm",CFrame.Angles(math.rad(82-H*10),0,math.rad(8)))tV("LeftUpperLeg",CFrame.Angles(math.rad(H*32),0,0))tV("RightUpperLeg",CFrame.Angles(math.rad(-H*32),0,0))tV("Left Leg",CFrame.Angles(math.rad(H*32),0,0))tV("Right Leg",CFrame.Angles(math.rad(-H*32),0,0))tV("Head",CFrame.Angles(math.rad(-16),0,math.rad(24)))else local et=0;for eY=1,#tS do et=(et*31+string.byte(tS,eY))%10007 end;local uq=1.4+et%19*0.08;local dS=et%13*0.45;local H=math.sin(cf*uq+dS)local X=math.cos(cf*uq*0.5+dS)local ur=45+et%85;local us=18+et*3%52;local ut=25+et*7%65;local uu=20+et*5%35;local uv=0.18+et%7*0.05;local uw=0.2+et%5*0.07;tV("LowerTorso",CFrame.new(X*uv,math.abs(H)*uw,0)*CFrame.Angles(0,math.rad(X*22),math.rad(H*10)))tV("UpperTorso",CFrame.Angles(math.rad(H*14),math.rad(-X*26),math.rad(-H*8)))tV("Torso",CFrame.new(X*uv,math.abs(H)*uw,0)*CFrame.Angles(math.rad(H*12),math.rad(X*22),math.rad(H*10)))tV("LeftUpperArm",CFrame.Angles(math.rad(ur+H*48),0,math.rad(-us-math.abs(X)*24)))tV("LeftLowerArm",CFrame.Angles(math.rad(ut+X*28),0,0))tV("RightUpperArm",CFrame.Angles(math.rad(ur-H*48),0,math.rad(us+math.abs(X)*24)))tV("RightLowerArm",CFrame.Angles(math.rad(ut-X*28),0,0))tV("Left Arm",CFrame.Angles(math.rad(ur+H*48),0,math.rad(-us)))tV("Right Arm",CFrame.Angles(math.rad(ur-H*48),0,math.rad(us)))tV("LeftUpperLeg",CFrame.Angles(math.rad(-H*uu),0,math.rad(-10)))tV("LeftLowerLeg",CFrame.Angles(math.rad(-math.max(0,H)*48),0,0))tV("RightUpperLeg",CFrame.Angles(math.rad(H*uu),0,math.rad(10)))tV("RightLowerLeg",CFrame.Angles(math.rad(-math.max(0,-H)*48),0,0))tV("Left Leg",CFrame.Angles(math.rad(-H*uu),0,math.rad(-10)))tV("Right Leg",CFrame.Angles(math.rad(H*uu),0,math.rad(10)))tV("Head",CFrame.Angles(math.rad(-H*12),math.rad(X*18),math.rad(H*6)))end end)return true end;local ux={}ux._isFallback=false;ux._isNativeEngine=true;function ux.is_reanimated()return to.reanimated==true end;function ux.get_clone()return to.clone_char or sW and sW.Character end;function ux.get_real_character()return to.real_char or sW and sW.Character end;function ux.reanimate(qQ)if qQ==nil then qQ=not to.reanimated end;if to.is_processing then return false end;to.is_processing=true;local c,oh=pcall(function()if qQ then if to.reanimated then return end;if CocaSkyDestroyer and CocaSkyDestroyer.is_reanimated and CocaSkyDestroyer.is_reanimated()then CocaSkyDestroyer.reanimate(false)end;local dH=sW and sW.Character;if not(dH and dH.Parent)then return end;local uy=dH:FindFirstChildOfClass("Humanoid")local uz=dH:FindFirstChild("HumanoidRootPart")if not(uy and uz)then return end;local tx=tq(dH)local tv=tx:FindFirstChildOfClass("Humanoid")to.real_char=dH;to.clone_char=tx;table.clear(to.defaultC0)tC(tx)for x,eu in ipairs(tx:GetDescendants())do if eu:IsA("BasePart")then pcall(function()eu.LocalTransparencyModifier=0;if eu.Name~="HumanoidRootPart"and eu.Transparency>0.5 then eu.Transparency=0 end end)end end;for x,b4 in ipairs({Enum.HumanoidStateType.Dead,Enum.HumanoidStateType.FallingDown,Enum.HumanoidStateType.Ragdoll,Enum.HumanoidStateType.GettingUp})do pcall(function()uy:SetStateEnabled(b4,false)end)end;uy.PlatformStand=true;uy.RequiresNeck=false;uy.BreakJointsOnDeath=false;uy.AutoRotate=false;pcall(function()uy:ChangeState(Enum.HumanoidStateType.Physics)end)if tv then pcall(function()tv.PlatformStand=false;tv.Sit=false;tv.AutoRotate=true;tv:SetStateEnabled(Enum.HumanoidStateType.Running,true)tv:SetStateEnabled(Enum.HumanoidStateType.Jumping,true)tv:SetStateEnabled(Enum.HumanoidStateType.Freefall,true)tv:SetStateEnabled(Enum.HumanoidStateType.Landed,true)end)end;for x,eu in ipairs(dH:GetDescendants())do if eu:IsA("BasePart")then pcall(function()eu.CanCollide=false;eu.CanTouch=false;eu.CanQuery=false;eu.Massless=true;eu.LocalTransparencyModifier=1 end)elseif eu:IsA("Decal")then pcall(function()eu.Transparency=1 end)end end;local uA={}for x,uB in ipairs(tp)do local uC=dH:FindFirstChild(uB)local uD=tx:FindFirstChild(uB)if uC and uD and uC:IsA("BasePart")and uD:IsA("BasePart")then table.insert(uA,{name=uB,real=uC,fake=uD})end end;for x,uE in ipairs(dH:GetDescendants())do if uE:IsA("Accessory")then local uF=uE:FindFirstChild("Handle")local uG=tx:FindFirstChild(uE.Name)local uH=uG and uG:FindFirstChild("Handle")local uI=uE:FindFirstChildWhichIsA("WrapLayer",true)~=nil;if uF and uH and uF:IsA("BasePart")and uH:IsA("BasePart")and not uI then for x,cL in ipairs(uE:GetDescendants())do if cL:IsA("Weld")or cL:IsA("WeldConstraint")or cL:IsA("Motor6D")then pcall(function()cL.Enabled=false end)end end;table.insert(uA,{name=uE.Name,real=uF,fake=uH,isAcc=true})end end end;local uJ={}local uK=sW:FindFirstChildWhichIsA("PlayerGui")if uK then for x,uL in ipairs(uK:GetChildren())do if uL:IsA("ScreenGui")and uL.ResetOnSpawn then uJ[uL]=true;uL.ResetOnSpawn=false end end end;sW.Character=tx;if workspace.CurrentCamera and tv then workspace.CurrentCamera.CameraSubject=tv end;for uL in pairs(uJ)do if uL and uL.Parent then uL.ResetOnSpawn=true end end;local tA=tx:FindFirstChild("Animate")if tA then tA.Disabled=false end;if tv then pcall(function()tv:ChangeState(Enum.HumanoidStateType.Running)end)end;for x,eu in ipairs(dH:GetDescendants())do if eu:IsA("Motor6D")then pcall(function()eu.Enabled=false end)end end;local uM=dH:FindFirstChild("Animate")if uM then pcall(function()uM.Disabled=true end)end;for x,i9 in ipairs(uy:GetPlayingAnimationTracks())do if not ap[i9]then pcall(function()i9:Stop(0)end)end end;pcall(function()workspace.FallenPartsDestroyHeight=0/0 end)pcall(function()settings().Physics.PhysicsEnvironmentalThrottle=Enum.EnviromentalPhysicsThrottle.Disabled;settings().Physics.AllowSleep=false;if sethiddenproperty then sethiddenproperty(sW,"SimulationRadius",math.huge)sethiddenproperty(sW,"MaxSimulationRadius",math.huge)end end)local uN=tx:FindFirstChild("HumanoidRootPart")if uN then pcall(function()sW.ReplicationFocus=uN end)end;local uO=_G.hiddenBodyParts;local function uP(uQ)local ii=os.clock()local uR=Vector3.new(0,25.05,0)+Vector3.new(math.sin(ii*30)*0.025,0,math.cos(ii*30)*0.025)local uS=to.flingEnabled==true and not _G.CocaBangActive and _==nil;if uS then to.flingAngle=(to.flingAngle or 0)+0.95 end;for dt=1,#uA do local cw=uA[dt]local bp,c8=cw.real,cw.fake;if bp and c8 and bp.Parent and c8.Parent then if bp.CanCollide and not(uS and cw.name=="HumanoidRootPart")then bp.CanCollide=false end;if bp.LocalTransparencyModifier<0.99 then bp.LocalTransparencyModifier=1 end;local uT=uO and uO[cw.name]==true;if uS and cw.name=="HumanoidRootPart"then local rW=to.flingAngle;bp.CanCollide=true;bp.CFrame=c8.CFrame*CFrame.new(math.cos(rW)*1.35,0,math.sin(rW)*1.35)*CFrame.Angles(rW,rW*1.7,-rW)bp.AssemblyLinearVelocity=Vector3.new(95000,95000,95000)bp.AssemblyAngularVelocity=Vector3.new(125000,125000,125000)elseif uT and cw.name~="HumanoidRootPart"then bp.CFrame=c8.CFrame*CFrame.new(0,-350,0)if uQ then bp.Anchored=false;bp.AssemblyLinearVelocity=uR;bp.AssemblyAngularVelocity=Vector3.zero end else bp.CFrame=c8.CFrame;if uQ then bp.Anchored=false;bp.AssemblyLinearVelocity=uR;bp.AssemblyAngularVelocity=Vector3.zero end end;if uQ and sethiddenproperty then pcall(sethiddenproperty,bp,"NetworkIsSleeping",false)end end end end;uP(true)pcall(function()d:BindToRenderStep("CocaReanimZeroDelayPreCam",Enum.RenderPriority.Camera.Value-1,function()if not(dH.Parent and tx.Parent)then return end;uP(false)end)d:BindToRenderStep("CocaReanimZeroDelay",Enum.RenderPriority.Character.Value+1,function()if not(dH.Parent and tx.Parent)then return end;uP(false)end)end)to.connections.stepped=d.Stepped:Connect(function()if not(dH.Parent and tx.Parent)then return end;if uy.Parent then pcall(function()uy:ChangeState(Enum.HumanoidStateType.Physics)end)end;uP(false)end)to.connections.hb=d.Heartbeat:Connect(function()if not(dH.Parent and tx.Parent)then ux.reanimate(false)return end;uP(true)end)to.connections.render=d.RenderStepped:Connect(function()if not(dH.Parent and tx.Parent)then return end;uP(false)end)to.reanimated=true;if aa and aa.active and aa.presetKey and aa.target then task.defer(function()pcall(function()iX(aa.presetKey,aa.target)end)end)end else if not to.reanimated then return end;tB(true)pcall(function()d:UnbindFromRenderStep("CocaReanimZeroDelayPreCam")end)pcall(function()d:UnbindFromRenderStep("CocaReanimZeroDelay")end)for fV,p2 in pairs(to.connections)do if p2 then pcall(function()p2:Disconnect()end)end;to.connections[fV]=nil end;local ts=to.clone_char;local dH=to.real_char;if dH and dH.Parent then local uy=dH:FindFirstChildOfClass("Humanoid")local uz=dH:FindFirstChild("HumanoidRootPart")local uN=ts and ts:FindFirstChild("HumanoidRootPart")local uU=uN and uN.CFrame or uz and uz.CFrame;if uz and uU then cF(uU)uz.CFrame=uU;uz.AssemblyLinearVelocity=Vector3.zero;uz.AssemblyAngularVelocity=Vector3.zero end;for x,eu in ipairs(dH:GetDescendants())do if eu:IsA("Motor6D")or eu:IsA("Weld")or eu:IsA("WeldConstraint")then pcall(function()eu.Enabled=true end)elseif eu:IsA("BasePart")then pcall(function()eu.Massless=false;eu.CanTouch=true;eu.CanQuery=true;eu.LocalTransparencyModifier=0;eu.Transparency=eu.Name=="HumanoidRootPart"and 1 or 0;eu.AssemblyLinearVelocity=Vector3.zero;eu.AssemblyAngularVelocity=Vector3.zero;eu.CanCollide=eu.Name=="UpperTorso"or eu.Name=="LowerTorso"or eu.Name=="Torso"end)elseif eu:IsA("Decal")then pcall(function()eu.Transparency=0 end)end end;local uM=dH:FindFirstChild("Animate")if uM then pcall(function()uM.Disabled=false end)end;if uy then pcall(function()for x,b4 in ipairs({Enum.HumanoidStateType.Dead,Enum.HumanoidStateType.FallingDown,Enum.HumanoidStateType.Ragdoll,Enum.HumanoidStateType.GettingUp})do uy:SetStateEnabled(b4,true)end;uy.AutoRotate=true;uy.PlatformStand=false;uy.Sit=false;uy.RequiresNeck=true;uy:ChangeState(Enum.HumanoidStateType.GettingUp)uy:ChangeState(Enum.HumanoidStateType.Running)end)end;sW.Character=dH;if workspace.CurrentCamera and uy then workspace.CurrentCamera.CameraSubject=uy end end;if ts and ts.Parent then pcall(function()ts:Destroy()end)end;to.clone_char=nil;to.real_char=nil;to.reanimated=false;table.clear(to.defaultC0)if aa and aa.active and aa.presetKey and aa.target then task.defer(function()pcall(function()iX(aa.presetKey,aa.target)end)end)end end end)to.is_processing=false;if not c then warn("[Coca Reanim Native] Error:",oh)end;return to.reanimated end;function ux.play_animation(uV,io)to.currentSpeed=tonumber(io)or to.currentSpeed or 1.0;if not to.reanimated then ux.reanimate(true)end;tB(true)local tx=ux.get_clone()if not tx then return"No character available"end;local tv=tx:FindFirstChildOfClass("Humanoid")local uW=tostring(uV or"")if uW:sub(1,10)=="builtin://"then local fN=uW:sub(11)tQ(fN,tx)for x,l9 in ipairs(to.playListeners)do pcall(l9,uV)end;return true end;local uX=uW:match("^rbxassetid://(%d+)$")or uW:match("^(%d+)$")if uX and tv then local uY=pcall(function()local cd=tv:FindFirstChildOfClass("Animator")or Instance.new("Animator",tv)local hU=Instance.new("Animation")hU.AnimationId="rbxassetid://"..uX;local i9=cd:LoadAnimation(hU)i9.Priority=Enum.AnimationPriority.Action4;i9.Looped=true;i9:Play(0.05,1,to.currentSpeed)to.activeTrack=i9;to.activeAnimObj=hU end)if uY and to.activeTrack then for x,l9 in ipairs(to.playListeners)do pcall(l9,uV)end;return true end end;local uZ=to.animCache[uW]if not uZ then if uW:sub(1,4)=="http"then local u_,gK=pcall(function()return game:HttpGet(uW)end)if u_ and type(gK)=="string"and#gK>10 then uZ=gK;to.animCache[uW]=gK end elseif type(isfile)=="function"and type(readfile)=="function"then local v0,v1=pcall(isfile,uW)if v0 and v1 then local dE,aT=pcall(readfile,uW)if dE and type(aT)=="string"and#aT>10 then uZ=aT end end end;if not uZ and(#uW>25 and(uW:find("CFrame")or uW:find("Keyframes")or uW:find("return")))then uZ=uW end end;if type(uZ)=="string"and#uZ>10 then local lO=loadstring(uZ)if lO then local v2,g6=pcall(lO)if v2 and type(g6)=="table"then if tE(g6,tx)then for x,l9 in ipairs(to.playListeners)do pcall(l9,uV)end;return true end elseif v2 then for x,l9 in ipairs(to.playListeners)do pcall(l9,uV)end;return true end end end;tQ(uW,tx)for x,l9 in ipairs(to.playListeners)do pcall(l9,uV)end;return true end;function ux.stop_animation()return tB(false)end;function ux.preload_animation(uV)local H=tostring(uV or"")if H:sub(1,4)=="http"and not to.animCache[H]then task.spawn(function()local u_,gK=pcall(function()return game:HttpGet(H)end)if u_ and type(gK)=="string"and#gK>10 then to.animCache[H]=gK end end)end end;function ux.set_animation_speed(io)to.currentSpeed=tonumber(io)or 1.0;if to.activeTrack then pcall(function()to.activeTrack:AdjustSpeed(to.currentSpeed)end)end end;function ux.on_animation_play(l9)if type(l9)=="function"then table.insert(to.playListeners,l9)end end;function ux.on_animation_stop(l9)if type(l9)=="function"then table.insert(to.stopListeners,l9)end end;function ux.set_fling(qQ)if qQ==nil then qQ=not to.flingEnabled end;to.flingEnabled=qQ==true;return to.flingEnabled end;function ux.is_fling_enabled()return to.flingEnabled==true end;return ux end;return tn()end;local v3=_G._AngoorZenApi;if v3 and(type(v3.reanimate)~="function"or v3._isFallback)then _G._AngoorZenApi=nil;v3=nil end;if not v3 then v3=tm()_G._AngoorZenApi=v3 end;local v4=type(_G._AngoorZenAnims)=="table"and _G._AngoorZenAnims or{}local v5="https://api.github.com/repos/teslapapa50-source/Animations/git/trees/main?recursive=1"local v6="https://raw.githubusercontent.com/teslapapa50-source/Animations/main/"local v7="angoorreanim_anims.json"local v8="angoorreanim.json"local v9;local va;local vb;local vc;local vd;local function ve(vf)local H=tostring(vf or"")local vg=H:gsub("([^%w%-%._~/])",function(bm)return string.format("%%%02X",string.byte(bm))end)return v6 ..vg end;local function vh(fJ)if type(fJ)~="table"then return end;table.sort(fJ,function(iF,la)local vi=tostring(iF and iF.name or""):lower()local vj=tostring(la and la.name or""):lower()return vi<vj end)v4=fJ;_G._AngoorZenAnims=fJ end;local function vk(vl)if type(vl)~="string"or#vl<5 then return false end;if vl:sub(1,3)=="\239\187\191"then vl=vl:sub(4)end;local c,vm=pcall(function()return sV:JSONDecode(vl)end)if not c or type(vm)~="table"then return false end;local vn={}for x,kq in ipairs(vm)do if type(kq)=="table"and kq.name and kq.path then table.insert(vn,{name=kq.name,path=kq.path,category=kq.category or"Reanims",isCustom=kq.isCustom==true})end end;if#vn==0 then return false end;vh(vn)return true end;local function vo(vl)if type(vl)~="string"or#vl<10 then return nil end;local c,vm=pcall(function()return sV:JSONDecode(vl)end)if not c or type(vm)~="table"or type(vm.tree)~="table"then return nil end;local fJ={}for x,hP in ipairs(vm.tree)do if type(hP)=="table"and hP.type=="blob"and hP.path then local cw=tostring(hP.path)local vp=cw:lower()if not cw:find("/")and(vp:sub(-4)==".lua"or vp:sub(-5)==".luau")then local vq=cw:gsub("%.luau$",""):gsub("%.lua$","")if vq~=""then table.insert(fJ,{name=vq,path=ve(cw),category="Reanims"})end end end end;if#fJ==0 then return nil end;return fJ end;local vr={favs={},binds={},states={},speed=1,speedBinds={},customAnims={},hiddenLimbs={}}local function vs()if not vr or not vr.customAnims then return end;local b1={}for x,kq in ipairs(v4)do if kq and kq.name then b1[tostring(kq.name)]=true end end;for x,vt in ipairs(vr.customAnims)do if vt and vt.name and not b1[vt.name]then table.insert(v4,{name=vt.name,path=vt.script,category="Custom",isCustom=true})b1[vt.name]=true end end;vh(v4)end;local function vu()if type(writefile)~="function"then return end;local vv={}for x,kq in ipairs(v4)do if not kq.isCustom then table.insert(vv,{name=kq.name,path=kq.path,category=kq.category or"Reanims"})end end;pcall(function()writefile(v7,sV:JSONEncode(vv))end)end;local function vw()local c,gK=pcall(function()return game:HttpGet(v5)end)if not c or type(gK)~="string"then warn("[ANGOOR] Animations repo scan failed: "..tostring(gK))return end;local vn=vo(gK)if not vn then warn("[ANGOOR] Animations repo tree empty/invalid")return end;vh(vn)vs()vu()if type(v9)=="function"then pcall(v9)end;print("[ANGOOR] loaded "..tostring(#v4).." animations from GitHub Animations repo")end;local vx={"⚡ Gojo Infinity Levitate","🟣 Gojo Hollow Purple Charge","🩸 Sukuna Malevolent Shrine","🗡️ Sukuna World Cutting Slash","🎰 Hakari Jackpot Fever Dance","☁️ Gear 5 Joyboy Bounce","🦶 Gear 5 Giant Stomp","🔥 Super Saiyan Aura Charge","✨ Ultra Instinct Dodge Weave","🌊 Kamehameha Energy Beam","🧛 Dio Wryyy Backbend","👊 Jotaro Star Platinum Ora Rush","👊 Dio The World Muda Barrage","🌀 Naruto Shinobi Sprint","🔵 Rasengan Spin Dive","👊 Saitama Serious Punch Rush","👁️ Uchiha Susanoo Float","☄️ Madara Meteor Summon","🪚 Chainsaw Man Devil Rev","🗡️ Tanjiro Hinokami Kagura Slash","⚡ Zenitsu Thunderclap Flash","🗡️ Toji Heavenly Restriction Dash","🌌 Cid Shadow Atomic Float","👑 Sung Jin-Woo Monarch Arise","💚 Broly Legendary Rage","🌸 Goku Black Scythe Pose","⚔️ Zoro Three-Sword Slash","🕺 Michael Jackson 45° Lean","🕺 Moonwalk Glide Pro","👟 Griddy Pro Footwork","🧊 Slickback Air Glide","🗽 Sturdy NY Get Sturdy","🔥 Billy Bounce Smooth","🍊 Orange Justice Turbo","💃 Floss Dance Pro","🤡 Take The L Troll","🕺 Default Dance Classic","⚡ Electro Shuffle Pro","🕺 Boogie Down Groove","🎤 Scenario K-Pop Idol","🦵 Kazotsky Russian Squat Kick","🕵️ Distraction Dance Henry","🎩 Smug Dance Hat Kid","🕶️ Torture Dance JoJo","🃏 Specialist Dance Persona","🕶️ Gangnam Horse Ride","💃 Macarena Party","🧟 Zombie Thriller March","🐰 CaramellDansen Hyper","🚽 Skibidi Dop Dop Bounce","👩‍🚀 Lethal Company Strut","🦸 Bye Bye Bye Deadpool","💘 Cupid Shuffle Step","🕺 Cha-Cha Slide Smooth","⚰️ Coffin Dance Carry","💃 California Girls Sway","💃 Hype Shoot Hop","🙌 Infinidab Turbo","🕺 Saturday Night Disco","💃 Belly Dance Wave","🍀 Irish Riverdance Tap","🤠 Cotton Eye Joe Hoedown","💃 Tango Passionate Step","🤸 B-Boy Windmill Flare","🤸 Headspin Breakdance Pro","🌪️ Airflare Tornado Spin","🤸 Backflip Acrobat Loop","🤸 Frontflip Parkour Vault","🌀 Corkscrew 720 Twist","🤸 Full Gymnast Split Drop","🤸 Inverted Handstand Walk","💪 One-Arm Planche Hold","🕶️ Matrix Bullet Dodge Lean","🦋 Butterfly Kick Twist","🤸 Cartwheel Combo Loop","🧱 Wallrun Air Stride","🥋 Shaolin Hurricane Kick","🇧🇷 Capoeira Meia Lua Sweep","🔞 Turbo Overdrive Thrust","🔞 Bang Pro Loop","🔞 Face Bang Rapid","🔞 Backshots Heavy","🍑 Twerk Pro Bounce","🚁 Apache Helicopter Rotor V2","🌪️ Tornado Human Beyblade","🐛 Worm Crawl Floor","🦀 Exorcist Spider Crab Walk","🐍 Anaconda Floor Slither","🤖 Cyber Glitch Overload","⚡ Seizure Spasm Glitch","👻 Possessed Levitate Twitch","✝️ T-Pose Dominance Spin","👑 Ascended God Halo Pose","🛸 Alien Abduction Float","✨ Jesus Cross Hover","🚗 Invisible Car Drive","🚽 Invisible Toilet Sit","👑 King Throne Float Sit","🧞 Magic Carpet Ride","🧘 Floating Lotus Meditation","⚰️ Coffin Dead Lay","🐧 Penguin Waddle Troll","🐸 Frog Hop Bounce","🐔 Chicken Wing Flap","🦖 T-Rex Dino Stomp","🦍 Gorilla Chest Pound","🥊 Boxer Mike Tyson Weave","🦵 Muay Thai Knee Clinch","🥋 Karate Crane Kick","🦵 Dropkick Air Launch","🥊 Uppercut Knockout Loop","🗡️ Katana Quickdraw Iaijutsu","⚔️ Dual Blade Whirlwind","🔱 Spear Thrust Flurry","🏋️ Gigachad Flex Showcase","💪 Bodybuilder Double Biceps","🦅 Lat Spread Pose","🔱 Zyzz Aesthetic Pose","🏆 Arnold Classic Pose","🏋️ Pushup Workout Grind","🏋️ Plank Core Hold","🥊 Shadowboxing Speed Bag","🏃 Jumping Jacks Cardio","🎸 Heavy Metal Headbang","🎸 Air Guitar Shred Solo","🎧 DJ Turntable Drop","🎻 Violin Virtuoso Solo","🎷 Saxophone Smooth Jazz","🏊 Freestyle Air Swim","🏊 Backstroke Sky Swim","🛹 Invisible Skateboard Flip","🧎 Begging Mercy Kneel","🫡 Military Salute Attention","🛡️ Royal Knight Kneel","🥴 Drunk Stumble Sway","😴 Sleepwalk Zombie Drift","🧱 Wall Lean Cool Pose","😈 Cross-Armed Villain Laugh","💖 Heart Hands Cute Pose","😭 Crying Sobbing Tantrum","ベルト Victory Championship Belt","📸 Paparazzi Runway Strut","Bang","Face Bang","Backshots","Hard Thrust","Twerk","Floss Dance","Helicopter Spin","Headspin Breakdance","Levitating Ascend","Worm Crawl","Default Dance","Orange Justice","Take The L","billy bounce","Griddy","California Girls","Gangnam Style","Macarena","Moonwalk","Kazotsky Kick","Distraction Dance","Smug Dance","Torture Dance","Specialist Dance","Boogie Down","Electro Shuffle","Hype","Swipe It","Fresh","Rambunctious","Tidy","Scenario","Laugh It Up","Zany","Star Power","True Heart","Breakneck","Infinidab","Dab","T-Pose","Assert Dominance","Float Idle","Zombie Walk","Ninja Run","Superhero Fly","Sit Chill","Lay Down","Spinning Top","Breakdance Pro"}local function vy()local b1={}for x,kq in ipairs(v4)do if kq and kq.name then b1[tostring(kq.name)]=true end end;for x,vz in ipairs(vx)do if not b1[vz]then table.insert(v4,{name=vz,path="builtin://"..vz,category="Reanims"})b1[vz]=true end end;vh(v4)end;if#v4==0 then if type(isfile)=="function"and type(readfile)=="function"then local vA,vB=pcall(isfile,v7)if vA and vB then local vC,vD=pcall(readfile,v7)if vC then vk(vD)end end end;vy()vs()task.spawn(function()vw()vy()if type(v9)=="function"then pcall(v9)end end)else vy()end;if type(isfile)=="function"and type(readfile)=="function"then local vA,vB=pcall(isfile,v8)if vA and vB then pcall(function()local lH=readfile(v8)local vm=sV:JSONDecode(lH)if type(vm)=="table"then if type(vm.favs)=="table"then vr.favs=vm.favs end;if type(vm.binds)=="table"then vr.binds=vm.binds end;if type(vm.states)=="table"then vr.states=vm.states end;if vm.speed then vr.speed=tonumber(vm.speed)or 1 end;if type(vm.speedBinds)=="table"then vr.speedBinds=vm.speedBinds end;if type(vm.customAnims)=="table"then vr.customAnims=vm.customAnims end;if type(vm.hiddenLimbs)=="table"then vr.hiddenLimbs=vm.hiddenLimbs end end end)end end;_G.hiddenBodyParts={}if type(vr.customAnims)=="table"and#vr.customAnims>0 then vs()end;_G._AngoorZenRefreshList=function()vs()if type(v9)=="function"then pcall(v9)end end;local function vE()if type(writefile)~="function"then return end;pcall(function()writefile(v8,sV:JSONEncode(vr))end)end;task.spawn(function()task.wait(4)if not v3 or v3._isFallback or type(v3.preload_animation)~="function"then return end;local dE,vF=pcall(v3.is_reanimated)if not dE or not vF then return end;local vG=vr.favs or{}local lz=0;for vH,vI in pairs(vG)do if vI then if lz>=12 then break end;for x,kq in ipairs(v4)do if kq.name==vH and type(kq.path)=="string"and kq.path:sub(1,4)=="http"then pcall(v3.preload_animation,kq.path)lz=lz+1;task.wait(0.35)break end end end end end)local vJ=tonumber(vr.speed)or 1;local vK=nil;local vL=false;local vM="Fun"local vN=100;local vO=t3:FindFirstChild("CocaReanimEmbed")if vO then vO.Visible=true;return end;local vP=Instance.new("Frame")vP.Name="CocaReanimEmbed"vP.Size=UDim2.fromScale(1,1)vP.Position=UDim2.new(0,0,0,0)vP.BackgroundColor3=Color3.fromRGB(255,255,255)vP.BorderSizePixel=0;vP.ClipsDescendants=true;vP.Parent=t3;t9(vP,14)local vQ=Instance.new("UIGradient",vP)vQ.Color=ColorSequence.new({ColorSequenceKeypoint.new(0,Color3.fromRGB(24,24,24)),ColorSequenceKeypoint.new(1,Color3.fromRGB(8,8,8))})vQ.Rotation=90;local vR=tc(vP,t8.accent,1.5,0)local vS=Instance.new("UIGradient",vR)vS.Transparency=NumberSequence.new({NumberSequenceKeypoint.new(0,1),NumberSequenceKeypoint.new(0.2,0.6),NumberSequenceKeypoint.new(0.5,0),NumberSequenceKeypoint.new(0.8,0.6),NumberSequenceKeypoint.new(1,1)})vS.Rotation=45;local vT=Instance.new("Frame")vT.Size=UDim2.new(1,0,0,44)vT.BackgroundColor3=Color3.fromRGB(14,14,16)vT.BorderSizePixel=0;vT.ZIndex=20;vT.Parent=vP;t9(vT,14)local vU=Instance.new("Frame")vU.Size=UDim2.new(1,0,0,1)vU.Position=UDim2.new(0,0,1,-1)vU.BackgroundColor3=t8.divider;vU.BorderSizePixel=0;vU.ZIndex=20;vU.Parent=vT;local vV=Instance.new("TextLabel")vV.Size=UDim2.new(0,210,0,16)vV.Position=UDim2.new(0,12,0,4)vV.BackgroundTransparency=1;vV.Text="Coca Reanim · Keyframe Player, Custom Scripts & Limb Hider"vV.TextColor3=t8.textMuted;vV.Font=Enum.Font.GothamMedium;vV.TextSize=10;vV.TextXAlignment=Enum.TextXAlignment.Left;vV.ZIndex=21;vV.Parent=vT;local vW=Instance.new("TextButton")vW.Size=UDim2.new(0,150,0,16)vW.Position=UDim2.new(0,12,0,22)vW.BackgroundTransparency=1;vW.Text="Coca Reanim  (ready)"vW.TextColor3=t8.accent;vW.Font=Enum.Font.GothamSemibold;vW.TextSize=11;vW.TextXAlignment=Enum.TextXAlignment.Left;vW.ZIndex=22;vW.Parent=vT;vW.MouseButton1Click:Connect(function()pcall(function()if type(setclipboard)=="function"then setclipboard("hor1zxn.")elseif type(toclipboard)=="function"then toclipboard("hor1zxn.")end end)end)local vX=Instance.new("TextButton")vX.Size=UDim2.new(0,74,0,26)vX.Position=UDim2.new(1,-198,0.5,-13)vX.BackgroundColor3=Color3.fromRGB(20,20,24)vX.Text="Fling: OFF"vX.TextColor3=t8.textMuted;vX.Font=Enum.Font.GothamBold;vX.TextSize=9.5;vX.ZIndex=21;vX.Parent=vT;t9(vX,100)local vY=tc(vX,t8.border,1,0.35)vX.MouseButton1Click:Connect(function()if not v3 or type(v3.set_fling)~="function"then return end;local vZ=v3.set_fling()vX.Text=vZ and"Fling: ON ⚡"or"Fling: OFF"vX.TextColor3=vZ and t8.green or t8.textMuted;vX.BackgroundColor3=vZ and Color3.fromRGB(22,38,28)or Color3.fromRGB(20,20,24)vY.Color=vZ and t8.green or t8.border end)local v_=Instance.new("TextButton")v_.Size=UDim2.new(0,108,0,26)v_.Position=UDim2.new(1,-118,0.5,-13)v_.BackgroundColor3=Color3.fromRGB(20,20,24)v_.Text="Enable Reanim"v_.TextColor3=t8.text;v_.Font=Enum.Font.GothamBold;v_.TextSize=10;v_.ZIndex=21;v_.Parent=vT;t9(v_,100)local w0=tc(v_,t8.border,1,0.2)local function w1()if not v3 then v_.Text="Module missing"return end;local dF=false;pcall(function()dF=v3.is_reanimated()end)if dF then v_.Text="Disable Reanim"v_.TextColor3=Color3.fromRGB(240,240,240)v_.BackgroundColor3=Color3.fromRGB(35,35,35)w0.Color=Color3.fromRGB(160,160,160)w0.Transparency=0.2 else v_.Text="Enable Reanim"v_.TextColor3=t8.text;v_.BackgroundColor3=Color3.fromRGB(22,22,22)w0.Color=t8.border;w0.Transparency=0.4 end end;v_.MouseButton1Click:Connect(function()if not v3 or type(v3.reanimate)~="function"then pcall(function()v3=tm()_G._AngoorZenApi=v3 end)if not v3 or type(v3.reanimate)~="function"then v_.Text="Module missing"warn("Coca Reanim: module API not loaded")return end end;local w2=false;pcall(function()w2=v3.is_reanimated()end)local w3=not w2;if not w3 and type(vd)=="function"then pcall(vd)end;local w4,oo=pcall(function()return v3.reanimate(w3)end)if not w4 then warn("Coca Reanim crash:",oo)elseif type(oo)=="string"and oo~="Already reanimated."and oo~=""then warn("Coca Reanim:",oo)end;w1()if not w3 then vL=false;if type(va)=="function"then pcall(va,nil)end;if type(vd)=="function"then pcall(vd)end end end)local w5=Instance.new("Frame")w5.Name="BodyContainer"w5.Size=UDim2.new(1,0,1,-48)w5.Position=UDim2.new(0,0,0,48)w5.BackgroundTransparency=1;w5.ClipsDescendants=true;w5.Parent=vP;local w6=nil;local w7=nil;local w8=false;local w9=nil;local wa=nil;local wb=t4 and t3 or vP;vT.InputBegan:Connect(function(wc)if not t4 then return end;if wc.UserInputType==Enum.UserInputType.MouseButton1 or wc.UserInputType==Enum.UserInputType.Touch then w8=true;w9=wc.Position;wa=wb.Position;wc.Changed:Connect(function()if wc.UserInputState==Enum.UserInputState.End then w8=false end end)end end)vT.InputChanged:Connect(function(wc)if(wc.UserInputType==Enum.UserInputType.MouseMovement or wc.UserInputType==Enum.UserInputType.Touch)and w8 and w9 and wa then local wd=wc.Position-w9;wb.Position=UDim2.new(wa.X.Scale,wa.X.Offset+wd.X,wa.Y.Scale,wa.Y.Offset+wd.Y)end end)local we={"Fun","Bang","Favs","Custom","Binds","States","Speed","Limbs"}local wf={}local wg;local wh=Instance.new("Frame")wh.Name="SubTabBar"wh.Size=UDim2.new(1,-20,0,34)wh.Position=UDim2.new(0,10,0,8)wh.BackgroundColor3=Color3.fromRGB(24,24,28)wh.BackgroundTransparency=0.2;wh.BorderSizePixel=0;wh.ClipsDescendants=true;wh.Parent=w5;t9(wh,100)local wi=tc(wh,t8.accent,1.2,0)local wj=Instance.new("UIGradient",wi)wj.Transparency=NumberSequence.new({NumberSequenceKeypoint.new(0,1),NumberSequenceKeypoint.new(0.4,1),NumberSequenceKeypoint.new(0.5,0.2),NumberSequenceKeypoint.new(0.6,1),NumberSequenceKeypoint.new(1,1)})wj.Rotation=0;wj.Rotation=35;local wk=Instance.new("UIGradient",wh)wk.Color=ColorSequence.new({ColorSequenceKeypoint.new(0,Color3.fromRGB(36,36,44)),ColorSequenceKeypoint.new(1,Color3.fromRGB(18,18,22))})wk.Rotation=45;local wl=Instance.new("ScrollingFrame")wl.Size=UDim2.new(1,-8,1,-6)wl.Position=UDim2.new(0,4,0,3)wl.BackgroundTransparency=1;wl.BorderSizePixel=0;wl.ScrollBarThickness=3;wl.ScrollBarImageColor3=t8.accent;wl.ScrollBarImageTransparency=0.3;wl.ScrollingDirection=Enum.ScrollingDirection.X;wl.ElasticBehavior=Enum.ElasticBehavior.Always;wl.ScrollingEnabled=true;pcall(function()wl.AutomaticCanvasSize=Enum.AutomaticSize.None end)wl.Parent=wh;local wm=Instance.new("UIListLayout")wm.FillDirection=Enum.FillDirection.Horizontal;wm.HorizontalAlignment=Enum.HorizontalAlignment.Left;wm.VerticalAlignment=Enum.VerticalAlignment.Center;wm.Padding=UDim.new(0,6)wm.Parent=wl;local function wn()local wo=0;for x,y in ipairs(wl:GetChildren())do if y:IsA("TextButton")then wo=wo+y.AbsoluteSize.X+wm.Padding.Offset end end;local wp=math.max(wo+12,#we*64+20)wl.CanvasSize=UDim2.new(0,wp,0,0)end;for eY,wq in ipairs(we)do local wr=Instance.new("TextButton")wr.Size=UDim2.new(0,58,1,0)wr.BackgroundColor3=eY==1 and t8.accent or Color3.fromRGB(30,30,35)wr.BackgroundTransparency=eY==1 and 0 or 0.5;wr.Text=wq;wr.TextColor3=eY==1 and Color3.fromRGB(8,8,10)or t8.textMuted;wr.Font=eY==1 and Enum.Font.GothamBold or Enum.Font.GothamMedium;wr.TextSize=10;wr.AutoButtonColor=false;wr.Parent=wl;t9(wr,100)wf[wq]={btn=wr}local function ws()if type(wg)=="function"then wg(wq)end end;wr.MouseButton1Click:Connect(ws)end;task.defer(function()task.wait()wn()task.wait(0.1)wn()end)wm:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()wl.CanvasSize=UDim2.new(0,math.max(wm.AbsoluteContentSize.X+16,1),0,0)end)local wt=Instance.new("Frame")wt.Size=UDim2.new(1,-20,0,32)wt.Position=UDim2.new(0,10,1,-40)wt.BackgroundColor3=Color3.fromRGB(16,16,20)wt.BorderSizePixel=0;wt.ZIndex=15;wt.Parent=w5;t9(wt,100)tc(wt,t8.border,1,0.4)local wu=Instance.new("Frame")wu.Size=UDim2.new(0,7,0,7)wu.Position=UDim2.new(0,12,0.5,-3.5)wu.BackgroundColor3=t8.textMuted;wu.BorderSizePixel=0;wu.ZIndex=16;wu.Parent=wt;t9(wu,4)local wv=Instance.new("TextLabel")wv.Size=UDim2.new(1,-68,1,0)wv.Position=UDim2.new(0,28,0,0)wv.BackgroundTransparency=1;wv.Text="No animation playing"wv.TextColor3=t8.textMuted;wv.Font=Enum.Font.GothamMedium;wv.TextSize=10.5;wv.TextXAlignment=Enum.TextXAlignment.Left;wv.TextTruncate=Enum.TextTruncate.AtEnd;wv.ZIndex=16;wv.Parent=wt;local ww=Instance.new("TextButton")ww.Size=UDim2.new(0,22,0,22)ww.Position=UDim2.new(1,-28,0.5,-11)ww.BackgroundColor3=Color3.fromRGB(24,24,28)ww.Text=""ww.ZIndex=16;ww.Parent=wt;t9(ww,11)local wx=tc(ww,t8.divider,1,0.3)local wy=Instance.new("Frame")wy.Size=UDim2.new(0,8,0,8)wy.Position=UDim2.new(0.5,-4,0.5,-4)wy.BackgroundColor3=t8.textMuted;wy.BorderSizePixel=0;wy.ZIndex=17;wy.Parent=ww;t9(wy,2)va=function(wz)vK=wz;if wz and wz~=""then local wA=tostring(wz):gsub("%.lua$","")wv.Text="▶  "..wA;wv.TextColor3=t8.text;wu.BackgroundColor3=t8.green;wy.BackgroundColor3=Color3.fromRGB(255,90,90)tg(ww,{BackgroundColor3=Color3.fromRGB(35,20,20)},0.2)tg(wx,{Color=Color3.fromRGB(160,50,50),Transparency=0.2},0.2)else wv.Text="No animation playing"wv.TextColor3=t8.textMuted;wu.BackgroundColor3=t8.textMuted;wy.BackgroundColor3=t8.textMuted;tg(ww,{BackgroundColor3=Color3.fromRGB(24,24,24)},0.2)tg(wx,{Color=t8.divider,Transparency=0.5},0.2)end end;ww.MouseButton1Click:Connect(function()vL=false;if v3 and type(v3.stop_animation)=="function"then pcall(v3.stop_animation)end;va(nil)end)if v3 and type(v3.on_animation_play)=="function"then v3.on_animation_play(function(wB)local wC=nil;for x,kq in ipairs(v4)do if kq.path==wB then wC=kq.name;break end end;va(wC or"Playing Animation")end)end;if v3 and type(v3.on_animation_stop)=="function"then v3.on_animation_stop(function()va(nil)end)end;local wD=Instance.new("Frame")wD.Size=UDim2.new(1,-20,1,-94)wD.Position=UDim2.new(0,10,0,48)wD.BackgroundTransparency=1;wD.Parent=w5;local wE=Instance.new("Frame")wE.Size=UDim2.new(1,0,1,0)wE.BackgroundTransparency=1;wE.Visible=true;wE.Parent=wD;local wF=Instance.new("TextBox")wF.Size=UDim2.new(1,-96,0,30)wF.Position=UDim2.new(0,0,0,0)wF.BackgroundColor3=t8.input;wF.PlaceholderText="Search animations..."wF.PlaceholderColor3=t8.textMuted;wF.Text=""wF.TextColor3=t8.text;wF.Font=Enum.Font.GothamMedium;wF.TextSize=10.5;wF.TextXAlignment=Enum.TextXAlignment.Left;wF.ClearTextOnFocus=false;wF.Parent=wE;t9(wF,100)tc(wF,t8.divider,1,0.2)local wG=Instance.new("UIPadding")wG.PaddingLeft=UDim.new(0,12)wG.PaddingRight=UDim.new(0,10)wG.Parent=wF;local wH=Instance.new("TextButton")wH.Size=UDim2.new(0,90,0,30)wH.Position=UDim2.new(1,-90,0,0)wH.BackgroundColor3=t8.surface;wH.Text="+ Add Custom"wH.TextColor3=t8.accent;wH.Font=Enum.Font.GothamBold;wH.TextSize=9.5;wH.Parent=wE;t9(wH,100)tc(wH,t8.border,1,0.3)local wI=Instance.new("ScrollingFrame")wI.Size=UDim2.new(1,0,1,-38)wI.Position=UDim2.new(0,0,0,38)wI.BackgroundTransparency=1;wI.BorderSizePixel=0;wI.ScrollBarThickness=3;wI.ScrollBarImageColor3=t8.accent;wI.ScrollBarImageTransparency=0.6;wI.CanvasSize=UDim2.new(0,0,0,0)wI.Parent=wE;local wJ=Instance.new("UIListLayout")wJ.Padding=UDim.new(0,4)wJ.SortOrder=Enum.SortOrder.LayoutOrder;wJ.Parent=wI;local wK=Instance.new("TextLabel")wK.Size=UDim2.new(1,0,0,60)wK.Position=UDim2.new(0,0,0.3,0)wK.BackgroundTransparency=1;wK.Text="No favorite animations yet.\nClick the star icon (★) on any animation in the Coca Reanim tab!"wK.TextColor3=t8.textMuted;wK.Font=Enum.Font.GothamMedium;wK.TextSize=11;wK.Visible=false;wK.Parent=wE;local wL=Instance.new("TextLabel")wL.Size=UDim2.new(1,0,0,60)wL.Position=UDim2.new(0,0,0.3,0)wL.BackgroundTransparency=1;wL.Text="No custom animations added yet.\nClick [+ Add Custom] above to paste and import animations!"wL.TextColor3=t8.textMuted;wL.Font=Enum.Font.GothamMedium;wL.TextSize=11;wL.Visible=false;wL.Parent=wE;local wM=Instance.new("ScrollingFrame")wM.Size=UDim2.new(1,0,1,0)wM.BackgroundTransparency=1;wM.BorderSizePixel=0;wM.ScrollBarThickness=3;wM.ScrollBarImageColor3=t8.accent;wM.ScrollBarImageTransparency=0.6;wM.Visible=false;wM.Parent=wD;local wN=Instance.new("UIListLayout")wN.Padding=UDim.new(0,6)wN.SortOrder=Enum.SortOrder.LayoutOrder;wN.Parent=wM;local wO=Instance.new("TextLabel")wO.Size=UDim2.new(1,0,0,20)wO.BackgroundTransparency=1;wO.Text="Click key button to rebind  |  Click [X] to unbind"wO.TextColor3=t8.textMuted;wO.Font=Enum.Font.GothamMedium;wO.TextSize=10;wO.TextXAlignment=Enum.TextXAlignment.Left;wO.Parent=wM;local wP=Instance.new("TextLabel")wP.Size=UDim2.new(1,0,0,60)wP.BackgroundTransparency=1;wP.Text="No keybinds assigned yet.\nIn the Reanims tab, click [+] next to any animation to bind a key!"wP.TextColor3=t8.textMuted;wP.Font=Enum.Font.GothamMedium;wP.TextSize=11;wP.Visible=false;wP.Parent=wM;local wQ=Instance.new("ScrollingFrame")wQ.Size=UDim2.new(1,0,1,0)wQ.BackgroundTransparency=1;wQ.BorderSizePixel=0;wQ.ScrollBarThickness=3;wQ.ScrollBarImageColor3=t8.accent;wQ.ScrollBarImageTransparency=0.6;wQ.Visible=false;wQ.Parent=wD;local wR=Instance.new("UIListLayout")wR.Padding=UDim.new(0,10)wR.SortOrder=Enum.SortOrder.LayoutOrder;wR.Parent=wQ;local wS=Instance.new("Frame")wS.Size=UDim2.new(1,0,0,78)wS.BackgroundColor3=t8.bgCard;wS.Parent=wQ;t9(wS,8)tc(wS,t8.divider,1,0)local wT=Instance.new("TextLabel")wT.Size=UDim2.new(1,-20,0,22)wT.Position=UDim2.new(0,10,0,8)wT.BackgroundTransparency=1;wT.Text="PLAYBACK SPEED"wT.TextColor3=t8.textMuted;wT.Font=Enum.Font.GothamBold;wT.TextSize=10;wT.TextXAlignment=Enum.TextXAlignment.Left;wT.Parent=wS;local wU=Instance.new("Frame")wU.Size=UDim2.new(1,-130,0,6)wU.Position=UDim2.new(0,10,0,46)wU.BackgroundColor3=t8.surface;wU.BorderSizePixel=0;wU.Parent=wS;t9(wU,3)local wV=Instance.new("Frame")wV.Size=UDim2.new(0.3,0,1,0)wV.BackgroundColor3=t8.accent;wV.BorderSizePixel=0;wV.Parent=wU;t9(wV,3)local wW=Instance.new("Frame")wW.Size=UDim2.new(0,14,0,14)wW.Position=UDim2.new(1,-7,0.5,-7)wW.BackgroundColor3=t8.text;wW.BorderSizePixel=0;wW.Parent=wV;t9(wW,7)local wX=Instance.new("TextLabel")wX.Size=UDim2.new(0,48,0,22)wX.Position=UDim2.new(1,-114,0,38)wX.BackgroundColor3=t8.input;wX.Text=string.format("%.1fx",vJ)wX.TextColor3=t8.accent;wX.Font=Enum.Font.GothamBold;wX.TextSize=10;wX.Parent=wS;t9(wX,4)tc(wX,t8.divider,1,0)local wY=Instance.new("TextButton")wY.Size=UDim2.new(0,54,0,22)wY.Position=UDim2.new(1,-60,0,38)wY.BackgroundColor3=t8.surface;wY.Text="Reset 1.0x"wY.TextColor3=t8.text;wY.Font=Enum.Font.GothamSemibold;wY.TextSize=9;wY.Parent=wS;t9(wY,4)tc(wY,t8.divider,1,0)local function wZ(fL)local w_=math.clamp(math.floor(fL*10)/10,0.1,5)vJ=w_;vr.speed=vJ;vE()wX.Text=string.format("%.1fx",vJ)local kd=math.clamp((vJ-0.1)/(5.0-0.1),0,1)wV.Size=UDim2.new(kd,0,1,0)if v3 and type(v3.set_animation_speed)=="function"then pcall(v3.set_animation_speed,vJ)end end;wY.MouseButton1Click:Connect(function()wZ(1)end)local x0=false;local function x1(wc)local je=math.max(wU.AbsoluteSize.X,1)local x2=math.clamp(wc.Position.X-wU.AbsolutePosition.X,0,je)wZ(0.1+4.9*x2/je)end;wS.InputBegan:Connect(function(wc)if wc.UserInputType==Enum.UserInputType.MouseButton1 or wc.UserInputType==Enum.UserInputType.Touch then x0=true;x1(wc)end end)sU.InputEnded:Connect(function(wc)if wc.UserInputType==Enum.UserInputType.MouseButton1 or wc.UserInputType==Enum.UserInputType.Touch then x0=false end end)sU.InputChanged:Connect(function(wc)if x0 and(wc.UserInputType==Enum.UserInputType.MouseMovement or wc.UserInputType==Enum.UserInputType.Touch)then x1(wc)end end)local x3=Instance.new("Frame")x3.Size=UDim2.new(1,0,0,110)x3.BackgroundColor3=t8.bgCard;x3.Parent=wQ;t9(x3,8)tc(x3,t8.divider,1,0)local x4=Instance.new("TextLabel")x4.Size=UDim2.new(1,-20,0,20)x4.Position=UDim2.new(0,10,0,8)x4.BackgroundTransparency=1;x4.Text="SPEED PRESETS & HOTKEYS"x4.TextColor3=t8.textMuted;x4.Font=Enum.Font.GothamBold;x4.TextSize=10;x4.TextXAlignment=Enum.TextXAlignment.Left;x4.Parent=x3;local x5=Instance.new("TextLabel")x5.Size=UDim2.new(1,-20,0,14)x5.Position=UDim2.new(0,10,0,26)x5.BackgroundTransparency=1;x5.Text="Click speed button to apply  |  Click [+] to bind key"x5.TextColor3=t8.textMuted;x5.Font=Enum.Font.Gotham;x5.TextSize=9;x5.TextXAlignment=Enum.TextXAlignment.Left;x5.Parent=x3;local x6={0.2,0.5,1,1.5,2,3,5}local x7=Instance.new("Frame")x7.Size=UDim2.new(1,-20,0,52)x7.Position=UDim2.new(0,10,0,48)x7.BackgroundTransparency=1;x7.Parent=x3;local x8=nil;local x9={}for eY,xa in ipairs(x6)do local xb=1/#x6;local xc=Instance.new("TextButton")xc.Size=UDim2.new(xb,-4,0,24)xc.Position=UDim2.new((eY-1)*xb,2,0,0)xc.BackgroundColor3=t8.surface;xc.Text=string.format("%.1fx",xa)xc.TextColor3=t8.text;xc.Font=Enum.Font.GothamBold;xc.TextSize=11;xc.Parent=x7;t9(xc,4)tc(xc,t8.divider,1,0)xc.MouseButton1Click:Connect(function()wZ(xa)end)local xd=tostring(xa)local xe=vr.speedBinds[xd]local xf=Instance.new("TextButton")xf.Size=UDim2.new(xb,-4,0,20)xf.Position=UDim2.new((eY-1)*xb,2,0,28)xf.BackgroundColor3=t8.input;xf.Text=xe and"["..xe.."]"or"[+]"xf.TextColor3=xe and t8.accent or t8.textMuted;xf.Font=Enum.Font.GothamSemibold;xf.TextSize=9;xf.Parent=x7;t9(xf,4)tc(xf,t8.divider,1,0)x9[xd]=xf;xf.MouseButton1Click:Connect(function()if x8==xd then x8=nil;local xg=vr.speedBinds[xd]xf.Text=xg and"["..xg.."]"or"[+]"xf.TextColor3=xg and t8.accent or t8.textMuted else x8=xd;xf.Text="[?]"xf.TextColor3=Color3.fromRGB(255,180,50)end end)end;local xh=Instance.new("ScrollingFrame")xh.Size=UDim2.new(1,0,1,0)xh.BackgroundTransparency=1;xh.BorderSizePixel=0;xh.ScrollBarThickness=3;xh.ScrollBarImageColor3=t8.accent;xh.ScrollBarImageTransparency=0.6;xh.Visible=false;xh.Parent=wD;local xi=Instance.new("UIListLayout")xi.Padding=UDim.new(0,8)xi.SortOrder=Enum.SortOrder.LayoutOrder;xi.Parent=xh;local xj=Instance.new("TextLabel")xj.Size=UDim2.new(1,0,0,18)xj.BackgroundTransparency=1;xj.Text="CHARACTER STATE ANIMATIONS"xj.TextColor3=t8.textMuted;xj.Font=Enum.Font.GothamBold;xj.TextSize=10;xj.TextXAlignment=Enum.TextXAlignment.Left;xj.Parent=xh;local xk=Instance.new("TextLabel")xk.Size=UDim2.new(1,0,0,14)xk.BackgroundTransparency=1;xk.Text="Automatically triggers animations on character movement"xk.TextColor3=t8.textMuted;xk.Font=Enum.Font.Gotham;xk.TextSize=9;xk.TextXAlignment=Enum.TextXAlignment.Left;xk.Parent=xh;local xl={"Idle","Walk","Run","Jump","Fall"}local xm={}local xn=nil;w6=Instance.new("Frame")w6.Size=UDim2.new(1,0,1,0)w6.BackgroundColor3=Color3.fromRGB(0,0,0)w6.BackgroundTransparency=0.4;w6.BorderSizePixel=0;w6.ZIndex=50;w6.Visible=false;w6.Parent=vP;local xo=Instance.new("Frame")xo.Size=UDim2.new(0,330,0,400)xo.Position=UDim2.new(0.5,-165,0.5,-200)xo.BackgroundColor3=t8.bgCard;xo.BorderSizePixel=0;xo.ZIndex=51;xo.Parent=w6;t9(xo,10)tc(xo,t8.border,1.5,0)local xp=Instance.new("TextLabel")xp.Size=UDim2.new(1,-50,0,36)xp.Position=UDim2.new(0,14,0,6)xp.BackgroundTransparency=1;xp.Text="Select Animation for State"xp.TextColor3=t8.text;xp.Font=Enum.Font.GothamBold;xp.TextSize=12;xp.TextXAlignment=Enum.TextXAlignment.Left;xp.ZIndex=52;xp.Parent=xo;local xq=Instance.new("TextButton")xq.Size=UDim2.new(0,24,0,24)xq.Position=UDim2.new(1,-34,0,10)xq.BackgroundColor3=t8.surface;xq.Text="✕"xq.TextColor3=t8.textMuted;xq.Font=Enum.Font.GothamBold;xq.TextSize=11;xq.ZIndex=52;xq.Parent=xo;t9(xq,12)xq.MouseButton1Click:Connect(function()w6.Visible=false;xn=nil end)local xr=Instance.new("TextBox")xr.Size=UDim2.new(1,-28,0,30)xr.Position=UDim2.new(0,14,0,44)xr.BackgroundColor3=t8.input;xr.PlaceholderText="Search animations to assign..."xr.PlaceholderColor3=t8.textMuted;xr.Text=""xr.TextColor3=t8.text;xr.Font=Enum.Font.GothamMedium;xr.TextSize=11;xr.TextXAlignment=Enum.TextXAlignment.Left;xr.ZIndex=52;xr.ClearTextOnFocus=false;xr.Parent=xo;t9(xr,6)tc(xr,t8.divider,1,0)local xs=Instance.new("UIPadding")xs.PaddingLeft=UDim.new(0,10)xs.PaddingRight=UDim.new(0,10)xs.Parent=xr;local xt=Instance.new("ScrollingFrame")xt.Size=UDim2.new(1,-28,1,-90)xt.Position=UDim2.new(0,14,0,80)xt.BackgroundTransparency=1;xt.BorderSizePixel=0;xt.ScrollBarThickness=3;xt.ScrollBarImageColor3=t8.accent;xt.ScrollBarImageTransparency=0.6;xt.ZIndex=52;xt.CanvasSize=UDim2.new(0,0,0,0)xt.Parent=xo;local xu=Instance.new("UIListLayout")xu.Padding=UDim.new(0,4)xu.SortOrder=Enum.SortOrder.LayoutOrder;xu.Parent=xt;local function xv(xw)for x,y in ipairs(xt:GetChildren())do if y:IsA("TextButton")then y:Destroy()end end;local gg=tostring(xw or""):lower()local lz=0;for x,xx in ipairs(v4)do if gg==""or xx.name:lower():find(gg,1,true)then lz=lz+1;local fC=Instance.new("TextButton")fC.Size=UDim2.new(1,-6,0,28)fC.BackgroundColor3=t8.surface;fC.Text=xx.name;fC.TextColor3=t8.text;fC.Font=Enum.Font.GothamMedium;fC.TextSize=11;fC.TextXAlignment=Enum.TextXAlignment.Left;fC.TextTruncate=Enum.TextTruncate.AtEnd;fC.ZIndex=53;fC.Parent=xt;t9(fC,4)tc(fC,t8.divider,1,0)local xy=Instance.new("UIPadding")xy.PaddingLeft=UDim.new(0,10)xy.Parent=fC;fC.MouseButton1Click:Connect(function()if xn then vr.states[xn]={name=xx.name,path=xx.path}vE()local xz=xm[xn]if xz then xz.Text=xx.name;xz.TextColor3=Color3.fromRGB(100,220,120)end end;w6.Visible=false;xn=nil end)end end;xt.CanvasSize=UDim2.new(0,0,0,lz*32)end;xr:GetPropertyChangedSignal("Text"):Connect(function()xv(xr.Text)end)for x,xA in ipairs(xl)do local xB=Instance.new("Frame")xB.Size=UDim2.new(1,0,0,42)xB.BackgroundColor3=t8.bgCard;xB.Parent=xh;t9(xB,6)tc(xB,t8.divider,1,0)local oz=Instance.new("TextLabel")oz.Size=UDim2.new(0,70,1,0)oz.Position=UDim2.new(0,12,0,0)oz.BackgroundTransparency=1;oz.Text=xA;oz.TextColor3=t8.text;oz.Font=Enum.Font.GothamBold;oz.TextSize=11;oz.TextXAlignment=Enum.TextXAlignment.Left;oz.Parent=xB;local xC=vr.states[xA]local xD=Instance.new("TextButton")xD.Size=UDim2.new(1,-150,0,26)xD.Position=UDim2.new(0,84,0.5,-13)xD.BackgroundColor3=t8.surface;xD.Text=xC and xC.name or"None"xD.TextColor3=xC and xC.name and Color3.fromRGB(100,220,120)or t8.textMuted;xD.Font=Enum.Font.GothamMedium;xD.TextSize=11;xD.TextXAlignment=Enum.TextXAlignment.Left;xD.TextTruncate=Enum.TextTruncate.AtEnd;xD.Parent=xB;t9(xD,4)tc(xD,t8.divider,1,0)local xE=Instance.new("UIPadding")xE.PaddingLeft=UDim.new(0,8)xE.PaddingRight=UDim.new(0,8)xE.Parent=xD;xm[xA]=xD;xD.MouseButton1Click:Connect(function()xn=xA;xp.Text="Assign Animation for: "..xA;xr.Text=""xv("")w6.Visible=true end)local xF=Instance.new("TextButton")xF.Size=UDim2.new(0,52,0,26)xF.Position=UDim2.new(1,-60,0.5,-13)xF.BackgroundColor3=t8.surface;xF.Text="Clear"xF.TextColor3=t8.textMuted;xF.Font=Enum.Font.GothamSemibold;xF.TextSize=10;xF.Parent=xB;t9(xF,4)tc(xF,t8.divider,1,0)xF.MouseEnter:Connect(function()tg(xF,{BackgroundColor3=t8.dangerHover,TextColor3=t8.accent},0.15)end)xF.MouseLeave:Connect(function()tg(xF,{BackgroundColor3=t8.surface,TextColor3=t8.textMuted},0.15)end)xF.MouseButton1Click:Connect(function()vr.states[xA]=nil;vE()xD.Text="None"xD.TextColor3=t8.textMuted end)end;w7=Instance.new("Frame")w7.Name="AddCustomModal"w7.Size=UDim2.new(1,0,1,0)w7.BackgroundColor3=Color3.fromRGB(0,0,0)w7.BackgroundTransparency=0.4;w7.BorderSizePixel=0;w7.ZIndex=50;w7.Visible=false;w7.Parent=vP;local xG=Instance.new("Frame")xG.Size=UDim2.new(0,330,0,380)xG.Position=UDim2.new(0.5,-165,0.5,-190)xG.BackgroundColor3=t8.bgCard;xG.BorderSizePixel=0;xG.ZIndex=51;xG.Parent=w7;t9(xG,10)tc(xG,t8.border,1.5,0)local xH=Instance.new("TextLabel")xH.Size=UDim2.new(1,-50,0,36)xH.Position=UDim2.new(0,14,0,6)xH.BackgroundTransparency=1;xH.Text="Add Custom Animation"xH.TextColor3=t8.text;xH.Font=Enum.Font.GothamBold;xH.TextSize=12;xH.TextXAlignment=Enum.TextXAlignment.Left;xH.ZIndex=52;xH.Parent=xG;local xI=Instance.new("TextButton")xI.Size=UDim2.new(0,24,0,24)xI.Position=UDim2.new(1,-34,0,10)xI.BackgroundColor3=t8.surface;xI.Text="✕"xI.TextColor3=t8.textMuted;xI.Font=Enum.Font.GothamBold;xI.TextSize=11;xI.ZIndex=52;xI.Parent=xG;t9(xI,12)local xJ=Instance.new("TextBox")xJ.Size=UDim2.new(1,-28,0,28)xJ.Position=UDim2.new(0,14,0,44)xJ.BackgroundColor3=t8.input;xJ.PlaceholderText="Animation Name (optional)"xJ.PlaceholderColor3=t8.textMuted;xJ.Text=""xJ.TextColor3=t8.text;xJ.Font=Enum.Font.GothamMedium;xJ.TextSize=11;xJ.TextXAlignment=Enum.TextXAlignment.Left;xJ.ClearTextOnFocus=false;xJ.ZIndex=52;xJ.Parent=xG;t9(xJ,6)tc(xJ,t8.divider,1,0)local xK=Instance.new("UIPadding")xK.PaddingLeft=UDim.new(0,10)xK.Parent=xJ;local xL=Instance.new("TextBox")xL.Size=UDim2.new(1,-28,0,210)xL.Position=UDim2.new(0,14,0,80)xL.BackgroundColor3=t8.input;xL.PlaceholderText="Paste keyframe script or table here...\n(Or press Ctrl+V to paste from clipboard)"xL.PlaceholderColor3=t8.textMuted;xL.Text=""xL.TextColor3=t8.green;xL.Font=Enum.Font.Code;xL.TextSize=10;xL.MultiLine=true;xL.ClearTextOnFocus=false;xL.TextWrapped=true;xL.TextXAlignment=Enum.TextXAlignment.Left;xL.TextYAlignment=Enum.TextYAlignment.Top;xL.ClipsDescendants=true;xL.ZIndex=52;xL.Parent=xG;t9(xL,6)tc(xL,t8.divider,1,0)local xM=Instance.new("UIPadding")xM.PaddingLeft=UDim.new(0,8)xM.PaddingTop=UDim.new(0,8)xM.PaddingRight=UDim.new(0,8)xM.Parent=xL;local xN=Instance.new("TextLabel")xN.Size=UDim2.new(1,-28,0,20)xN.Position=UDim2.new(0,14,0,298)xN.BackgroundTransparency=1;xN.Text="Paste keyframe data or script table above."xN.TextColor3=t8.textMuted;xN.Font=Enum.Font.Gotham;xN.TextSize=10;xN.TextXAlignment=Enum.TextXAlignment.Left;xN.ZIndex=52;xN.Parent=xG;local xO=Instance.new("TextButton")xO.Size=UDim2.new(1,-28,0,32)xO.Position=UDim2.new(0,14,1,-44)xO.BackgroundColor3=Color3.fromRGB(24,40,30)xO.Text="+ Add Animation"xO.TextColor3=t8.green;xO.Font=Enum.Font.GothamBold;xO.TextSize=11;xO.ZIndex=52;xO.Parent=xG;t9(xO,6)tc(xO,Color3.fromRGB(40,100,60),1,0.4)local function xP()w7.Visible=false;xJ.Text=""xL.Text=""xN.Text="Paste keyframe data or script table above."xN.TextColor3=t8.textMuted end;xI.MouseButton1Click:Connect(xP)wH.MouseButton1Click:Connect(function()if type(wg)=="function"then pcall(wg,"Custom")end;w7.Visible=true;w7.ZIndex=100;xG.ZIndex=101;task.defer(function()pcall(function()xJ:CaptureFocus()end)end)end)local xQ=false;xL.Focused:Connect(function()xQ=true end)xL.FocusLost:Connect(function()xQ=false end)sU.InputBegan:Connect(function(wc)if not xQ then return end;if wc.KeyCode==Enum.KeyCode.V then local xR=sU:IsKeyDown(Enum.KeyCode.LeftControl)or sU:IsKeyDown(Enum.KeyCode.RightControl)if xR then task.spawn(function()local xS=type(getclipboard)=="function"and getclipboard or type(getclip)=="function"and getclip;if xS then local c,xT=pcall(xS)if c and type(xT)=="string"and#xT>0 then xL.Text=xT;xN.Text="Loaded "..tostring(#xT).." characters from clipboard."xN.TextColor3=t8.green end end end)end end end)xO.MouseButton1Click:Connect(function()local xU=tostring(xL.Text or""):gsub("^%s+",""):gsub("%s+$","")if xU==""then xN.Text="Paste keyframe script, table, or animation URL first!"xN.TextColor3=Color3.fromRGB(255,120,120)return end;local xV=xU:sub(1,4)=="http"or xU:find("raw.githubusercontent",1,true)~=nil;local xW=xU:find("{",1,true)~=nil and(xU:find("Time%s*=")~=nil or xU:find("return%s*{")~=nil or xU:find("CFrame%.new")~=nil)if not xV and not xW then xN.Text="Invalid: paste keyframe Lua/table OR a direct .lua URL"xN.TextColor3=Color3.fromRGB(255,120,120)return end;vr.customAnims=vr.customAnims or{}local xX=tostring(xJ.Text or""):match("^%s*(.-)%s*$")if not xX or xX==""then xX="Custom_"..tostring(#vr.customAnims+1)end;local function xY(aH)for x,iF in ipairs(v4)do if iF.name==aH then return true end end;for x,X in ipairs(vr.customAnims)do if X.name==aH then return true end end;return false end;local xZ=xX;local x_=2;while xY(xZ)do xZ=xX.."_"..tostring(x_)x_=x_+1 end;local y0=xU;if not(xU:sub(1,4)=="http")and type(writefile)=="function"then pcall(function()if type(isfolder)=="function"and type(makefolder)=="function"and not isfolder("angoorreanim_cache")then makefolder("angoorreanim_cache")end end)local y1=xZ:gsub("[^%w%._%-]","_")local y2="angoorreanim_cache/Custom_"..y1 ..".lua"local y3=pcall(writefile,y2,xU)if y3 then y0=y2 end end;table.insert(vr.customAnims,{name=xZ,script=y0})local y4=pcall(vE)if not y4 then xN.Text="Saved in session (writefile unavailable)"xN.TextColor3=t8.warning end;table.insert(v4,{name=xZ,path=y0,category="Custom",isCustom=true})vh(v4)vM="Custom"if type(wg)=="function"then pcall(wg,"Custom")end;if type(v9)=="function"then pcall(v9)end;xP()if type(va)=="function"then pcall(va,nil)end;xN.Text="Added: "..xZ;xN.TextColor3=t8.green;print("[ANGOOR] custom anim saved:",xZ,xU:sub(1,4)=="http"and"(url)"or"(inline)",#xU,"chars")end)local y5=Instance.new("ScrollingFrame")y5.Size=UDim2.new(1,0,1,0)y5.BackgroundTransparency=1;y5.BorderSizePixel=0;y5.ScrollBarThickness=3;y5.ScrollBarImageColor3=t8.accent;y5.ScrollBarImageTransparency=0.6;pcall(function()y5.AutomaticCanvasSize=Enum.AutomaticSize.Y end)y5.CanvasSize=UDim2.new(0,0,0,420)y5.Visible=false;y5.Parent=wD;do local y6=Instance.new("UIPadding")y6.PaddingLeft=UDim.new(0,2)y6.PaddingRight=UDim.new(0,4)y6.PaddingTop=UDim.new(0,2)y6.PaddingBottom=UDim.new(0,12)y6.Parent=y5;local y7=Instance.new("UIListLayout")y7.Padding=UDim.new(0,8)y7.SortOrder=Enum.SortOrder.LayoutOrder;y7.Parent=y5;local y8=Instance.new("TextLabel")y8.Size=UDim2.new(1,0,0,16)y8.BackgroundTransparency=1;y8.Text="LIMB & BODY VISIBILITY"y8.TextColor3=t8.textMuted;y8.Font=Enum.Font.GothamBold;y8.TextSize=10;y8.TextXAlignment=Enum.TextXAlignment.Left;y8.LayoutOrder=1;y8.Parent=y5;local function y9(ya,yb,yc)local bC=Instance.new("Frame",ya)bC.Size=UDim2.new(0,44,0,22)bC.Position=UDim2.new(1,yb or-54,0.5,yc or-11)bC.BackgroundColor3=Color3.fromRGB(15,15,15)bC.BackgroundTransparency=0.5;bC.BorderSizePixel=0;t9(bC,100)local yd=Instance.new("UIStroke",bC)yd.Color=Color3.fromRGB(255,255,255)yd.Thickness=1;yd.Transparency=0.85;local ye=Instance.new("Frame",bC)ye.Size=UDim2.new(0,16,0,16)ye.Position=UDim2.new(0,3,0.5,-8)ye.BackgroundColor3=Color3.fromRGB(100,100,100)ye.BorderSizePixel=0;t9(ye,100)local yf=Instance.new("UIGradient",ye)yf.Color=ColorSequence.new({ColorSequenceKeypoint.new(0,Color3.fromRGB(255,255,255)),ColorSequenceKeypoint.new(1,Color3.fromRGB(150,150,150))})yf.Rotation=90;local yg=Instance.new("UIStroke",ye)yg.Color=Color3.fromRGB(255,255,255)yg.Thickness=1;yg.Transparency=0.5;local yh=Instance.new("Frame",ye)yh.Size=UDim2.new(1,0,1,0)yh.Position=UDim2.new(0.5,0,0.5,0)yh.AnchorPoint=Vector2.new(0.5,0.5)yh.BackgroundTransparency=1;yh.ZIndex=ye.ZIndex-1;t9(yh,100)local yi=Instance.new("UIStroke",yh)yi.Color=Color3.fromRGB(80,220,140)yi.Thickness=5;yi.Transparency=1;return bC,ye,yi end;local function yj(bC,ye,yi,yk,ch)local yl=yk and Color3.fromRGB(25,25,25)or Color3.fromRGB(15,15,15)local ym=yk and Color3.fromRGB(80,220,140)or Color3.fromRGB(100,100,100)local yn=yk and UDim2.new(0,25,0.5,-8)or UDim2.new(0,3,0.5,-8)local yo=yk and 0.65 or 1;if ch then tg(bC,{BackgroundColor3=yl},0.25)tg(ye,{BackgroundColor3=ym,Position=yn},0.25,Enum.EasingStyle.Back)if yi then tg(yi,{Transparency=yo},0.25)end else bC.BackgroundColor3=yl;ye.BackgroundColor3=ym;ye.Position=yn;if yi then yi.Transparency=yo end end end;local yp=Instance.new("Frame")yp.Size=UDim2.new(1,0,0,46)yp.BackgroundColor3=t8.surface;yp.BorderSizePixel=0;yp.LayoutOrder=2;yp.Parent=y5;t9(yp,10)local yq=Instance.new("UIStroke",yp)yq.Color=Color3.fromRGB(255,255,255)yq.Thickness=1;yq.Transparency=0.88;local yr=Instance.new("Frame")yr.Size=UDim2.new(1,-125,1,0)yr.Position=UDim2.new(0,14,0,0)yr.BackgroundTransparency=1;yr.Parent=yp;local ys=Instance.new("TextLabel")ys.Size=UDim2.new(1,0,0,20)ys.Position=UDim2.new(0,0,0,5)ys.BackgroundTransparency=1;ys.Text="Master Limbs Switch"ys.TextColor3=Color3.fromRGB(245,245,250)ys.Font=Enum.Font.GothamBold;ys.TextSize=11;ys.TextXAlignment=Enum.TextXAlignment.Left;ys.Parent=yr;local yt=Instance.new("TextLabel")yt.Size=UDim2.new(1,0,0,16)yt.Position=UDim2.new(0,0,0,23)yt.BackgroundTransparency=1;yt.Text="Toggle all body parts on or off at once"yt.TextColor3=t8.textMuted;yt.Font=Enum.Font.Gotham;yt.TextSize=9;yt.TextXAlignment=Enum.TextXAlignment.Left;yt.TextTruncate=Enum.TextTruncate.AtEnd;yt.Parent=yr;local yu=Instance.new("TextLabel")yu.Size=UDim2.new(0,54,1,0)yu.Position=UDim2.new(1,-114,0,0)yu.BackgroundTransparency=1;yu.Font=Enum.Font.GothamBold;yu.TextSize=9;yu.TextXAlignment=Enum.TextXAlignment.Right;yu.Text="ALL SHOWN"yu.TextColor3=Color3.fromRGB(80,220,140)yu.Parent=yp;local yv,yw,yx=y9(yp,-54,-11)local yy=Instance.new("TextButton")yy.Size=UDim2.new(1,0,1,0)yy.BackgroundTransparency=1;yy.Text=""yy.ZIndex=5;yy.Parent=yp;yy.MouseEnter:Connect(function()tg(yp,{BackgroundColor3=t8.surfaceHover},0.2)end)yy.MouseLeave:Connect(function()tg(yp,{BackgroundColor3=t8.surface},0.2)end)local yz=Instance.new("Frame")yz.Size=UDim2.new(1,0,0,18)yz.BackgroundTransparency=1;yz.LayoutOrder=3;yz.Parent=y5;local yA=Instance.new("TextLabel")yA.Size=UDim2.new(1,0,1,0)yA.BackgroundTransparency=1;yA.Text="INDIVIDUAL BODY PARTS"yA.TextColor3=t8.textDim;yA.Font=Enum.Font.GothamBold;yA.TextSize=9;yA.TextXAlignment=Enum.TextXAlignment.Left;yA.Parent=yz;local yB={{id="Head",name="Head (Face, Hats, Nametag)",desc="Hides head, all hats, hair, face decals & player billboard",parts={"Head"}},{id="Torso",name="Torso",desc="Hides main body (Torso, UpperTorso, LowerTorso)",parts={"Torso","UpperTorso","LowerTorso"}},{id="Left Arm",name="Left Arm",desc="Hides Left Arm / UpperArm / LowerArm / LeftHand",parts={"Left Arm","LeftUpperArm","LeftLowerArm","LeftHand"}},{id="Right Arm",name="Right Arm",desc="Hides Right Arm / UpperArm / LowerArm / RightHand",parts={"Right Arm","RightUpperArm","RightLowerArm","RightHand"}},{id="Left Leg",name="Left Leg",desc="Hides Left Leg / UpperLeg / LowerLeg / LeftFoot",parts={"Left Leg","LeftUpperLeg","LeftLowerLeg","LeftFoot"}},{id="Right Leg",name="Right Leg",desc="Hides Right Leg / UpperLeg / LowerLeg / RightFoot",parts={"Right Leg","RightUpperLeg","RightLowerLeg","RightFoot"}}}local yC={}local function yD(tM)if vr.hiddenLimbs and vr.hiddenLimbs[tM]then return true end;if _G.hiddenBodyParts and _G.hiddenBodyParts[tM]then return true end;return false end;local function yE(yF)for x,fN in ipairs(yF.parts)do if yD(fN)then return true end end;return false end;local function yG(ch)local yH=0;for x,yI in ipairs(yB)do if yE(yI)then yH=yH+1 end end;if yH==0 then yu.Text="ALL SHOWN"yu.TextColor3=Color3.fromRGB(80,220,140)yj(yv,yw,yx,true,ch)elseif yH==#yB then yu.Text="ALL HIDDEN"yu.TextColor3=Color3.fromRGB(235,75,75)yj(yv,yw,yx,false,ch)else yu.Text="CUSTOM"yu.TextColor3=Color3.fromRGB(240,180,60)local yl=Color3.fromRGB(18,18,22)local ym=Color3.fromRGB(140,140,150)local yn=UDim2.new(0,3,0.5,-8)if ch then tg(yv,{BackgroundColor3=yl},0.25)tg(yw,{BackgroundColor3=ym,Position=yn},0.25,Enum.EasingStyle.Back)if yx then tg(yx,{Transparency=1},0.25)end else yv.BackgroundColor3=yl;yw.BackgroundColor3=ym;yw.Position=yn;if yx then yx.Transparency=1 end end end end;local function yJ(yF,yK,yL,ch)if ch==nil then ch=true end;local tx=v3 and type(v3.get_clone)=="function"and v3.get_clone()or sW and sW.Character;for x,tM in ipairs(yF.parts)do if yK then _G.hiddenBodyParts[tM]=true;vr.hiddenLimbs[tM]=true else _G.hiddenBodyParts[tM]=nil;vr.hiddenLimbs[tM]=nil;if tx then local bJ=tx:FindFirstChild(tM)if bJ and bJ:IsA("BasePart")and tM~="HumanoidRootPart"then bJ.LocalTransparencyModifier=0;bJ.Transparency=0 end;if tM=="Head"then for x,eu in ipairs(tx:GetDescendants())do if eu:IsA("Decal")then eu.Transparency=0 elseif eu:IsA("Accessory")then local yM=eu:FindFirstChild("Handle")if yM and yM:IsA("BasePart")then yM.LocalTransparencyModifier=0;yM.Transparency=0 end end end end end end end;vE()local je=yC[yF.id]if je then local yN=not yK;je.statusLbl.Text=yN and"VISIBLE"or"HIDDEN"je.statusLbl.TextColor3=yN and Color3.fromRGB(80,220,140)or Color3.fromRGB(235,75,75)yj(je.track,je.knob,je.glowStroke,yN,ch)end;if not yL then yG(true)end end;yy.MouseButton1Click:Connect(function()local yH=0;for x,yI in ipairs(yB)do if yE(yI)then yH=yH+1 end end;local yO=yH==0;for x,yI in ipairs(yB)do yJ(yI,yO,true,true)end;yG(true)end)for eY,yI in ipairs(yB)do local b3=Instance.new("Frame")b3.Size=UDim2.new(1,0,0,44)b3.BackgroundColor3=t8.surface;b3.BorderSizePixel=0;b3.LayoutOrder=3+eY;b3.Parent=y5;t9(b3,10)local b4=Instance.new("UIStroke",b3)b4.Color=Color3.fromRGB(255,255,255)b4.Thickness=1;b4.Transparency=0.9;local yP=Instance.new("Frame")yP.Size=UDim2.new(1,-125,1,0)yP.Position=UDim2.new(0,14,0,0)yP.BackgroundTransparency=1;yP.Parent=b3;local yQ=Instance.new("TextLabel")yQ.Size=UDim2.new(1,0,0,20)yQ.Position=UDim2.new(0,0,0,5)yQ.BackgroundTransparency=1;yQ.Text=yI.name;yQ.TextColor3=Color3.fromRGB(240,240,248)yQ.Font=Enum.Font.GothamBold;yQ.TextSize=11;yQ.TextXAlignment=Enum.TextXAlignment.Left;yQ.Parent=yP;local yR=Instance.new("TextLabel")yR.Size=UDim2.new(1,0,0,16)yR.Position=UDim2.new(0,0,0,23)yR.BackgroundTransparency=1;yR.Text=yI.desc;yR.TextColor3=t8.textMuted;yR.Font=Enum.Font.Gotham;yR.TextSize=9;yR.TextXAlignment=Enum.TextXAlignment.Left;yR.TextTruncate=Enum.TextTruncate.AtEnd;yR.Parent=yP;local yS=yE(yI)local yT=Instance.new("TextLabel")yT.Size=UDim2.new(0,52,1,0)yT.Position=UDim2.new(1,-112,0,0)yT.BackgroundTransparency=1;yT.Font=Enum.Font.GothamBold;yT.TextSize=9;yT.TextXAlignment=Enum.TextXAlignment.Right;yT.Text=yS and"HIDDEN"or"VISIBLE"yT.TextColor3=yS and Color3.fromRGB(235,75,75)or Color3.fromRGB(80,220,140)yT.Parent=b3;local rG,yU,yV=y9(b3,-54,-11)yj(rG,yU,yV,not yS,false)local yW=Instance.new("TextButton")yW.Size=UDim2.new(1,0,1,0)yW.BackgroundTransparency=1;yW.Text=""yW.ZIndex=5;yW.Parent=b3;yW.MouseEnter:Connect(function()tg(b3,{BackgroundColor3=t8.surfaceHover},0.2)end)yW.MouseLeave:Connect(function()tg(b3,{BackgroundColor3=t8.surface},0.2)end)yC[yI.id]={statusLbl=yT,track=rG,knob=yU,glowStroke=yV}yW.MouseButton1Click:Connect(function()local yX=yE(yI)yJ(yI,not yX,false,true)end)end;vc=function()for x,yI in ipairs(yB)do local yY=yE(yI)local je=yC[yI.id]if je then local yN=not yY;je.statusLbl.Text=yN and"VISIBLE"or"HIDDEN"je.statusLbl.TextColor3=yN and Color3.fromRGB(80,220,140)or Color3.fromRGB(235,75,75)yj(je.track,je.knob,je.glowStroke,yN,false)end end;yG(false)end;do local yZ=0;d.RenderStepped:Connect(function()if not _G.hiddenBodyParts or next(_G.hiddenBodyParts)==nil then return end;local tx=v3 and type(v3.get_clone)=="function"and v3.get_clone()or sW and sW.Character;if not tx then return end;local ct=os.clock()local y_=ct-yZ>=0.20;if y_ then yZ=ct end;for tM,z0 in pairs(_G.hiddenBodyParts)do if z0 then local bJ=tx:FindFirstChild(tM)if bJ and bJ:IsA("BasePart")then bJ.LocalTransparencyModifier=1;bJ.Transparency=1 end;if tM=="Head"and y_ then for x,eu in ipairs(tx:GetDescendants())do if eu:IsA("Decal")then eu.Transparency=1 elseif eu:IsA("Accessory")then local yM=eu:FindFirstChild("Handle")if yM and yM:IsA("BasePart")then yM.LocalTransparencyModifier=1;yM.Transparency=1 end end end;local Y=tx:FindFirstChildOfClass("Humanoid")if Y then Y.DisplayName=""Y.DisplayDistanceType=Enum.HumanoidDisplayDistanceType.Viewer;Y.NameDisplayDistance=100;Y.HealthDisplayDistance=100 end end end end end)end;y5.CanvasSize=UDim2.new(0,0,0,#yB*56+80)end;local z1=38;local z2=nil;local z3=nil;local z4={}local function z5(xx)local z6=false;if v3 and type(v3.is_reanimated)=="function"then pcall(function()z6=v3.is_reanimated()end)end;if not z6 and v3 and type(v3.reanimate)=="function"then pcall(function()v3.reanimate(true)z6=v3.is_reanimated()end)if type(w1)=="function"then pcall(w1)end end;if not z6 then warn("Coca Reanim: Enable Reanimation first to play animations!")return end;if not xx or not xx.path then warn("Coca Reanim: Invalid animation entry")return end;if vK==xx.name then vL=false;vK=nil;if v3 and type(v3.stop_animation)=="function"then pcall(v3.stop_animation)end;z3=nil;va(nil)return end;vL=true;z3=xx.name;vK=xx.name;local z7=xx.path;if type(z7)=="string"and(z7:sub(1,10)=="builtin://"or z7:match("^rbxassetid://%d+$")or z7:match("^%d+$"))then v3.play_animation(z7,vJ)va(xx.name)return end;va("Loading "..tostring(xx.name).."...")task.spawn(function()if type(z7)=="string"and z7:sub(1,4)~="http"and#z7>800 and not z7:find("angoorreanim_cache",1,true)then if type(writefile)=="function"then pcall(function()if type(isfolder)=="function"and type(makefolder)=="function"and not isfolder("angoorreanim_cache")then makefolder("angoorreanim_cache")end;local z8=tostring(xx.name):gsub("[^%w%._%-]","_")local z9="angoorreanim_cache/Custom_"..z8 ..".lua"writefile(z9,z7)z7=z9;xx.path=z9;for x,X in ipairs(vr.customAnims or{})do if X.name==xx.name then X.script=z9 end end;pcall(vE)end)end end;local gK=v3.play_animation(z7,vJ)if type(gK)=="string"then warn("Coca Reanimations Error:",gK)local za=v3.play_animation(z7,vJ)if type(za)=="string"then warn("Coca Reanimations Error (retry):",za)vL=false;vK=nil;z3=nil;va(nil)return end end;vK=xx.name;z3=xx.name;va(xx.name)end)end;do local zb=0;v9=function()zb=zb+1;local zc=zb;for x,y in ipairs(wI:GetChildren())do if y:IsA("Frame")or y:IsA("TextButton")or y:IsA("TextLabel")then y:Destroy()end end;table.clear(z4)local gf=tostring(wF.Text or""):lower()local zd={}for x,kq in ipairs(v4)do local ze=kq.isCustom==true or kq.category=="Custom"if vM=="Favs"then if vr.favs[kq.name]and(gf==""or kq.name:lower():find(gf,1,true))then table.insert(zd,kq)end elseif vM=="Custom"then if ze and(gf==""or kq.name:lower():find(gf,1,true))then table.insert(zd,kq)end else if kq.category~="Recorded"and(gf==""or kq.name:lower():find(gf,1,true))then table.insert(zd,kq)end end end;if vM=="Favs"then wK.Visible=#zd==0;wL.Visible=false elseif vM=="Custom"then wK.Visible=false;wL.Visible=#zd==0 else wK.Visible=false;wL.Visible=false end;local zf=100;if gf~=""then vN=#zd else if not vN or vN<zf then vN=zf end end;local zg=math.min(vN,#zd)for dt=1,zg do if dt%150==0 then task.wait()if zc~=zb then return end end;local xx=zd[dt]local zh=Instance.new("Frame")zh.Size=UDim2.new(1,-6,0,z1)zh.BackgroundColor3=t8.surface;zh.BorderSizePixel=0;zh.LayoutOrder=dt;zh.Parent=wI;t9(zh,6)local zi=z3==xx.name;local zj=tc(zh,zi and t8.accent or t8.divider,1,zi and 0 or 0.5)local zk=Instance.new("TextButton")zk.Size=UDim2.new(0,24,1,0)zk.Position=UDim2.new(0,4,0,0)zk.BackgroundTransparency=1;local vI=vr.favs[xx.name]==true;zk.Text=vI and"★"or"☆"zk.TextColor3=vI and Color3.fromRGB(255,215,0)or t8.textMuted;zk.Font=Enum.Font.GothamBold;zk.TextSize=14;zk.Parent=zh;zk.MouseButton1Click:Connect(function()if vr.favs[xx.name]then vr.favs[xx.name]=nil;zk.Text="☆"zk.TextColor3=t8.textMuted else vr.favs[xx.name]=true;zk.Text="★"zk.TextColor3=Color3.fromRGB(255,215,0)end;vE()if vM=="Favs"then v9()end end)local zl=xx.isCustom==true or xx.category=="Custom"or xx.category=="Recorded"local zm=Instance.new("TextButton")zm.Size=UDim2.new(1,zl and-108 or-78,1,0)zm.Position=UDim2.new(0,30,0,0)zm.BackgroundTransparency=1;zm.RichText=true;if zl then zm.Text=xx.name..' <font color="rgb(80,210,255)">[CUSTOM]</font>'else zm.Text=xx.name end;zm.TextColor3=zi and t8.accent or t8.text;zm.Font=zi and Enum.Font.GothamBold or Enum.Font.GothamMedium;zm.TextSize=11;zm.TextXAlignment=Enum.TextXAlignment.Left;zm.TextTruncate=Enum.TextTruncate.AtEnd;zm.Parent=zh;z4[xx.name]={stroke=zj,btn=zm,star=zk}zm.MouseEnter:Connect(function()if z3~=xx.name then tg(zh,{BackgroundColor3=t8.surfaceHover},0.15)end end)zm.MouseLeave:Connect(function()if z3~=xx.name then tg(zh,{BackgroundColor3=t8.surface},0.15)end end)zm.MouseButton1Click:Connect(function()z5(xx)for zn,zo in pairs(z4)do local jG=z3==zn;zo.stroke.Color=jG and t8.accent or t8.divider;zo.stroke.Transparency=jG and 0 or 0.5;zo.btn.TextColor3=jG and t8.accent or t8.text;zo.btn.Font=jG and Enum.Font.GothamBold or Enum.Font.GothamMedium end end)local xg=vr.binds[xx.name]local xf=Instance.new("TextButton")xf.Size=UDim2.new(0,38,0,22)xf.Position=UDim2.new(1,zl and-72 or-44,0.5,-11)xf.BackgroundColor3=t8.input;xf.Text=xg and"["..xg.."]"or"[+]"xf.TextColor3=xg and t8.accent or t8.textMuted;xf.Font=Enum.Font.GothamSemibold;xf.TextSize=10;xf.Parent=zh;t9(xf,4)tc(xf,t8.divider,1,0)xf.MouseButton1Click:Connect(function()if z2 and z2.name==xx.name then z2=nil;local la=vr.binds[xx.name]xf.Text=la and"["..la.."]"or"[+]"xf.TextColor3=la and t8.accent or t8.textMuted else z2={name=xx.name,btn=xf}xf.Text="[?]"xf.TextColor3=Color3.fromRGB(255,180,50)end end)if zl then local zp=Instance.new("TextButton")zp.Size=UDim2.new(0,24,0,22)zp.Position=UDim2.new(1,-28,0.5,-11)zp.BackgroundColor3=t8.surface;zp.Text="✕"zp.TextColor3=t8.textMuted;zp.Font=Enum.Font.GothamBold;zp.TextSize=10;zp.Parent=zh;t9(zp,4)tc(zp,t8.divider,1,0)zp.MouseButton1Click:Connect(function()for zq=#v4,1,-1 do if v4[zq].name==xx.name then table.remove(v4,zq)end end;for zr=#vr.customAnims,1,-1 do if vr.customAnims[zr].name==xx.name then table.remove(vr.customAnims,zr)end end;vr.favs[xx.name]=nil;vr.binds[xx.name]=nil;vE()v9()end)end end;if zg<#zd and gf==""then local zs=Instance.new("TextButton")zs.Size=UDim2.new(1,-6,0,40)zs.BackgroundColor3=t8.bgCard;zs.Text="Scroll for more  ·  "..tostring(zg).."/"..tostring(#zd)zs.TextColor3=t8.textMuted;zs.Font=Enum.Font.GothamMedium;zs.TextSize=11;zs.LayoutOrder=zg+1;zs.Parent=wI;t9(zs,8)tc(zs,t8.divider,1,0.3)zs.MouseButton1Click:Connect(function()vN=(vN or zf)+zf;zs.Text="Loading..."task.defer(v9)end)end;local zt=zg<#zd and gf==""and 48 or 8;wI.CanvasSize=UDim2.new(0,0,0,math.max(zg,1)*(z1+4)+zt)end end;local zu=false;wI:GetPropertyChangedSignal("CanvasPosition"):Connect(function()if zu then return end;local gg=tostring(wF.Text or""):lower()if gg~=""then return end;if vM=="Favs"or vM=="Custom"then return end;if wI.CanvasSize.Y.Offset<=wI.AbsoluteSize.Y+4 then return end;if wI.CanvasPosition.Y>=wI.CanvasSize.Y.Offset-wI.AbsoluteSize.Y-80 then zu=true;vN=(vN or 100)+100;task.defer(function()pcall(v9)zu=false end)end end)wF:GetPropertyChangedSignal("Text"):Connect(function()vN=100;pcall(v9)end)vb=function()for x,y in ipairs(wM:GetChildren())do if y:IsA("Frame")then y:Destroy()end end;local zv={}for iI,zw in pairs(vr.binds)do local zx=nil;for x,kq in ipairs(v4)do if kq.name==iI then zx=kq.path;break end end;if zx then table.insert(zv,{name=iI,path=zx,key=zw})end end;table.sort(zv,function(iF,la)return iF.name:lower()<la.name:lower()end)wP.Visible=#zv==0;for eY,hP in ipairs(zv)do local zh=Instance.new("Frame")zh.Size=UDim2.new(1,-6,0,36)zh.BackgroundColor3=t8.surface;zh.BorderSizePixel=0;zh.LayoutOrder=eY+1;zh.Parent=wM;t9(zh,6)tc(zh,t8.divider,1,0.4)local zy=Instance.new("TextButton")zy.Size=UDim2.new(1,-120,1,0)zy.Position=UDim2.new(0,12,0,0)zy.BackgroundTransparency=1;zy.Text=hP.name;zy.TextColor3=t8.text;zy.Font=Enum.Font.GothamMedium;zy.TextSize=11;zy.TextXAlignment=Enum.TextXAlignment.Left;zy.TextTruncate=Enum.TextTruncate.AtEnd;zy.Parent=zh;zy.MouseButton1Click:Connect(function()z5(hP)end)local zz=Instance.new("TextButton")zz.Size=UDim2.new(0,48,0,24)zz.Position=UDim2.new(1,-100,0.5,-12)zz.BackgroundColor3=t8.input;zz.Text="["..tostring(hP.key).."]"zz.TextColor3=t8.accent;zz.Font=Enum.Font.GothamBold;zz.TextSize=10;zz.Parent=zh;t9(zz,4)tc(zz,t8.divider,1,0)zz.MouseButton1Click:Connect(function()if z2 and z2.name==hP.name then z2=nil;zz.Text="["..tostring(hP.key).."]"zz.TextColor3=t8.accent else z2={name=hP.name,btn=zz}zz.Text="[?]"zz.TextColor3=Color3.fromRGB(255,180,50)end end)local zA=Instance.new("TextButton")zA.Size=UDim2.new(0,42,0,24)zA.Position=UDim2.new(1,-48,0.5,-12)zA.BackgroundColor3=t8.surface;zA.Text="Unbind"zA.TextColor3=t8.textMuted;zA.Font=Enum.Font.GothamSemibold;zA.TextSize=9;zA.Parent=zh;t9(zA,4)tc(zA,t8.divider,1,0)zA.MouseEnter:Connect(function()tg(zA,{BackgroundColor3=t8.dangerHover,TextColor3=t8.accent},0.15)end)zA.MouseLeave:Connect(function()tg(zA,{BackgroundColor3=t8.surface,TextColor3=t8.textMuted},0.15)end)zA.MouseButton1Click:Connect(function()vr.binds[hP.name]=nil;vE()vb()end)end;wM.CanvasSize=UDim2.new(0,0,0,26+#zv*42)end;local zB=Instance.new("Frame")zB.Size=UDim2.new(1,-20,1,-90)zB.Position=UDim2.new(0,10,0,48)zB.BackgroundTransparency=1;zB.Visible=false;zB.Parent=w5;local zC=Instance.new("TextBox")zC.Size=UDim2.new(1,0,0,30)zC.Position=UDim2.new(0,0,0,0)zC.BackgroundColor3=t8.input;zC.PlaceholderText="Target username..."zC.Text=""zC.TextColor3=t8.text;zC.Font=Enum.Font.Gotham;zC.TextSize=12;zC.ClearTextOnFocus=false;zC.Parent=zB;t9(zC,8)tc(zC,t8.border,1,0.4)local zD=Instance.new("TextBox")zD.Size=UDim2.new(1,0,0,28)zD.Position=UDim2.new(0,0,0,36)zD.BackgroundColor3=t8.input;zD.PlaceholderText="Search animations..."zD.Text=""zD.TextColor3=t8.text;zD.Font=Enum.Font.Gotham;zD.TextSize=12;zD.ClearTextOnFocus=false;zD.Parent=zB;t9(zD,8)tc(zD,t8.border,1,0.4)local zE=Instance.new("TextLabel")zE.Size=UDim2.new(1,0,0,16)zE.Position=UDim2.new(0,0,0,68)zE.BackgroundTransparency=1;zE.Text="Bang reanim: (none)"zE.TextColor3=t8.textMuted;zE.Font=Enum.Font.GothamSemibold;zE.TextSize=11;zE.TextXAlignment=Enum.TextXAlignment.Left;zE.Parent=zB;local zF=Instance.new("ScrollingFrame")zF.Size=UDim2.new(1,0,1,-160)zF.Position=UDim2.new(0,0,0,88)zF.BackgroundColor3=t8.surface;zF.BorderSizePixel=0;zF.ScrollBarThickness=3;zF.Parent=zB;t9(zF,8)local zG=Instance.new("UIListLayout",zF)zG.Padding=UDim.new(0,4)local zH=Instance.new("UIPadding",zF)zH.PaddingTop=UDim.new(0,4)zH.PaddingLeft=UDim.new(0,4)zH.PaddingRight=UDim.new(0,4)local zI=nil;local zJ=""local zK=false;local zL=nil;local zM=nil;local zN=nil;local function zO(zP)local gg=tostring(zP or""):gsub("^%s*@+%s*",""):gsub("^%s+",""):gsub("%s+$",""):lower()if gg==""then local zQ=gi()if zQ and zQ~=sW then return zQ end;return nil end;for x,cw in ipairs(e:GetPlayers())do if cw~=sW and(cw.Name:lower()==gg or cw.DisplayName:lower()==gg)then return cw end end;for x,cw in ipairs(e:GetPlayers())do if cw~=sW and(cw.Name:lower():find(gg,1,true)or cw.DisplayName:lower():find(gg,1,true))then return cw end end;return nil end;local function zR(t1)if not t1 then return end;pcall(function()local zS=t1:FindFirstChild("HumanoidRootPart")local Y=t1:FindFirstChildWhichIsA("Humanoid")if zS then if typeof(sethiddenproperty)=="function"then pcall(sethiddenproperty,zS,"PhysicsRepRootPart",nil)pcall(sethiddenproperty,zS,"PhysicsRepRootRef",nil)end;zS.Anchored=false;zS.AssemblyLinearVelocity=Vector3.zero;zS.AssemblyAngularVelocity=Vector3.zero end;pcall(function()sW.ReplicationFocus=nil end)if Y then Y.Sit=false;Y.PlatformStand=false;Y.AutoRotate=true;Y.WalkSpeed=16;Y.JumpPower=50;Y.JumpHeight=7.2;Y:SetStateEnabled(Enum.HumanoidStateType.Running,true)Y:SetStateEnabled(Enum.HumanoidStateType.RunningNoPhysics,true)Y:SetStateEnabled(Enum.HumanoidStateType.Jumping,true)Y:SetStateEnabled(Enum.HumanoidStateType.Freefall,true)Y:SetStateEnabled(Enum.HumanoidStateType.Landed,true)Y:ChangeState(Enum.HumanoidStateType.GettingUp)task.defer(function()if Y and Y.Parent then Y.PlatformStand=false;Y.WalkSpeed=16;Y.JumpPower=50;Y:ChangeState(Enum.HumanoidStateType.Running)end end)end end)end;vd=function()zK=false;_G.CocaBangActive=false;zL=nil;if zM then pcall(function()zM:Disconnect()end)zM=nil end;pcall(function()d:UnbindFromRenderStep("CocaBangLock")end)sX()sY()sZ()pcall(function()if v3 and type(v3.stop_animation)=="function"then v3.stop_animation()end end)zR(sW and sW.Character)pcall(function()if v3 and type(v3.get_real_character)=="function"then zR(v3.get_real_character())end end)task.spawn(function()for x=1,8 do task.wait(0.05)zR(sW and sW.Character)pcall(function()if v3 and type(v3.get_real_character)=="function"then zR(v3.get_real_character())end end)end end)if zN then zN.Text="Idle — click same button to stop"end end;local function zT(zU)local gl=tostring(zC.Text or""):gsub("^%s+",""):gsub("%s+$","")local zV=gl~=""and gl or zJ;local aR=zO(zV)if not aR or not aR.Character then if zN then zN.Text="Invalid target"end;return end;if not sW or not sW.Character then if zN then zN.Text="No character"end;return end;if zK and zL==zU then vd()return end;if _ then pcall(function()_:Destroy(true)end)_=nil end;vd()zK=true;_G.CocaBangActive=true;_G.stopCocaBangLock=vd;zL=zU;zJ=aR.Name;local zW={face="Face Bang → ",back="Backshots → ",headsit="Headsit → ",lap="Lap Ride → ",kiss="Front Kiss → ",orbit="Orbit Dance → "}if zN then zN.Text=(zW[zU]or"Locked → ")..aR.Name end;pcall(function()if not v3.is_reanimated()then v3.reanimate(true)if type(w1)=="function"then w1()end end;local zX={face="builtin://Face Bang",back="builtin://Backshots",headsit="builtin://Sit Chill",lap="builtin://Twerk Pro Bounce",kiss="builtin://Heart Hands Cute Pose",orbit="builtin://⚡ Gojo Infinity Levitate"}local zY=zI and zI.path or zX[zU]or"builtin://Backshots"v3.play_animation(zY,vJ)end)local function zZ()local fJ={}if v3 and type(v3.get_real_character)=="function"then local dH=v3.get_real_character()if dH and dH.Parent then local bp=dH:FindFirstChild("HumanoidRootPart")if bp then table.insert(fJ,{root=bp,char=dH})end end end;if sW.Character then local bp=sW.Character:FindFirstChild("HumanoidRootPart")if bp then local z_=false;for x,kq in ipairs(fJ)do if kq.root==bp then z_=true;break end end;if not z_ then table.insert(fJ,{root=bp,char=sW.Character})end end end;return fJ end;local function A0()if not zK then return end;local A1=e:FindFirstChild(zJ)or aR;if not A1 or not A1.Character then return end;local kw=A1.Character:FindFirstChild("HumanoidRootPart")if not kw then return end;local A2=A1.Character:FindFirstChild("Head")local A3=A2 and A2:IsA("BasePart")and(A2.Position-kw.Position).Magnitude<=10;local A4=cC(kw.CFrame,kw.Position)local ia;if zU=="face"and A3 then local g5=0.5+(math.sin(tick()*1*10)+1)/2*2.5;local ec=A2.CFrame.LookVector;local ed=Vector3.new(ec.X,0,ec.Z)if ed.Magnitude<0.001 then local A5=A4.LookVector;ed=Vector3.new(A5.X,0,A5.Z)end;local ui=ed.Magnitude>0.001 and ed.Unit or Vector3.new(0,0,-1)local bb=A2.Position+ui*g5;local A6=Vector3.new(bb.X,A2.Position.Y+1.2,bb.Z)local A7=Vector3.new(A2.Position.X,A6.Y,A2.Position.Z)if(A6-A7).Magnitude<0.001 then ia=A4*CFrame.new(0,1.65,-0.55-g5)*CFrame.Angles(0,math.rad(180),0)else ia=CFrame.lookAt(A6,A7,Vector3.yAxis)end elseif zU=="face"then ia=A4*CFrame.new(0,1.65,-0.55)*CFrame.Angles(0,math.rad(180),0)elseif zU=="headsit"then ia=(A3 and cC(A2.CFrame,A2.Position)or A4)*CFrame.new(0,1.35,0)elseif zU=="lap"then local A8=math.abs(math.sin(tick()*14))*0.65;ia=A4*CFrame.new(0,0.35+A8,-0.85)elseif zU=="kiss"then ia=A4*CFrame.new(0,0,-1.15)*CFrame.Angles(0,math.rad(180),0)elseif zU=="orbit"then local rW=tick()*3.2;local A9=kw.Position+Vector3.new(math.cos(rW)*3.4,0.2,math.sin(rW)*3.4)ia=CFrame.lookAt(A9,Vector3.new(kw.Position.X,A9.Y,kw.Position.Z),Vector3.yAxis)else local g5=0.5+(math.sin(tick()*2*10)+1)/2*2.0;ia=A4*CFrame.new(0,0,g5)end;cF(ia)pcall(function()sW.ReplicationFocus=kw end)local dZ=kw.AssemblyLinearVelocity;local e1=Vector3.new(0,math.sin(tick()*24)*0.03,0)local Aa=(dZ.Magnitude<350 and dZ*0.85 or Vector3.zero)+e1;for x,hP in ipairs(zZ())do if typeof(sethiddenproperty)=="function"then pcall(sethiddenproperty,hP.root,"PhysicsRepRootPart",kw)if z then pcall(sethiddenproperty,hP.root,"PhysicsRepRootRef",z(kw))end;pcall(sethiddenproperty,hP.root,"NetworkIsSleeping",false)end;hP.root.CFrame=ia;hP.root.AssemblyLinearVelocity=Aa;hP.root.AssemblyAngularVelocity=Vector3.zero;t0(hP.root,kw)if hP.char then local Y=hP.char:FindFirstChildWhichIsA("Humanoid")if Y then pcall(function()Y.PlatformStand=true;Y.AutoRotate=false;Y.WalkSpeed=0;Y:ChangeState(Enum.HumanoidStateType.Physics)end)end end end end;A0()local Ab="CocaBangLock"pcall(function()d:UnbindFromRenderStep(Ab)end)local Ac=d.Heartbeat:Connect(A0)local Ad=d.RenderStepped:Connect(A0)pcall(function()d:BindToRenderStep(Ab,Enum.RenderPriority.Camera.Value+1,A0)end)zM={Disconnect=function()pcall(function()Ac:Disconnect()end)pcall(function()Ad:Disconnect()end)pcall(function()d:UnbindFromRenderStep(Ab)end)end}end;local Ae;do local Af=80;local Ag=0;local Ah={}Ae=function()Ag=Ag+1;local Ai=Ag;for x,y in ipairs(zF:GetChildren())do if y:IsA("TextButton")then y:Destroy()end end;table.clear(Ah)local gg=tostring(zD.Text or""):lower()local lD={}for x,xx in ipairs(v4)do local Aj=xx.category or"Reanims"if Aj~="Unicorns"and(gg==""or xx.name:lower():find(gg,1,true))then lD[#lD+1]=xx end end;local Ak=gg~=""and math.min(#lD,150)or math.min(Af,#lD)for dt=1,Ak do if dt%25==0 then task.wait()if Ai~=Ag then return end end;local xx=lD[dt]local fC=Instance.new("TextButton")fC.Size=UDim2.new(1,-8,0,26)local zi=zI and zI.name==xx.name;fC.BackgroundColor3=zi and t8.surfaceHover or t8.bgCard;fC.Text="  "..xx.name;fC.TextXAlignment=Enum.TextXAlignment.Left;fC.TextColor3=t8.text;fC.Font=Enum.Font.GothamSemibold;fC.TextSize=11;fC.AutoButtonColor=false;fC.Parent=zF;t9(fC,6)Ah[xx.name]=fC;fC.MouseButton1Click:Connect(function()zI={name=xx.name,path=xx.path}zE.Text="Bang reanim: "..xx.name;if v3 and type(v3.preload_animation)=="function"then task.spawn(v3.preload_animation,xx.path)end;for Al,Am in pairs(Ah)do if Am and Am.Parent then Am.BackgroundColor3=Al==xx.name and t8.surfaceHover or t8.bgCard end end end)end;if Ak<#lD then local zs=Instance.new("TextButton")zs.Size=UDim2.new(1,-8,0,28)zs.BackgroundColor3=t8.surface;zs.Text="Load more ("..tostring(Ak).."/"..tostring(#lD)..")..."zs.TextColor3=t8.accent;zs.Font=Enum.Font.GothamBold;zs.TextSize=10;zs.AutoButtonColor=false;zs.Parent=zF;t9(zs,6)zs.MouseButton1Click:Connect(function()Af=Af+100;task.defer(Ae)end)end;zF.CanvasSize=UDim2.new(0,0,0,zG.AbsoluteContentSize.Y+8)end;zD:GetPropertyChangedSignal("Text"):Connect(function()Af=80;Ae()end)end;zN=Instance.new("TextLabel")zN.Size=UDim2.new(1,0,0,14)zN.Position=UDim2.new(0,0,1,-14)zN.BackgroundTransparency=1;zN.Text="Idle — click any mode to lock (0ms) or click again to stop"zN.TextColor3=t8.textMuted;zN.Font=Enum.Font.Gotham;zN.TextSize=9.5;zN.TextXAlignment=Enum.TextXAlignment.Left;zN.Parent=zB;local function An(zU)if zK and zL==zU then vd()return end;zT(zU)end;local Ao={{key="face",label="Face Bang",col=0,row=0},{key="back",label="Backshots",col=1,row=0},{key="headsit",label="Headsit",col=2,row=0},{key="lap",label="Lap Ride",col=0,row=1},{key="kiss",label="Front Kiss",col=1,row=1},{key="orbit",label="Orbit Dance",col=2,row=1}}for x,Ap in ipairs(Ao)do local Aq=Instance.new("TextButton")Aq.Size=UDim2.new(0.32,-2,0,24)Aq.Position=UDim2.new(Ap.col*0.34,0,1,-68+Ap.row*27)Aq.BackgroundColor3=t8.surface;Aq.Text=Ap.label;Aq.TextColor3=t8.text;Aq.Font=Enum.Font.GothamBold;Aq.TextSize=10;Aq.Parent=zB;t9(Aq,7)tc(Aq,t8.divider,1,0.3)Aq.MouseButton1Click:Connect(function()An(Ap.key)end)end;wg=function(wq)vM=wq;for iP,gQ in pairs(wf)do local Ar=iP==wq;tg(gQ.btn,{BackgroundColor3=Ar and t8.accent or Color3.fromRGB(30,30,35),BackgroundTransparency=Ar and 0 or 0.5,TextColor3=Ar and Color3.fromRGB(8,8,10)or t8.textMuted},0.2,Enum.EasingStyle.Quint)gQ.btn.Font=Ar and Enum.Font.GothamBold or Enum.Font.GothamMedium end;local As=wq=="Fun"or wq=="Favs"or wq=="Custom"zB.Visible=wq=="Bang"wE.Visible=As;wM.Visible=wq=="Binds"wQ.Visible=wq=="Speed"xh.Visible=wq=="States"y5.Visible=wq=="Limbs"local At=As and wE or wq=="Binds"and wM or wq=="Speed"and wQ or wq=="States"and xh or wq=="Limbs"and y5;if At then At.Position=UDim2.new(0,0,0,6)tg(At,{Position=UDim2.new(0,0,0,0)},0.22,Enum.EasingStyle.Quint,Enum.EasingDirection.Out)end;if wq=="Favs"then wF.PlaceholderText="Search favorites..."wH.Visible=false;wF.Size=UDim2.new(1,0,0,30)v9()elseif wq=="Custom"then vN=100;wF.PlaceholderText="Search custom animations..."wH.Visible=true;wF.Size=UDim2.new(1,-96,0,30)v9()elseif wq=="Fun"then vN=100;wF.PlaceholderText="Search animations..."wH.Visible=true;wF.Size=UDim2.new(1,-96,0,30)v9()elseif wq=="Binds"then vb()elseif wq=="Limbs"then vc()elseif wq=="Bang"then Ae()end end;local Au=nil;d.Heartbeat:Connect(function()if not v3 or type(v3.is_reanimated)~="function"then return end;local z6=false;pcall(function()z6=v3.is_reanimated()end)if not z6 then return end;if vL or zK then return end;if not vr.states or next(vr.states)==nil then return end;local cj=sW and sW.Character;if not cj then return end;local Y=cj:FindFirstChildOfClass("Humanoid")local bE=cj:FindFirstChild("HumanoidRootPart")if not Y or not bE then return end;local Av=Y:GetState()local Aw="Idle"if Av==Enum.HumanoidStateType.Jumping then Aw="Jump"elseif Av==Enum.HumanoidStateType.Freefall then if bE.AssemblyLinearVelocity.Y>0.1 then Aw="Jump"else Aw="Fall"end else local Ax=Vector2.new(bE.AssemblyLinearVelocity.X,bE.AssemblyLinearVelocity.Z)if Ax.Magnitude>14 then Aw="Run"elseif Ax.Magnitude>1.5 then Aw="Walk"else Aw="Idle"end end;if Aw~=Au then Au=Aw;local Ay=vr.states[Aw]if Ay and Ay.path then v3.play_animation(Ay.path,vJ)va("["..Aw.."] "..tostring(Ay.name))else if v3 and type(v3.stop_animation)=="function"then v3.stop_animation()end;va(nil)end end end)sU.InputBegan:Connect(function(wc,Az)if wc.UserInputType~=Enum.UserInputType.Keyboard then return end;local zw=wc.KeyCode.Name;if z2 then vr.binds[z2.name]=zw;vE()if z2.btn then z2.btn.Text="["..zw.."]"z2.btn.TextColor3=t8.accent end;z2=nil;return end;if x8 then vr.speedBinds[x8]=zw;vE()local fC=x9[x8]if fC then fC.Text="["..zw.."]"fC.TextColor3=t8.accent end;x8=nil;return end;if Az then return end;for AA,xe in pairs(vr.speedBinds)do if xe==zw then local AB=tonumber(AA)if AB then wZ(AB)end;return end end;for iI,xe in pairs(vr.binds)do if xe==zw then for x,kq in ipairs(v4)do if kq.name==iI then z5(kq)return end end end end end)if v3 then w1()wZ(vJ)task.defer(function()task.wait(0.15)if#v4>0 then pcall(v9)end end)end end;_G.buildCocaReanimTab=t2;_G.buildAngoorReanimTab=t2;task.spawn(function()if type(_G.refreshAllPanelBgs)=="function"then for x=1,20 do task.wait(0.5)pcall(_G.refreshAllPanelBgs)end end end)_G.AngoorReanimLoaded=true;_G.CocaReanimLoaded=true;sT=t2 end;local CocaSkyDestroyer={}_G.CocaSkyDestroyer=CocaSkyDestroyer(function()_G._HaloCoverGroundActive=false;_G._HaloCoverSkyActive=false;_G._HaloCoverCubeMatrixActive=false;_G._HaloCoverVortexActive=false;_G._HaloCoverBlackholeActive=false;_G._HaloCoverHaloRingActive=false;_G._HaloCoverHelixActive=false;_G._HaloCoverWallActive=false;_G._HaloCoverTsunamiActive=false;_G._HaloCoverPrisonBoxActive=false;_G._HaloCoverTargetCageActive=false;_G._HaloCoverPulseActive=false;_G._HaloCoverFlashActive=false;_G._HaloCoverFlashPhase=true;_G._HaloCoverNoDelay=true;_G._HaloCoverGroundHeight=1.5;_G._HaloCoverSkyHeight=3.0;_G._HaloCoverCubeSpacing=0.5;_G._HaloCoverFlashSpeed=0.08;_G._HaloCoverScaleMult=1.0;_G._HaloCoverVortexSpeed=2.2;local AC={Head=Vector3.new(101,0,-2152),UpperTorso=Vector3.new(101,0,-2150002),LowerTorso=Vector3.new(101,0,-2150002),Torso=Vector3.new(101,0,-2150002),LeftUpperArm=Vector3.new(-10000000,0,25000000),LeftLowerArm=Vector3.new(-10000000,0,-25000000),LeftHand=Vector3.new(-10000000,0,-25000000),["Left Arm"]=Vector3.new(-10000000,0,25000000),RightUpperArm=Vector3.new(10000000,0,25000000),RightLowerArm=Vector3.new(10000000,0,-25000000),RightHand=Vector3.new(10000000,0,-25000000),["Right Arm"]=Vector3.new(10000000,0,25000000),LeftUpperLeg=Vector3.new(-10000000,0,25000000),LeftLowerLeg=Vector3.new(-10000000,0,-25000000),LeftFoot=Vector3.new(-10000000,0,-25000000),["Left Leg"]=Vector3.new(-10000000,0,25000000),RightUpperLeg=Vector3.new(10000000,0,25000000),RightLowerLeg=Vector3.new(10000000,0,-25000000),RightFoot=Vector3.new(10000000,0,-25000000),["Right Leg"]=Vector3.new(10000000,0,25000000)}local AD={Head=Vector3.new(101,3,-2152),UpperTorso=Vector3.new(101,15,-2150002),LowerTorso=Vector3.new(101,-3.2,-2150002),Torso=Vector3.new(101,15,-2150002),LeftUpperArm=Vector3.new(-10000000,15,25000000),LeftLowerArm=Vector3.new(-10000000,15,-25000000),LeftHand=Vector3.new(-10000000,0,-25000000),["Left Arm"]=Vector3.new(-10000000,15,25000000),RightUpperArm=Vector3.new(10000000,15,25000000),RightLowerArm=Vector3.new(10000000,15,-25000000),RightHand=Vector3.new(10000000,0,-25000000),["Right Arm"]=Vector3.new(10000000,15,25000000),LeftUpperLeg=Vector3.new(-10000000,15,25000000),LeftLowerLeg=Vector3.new(-10000000,15,-25000000),LeftFoot=Vector3.new(-10000000,0,-25000000),["Left Leg"]=Vector3.new(-10000000,15,25000000),RightUpperLeg=Vector3.new(10000000,15,25000000),RightLowerLeg=Vector3.new(10000000,15,-25000000),RightFoot=Vector3.new(10000000,0,-25000000),["Right Leg"]=Vector3.new(10000000,15,25000000)}local AE={LeftFoot={x=-10000000,tier=0,z=-25000000},LeftLowerLeg={x=-10000000,tier=0,z=25000000},RightFoot={x=10000000,tier=0,z=-25000000},RightLowerLeg={x=10000000,tier=0,z=25000000},["Left Leg"]={x=-10000000,tier=0,z=-25000000},["Right Leg"]={x=10000000,tier=0,z=25000000},LeftUpperLeg={x=-10000000,tier=1,z=25000000},RightUpperLeg={x=10000000,tier=1,z=25000000},LowerTorso={x=101,tier=1,z=-25000000},Torso={x=101,tier=2,z=-25000000},UpperTorso={x=101,tier=2,z=-25000000},LeftLowerArm={x=-10000000,tier=2,z=-25000000},LeftHand={x=-10000000,tier=2,z=25000000},RightLowerArm={x=10000000,tier=2,z=-25000000},RightHand={x=10000000,tier=2,z=25000000},LeftUpperArm={x=-10000000,tier=3,z=25000000},RightUpperArm={x=10000000,tier=3,z=25000000},["Left Arm"]={x=-10000000,tier=3,z=25000000},["Right Arm"]={x=10000000,tier=3,z=25000000},Head={x=101,tier=3,z=-2152}}local function AF(tM,AG)local iZ=AC[tM]if iZ then return Vector3.new(iZ.X,AG+iZ.Y,iZ.Z)end;return nil end;local function AH(tM,AI)local iZ=AD[tM]if iZ then return Vector3.new(iZ.X,AI+iZ.Y,iZ.Z)end;return nil end;local function AJ(tM,AG,AK)local hP=AE[tM]if hP then return Vector3.new(hP.x,AG+hP.tier*AK,hP.z)end;return nil end;local AL={reanimated=false,is_processing=false,real_char=nil,clone_char=nil,connections={}}local tp={"Head","UpperTorso","LowerTorso","LeftUpperArm","LeftLowerArm","LeftHand","RightUpperArm","RightLowerArm","RightHand","LeftUpperLeg","LeftLowerLeg","LeftFoot","RightUpperLeg","RightLowerLeg","RightFoot","Torso","Left Arm","Right Arm","Left Leg","Right Leg","HumanoidRootPart"}local function AM(cj,te)if not cj then return end;for x,eu in ipairs(cj:GetDescendants())do if eu:IsA("BasePart")or eu:IsA("Decal")then eu.Transparency=te end end end;local function AN(dH)local AO={[dH]=dH.Archivable}dH.Archivable=true;for x,eu in ipairs(dH:GetDescendants())do AO[eu]=eu.Archivable;eu.Archivable=true end;local ts=dH:Clone()for x,eu in ipairs(ts:GetDescendants())do if eu:IsA("BillboardGui")or eu:IsA("SurfaceGui")or eu:IsA("Highlight")or eu:IsA("ParticleEmitter")then eu:Destroy()end end;for x,eu in ipairs(dH:GetDescendants())do if eu:IsA("Motor6D")and eu.Part0 and eu.Part1 then local AP=ts:FindFirstChild(eu.Part1.Name,true)if AP and not AP:FindFirstChild(eu.Name)then local AQ=ts:FindFirstChild(eu.Part0.Name,true)if AQ then local tu=Instance.new("Motor6D")tu.Name=eu.Name;tu.Part0=AQ;tu.Part1=AP;tu.C0=eu.C0;tu.C1=eu.C1;tu.Parent=AP end end end end;for fb,AR in pairs(AO)do if fb and fb.Parent then fb.Archivable=AR end end;ts.Name="Reanimation"ts.Parent=workspace;local ch=ts:FindFirstChild("Animate")if ch then ch.Disabled=true end;local tv=ts:FindFirstChildOfClass("Humanoid")if tv then tv.RequiresNeck=false;tv.DisplayDistanceType=Enum.HumanoidDisplayDistanceType.Viewer;tv.NameDisplayDistance=100;tv.HealthDisplayDistance=100;tv.DisplayName=""tv.AutoRotate=true end;local AS=ts:FindFirstChildWhichIsA("ForceField")if AS then AS:Destroy()end;return ts end;local AT={Head=1,UpperTorso=2,LowerTorso=3,Torso=2,LeftUpperArm=4,LeftLowerArm=5,LeftHand=6,["Left Arm"]=4,RightUpperArm=7,RightLowerArm=8,RightHand=9,["Right Arm"]=7,LeftUpperLeg=10,LeftLowerLeg=11,LeftFoot=12,["Left Leg"]=10,RightUpperLeg=13,RightLowerLeg=14,RightFoot=15,["Right Leg"]=13}local function AU(tM,AV,AW,AX,AY,AZ)if tM=="HumanoidRootPart"then return nil end;local A_=_G._HaloCoverScaleMult or 1.0;local B0=_G._HaloCoverFlashActive==true;local B1=_G._HaloCoverFlashPhase~=false;local eY=AT[tM]or 1;local ii=os.clock()if _G._HaloCoverBlackholeActive==true and(not B0 or B1)then local rW=ii*3.8+eY*0.65;local B2=eY/15;local r3=(2000000+B2*18000000)*A_;local B3=AV+B2*((AW-AV)*2.2+25)return Vector3.new(math.cos(rW)*r3,B3,math.sin(rW)*r3)elseif _G._HaloCoverHaloRingActive==true and(not B0 or B1)then local rW=ii*1.6+eY/15*math.pi*2;local r3=16000000*A_;return Vector3.new(math.cos(rW)*r3,AW+12,math.sin(rW)*r3)elseif _G._HaloCoverHelixActive==true and(not B0 or B1)then local B4=eY%2==0 and 1 or-1;local rW=ii*2.4+eY*0.55+(B4==-1 and math.pi or 0)local r3=14000000*A_;local B5=AV+eY*((_G._HaloCoverCubeSpacing or 2.0)+2.5)return Vector3.new(math.cos(rW)*r3,B5,math.sin(rW)*r3)elseif _G._HaloCoverWallActive==true and(not B0 or B1)then local B6=(eY-1)%5-2;local zh=math.floor((eY-1)/5)local B7=B6*8500000*A_;local B8=AV+zh*((_G._HaloCoverCubeSpacing or 4.0)+8.0)local B9=(eY%2==0 and 18000000 or-18000000)*A_;return Vector3.new(B7,B8,B9)elseif _G._HaloCoverTsunamiActive==true and(not B0 or B1)then local Ba=(eY-8)*3200000*A_;local Bb=ii*4.5+eY*0.45;local Bc=AV+18+math.sin(Bb)*(14+(_G._HaloCoverSkyHeight or 15))local Bd=math.cos(Bb)*22000000*A_;return Vector3.new(Ba,Bc,Bd)elseif _G._HaloCoverPrisonBoxActive==true and(not B0 or B1)then local Be=14000000*A_;local qO=eY%4;local Bf=math.floor((eY-1)/4)local Bg=AV+Bf*((_G._HaloCoverCubeSpacing or 3.5)+4.0)if qO==0 then return Vector3.new(Be,Bg,-Be)elseif qO==1 then return Vector3.new(-Be,Bg,Be)elseif qO==2 then return Vector3.new(Be,Bg,Be)else return Vector3.new(-Be,Bg,-Be)end elseif _G._HaloCoverVortexActive==true and(not B0 or B1)then local rW=ii*(_G._HaloCoverVortexSpeed or 2.2)+eY*0.42;local r3=12000000*A_;local Bh=AV+eY%5*((_G._HaloCoverCubeSpacing or 2.5)+3.5)return Vector3.new(math.cos(rW)*r3,Bh,math.sin(rW)*r3)end;local Bi=nil;if AZ then Bi=AJ(tM,AV,_G._HaloCoverCubeSpacing or 0.5)elseif AX and AY then if tM=="LowerTorso"then Bi=Vector3.new(101,AV+(AW-AV)*0.5,-25000000)elseif tM:find("Leg")or tM:find("Foot")then Bi=AF(tM,AV)else Bi=AH(tM,AW)end elseif AX then Bi=AF(tM,AV)elseif AY then Bi=AH(tM,AW)end;if Bi then return Vector3.new(Bi.X*A_,Bi.Y,Bi.Z*A_)end;return nil end;local Bj=RaycastParams.new()Bj.FilterType=Enum.RaycastFilterType.Exclude;local Bk=0;local Bl=nil;local function Bm(dH,tx)local ct=os.clock()local B0=_G._HaloCoverFlashActive==true;local B1=_G._HaloCoverFlashPhase~=false;local Bn=_G._HaloCoverGroundActive==true;local Bo=_G._HaloCoverSkyActive==true;local Bp=_G._HaloCoverCubeMatrixActive==true;local Bq=_G._HaloCoverVortexActive or _G._HaloCoverBlackholeActive or _G._HaloCoverHaloRingActive or _G._HaloCoverHelixActive or _G._HaloCoverWallActive or _G._HaloCoverTsunamiActive or _G._HaloCoverPrisonBoxActive;if B0 and not Bn and not Bo and not Bp and not Bq then Bn=true;Bo=true end;cachedUseGround=Bn and(not B0 or B1)cachedUseSky=Bo and(not B0 or B1)cachedUseCubes=Bp and(not B0 or B1)local AV=3;local AW=15;local fy=nil;if _G._HaloCoverTargetCageActive then local jn=gi and gi()local eQ=jn and cA and cA(jn,true)local g4=eQ and cB and cB(eQ,"torso")if g4 and g4.Parent then fy=g4.Position end end;if not fy then local uN=tx and tx:FindFirstChild("HumanoidRootPart")if uN then fy=uN.Position end end;if fy then if not Bl or ct-Bk>=0.004 or not _G._HaloCoverNoDelay then Bk=ct;Bj.FilterDescendantsInstances={dH,tx}local Br=workspace:Raycast(fy+Vector3.new(0,5,0),Vector3.new(0,-100,0),Bj)Bl=Br and Br.Position.Y or fy.Y-3 end;local m7=Bl or fy.Y-3;local Bs=_G._HaloCoverPulseActive==true and math.sin(ct*3.2)*8.5 or 0;AV=m7+(_G._HaloCoverGroundHeight or 1.5)+Bs*0.35;AW=fy.Y+(_G._HaloCoverSkyHeight or 3)+Bs end;return AV,AW,cachedUseGround,cachedUseSky,cachedUseCubes end;function CocaSkyDestroyer.reanimate(qQ)if AL.is_processing then return end;AL.is_processing=true;local c,oh=pcall(function()if qQ then if AL.reanimated then return end;local dH=n.Character;if not(dH and dH.Parent)then return end;local uy=dH:FindFirstChildOfClass("Humanoid")local uz=dH:FindFirstChild("HumanoidRootPart")if not(uy and uz)then return end;if not uy:GetAttribute("ZenDefaultHipHeight")then uy:SetAttribute("ZenDefaultHipHeight",uy.HipHeight)end;local Bt=uy.NameDisplayDistance>0 and uy.NameDisplayDistance or 100;local Bu=uy.HealthDisplayDistance>0 and uy.HealthDisplayDistance or 100;local tx=AN(dH)local tv=tx:FindFirstChildOfClass("Humanoid")AL.real_char=dH;AL.clone_char=tx;pcall(function()for x,oX in ipairs({Enum.HumanoidStateType.Dead,Enum.HumanoidStateType.FallingDown,Enum.HumanoidStateType.Ragdoll,Enum.HumanoidStateType.GettingUp,Enum.HumanoidStateType.Freefall,Enum.HumanoidStateType.Flying,Enum.HumanoidStateType.Landed,Enum.HumanoidStateType.Running,Enum.HumanoidStateType.Climbing,Enum.HumanoidStateType.Swimming})do uy:SetStateEnabled(oX,false)end;uy.AutoRotate=false;uy.PlatformStand=true;uy.RequiresNeck=false;uy.BreakJointsOnDeath=false;uy.DisplayDistanceType=Enum.HumanoidDisplayDistanceType.None;uy.NameDisplayDistance=0;uy.HealthDisplayDistance=0;uy:ChangeState(Enum.HumanoidStateType.Physics)end)if tv then pcall(function()tv.PlatformStand=false;tv.Sit=false;tv.AutoRotate=true end)end;for x,eu in ipairs(tx:GetDescendants())do if eu:IsA("WrapLayer")or eu:IsA("WrapTarget")then pcall(function()eu:Destroy()end)elseif eu:IsA("BasePart")then eu.Transparency=eu.Name=="HumanoidRootPart"and 1 or 0.35 end end;local Bv=PhysicalProperties.new(0.001,0,0,0,0)for x,bJ in ipairs(dH:GetDescendants())do if bJ:IsA("BasePart")then pcall(function()bJ.CanCollide=false;bJ.CanTouch=false;bJ.CanQuery=false;bJ.Massless=true;bJ.CustomPhysicalProperties=Bv end)elseif bJ:IsA("BillboardGui")or bJ:IsA("SurfaceGui")then bJ:Destroy()end end;local uA={}for x,uB in ipairs(tp)do local Bw=dH:FindFirstChild(uB)local Bx=tx:FindFirstChild(uB)if Bw and Bx and Bw:IsA("BasePart")and Bx:IsA("BasePart")then table.insert(uA,{name=uB,real=Bw,fake=Bx})end end;for x,uE in ipairs(dH:GetDescendants())do if uE:IsA("Accessory")then local By=uE:FindFirstChildWhichIsA("WrapLayer",true)~=nil;local Bz=uE:FindFirstChild("Handle")local BA=tx:FindFirstChild(uE.Name)local BB=BA and BA:FindFirstChild("Handle")if not By and Bz and BB and Bz:IsA("BasePart")and BB:IsA("BasePart")then for x,BC in ipairs(uE:GetDescendants())do if BC:IsA("Weld")or BC:IsA("WeldConstraint")or BC:IsA("Motor6D")then BC.Enabled=false end end;table.insert(uA,{name=uE.Name,real=Bz,fake=BB,isRigidAcc=true})end end end;for dt=1,#uA do pcall(function()local BD=Instance.new("NoCollisionConstraint")BD.Name="ZenNCC_Clone"BD.Part0=uA[dt].real;BD.Part1=uA[dt].fake;BD.Parent=uA[dt].real end)end;local uJ={}local BE=n:FindFirstChildWhichIsA("PlayerGui")if BE then for x,uL in ipairs(BE:GetChildren())do if uL:IsA("ScreenGui")and uL.ResetOnSpawn then uJ[uL]=true;uL.ResetOnSpawn=false end end end;n.Character=tx;if workspace.CurrentCamera and tv then workspace.CurrentCamera.CameraSubject=tv end;for uL in pairs(uJ)do if uL and uL.Parent then uL.ResetOnSpawn=true end end;local tA=tx:FindFirstChild("Animate")if tA then tA.Disabled=false end;if tv then tv:ChangeState(Enum.HumanoidStateType.Running)end;pcall(function()for x,eu in ipairs(dH:GetDescendants())do if eu:IsA("Motor6D")then eu.Enabled=false end end end)pcall(function()workspace.FallenPartsDestroyHeight=0/0 end)pcall(function()settings().Physics.PhysicsEnvironmentalThrottle=Enum.EnviromentalPhysicsThrottle.Disabled;settings().Physics.AllowSleep=false;if sethiddenproperty then sethiddenproperty(n,"SimulationRadius",math.huge)sethiddenproperty(n,"MaxSimulationRadius",math.huge)end end)local BF=tx:FindFirstChild("HumanoidRootPart")if BF then pcall(function()n.ReplicationFocus=BF end)end;local uM=dH:FindFirstChild("Animate")if uM then pcall(function()uM.Disabled=true end)end;for x,bC in ipairs(uy:GetPlayingAnimationTracks())do if not ap[bC]then bC:Stop(0)end end;local function BG(BH)if not(dH.Parent and tx.Parent)then return end;local AV,AW,AX,AY,AZ=Bm(dH,tx)local uN=tx:FindFirstChild("HumanoidRootPart")local BI=uN and uN.AssemblyLinearVelocity or Vector3.zero;local BJ=uN and uN.AssemblyAngularVelocity or Vector3.zero;local ii=os.clock()local uR=Vector3.new(0,25.05,0)+Vector3.new(math.sin(ii*30)*0.025,0,math.cos(ii*30)*0.025)for dt=1,#uA do local hh=uA[dt]local BK,BL=hh.real,hh.fake;if BK and BL and BK.Parent and BL.Parent then if BK.Anchored then BK.Anchored=false end;if BK.CanCollide then BK.CanCollide=false end;local BM=AU(hh.name,AV,AW,AX,AY,AZ)if BM then BK.CFrame=CFrame.new(BM)if BH or _G._HaloCoverNoDelay then BK.AssemblyLinearVelocity=uR;BK.AssemblyAngularVelocity=Vector3.zero end else BK.CFrame=BL.CFrame;if BH or _G._HaloCoverNoDelay then local c7=BL.AssemblyLinearVelocity or BI;BK.AssemblyLinearVelocity=c7.Magnitude>0.05 and c7+Vector3.new(0,25.05,0)or uR;BK.AssemblyAngularVelocity=BL.AssemblyAngularVelocity or BJ end end;if BH and sethiddenproperty then pcall(sethiddenproperty,BK,"NetworkIsSleeping",false)end end end end;BG(true)pcall(function()d:BindToRenderStep("CocoSkyDestroyerPreCam",Enum.RenderPriority.Camera.Value-1,function()if _G._HaloCoverNoDelay then BG(false)end end)d:BindToRenderStep("CocoSkyDestroyerZeroDelay",Enum.RenderPriority.Character.Value+1,function()if _G._HaloCoverNoDelay then BG(false)end end)end)AL.connections.stepped=d.Stepped:Connect(function()if not(dH.Parent and tx.Parent)then return end;if uy.Parent then pcall(function()uy:ChangeState(Enum.HumanoidStateType.Physics)end)end;BG(false)end)AL.connections.hb=d.Heartbeat:Connect(function()if not(dH.Parent and tx.Parent)then CocaSkyDestroyer.reanimate(false)return end;BG(true)end)AL.connections.render=d.RenderStepped:Connect(function()if not(dH.Parent and tx.Parent)then return end;if tv and tv.Parent then tv.DisplayName=""tv.DisplayDistanceType=Enum.HumanoidDisplayDistanceType.Viewer;tv.NameDisplayDistance=Bt;tv.HealthDisplayDistance=Bu end;BG(false)end)AL.reanimated=true;if aa.active and aa.presetKey and aa.target then task.defer(function()pcall(function()iX(aa.presetKey,aa.target)end)end)end else if not AL.reanimated then return end;pcall(function()d:UnbindFromRenderStep("CocoSkyDestroyerPreCam")end)pcall(function()d:UnbindFromRenderStep("CocoSkyDestroyerZeroDelay")end)for fV,p2 in pairs(AL.connections)do if p2 then pcall(function()p2:Disconnect()end)end;AL.connections[fV]=nil end;local ts=AL.clone_char;local dH=AL.real_char;if dH and dH.Parent then local uy=dH:FindFirstChildWhichIsA("Humanoid")local uz=dH:FindFirstChild("HumanoidRootPart")local uN=ts and ts:FindFirstChild("HumanoidRootPart")local uU=uN and uN.CFrame or uz and uz.CFrame;if uz and uU then cF(uU)uz.CFrame=uU;uz.AssemblyLinearVelocity=Vector3.zero;uz.AssemblyAngularVelocity=Vector3.zero end;for x,bJ in ipairs(dH:GetDescendants())do if bJ:IsA("NoCollisionConstraint")then pcall(function()bJ:Destroy()end)elseif bJ:IsA("Motor6D")or bJ:IsA("Weld")or bJ:IsA("WeldConstraint")then pcall(function()bJ.Enabled=true end)elseif bJ:IsA("BasePart")then pcall(function()bJ.Massless=false;bJ.CanTouch=true;bJ.CanQuery=true;bJ.CustomPhysicalProperties=nil;bJ.AssemblyLinearVelocity=Vector3.zero;bJ.AssemblyAngularVelocity=Vector3.zero;bJ.Transparency=bJ.Name=="HumanoidRootPart"and 1 or 0;bJ.CanCollide=bJ.Name=="UpperTorso"or bJ.Name=="LowerTorso"or bJ.Name=="Torso"end)end end;if uy then pcall(function()for x,oX in ipairs({Enum.HumanoidStateType.Dead,Enum.HumanoidStateType.FallingDown,Enum.HumanoidStateType.Ragdoll,Enum.HumanoidStateType.GettingUp,Enum.HumanoidStateType.Freefall,Enum.HumanoidStateType.Flying,Enum.HumanoidStateType.Landed,Enum.HumanoidStateType.Running,Enum.HumanoidStateType.Climbing,Enum.HumanoidStateType.Swimming})do uy:SetStateEnabled(oX,true)end;uy.AutoRotate=true;uy.PlatformStand=false;uy.Sit=false;uy.RequiresNeck=true;uy:ChangeState(Enum.HumanoidStateType.GettingUp)uy:ChangeState(Enum.HumanoidStateType.Running)end)end;n.Character=dH;if workspace.CurrentCamera and uy then workspace.CurrentCamera.CameraSubject=uy end end;if ts and ts.Parent then ts:Destroy()end;AL.clone_char=nil;AL.real_char=nil;AL.reanimated=false;if aa.active and aa.presetKey and aa.target then task.defer(function()pcall(function()iX(aa.presetKey,aa.target)end)end)end end end)AL.is_processing=false;if not c then warn("[Coca Sky Destroyer] Reanimation error:",oh)end end;function CocaSkyDestroyer.is_reanimated()return AL.reanimated==true end;function CocaSkyDestroyer.get_real_character()return AL.real_char end;function CocaSkyDestroyer.get_clone()return AL.clone_char end;local BN=false;local BO=nil;local function BP()if BN then return end;if not CocaSkyDestroyer.is_reanimated()then BN=true;if _G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated)=="function"and _G._AngoorZenApi.is_reanimated()then pcall(function()_G._AngoorZenApi.reanimate(false)end)end;if CocaSkyDestroyer.engineMode=="EternityV1"and CocaSkyDestroyer.EternityAPI then CocaSkyDestroyer.EternityAPI.reanimate(true)else CocaSkyDestroyer.reanimate(true)end;BN=false end end;local function BQ()if not _G._HaloCoverGroundActive and not _G._HaloCoverSkyActive and not _G._HaloCoverCubeMatrixActive and not _G._HaloCoverVortexActive and not _G._HaloCoverBlackholeActive and not _G._HaloCoverHaloRingActive and not _G._HaloCoverHelixActive and not _G._HaloCoverWallActive and not _G._HaloCoverTsunamiActive and not _G._HaloCoverPrisonBoxActive and not _G._HaloCoverFlashActive and CocaSkyDestroyer.is_reanimated()and not BN then BN=true;if CocaSkyDestroyer.EternityAPI then CocaSkyDestroyer.EternityAPI.reanimate(false)end;CocaSkyDestroyer.reanimate(false)BN=false end;if CocaSkyDestroyer.syncUIFn then pcall(CocaSkyDestroyer.syncUIFn)end;if bA then pcall(bA)end end;local function BR()_G._HaloCoverFlashActive=true;if not BO then BO=task.spawn(function()while _G._HaloCoverFlashActive do _G._HaloCoverFlashPhase=not _G._HaloCoverFlashPhase;task.wait(_G._HaloCoverFlashSpeed or 0.08)end;_G._HaloCoverFlashPhase=true;BO=nil end)end end;local function BS()_G._HaloCoverFlashActive=false;_G._HaloCoverFlashPhase=true;BO=nil end;function _G.SetCoverGround(BT,BU)if BU~=nil then _G._HaloCoverGroundHeight=BU end;if BT then _G._HaloCoverGroundActive=true;BP()S("💥 COCA SKY DESTROYER","Cover Ground ACTIVE! (0ms Zero-Delay)")M()else _G._HaloCoverGroundActive=false;S("💥 COCA SKY DESTROYER","Cover Ground disabled")N()BQ()end;if CocaSkyDestroyer.syncUIFn then pcall(CocaSkyDestroyer.syncUIFn)end;if bA then pcall(bA)end end;function _G.SetCoverSky(BT,BU)if BU~=nil then _G._HaloCoverSkyHeight=BU end;if BT then _G._HaloCoverSkyActive=true;BP()S("💥 COCA SKY DESTROYER","Cover Sky Dome ACTIVE! (0ms Zero-Delay)")M()else _G._HaloCoverSkyActive=false;S("💥 COCA SKY DESTROYER","Cover Sky disabled")N()BQ()end;if CocaSkyDestroyer.syncUIFn then pcall(CocaSkyDestroyer.syncUIFn)end;if bA then pcall(bA)end end;function _G.SetCoverCubeMatrix(BT,BV)if BV~=nil then _G._HaloCoverCubeSpacing=BV end;if BT then _G._HaloCoverCubeMatrixActive=true;BP()S("💥 COCA SKY DESTROYER","4-Tier Cube / Box Matrix ACTIVE! (0ms Zero-Delay)")M()else _G._HaloCoverCubeMatrixActive=false;S("💥 COCA SKY DESTROYER","Cube / Box Matrix disabled")N()BQ()end;if CocaSkyDestroyer.syncUIFn then pcall(CocaSkyDestroyer.syncUIFn)end;if bA then pcall(bA)end end;function _G.SetCoverFlash(BT,BW)if BW~=nil then _G._HaloCoverFlashSpeed=BW end;if BT then BR()BP()S("💥 COCA SKY DESTROYER","Cover Flash Strobe ACTIVE!")M()else BS()S("💥 COCA SKY DESTROYER","Cover Flash Strobe disabled")N()BQ()end;if CocaSkyDestroyer.syncUIFn then pcall(CocaSkyDestroyer.syncUIFn)end;if bA then pcall(bA)end end;function _G.startSkyDestroyer()_G._HaloCoverGroundActive=true;_G._HaloCoverSkyActive=true;BP()if CocaSkyDestroyer.syncUIFn then pcall(CocaSkyDestroyer.syncUIFn)end;if bA then pcall(bA)end;S("💥 COCA SKY DESTROYER","Sky + Ground Destroyer ACTIVE! (0ms Zero-Delay)")K()end;function _G.SetCoverVortex(BT,BW)if BW~=nil then _G._HaloCoverVortexSpeed=BW end;if BT then _G._HaloCoverVortexActive=true;BP()S("🌪️ VORTEX CYCLONE","360° Vortex Cyclone Mesh Destroyer ACTIVE!")M()else _G._HaloCoverVortexActive=false;S("🌪️ VORTEX CYCLONE","Vortex Cyclone disabled")N()BQ()end;if CocaSkyDestroyer.syncUIFn then pcall(CocaSkyDestroyer.syncUIFn)end;if bA then pcall(bA)end end;function _G.SetCoverTargetCage(BT)_G._HaloCoverTargetCageActive=BT==true;S("🎯 TARGET MESH CAGE",_G._HaloCoverTargetCageActive and"Sky Destroyer centered on Locked Target!"or"Sky Destroyer centered on Local Player")if _G._HaloCoverTargetCageActive then M()else N()end;if CocaSkyDestroyer.syncUIFn then pcall(CocaSkyDestroyer.syncUIFn)end end;function _G.SetCoverPulse(BT)_G._HaloCoverPulseActive=BT==true;S("🌊 PULSE WAVE",_G._HaloCoverPulseActive and"Vertical Sine-Wave Mesh Crush ON!"or"Vertical Sine-Wave Mesh Crush OFF")if _G._HaloCoverPulseActive then M()else N()end;if CocaSkyDestroyer.syncUIFn then pcall(CocaSkyDestroyer.syncUIFn)end end;function _G.SetCoverBlackhole(BT)if BT then _G._HaloCoverBlackholeActive=true;BP()S("🕳️ BLACKHOLE SINGULARITY","Blackhole Singularity Funnel ACTIVE!")M()else _G._HaloCoverBlackholeActive=false;S("🕳️ BLACKHOLE SINGULARITY","Blackhole Funnel disabled")N()BQ()end;if CocaSkyDestroyer.syncUIFn then pcall(CocaSkyDestroyer.syncUIFn)end;if bA then pcall(bA)end end;function _G.SetCoverHaloRing(BT)if BT then _G._HaloCoverHaloRingActive=true;BP()S("🪐 ORBITAL HALO RING","360° Orbital Halo Crown ACTIVE!")M()else _G._HaloCoverHaloRingActive=false;S("🪐 ORBITAL HALO RING","Orbital Halo Ring disabled")N()BQ()end;if CocaSkyDestroyer.syncUIFn then pcall(CocaSkyDestroyer.syncUIFn)end;if bA then pcall(bA)end end;function _G.SetCoverHelix(BT)if BT then _G._HaloCoverHelixActive=true;BP()S("🧬 DOUBLE-HELIX DNA","Counter-Rotating DNA Spiral ACTIVE!")M()else _G._HaloCoverHelixActive=false;S("🧬 DOUBLE-HELIX DNA","Double-Helix Spiral disabled")N()BQ()end;if CocaSkyDestroyer.syncUIFn then pcall(CocaSkyDestroyer.syncUIFn)end;if bA then pcall(bA)end end;function _G.SetCoverWall(BT)if BT then _G._HaloCoverWallActive=true;BP()S("🧱 VERTICAL SHIELD WALL","Vertical Mesh Curtain Wall ACTIVE!")M()else _G._HaloCoverWallActive=false;S("🧱 VERTICAL SHIELD WALL","Vertical Shield Wall disabled")N()BQ()end;if CocaSkyDestroyer.syncUIFn then pcall(CocaSkyDestroyer.syncUIFn)end;if bA then pcall(bA)end end;function _G.SetCoverTsunami(BT)if BT then _G._HaloCoverTsunamiActive=true;BP()S("🌊 TSUNAMI MESH WAVE","Rolling Tsunami Mesh Wave ACTIVE!")M()else _G._HaloCoverTsunamiActive=false;S("🌊 TSUNAMI MESH WAVE","Tsunami Mesh Wave disabled")N()BQ()end;if CocaSkyDestroyer.syncUIFn then pcall(CocaSkyDestroyer.syncUIFn)end;if bA then pcall(bA)end end;function _G.SetCoverPrisonBox(BT)if BT then _G._HaloCoverPrisonBoxActive=true;BP()S("📦 3D PRISON CAGE","4-Corner 3D Prison Box ACTIVE!")M()else _G._HaloCoverPrisonBoxActive=false;S("📦 3D PRISON CAGE","3D Prison Box disabled")N()BQ()end;if CocaSkyDestroyer.syncUIFn then pcall(CocaSkyDestroyer.syncUIFn)end;if bA then pcall(bA)end end;function _G.stopSkyDestroyer()_G._HaloCoverGroundActive=false;_G._HaloCoverSkyActive=false;_G._HaloCoverCubeMatrixActive=false;_G._HaloCoverVortexActive=false;_G._HaloCoverBlackholeActive=false;_G._HaloCoverHaloRingActive=false;_G._HaloCoverHelixActive=false;_G._HaloCoverWallActive=false;_G._HaloCoverTsunamiActive=false;_G._HaloCoverPrisonBoxActive=false;_G._HaloCoverTargetCageActive=false;_G._HaloCoverPulseActive=false;BS()BQ()S("💥 COCA SKY DESTROYER","Sky Destroyer stopped & character restored (0ms)")N()end;function CocaSkyDestroyer.isAnyActive()return _G._HaloCoverGroundActive or _G._HaloCoverSkyActive or _G._HaloCoverCubeMatrixActive or _G._HaloCoverVortexActive or _G._HaloCoverBlackholeActive or _G._HaloCoverHaloRingActive or _G._HaloCoverHelixActive or _G._HaloCoverWallActive or _G._HaloCoverTsunamiActive or _G._HaloCoverPrisonBoxActive or _G._HaloCoverFlashActive end;n.CharacterAdded:Connect(function(bo)if AL.reanimated and bo==AL.clone_char then return end;pcall(function()d:UnbindFromRenderStep("CocoSkyDestroyerPreCam")end)pcall(function()d:UnbindFromRenderStep("CocoSkyDestroyerZeroDelay")end)AL.reanimated=false;AL.real_char=nil;AL.clone_char=nil;for fV,p2 in pairs(AL.connections)do if p2 then pcall(function()p2:Disconnect()end)end;AL.connections[fV]=nil end;if CocaSkyDestroyer.isAnyActive()then task.spawn(function()bo:WaitForChild("HumanoidRootPart",2.5)bo:WaitForChild("Humanoid",2.5)if CocaSkyDestroyer.isAnyActive()then BP()end end)end end)local BX={reanimated=false,is_processing=false,real_char=nil,clone_char=nil,connections={}}local function BY(dH)local AO={[dH]=dH.Archivable}dH.Archivable=true;for x,eu in ipairs(dH:GetDescendants())do AO[eu]=eu.Archivable;eu.Archivable=true end;local ts=dH:Clone()for fb,AR in pairs(AO)do if fb and fb.Parent then fb.Archivable=AR end end;ts.Name="ReanimationClone"ts.Parent=workspace;local ch=ts:FindFirstChild("Animate")if ch then ch.Disabled=true end;local tv=ts:FindFirstChildOfClass("Humanoid")if tv then tv.RequiresNeck=false;tv.AutoRotate=true end;return ts end;local BZ={}CocaSkyDestroyer.engineMode="Coca"CocaSkyDestroyer.EternityAPI=BZ;function BZ.reanimate(qQ)if BX.is_processing then return end;BX.is_processing=true;pcall(function()if qQ then if BX.reanimated then return end;if AL.reanimated then CocaSkyDestroyer.reanimate(false)end;local dH=n.Character;if not(dH and dH.Parent)then return end;local uy=dH:FindFirstChildOfClass("Humanoid")local uz=dH:FindFirstChild("HumanoidRootPart")if not(uy and uz)then return end;local tx=BY(dH)local tv=tx:FindFirstChildOfClass("Humanoid")BX.real_char=dH;BX.clone_char=tx;pcall(function()for x,oX in ipairs({Enum.HumanoidStateType.Dead,Enum.HumanoidStateType.FallingDown,Enum.HumanoidStateType.Ragdoll,Enum.HumanoidStateType.GettingUp,Enum.HumanoidStateType.Freefall,Enum.HumanoidStateType.Flying,Enum.HumanoidStateType.Landed,Enum.HumanoidStateType.Running,Enum.HumanoidStateType.Climbing,Enum.HumanoidStateType.Swimming})do uy:SetStateEnabled(oX,false)end;uy.AutoRotate=false;uy.PlatformStand=true;uy.RequiresNeck=false;uy.BreakJointsOnDeath=false;uy:ChangeState(Enum.HumanoidStateType.Physics)end)if tv then pcall(function()tv.PlatformStand=false;tv.Sit=false;tv.AutoRotate=true end)end;for x,eu in ipairs(tx:GetDescendants())do if eu:IsA("WrapLayer")or eu:IsA("WrapTarget")then pcall(function()eu:Destroy()end)elseif eu:IsA("BasePart")then eu.Transparency=eu.Name=="HumanoidRootPart"and 1 or 0.35 end end;local uA={}for x,uB in ipairs(tp)do local Bw=dH:FindFirstChild(uB)local Bx=tx:FindFirstChild(uB)if Bw and Bx and Bw:IsA("BasePart")and Bx:IsA("BasePart")then table.insert(uA,{name=uB,real=Bw,fake=Bx})end end;local uJ={}local BE=n:FindFirstChildWhichIsA("PlayerGui")if BE then for x,uL in ipairs(BE:GetChildren())do if uL:IsA("ScreenGui")and uL.ResetOnSpawn then uJ[uL]=true;uL.ResetOnSpawn=false end end end;n.Character=tx;if workspace.CurrentCamera and tv then workspace.CurrentCamera.CameraSubject=tv end;for uL in pairs(uJ)do if uL and uL.Parent then uL.ResetOnSpawn=true end end;local tA=tx:FindFirstChild("Animate")if tA then tA.Disabled=false end;if tv then tv:ChangeState(Enum.HumanoidStateType.Running)end;for x,eu in ipairs(dH:GetDescendants())do if eu:IsA("Motor6D")then eu.Enabled=false end end;pcall(function()settings().Physics.PhysicsEnvironmentalThrottle=Enum.EnviromentalPhysicsThrottle.Disabled;settings().Physics.AllowSleep=false;if sethiddenproperty then sethiddenproperty(n,"SimulationRadius",1000)sethiddenproperty(n,"MaxSimulationRadius",1000)end end)local function B_(uQ)if not(dH.Parent and tx.Parent)then return end;if uy.Parent then pcall(function()uy:ChangeState(Enum.HumanoidStateType.Physics)end)end;local AV,AW,AX,AY,AZ=Bm(dH,tx)local ii=os.clock()local uR=Vector3.new(0,25.05,0)+Vector3.new(math.sin(ii*30)*0.02,0,math.cos(ii*30)*0.02)for x,hh in ipairs(uA)do local BK,BL=hh.real,hh.fake;if BK and BL and BK.Parent and BL.Parent then BK.CanCollide=false;local BM=AU(hh.name,AV,AW,AX,AY,AZ)if BM then BK.CFrame=CFrame.new(BM)else BK.CFrame=BL.CFrame end;if uQ then BK.Anchored=false;BK.AssemblyLinearVelocity=uR;BK.AssemblyAngularVelocity=Vector3.zero;if sethiddenproperty then pcall(sethiddenproperty,BK,"NetworkIsSleeping",false)end end end end end;pcall(function()workspace.FallenPartsDestroyHeight=0/0 end)B_(true)pcall(function()d:BindToRenderStep("EternitySkyZeroDelay",Enum.RenderPriority.Character.Value+1,function()if _G._HaloCoverNoDelay then B_(false)end end)end)BX.connections.stepped=d.Stepped:Connect(function()B_(false)end)BX.connections.hb=d.Heartbeat:Connect(function()if not(dH.Parent and tx.Parent)then BZ.reanimate(false)return end;B_(true)end)BX.connections.render=d.RenderStepped:Connect(function()B_(false)end)BX.reanimated=true;if aa.active and aa.presetKey and aa.target then task.defer(function()pcall(function()iX(aa.presetKey,aa.target)end)end)end else if not BX.reanimated then return end;pcall(function()d:UnbindFromRenderStep("EternitySkyZeroDelay")end)for x,p2 in pairs(BX.connections)do pcall(function()p2:Disconnect()end)end;BX.connections={}local ts=BX.clone_char;local dH=BX.real_char;if dH and dH.Parent then local uy=dH:FindFirstChildOfClass("Humanoid")local uz=dH:FindFirstChild("HumanoidRootPart")local uN=ts and ts:FindFirstChild("HumanoidRootPart")local uU=uN and uN.CFrame or uz and uz.CFrame;if uz and uU then cF(uU)uz.CFrame=uU;uz.AssemblyLinearVelocity=Vector3.zero;uz.AssemblyAngularVelocity=Vector3.zero end;for x,eu in ipairs(dH:GetDescendants())do if eu:IsA("Motor6D")then pcall(function()eu.Enabled=true end)elseif eu:IsA("BasePart")then pcall(function()eu.AssemblyLinearVelocity=Vector3.zero;eu.AssemblyAngularVelocity=Vector3.zero;eu.CanCollide=eu.Name=="UpperTorso"or eu.Name=="LowerTorso"or eu.Name=="Torso"end)end end;if uy then uy.PlatformStand=false;uy.RequiresNeck=true;pcall(function()uy:ChangeState(Enum.HumanoidStateType.GettingUp)uy:ChangeState(Enum.HumanoidStateType.Running)end)end;n.Character=dH;if workspace.CurrentCamera and uy then workspace.CurrentCamera.CameraSubject=uy end end;if ts and ts.Parent then ts:Destroy()end;BX.clone_char=nil;BX.real_char=nil;BX.reanimated=false;if aa.active and aa.presetKey and aa.target then task.defer(function()pcall(function()iX(aa.presetKey,aa.target)end)end)end end end)BX.is_processing=false end;function BZ.is_reanimated()return BX.reanimated==true end;function _G.startEternitySkyDestroyer()CocaSkyDestroyer.engineMode="EternityV1"_G._HaloCoverGroundActive=true;_G._HaloCoverSkyActive=true;BZ.reanimate(true)if CocaSkyDestroyer.syncUIFn then pcall(CocaSkyDestroyer.syncUIFn)end;if bA then pcall(bA)end;S("💥 ETERNITY V1 SKY DESTROYER","Eternity V1 Sky + Ground Destroyer ACTIVE!")K()end;function _G.stopEternitySkyDestroyer()_G._HaloCoverGroundActive=false;_G._HaloCoverSkyActive=false;_G._HaloCoverCubeMatrixActive=false;BS()BZ.reanimate(false)if CocaSkyDestroyer.reanimate then CocaSkyDestroyer.reanimate(false)end;if CocaSkyDestroyer.syncUIFn then pcall(CocaSkyDestroyer.syncUIFn)end;if bA then pcall(bA)end;S("💥 ETERNITY V1 SKY DESTROYER","Eternity V1 Sky Destroyer stopped & character restored")N()end;local C0=CocaSkyDestroyer.is_reanimated;function CocaSkyDestroyer.is_reanimated()return C0()or BX.reanimated==true end;local C1=CocaSkyDestroyer.get_real_character;function CocaSkyDestroyer.get_real_character()return C1()or BX.real_char end;local C2=CocaSkyDestroyer.get_clone;function CocaSkyDestroyer.get_clone()return C2()or BX.clone_char end;_G.SkyDestroyerAPI=BZ;_G.EternitySkyDestroyer=BZ;_G.CocaSkyDestroyer=CocaSkyDestroyer end)()local function C3()local C4=workspace.CurrentCamera or A;local C5=C4 and C4.ViewportSize or Vector2.new(1280,720)local C6=C5 and C5.X>300 and C5.X or 1280;local C7=C5 and C5.Y>300 and C5.Y or 720;local C8=f.TouchEnabled and not f.KeyboardEnabled or f.TouchEnabled;local C9={open=true,minimized=false,sidebarVisible=true,sfxEnabled=true,glassMode=false,nebulaEnabled=false,saveWindows=true,autoNearestFallback=true,activeCategory="General",searchQuery="",catOrder={},catMeta={},catRows={},catPages={},catCountLabels={},searchableRows={},miniWindows={},themeDynamicStrokes={},themeDynamicFills={},themeDynamicTexts={},themeDynamicScrolls={},switchSetters={},overheadTagSwitches={},selfOverheadTagSwitches={},setOverheadTagsEnabled=nil,setSelfOverheadTagEnabled=nil}local function Ca(pT,Cb,Cc)local Cd=pT<560 or Cb>pT;local Ce=Cc and(Cd and 8 or 12)or 0;local Cf=Cc and math.clamp(math.floor(pT*0.20),144,178)or 0;local Cg=math.clamp(math.floor(pT*0.38),284,356)if Cd then if Cc then Cf=math.clamp(math.floor(pT*0.33),138,156)Cg=math.clamp(pT-Cf-Ce-16,240,330)else Cg=math.clamp(pT-20,260,380)end end;local Ch=math.clamp(math.floor(Cb*(Cd and 0.62 or 0.58)),356,460)return Cf,Ce,Cg,Ch end;local Cf,Ci,Cg,Ch=Ca(C6,C7,C9.sidebarVisible)local wo=Cf+Ci+Cg;p=Instance.new("ScreenGui")p.Name="CocoPowderV36_Novoline"p.ResetOnSpawn=false;p.Enabled=true;p.DisplayOrder=999999;p.ZIndexBehavior=Enum.ZIndexBehavior.Sibling;p.IgnoreGuiInset=true;local Cj=pcall(function()p.Parent=q end)if not Cj or not p.Parent then local BE=n:FindFirstChildOfClass("PlayerGui")or n:WaitForChild("PlayerGui",8)if not BE then error("No usable PlayerGui found while mounting COCO POWDER ScreenGui")end;p.Parent=BE end;local Ck=TweenInfo.new(0.13,Enum.EasingStyle.Quad,Enum.EasingDirection.Out)local Cl=TweenInfo.new(0.18,Enum.EasingStyle.Quart,Enum.EasingDirection.Out)local Cm=TweenInfo.new(0.24,Enum.EasingStyle.Quint,Enum.EasingDirection.Out)local Cn=TweenInfo.new(0.26,Enum.EasingStyle.Back,Enum.EasingDirection.Out)local Co=TweenInfo.new(0.08,Enum.EasingStyle.Quad,Enum.EasingDirection.Out)local Cp=setmetatable({},{__mode="k"})local function Cq(la,Cr,Cs)Cp[la]=Cr;la.BackgroundColor3=Cr;la.AutoButtonColor=false;if not C8 then la.MouseEnter:Connect(function()if C9.sfxEnabled then J()end;local Ct=Cp[la]if Ct then g:Create(la,Ck,{BackgroundColor3=Ct:Lerp(Color3.new(1,1,1),Cs or 0.11)}):Play()end end)la.MouseLeave:Connect(function()local Ct=Cp[la]if Ct then g:Create(la,Cl,{BackgroundColor3=Ct}):Play()end end)end end;local function Cu()if C9.sfxEnabled then I()end end;local Cv=Instance.new("TextButton")Cv.Name="CocoPowderLauncher"Cv.Size=UDim2.new(0,44,0,44)Cv.Position=UDim2.new(0,16,0.5,-22)Cv.BackgroundColor3=C.BG;Cv.BackgroundTransparency=0.04;Cv.Text="CP"Cv.TextColor3=C.Neon;Cv.Font=Enum.Font.GothamBlack;Cv.TextSize=13;Cv.AutoButtonColor=false;Cv.Active=true;Cv.ZIndex=999;Cv.Visible=false;Cv.Parent=p;Instance.new("UICorner",Cv).CornerRadius=UDim.new(1,0)local Cw=Instance.new("UIStroke")Cw.Color=C.Accent;Cw.Thickness=1.6;Cw.Transparency=0.15;Cw.Parent=Cv;table.insert(C9.themeDynamicStrokes,Cw)local Cx=Instance.new("Frame")Cx.Size=UDim2.new(0,9,0,9)Cx.Position=UDim2.new(1,-11,1,-11)Cx.BackgroundColor3=C.Accent;Cx.BorderSizePixel=0;Cx.ZIndex=1000;Cx.Parent=Cv;Instance.new("UICorner",Cx).CornerRadius=UDim.new(1,0)table.insert(C9.themeDynamicFills,Cx)do local Cy=Instance.new("Frame")Cy.Name="CocoFlingSidePanel"Cy.Size=UDim2.new(0,236,0,68)Cy.Position=UDim2.new(0.5,-118,0,54)Cy.BackgroundColor3=C.BG;Cy.BackgroundTransparency=0.04;Cy.BorderSizePixel=0;Cy.Visible=false;Cy.ZIndex=940;Cy.Parent=p;Instance.new("UICorner",Cy).CornerRadius=UDim.new(0,14)local Cz=Instance.new("UIStroke")Cz.Color=C.Danger;Cz.Thickness=1.5;Cz.Transparency=0.15;Cz.Parent=Cy;local CA=Instance.new("TextLabel")CA.Size=UDim2.new(1,-20,0,18)CA.Position=UDim2.new(0,10,0,6)CA.BackgroundTransparency=1;CA.Text="🌪️ VOID THROW / NEBULA FLING"CA.TextColor3=C.Danger;CA.Font=Enum.Font.GothamBlack;CA.TextSize=10;CA.TextXAlignment=Enum.TextXAlignment.Left;CA.ZIndex=941;CA.Parent=Cy;local CB=Instance.new("TextLabel")CB.Size=UDim2.new(1,-110,0,16)CB.Position=UDim2.new(0,10,0,24)CB.BackgroundTransparency=1;CB.Text="Active..."CB.TextColor3=C.Text;CB.Font=Enum.Font.GothamBold;CB.TextSize=10;CB.TextXAlignment=Enum.TextXAlignment.Left;CB.ZIndex=941;CB.Parent=Cy;local CC=Instance.new("TextButton")CC.Size=UDim2.new(0,92,0,26)CC.Position=UDim2.new(1,-100,0,21)CC.BackgroundColor3=C.Danger;CC.Text="⏹ STOP NOW"CC.TextColor3=Color3.new(1,1,1)CC.Font=Enum.Font.GothamBold;CC.TextSize=9;CC.AutoButtonColor=false;CC.ZIndex=942;CC.Parent=Cy;Instance.new("UICorner",CC).CornerRadius=UDim.new(1,0)Cq(CC,C.Danger,0.14)CC.MouseButton1Click:Connect(function()Cu()bB:StopFling(false)S("COCO POWDER","Fling / Void Throw stopped & safely returned!")N()end)local CD=Instance.new("TextLabel")CD.Size=UDim2.new(1,-20,0,14)CD.Position=UDim2.new(0,10,0,48)CD.BackgroundTransparency=1;CD.Text="Auto-returns to safe ground on completion or [X]"CD.TextColor3=C.Muted;CD.Font=Enum.Font.Gotham;CD.TextSize=8;CD.TextXAlignment=Enum.TextXAlignment.Left;CD.ZIndex=941;CD.Parent=Cy;aj=Cy;ak=CB end;local CE=Instance.new("Frame")CE.Name="NovolineDualRoot"CE.Size=UDim2.new(0,wo,0,Ch)CE.Position=UDim2.new(0.5,-math.floor(wo/2),0.53,-math.floor(Ch/2))CE.BackgroundTransparency=1;CE.BorderSizePixel=0;CE.Active=false;CE.ZIndex=5;CE.Parent=p;local CF=Instance.new("Frame")CF.Name="CategoriesShadow"CF.Size=UDim2.new(0,Cf+10,1,10)CF.Position=UDim2.new(0,-5,0,5)CF.BackgroundColor3=Color3.fromRGB(0,0,0)CF.BackgroundTransparency=0.46;CF.BorderSizePixel=0;CF.ZIndex=4;CF.Parent=CE;Instance.new("UICorner",CF).CornerRadius=UDim.new(0,22)local CG=Instance.new("Frame")CG.Name="CategoriesCard"CG.Size=UDim2.new(0,Cf,1,0)CG.Position=UDim2.new(0,0,0,0)CG.BackgroundColor3=C.BG;CG.BackgroundTransparency=0.02;CG.BorderSizePixel=0;CG.ClipsDescendants=true;CG.Active=true;CG.ZIndex=6;CG.Parent=CE;Instance.new("UICorner",CG).CornerRadius=UDim.new(0,20)local CH=Instance.new("UIStroke")CH.Color=C.Border;CH.Thickness=1.2;CH.Transparency=0.22;CH.Parent=CG;local CI=Instance.new("Frame")CI.Name="CatHeader"CI.Size=UDim2.new(1,0,0,44)CI.BackgroundTransparency=1;CI.Active=true;CI.ZIndex=7;CI.Parent=CG;local CJ=Instance.new("TextLabel")CJ.Size=UDim2.new(1,-56,0,20)CJ.Position=UDim2.new(0,16,0,14)CJ.BackgroundTransparency=1;CJ.Text="Categories"CJ.TextColor3=C.Text;CJ.Font=Enum.Font.GothamBold;CJ.TextSize=13;CJ.TextXAlignment=Enum.TextXAlignment.Left;CJ.ZIndex=8;CJ.Parent=CI;local CK=Instance.new("Frame")CK.Size=UDim2.new(0,42,0,18)CK.Position=UDim2.new(1,-52,0,15)CK.BackgroundColor3=C.Panel;CK.BorderSizePixel=0;CK.ZIndex=8;CK.Parent=CI;Instance.new("UICorner",CK).CornerRadius=UDim.new(1,0)local CL=Instance.new("UIStroke")CL.Color=C.Border;CL.Thickness=1;CL.Transparency=0.45;CL.Parent=CK;local CM=Instance.new("TextLabel")CM.Size=UDim2.new(1,0,1,0)CM.BackgroundTransparency=1;CM.Text="60 FPS"CM.TextColor3=C.Neon;CM.Font=Enum.Font.GothamBold;CM.TextSize=8;CM.ZIndex=9;CM.Parent=CK;table.insert(C9.themeDynamicTexts,CM)local CN=Instance.new("ScrollingFrame")CN.Name="CategoryList"CN.Size=UDim2.new(1,-16,1,-104)CN.Position=UDim2.new(0,8,0,44)CN.BackgroundTransparency=1;CN.BorderSizePixel=0;CN.ScrollBarThickness=0;CN.CanvasSize=UDim2.new(0,0,0,0)CN.AutomaticCanvasSize=Enum.AutomaticSize.Y;CN.ZIndex=7;CN.Parent=CG;local CO=Instance.new("UIListLayout")CO.Padding=UDim.new(0,3)CO.SortOrder=Enum.SortOrder.LayoutOrder;CO.Parent=CN;local CP=Instance.new("Frame")CP.Name="CatFooter"CP.Size=UDim2.new(1,-16,0,50)CP.Position=UDim2.new(0,8,1,-56)CP.BackgroundColor3=C.Panel;CP.BorderSizePixel=0;CP.ZIndex=8;CP.Parent=CG;Instance.new("UICorner",CP).CornerRadius=UDim.new(0,12)local CQ=Instance.new("UIStroke")CQ.Color=C.Border;CQ.Thickness=1;CQ.Transparency=0.45;CQ.Parent=CP;local CR=Instance.new("Frame")CR.Size=UDim2.new(0,6,0,6)CR.Position=UDim2.new(0,9,0,10)CR.BackgroundColor3=C.Success;CR.BorderSizePixel=0;CR.ZIndex=9;CR.Parent=CP;Instance.new("UICorner",CR).CornerRadius=UDim.new(1,0)local CS=Instance.new("TextLabel")CS.Size=UDim2.new(1,-22,0,13)CS.Position=UDim2.new(0,19,0,6)CS.BackgroundTransparency=1;CS.Text="Auto: Nearest"CS.TextColor3=C.Text;CS.Font=Enum.Font.GothamBold;CS.TextSize=9;CS.TextXAlignment=Enum.TextXAlignment.Left;CS.TextTruncate=Enum.TextTruncate.AtEnd;CS.ZIndex=9;CS.Parent=CP;local CT=Instance.new("TextLabel")CT.Size=UDim2.new(1,-16,0,11)CT.Position=UDim2.new(0,9,0,18)CT.BackgroundTransparency=1;CT.Text="ready · v36 novoline"CT.TextColor3=C.Muted;CT.Font=Enum.Font.Gotham;CT.TextSize=8;CT.TextXAlignment=Enum.TextXAlignment.Left;CT.TextTruncate=Enum.TextTruncate.AtEnd;CT.ZIndex=9;CT.Parent=CP;local CU=Instance.new("TextButton")CU.Size=UDim2.new(1,-14,0,17)CU.Position=UDim2.new(0,7,1,-20)CU.Text="STOP / UNWELD ALL"CU.TextColor3=Color3.new(1,1,1)CU.Font=Enum.Font.GothamBold;CU.TextSize=8;CU.ZIndex=9;CU.Parent=CP;Instance.new("UICorner",CU).CornerRadius=UDim.new(1,0)Cq(CU,C.Accent2)table.insert(C9.themeDynamicFills,CU)local CV=Instance.new("Frame")CV.Name="MainShadow"CV.Size=UDim2.new(0,Cg+10,1,10)CV.Position=UDim2.new(0,Cf+Ci-5,0,5)CV.BackgroundColor3=Color3.fromRGB(0,0,0)CV.BackgroundTransparency=0.46;CV.BorderSizePixel=0;CV.ZIndex=4;CV.Parent=CE;Instance.new("UICorner",CV).CornerRadius=UDim.new(0,22)local ot=Instance.new("Frame")ot.Name="MainContentCard"ot.Size=UDim2.new(0,Cg,1,0)ot.Position=UDim2.new(0,Cf+Ci,0,0)ot.BackgroundColor3=C.BG;ot.BackgroundTransparency=0.02;ot.BorderSizePixel=0;ot.ClipsDescendants=true;ot.Active=true;ot.ZIndex=6;ot.Parent=CE;Instance.new("UICorner",ot).CornerRadius=UDim.new(0,20)local CW=Instance.new("Frame")CW.Name="CocoNebulaBackdrop"CW.Size=UDim2.fromScale(1,1)CW.BackgroundTransparency=1;CW.BorderSizePixel=0;CW.ClipsDescendants=true;CW.Visible=false;CW.ZIndex=6;CW.Parent=ot;local CX=false;local CY={}local function CZ()if CX then return end;CX=true;local C_={{Color3.fromRGB(105,48,190),UDim2.new(-0.18,0,0.02,0),UDim2.new(0,240,0,190)},{Color3.fromRGB(61,42,158),UDim2.new(0.42,0,0.30,0),UDim2.new(0,270,0,210)},{Color3.fromRGB(133,55,176),UDim2.new(0.63,0,-0.10,0),UDim2.new(0,220,0,180)},{Color3.fromRGB(47,76,164),UDim2.new(0.10,0,0.68,0),UDim2.new(0,250,0,180)}}for dt,D0 in ipairs(C_)do local D1=Instance.new("Frame")D1.Name="NebulaCloud"..dt;D1.AnchorPoint=Vector2.new(0.5,0.5)D1.Position=D0[2]D1.Size=D0[3]D1.BackgroundColor3=D0[1]D1.BackgroundTransparency=0.62;D1.BorderSizePixel=0;D1.ZIndex=6;D1.Parent=CW;Instance.new("UICorner",D1).CornerRadius=UDim.new(1,0)local D2=Instance.new("UIGradient")D2.Color=ColorSequence.new({ColorSequenceKeypoint.new(0,D0[1]:Lerp(Color3.fromRGB(18,12,38),0.38)),ColorSequenceKeypoint.new(0.5,D0[1]),ColorSequenceKeypoint.new(1,Color3.fromRGB(14,10,28))})D2.Transparency=NumberSequence.new({NumberSequenceKeypoint.new(0,0.48),NumberSequenceKeypoint.new(0.5,0.12),NumberSequenceKeypoint.new(1,0.58)})D2.Rotation=dt*37%360;D2.Parent=D1;local D3=UDim2.new(D0[2].X.Scale+(dt%2==0 and-0.10 or 0.10),0,D0[2].Y.Scale+(dt%2==0 and 0.08 or-0.08),0)CY[#CY+1]=g:Create(D1,TweenInfo.new(8+dt*2,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut,-1,true),{Position=D3})end;for dt=1,8 do local D4=Instance.new("Frame")D4.Name="NebulaDust"..dt;D4.AnchorPoint=Vector2.new(0.5,0.5)D4.Position=UDim2.fromScale(dt*37%97/100,dt*61%91/100)local fn=dt%3+1;D4.Size=UDim2.fromOffset(fn,fn)D4.BackgroundColor3=dt%2==0 and Color3.fromRGB(210,174,255)or Color3.fromRGB(143,125,255)D4.BackgroundTransparency=0.25;D4.BorderSizePixel=0;D4.ZIndex=6;D4.Parent=CW;Instance.new("UICorner",D4).CornerRadius=UDim.new(1,0)CY[#CY+1]=g:Create(D4,TweenInfo.new(2.5+dt%5,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut,-1,true),{BackgroundTransparency=0.82})end end;local function D5()local D6=C9.nebulaEnabled and C9.open;CW.Visible=D6;if D6 then CZ()for dt=1,#CY do CY[dt]:Play()end else for dt=1,#CY do CY[dt]:Pause()end end end;local function D7(BT)C9.nebulaEnabled=BT and true or false;D5()end;D7(C9.nebulaEnabled)local vR=Instance.new("UIStroke")vR.Color=C.Border;vR.Thickness=1.2;vR.Transparency=0.22;vR.Parent=ot;local function D8(D9)local Da=Instance.new("Frame")Da.Name="TopRimGlow"Da.Size=UDim2.new(1,-24,0,1)Da.Position=UDim2.new(0,12,0,0)Da.BackgroundColor3=C.Neon;Da.BackgroundTransparency=0.45;Da.BorderSizePixel=0;Da.ZIndex=10;Da.Parent=D9;local n0=Instance.new("UIGradient")n0.Transparency=NumberSequence.new({NumberSequenceKeypoint.new(0,1),NumberSequenceKeypoint.new(0.25,0.25),NumberSequenceKeypoint.new(0.5,0),NumberSequenceKeypoint.new(0.75,0.25),NumberSequenceKeypoint.new(1,1)})n0.Parent=Da;table.insert(C9.themeDynamicFills,Da)end;D8(CG)D8(ot)local Db=Instance.new("Frame")Db.Name="MainHeader"Db.Size=UDim2.new(1,0,0,52)Db.BackgroundTransparency=1;Db.Active=true;Db.ZIndex=7;Db.Parent=ot;local Dc=Instance.new("TextLabel")Dc.Size=UDim2.new(1,-124,0,20)Dc.Position=UDim2.new(0,16,0,10)Dc.BackgroundTransparency=1;Dc.Text="Weld & Troll"Dc.TextColor3=C.Text;Dc.Font=Enum.Font.GothamBold;Dc.TextSize=15;Dc.TextXAlignment=Enum.TextXAlignment.Left;Dc.TextTruncate=Enum.TextTruncate.AtEnd;Dc.ZIndex=8;Dc.Parent=Db;local Dd=Instance.new("TextLabel")Dd.Size=UDim2.new(1,-124,0,14)Dd.Position=UDim2.new(0,16,0,30)Dd.BackgroundTransparency=1;Dd.Text="Dynamic height-adaptive welds, jerk troll, void throws & pins"Dd.TextColor3=C.Muted;Dd.Font=Enum.Font.Gotham;Dd.TextSize=9;Dd.TextXAlignment=Enum.TextXAlignment.Left;Dd.TextTruncate=Enum.TextTruncate.AtEnd;Dd.ZIndex=8;Dd.Parent=Db;local function De(Df,Dg,Dh)local la=Instance.new("TextButton")la.Size=UDim2.new(0,28,0,28)la.Position=UDim2.new(1,Df,0,12)la.BackgroundColor3=C.PanelLt;la.Text=Dg;la.TextColor3=C.Text;la.Font=Enum.Font.GothamBold;la.TextSize=11;la.AutoButtonColor=false;la.ZIndex=9;la.Parent=Db;Instance.new("UICorner",la).CornerRadius=UDim.new(0,8)local b4=Instance.new("UIStroke")b4.Color=C.Border;b4.Thickness=1;b4.Transparency=0.35;b4.Parent=la;Cq(la,C.PanelLt,0.12)return la end;local Di=De(-134,"🔍","Search Features")local Dj=De(-102,"","Toggle Categories Dock")do for Dk=1,3 do local Dl=Instance.new("Frame")Dl.Name="DockBar_"..tostring(Dk)Dl.Size=UDim2.new(0,Dk==2 and 10 or 13,0,2)Dl.AnchorPoint=Vector2.new(0.5,0.5)Dl.Position=UDim2.new(0.5,0,0,9+(Dk-1)*5)Dl.BackgroundColor3=Dk==2 and C.Neon or C.Text;Dl.BorderSizePixel=0;Dl.ZIndex=10;Dl.Parent=Dj;Instance.new("UICorner",Dl).CornerRadius=UDim.new(1,0)if Dk==2 then table.insert(C9.themeDynamicFills,Dl)end end end;local Dm=De(-70,"—","Minimize UI")local Dn=De(-38,"⚙","Settings & Unload")Dc.Size=UDim2.new(1,-150,0,20)Dd.Size=UDim2.new(1,-150,0,14)local Do=Instance.new("Frame")Do.Name="GlobalSearchWrap"Do.Size=UDim2.new(1,-28,0,0)Do.Position=UDim2.new(0,14,0,48)Do.BackgroundTransparency=1;Do.ClipsDescendants=true;Do.Visible=false;Do.ZIndex=9;Do.Parent=ot;local Dp=Instance.new("TextBox")Dp.Name="GlobalFeatureSearch"Dp.Size=UDim2.new(1,0,0,28)Dp.Position=UDim2.new(0,0,0,0)Dp.BackgroundColor3=C.Panel;Dp.PlaceholderText="🔍 Filter features in current tab (e.g. facebang, fly, shield, rewind)..."Dp.Text=""Dp.TextColor3=C.Text;Dp.PlaceholderColor3=C.Muted;Dp.Font=Enum.Font.GothamMedium;Dp.TextSize=10;Dp.ClearTextOnFocus=false;Dp.ZIndex=10;Dp.Parent=Do;Instance.new("UICorner",Dp).CornerRadius=UDim.new(0,8)local Dq=Instance.new("UIStroke")Dq.Color=C.Accent;Dq.Thickness=1;Dq.Transparency=0.35;Dq.Parent=Dp;table.insert(C9.themeDynamicStrokes,Dq)local Dr=Instance.new("UIPadding")Dr.PaddingLeft=UDim.new(0,10)Dr.PaddingRight=UDim.new(0,10)Dr.Parent=Dp;local Ds=Instance.new("Frame")Ds.Name="QuickTabBar"Ds.Size=UDim2.new(1,-28,0,28)Ds.Position=UDim2.new(0,14,0,50)Ds.BackgroundTransparency=1;Ds.ZIndex=8;Ds.Parent=ot;local Dt=Instance.new("UIGridLayout")Dt.CellSize=UDim2.new(0.156,0,0,26)Dt.CellPadding=UDim2.new(0.012,0,0,0)Dt.SortOrder=Enum.SortOrder.LayoutOrder;Dt.Parent=Ds;local Du={{label="Weld",cat="Weld & Troll"},{label="Reanim",cat="Coca Reanim"},{label="Move",cat="Performance"},{label="Anti",cat="Privacy"},{label="Emotes",cat="Emotes"},{label="Chat",cat="Logging"}}local Dv={}local Dw=Instance.new("Frame")Dw.Name="PagesContainer"Dw.Size=UDim2.new(1,0,1,-84)Dw.Position=UDim2.new(0,0,0,82)Dw.BackgroundTransparency=1;Dw.ClipsDescendants=true;Dw.ZIndex=7;Dw.Parent=ot;local Dx=false;local function Dy()local gg=(Dp.Text or""):lower():gsub("^%s+",""):gsub("%s+$","")C9.searchQuery=gg;for dt=1,#C9.searchableRows do local kq=C9.searchableRows[dt]if kq and kq.row and kq.row.Parent then if gg==""then kq.row.Visible=true else local Dz=kq.searchText:find(gg,1,true)~=nil;kq.row.Visible=Dz end end end end;Dp:GetPropertyChangedSignal("Text"):Connect(Dy)Di.MouseButton1Click:Connect(function()Cu()Dx=not Dx;if Dx then Do.Visible=true;Cp[Di]=C.Accent2;Di.BackgroundColor3=C.Accent2;g:Create(Do,Cl,{Size=UDim2.new(1,-28,0,30)}):Play()g:Create(Ds,Cl,{Position=UDim2.new(0,14,0,82)}):Play()g:Create(Dw,Cl,{Position=UDim2.new(0,0,0,114),Size=UDim2.new(1,0,1,-116)}):Play()task.defer(function()pcall(function()Dp:CaptureFocus()end)end)else Dp.Text=""Cp[Di]=C.PanelLt;Di.BackgroundColor3=C.PanelLt;g:Create(Do,Cl,{Size=UDim2.new(1,-28,0,0)}):Play()g:Create(Ds,Cl,{Position=UDim2.new(0,14,0,50)}):Play()g:Create(Dw,Cl,{Position=UDim2.new(0,0,0,82),Size=UDim2.new(1,0,1,-84)}):Play()task.delay(0.18,function()if not Dx and Do then Do.Visible=false end end)end end)local DA,DB,DC=false,nil,nil;local function DD(ch)local DE=workspace.CurrentCamera;local pT=DE and DE.ViewportSize.X or C6;local Cb=DE and DE.ViewportSize.Y or C7;Cf,Ci,Cg,Ch=Ca(pT,Cb,C9.sidebarVisible)wo=Cf+Ci+Cg;CG.Visible=C9.sidebarVisible;CF.Visible=C9.sidebarVisible and C9.open;if C9.sidebarVisible then CG.Size=UDim2.new(0,Cf,1,0)CF.Size=UDim2.new(0,Cf+10,1,10)end;local DF=UDim2.new(0,Cf+Ci,0,0)local DG=UDim2.new(0,Cg,1,0)local DH=UDim2.new(0,Cf+Ci-5,0,5)local DI=UDim2.new(0,Cg+10,1,10)CE.Size=UDim2.new(0,wo,0,Ch)if not DA then CE.Position=UDim2.new(0.5,-math.floor(wo/2),0.53,-math.floor(Ch/2))end;if ch then g:Create(ot,TweenInfo.new(0.22,Enum.EasingStyle.Quart,Enum.EasingDirection.Out),{Position=DF,Size=DG}):Play()g:Create(CV,TweenInfo.new(0.22,Enum.EasingStyle.Quart,Enum.EasingDirection.Out),{Position=DH,Size=DI}):Play()else ot.Position=DF;ot.Size=DG;CV.Position=DH;CV.Size=DI end end;Dj.MouseButton1Click:Connect(function()Cu()C9.sidebarVisible=not C9.sidebarVisible;DD(true)end)if workspace.CurrentCamera then workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()DD(false)end)end;local function DJ(yM)yM.InputBegan:Connect(function(DK)if DK.UserInputType==Enum.UserInputType.MouseButton1 or DK.UserInputType==Enum.UserInputType.Touch then DA=true;DB=DK.Position;DC=CE.Position end end)end;DJ(CI)DJ(Db)f.InputChanged:Connect(function(DK)if DA and(DK.UserInputType==Enum.UserInputType.MouseMovement or DK.UserInputType==Enum.UserInputType.Touch)then local fn=DK.Position-DB;CE.Position=UDim2.new(DC.X.Scale,DC.X.Offset+fn.X,DC.Y.Scale,DC.Y.Offset+fn.Y)end end)f.InputEnded:Connect(function(DK)if DK.UserInputType==Enum.UserInputType.MouseButton1 or DK.UserInputType==Enum.UserInputType.Touch then DA=false end end)local DL;do local DM,DN,DO,DP=false,nil,nil,false;local DQ=0;local function DR()if tick()-DQ<0.18 then return end;DQ=tick()Cu()if DL then DL(true)end end;Cv.InputBegan:Connect(function(DK)if DK.UserInputType==Enum.UserInputType.MouseButton1 or DK.UserInputType==Enum.UserInputType.Touch then DM=true;DN=DK.Position;DO=Cv.Position;DP=false end end)f.InputChanged:Connect(function(DK)if DM and(DK.UserInputType==Enum.UserInputType.MouseMovement or DK.UserInputType==Enum.UserInputType.Touch)then local wd=DK.Position-DN;if math.abs(wd.X)>8 or math.abs(wd.Y)>8 then DP=true end;if DP then Cv.Position=UDim2.new(DO.X.Scale,DO.X.Offset+wd.X,DO.Y.Scale,DO.Y.Offset+wd.Y)end end end)f.InputEnded:Connect(function(DK)if DK.UserInputType==Enum.UserInputType.MouseButton1 or DK.UserInputType==Enum.UserInputType.Touch then if DM and not DP then DR()end;DM=false end end)Cv.MouseButton1Click:Connect(function()if not DP then DR()end end)end;Q=function(kG)pcall(function()if not p or not p.Parent then return end;local jd=p:FindFirstChild("CocoDefenceToast")if jd then jd:Destroy()end;local DS=Instance.new("Frame")DS.Name="CocoDefenceToast"DS.Size=UDim2.new(0,290,0,36)DS.Position=UDim2.new(0.5,-145,0,-44)DS.BackgroundColor3=C.BG;DS.BorderSizePixel=0;DS.ZIndex=500;DS.Parent=p;Instance.new("UICorner",DS).CornerRadius=UDim.new(1,0)local DT=Instance.new("UIStroke")DT.Color=C.Accent;DT.Thickness=1.4;DT.Transparency=0.15;DT.Parent=DS;local b7=Instance.new("TextLabel")b7.Size=UDim2.new(1,-20,1,0)b7.Position=UDim2.new(0,10,0,0)b7.BackgroundTransparency=1;b7.Text=kG;b7.TextColor3=C.Text;b7.Font=Enum.Font.GothamBold;b7.TextSize=10;b7.ZIndex=501;b7.Parent=DS;g:Create(DS,TweenInfo.new(0.28,Enum.EasingStyle.Back,Enum.EasingDirection.Out),{Position=UDim2.new(0.5,-145,0,16)}):Play()task.delay(2.6,function()if DS and DS.Parent then local tl=g:Create(DS,TweenInfo.new(0.25),{Position=UDim2.new(0.5,-145,0,-44),BackgroundTransparency=1})tl:Play()tl.Completed:Connect(function()DS:Destroy()end)end end)end)end;do local rz=os.clock()local DU=0;local DV=60;local DW=false;d.RenderStepped:Connect(function()DU=DU+1;local ct=os.clock()local kM=ct-rz;if kM>2.2 then DU=0;rz=ct;return end;if kM>=0.85 then local DX=math.floor(DU/kM+0.5)if not DW then DW=true;DX=math.max(30,DX)end;local DY=math.clamp(DX,12,240)DU=0;rz=ct;if C9.open and C9.sidebarVisible and DY~=DV and CM and CM.Parent then DV=DY;CM.Text=tostring(DY).." FPS"end end end)end;local function DZ(D_)if D_=="Admin Panel"and not ax(n)then pcall(function()S("🔒 ACCESS DENIED","Admin Panel is restricted to Owner & Premium Users!")L()end)if C9.activeCategory and C9.activeCategory~="Admin Panel"then return else D_="Weld & Troll"end end;local E0=C9.activeCategory;C9.activeCategory=D_;local E1=C9.catMeta[D_]if E1 then Dc.Text=E1.title or D_;Dd.Text=E1.subtitle or""if E0~=D_ then Dc.Position=UDim2.new(0,24,0,10)Dd.Position=UDim2.new(0,24,0,30)g:Create(Dc,Cm,{Position=UDim2.new(0,16,0,10)}):Play()g:Create(Dd,Cm,{Position=UDim2.new(0,16,0,30)}):Play()end end;for iP,E2 in pairs(C9.catPages)do local E3=iP==D_;E2.Visible=E3;if E3 and E0~=D_ then local E4=E2:FindFirstChild("PageScale")local E5=E2:FindFirstChildOfClass("UIPadding")if E4 then E4.Scale=0.968;g:Create(E4,Cm,{Scale=1}):Play()end;if E5 then E5.PaddingTop=UDim.new(0,14)g:Create(E5,Cm,{PaddingTop=UDim.new(0,4)}):Play()end end end;for x,E6 in ipairs(Dv)do local E7=E6.cat==D_;local yl=E7 and C.Accent2 or C.Panel;Cp[E6.btn]=yl;g:Create(E6.btn,Cl,{BackgroundColor3=yl}):Play()g:Create(E6.stroke,Cl,{Color=E7 and C.Neon or C.Border,Transparency=E7 and 0.10 or 0.30}):Play()E6.btn.TextColor3=E7 and Color3.new(1,1,1)or C.Text;E6.btn.Font=E7 and Enum.Font.GothamBold or Enum.Font.GothamMedium end;for iP,E8 in pairs(C9.catRows)do local zi=iP==D_;Cp[E8.btn]=zi and C.Active or C.BG;g:Create(E8.btn,Cl,{BackgroundColor3=zi and C.Active or C.BG,BackgroundTransparency=zi and 0 or 1}):Play()g:Create(E8.stroke,Cl,{Transparency=zi and 0.42 or 1,Color=zi and C.Accent or C.Border}):Play()g:Create(E8.iconBox,Cl,{BackgroundColor3=zi and C.Accent2 or C.PanelLt}):Play()if E8.activeBar then g:Create(E8.activeBar,Cn,{Size=zi and UDim2.new(0,3,0,18)or UDim2.new(0,3,0,0),BackgroundTransparency=zi and 0 or 1,BackgroundColor3=C.Neon}):Play()end;E8.iconLbl.TextColor3=zi and Color3.new(1,1,1)or C.Neon;E8.titleLbl.TextColor3=zi and Color3.new(1,1,1)or Color3.fromRGB(210,202,224)E8.titleLbl.Font=zi and Enum.Font.GothamBold or Enum.Font.GothamMedium;E8.countLbl.TextColor3=zi and C.Neon or C.Muted;if E8.divider then E8.divider.Visible=not zi end end end;C9.syncAdminTabVisibility=function()local E9=ax(n)if C9.catRows and C9.catRows["Admin Panel"]and C9.catRows["Admin Panel"].btn then C9.catRows["Admin Panel"].btn.Visible=E9 end;if not E9 and C9.activeCategory=="Admin Panel"then DZ("Weld & Troll")end end;as.syncAdminTabVisibility=C9.syncAdminTabVisibility;for eY,kq in ipairs(Du)do local Ea=Instance.new("TextButton")Ea.Name="QuickTab_"..kq.label;Ea.BackgroundColor3=C.Panel;Ea.BorderSizePixel=0;Ea.Text=kq.label;Ea.TextColor3=C.Text;Ea.Font=Enum.Font.GothamMedium;Ea.TextSize=10;Ea.AutoButtonColor=false;Ea.LayoutOrder=eY;Ea.ZIndex=9;Ea.Parent=Ds;Instance.new("UICorner",Ea).CornerRadius=UDim.new(0,7)local Eb=Instance.new("UIStroke")Eb.Color=C.Border;Eb.Thickness=1;Eb.Transparency=0.30;Eb.Parent=Ea;Cq(Ea,C.Panel,0.10)Ea.MouseButton1Click:Connect(function()Cu()DZ(kq.cat)end)table.insert(Dv,{btn=Ea,stroke=Eb,cat=kq.cat,label=kq.label})end;local function Ec(D_,Ed,Ee,Ef,Eg)table.insert(C9.catOrder,D_)local Eh=#C9.catOrder;C9.catMeta[D_]={title=D_,shortTitle=Eg or D_,subtitle=Ef or"",icon=Ed,count=Ee or 0}local Ei=Instance.new("TextButton")Ei.Name="Cat_"..D_;Ei.Size=UDim2.new(1,0,0,36)Ei.BackgroundColor3=C.BG;Ei.BackgroundTransparency=1;Ei.BorderSizePixel=0;Ei.Text=""Ei.AutoButtonColor=false;Ei.LayoutOrder=Eh;Ei.ZIndex=8;if D_=="Admin Panel"then Ei.Visible=ax(n)end;Ei.Parent=CN;Instance.new("UICorner",Ei).CornerRadius=UDim.new(0,10)local Ej=Instance.new("UIStroke")Ej.Color=C.Border;Ej.Thickness=1;Ej.Transparency=1;Ej.Parent=Ei;local Ek=Instance.new("Frame")Ek.Name="ActiveBar"Ek.AnchorPoint=Vector2.new(0,0.5)Ek.Size=UDim2.new(0,3,0,0)Ek.Position=UDim2.new(0,2,0.5,0)Ek.BackgroundColor3=C.Neon;Ek.BackgroundTransparency=1;Ek.BorderSizePixel=0;Ek.ZIndex=10;Ek.Parent=Ei;Instance.new("UICorner",Ek).CornerRadius=UDim.new(1,0)local El=Instance.new("Frame")El.Size=UDim2.new(0,24,0,24)El.Position=UDim2.new(0,8,0.5,-12)El.BackgroundColor3=C.PanelLt;El.BorderSizePixel=0;El.ZIndex=9;El.Parent=Ei;Instance.new("UICorner",El).CornerRadius=UDim.new(0,7)local Em=Instance.new("TextLabel")Em.Size=UDim2.new(1,0,1,0)Em.BackgroundTransparency=1;Em.Text=Ed or"•"Em.TextColor3=C.Neon;Em.Font=Enum.Font.GothamBold;Em.TextSize=11;Em.ZIndex=10;Em.Parent=El;local yQ=Instance.new("TextLabel")yQ.Size=UDim2.new(1,-54,1,0)yQ.Position=UDim2.new(0,35,0,0)yQ.BackgroundTransparency=1;yQ.Text=Eg or D_;yQ.TextColor3=Color3.fromRGB(210,202,224)yQ.Font=Enum.Font.GothamMedium;yQ.TextSize=10;yQ.TextXAlignment=Enum.TextXAlignment.Left;yQ.TextTruncate=Enum.TextTruncate.AtEnd;yQ.ZIndex=9;yQ.Parent=Ei;local En=Instance.new("TextLabel")En.Size=UDim2.new(0,22,1,0)En.Position=UDim2.new(1,-26,0,0)En.BackgroundTransparency=1;En.Text=tostring(Ee or"")En.TextColor3=C.Muted;En.Font=Enum.Font.GothamBold;En.TextSize=10;En.TextXAlignment=Enum.TextXAlignment.Right;En.ZIndex=9;En.Parent=Ei;C9.catCountLabels[D_]=En;local Eo=Instance.new("Frame")Eo.Size=UDim2.new(1,-18,0,1)Eo.Position=UDim2.new(0,9,1,-1)Eo.BackgroundColor3=C.Divider;Eo.BackgroundTransparency=0.35;Eo.BorderSizePixel=0;Eo.ZIndex=8;Eo.Parent=Ei;Ei.MouseEnter:Connect(function()if C9.sfxEnabled then J()end;if C9.activeCategory~=D_ then g:Create(Ei,Ck,{BackgroundColor3=C.Panel,BackgroundTransparency=0.35}):Play()end end)Ei.MouseLeave:Connect(function()if C9.activeCategory~=D_ then g:Create(Ei,Cl,{BackgroundTransparency=1}):Play()end end)Ei.MouseButton1Click:Connect(function()Cu()DZ(D_)end)C9.catRows[D_]={btn=Ei,stroke=Ej,activeBar=Ek,iconBox=El,iconLbl=Em,titleLbl=yQ,countLbl=En,divider=Eo}local E2=Instance.new("ScrollingFrame")E2.Name=D_.."_Page"E2.Size=UDim2.new(1,0,1,0)E2.BackgroundTransparency=1;E2.BorderSizePixel=0;E2.ScrollBarThickness=3;E2.ScrollBarImageColor3=C.Accent;E2.ScrollBarImageTransparency=0.25;E2.CanvasSize=UDim2.new(0,0,0,0)E2.AutomaticCanvasSize=Enum.AutomaticSize.Y;E2.Visible=false;E2.ZIndex=7;E2.Parent=Dw;table.insert(C9.themeDynamicScrolls or{},E2)local Ep=Instance.new("UIScale")Ep.Name="PageScale"Ep.Scale=1;Ep.Parent=E2;local xy=Instance.new("UIPadding")xy.PaddingTop=UDim.new(0,4)xy.PaddingBottom=UDim.new(0,16)xy.PaddingLeft=UDim.new(0,14)xy.PaddingRight=UDim.new(0,14)xy.Parent=E2;local Eq=Instance.new("UIListLayout")Eq.Padding=UDim.new(0,8)Eq.SortOrder=Enum.SortOrder.LayoutOrder;Eq.Parent=E2;C9.catPages[D_]=E2;return E2 end;local function Er(Es,Et,U)local Eu=Instance.new("Frame")Eu.Size=UDim2.new(1,0,0,20)Eu.BackgroundTransparency=1;Eu.LayoutOrder=Et;Eu.ZIndex=7;Eu.Parent=Es;local Ev=Instance.new("TextLabel")Ev.Size=UDim2.new(1,-8,1,0)Ev.Position=UDim2.new(0,4,0,2)Ev.BackgroundTransparency=1;Ev.Text=U;Ev.TextColor3=Color3.fromRGB(218,212,232)Ev.Font=Enum.Font.GothamBold;Ev.TextSize=11;Ev.TextXAlignment=Enum.TextXAlignment.Left;Ev.ZIndex=8;Ev.Parent=Eu;return Ev end;local function Ew(Es,Et)local yI=Instance.new("Frame")yI.Name="NovolineGroupCard"yI.Size=UDim2.new(1,0,0,0)yI.AutomaticSize=Enum.AutomaticSize.Y;yI.BackgroundColor3=C.Panel;yI.BorderSizePixel=0;yI.LayoutOrder=Et;yI.ZIndex=7;yI.Parent=Es;Instance.new("UICorner",yI).CornerRadius=UDim.new(0,14)local b4=Instance.new("UIStroke")b4.Color=C.Border;b4.Thickness=1;b4.Transparency=0.42;b4.Parent=yI;local xy=Instance.new("UIPadding")xy.PaddingTop=UDim.new(0,2)xy.PaddingBottom=UDim.new(0,2)xy.PaddingLeft=UDim.new(0,12)xy.PaddingRight=UDim.new(0,12)xy.Parent=yI;local Eq=Instance.new("UIListLayout")Eq.Padding=UDim.new(0,0)Eq.SortOrder=Enum.SortOrder.LayoutOrder;Eq.Parent=yI;return yI end;local function Ex(Ey,Et,aW,aX,Ez,EA)local et=EA or(aX and aX~=""and 48 or 38)local zh=Instance.new("Frame")zh.Name="Row_"..tostring(Et)zh.Size=UDim2.new(1,0,0,et)zh.BackgroundTransparency=1;zh.LayoutOrder=Et;zh.ZIndex=8;zh.Parent=Ey;if Et>1 then local qX=Instance.new("Frame")qX.Name="RowDivider"qX.Size=UDim2.new(1,0,0,1)qX.Position=UDim2.new(0,0,0,0)qX.BackgroundColor3=C.Divider;qX.BackgroundTransparency=0.25;qX.BorderSizePixel=0;qX.ZIndex=8;qX.Parent=zh end;local EB=Ez or 90;local b7=Instance.new("TextLabel")b7.Name="RowTitle"b7.Size=UDim2.new(1,-EB,0,16)b7.Position=UDim2.new(0,0,0,aX and aX~=""and 8 or math.floor((et-16)/2))b7.BackgroundTransparency=1;b7.Text=aW;b7.TextColor3=C.Text;b7.Font=Enum.Font.GothamBold;b7.TextSize=11;b7.TextXAlignment=Enum.TextXAlignment.Left;b7.TextTruncate=Enum.TextTruncate.AtEnd;b7.ZIndex=9;b7.Parent=zh;local b8=nil;if aX and aX~=""then b8=Instance.new("TextLabel")b8.Name="RowSub"b8.Size=UDim2.new(1,-EB,0,14)b8.Position=UDim2.new(0,0,0,25)b8.BackgroundTransparency=1;b8.Text=aX;b8.TextColor3=C.Muted;b8.Font=Enum.Font.Gotham;b8.TextSize=9;b8.TextXAlignment=Enum.TextXAlignment.Left;b8.TextTruncate=Enum.TextTruncate.AtEnd;b8.ZIndex=9;b8.Parent=zh end;if not Ey:GetAttribute("DynamicList")then table.insert(C9.searchableRows,{row=zh,searchText=(tostring(aW or"").." "..tostring(aX or"")):lower()})end;return zh,b7,b8 end;local function EC(Ey,Et,aW,aX,ED,EE)local zh,b7,b8=Ex(Ey,Et,aW,aX,58,48)local bC=Instance.new("TextButton")bC.Name="PillSwitch"bC.Size=UDim2.new(0,44,0,24)bC.Position=UDim2.new(1,-44,0.5,-12)bC.BackgroundColor3=ED and C.Accent or C.SwitchOff;bC.BorderSizePixel=0;bC.Text=""bC.AutoButtonColor=false;bC.ZIndex=9;bC.Parent=zh;Instance.new("UICorner",bC).CornerRadius=UDim.new(1,0)local EF=Instance.new("UIStroke")EF.Color=ED and C.Neon or C.Border;EF.Thickness=1;EF.Transparency=ED and 0.35 or 0.45;EF.Parent=bC;local ye=Instance.new("Frame")ye.Name="Knob"ye.Size=UDim2.new(0,18,0,18)ye.Position=ED and UDim2.new(1,-21,0.5,-9)or UDim2.new(0,3,0.5,-9)ye.BackgroundColor3=ED and Color3.new(1,1,1)or C.KnobOff;ye.BorderSizePixel=0;ye.ZIndex=10;ye.Parent=bC;Instance.new("UICorner",ye).CornerRadius=UDim.new(1,0)local oX=ED and true or false;local function yj(mQ,EG)oX=mQ and true or false;local EH=oX and C.Accent or C.SwitchOff;local EI=oX and C.Neon or C.Border;local EJ=oX and UDim2.new(1,-21,0.5,-9)or UDim2.new(0,3,0.5,-9)local EK=oX and Color3.new(1,1,1)or C.KnobOff;if EG then bC.BackgroundColor3=EH;EF.Color=EI;EF.Transparency=oX and 0.35 or 0.45;ye.Position=EJ;ye.BackgroundColor3=EK else local EL=TweenInfo.new(0.18,Enum.EasingStyle.Quart,Enum.EasingDirection.Out)g:Create(bC,EL,{BackgroundColor3=EH}):Play()g:Create(EF,EL,{Color=EI,Transparency=oX and 0.35 or 0.45}):Play()g:Create(ye,EL,{Position=EJ,BackgroundColor3=EK}):Play()end end;bC.MouseButton1Click:Connect(function()Cu()local EM=not oX;yj(EM,false)if EE then EE(EM,yj,b7,b8)end end)table.insert(C9.switchSetters,function()yj(oX,true)end)return{row=zh,titleLbl=b7,subLbl=b8,setState=yj,getState=function()return oX end}end;local function EN(Ey,Et,aW,aX,EO,EP,EQ,ER)local ES=EQ~=nil;local ET=ES and 106 or 76;local zh,b7,b8=Ex(Ey,Et,aW,aX,ET,48)local EU=Instance.new("TextButton")EU.Name="ActionPill"EU.Size=UDim2.new(0,64,0,26)EU.Position=UDim2.new(1,ES and-98 or-64,0.5,-13)EU.BackgroundColor3=C.BG2;EU.BorderSizePixel=0;EU.Text=EO or"Open"EU.TextColor3=C.Text;EU.Font=Enum.Font.GothamBold;EU.TextSize=10;EU.AutoButtonColor=false;EU.ZIndex=9;EU.Parent=zh;Instance.new("UICorner",EU).CornerRadius=UDim.new(1,0)Cq(EU,C.BG2,0.12)local EV=Instance.new("UIStroke")EV.Color=C.Border;EV.Thickness=1.1;EV.Transparency=0.25;EV.Parent=EU;local EW,EX=nil,nil;if ES then EW=Instance.new("TextButton")EW.Name="CirclePinBtn"EW.Size=UDim2.new(0,26,0,26)EW.Position=UDim2.new(1,-26,0.5,-13)EW.BackgroundColor3=C.BG2;EW.BorderSizePixel=0;EW.Text=ER or"⦿"EW.TextColor3=C.Text;EW.Font=Enum.Font.GothamBold;EW.TextSize=11;EW.AutoButtonColor=false;EW.ZIndex=9;EW.Parent=zh;Instance.new("UICorner",EW).CornerRadius=UDim.new(1,0)Cq(EW,C.BG2,0.12)EX=Instance.new("UIStroke")EX.Color=C.Border;EX.Thickness=1.1;EX.Transparency=0.25;EX.Parent=EW;EW.MouseButton1Click:Connect(function()Cu()EQ(EW,EX)end)end;if EP then EU.MouseButton1Click:Connect(function()Cu()EP(EU,EV)end)end;return{row=zh,titleLbl=b7,subLbl=b8,pillBtn=EU,pillStroke=EV,circleBtn=EW,circleStroke=EX}end;local EY=Ec("General","⚙",7,"Session behavior, auto-reweld & detachable mini-windows","General")local EZ=Ec("Admin Panel","👑",0,"Owner & Premium control center: freeze, ban & overhead tags","Admin")local E_=Ec("Animation Copy","🎭",8,"Live 1:1 target animation mirroring & 6-mode alignment","Anim Copy")local F0=Ec("Animation Library","🎬",36,"36 official catalog animation packs & playback controls","Anim Packs")local F1=Ec("Coca Reanim","🦴",8,"Coca Reanim keyframe player, custom scripts, state anims & limb hider","Coca Reanim")local F2=Ec("Coca Sky Destroyer","💥",9,"3D Layered Clothing & Glitch Walker Sky, Ground & Cube Matrix Destroyer","Coca Sky")local F3=Ec("Emotes","💃",195,"Searchable catalog emotes, viral dances, poses & custom IDs","Emotes")local F4=Ec("Weld & Troll","⚡",15,"Dynamic height-adaptive welds, jerk troll, void throws & pins","Weld & Troll")local F5=Ec("Target","🎯",1,"Omnipresent hidden-player seeker & server-wide lock","Target")local F6=Ec("Performance","🚀",11,"60Hz Chrono-Rewind, WalkSpeed 500 & 4-Phase Flight","Move & Fly")local F7=Ec("Privacy","🛡",16,"Defence Troll Matrix V3 & 16 multi-layer physics shields","Anti Shield")local F8=Ec("Logging","💬",4,"Automated target roast engine & custom chat broadcaster","Chat & Roast")local F9=Ec("Appearance","🎨",7,"Novoline color themes, cosmic nebula & layout controls","Themes & UI")local Fa=Ec("Keybinds & Tools","⌨",20,"Custom PC troll hotkeys, Click TP tool & session utilities","Keybinds")DZ("Weld & Troll")local Fb;local Fc;local Fd;local Fe;local Ff;local Fg;local Fh;local Fi;local Fj,Fk,Fl;local Fm={}local Fn={}do local Fo={{key="animcopy",pillLabel="AnimCopy",width=112},{key="jerktroll",pillLabel="JerkTroll",width=108},{key="skydestroyer",pillLabel="SkyDestroy",width=114},{key="coverground",pillLabel="CovGround",width=110},{key="coversky",pillLabel="CoverSky",width=104},{key="covercube",pillLabel="CubeMatrix",width=114},{key="coverflash",pillLabel="SkyFlash",width=102},{key="headpat",pillLabel="Pat",width=82},{key="headsit",pillLabel="Headsit",width=104},{key="bang",pillLabel="Bang",width=88},{key="goon",pillLabel="Goon",width=88},{key="facebang",pillLabel="Facebang",width=112},{key="backshots",pillLabel="Backshots",width=114},{key="kiss",pillLabel="Kiss",width=82},{key="backpack",pillLabel="Backpack",width=110},{key="propose",pillLabel="Propose",width=104},{key="lawl",pillLabel="Lawl",width=86},{key="hug",pillLabel="Hug",width=82},{key="chootlelo",pillLabel="ChootLelo",width=112},{key="chase",pillLabel="ChaseTP",width=104},{key="fling",pillLabel="Fling",width=86},{key="voidthrow",pillLabel="VoidThrow",width=112},{key="fly",pillLabel="Fly ✈️",width=92},{key="clicktp",pillLabel="ClickTP",width=100},{key="deflect",pillLabel="Deflect",width=100},{key="rewind",pillLabel="Rewind",width=96},{key="vanish",pillLabel="Vanish 👻",width=104},{key="vanishtgt",pillLabel="VanishTgt",width=108},{key="overtags",pillLabel="Tags ON/OFF",width=112}}Fl={}for x,kq in ipairs(Fo)do Fl[kq.key]=kq end;local Fp=Color3.fromRGB(18,14,25)local Fq=Color3.fromRGB(56,44,76)local Fr=Color3.fromRGB(104,92,126)local Fs=Color3.fromRGB(138,126,162)local Ft=Color3.fromRGB(234,228,246)local Fu=Color3.fromRGB(132,76,222)local Fv=Color3.fromRGB(216,180,255)local Fw=Color3.fromRGB(255,255,255)local Fx=Color3.fromRGB(230,200,255)local Fy=Color3.fromRGB(255,255,255)local Fz={}Fj=function(jj)if jj=="skydestroyer"then return(CocaSkyDestroyer and CocaSkyDestroyer.isAnyActive())==true end;if jj=="coverground"then return _G._HaloCoverGroundActive==true end;if jj=="coversky"then return _G._HaloCoverSkyActive==true end;if jj=="covercube"then return _G._HaloCoverCubeMatrixActive==true end;if jj=="coverflash"then return _G._HaloCoverFlashActive==true end;if jj=="animcopy"then return bu and bu.active==true end;if jj=="jerktroll"then return gq and gq.jerkActive==true end;if jj=="rewind"then return RewindSys.rewinding==true end;if jj=="fly"then return bt and(bt.fly==true or bt.flyLanding==true)end;if jj=="fling"or jj=="voidthrow"then return ad==true end;if jj=="vanish"then return(bt and bt.Vanish and bt.Vanish.selfActive)==true end;if jj=="vanishtgt"then local jn=gi()return jn and bt and bt.Vanish and bt.Vanish.vanishedTargets[jn.UserId]~=nil or false end;if jj=="overtags"then return as.overheadTagsEnabled==true end;if jj=="deflect"then return lK.enabled or bs.Redirect.enabled or bs.PauseTrap.enabled end;return aa.active==true and aa.presetKey==jj end;local function FA()local eY=0;for x,jj in ipairs(Fz)do local hP=Fn[jj]if hP and hP.btn and hP.btn.Parent then eY=eY+1;if not hP.customMoved then local FB=54+(eY-1)*36;hP.btn.Position=UDim2.new(1,-(hP.width+14),0,FB)end end end end;Fk=function(jj)local FC=Fn[jj]~=nil;local E8=Fm[jj]if E8 and E8.circleBtn and E8.circleBtn.Parent then E8.circleBtn.Text=FC and"✓"or"⦿"local B6=FC and C.Accent2 or C.BG2;Cp[E8.circleBtn]=B6;E8.circleBtn.BackgroundColor3=B6;E8.circleBtn.TextColor3=FC and Color3.new(1,1,1)or C.Text;if E8.circleStroke then E8.circleStroke.Color=FC and C.Neon or C.Border end end end;bA=function()for jj,kq in pairs(Fm)do if kq and kq.pillBtn and kq.pillBtn.Parent then local FD=Fj(jj)local B6=FD and C.Accent2 or C.BG2;Cp[kq.pillBtn]=B6;g:Create(kq.pillBtn,TweenInfo.new(0.15),{BackgroundColor3=B6}):Play()kq.pillBtn.Text=FD and"Active"or(kq.defaultLabel or"Open")kq.pillBtn.TextColor3=FD and Color3.new(1,1,1)or C.Text;if kq.pillStroke then kq.pillStroke.Color=FD and C.Neon or C.Border;kq.pillStroke.Transparency=FD and 0.1 or 0.25 end end end;for jj,hP in pairs(Fn)do if hP and hP.btn and hP.btn.Parent then local FD=Fj(jj)g:Create(hP.btn,TweenInfo.new(0.15),{BackgroundColor3=FD and C.Accent2 or Fp,BackgroundTransparency=FD and 0.02 or 0.08}):Play()g:Create(hP.stroke,TweenInfo.new(0.15),{Color=FD and C.Neon or Fq,Transparency=FD and 0.05 or 0.22}):Play()g:Create(hP.dot,TweenInfo.new(0.15),{BackgroundColor3=FD and Fw or Fr}):Play()g:Create(hP.dotStroke,TweenInfo.new(0.15),{Color=FD and Fx or Fs}):Play()hP.label.TextColor3=FD and Fy or Ft end end end;Fe=function(jj)if jj=="skydestroyer"then if CocaSkyDestroyer and CocaSkyDestroyer.isAnyActive()then _G.stopSkyDestroyer()else _G.startSkyDestroyer()end;return end;if jj=="coverground"then _G.SetCoverGround(not _G._HaloCoverGroundActive)return end;if jj=="coversky"then _G.SetCoverSky(not _G._HaloCoverSkyActive)return end;if jj=="covercube"then _G.SetCoverCubeMatrix(not _G._HaloCoverCubeMatrixActive)return end;if jj=="coverflash"then _G.SetCoverFlash(not _G._HaloCoverFlashActive)return end;if jj=="jerktroll"then gq:StartJerk()bA()return end;if jj=="vanish"then if bt and bt.Vanish then bt.Vanish:ToggleSelfVanish()end;return end;if jj=="vanishtgt"then if bt and bt.Vanish then bt.Vanish:ToggleTargetVanish()end;return end;if jj=="overtags"then if C9.setOverheadTagsEnabled then C9.setOverheadTagsEnabled(not as.overheadTagsEnabled,true)end;return end;if jj=="rewind"then RewindSys:Start(RewindSys.duration)bA()return end;if jj=="fly"then if bt and bt.toggleFly then bt.toggleFly()end;bA()return end;if jj=="clicktp"then local sM=n:GetMouse()if sM and sM.Hit then sA(sM.Hit.Position,sM.Target)else S("🚫 CLICK TP","No surface targeted! Void teleport blocked.")L()end;return end;if jj=="deflect"then local FE=not(lK.enabled or bs.Redirect.enabled or bs.PauseTrap.enabled)lK.enabled=FE;bs.Redirect.enabled=FE;bs.PauseTrap.enabled=FE;bs.FlingShield.enabled=FE;if FE then mA()S("COCO POWDER","Defence Troll ON ("..(lK.modeLabels[lK.mode]or lK.mode)..")")else mB()S("COCO POWDER","Defence Troll OFF")end;bA()if lJ then pcall(lJ)end;if R then pcall(R)end;return end;if jj=="voidthrow"then if ad then bB:StopFling(false)S("COCO POWDER","Void Throw stopped & safely returned")N()else ki()end;bA()return end;if jj=="fling"then if ad then bB:StopFling(false)S("COCO POWDER","Fling stopped & safely returned")N()else kh(-1,"Unlimited",false)end;bA()return end;if aa.active and aa.presetKey==jj then cz(false)bB:Cleanup(a1~=nil,false)if not a1 then a0=nil;a8=nil;if not(gh and gh:IsFocused())then aa.typedUsername=""if gh then gh.Text=""end end end;a9=nil;aa.topStatusText="weld stopped"aa.topStatusColor=C.Muted;aa.bottomStatusText="stopped · select any preset to attach"aa.bottomStatusColor=C.Muted;CT.Text="stopped"bA()if aa.refreshUI then pcall(aa.refreshUI)end;N()S("COCO POWDER",(e3[jj]and e3[jj].label or jj).." stopped")return end;local aR,ku=gi()if not aR or aR.Parent~=e then if aa.typedUsername and aa.typedUsername~=""then aa.presetKey=jj;a9=jj;aa.waitingForSpawn=true;aa.topStatusText="queued · "..(e3[jj]and e3[jj].label or jj)aa.topStatusColor=C.Warning;aa.midStatusText="target left / offline · "..aa.typedUsername;aa.midStatusColor=C.Danger;aa.bottomStatusText="target offline · will attach on spawn"aa.bottomStatusColor=C.Warning;bA()if aa.refreshUI then pcall(aa.refreshUI)end;S("COCO POWDER","Target @"..aa.typedUsername.." is offline — will auto-attach ("..(e3[jj]and e3[jj].label or jj)..") on spawn!")K()return end;S("COCO POWDER","No target player found in server!")L()bA()return end;bB:Cleanup(true,true)a0=aR;a8=aR.UserId;bv(aR)local c=iX(jj,aR)if c then CS.Text=(ku and"Nearest: "or"Target: ")..aR.Name;CT.Text="active · "..(e3[jj].label or jj)bA()K()local kz=ku and"Auto-Nearest ("..(e3[jj].label or jj)..") -> "or(e3[jj].label or jj).." -> "S("COCO POWDER",kz..aR.Name)else bA()L()S("COCO POWDER","Failed — reference part missing")end end;Fg=function(jj)local hP=Fn[jj]if not hP then return end;if hP.cChanged then hP.cChanged:Disconnect()hP.cChanged=nil end;if hP.cEnded then hP.cEnded:Disconnect()hP.cEnded=nil end;if hP.btn then pcall(function()hP.btn:Destroy()end)end;Fn[jj]=nil;for dt=#Fz,1,-1 do if Fz[dt]==jj then table.remove(Fz,dt)end end;FA()Fk(jj)end;Ff=function(jj)if Fn[jj]then return end;local E1=Fl[jj]if not E1 then return end;local FF=E1.width or 100;local FG=Instance.new("TextButton")FG.Name="QuickPill_"..jj;FG.Size=UDim2.new(0,FF,0,32)FG.BackgroundColor3=Fp;FG.BackgroundTransparency=0.08;FG.BorderSizePixel=0;FG.Text=""FG.AutoButtonColor=false;FG.Active=true;FG.Visible=C9.saveWindows;FG.ZIndex=995;FG.Parent=p;Instance.new("UICorner",FG).CornerRadius=UDim.new(1,0)local EV=Instance.new("UIStroke")EV.Color=Fq;EV.Thickness=1.3;EV.Transparency=0.22;EV.ApplyStrokeMode=Enum.ApplyStrokeMode.Border;EV.Parent=FG;local D4=Instance.new("Frame")D4.Name="StatusCircle"D4.Size=UDim2.new(0,9,0,9)D4.Position=UDim2.new(0,11,0.5,-4.5)D4.BackgroundColor3=Fr;D4.BorderSizePixel=0;D4.ZIndex=996;D4.Parent=FG;Instance.new("UICorner",D4).CornerRadius=UDim.new(1,0)local FH=Instance.new("UIStroke")FH.Color=Fs;FH.Thickness=1.1;FH.Transparency=0.2;FH.Parent=D4;local jK=Instance.new("TextLabel")jK.Name="PillTitle"jK.Size=UDim2.new(1,-26,1,0)jK.Position=UDim2.new(0,25,0,0)jK.BackgroundTransparency=1;jK.Text=E1.pillLabel;jK.TextColor3=Ft;jK.Font=Enum.Font.GothamBold;jK.TextSize=11;jK.TextXAlignment=Enum.TextXAlignment.Left;jK.ZIndex=996;jK.Parent=FG;local hP={btn=FG,stroke=EV,dot=D4,dotStroke=FH,label=jK,width=FF,customMoved=false}Fn[jj]=hP;table.insert(Fz,jj)FA()local FI,FJ,FK,FL=false,nil,nil,false;local FM=0;local function FN()if tick()-FM<0.18 then return end;FM=tick()Cu()Fe(jj)end;FG.InputBegan:Connect(function(DK)if DK.UserInputType==Enum.UserInputType.MouseButton1 or DK.UserInputType==Enum.UserInputType.Touch then FI=true;FJ=DK.Position;FK=FG.Position;FL=false elseif DK.UserInputType==Enum.UserInputType.MouseButton2 then Cu()Fg(jj)end end)hP.cChanged=f.InputChanged:Connect(function(DK)if FI and(DK.UserInputType==Enum.UserInputType.MouseMovement or DK.UserInputType==Enum.UserInputType.Touch)then local wd=DK.Position-FJ;if math.abs(wd.X)>8 or math.abs(wd.Y)>8 then FL=true;hP.customMoved=true end;if FL then FG.Position=UDim2.new(FK.X.Scale,FK.X.Offset+wd.X,FK.Y.Scale,FK.Y.Offset+wd.Y)end end end)hP.cEnded=f.InputEnded:Connect(function(DK)if DK.UserInputType==Enum.UserInputType.MouseButton1 or DK.UserInputType==Enum.UserInputType.Touch then if FI and not FL then FN()end;FI=false end end)FG.MouseButton1Click:Connect(function()if not FL then FN()end end)Fk(jj)bA()end;Fh=function(jj)if Fn[jj]then Fg(jj)else Ff(jj)end end end;C9.setOverheadTagsEnabled=function(b4,FO)b4=b4==true;as.overheadTagsEnabled=b4;if not b4 then for aN,x in pairs(ar)do bw(aN)end end;pcall(bx)for x,FP in ipairs(C9.overheadTagSwitches)do pcall(FP,b4,false)end;if bA then pcall(bA)end;if FO~=false then S("👑 ABOVE TAGS",b4 and"Above Head Tags: ON"or"Above Head Tags: OFF")end end;C9.setSelfOverheadTagEnabled=function(b4,FO)b4=b4==true;as.showSelfOverheadTag=b4;if not b4 then bw(n.UserId)end;pcall(bx)for x,FP in ipairs(C9.selfOverheadTagSwitches)do pcall(FP,b4,false)end;if FO~=false then S("👑 ABOVE TAGS",b4 and"My Above Head Tag: ON"or"My Above Head Tag: OFF")end end;do local FQ=Ew(EY,1)EC(FQ,1,"Auto-reweld on respawn","Re-attaches active weld when target respawns or rejoins",a7,function(b4)a7=b4;S("COCO POWDER",b4 and"Auto-Reweld enabled"or"Auto-Reweld disabled")end)EC(FQ,2,"Auto-height anatomy solver","Adapts Facebang & Backshots to tall, short or chibi rigs",Z.AutoHeight,function(b4)Z.AutoHeight=b4;Z.LastAutoY=0;S("COCO POWDER",b4 and"Auto-Height adaptation ON"or"Auto-Height adaptation OFF")end)local FR=EC(FQ,3,"Above Head Name Tags (ON / OFF)","Toggle overhead rank & script-user tags above players ON or OFF",as.overheadTagsEnabled,function(b4)C9.setOverheadTagsEnabled(b4,true)end)table.insert(C9.overheadTagSwitches,FR.setState)local FS=EC(FQ,4,"Show My Own Above Tag (ON / OFF)","Show or hide the overhead rank tag above your own character",as.showSelfOverheadTag,function(b4)C9.setSelfOverheadTagEnabled(b4,true)end)table.insert(C9.selfOverheadTagSwitches,FS.setState)Er(EY,2,"Windows")local FT=Ew(EY,3)local FU={}Fi=function(FV,aW,FW,FX)if C9.miniWindows[FV]and C9.miniWindows[FV].Parent then C9.miniWindows[FV]:Destroy()C9.miniWindows[FV]=nil;if FU[FV]then FU[FV].pillBtn.Text="Open"Cp[FU[FV].pillBtn]=C.BG2;FU[FV].pillBtn.BackgroundColor3=C.BG2 end;return end;local FY=Instance.new("Frame")FY.Name="MiniWindow_"..FV;local et=44+#FW*32;FY.Size=UDim2.new(0,196,0,et)FY.Position=FX or UDim2.new(0,22,0.24,0)FY.BackgroundColor3=C.BG;FY.BackgroundTransparency=0.03;FY.BorderSizePixel=0;FY.Active=true;FY.Visible=C9.saveWindows;FY.ZIndex=300;FY.Parent=p;Instance.new("UICorner",FY).CornerRadius=UDim.new(0,16)local FZ=Instance.new("UIStroke")FZ.Color=C.Border;FZ.Thickness=1.2;FZ.Transparency=0.2;FZ.Parent=FY;local F_=Instance.new("Frame")F_.Size=UDim2.new(1,0,0,34)F_.BackgroundTransparency=1;F_.Active=true;F_.ZIndex=301;F_.Parent=FY;local G0=Instance.new("TextLabel")G0.Size=UDim2.new(1,-44,1,0)G0.Position=UDim2.new(0,12,0,0)G0.BackgroundTransparency=1;G0.Text=aW;G0.TextColor3=C.Text;G0.Font=Enum.Font.GothamBold;G0.TextSize=11;G0.TextXAlignment=Enum.TextXAlignment.Left;G0.ZIndex=302;G0.Parent=F_;local G1=Instance.new("TextButton")G1.Size=UDim2.new(0,22,0,22)G1.Position=UDim2.new(1,-28,0.5,-11)G1.BackgroundColor3=C.PanelLt;G1.Text="✕"G1.TextColor3=C.Muted;G1.Font=Enum.Font.GothamBold;G1.TextSize=9;G1.AutoButtonColor=false;G1.ZIndex=302;G1.Parent=F_;Instance.new("UICorner",G1).CornerRadius=UDim.new(1,0)G1.MouseButton1Click:Connect(function()Cu()Fi(FV,aW,FW,FX)end)local G2,G3,G4=false,nil,nil;local G5,G6;F_.InputBegan:Connect(function(DK)if DK.UserInputType==Enum.UserInputType.MouseButton1 or DK.UserInputType==Enum.UserInputType.Touch then G2=true;G3=DK.Position;G4=FY.Position end end)G5=f.InputChanged:Connect(function(DK)if G2 and(DK.UserInputType==Enum.UserInputType.MouseMovement or DK.UserInputType==Enum.UserInputType.Touch)then local fn=DK.Position-G3;FY.Position=UDim2.new(G4.X.Scale,G4.X.Offset+fn.X,G4.Y.Scale,G4.Y.Offset+fn.Y)end end)G6=f.InputEnded:Connect(function(DK)if DK.UserInputType==Enum.UserInputType.MouseButton1 or DK.UserInputType==Enum.UserInputType.Touch then G2=false end end)FY.AncestryChanged:Connect(function(x,G7)if not G7 then if G5 then G5:Disconnect()G5=nil end;if G6 then G6:Disconnect()G6=nil end end end)local r2=Instance.new("Frame")r2.Size=UDim2.new(1,-16,1,-40)r2.Position=UDim2.new(0,8,0,34)r2.BackgroundColor3=C.Panel;r2.BorderSizePixel=0;r2.ZIndex=301;r2.Parent=FY;Instance.new("UICorner",r2).CornerRadius=UDim.new(0,11)for eY,kq in ipairs(FW)do local la=Instance.new("TextButton")la.Size=UDim2.new(1,-12,0,26)la.Position=UDim2.new(0,6,0,4+(eY-1)*30)la.BackgroundColor3=C.PanelLt;la.Text=kq.label;la.TextColor3=C.Text;la.Font=Enum.Font.GothamBold;la.TextSize=10;la.AutoButtonColor=false;la.ZIndex=302;la.Parent=r2;Instance.new("UICorner",la).CornerRadius=UDim.new(1,0)Cq(la,C.PanelLt)la.MouseButton1Click:Connect(function()Cu()kq.cb(la)end)end;C9.miniWindows[FV]=FY;if FU[FV]then FU[FV].pillBtn.Text="Active"Cp[FU[FV].pillBtn]=C.Accent2;FU[FV].pillBtn.BackgroundColor3=C.Accent2 end end;EC(FT,1,"Save windows","Saves windows open such as weld, rewind & flight",true,function(b4)C9.saveWindows=b4;for x,hP in pairs(Fn)do if hP.btn then hP.btn.Visible=b4 end end;for x,je in pairs(C9.miniWindows)do if je and je.Parent then je.Visible=b4 end end end)EN(FT,2,"Restore all","Opens 5 quick windows & pills from last time","Restore",function()C9.saveWindows=true;Ff("headpat")Ff("headsit")Ff("facebang")Ff("voidthrow")Ff("rewind")for x,hP in pairs(Fn)do if hP.btn then hP.btn.Visible=true end end;S("COCO POWDER","Restored 5 floating quick pills")K()end)FU["weld_mini"]=EN(FT,3,"Weld & Troll Deck","Open last time · AnimCopy, Facebang, Backshots & Void","Open",function()Fi("weld_mini","⚡ Weld & Troll",{{label="🎭 Copy Anim (Side)",cb=function()Fe("animcopy")end},{label="Goon Target (Coco)",cb=function()Fe("goon")end},{label="Facebang Target",cb=function()Fe("facebang")end},{label="Backshots Target",cb=function()Fe("backshots")end},{label="Headsit Target",cb=function()Fe("headsit")end},{label="Void Throw v2 ⚡",cb=function()Fe("voidthrow")end},{label="Stop / Unweld",cb=function()cz()bB:Cleanup(false)bA()end}},UDim2.new(0,18,0.22,0))end,function()Fh("animcopy")end)FU["rewind_mini"]=EN(FT,4,"Chrono-Rewind HUD","Open last time · 60Hz reverse time scrubber","Open",function()Fi("rewind_mini","⏪ Chrono-Rewind",{{label="⏪ Rewind Now [R]",cb=function()RewindSys:Start(RewindSys.duration)end},{label="Window: 6s / 8s / 10s",cb=function(la)RewindSys.duration=RewindSys.duration==6 and 8 or RewindSys.duration==8 and 10 or 6;la.Text="Window: "..tostring(RewindSys.duration).."s (60Hz)"end},{label="Toggle Smooth / Snap",cb=function(la)RewindSys.instantMode=not RewindSys.instantMode;la.Text=RewindSys.instantMode and"Mode: Instant Snap"or"Mode: Smooth Replay"end}},UDim2.new(0,18,0.56,0))end,function()Fh("rewind")end)FU["def_mini"]=EN(FT,5,"Defence Radar Matrix","Open last time · Auto-counter incoming trolls","Open",function()Fi("def_mini","🛡️ Defence Matrix",{{label="Toggle Defence Matrix",cb=function()Fe("deflect")end},{label="Enable All 13 Shields",cb=function()mI()end},{label="Disable All Shields",cb=function()mJ()end}},UDim2.new(1,-214,0.62,0))end,function()Fh("deflect")end)end;do local G8=Instance.new("Frame")G8.Name="WeldWrapperDeck"G8.Size=UDim2.new(1,0,0,0)G8.AutomaticSize=Enum.AutomaticSize.Y;G8.BackgroundTransparency=1;G8.LayoutOrder=1;G8.ZIndex=7;G8.Parent=F4;local G9=Instance.new("UIListLayout")G9.Padding=UDim.new(0,6)G9.SortOrder=Enum.SortOrder.LayoutOrder;G9.Parent=G8;local Ga=Instance.new("Frame")Ga.Size=UDim2.new(1,0,0,34)Ga.BackgroundTransparency=1;Ga.LayoutOrder=1;Ga.ZIndex=8;Ga.Parent=G8;local Gb=Instance.new("TextLabel")Gb.Size=UDim2.new(1,-76,0,18)Gb.Position=UDim2.new(0,2,0,0)Gb.BackgroundTransparency=1;Gb.Text="Weld Wrapper"Gb.TextColor3=C.Text;Gb.Font=Enum.Font.GothamBold;Gb.TextSize=13;Gb.TextXAlignment=Enum.TextXAlignment.Left;Gb.ZIndex=8;Gb.Parent=Ga;local Gc=Instance.new("TextLabel")Gc.Name="TopLeaveStatus"Gc.Size=UDim2.new(1,-76,0,14)Gc.Position=UDim2.new(0,2,0,19)Gc.BackgroundTransparency=1;Gc.Text=aa.topStatusText or"ready · select a target or preset"Gc.TextColor3=C.Muted;Gc.Font=Enum.Font.GothamMedium;Gc.TextSize=10;Gc.TextXAlignment=Enum.TextXAlignment.Left;Gc.TextTruncate=Enum.TextTruncate.AtEnd;Gc.ZIndex=8;Gc.Parent=Ga;local Gd=Instance.new("TextButton")Gd.Name="AboveTagsToggleBtn"Gd.Size=UDim2.new(0,62,0,24)Gd.Position=UDim2.new(1,-198,0,4)Gd.Text=as.overheadTagsEnabled and"Tags: ON"or"Tags: OFF"Gd.TextColor3=Color3.new(1,1,1)Gd.Font=Enum.Font.GothamBold;Gd.TextSize=9;Gd.ZIndex=9;Gd.Parent=Ga;Instance.new("UICorner",Gd).CornerRadius=UDim.new(1,0)Cq(Gd,as.overheadTagsEnabled and C.Accent2 or C.PanelLt)table.insert(C9.overheadTagSwitches,function(b4)if Gd and Gd.Parent then Gd.Text=b4 and"Tags: ON"or"Tags: OFF"local B6=b4 and C.Accent2 or C.PanelLt;Cp[Gd]=B6;Gd.BackgroundColor3=B6 end end)Gd.MouseButton1Click:Connect(function()Cu()C9.setOverheadTagsEnabled(not as.overheadTagsEnabled,true)end)local Ge=Instance.new("TextButton")Ge.Name="DisconnectTargetBtn"Ge.Size=UDim2.new(0,68,0,24)Ge.Position=UDim2.new(1,-132,0,4)Ge.Text="Disconnect"Ge.TextColor3=Color3.new(1,1,1)Ge.Font=Enum.Font.GothamBold;Ge.TextSize=9;Ge.ZIndex=9;Ge.Parent=Ga;Instance.new("UICorner",Ge).CornerRadius=UDim.new(1,0)Cq(Ge,C.Danger)local Gf=Instance.new("TextButton")Gf.Size=UDim2.new(0,58,0,24)Gf.Position=UDim2.new(1,-58,0,4)Gf.Text="Auto"Gf.TextColor3=Color3.new(1,1,1)Gf.Font=Enum.Font.GothamBold;Gf.TextSize=10;Gf.ZIndex=9;Gf.Parent=Ga;Instance.new("UICorner",Gf).CornerRadius=UDim.new(1,0)Cq(Gf,C.Accent2)local b3=Instance.new("Frame")b3.Name="TargetPreview"b3.Size=UDim2.new(1,0,0,74)b3.BackgroundColor3=C.Panel;b3.BorderSizePixel=0;b3.LayoutOrder=2;b3.ZIndex=7;b3.Parent=G8;Instance.new("UICorner",b3).CornerRadius=UDim.new(0,12)local ov=Instance.new("UIStroke")ov.Color=C.Border;ov.Thickness=1.1;ov.Transparency=0.25;ov.Parent=b3;local Gg=Instance.new("Frame")Gg.Size=UDim2.new(0,52,0,52)Gg.Position=UDim2.new(0,11,0.5,-26)Gg.BackgroundColor3=C.PanelLt;Gg.BorderSizePixel=0;Gg.ZIndex=8;Gg.Parent=b3;Instance.new("UICorner",Gg).CornerRadius=UDim.new(0,10)local Gh=Instance.new("UIStroke")Gh.Color=C.Border;Gh.Thickness=1;Gh.Transparency=0.35;Gh.Parent=Gg;local Gi=Instance.new("ImageLabel")Gi.Size=UDim2.new(1,0,1,0)Gi.BackgroundTransparency=1;Gi.Image=""Gi.ZIndex=9;Gi.Parent=Gg;Instance.new("UICorner",Gi).CornerRadius=UDim.new(0,10)local Gj=Instance.new("TextLabel")Gj.Size=UDim2.new(1,0,1,0)Gj.BackgroundTransparency=1;Gj.Text="?"Gj.TextColor3=C.Muted;Gj.Font=Enum.Font.GothamBold;Gj.TextSize=18;Gj.ZIndex=8;Gj.Parent=Gg;local Gk=Instance.new("TextButton")Gk.Name="QuickCardTP"Gk.Size=UDim2.new(0,44,0,22)Gk.Position=UDim2.new(1,-52,0,10)Gk.BackgroundColor3=C.PanelLt;Gk.Text="TP ⚡"Gk.TextColor3=C.Neon;Gk.Font=Enum.Font.GothamBold;Gk.TextSize=9;Gk.AutoButtonColor=false;Gk.ZIndex=10;Gk.Parent=b3;Instance.new("UICorner",Gk).CornerRadius=UDim.new(1,0)local Gl=Instance.new("UIStroke")Gl.Color=C.Border;Gl.Thickness=1;Gl.Transparency=0.3;Gl.Parent=Gk;Cq(Gk,C.PanelLt,0.14)table.insert(C9.themeDynamicTexts,Gk)Gk.MouseButton1Click:Connect(function()Cu()local jn=gi()if not jn or jn.Parent~=e then S("COCO POWDER","No target player in server!")L()return end;task.spawn(function()local x,eS=cE(jn,"root",1.8,CFrame.new(3.2,0,0))local eP=eS and eS.Parent and cC(eS.CFrame)*CFrame.new(3.2,0,0)or cD(jn)and cC(cD(jn))*CFrame.new(3.2,0,0)if eP then cF(eP)bz(n.Character,eP)S("COCO POWDER","Teleported beside @"..jn.Name.."!")K()else S("COCO POWDER","Streaming target chunk...")end end)end)local s9=Instance.new("TextLabel")s9.Size=UDim2.new(1,-132,0,18)s9.Position=UDim2.new(0,74,0,10)s9.BackgroundTransparency=1;s9.Text="Auto: Nearest Player"s9.TextColor3=C.Text;s9.Font=Enum.Font.GothamBold;s9.TextSize=13;s9.TextXAlignment=Enum.TextXAlignment.Left;s9.TextTruncate=Enum.TextTruncate.AtEnd;s9.ZIndex=9;s9.Parent=b3;local Gm=Instance.new("TextLabel")Gm.Size=UDim2.new(1,-82,0,15)Gm.Position=UDim2.new(0,74,0,29)Gm.BackgroundTransparency=1;Gm.Text="@scanning..."Gm.TextColor3=C.Muted;Gm.Font=Enum.Font.GothamMedium;Gm.TextSize=10;Gm.TextXAlignment=Enum.TextXAlignment.Left;Gm.TextTruncate=Enum.TextTruncate.AtEnd;Gm.ZIndex=9;Gm.Parent=b3;local Gn=Instance.new("TextLabel")Gn.Size=UDim2.new(0,95,0,14)Gn.Position=UDim2.new(0,74,0,48)Gn.BackgroundTransparency=1;Gn.Text="age —"Gn.TextColor3=C.Muted;Gn.Font=Enum.Font.Gotham;Gn.TextSize=10;Gn.TextXAlignment=Enum.TextXAlignment.Left;Gn.ZIndex=9;Gn.Parent=b3;local Go=Instance.new("TextLabel")Go.Size=UDim2.new(0,110,0,14)Go.Position=UDim2.new(0,186,0,48)Go.BackgroundTransparency=1;Go.Text="friends —"Go.TextColor3=C.Muted;Go.Font=Enum.Font.Gotham;Go.TextSize=10;Go.TextXAlignment=Enum.TextXAlignment.Left;Go.ZIndex=9;Go.Parent=b3;local Gp=Instance.new("TextLabel")Gp.Name="MidTargetStatus"Gp.Size=UDim2.new(1,-4,0,16)Gp.Position=UDim2.new(0,2,0,0)Gp.BackgroundTransparency=1;Gp.Text="scanning nearest player..."Gp.TextColor3=C.Muted;Gp.Font=Enum.Font.GothamMedium;Gp.TextSize=10;Gp.TextXAlignment=Enum.TextXAlignment.Left;Gp.TextTruncate=Enum.TextTruncate.AtEnd;Gp.LayoutOrder=3;Gp.ZIndex=8;Gp.Parent=G8;local Gq=Instance.new("Frame")Gq.Name="QuickWeldGrid"Gq.Size=UDim2.new(1,0,0,194)Gq.BackgroundTransparency=1;Gq.LayoutOrder=4;Gq.ZIndex=8;Gq.Parent=G8;local Gr=Instance.new("UIGridLayout")Gr.CellSize=UDim2.new(0.32,0,0,34)Gr.CellPadding=UDim2.new(0.02,0,0,6)Gr.SortOrder=Enum.SortOrder.LayoutOrder;Gr.Parent=Gq;local Gs={{key="bang",label="Bang"},{key="goon",label="Goon"},{key="facebang",label="Face Bang"},{key="backshots",label="Backshots"},{key="headsit",label="Headsit"},{key="kiss",label="Kiss"},{key="backpack",label="Backpack"},{key="headpat",label="Headpat"},{key="propose",label="Propose"},{key="lawl",label="Lawl"},{key="hug",label="Hug"},{key="chootlelo",label="Choot Lelo"},{key="animcopy",label="Anim Copy"},{key="chase",label="Follow All"},{key="vanish",label="Vanish 👻"},{key="vanishtgt",label="Vanish Tgt"}}local Gt={}for eY,kq in ipairs(Gs)do local Gu=Instance.new("TextButton")Gu.Name="GridBtn_"..kq.key;Gu.BackgroundColor3=C.Panel;Gu.BorderSizePixel=0;Gu.Text=kq.label;Gu.TextColor3=C.Text;Gu.Font=Enum.Font.GothamBold;Gu.TextSize=10;Gu.AutoButtonColor=false;Gu.LayoutOrder=eY;Gu.ZIndex=9;Gu.Parent=Gq;Instance.new("UICorner",Gu).CornerRadius=UDim.new(0,9)Cq(Gu,C.Panel,0.12)local Gv=Instance.new("UIStroke")Gv.Color=C.Border;Gv.Thickness=1.1;Gv.Transparency=0.22;Gv.Parent=Gu;local Gw=Instance.new("Frame")Gw.Name="StatusDot"Gw.Size=UDim2.new(0,5,0,5)Gw.Position=UDim2.new(1,-9,0,5)Gw.BackgroundColor3=C.Border;Gw.BorderSizePixel=0;Gw.ZIndex=10;Gw.Parent=Gu;Instance.new("UICorner",Gw).CornerRadius=UDim.new(1,0)Gu.MouseButton1Click:Connect(function()Cu()Fe(kq.key)end)Gt[kq.key]={btn=Gu,stroke=Gv,dot=Gw,label=kq.label}end;local Gx=Instance.new("TextButton")Gx.Name="StopAllWeldBtn"Gx.Size=UDim2.new(1,0,0,36)Gx.BackgroundColor3=Color3.fromRGB(214,78,96)Gx.BorderSizePixel=0;Gx.Text="Stop All"Gx.TextColor3=Color3.new(1,1,1)Gx.Font=Enum.Font.GothamBold;Gx.TextSize=12;Gx.AutoButtonColor=false;Gx.LayoutOrder=5;Gx.ZIndex=9;Gx.Parent=G8;Instance.new("UICorner",Gx).CornerRadius=UDim.new(0,8)Cq(Gx,Color3.fromRGB(214,78,96),0.12)local Gy=Instance.new("Frame")Gy.Name="TargetUsernameSection"Gy.Size=UDim2.new(1,0,0,74)Gy.BackgroundTransparency=1;Gy.LayoutOrder=6;Gy.ZIndex=8;Gy.Parent=G8;local Gz=Instance.new("TextLabel")Gz.Size=UDim2.new(1,-4,0,15)Gz.Position=UDim2.new(0,2,0,0)Gz.BackgroundTransparency=1;Gz.Text="Target username · press Enter"Gz.TextColor3=C.Muted;Gz.Font=Enum.Font.GothamMedium;Gz.TextSize=10;Gz.TextXAlignment=Enum.TextXAlignment.Left;Gz.ZIndex=9;Gz.Parent=Gy;local GA=Instance.new("TextBox")gh=GA;GA.Name="WeldUsernameBox"GA.Size=UDim2.new(1,0,0,34)GA.Position=UDim2.new(0,0,0,18)GA.BackgroundColor3=C.Panel;GA.PlaceholderText="Type username or @displayname & press Enter..."GA.Text=aa.typedUsername or""GA.TextColor3=C.Text;GA.PlaceholderColor3=C.Muted;GA.Font=Enum.Font.GothamMedium;GA.TextSize=11;GA.ClearTextOnFocus=false;GA.ZIndex=9;GA.Parent=Gy;Instance.new("UICorner",GA).CornerRadius=UDim.new(0,8)local GB=Instance.new("UIStroke")GB.Color=C.Border;GB.Thickness=1.1;GB.Transparency=0.25;GB.Parent=GA;local GC=Instance.new("UIPadding")GC.PaddingLeft=UDim.new(0,12)GC.PaddingRight=UDim.new(0,12)GC.Parent=GA;local GD=Instance.new("TextLabel")GD.Name="BottomOfflineStatus"GD.Size=UDim2.new(1,-4,0,15)GD.Position=UDim2.new(0,2,0,56)GD.BackgroundTransparency=1;GD.Text="auto-nearest ready · or type username to auto-attach on spawn"GD.TextColor3=C.Muted;GD.Font=Enum.Font.GothamMedium;GD.TextSize=10;GD.TextXAlignment=Enum.TextXAlignment.Left;GD.TextTruncate=Enum.TextTruncate.AtEnd;GD.ZIndex=9;GD.Parent=Gy;aa.setUsernameBoxText=function(fE)if GA and GA.Parent and not GA:IsFocused()then GA.Text=tostring(fE or"")end end;local function GE(GF)cz(false)if gq then pcall(function()gq:StopEmote()end)pcall(function()gq:StopJerk()end)end;bB:Cleanup(false,false)a1=nil;a0=nil;a8=nil;a9=nil;aa.active=false;aa.presetKey=nil;aa.target=nil;aa.waitingForSpawn=false;aa.leftInfo=nil;aa.typedUsername=""if GA then GA.Text=""end;a4(nil)aa.topStatusText="disconnected · auto-nearest ready"aa.topStatusColor=C.Muted;aa.midStatusText="no target locked · auto-nearest active"aa.midStatusColor=C.Muted;aa.bottomStatusText="target disconnected · ready for new target"aa.bottomStatusColor=C.Muted;CS.Text="Auto: Nearest"CT.Text="disconnected & reset"CR.BackgroundColor3=C.Success;bA()if Fc then pcall(Fc)end;if Fb then pcall(Fb)end;if GF then N()S("COCO POWDER","Disconnected target & stopped all welds")end end;Ge.MouseButton1Click:Connect(function()Cu()GE(true)end)Gx.MouseButton1Click:Connect(function()Cu()cz(false)if type(_G.stopCocaBangLock)=="function"then pcall(_G.stopCocaBangLock)end;if gq then pcall(function()gq:StopEmote()end)pcall(function()gq:StopJerk()end)end;bB:Cleanup(a1~=nil,false)a0=a1;if not a1 then a8=nil;aa.typedUsername=""if GA then GA.Text=""end end;a9=nil;aa.waitingForSpawn=false;aa.leftInfo=nil;aa.topStatusText="weld stopped"aa.topStatusColor=C.Danger;aa.bottomStatusText="stopped · tap [Disconnect] to clear target lock"aa.bottomStatusColor=C.Muted;CT.Text="stopped"bA()if Fc then pcall(Fc)end;if Fb then pcall(Fb)end;N()S("COCO POWDER","Stopped all welds, animations & flings")end)GA:GetPropertyChangedSignal("Text"):Connect(function()if not GA:IsFocused()then return end;local lH=(GA.Text or""):gsub("^%s*@+%s*",""):gsub("^%s+",""):gsub("%s+$","")aa.typedUsername=lH;if lH==""then a1=nil;aa.waitingForSpawn=false;aa.leftInfo=nil else local lD=ge(lH,n)if lD and lD.Parent==e then a1=lD;a0=lD;a8=lD.UserId end end end)GA.FocusLost:Connect(function(GG)local lH=(GA.Text or""):gsub("^%s*@+%s*",""):gsub("^%s+",""):gsub("%s+$","")aa.typedUsername=lH;if lH==""then a1=nil;aa.waitingForSpawn=false;aa.leftInfo=nil;if Fb then pcall(Fb)end;return end;local en=ge(lH,n)if en and en.Parent==e then a1=en;a0=en;a8=en.UserId;aa.typedUsername=en.Name;GA.Text=en.Name;a4(en)bv(en)aa.leftInfo={userId=en.UserId,name=en.Name,displayName=en.DisplayName or en.Name,accountAge=tostring(en.AccountAge or"—").."d",friendsText="—",leftAt=nil,wasWelded=aa.active,presetKey=aa.presetKey or a9 or"facebang"}if GG then local jm=aa.presetKey or a9 or"facebang"iX(jm,en)bA()else aa.topStatusText="target locked · @"..en.Name;aa.topStatusColor=C.Accent;aa.midStatusText="target online · "..en.Name;aa.midStatusColor=C.Success;aa.bottomStatusText="target online · press any weld button to attach everywhere"aa.bottomStatusColor=C.Success end;if Fc then pcall(Fc)end;if Fb then pcall(Fb)end else a1=nil;aa.waitingForSpawn=true;aa.presetKey=aa.presetKey or a9 or"facebang"if not aa.leftInfo or aa.leftInfo.name:lower()~=lH:lower()then aa.leftInfo={userId=nil,name=lH,displayName=lH,accountAge="—",friendsText="—",leftAt=tick(),wasWelded=false,presetKey=aa.presetKey}task.spawn(function()local GH,GI=pcall(function()return e:GetUserIdFromNameAsync(lH)end)if GH and GI and aa.leftInfo and aa.leftInfo.name:lower()==lH:lower()then aa.leftInfo.userId=GI;a8=GI;if Fb then pcall(Fb)end end end)end;aa.topStatusText="target left · weld stopped"aa.topStatusColor=C.Danger;aa.midStatusText="target left · "..lH;aa.midStatusColor=C.Danger;aa.bottomStatusText="target offline · will attach on spawn"aa.bottomStatusColor=C.Warning;if Fb then pcall(Fb)end;S("COCO POWDER","Target @"..lH.." offline — will attach on spawn!")end end)local GJ=nil;Fb=function()for fV,kq in pairs(Gt)do if kq and kq.btn and kq.btn.Parent then local FD=Fj(fV)if kq.lastAct~=FD then kq.lastAct=FD;local B6=FD and C.Accent2 or C.Panel;Cp[kq.btn]=B6;g:Create(kq.btn,Ck,{BackgroundColor3=B6}):Play()kq.btn.TextColor3=FD and Color3.new(1,1,1)or C.Text;if kq.stroke then kq.stroke.Color=FD and C.Neon or C.Border;kq.stroke.Transparency=FD and 0.05 or 0.22 end;if kq.dot then kq.dot.BackgroundColor3=FD and C.Success or C.Border end end end end;local jn,GK=gi()Cp[Gf]=GK and C.Accent2 or C.PanelLt;Gf.BackgroundColor3=GK and C.Accent2 or C.PanelLt;if(not jn or jn.Parent~=e)and aa.leftInfo then local gQ=aa.leftInfo;s9.Text=gQ.displayName or gQ.name or"Unknown"Gm.Text="@"..(gQ.name or"unknown")Gn.Text="age —"Go.Text="friends —"ov.Color=C.Danger;Gc.Text=aa.topStatusText or"target left · weld stopped"Gc.TextColor3=aa.topStatusColor or C.Danger;Gp.Text="target left · "..(gQ.name or"unknown")Gp.TextColor3=C.Danger;GD.Text="target offline · will attach on spawn"GD.TextColor3=C.Warning;if gQ.userId and GJ~=gQ.userId then GJ=gQ.userId;Gj.Visible=false;pcall(function()Gi.Image="rbxthumb://type=AvatarHeadShot&id="..tostring(gQ.userId).."&w=150&h=150"end)elseif not gQ.userId then Gi.Image=""Gj.Visible=true;GJ=nil end;return end;if not jn then s9.Text="Auto: Nearest Player"Gm.Text="@waiting..."Gn.Text="age —"Go.Text="friends —"Gc.Text="waiting for players..."Gc.TextColor3=C.Muted;Gp.Text="no other players in server"Gp.TextColor3=C.Muted;GD.Text="enter a username above · will attach on spawn"GD.TextColor3=C.Muted;Gi.Image=""Gj.Visible=true;ov.Color=C.Border;GJ=nil;return end;Gj.Visible=false;local aN=jn.UserId;s9.Text=jn.DisplayName or jn.Name or"?"Gm.Text="@"..(jn.Name or"?")pcall(function()Gn.Text="age "..tostring(jn.AccountAge or"—").."d"end)Go.Text=GK and"mode · auto"or"mode · locked"if GJ~=aN then GJ=aN;pcall(function()Gi.Image="rbxthumb://type=AvatarHeadShot&id="..aN.."&w=150&h=150"end)end;local cj=cA(jn)local Y=cj and cj:FindFirstChildOfClass("Humanoid")local GL=cj and cB(cj,"torso")local GM=aa.active and aa.presetKey or(bu and bu.active and"animcopy"or nil)local GN=GM and e3[GM]and e3[GM].label or GM;if Y and Y.Health<=0 then Gc.Text=GN and"respawning · "..GN.." queued"or"target respawning"Gc.TextColor3=C.Warning;Gp.Text="target respawning · "..jn.Name;Gp.TextColor3=C.Warning;GD.Text="target respawning · will attach on spawn"GD.TextColor3=C.Warning;ov.Color=C.Warning elseif not GL then local GO=cD(jn)local GP=""pcall(function()local GQ=n.Character and n.Character:FindFirstChild("HumanoidRootPart")if GQ and GO then GP=" ("..tostring(math.floor((GO.Position-GQ.Position).Magnitude)).." studs)"end end)Gc.Text=GN and"streaming & attaching · "..GN or"target in distant place · stream-ready"Gc.TextColor3=C.Accent;Gp.Text="distant place · "..jn.Name..GP;Gp.TextColor3=C.Accent;GD.Text="every-place stream piercer ready · attaches anywhere"GD.TextColor3=C.Accent;ov.Color=C.Accent else local GR=""pcall(function()local GQ=n.Character and n.Character:FindFirstChild("HumanoidRootPart")if GQ then GR=" · "..tostring(math.floor((GL.Position-GQ.Position).Magnitude)).." studs"end end)if GN then Gc.Text="active · "..GN;Gc.TextColor3=C.Success;Gp.Text="attached · "..jn.Name..GR;Gp.TextColor3=C.Success;GD.Text="locked on @"..jn.Name.." · following in every place"GD.TextColor3=C.Success;ov.Color=C.Success else Gc.Text=GK and"ready · auto-nearest target"or"ready · target locked"Gc.TextColor3=C.Muted;Gp.Text=(GK and"nearest · "or"locked · ")..jn.Name..GR;Gp.TextColor3=C.Neon;GD.Text="target online · tap any preset above to attach everywhere"GD.TextColor3=C.Muted;ov.Color=GK and C.Border or C.Accent end end end;aa.refreshUI=Fb;Gf.MouseButton1Click:Connect(function()Cu()a1=nil;aa.waitingForSpawn=false;aa.leftInfo=nil;aa.typedUsername=""if GA then GA.Text=""end;a4(nil)CS.Text="Auto: Nearest"CT.Text="auto-connects to nearest"if Fc then pcall(Fc)end;pcall(Fb)S("COCO POWDER","Auto-Nearest Player mode active")end)Fb()task.spawn(function()while b3 and b3.Parent do task.wait(0.6)if C9.open and C9.activeCategory=="Weld & Troll"then pcall(Fb)end end end)local function GS(yI,Et,jj,aW,aX,GT,EO)local GU=jj and Fl[jj]~=nil;local GV=EN(yI,Et,aW,aX,EO or"Open",function()if GT then GT()else Fe(jj)end end,GU and function()Fh(jj)end or nil,jj and Fn[jj]and"✓"or"⦿")if jj then GV.defaultLabel=EO or"Open"Fm[jj]=GV;Fk(jj)end end;Er(F4,2,"Signature Welds, Jerk Troll & Animation Copy")local GW=Ew(F4,3)GS(GW,1,"animcopy","Copy Animation (Side-by-Side)","Locks side-by-side & mirrors all target animations 1:1")GS(GW,2,"jerktroll","Jerk Troll (R15 & R6)","Rapid arm stroke choreography + animation (or tap ⦿ for pill)")EN(GW,3,"Give 'Jerk Off' Backpack Tool","Spawns equippable Jerk Troll tool in your Backpack","Get Tool",function()gq:GiveJerkTool()end)GS(GW,4,"bang","Bang (Universal R15/R6)","Custom Coco Bang Animation ID (116235062592344) + pelvis lock")GS(GW,5,"goon","Goon (Coco)","Custom Coco Goon Animation ID (136828069054505) + target lock")GS(GW,6,"facebang","Facebang","Head-locked oscillation with live height solver & Bang anim")GS(GW,7,"backshots","Backshots","Pelvis-locked oscillation with scale alignment & Bang anim")GS(GW,8,"headsit","Headsit","Seated lock flush on top of target head")GS(GW,9,"headpat","Headpat","Gentle upper-body patting weld above target")GS(GW,10,"kiss","Kiss","Front face-to-face close alignment lock")GS(GW,11,"backpack","Backpack","Rear upper-back piggyback ride lock")GS(GW,12,"propose","Propose","Kneeling front showcase pose lock")GS(GW,13,"lawl","Lawl","Front laughing taunt lock")GS(GW,14,"hug","Hug","Close torso embrace lock")GS(GW,15,"chootlelo","Choot Lelo","Close lower-torso rapid oscillation lock & Bang anim")Er(F4,4,"Pursuit, Void & Time Weapons")local GX=Ew(F4,5)GS(GX,1,"chase","Auto-Chase Everywhere","Streams & pursues target across teleporters & rooms")GS(GX,2,"voidthrow","Void Throw v2","Sub-floor bury + catapult + sinkhole drag")GS(GX,3,"fling","Nebula Fling & Modes","100-density vortex fling modal selector",function()kj()end)GS(GX,4,nil,"Void Lock (Until Dead)","Relentless void sinkhole trap until target dies",function()kh(-1,"Void Lock Until Dead",true)end,"Launch")GS(GX,5,"rewind","Chrono-Rewind (6-10s)","60Hz frame-accurate reverse trajectory scrub")GS(GX,6,"deflect","Anti-Troll Deflect","Counter-flings & banishes approaching trolls")GS(GX,7,"vanish","Vanish Self (Ghost Mode)","Hides your body from server & walks around as an invisible ghost")GS(GX,8,"vanishtgt","Vanish Target Player","Erases target player from your screen & collisions (tap again to restore)")EN(GX,9,"Restore All Vanished Players","Brings back all client-erased players immediately","Restore All",function()if bt and bt.Vanish then bt.Vanish:RestoreAllVanishedTargets()end end)Er(F4,6,"Live Weld Tuner & Quick Actions")local GY=Ew(F4,7)local GZ={0.5,1.0,1.8,3.0,4.5}local G_=2;EN(GY,1,"Animation Speed","Cycle weld oscillation & track multiplier","1.0x",function(EU)G_=G_%#GZ+1;Z.Speed=GZ[G_]EU.Text=string.format("%.1fx",Z.Speed)end)local H0,H1,H2;H0=EN(GY,2,"Weld Distance (Z)","Tap pill to increase Z · Tap [—] to move closer",string.format("Z: %.1f",Z.Z or 1.3),function(EU)Z.Z=math.clamp((Z.Z or 1.3)+0.35,-3.5,6.5)EU.Text=string.format("Z: %.1f",Z.Z)end,function()Z.Z=math.clamp((Z.Z or 1.3)-0.35,-3.5,6.5)if H0 and H0.pillBtn then H0.pillBtn.Text=string.format("Z: %.1f",Z.Z)end;S("COCO POWDER",string.format("Distance Z: %.2f",Z.Z))end,"—")H1=EN(GY,3,"Height Offset (Y)","Tap pill to raise Y · Tap [↺] to reset all offsets",string.format("Y: %+.1f",Z.Y or 0),function(EU)Z.Y=math.clamp((Z.Y or 0)+0.30,-5.0,5.0)EU.Text=string.format("Y: %+.1f",Z.Y)end,function()Z.X=0;Z.Y=0;Z.Z=1.3;Z.LastAutoY=0;if H0 and H0.pillBtn then H0.pillBtn.Text="Z: 1.3"end;if H1 and H1.pillBtn then H1.pillBtn.Text="Y: +0.0"end;if H2 and H2.pillBtn then H2.pillBtn.Text="X: +0.0"end;S("COCO POWDER","Weld X / Y / Z offsets reset to default")end,"↺")H2=EN(GY,4,"Sideways Offset (X)","Tap pill to shift Right (+X) · Tap [—] to shift Left (-X)",string.format("X: %+.1f",Z.X or 0),function(EU)Z.X=math.clamp((Z.X or 0)+0.35,-5.0,5.0)EU.Text=string.format("X: %+.1f",Z.X)end,function()Z.X=math.clamp((Z.X or 0)-0.35,-5.0,5.0)if H2 and H2.pillBtn then H2.pillBtn.Text=string.format("X: %+.1f",Z.X)end end,"—")EN(GY,5,"Omnipresent Seek & TP","Streams hidden chunks & teleports to target","Teleport",function()local jn=gi()if not jn or jn.Parent~=e then S("COCO POWDER","No target player in server!")L()return end;task.spawn(function()S("COCO POWDER","Seeking "..jn.Name.." across server...")local x,eS=cE(jn,"root",1.8,CFrame.new(3.2,0,0))if eS and eS.Parent then local eP=cC(eS.CFrame)*CFrame.new(3.2,0,0)cF(eP)bz(n.Character,eP)S("COCO POWDER","Teleported side-by-side with "..jn.Name.."!")K()else local H3=cD(jn)if H3 then local eP=cC(H3)*CFrame.new(3.2,0,0)cF(eP)bz(n.Character,eP)S("COCO POWDER","Teleported side-by-side to "..jn.Name.."!")K()else S("COCO POWDER","Target is respawning — enable Auto-Chase to lock on!")L()end end end)end)local H4=nil;EC(GY,6,"Spectate target camera","Locks camera subject onto active target (auto-tracks respawn)",false,function(b4,H5)an=b4;if H4 then H4:Disconnect()H4=nil end;local bN=workspace.CurrentCamera;if an then local jn=gi()local eQ=jn and cA(jn)local eR=eQ and eQ:FindFirstChildOfClass("Humanoid")if bN and eR then bN.CameraSubject=eR;H4=d.Heartbeat:Connect(function()if not an then if H4 then H4:Disconnect()H4=nil end;return end;local H6=gi()local l_=workspace.CurrentCamera;if not H6 or H6.Parent~=e then an=false;H5(false,false)if H4 then H4:Disconnect()H4=nil end;local ib=n.Character and n.Character:FindFirstChildOfClass("Humanoid")if l_ and ib then l_.CameraSubject=ib end;return end;local H7=cA(H6)local H8=H7 and H7:FindFirstChildOfClass("Humanoid")if l_ and H8 and l_.CameraSubject~=H8 then l_.CameraSubject=H8 end end)return end;an=false;H5(false,false)S("COCO POWDER","Target character not streamed in yet to spectate!")end;if bN and n.Character then local bO=n.Character:FindFirstChildOfClass("Humanoid")if bO then bN.CameraSubject=bO end end end)local H9=EC(GY,7,"Above Head Name Tags (ON / OFF)","Show or hide overhead rank & script-user tags above players",as.overheadTagsEnabled,function(b4)C9.setOverheadTagsEnabled(b4,true)end)table.insert(C9.overheadTagSwitches,H9.setState)local Ha=EC(GY,8,"Show My Own Above Tag (ON / OFF)","Show or hide the overhead badge above your own character",as.showSelfOverheadTag,function(b4)C9.setSelfOverheadTagEnabled(b4,true)end)table.insert(C9.selfOverheadTagSwitches,Ha.setState)GS(GY,9,"overtags","Pin 'Tags ON/OFF' Floating Pill","Tap [Open] to toggle Above Tags · Tap [⦿] to pin floating screen pill")end;Ff("animcopy")Ff("headpat")Ff("headsit")Ff("facebang")Ff("voidthrow")Ff("rewind")do local Hb=F1:FindFirstChildOfClass("UIPadding")if Hb then Hb.PaddingTop=UDim.new(0,2)Hb.PaddingBottom=UDim.new(0,4)Hb.PaddingLeft=UDim.new(0,4)Hb.PaddingRight=UDim.new(0,4)end;local Hc=Instance.new("Frame")Hc.Name="CocaReanimHostContainer"Hc.Size=UDim2.new(1,0,0,366)Hc.BackgroundTransparency=1;Hc.BorderSizePixel=0;Hc.LayoutOrder=1;Hc.ZIndex=8;Hc.Parent=F1;_G.AngoorReanimHostContainer=Hc;_G.CocaReanimHostContainer=Hc;local Hd=false;local function He()if Hd then return end;Hd=true;if type(sT)=="function"then task.spawn(function()pcall(sT,Hc)end)end end;F1:GetPropertyChangedSignal("Visible"):Connect(function()if F1.Visible then He()end end)end;do local Hf=Instance.new("Frame")Hf.Name="CocaSkyRequirementCard"Hf.Size=UDim2.new(1,0,0,62)Hf.BackgroundColor3=C.Panel;Hf.BorderSizePixel=0;Hf.LayoutOrder=1;Hf.ZIndex=7;Hf.Parent=F2;Instance.new("UICorner",Hf).CornerRadius=UDim.new(0,12)local Hg=Instance.new("UIStroke")Hg.Color=C.Accent;Hg.Thickness=1.2;Hg.Transparency=0.25;Hg.Parent=Hf;table.insert(C9.themeDynamicStrokes,Hg)local Hh=Instance.new("TextLabel")Hh.Size=UDim2.new(1,-24,0,16)Hh.Position=UDim2.new(0,12,0,8)Hh.BackgroundTransparency=1;Hh.Text="⚡ REQUIREMENT  ·  VISIBLE TO ALL PLAYERS IN SERVER"Hh.TextColor3=C.Neon;Hh.Font=Enum.Font.GothamBold;Hh.TextSize=10;Hh.TextXAlignment=Enum.TextXAlignment.Left;Hh.ZIndex=8;Hh.Parent=Hf;table.insert(C9.themeDynamicTexts,Hh)local Hi=Instance.new("TextLabel")Hi.Size=UDim2.new(1,-24,0,32)Hi.Position=UDim2.new(0,12,0,24)Hi.BackgroundTransparency=1;Hi.RichText=true;Hi.TextWrapped=true;Hi.Text="Requires equipping a <b>Glitch Walker Body</b> or any <b>3D Layered Clothing</b> item. Stretches your real mesh to ±10,000,000 X and ±25,000,000 Z across the map!"Hi.TextColor3=C.Text;Hi.Font=Enum.Font.Gotham;Hi.TextSize=9.5;Hi.TextXAlignment=Enum.TextXAlignment.Left;Hi.TextYAlignment=Enum.TextYAlignment.Top;Hi.ZIndex=8;Hi.Parent=Hf;Er(F2,2,"Master Coca Sky Destroyer Controls")local Hj=Ew(F2,3)local Hk=EN(Hj,1,"Coca Sky Destroyer (Ground + Sky Dome)","Reanimates your rig & blankets both the Ground and Sky simultaneously","Start",function()Fe("skydestroyer")end,function()Fh("skydestroyer")end,Fn["skydestroyer"]and"✓"or"⦿")Hk.defaultLabel="Start"Fm["skydestroyer"]=Hk;EN(Hj,2,"Stop All & Restore Original Character","Disables all Sky Destroyer matrices & exits Reanimation state cleanly","Restore",function()_G.stopSkyDestroyer()end)Er(F2,4,"Cover Sky, Ground & 3D Cube Matrix Modes")local Hl=Ew(F2,5)local Hm=EC(Hl,1,"Cover Ground","Blanket the ground with 3D Layered Clothing mesh",_G._HaloCoverGroundActive,function(b4)_G.SetCoverGround(b4)end)local Hn=EC(Hl,2,"Cover Sky","Spread 3D Layered Clothing across the sky dome",_G._HaloCoverSkyActive,function(b4)_G.SetCoverSky(b4)end)local Ho=EC(Hl,3,"Cube / Box Matrix (4-Tier 3D Box)","Deform layered clothing into 3D cube rooms & horizontal lines",_G._HaloCoverCubeMatrixActive,function(b4)_G.SetCoverCubeMatrix(b4)end)local Hp=EC(Hl,4,"Cover Flash (Strobe Mode)","Rapidly strobe active Sky/Ground/Cube meshes on & off",_G._HaloCoverFlashActive,function(b4)_G.SetCoverFlash(b4)end)local Hq=EC(Hl,5,"360° Vortex Cyclone Matrix (NEW)","Spins stretched 3D Layered Clothing limbs in a giant rotating hurricane across the map",_G._HaloCoverVortexActive,function(b4)_G.SetCoverVortex(b4)end)local Hr=EC(Hl,6,"Center Matrix on Locked Target (Target Cage)","Anchors Sky/Ground/Cube/Vortex mesh center directly over your locked Target Player",_G._HaloCoverTargetCageActive,function(b4)_G.SetCoverTargetCage(b4)end)local Hs=EC(Hl,7,"Pulse Wave Crush (Breathing Sky & Ground)","Smoothly oscillates Sky Dome & Ground blanket vertically in a sine-wave crush",_G._HaloCoverPulseActive,function(b4)_G.SetCoverPulse(b4)end)local Ht=EC(Hl,8,"Blackhole Singularity Funnel (V5 NEW)","Spirals 3D Layered Clothing limbs into a high-velocity singularity funnel",_G._HaloCoverBlackholeActive,function(b4)_G.SetCoverBlackhole(b4)end)local Hu=EC(Hl,9,"360° Orbital Halo Crown Ring (V5 NEW)","Forms a giant horizontal halo ring of stretched 3D Layered Clothing overhead",_G._HaloCoverHaloRingActive,function(b4)_G.SetCoverHaloRing(b4)end)local Hv=EC(Hl,10,"Double-Helix DNA Spiral (V5 NEW)","Twists left & right limbs in counter-rotating 3D DNA strands across the map",_G._HaloCoverHelixActive,function(b4)_G.SetCoverHelix(b4)end)local Hw=EC(Hl,11,"Vertical Shield Wall / Curtain (V5 NEW)","Raises a towering vertical wall of 3D Layered Clothing across the map",_G._HaloCoverWallActive,function(b4)_G.SetCoverWall(b4)end)local Hx=EC(Hl,12,"Rolling Tsunami Mesh Wave (V6 NEW)","Sweeps a massive sinusoidal 3D Layered Clothing tsunami wave across the server",_G._HaloCoverTsunamiActive,function(b4)_G.SetCoverTsunami(b4)end)local Hy=EC(Hl,13,"4-Corner 3D Prison Box Cage (V6 NEW)","Encloses the map or Locked Target inside a 4-corner 3D Layered Clothing prison box",_G._HaloCoverPrisonBoxActive,function(b4)_G.SetCoverPrisonBox(b4)end)local Hz=EC(Hl,14,"Zero-Delay Instant Replication (No-Delay Mode)","Locks Frame-0 & RenderStep Pre-Camera/Post-Character limb sync with 0.00ms delay",_G._HaloCoverNoDelay~=false,function(b4)_G._HaloCoverNoDelay=b4==true;S("⚡ SKY NO-DELAY",_G._HaloCoverNoDelay and"Zero-Delay Instant Sky Replication ON (0.00ms)!"or"Standard Stepped/Heartbeat Replication ON")if _G._HaloCoverNoDelay then M()else N()end end)Er(F2,6,"Elevation, Cube Spacing, Scale & Diagnostic Tuners")local HA=Ew(F2,7)local HB,HC,HD,HE;HB=EN(HA,1,"Ground Elevation (-25 to 100 studs)","Adjust ground blanket height above floor · Tap [↺] to reset (1.5)",string.format("%.1f st",_G._HaloCoverGroundHeight or 1.5),function(EU)local fc=_G._HaloCoverGroundHeight or 1.5;local HF=fc+2.5;if HF>50 then HF=-10 end;_G._HaloCoverGroundHeight=HF;EU.Text=string.format("%.1f st",HF)S("💥 GROUND ELEVATION",string.format("Ground Elevation: %.1f studs",HF))end,function()_G._HaloCoverGroundHeight=1.5;if HB and HB.pillBtn then HB.pillBtn.Text="1.5 st"end;S("💥 GROUND ELEVATION","Reset Ground Elevation to 1.5 studs")end,"↺")HC=EN(HA,2,"Sky Elevation (-25 to 250 studs)","Adjust sky dome height above player · Tap [↺] to reset (3.0)",string.format("%.1f st",_G._HaloCoverSkyHeight or 3.0),function(EU)local fc=_G._HaloCoverSkyHeight or 3.0;local HF=fc+5.0;if HF>120 then HF=-10 end;_G._HaloCoverSkyHeight=HF;EU.Text=string.format("%.1f st",HF)S("💥 SKY ELEVATION",string.format("Sky Elevation: %.1f studs",HF))end,function()_G._HaloCoverSkyHeight=3.0;if HC and HC.pillBtn then HC.pillBtn.Text="3.0 st"end;S("💥 SKY ELEVATION","Reset Sky Elevation to 3.0 studs")end,"↺")local HG={0.5,1.5,4.0,10.0,25.0,60.0}local HH=1;HD=EN(HA,3,"Cube Matrix Tier Spacing (0.1 to 150)","Vertical gap between 4-tier cube layers · Tap [⦿] to pin Cube Pill",string.format("%.1f st",_G._HaloCoverCubeSpacing or 0.5),function(EU)HH=HH%#HG+1;_G._HaloCoverCubeSpacing=HG[HH]EU.Text=string.format("%.1f st",_G._HaloCoverCubeSpacing)S("💥 CUBE SPACING",string.format("Cube Tier Spacing: %.1f studs",_G._HaloCoverCubeSpacing))end,function()Fh("covercube")end,Fn["covercube"]and"✓"or"⦿")local HI={0.03,0.06,0.08,0.14,0.25}local HJ=3;HE=EN(HA,4,"Flash Strobe Interval (0.02s to 0.50s)","Cycle strobe speed interval · Tap [⦿] to pin Flash Pill",string.format("%.2fs",_G._HaloCoverFlashSpeed or 0.08),function(EU)HJ=HJ%#HI+1;_G._HaloCoverFlashSpeed=HI[HJ]EU.Text=string.format("%.2fs",_G._HaloCoverFlashSpeed)S("💥 FLASH SPEED",string.format("Strobe Interval: %.2fs",_G._HaloCoverFlashSpeed))end,function()Fh("coverflash")end,Fn["coverflash"]and"✓"or"⦿")Er(F2,8,"Eternity V1 — Sky Destroyer (Integrated File)")local HK=Ew(F2,9)local HL=EN(HK,1,"Eternity V1 Sky Destroyer (Start / Stop)","Runs the integrated Eternity V1 Sky Destroyer engine (Ground + Sky)","Start V1",function(EU)if _G.SkyDestroyerAPI and _G.SkyDestroyerAPI.is_reanimated()then _G.stopEternitySkyDestroyer()EU.Text="Start V1"else _G.startEternitySkyDestroyer()EU.Text="Active V1"end end,function()_G.stopEternitySkyDestroyer()end,"⏹")EN(HK,2,"Switch Sky Destroyer Reanim Engine","Toggle active engine between Coca V2 (3-Stage) and Eternity V1 (Stepped)",CocaSkyDestroyer.engineMode or"Coca",function(EU)if CocaSkyDestroyer.engineMode=="Coca"then CocaSkyDestroyer.engineMode="EternityV1"EU.Text="EternityV1"if CocaSkyDestroyer.isAnyActive()then CocaSkyDestroyer.reanimate(false)_G.SkyDestroyerAPI.reanimate(true)end;S("💥 SKY ENGINE","Switched Sky Destroyer Engine to Eternity V1!")else CocaSkyDestroyer.engineMode="Coca"EU.Text="Coca"if CocaSkyDestroyer.isAnyActive()then _G.SkyDestroyerAPI.reanimate(false)CocaSkyDestroyer.reanimate(true)end;S("💥 SKY ENGINE","Switched Sky Destroyer Engine to Coca V2!")end end)local HM={{mult=1.0,label="1.0x (25M)"},{mult=0.1,label="0.1x (2.5M)"},{mult=0.01,label="0.01x (250K)"},{mult=2.0,label="2.0x (50M)"}}local HN=1;EN(HA,5,"Mesh Reach Scale Multiplier (Anti-Culling Tuner)","Cycle 25M / 2.5M / 250K / 50M reach so meshes render in every game · Tap [↺] for 1.0x","1.0x (25M)",function(EU)HN=HN%#HM+1;local HO=HM[HN]_G._HaloCoverScaleMult=HO.mult;EU.Text=HO.label;S("💥 MESH SCALE","Sky Destroyer Reach set to "..HO.label)end,function()HN=1;_G._HaloCoverScaleMult=1.0;S("💥 MESH SCALE","Reset Mesh Reach Scale to 1.0x (25M studs)")end,"↺")EN(HA,6,"Scan Equipped 3D Layered Clothing & Rig","Checks your avatar for compatible 3D Layered Clothing (WrapLayer) & Glitch Walker parts","Scan Rig",function(EU)local bm=CocaSkyDestroyer.get_real_character and CocaSkyDestroyer.get_real_character()or n.Character;if not bm then S("💥 RIG SCANNER","Character not found!")return end;local HP=0;local HQ={}for x,uE in ipairs(bm:GetChildren())do if uE:IsA("Accessory")and uE:FindFirstChildWhichIsA("WrapLayer",true)then HP=HP+1;table.insert(HQ,uE.Name)end end;EU.Text=tostring(HP).." 3D Items"if HP>0 then S("✅ 3D CLOTHING READY",string.format("Found %d 3D Layered item(s): %s",HP,table.concat(HQ,", "):sub(1,60)))K()else S("⚠️ NO 3D CLOTHING","0 WrapLayer items detected! Equip any 3D Layered jacket/pants/suit or Glitch Walker for server-wide Sky Destroyer.")L()end end)CocaSkyDestroyer.syncUIFn=function()if Hm then Hm.setState(_G._HaloCoverGroundActive==true,false)end;if Hn then Hn.setState(_G._HaloCoverSkyActive==true,false)end;if Ho then Ho.setState(_G._HaloCoverCubeMatrixActive==true,false)end;if Hp then Hp.setState(_G._HaloCoverFlashActive==true,false)end;if Hq then Hq.setState(_G._HaloCoverVortexActive==true,false)end;if Hr then Hr.setState(_G._HaloCoverTargetCageActive==true,false)end;if Hs then Hs.setState(_G._HaloCoverPulseActive==true,false)end;if Ht then Ht.setState(_G._HaloCoverBlackholeActive==true,false)end;if Hu then Hu.setState(_G._HaloCoverHaloRingActive==true,false)end;if Hv then Hv.setState(_G._HaloCoverHelixActive==true,false)end;if Hw then Hw.setState(_G._HaloCoverWallActive==true,false)end;if Hx then Hx.setState(_G._HaloCoverTsunamiActive==true,false)end;if Hy then Hy.setState(_G._HaloCoverPrisonBoxActive==true,false)end;if Hz then Hz.setState(_G._HaloCoverNoDelay~=false,false)end;if HL and HL.pillBtn then local HR=(_G.SkyDestroyerAPI and _G.SkyDestroyerAPI.is_reanimated())==true;HL.pillBtn.Text=HR and"Active V1"or"Start V1"end end end;do Er(E_,1,"Side-by-Side Animation & Emote Copy")local HS=Ew(E_,2)EN(HS,1,"Copy Target Animation (Live Sync)","Mirrors visible target AnimationTracks with drift correction and respawn recovery","Copy Now",function(EU)Fe("animcopy")EU.Text=bu and bu.active and"Active"or"Copy Now"end,function()Fh("animcopy")end,Fn["animcopy"]and"✓"or"⦿")EN(HS,2,"Side-by-Side Alignment Mode","Right (+3.2), Left (-3.2), Front Mirror, Back Shadow, Above Float, or Free Move","Right +3.2",function(EU)if bu.sideMode=="right"then bu.sideMode="left"EU.Text="Left -3.2"S("🎭 ANIM COPY","Mode: LEFT Side-by-Side (-3.2 studs)")elseif bu.sideMode=="left"then bu.sideMode="front"EU.Text="Front 3.2"S("🎭 ANIM COPY","Mode: FRONT Mirror (+3.2 studs facing target)")elseif bu.sideMode=="front"then bu.sideMode="back"EU.Text="Back 3.2"S("🎭 ANIM COPY","Mode: BACK Shadow (+3.2 studs trailing behind)")elseif bu.sideMode=="back"then bu.sideMode="above"EU.Text="Above 4.0"S("🎭 ANIM COPY","Mode: ABOVE Aerial (+4.0 studs hovering above)")elseif bu.sideMode=="above"then bu.sideMode="orbit"EU.Text="Orbit 360°"S("🎭 ANIM COPY","Mode: ORBIT 360° (circles around target while copying animations!)")elseif bu.sideMode=="orbit"then bu.sideMode="free"EU.Text="Free Move"S("🎭 ANIM COPY","Mode: FREE MOVE (copies animations in-place without teleporting!)")else bu.sideMode="right"EU.Text="Right +3.2"S("🎭 ANIM COPY","Mode: RIGHT Side-by-Side (+3.2 studs)")end end,function()bu:SnapSideBySideOnce()end,"TP")EN(HS,3,"Snap Side-by-Side Once (No Lock)","Teleports you once right beside target (+3.2 studs) without locking movement","Snap TP",function()bu:SnapSideBySideOnce()end)EN(HS,4,"Copy Target's Equipped Animation Pack","Steals target's Idle, Walk, Run, Jump, Fall & Climb animation pack","Steal Pack",function()bu:CopyTargetAnimatePack()end)EC(HS,5,"Advanced Motor6D Pose Fallback","Optional fallback for custom procedural poses; keep OFF for smoother track-based copying",bu.syncMotorTransforms,function(b4)bu.syncMotorTransforms=b4 end)local HT={1.8,3.2,4.8,7.5,11.0}local HU=2;EN(HS,6,"Alignment Distance & Orbit Radius Tuner (NEW)","Adjusts spacing (1.8 to 11.0 studs) for Side-by-Side, Front, Back & 360° Orbit · Tap [↺] for 3.2",string.format("%.1f st",bu.sideDistance or 3.2),function(EU)HU=HU%#HT+1;bu.sideDistance=HT[HU]EU.Text=string.format("%.1f st",bu.sideDistance)S("🎭 COPY DISTANCE",string.format("Alignment / Orbit Distance: %.1f studs",bu.sideDistance))end,function()HU=2;bu.sideDistance=3.2;S("🎭 COPY DISTANCE","Reset Alignment Distance to 3.2 studs")end,"↺")EN(HS,7,"Clone Target Avatar Outfit (Client Twin Morph) (NEW)","Copies the locked target's clothing, colors & accessories onto your character locally","Morph Twin",function(EU)local jn=bu.ResolveTarget and bu.ResolveTarget()or gi()local eK=n.Character;local eQ=jn and cA(jn)if not jn or not eQ or not eK then S("🎭 OUTFIT MORPH","Target character not streamed in yet!")L()return end;pcall(function()for x,c7 in ipairs(eK:GetChildren())do if c7:IsA("Accessory")or c7:IsA("Shirt")or c7:IsA("Pants")or c7:IsA("ShirtGraphic")or c7:IsA("BodyColors")or c7:IsA("CharacterMesh")then c7:Destroy()end end;for x,c7 in ipairs(eQ:GetChildren())do if c7:IsA("Shirt")or c7:IsA("Pants")or c7:IsA("ShirtGraphic")or c7:IsA("BodyColors")or c7:IsA("CharacterMesh")then c7:Clone().Parent=eK elseif c7:IsA("Accessory")then local HV=c7:Clone()for x,eu in ipairs(HV:GetDescendants())do if eu:IsA("BasePart")then eu.CanCollide=false;eu.Massless=true end end;HV.Parent=eK end end;local HW=eK:FindFirstChild("Head")local HX=eQ:FindFirstChild("Head")if HW and HX then local HY=HW:FindFirstChildOfClass("Decal")local HZ=HX:FindFirstChildOfClass("Decal")if HY and HZ then HY.Texture=HZ.Texture end end end)EU.Text="Morphed!"S("🎭 TWIN MORPH","Cloned @"..jn.Name.."'s avatar outfit & accessories!")K()task.delay(1.5,function()if EU and EU.Parent then EU.Text="Morph Twin"end end)end)Er(F0,1,"Animation Playback Controls")local H_=Ew(F0,2)EN(H_,1,"Jerk Troll (R15 & R6 Active Toggle)","Plays Jerk Troll animation + procedural right-arm stroke","Start",function(EU)Fe("jerktroll")EU.Text=gq.jerkActive and"Active"or"Start"end,function()Fh("jerktroll")end,Fn["jerktroll"]and"✓"or"⦿")local I0={1.0,1.6,2.4,3.5,5.0}local I1=2;EN(H_,2,"Give 'Jerk Off' Tool & Speed","Tap [Get Tool] for Backpack tool · Tap circle to cycle Jerk speed","Get Tool",function()gq:GiveJerkTool()end,function(oQ)I1=I1%#I0+1;gq.jerkSpeed=I0[I1]oQ.Text=string.format("%.0fx",gq.jerkSpeed)S("🍆 JERK SPEED",string.format("Jerk Troll Speed: %.1fx",gq.jerkSpeed))end,"2x")local I2={0.5,1.0,1.5,2.0,3.0,4.0}local I3=2;EN(H_,3,"Emote Speed & Freeze Frame","Tap pill to cycle Emote Speed · Tap [❄️] to Freeze current pose","1.0x",function(EU)I3=I3%#I2+1;gq:AdjustActiveEmoteSpeed(I2[I3])EU.Text=string.format("%.1fx",gq.emoteSpeed)end,function()gq:ToggleFreezeEmote()end,"❄️")EC(H_,4,"Keep Emote Playing While Walking","Allows you to walk & move around without cancelling active emote",gq.allowWalkDuringEmote,function(b4)gq.allowWalkDuringEmote=b4 end)EN(H_,5,"Stop Active Emote / Copy / Jerk","Stops all custom emotes & restores default character posture","Stop All",function()gq:StopEmote()gq:StopJerk()if bu.active then bu:Stop()end;bA()S("🎭 EMOTE HUB","Stopped all active emotes & animation copy")end)Er(F0,3,"Catalog Animation Packs")local I4=Ew(F0,4)EN(I4,1,"Restore Default Animation Pack","Restores your avatar's original Idle, Walk, Run, Jump & Fall pack","Restore",function()gq:RestoreDefaultPack()end)local I5=false;local function I6()if I5 then return end;I5=true;for eY,I7 in ipairs(gq.CatalogPacks)do EN(I4,eY+1,I7.name.." Animation Pack","Full Catalog Bundle: Idle, Walk, Run, Jump, Fall, Climb & Swim","Apply",function(EU)if gq:ApplyCatalogPack(I7)then EU.Text="Applied"task.delay(1.4,function()if EU and EU.Parent then EU.Text="Apply"end end)end end)end end;F0:GetPropertyChangedSignal("Visible"):Connect(function()if F0.Visible then I6()end end)Er(F3,1,"Catalog & UGC Emotes")local I8=Instance.new("Frame")I8.Size=UDim2.new(1,0,0,72)I8.BackgroundTransparency=1;I8.LayoutOrder=2;I8.ZIndex=7;I8.Parent=F3;local I9=Instance.new("TextBox")I9.Size=UDim2.new(1,-86,0,32)I9.Position=UDim2.new(0,0,0,0)I9.BackgroundColor3=C.Panel;I9.PlaceholderText="Search emotes, dances, poses or paste an animation ID..."I9.Text=""I9.TextColor3=C.Text;I9.PlaceholderColor3=C.Muted;I9.Font=Enum.Font.Gotham;I9.TextSize=10;I9.ClearTextOnFocus=false;I9.ZIndex=8;I9.Parent=I8;Instance.new("UICorner",I9).CornerRadius=UDim.new(1,0)local Ia=Instance.new("UIStroke")Ia.Color=C.Border;Ia.Thickness=1;Ia.Transparency=0.35;Ia.Parent=I9;local Ib=Instance.new("UIPadding")Ib.PaddingLeft=UDim.new(0,12)Ib.PaddingRight=UDim.new(0,10)Ib.Parent=I9;local Ic=Instance.new("TextButton")Ic.Size=UDim2.new(0,80,0,32)Ic.Position=UDim2.new(1,-80,0,0)Ic.Text="Play ID"Ic.TextColor3=Color3.new(1,1,1)Ic.Font=Enum.Font.GothamBold;Ic.TextSize=10;Ic.ZIndex=8;Ic.Parent=I8;Instance.new("UICorner",Ic).CornerRadius=UDim.new(1,0)Cq(Ic,C.Accent2)Ic.MouseButton1Click:Connect(function()Cu()local lH=I9.Text or""local Id=lH:gsub("%D","")if Id~=""then gq:PlayCatalogEmote("Custom ID ("..Id..")",Id)else S("💃 EMOTE HUB","Type a numeric Animation or Catalog Emote ID in the box first!")L()end end)local Ie=Instance.new("Frame")Ie.Size=UDim2.new(1,0,0,30)Ie.Position=UDim2.new(0,0,0,38)Ie.BackgroundTransparency=1;Ie.ZIndex=8;Ie.Parent=I8;local If=Instance.new("UIListLayout")If.FillDirection=Enum.FillDirection.Horizontal;If.Padding=UDim.new(0,5)If.SortOrder=Enum.SortOrder.LayoutOrder;If.Parent=Ie;local Ig={"All","Trending","Dances","Poses","Actions","R6"}local Ih="All"local Ii={}local Ij=Ew(F3,3)local Ik={}local Il=nil;local function Im()if not F3.Visible then return end;local gg=(I9.Text or""):lower():gsub("^%s+",""):gsub("%s+$","")local yN=0;for x,In in ipairs(gq.CatalogEmotes)do local Io=Ih=="All"or In.cat==Ih;local Ip=gg==""or In.name:lower():find(gg,1,true)or In.id:find(gg,1,true)or In.cat:lower():find(gg,1,true)if Io and Ip then yN=yN+1;local Iq=Ik[yN]if not Iq then local Ir=In;local GV=EN(Ij,yN,In.name,"["..In.cat.."]  ·  rbxassetid://"..In.id,"Play",function(EU)local fc=Iq and Iq.emote or Ir;if fc then gq:PlayCatalogEmote(fc.name,fc.id)EU.Text="Playing"task.delay(1.5,function()if EU and EU.Parent then EU.Text="Play"end end)end end)Iq={rowInfo=GV,emote=In}Ik[yN]=Iq else Iq.emote=In;Iq.rowInfo.row.Visible=true;Iq.rowInfo.titleLbl.Text=In.name;if Iq.rowInfo.subLbl then Iq.rowInfo.subLbl.Text="["..In.cat.."]  ·  rbxassetid://"..In.id end end end end;for dt=yN+1,#Ik do if Ik[dt]and Ik[dt].rowInfo and Ik[dt].rowInfo.row then Ik[dt].rowInfo.row.Visible=false end end;if yN==0 then if not Il or not Il.Parent then Il=Instance.new("TextLabel")Il.Size=UDim2.new(1,0,0,42)Il.BackgroundTransparency=1;Il.Text="No matching emote — tap [Play ID] above to play a custom rbxassetid!"Il.TextColor3=C.Muted;Il.Font=Enum.Font.Gotham;Il.TextSize=10;Il.ZIndex=9;Il.Parent=Ij end;Il.Visible=true elseif Il then Il.Visible=false end end;for eY,Is in ipairs(Ig)do local la=Instance.new("TextButton")la.Size=UDim2.new(0,48,0,26)la.Text=Is;la.TextColor3=Is==Ih and Color3.new(1,1,1)or C.Text;la.Font=Enum.Font.GothamBold;la.TextSize=9;la.LayoutOrder=eY;la.ZIndex=9;la.Parent=Ie;Instance.new("UICorner",la).CornerRadius=UDim.new(1,0)Cq(la,Is==Ih and C.Accent2 or C.Panel)Ii[Is]=la;la.MouseButton1Click:Connect(function()Cu()Ih=Is;for fV,fC in pairs(Ii)do local It=fV==Ih;Cp[fC]=It and C.Accent2 or C.Panel;fC.BackgroundColor3=It and C.Accent2 or C.Panel;fC.TextColor3=It and Color3.new(1,1,1)or C.Text end;Im()end)end;I9:GetPropertyChangedSignal("Text"):Connect(Im)F3:GetPropertyChangedSignal("Visible"):Connect(function()if F3.Visible then Im()end end)end;do local Iu=Instance.new("Frame")Iu.Size=UDim2.new(1,0,0,34)Iu.BackgroundTransparency=1;Iu.LayoutOrder=1;Iu.ZIndex=7;Iu.Parent=F5;local wF=Instance.new("TextBox")wF.Size=UDim2.new(1,-88,1,0)wF.BackgroundColor3=C.Panel;wF.PlaceholderText="Search player or @username..."wF.Text=""wF.TextColor3=C.Text;wF.PlaceholderColor3=C.Muted;wF.Font=Enum.Font.Gotham;wF.TextSize=11;wF.ClearTextOnFocus=false;wF.ZIndex=8;wF.Parent=Iu;Instance.new("UICorner",wF).CornerRadius=UDim.new(1,0)local Iv=Instance.new("UIStroke")Iv.Color=C.Border;Iv.Thickness=1;Iv.Transparency=0.35;Iv.Parent=wF;local wG=Instance.new("UIPadding")wG.PaddingLeft=UDim.new(0,14)wG.PaddingRight=UDim.new(0,12)wG.Parent=wF;local Iw=Instance.new("TextButton")Iw.Size=UDim2.new(0,82,1,0)Iw.Position=UDim2.new(1,-82,0,0)Iw.Text="Auto-Near"Iw.TextColor3=Color3.new(1,1,1)Iw.Font=Enum.Font.GothamBold;Iw.TextSize=10;Iw.ZIndex=8;Iw.Parent=Iu;Instance.new("UICorner",Iw).CornerRadius=UDim.new(1,0)Cq(Iw,C.Accent2)Er(F5,2,"Target Intelligence, 3D ESP Radar & Camera Spectate")local Ix=Ew(F5,2)local Iy=false;local Iz=false;local IA={}local IB=nil;local function IC()for cw,lV in pairs(IA)do if lV then pcall(function()lV:Destroy()end)end;IA[cw]=nil end end;local function ID()if not Iy then IC()return end;local gp=gi()local IE={}for x,cw in ipairs(e:GetPlayers())do if cw~=n and(Iz or cw==gp)then local bm=cA(cw,true)if bm and bm.Parent then IE[cw]=true;local lV=IA[cw]if not lV or not lV.Parent or lV.Adornee~=bm then if lV then pcall(function()lV:Destroy()end)end;lV=Instance.new("Highlight")lV.Name="CocoTargetESP"lV.DepthMode=Enum.HighlightDepthMode.AlwaysOnTop;lV.FillTransparency=0.65;lV.OutlineTransparency=0.05;lV.Adornee=bm;lV.Parent=q or n:FindFirstChildOfClass("PlayerGui")or bm;IA[cw]=lV end;local E3=cw==gp;lV.FillColor=E3 and Color3.fromRGB(244,63,94)or C.Accent;lV.OutlineColor=E3 and Color3.fromRGB(255,215,70)or C.Neon end end end;for cw,lV in pairs(IA)do if not IE[cw]then pcall(function()lV:Destroy()end)IA[cw]=nil end end end;EN(Ix,1,"3D X-Ray ESP Highlight (Target / All Players)","Tap [ESP OFF/ON] to toggle wallhack glow · Tap [🎯/🌐] to switch Target vs All Players","ESP: OFF",function(EU)Iy=not Iy;EU.Text=Iy and(Iz and"ESP: ALL"or"ESP: TGT")or"ESP: OFF"if Iy then if not IB then local IF=0;IB=d.Heartbeat:Connect(function()if not Iy then return end;if os.clock()-IF<0.35 then return end;IF=os.clock()pcall(ID)end)end;pcall(ID)S("🎯 3D ESP RADAR",Iz and"3D Wallhack ESP enabled for ALL players!"or"3D Wallhack ESP locked onto Target!")M()else if IB then IB:Disconnect()IB=nil end;IC()S("🎯 3D ESP RADAR","3D ESP Highlights disabled")N()end end,function(oQ,EU)Iz=not Iz;oQ.Text=Iz and"🌐"or"🎯"if Iy and EU then EU.Text=Iz and"ESP: ALL"or"ESP: TGT"pcall(ID)end;S("🎯 ESP SCOPE",Iz and"ESP Scope: All Server Players (🌐)"or"ESP Scope: Locked Target Only (🎯)")end,"🎯")local H4=nil;EC(Ix,2,"Live Camera Spectate Target","Switches your camera view to watch the locked target anywhere on the map",an==true,function(b4)an=b4;if H4 then H4:Disconnect()H4=nil end;local bN=workspace.CurrentCamera;if b4 then local jn=gi()if not jn then an=false;S("🎥 SPECTATE","No target player found to spectate!")L()return end;H4=d.RenderStepped:Connect(function()if not an then return end;local ii=gi()local eQ=ii and cA(ii,true)local eR=eQ and eQ:FindFirstChildOfClass("Humanoid")local rO=eQ and cB(eQ,"head")local H7=workspace.CurrentCamera;if H7 and(eR or rO)then H7.CameraType=Enum.CameraType.Custom;H7.CameraSubject=eR or rO end end)S("🎥 SPECTATING","Now spectating @"..jn.Name.."!")M()else if bN and n.Character then local bO=n.Character:FindFirstChildOfClass("Humanoid")if bO then bN.CameraType=Enum.CameraType.Custom;bN.CameraSubject=bO end end;S("🎥 SPECTATE OFF","Camera returned to your character")N()end end)EN(Ix,3,"Scan Target Equipped Tools & Backpack Loadout","Lists all tools/weapons held by or stored in the locked target's inventory","Scan Tools",function(EU)local jn=gi()if not jn then S("🎒 LOADOUT SCAN","No target player found!")L()return end;local IG={}local eQ=cA(jn,true)if eQ then for x,bm in ipairs(eQ:GetChildren())do if bm:IsA("Tool")then table.insert(IG,"⚡"..bm.Name)end end end;local iy=jn:FindFirstChildOfClass("Backpack")if iy then for x,bm in ipairs(iy:GetChildren())do if bm:IsA("Tool")then table.insert(IG,bm.Name)end end end;EU.Text=tostring(#IG).." Tools"if#IG>0 then S("🎒 @"..jn.Name.." TOOLS ("..tostring(#IG)..")",table.concat(IG,", "):sub(1,95))K()else S("🎒 @"..jn.Name.." TOOLS","Target has 0 tools in Character/Backpack")end end)Er(F5,3,"Server Players")local IH=Ew(F5,4)IH:SetAttribute("DynamicList",true)local II=true;local function IJ(gg)gg=(gg or""):lower()local fJ={}for x,cw in ipairs(e:GetPlayers())do if cw~=n then if gg==""or cw.Name:lower():find(gg,1,true)or cw.DisplayName:lower():find(gg,1,true)then table.insert(fJ,cw)end end end;return fJ end;Fc=function(IK)local IL=math.max(0,#e:GetPlayers()-1)if C9.catCountLabels["Target"]then C9.catCountLabels["Target"].Text=tostring(IL)end;if not IK and not F5.Visible then II=true;return end;II=false;for x,X in ipairs(IH:GetChildren())do if X:IsA("Frame")or X:IsA("TextLabel")then X:Destroy()end end;local IM=IJ(wF.Text)if#IM==0 then local IN=Instance.new("TextLabel")IN.Size=UDim2.new(1,0,0,42)IN.BackgroundTransparency=1;IN.Text="No matching players — Auto-Nearest active"IN.TextColor3=C.Muted;IN.Font=Enum.Font.Gotham;IN.TextSize=10;IN.ZIndex=9;IN.Parent=IH;return end;for dt,cw in ipairs(IM)do local zi=a1==cw;local rg="hidden / unstreamed"pcall(function()local GQ=n.Character and n.Character:FindFirstChild("HumanoidRootPart")local IO=cD(cw)if GQ and IO then rg=string.format("%d studs away",math.floor((IO.Position-GQ.Position).Magnitude))end end)local IP=aq[cw.UserId]local IQ=""if at(cw)or IP and IP.isOwner then IQ="  [👑 OWNER]"elseif au(cw)or IP and IP.isPremium then IQ="  [💎 PREMIUM]"elseif IP and tick()-(IP.lastSeen or 0)<25 then IQ=IP.isFrozen and"  [❄️ CP FROZEN]"or"  [⚡ CP USER]"end;local E8=EN(IH,dt,cw.DisplayName..IQ..(zi and"  [LOCKED]"or""),"@"..cw.Name.."  ·  "..rg,zi and"Locked"or"Lock",function()if a1==cw or aa.typedUsername~=""and aa.typedUsername:lower()==cw.Name:lower()then cz(false)bB:Cleanup(false,false)a1=nil;a0=nil;a8=nil;a9=nil;aa.typedUsername=""aa.leftInfo=nil;aa.waitingForSpawn=false;if aa.setUsernameBoxText then pcall(aa.setUsernameBoxText,"")end;CS.Text="Auto: Nearest"CT.Text="target unlocked & disconnected"a4(nil)bA()S("COCO POWDER","Unlocked & disconnected from @"..cw.Name)else a1=cw;a0=cw;a8=cw.UserId;aa.typedUsername=cw.Name;aa.leftInfo=nil;aa.waitingForSpawn=false;if aa.setUsernameBoxText then pcall(aa.setUsernameBoxText,cw.Name)end;CS.Text="Target: "..cw.Name;CT.Text="locked (tap again to disconnect)"a4(cw)if aa.active and aa.presetKey then iX(aa.presetKey,cw)bA()end;S("COCO POWDER","Locked onto @"..cw.Name)end;Fc()if Fb then pcall(Fb)end end,function()a1=cw;a4(cw)task.spawn(function()local x,eS=cE(cw,"root",1.8,CFrame.new(3.2,0,0))if eS and eS.Parent then local eP=cC(eS.CFrame)*CFrame.new(3.2,0,0)cF(eP)bz(n.Character,eP)S("COCO POWDER","Teleported side-by-side with "..cw.Name.."!")K()else local H3=cD(cw)if H3 then local eP=cC(H3)*CFrame.new(3.2,0,0)cF(eP)bz(n.Character,eP)S("COCO POWDER","Teleported side-by-side to "..cw.Name.."!")K()else iX("chase",cw)bA()end end end)end,"TP")if zi then Cp[E8.pillBtn]=C.Accent2;E8.pillBtn.BackgroundColor3=C.Accent2;E8.pillStroke.Color=C.Neon end end end;Iw.MouseButton1Click:Connect(function()Cu()cz(false)bB:Cleanup(false,false)a1=nil;a0=nil;a8=nil;a9=nil;aa.typedUsername=""aa.leftInfo=nil;aa.waitingForSpawn=false;if aa.setUsernameBoxText then pcall(aa.setUsernameBoxText,"")end;wF.Text=""a4(nil)CS.Text="Auto: Nearest"CT.Text="auto-connects to nearest"bA()pcall(Fc)if Fb then pcall(Fb)end;S("COCO POWDER","Target cleared — Auto-Nearest active")end)F5:GetPropertyChangedSignal("Visible"):Connect(function()if F5.Visible and II then pcall(Fc,true)end end)wF:GetPropertyChangedSignal("Text"):Connect(function()pcall(Fc,true)end)pcall(Fc,false)e.PlayerAdded:Connect(function(cw)task.wait(0.25)pcall(Fc)local IR=a8 and cw.UserId==a8 or aa.typedUsername and aa.typedUsername~=""and(cw.Name:lower()==aa.typedUsername:lower()or cw.DisplayName:lower()==aa.typedUsername:lower())or aa.leftInfo and aa.leftInfo.name and cw.Name:lower()==aa.leftInfo.name:lower()if IR and(a7 or aa.waitingForSpawn)then a1=cw;a0=cw;a8=cw.UserId;aa.typedUsername=cw.Name;if aa.setUsernameBoxText then pcall(aa.setUsernameBoxText,cw.Name)end;CS.Text="Target: "..cw.Name;CT.Text="rejoined · attaching on spawn"a4(cw)bv(cw)aC("🎯 TARGET REJOINED SERVER","@"..cw.Name.." ("..(cw.DisplayName or cw.Name)..") is back — attaching on spawn!",C.Success,4.0,"TargetLeftBanner")S("COCO POWDER","Target @"..cw.Name.." rejoined — attaching on spawn!")task.spawn(function()local cj=cw.Character or cw.CharacterAdded:Wait()if cj and cw.Parent==e then if not cj:FindFirstChild("HumanoidRootPart")then pcall(function()cj:WaitForChild("HumanoidRootPart",3.0)end)end;local IS=aa.presetKey or aa.leftInfo and aa.leftInfo.presetKey or a9 or"facebang"if e3[IS]then iX(IS,cw)pcall(bA)if Fb then pcall(Fb)end end end end)end;if Fb then pcall(Fb)end end)e.PlayerRemoving:Connect(function(cw)local IT=aa.target==cw or a0==cw or a1==cw or a8 and cw.UserId==a8 or aa.typedUsername~=""and cw.Name:lower()==aa.typedUsername:lower()if IT then local IU=aa.active or _~=nil or bu and bu.active or ad;local dV=aa.presetKey or a9 or"facebang"aa.leftInfo={userId=cw.UserId,name=cw.Name,displayName=cw.DisplayName or cw.Name,accountAge="—",friendsText="—",leftAt=tick(),wasWelded=IU,presetKey=dV}a8=cw.UserId;a9=dV;aa.waitingForSpawn=true;aa.topStatusText="target left · weld stopped"aa.topStatusColor=C.Danger;aa.midStatusText="target left · "..cw.Name;aa.midStatusColor=C.Danger;aa.bottomStatusText="target offline · will attach on spawn"aa.bottomStatusColor=C.Warning;cz(true)bB:Cleanup(true)if a1==cw then a1=nil end;CS.Text="Left: "..cw.Name;CT.Text="target left · weld stopped"CR.BackgroundColor3=C.Danger;pcall(bA)aC("🚨 TARGET HAS LEFT THE GAME","@"..cw.Name.." ("..(cw.DisplayName or cw.Name)..") left — weld stopped · will attach on spawn",C.Danger,4.5,"TargetLeftBanner")S("COCO POWDER","Target has left the game: @"..cw.Name.." (weld stopped)")end;task.wait(0.1)pcall(Fc)if Fb then pcall(Fb)end end)end;do Er(F6,1,"Chrono-Rewind System (60Hz Precision)")local IV=Ew(F6,2)local IW;IW=EN(IV,1,"Rewind Time Now [Key: R]","Scrubs CFrame, velocity, camera & animations in reverse","Rewind",function()RewindSys:Start(RewindSys.duration)end,function(oQ)RewindSys.duration=RewindSys.duration==6.0 and 8.0 or RewindSys.duration==8.0 and 10.0 or 6.0;oQ.Text=tostring(math.floor(RewindSys.duration)).."s"S("COCO POWDER","Rewind window: "..tostring(RewindSys.duration).."s (60Hz)")end,tostring(math.floor(RewindSys.duration)).."s")EC(IV,2,"Smooth reverse replay","Disable for instant 1-frame snapback teleport",not RewindSys.instantMode,function(b4)RewindSys.instantMode=not b4 end)EC(IV,3,"Rewind camera angles","Restores exact look trajectory during rewind",RewindSys.rewindCamera,function(b4)RewindSys.rewindCamera=b4 end)local IX={1.0,2.0,3.5}local IY=1;EN(IV,4,"Rewind Scrub Speed","Cycle reverse replay speed (1.0x, 2.0x, 3.5x)","1.0x",function(EU)IY=IY%#IX+1;RewindSys.speedMultiplier=IX[IY]EU.Text=string.format("%.1fx",RewindSys.speedMultiplier)S("⏪ REWIND SPEED",string.format("Reverse scrub speed set to %.1fx",RewindSys.speedMultiplier))end,function()Fh("rewind")end,Fn["rewind"]and"✓"or"⦿")EC(IV,5,"Chrono-Echo Ghost Trail & FX","Spawns holographic afterimages & time-warp screen tint",RewindSys.vfxEnabled,function(b4)RewindSys.vfxEnabled=b4 end)Er(F6,3,"WalkSpeed & Physics (Up to 500)")local IZ=Ew(F6,4)local vJ,I_=32,75;local function J0()local bm=n.Character;if not bm then return nil,nil,nil end;return bm,bm:FindFirstChildOfClass("Humanoid"),bm:FindFirstChild("HumanoidRootPart")end;do local J1,J2=16,50;local J3,J4=16,500;local J5,J6=350,25;local J7;local J8;local function J9(fL)vJ=math.clamp(math.floor(fL),J3,J4)local x,Y=J0()if Y and bt.speed then Y.WalkSpeed=vJ end;if J7 and J7.subLbl then J7.subLbl.Text="Locks WalkSpeed at "..tostring(vJ).." studs/sec"end;if J8 and J8.pillBtn then J8.pillBtn.Text=tostring(vJ)end end;J7=EC(IZ,1,"WalkSpeed override","Locks WalkSpeed at 32 studs/sec",bt.speed,function(b4)local x,Y=J0()bt.speed=b4;if Y then Y.WalkSpeed=b4 and vJ or J1 end;if b4 then if bt.speedLoopConn then bt.speedLoopConn:Disconnect()end;bt.speedLoopConn=d.Heartbeat:Connect(function()if not bt.speed then return end;local x,et=J0()if et and et.WalkSpeed~=vJ then et.WalkSpeed=vJ end end)else if bt.speedLoopConn then bt.speedLoopConn:Disconnect()bt.speedLoopConn=nil end end end)local Ja={16,32,60,120,250,500}local Jb=2;J8=EN(IZ,2,"Speed Preset & Step","Tap pill to cycle preset · Tap + to add 25","32",function()Jb=Jb%#Ja+1;J9(Ja[Jb])S("Speed","WalkSpeed set to "..tostring(vJ))end,function()J9(vJ+25>500 and 16 or vJ+25)end,"+")local Jc;Jc=EC(IZ,3,"JumpPower boost","Enhances jump height ("..tostring(I_).." power)",bt.jump,function(b4)local x,Y=J0()bt.jump=b4;if Y then Y.UseJumpPower=true;Y.JumpPower=b4 and I_ or J2 end end)EN(IZ,4,"Adjust JumpPower","Increments JumpPower by +25 up to 350","+25",function(EU)I_=I_+J6>J5 and 50 or I_+J6;local x,Y=J0()if Y then Y.UseJumpPower=true;if bt.jump then Y.JumpPower=I_ end end;EU.Text=tostring(I_)if Jc and Jc.subLbl then Jc.subLbl.Text="Enhances jump height ("..tostring(I_).." power)"end end)EC(IZ,5,"Infinite air jump","Jump repeatedly in mid-air without ground contact",bt.infiniteJump,function(b4)bt.infiniteJump=b4;if b4 then if bt.jumpConn then bt.jumpConn:Disconnect()end;bt.jumpConn=f.JumpRequest:Connect(function()if not bt.infiniteJump or bt.fly or bt.flyLanding then return end;local x,Y,bE=J0()if Y and Y.Health>0 and bE then bE.AssemblyLinearVelocity=Vector3.new(bE.AssemblyLinearVelocity.X,math.max(I_,52),bE.AssemblyLinearVelocity.Z)Y:ChangeState(Enum.HumanoidStateType.Jumping)end end)elseif bt.jumpConn then bt.jumpConn:Disconnect()bt.jumpConn=nil end end)EC(IZ,6,"Noclip phase","Walk effortlessly through walls, doors & obstacles",bt.noclip,function(b4)bt.noclip=b4;if b4 then local Jd=nil;local Je={}local function Jf(X)Jd=X;table.clear(Je)if not X then return end;for x,cw in ipairs(X:GetDescendants())do if cw:IsA("BasePart")then cw.CanCollide=false;Je[#Je+1]=cw end end end;Jf(n.Character)if bt.noclipConn then bt.noclipConn:Disconnect()end;bt.noclipConn=d.Stepped:Connect(function()if not bt.noclip then return end;local X=n.Character;if X~=Jd then Jf(X)end;for dt=1,#Je do local cw=Je[dt]if cw and cw.Parent and cw.CanCollide then cw.CanCollide=false end end end)else if bt.noclipConn then bt.noclipConn:Disconnect()bt.noclipConn=nil end;local bm=n.Character;if bm then for x,cw in ipairs(bm:GetDescendants())do if cw:IsA("BasePart")and(cw.Name=="HumanoidRootPart"or cw.Name=="Torso"or cw.Name=="UpperTorso"or cw.Name=="LowerTorso"or cw.Name=="Head")then cw.CanCollide=true end end end end end)EC(IZ,7,"Spider-Walk (Wall Climb)","Walk straight up walls, cliffs & buildings automatically",bt.spiderWalk,function(b4)bt.spiderWalk=b4;if b4 then if bt.spiderConn then bt.spiderConn:Disconnect()end;local Jg=RaycastParams.new()Jg.FilterType=Enum.RaycastFilterType.Exclude;Jg.RespectCanCollide=true;bt.spiderConn=d.Heartbeat:Connect(function()if not bt.spiderWalk or bt.fly or aa.active then return end;local bm,Y,bE=J0()if not bm or not Y or not bE or Y.Health<=0 then return end;Jg.FilterDescendantsInstances={bm,workspace.CurrentCamera}local kO=Y.MoveDirection;local Jh=kO.Magnitude>0.1 and kO.Unit or Vector3.new(bE.CFrame.LookVector.X,0,bE.CFrame.LookVector.Z)if Jh.Magnitude<0.05 then return end;Jh=Jh.Unit;local Br=workspace:Raycast(bE.Position,Jh*3.6,Jg)or workspace:Raycast(bE.Position-Vector3.new(0,1.2,0),Jh*3.6,Jg)if Br and Br.Instance and Br.Normal.Y<0.55 and kO.Magnitude>0.05 then local Ji=math.max(36,vJ*0.85)bE.AssemblyLinearVelocity=Vector3.new(Jh.X*14,Ji,Jh.Z*14)end end)S("🕷️ SPIDER-WALK","Wall-Climb enabled! Walk into any wall or building to climb.")M()else if bt.spiderConn then bt.spiderConn:Disconnect()bt.spiderConn=nil end;S("🕷️ SPIDER-WALK","Wall-Climb disabled")N()end end)EC(IZ,8,"Air-Walk (Sky Platform)","Walk on air at current altitude (Space = +Up, Ctrl = -Down)",bt.airWalk,function(b4)bt.airWalk=b4;if b4 then local bm,Y,bE=J0()local sH=Y and Y.RigType==Enum.HumanoidRigType.R15 and math.max(1.8,Y.HipHeight)or 2.0;bt.airWalkY=bE and bE.Position.Y-sH-1.55 or 20;if not bt.airWalkPart or not bt.airWalkPart.Parent then local xy=Instance.new("Part")xy.Name="CocoAirWalkPad"xy.Anchored=true;xy.CanCollide=true;xy.CanTouch=false;xy.CanQuery=false;xy.Size=Vector3.new(18,1.0,18)xy.Material=Enum.Material.ForceField;xy.Color=C.Accent;xy.Transparency=0.55;xy.Parent=workspace;bt.airWalkPart=xy end;if bt.airWalkConn then bt.airWalkConn:Disconnect()end;bt.airWalkConn=d.Stepped:Connect(function(x,dU)if not bt.airWalk or bt.fly or aa.active then return end;local x,et,bp=J0()if not bp or not et or et.Health<=0 then return end;if not f:GetFocusedTextBox()then if f:IsKeyDown(Enum.KeyCode.Space)then bt.airWalkY=(bt.airWalkY or bp.Position.Y-3.5)+26*(dU or 0.016)elseif f:IsKeyDown(Enum.KeyCode.LeftControl)or f:IsKeyDown(Enum.KeyCode.C)then bt.airWalkY=(bt.airWalkY or bp.Position.Y-3.5)-26*(dU or 0.016)end end;if bt.airWalkPart and bt.airWalkPart.Parent then bt.airWalkPart.Color=C.Accent;bt.airWalkPart.CFrame=CFrame.new(bp.Position.X,bt.airWalkY or bp.Position.Y-3.5,bp.Position.Z)end end)S("☁️ AIR-WALK","Sky Platform active! Hold Space to elevate, Ctrl/C to descend.")M()else if bt.airWalkConn then bt.airWalkConn:Disconnect()bt.airWalkConn=nil end;if bt.airWalkPart then pcall(function()bt.airWalkPart:Destroy()end)bt.airWalkPart=nil end;S("☁️ AIR-WALK","Sky Platform disabled")N()end end)EN(IZ,9,"Phase Dash / Blink Forward","Instantly blinks forward ("..tostring(bt.dashDistance).." studs) through walls","Dash ⚡",function()local bm,Y,bE=J0()if not bm or not bE or not Y or Y.Health<=0 then return end;local l_=workspace.CurrentCamera;local ui=Y.MoveDirection.Magnitude>0.1 and Y.MoveDirection.Unit or l_ and Vector3.new(l_.CFrame.LookVector.X,0,l_.CFrame.LookVector.Z).Unit or bE.CFrame.LookVector;local eP=bE.CFrame+ui*(bt.dashDistance or 32)cF(eP)bE.AssemblyLinearVelocity=Vector3.zero;bE.CFrame=eP;O()end,function(oQ)local Jj={20,32,50,80}local HF=20;for dt,c7 in ipairs(Jj)do if c7==bt.dashDistance then HF=Jj[dt%#Jj+1]break end end;bt.dashDistance=HF;oQ.Text=tostring(HF)S("⚡ PHASE DASH","Dash distance: "..tostring(HF).." studs")end,tostring(bt.dashDistance))end;Er(F6,5,"Cinematic 4-Phase Flight")local Jk=Ew(F6,6)local Jl;local Jm;do local Jn,Jo=false,false;local Jp=nil;local Jq=nil;local Jr={{name="COCKY ⚡",idleId=121210361161914,moveId=99148979036185,maxForwardPitch=18,maxBankRoll=20,hoverAmplitude=1.15,hoverFreq=2.2,r15={takeoff={121210361161914,121210361161914,616115533},float={121210361161914,121210361161914,616006778},soar={99148979036185,121210361161914,616108001},land={121210361161914,121210361161914,616104706}},r6={takeoff={121210361161914,125750702,180436148},float={121210361161914,180436148,180435571},soar={99148979036185,180436148,125750702},land={121210361161914,180436148,180435571}}},{name="AURA ✨",idleId=125294976115462,moveId=99148979036185,maxForwardPitch=18,maxBankRoll=20,hoverAmplitude=1.15,hoverFreq=2.2,r15={takeoff={125294976115462,121210361161914,616115533},float={125294976115462,121210361161914,616006778},soar={99148979036185,125294976115462,616108001},land={125294976115462,121210361161914,616104706}},r6={takeoff={125294976115462,125750702,180436148},float={125294976115462,180436148,180435571},soar={99148979036185,180436148,125750702},land={125294976115462,180436148,180435571}}},{name="RELAXED 🌊",idleId=132783162476851,moveId=99148979036185,maxForwardPitch=18,maxBankRoll=20,hoverAmplitude=1.15,hoverFreq=2.2,r15={takeoff={132783162476851,121210361161914,616115533},float={132783162476851,121210361161914,616006778},soar={99148979036185,132783162476851,616108001},land={132783162476851,121210361161914,616104706}},r6={takeoff={132783162476851,125750702,180436148},float={132783162476851,180436148,180435571},soar={99148979036185,180436148,125750702},land={132783162476851,180436148,180435571}}},{name="LAID-BACK 😎",idleId=130754299055067,moveId=99148979036185,maxForwardPitch=18,maxBankRoll=20,hoverAmplitude=1.15,hoverFreq=2.2,r15={takeoff={130754299055067,121210361161914,616115533},float={130754299055067,121210361161914,616006778},soar={99148979036185,130754299055067,616108001},land={130754299055067,121210361161914,616104706}},r6={takeoff={130754299055067,125750702,180436148},float={130754299055067,180436148,180435571},soar={99148979036185,180436148,125750702},land={130754299055067,180436148,180435571}}},{name="CHILL ❄️",idleId=125815409725539,moveId=99148979036185,maxForwardPitch=18,maxBankRoll=20,hoverAmplitude=1.15,hoverFreq=2.2,r15={takeoff={125815409725539,121210361161914,616115533},float={125815409725539,121210361161914,616006778},soar={99148979036185,125815409725539,616108001},land={125815409725539,121210361161914,616104706}},r6={takeoff={125815409725539,125750702,180436148},float={125815409725539,180436148,180435571},soar={99148979036185,180436148,125750702},land={125815409725539,180436148,180435571}}},{name="CASUAL 🕊️",idleId=130104867308995,moveId=99148979036185,maxForwardPitch=18,maxBankRoll=20,hoverAmplitude=1.15,hoverFreq=2.2,r15={takeoff={130104867308995,121210361161914,616115533},float={130104867308995,121210361161914,616006778},soar={99148979036185,130104867308995,616108001},land={130104867308995,121210361161914,616104706}},r6={takeoff={130104867308995,125750702,180436148},float={130104867308995,180436148,180435571},soar={99148979036185,180436148,125750702},land={130104867308995,180436148,180435571}}},{name="SMUG 😏",idleId=83065143783783,moveId=99148979036185,maxForwardPitch=18,maxBankRoll=20,hoverAmplitude=1.15,hoverFreq=2.2,r15={takeoff={83065143783783,121210361161914,616115533},float={83065143783783,121210361161914,616006778},soar={99148979036185,83065143783783,616108001},land={83065143783783,121210361161914,616104706}},r6={takeoff={83065143783783,125750702,180436148},float={83065143783783,180436148,180435571},soar={99148979036185,180436148,125750702},land={83065143783783,180436148,180435571}}},{name="INTIMIDATING 🔥",idleId=113644780745425,moveId=99148979036185,maxForwardPitch=18,maxBankRoll=20,hoverAmplitude=1.15,hoverFreq=2.2,r15={takeoff={113644780745425,121210361161914,616115533},float={113644780745425,121210361161914,616006778},soar={99148979036185,113644780745425,616108001},land={113644780745425,121210361161914,616104706}},r6={takeoff={113644780745425,125750702,180436148},float={113644780745425,180436148,180435571},soar={99148979036185,180436148,125750702},land={113644780745425,180436148,180435571}}},{name="ANNOYED 💢",idleId=93326430026112,moveId=99148979036185,maxForwardPitch=18,maxBankRoll=20,hoverAmplitude=1.15,hoverFreq=2.2,r15={takeoff={93326430026112,121210361161914,616115533},float={93326430026112,121210361161914,616006778},soar={99148979036185,93326430026112,616108001},land={93326430026112,121210361161914,616104706}},r6={takeoff={93326430026112,125750702,180436148},float={93326430026112,180436148,180435571},soar={99148979036185,180436148,125750702},land={93326430026112,180436148,180435571}}},{name="DEMONIC 😈",idleId=98789048056989,moveId=99148979036185,maxForwardPitch=18,maxBankRoll=20,hoverAmplitude=1.15,hoverFreq=2.2,r15={takeoff={98789048056989,121210361161914,616115533},float={98789048056989,121210361161914,616006778},soar={99148979036185,98789048056989,616108001},land={98789048056989,121210361161914,616104706}},r6={takeoff={98789048056989,125750702,180436148},float={98789048056989,180436148,180435571},soar={99148979036185,180436148,125750702},land={98789048056989,180436148,180435571}}},{name="AGGRESSIVE ⚔️",idleId=95062290362918,moveId=99148979036185,maxForwardPitch=18,maxBankRoll=20,hoverAmplitude=1.15,hoverFreq=2.2,r15={takeoff={95062290362918,121210361161914,616115533},float={95062290362918,121210361161914,616006778},soar={99148979036185,95062290362918,616108001},land={95062290362918,121210361161914,616104706}},r6={takeoff={95062290362918,125750702,180436148},float={95062290362918,180436148,180435571},soar={99148979036185,180436148,125750702},land={95062290362918,180436148,180435571}}},{name="CONQUEST 👑",idleId=91850736796162,moveId=99148979036185,maxForwardPitch=18,maxBankRoll=20,hoverAmplitude=1.15,hoverFreq=2.2,r15={takeoff={91850736796162,121210361161914,616115533},float={91850736796162,121210361161914,616006778},soar={99148979036185,91850736796162,616108001},land={91850736796162,121210361161914,616104706}},r6={takeoff={91850736796162,125750702,180436148},float={91850736796162,180436148,180435571},soar={99148979036185,180436148,125750702},land={91850736796162,180436148,180435571}}},{name="VILTRUMITE 🦸",idleId=124574039035034,moveId=99148979036185,maxForwardPitch=18,maxBankRoll=20,hoverAmplitude=1.15,hoverFreq=2.2,r15={takeoff={124574039035034,121210361161914,616115533},float={124574039035034,121210361161914,616006778},soar={99148979036185,124574039035034,616108001},land={124574039035034,121210361161914,616104706}},r6={takeoff={124574039035034,125750702,180436148},float={124574039035034,180436148,180435571},soar={99148979036185,180436148,125750702},land={124574039035034,180436148,180435571}}},{name="TRACK-SUIT 🧥",idleId=125313210961391,moveId=99148979036185,maxForwardPitch=18,maxBankRoll=20,hoverAmplitude=1.15,hoverFreq=2.2,r15={takeoff={125313210961391,121210361161914,616115533},float={125313210961391,121210361161914,616006778},soar={99148979036185,125313210961391,616108001},land={125313210961391,121210361161914,616104706}},r6={takeoff={125313210961391,125750702,180436148},float={125313210961391,180436148,180435571},soar={99148979036185,180436148,125750702},land={125313210961391,180436148,180435571}}},{name="BALD-MARK 💥",idleId=10921259953,moveId=99148979036185,maxForwardPitch=18,maxBankRoll=20,hoverAmplitude=1.15,hoverFreq=2.2,r15={takeoff={10921259953,121210361161914,616115533},float={10921259953,121210361161914,616006778},soar={99148979036185,10921259953,616108001},land={10921259953,121210361161914,616104706}},r6={takeoff={10921259953,125750702,180436148},float={10921259953,180436148,180435571},soar={99148979036185,180436148,125750702},land={10921259953,180436148,180435571}}},{name="ALT-MARK ⚡",idleId=133330377145015,moveId=99148979036185,maxForwardPitch=18,maxBankRoll=20,hoverAmplitude=1.15,hoverFreq=2.2,r15={takeoff={133330377145015,121210361161914,616115533},float={133330377145015,121210361161914,616006778},soar={99148979036185,133330377145015,616108001},land={133330377145015,121210361161914,616104706}},r6={takeoff={133330377145015,125750702,180436148},float={133330377145015,180436148,180435571},soar={99148979036185,180436148,125750702},land={133330377145015,180436148,180435571}}}}local Js=setmetatable({},{__mode="k"})local Jt={}local Ju={}local Jv=nil;local Jw=false;local Jx={}local Jy=0;local function Jz(JA,JB,JC,JD,ti,l8,JE)if not bt.flyVFX then return end;pcall(function()local JF=JB and JB.Magnitude>0.1 and JB.Unit or Vector3.yAxis;local ec=math.abs(JF:Dot(Vector3.zAxis))<0.95 and JF:Cross(Vector3.zAxis).Unit or JF:Cross(Vector3.xAxis).Unit;local qK=CFrame.lookAt(JA,JA+ec,JF)local sI=Instance.new("Part")sI.Name="CocoFlyVFXRing"sI.Anchored=true;sI.CanCollide=false;sI.CanTouch=false;sI.CanQuery=false;sI.CastShadow=false;sI.Material=Enum.Material.Neon;sI.Color=l8 or C.Accent;sI.Transparency=0.18;sI.Size=Vector3.new(JC,0.18,JC)sI.CFrame=qK;sI.Parent=workspace.CurrentCamera or workspace;local jE=Instance.new("CylinderMesh")jE.Scale=Vector3.new(1,0.35,1)jE.Parent=sI;g:Create(sI,TweenInfo.new(ti or 0.45,Enum.EasingStyle.Quart,Enum.EasingDirection.Out),{Size=Vector3.new(JD,0.05,JD),Transparency=1}):Play()h:AddItem(sI,(ti or 0.45)+0.05)if JE then local r2=Instance.new("Part")r2.Name="CocoFlyVFXInner"r2.Anchored=true;r2.CanCollide=false;r2.CanTouch=false;r2.CanQuery=false;r2.CastShadow=false;r2.Material=Enum.Material.ForceField;r2.Color=C.Neon;r2.Transparency=0.25;r2.Shape=Enum.PartType.Ball;r2.Size=Vector3.new(JC*0.6,0.4,JC*0.6)r2.CFrame=qK*CFrame.new(0,0.35,0)r2.Parent=workspace.CurrentCamera or workspace;g:Create(r2,TweenInfo.new((ti or 0.45)*0.85,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{Size=Vector3.new(JD*0.72,1.8,JD*0.72),Transparency=1}):Play()h:AddItem(r2,(ti or 0.45)+0.05)end end)end;local function JG()for x,fb in ipairs(Jx)do pcall(function()fb:Destroy()end)end;Jx={}end;local function JH(cj,bE)JG()if not bt.flyVFX or not cj or not bE then return end;pcall(function()local f_=Instance.new("Attachment")f_.Name="CocoFlyTrailA0"f_.Position=Vector3.new(-0.85,0.4,0.2)f_.Parent=bE;local g0=Instance.new("Attachment")g0.Name="CocoFlyTrailA1"g0.Position=Vector3.new(0.85,-0.4,0.2)g0.Parent=bE;local i9=Instance.new("Trail")i9.Name="CocoFlyRibbonTrail"i9.Attachment0=f_;i9.Attachment1=g0;i9.Lifetime=0.32;i9.MinLength=0.05;i9.FaceCamera=true;i9.LightEmission=0.85;i9.Color=ColorSequence.new({ColorSequenceKeypoint.new(0,C.Neon),ColorSequenceKeypoint.new(0.45,C.Accent),ColorSequenceKeypoint.new(1,C.Accent2)})i9.Transparency=NumberSequence.new({NumberSequenceKeypoint.new(0,0.30),NumberSequenceKeypoint.new(0.65,0.68),NumberSequenceKeypoint.new(1,1.0)})i9.WidthScale=NumberSequence.new({NumberSequenceKeypoint.new(0,1.0),NumberSequenceKeypoint.new(1,0.0)})i9.Parent=bE;table.insert(Jx,f_)table.insert(Jx,g0)table.insert(Jx,i9)end)end;local function JI()for x,i9 in pairs(Ju)do pcall(function()i9:Stop(0.15)end)pcall(function()i9:Destroy()end)end;Ju={}Jv=nil end;local JJ={}local function JK(cj,Y,JL,e0)if not cj or not Y then return end;local JM=Jr[bt.flyStyle]or Jr[1]local JN=V(n)and JM.r15 or JM.r6;local JO=JN and JN[JL]if not JO or#JO==0 then return end;local JP=tostring(bt.flyStyle).."_"..JL;if Jv==JP and Ju[JP]then local b1=Ju[JP]local JQ=false;pcall(function()JQ=b1.IsPlaying end)if JQ then pcall(function()b1:AdjustSpeed(e0 or 1.0)end)return end;if os.clock()-(JJ[JP]or 0)<0.12 then return end end;JJ[JP]=os.clock()local cd=Y:FindFirstChildOfClass("Animator")if not cd then pcall(function()cd=Instance.new("Animator")cd.Parent=Y end)end;if not cd then return end;for fV,JR in pairs(Ju)do if fV~=JP then pcall(function()JR:Stop(0.18)end)pcall(function()JR:Destroy()end)Ju[fV]=nil end end;for x,bX in ipairs(JO)do local c0,i9=pcall(function()local iF=Instance.new("Animation")iF.AnimationId="rbxassetid://"..tostring(bX)local hX=cd:LoadAnimation(iF)hX.Priority=Enum.AnimationPriority.Action4;hX.Looped=true;hX:Play(0.18,1.0,e0 or 1.0)return hX end)if c0 and i9 then Ju[JP]=i9;Jv=JP;break end end end;local function JS(ty,JT,JU)if not ty or not ty.Parent then return end;if not Js[ty]then Js[ty]=ty.C0 end;local fc=Jt[ty]or CFrame.identity;local JV=fc:Lerp(JT or CFrame.identity,math.clamp(JU or 0.2,0.02,1.0))Jt[ty]=JV;pcall(function()ty.C0=Js[ty]*JV end)end;local function JW(cj)if next(Js)==nil then return end;for il,JX in pairs(Js)do if il and il.Parent then pcall(function()il.C0=JX end)end;Js[il]=nil;Jt[il]=nil end end;bt.restoreFlyJoints=JW;local JY=setmetatable({},{__mode="k"})local function JZ(cj,Y)local X=JY[cj]if X then return X end;local im=Y.RigType==Enum.HumanoidRigType.R15 or cj:FindFirstChild("LowerTorso")~=nil;if im then local hp=cj:FindFirstChild("LowerTorso")local hv=cj:FindFirstChild("UpperTorso")local cv=cj:FindFirstChild("Head")local hq=cj:FindFirstChild("RightUpperArm")local hw=cj:FindFirstChild("RightLowerArm")local hr=cj:FindFirstChild("LeftUpperArm")local hx=cj:FindFirstChild("LeftLowerArm")local hs=cj:FindFirstChild("RightUpperLeg")local hy=cj:FindFirstChild("RightLowerLeg")local ht=cj:FindFirstChild("LeftUpperLeg")local hz=cj:FindFirstChild("LeftLowerLeg")X={r15=true,mRoot=hp and hp:FindFirstChild("Root"),mWaist=hv and hv:FindFirstChild("Waist"),mNeck=cv and cv:FindFirstChild("Neck"),mRSh=hq and hq:FindFirstChild("RightShoulder"),mRElb=hw and hw:FindFirstChild("RightElbow"),mLSh=hr and hr:FindFirstChild("LeftShoulder"),mLElb=hx and hx:FindFirstChild("LeftElbow"),mRHip=hs and hs:FindFirstChild("RightHip"),mRKnee=hy and hy:FindFirstChild("RightKnee"),mLHip=ht and ht:FindFirstChild("LeftHip"),mLKnee=hz and hz:FindFirstChild("LeftKnee")}else local zS=cj:FindFirstChild("HumanoidRootPart")local ix=cj:FindFirstChild("Torso")X={r15=false,mRootJ=zS and zS:FindFirstChild("RootJoint"),mNeck=ix and ix:FindFirstChild("Neck"),mRSh=ix and ix:FindFirstChild("Right Shoulder"),mLSh=ix and ix:FindFirstChild("Left Shoulder"),mRHip=ix and ix:FindFirstChild("Right Hip"),mLHip=ix and ix:FindFirstChild("Left Hip")}end;JY[cj]=X;return X end;local function J_(cj,Y,dS,K0,dx,K1,dU)if not cj or not Y then return end;local kd=math.clamp((dU or 1/60)*12,0.08,0.45)local K2=bt.flyStyle or 1;local u5=math.sin(dx*2.6)local ue=math.cos(dx*1.8)local K3=JZ(cj,Y)if K3.r15 then local gY,iv,iw=K3.mRoot,K3.mWaist,K3.mNeck;local is,it,K4,K5=K3.mRSh,K3.mRElb,K3.mLSh,K3.mLElb;local K6,K7,K8,K9=K3.mRHip,K3.mRKnee,K3.mLHip,K3.mLKnee;if dS=="TAKEOFF"then if K0<0.14 then JS(gY,CFrame.new(0,-0.45,0)*CFrame.Angles(math.rad(-14),0,0),kd*1.6)JS(iv,CFrame.Angles(math.rad(-12),0,0),kd*1.6)JS(iw,CFrame.Angles(math.rad(22),0,0),kd*1.6)JS(is,CFrame.Angles(math.rad(-32),0,math.rad(16)),kd*1.6)JS(K4,CFrame.Angles(math.rad(-32),0,math.rad(-16)),kd*1.6)JS(it,CFrame.Angles(math.rad(35),0,0),kd*1.6)JS(K5,CFrame.Angles(math.rad(35),0,0),kd*1.6)JS(K6,CFrame.Angles(math.rad(42),0,0),kd*1.6)JS(K7,CFrame.Angles(math.rad(-68),0,0),kd*1.6)JS(K8,CFrame.Angles(math.rad(36),0,0),kd*1.6)JS(K9,CFrame.Angles(math.rad(-58),0,0),kd*1.6)else JS(gY,CFrame.new(0,0.25,0)*CFrame.Angles(math.rad(10),0,0),kd*1.3)JS(iv,CFrame.Angles(math.rad(12),0,0),kd*1.3)JS(iw,CFrame.Angles(math.rad(18),0,0),kd*1.3)JS(is,CFrame.Angles(math.rad(-24),0,math.rad(26)),kd*1.3)JS(K4,CFrame.Angles(math.rad(-24),0,math.rad(-26)),kd*1.3)JS(it,CFrame.Angles(math.rad(18),0,0),kd*1.3)JS(K5,CFrame.Angles(math.rad(18),0,0),kd*1.3)JS(K6,CFrame.Angles(math.rad(52),0,math.rad(6)),kd*1.3)JS(K7,CFrame.Angles(math.rad(-72),0,0),kd*1.3)JS(K8,CFrame.Angles(math.rad(-16),0,math.rad(-4)),kd*1.3)JS(K9,CFrame.Angles(math.rad(-14),0,0),kd*1.3)end elseif dS=="LANDING"then JS(gY,CFrame.new(0,-0.75,0)*CFrame.Angles(math.rad(-28),math.rad(-12),0),kd*1.8)JS(iv,CFrame.Angles(math.rad(-22),math.rad(10),0),kd*1.8)JS(iw,CFrame.Angles(math.rad(38),math.rad(-8),0),kd*1.8)JS(is,CFrame.Angles(math.rad(68),0,math.rad(12)),kd*1.8)JS(it,CFrame.Angles(math.rad(14),0,0),kd*1.8)JS(K4,CFrame.Angles(math.rad(-42),0,math.rad(-28)),kd*1.8)JS(K5,CFrame.Angles(math.rad(28),0,0),kd*1.8)JS(K6,CFrame.Angles(math.rad(65),0,math.rad(10)),kd*1.8)JS(K7,CFrame.Angles(math.rad(-85),0,0),kd*1.8)JS(K8,CFrame.Angles(math.rad(-22),0,math.rad(-8)),kd*1.8)JS(K9,CFrame.Angles(math.rad(-75),0,0),kd*1.8)elseif dS=="FLOAT"then if K2==3 then JS(gY,CFrame.new(0,u5*0.15,0)*CFrame.Angles(math.rad(16+u5*3),math.rad(ue*4),0),kd)JS(iv,CFrame.Angles(math.rad(8+u5*2),0,0),kd)JS(iw,CFrame.Angles(math.rad(-14),math.rad(-ue*5),0),kd)JS(is,CFrame.Angles(math.rad(12+u5*6),0,math.rad(34+u5*5)),kd)JS(K4,CFrame.Angles(math.rad(12+u5*6),0,math.rad(-34-u5*5)),kd)JS(it,CFrame.Angles(math.rad(28+ue*5),0,0),kd)JS(K5,CFrame.Angles(math.rad(28-ue*5),0,0),kd)JS(K6,CFrame.Angles(math.rad(28+u5*4),0,math.rad(8)),kd)JS(K7,CFrame.Angles(math.rad(-48),0,0),kd)JS(K8,CFrame.Angles(math.rad(-8+ue*3),0,math.rad(-6)),kd)JS(K9,CFrame.Angles(math.rad(-22),0,0),kd)else JS(gY,CFrame.new(0,u5*0.12,0)*CFrame.Angles(math.rad(4+u5*2.5),math.rad(ue*3),0),kd)JS(iv,CFrame.Angles(math.rad(4+u5*2),0,0),kd)JS(iw,CFrame.Angles(math.rad(-4-u5*2),math.rad(-ue*3),0),kd)JS(is,CFrame.Angles(math.rad(-8+u5*5),0,math.rad(20+u5*4)),kd)JS(K4,CFrame.Angles(math.rad(-8+u5*5),0,math.rad(-20-u5*4)),kd)JS(it,CFrame.Angles(math.rad(24+u5*4),0,0),kd)JS(K5,CFrame.Angles(math.rad(24+u5*4),0,0),kd)JS(K6,CFrame.Angles(math.rad(38+u5*4),0,math.rad(6)),kd)JS(K7,CFrame.Angles(math.rad(-56-u5*4),0,0),kd)JS(K8,CFrame.Angles(math.rad(-10-u5*2),0,math.rad(-5)),kd)JS(K9,CFrame.Angles(math.rad(-16),0,0),kd)end else local Ka=math.clamp(K1 or 0.5,0.2,1.0)if K2==1 then JS(gY,CFrame.Angles(math.rad(-10*Ka),0,0),kd)JS(iv,CFrame.Angles(math.rad(-8*Ka),0,0),kd)JS(iw,CFrame.Angles(math.rad(36*Ka+8),0,0),kd)JS(is,CFrame.Angles(math.rad(145*Ka),0,math.rad(8)),kd)JS(it,CFrame.Angles(math.rad(12),0,0),kd)JS(K4,CFrame.Angles(math.rad(-42*Ka),0,math.rad(-14)),kd)JS(K5,CFrame.Angles(math.rad(16),0,0),kd)JS(K6,CFrame.Angles(math.rad(-16*Ka+u5*3),0,math.rad(3)),kd)JS(K7,CFrame.Angles(math.rad(-12),0,0),kd)JS(K8,CFrame.Angles(math.rad(-12*Ka-u5*3),0,math.rad(-3)),kd)JS(K9,CFrame.Angles(math.rad(-18),0,0),kd)elseif K2==2 then JS(gY,CFrame.Angles(math.rad(-16*Ka),0,0),kd)JS(iv,CFrame.Angles(math.rad(-14*Ka),0,0),kd)JS(iw,CFrame.Angles(math.rad(34*Ka+6),0,0),kd)JS(is,CFrame.Angles(math.rad(-62),0,math.rad(18+u5*3)),kd)JS(K4,CFrame.Angles(math.rad(-62),0,math.rad(-18-u5*3)),kd)JS(it,CFrame.Angles(math.rad(10),0,0),kd)JS(K5,CFrame.Angles(math.rad(10),0,0),kd)JS(K6,CFrame.Angles(math.rad(22+u5*6),0,0),kd)JS(K7,CFrame.Angles(math.rad(-42),0,0),kd)JS(K8,CFrame.Angles(math.rad(-24-u5*6),0,0),kd)JS(K9,CFrame.Angles(math.rad(-28),0,0),kd)else JS(gY,CFrame.Angles(math.rad(-6*Ka),0,0),kd)JS(iv,CFrame.Angles(math.rad(-6*Ka),0,0),kd)JS(iw,CFrame.Angles(math.rad(20*Ka),0,0),kd)JS(is,CFrame.Angles(math.rad(-28*Ka),0,math.rad(24+u5*4)),kd)JS(K4,CFrame.Angles(math.rad(-28*Ka),0,math.rad(-24-u5*4)),kd)JS(it,CFrame.Angles(math.rad(22),0,0),kd)JS(K5,CFrame.Angles(math.rad(22),0,0),kd)JS(K6,CFrame.Angles(math.rad(18+u5*3),0,math.rad(5)),kd)JS(K7,CFrame.Angles(math.rad(-32),0,0),kd)JS(K8,CFrame.Angles(math.rad(-12-u5*3),0,math.rad(-5)),kd)JS(K9,CFrame.Angles(math.rad(-16),0,0),kd)end end else local Kb,iw=K3.mRootJ,K3.mNeck;local is,K4,K6,K8=K3.mRSh,K3.mLSh,K3.mRHip,K3.mLHip;if dS=="TAKEOFF"then JS(Kb,CFrame.new(0,0,0.2)*CFrame.Angles(math.rad(-12),0,0),kd*1.4)JS(iw,CFrame.Angles(math.rad(-18),0,0),kd*1.4)JS(is,CFrame.Angles(math.rad(22),0,math.rad(-28)),kd*1.4)JS(K4,CFrame.Angles(math.rad(22),0,math.rad(28)),kd*1.4)JS(K6,CFrame.Angles(0,0,math.rad(38)),kd*1.4)JS(K8,CFrame.Angles(0,0,math.rad(18)),kd*1.4)elseif dS=="LANDING"then JS(Kb,CFrame.new(0,0,-0.65)*CFrame.Angles(math.rad(28),0,0),kd*1.8)JS(iw,CFrame.Angles(math.rad(-32),0,0),kd*1.8)JS(is,CFrame.Angles(0,0,math.rad(65)),kd*1.8)JS(K4,CFrame.Angles(0,0,math.rad(35)),kd*1.8)JS(K6,CFrame.Angles(0,0,math.rad(55)),kd*1.8)JS(K8,CFrame.Angles(0,0,math.rad(25)),kd*1.8)elseif dS=="FLOAT"then JS(Kb,CFrame.new(0,0,u5*0.12)*CFrame.Angles(math.rad(-6-u5*3),math.rad(ue*3),0),kd)JS(iw,CFrame.Angles(math.rad(6+u5*2),0,0),kd)JS(is,CFrame.Angles(math.rad(18+u5*5),0,math.rad(-12+u5*4)),kd)JS(K4,CFrame.Angles(math.rad(18+u5*5),0,math.rad(12-u5*4)),kd)JS(K6,CFrame.Angles(0,0,math.rad(26+u5*4)),kd)JS(K8,CFrame.Angles(0,0,math.rad(10+u5*2)),kd)else local Ka=math.clamp(K1 or 0.5,0.2,1.0)local Kc=K2==1 and math.rad(135*Ka)or math.rad(-52*Ka)local Kd=K2==2 and math.rad(52*Ka)or math.rad(32*Ka)JS(Kb,CFrame.Angles(math.rad(10*Ka),0,0),kd)JS(iw,CFrame.Angles(math.rad(-32*Ka),0,0),kd)JS(is,CFrame.Angles(math.rad(12),0,Kc),kd)JS(K4,CFrame.Angles(math.rad(12),0,Kd),kd)JS(K6,CFrame.Angles(0,0,math.rad(-14*Ka+u5*3)),kd)JS(K8,CFrame.Angles(0,0,math.rad(14*Ka+u5*3)),kd)end end end;local Ke=RaycastParams.new()Ke.FilterType=Enum.RaycastFilterType.Exclude;Ke.IgnoreWater=false;Ke.RespectCanCollide=true;local Kf,Kg,Kh=nil,nil,nil;local function Ki(cj,bE,fj)if not bE then return nil,nil,math.huge end;local lX=workspace.CurrentCamera;local Kj=bs and bs.Void and bs.Void.safetyFloor or nil;if cj~=Kf or lX~=Kg or Kj~=Kh then Kf,Kg,Kh=cj,lX,Kj;local Kk={cj}if lX then Kk[#Kk+1]=lX end;if Kj then Kk[#Kk+1]=Kj end;Ke.FilterDescendantsInstances=Kk end;local gK=workspace:Raycast(bE.Position,Vector3.new(0,-(fj or 25),0),Ke)if gK and gK.Position then return gK.Position,gK.Normal,bE.Position.Y-gK.Position.Y end;return nil,nil,math.huge end;local Kl=nil;local Km,Kn=nil,nil;local function Ko()if Kl then Kl:Disconnect()Kl=nil end;if Jp then pcall(function()Jp:Destroy()end)Jp=nil;Jq=nil end;Km=nil;Kn=nil;Jn=false;Jo=false end;local function Kp()Ko()if not p or not p.Parent then return end;pcall(function()Jp=Instance.new("Frame")Jp.Name="CocoMobileFlyHUD"Jp.Size=UDim2.new(0,76,0,162)Jp.Position=UDim2.new(1,-90,0.5,-81)Jp.BackgroundColor3=C.BG2;Jp.BackgroundTransparency=0.16;Jp.BorderSizePixel=0;Jp.ZIndex=200;Jp.Parent=p;Instance.new("UICorner",Jp).CornerRadius=UDim.new(0,12)local l3=Instance.new("UIStroke")l3.Color=C.Accent;l3.Thickness=1.4;l3.Transparency=0.2;l3.Parent=Jp;local Kq=Instance.new("TextLabel")Kq.Size=UDim2.new(1,0,0,18)Kq.Position=UDim2.new(0,0,0,2)Kq.BackgroundTransparency=1;Kq.Text="FLIGHT HUD"Kq.TextColor3=C.Neon;Kq.Font=Enum.Font.GothamBold;Kq.TextSize=8;Kq.ZIndex=201;Kq.Parent=Jp;Jq=Instance.new("TextLabel")Jq.Size=UDim2.new(1,-8,0,16)Jq.Position=UDim2.new(0,4,0,18)Jq.BackgroundColor3=C.Panel;Jq.Text="FLOATING"Jq.TextColor3=C.Success;Jq.Font=Enum.Font.GothamBold;Jq.TextSize=8;Jq.ZIndex=201;Jq.Parent=Jp;Instance.new("UICorner",Jq).CornerRadius=UDim.new(0,5)local Kr=Instance.new("TextButton")Kr.Name="AscendBtn"Kr.Size=UDim2.new(1,-12,0,54)Kr.Position=UDim2.new(0,6,0,38)Kr.BackgroundColor3=C.Panel;Kr.Text="▲\nASCEND"Kr.TextColor3=Color3.new(1,1,1)Kr.Font=Enum.Font.GothamBold;Kr.TextSize=10;Kr.ZIndex=201;Kr.AutoButtonColor=false;Kr.Parent=Jp;Instance.new("UICorner",Kr).CornerRadius=UDim.new(0,8)local Ks=Instance.new("TextButton")Ks.Name="DescendBtn"Ks.Size=UDim2.new(1,-12,0,54)Ks.Position=UDim2.new(0,6,0,100)Ks.BackgroundColor3=C.Panel;Ks.Text="▼\nLAND / DOWN"Ks.TextColor3=Color3.new(1,1,1)Ks.Font=Enum.Font.GothamBold;Ks.TextSize=9;Ks.ZIndex=201;Ks.AutoButtonColor=false;Ks.Parent=Jp;Instance.new("UICorner",Ks).CornerRadius=UDim.new(0,8)Kr.InputBegan:Connect(function(DK)if DK.UserInputType==Enum.UserInputType.MouseButton1 or DK.UserInputType==Enum.UserInputType.Touch then Km=DK;Jn=true;Kr.BackgroundColor3=C.Accent2 end end)Kr.InputEnded:Connect(function(DK)if DK==Km or DK.UserInputType==Enum.UserInputType.MouseButton1 or DK.UserInputType==Enum.UserInputType.Touch then Km=nil;Jn=false;Kr.BackgroundColor3=C.Panel end end)Ks.InputBegan:Connect(function(DK)if DK.UserInputType==Enum.UserInputType.MouseButton1 or DK.UserInputType==Enum.UserInputType.Touch then Kn=DK;Jo=true;Ks.BackgroundColor3=C.Accent2 end end)Ks.InputEnded:Connect(function(DK)if DK==Kn or DK.UserInputType==Enum.UserInputType.MouseButton1 or DK.UserInputType==Enum.UserInputType.Touch then Kn=nil;Jo=false;Ks.BackgroundColor3=C.Panel end end)Kl=f.InputEnded:Connect(function(DK)if DK==Km or DK.UserInputType==Enum.UserInputType.MouseButton1 then Km=nil;Jn=false;if Kr and Kr.Parent then Kr.BackgroundColor3=C.Panel end end;if DK==Kn or DK.UserInputType==Enum.UserInputType.MouseButton1 then Kn=nil;Jo=false;if Ks and Ks.Parent then Ks.BackgroundColor3=C.Panel end end end)end)end;local function Kt(cj,bE)if bE then for x,y in ipairs(bE:GetChildren())do if y.Name=="CocoFlyVelocity"or y.Name=="CocoFlyGyro"then pcall(function()y:Destroy()end)end end end;if cj then for x,eu in ipairs(cj:GetDescendants())do if eu.Name=="CocoFlyVelocity"or eu.Name=="CocoFlyGyro"then pcall(function()eu:Destroy()end)end end end end;local function Ku(Kv)bt.fly=false;bt.flyLanding=false;bt.flyPhase="OFF"if bt.flyConn then bt.flyConn:Disconnect()bt.flyConn=nil end;Ko()JG()local bm,Y,bE=J0()if Kv and bm and bE then local sN,Kw,Kx=Ki(bm,bE,18)if sN and Kx<18 then pcall(function()O()Jz(sN+Vector3.new(0,0.1,0),Kw,2.2,15.0,0.48,C.Accent,true)end)end end;JI()JW(bm)Kt(bm,bE)if bE then pcall(function()bE.AssemblyLinearVelocity=Vector3.zero;bE.AssemblyAngularVelocity=Vector3.zero;local x,Ky,x=bE.CFrame:ToEulerAnglesYXZ()bE.CFrame=CFrame.new(bE.Position)*CFrame.Angles(0,Ky,0)end)end;if bm and not bt.noclip then for x,cw in ipairs(bm:GetChildren())do if cw:IsA("BasePart")and(cw.Name=="HumanoidRootPart"or cw.Name=="Torso"or cw.Name=="UpperTorso"or cw.Name=="LowerTorso"or cw.Name=="Head")then pcall(function()cw.CanCollide=true end)end end end;if bm and Jw and _==nil then local Kz=bm:FindFirstChild("Animate")if Kz then Kz.Disabled=false end;Jw=false end;if Y then Y.PlatformStand=false;Y.Sit=false;Y.Jump=false;Y.AutoRotate=true;if Y.Health>0 and _==nil then pcall(function()Y:ChangeState(Enum.HumanoidStateType.GettingUp)end)pcall(function()Y:ChangeState(Enum.HumanoidStateType.Running)end)end end;if Jl then Jl.Text="Takeoff, zero-G float, supersonic soar & 3-point land"end;if Jm then Jm.setState(false,false)end;if bA then pcall(bA)end end;bt.stopFlyImmediate=function()Ku(false)end;local KA=function()local bm,Y,bE=J0()if not bm or not Y or not bE then S("Movement","Character not ready.")if Jm then Jm.setState(false,false)end;return end;if bt.fly or bt.flyLanding then Ku(true)N()return end;if Jm then Jm.setState(true,false)end;bt.fly=true;bt.flyLanding=false;bt.flyPhase="TAKEOFF"Kt(bm,bE)local KB=Instance.new("BodyVelocity")KB.Name="CocoFlyVelocity"KB.MaxForce=Vector3.new(1e6,1e6,1e6)KB.P=2.5e4;KB.Velocity=Vector3.zero;KB.Parent=bE;local rK=Instance.new("BodyGyro")rK.Name="CocoFlyGyro"rK.MaxTorque=Vector3.new(1e6,1e6,1e6)rK.P=1.8e4;rK.D=550;rK.CFrame=bE.CFrame;rK.Parent=bE;local Kz=bm:FindFirstChild("Animate")if Kz and not Kz.Disabled then Kz.Disabled=true;Jw=true end;pcall(function()cc(bm)end)Y.PlatformStand=true;Y.Jump=false;Y.AutoRotate=false;if Jl then Jl.Text="Active Phase: [TAKING OFF 🚀]"end;pcall(Kp)pcall(function()JH(bm,bE)end)O()if bA then pcall(bA)end;local sN,Kw,Kx=Ki(bm,bE,14)local KC=sN and Kx<12 and sN+Vector3.new(0,0.1,0)or bE.Position-Vector3.new(0,2.6,0)pcall(function()Jz(KC,Kw or Vector3.yAxis,2.0,14.5,0.50,C.Accent,true)end)local KD=tick()local KE=KD;local KF=0;local KG=Vector3.zero;local KH=bE.Position.Y+(sN and Kx<8 and 2.8 or 0)local KI=nil;local KJ=false;local KK=0;local KL=tick()pcall(function()JK(bm,Y,"takeoff",1.15)end)bt.flyConn=d.RenderStepped:Connect(function(dU)dU=math.clamp(dU or 1/60,1/240,0.1)if not bt.fly or not bE.Parent or not Y.Parent or Y.Health<=0 or not KB.Parent or not rK.Parent then Ku(false)return end;local X=workspace.CurrentCamera;if not X then return end;if Y.Jump then Y.Jump=false end;if _==nil then local KM=bm:FindFirstChild("Animate")if KM and not KM.Disabled then KM.Disabled=true;Jw=true end;if not Y.PlatformStand then Y.PlatformStand=true end end;if Km and(Km.UserInputState==Enum.UserInputState.End or Km.UserInputState==Enum.UserInputState.Cancel)then Km=nil;Jn=false end;if Kn and(Kn.UserInputState==Enum.UserInputState.End or Kn.UserInputState==Enum.UserInputState.Cancel)then Kn=nil;Jo=false end;local ui=Vector3.zero;local m1=X.CFrame.LookVector;local m2=X.CFrame.RightVector;if not f:GetFocusedTextBox()then if f:IsKeyDown(Enum.KeyCode.W)then ui=ui+m1 end;if f:IsKeyDown(Enum.KeyCode.S)then ui=ui-m1 end;if f:IsKeyDown(Enum.KeyCode.D)then ui=ui+m2 end;if f:IsKeyDown(Enum.KeyCode.A)then ui=ui-m2 end;if f:IsKeyDown(Enum.KeyCode.Space)then ui=ui+Vector3.yAxis end;if f:IsKeyDown(Enum.KeyCode.LeftControl)or f:IsKeyDown(Enum.KeyCode.C)then ui=ui-Vector3.yAxis end end;if Y.MoveDirection.Magnitude>0.05 then local ed=Vector3.new(m1.X,0,m1.Z)local gu=Vector3.new(m2.X,0,m2.Z)ed=ed.Magnitude>0.01 and ed.Unit or Vector3.new(0,0,-1)gu=gu.Magnitude>0.01 and gu.Unit or Vector3.new(1,0,0)local KN=Y.MoveDirection:Dot(ed)local KO=Y.MoveDirection:Dot(gu)ui=ui+m1*KN+m2*KO end;if Jn then ui=ui+Vector3.yAxis end;if Jo then ui=ui-Vector3.yAxis end;local ct=tick()local KP=ct-KD;local JM=Jr[bt.flyStyle]or Jr[1]local KQ=ui.Magnitude>0.05;local KR=KQ and ui.Unit or Vector3.zero;local KS=math.max(28,vJ)local K1=math.clamp(KS/120,0.35,1.4)local KT,KU,Kx=Ki(bm,bE,10)local KV=Y.RigType==Enum.HumanoidRigType.R15 and math.max(1.8,Y.HipHeight)+1.0 or 3.0;local KW=bt.flyPhase;if KP<0.42 and not KQ then KW="TAKEOFF"elseif KT and Kx<=KV+1.8 and(KR.Y<-0.15 or not KQ and ct-KK<0.42)then if KW~="LANDING"and ct-KK>0.85 then KK=ct;KE=ct;Jz(KT+Vector3.new(0,0.08,0),KU,1.8,12.0,0.40,C.Neon,true)O()end;KW="LANDING"elseif KQ then if not KJ and ct-Jy>0.65 then Jy=ct;Jz(bE.Position-KR*1.5,KR,1.6,9.5,0.35,C.Accent,false)end;KJ=true;if KT and Kx<KV+4.0 and KR.Y>0.45 then KW="TAKEOFF"else KW="SOAR"end else KJ=false;KW="FLOAT"end;if KW~=bt.flyPhase then bt.flyPhase=KW;KE=ct;if Jl then local b5=KW=="TAKEOFF"and"[TAKING OFF 🚀]"or KW=="LANDING"and"[LANDING 💥]"or KW=="SOAR"and"[SOARING ⚡]"or"[FLOATING ✨]"Jl.Text="FLY  ·  ON  "..b5 end;if Jq and Jq.Parent then Jq.Text=KW;Jq.TextColor3=KW=="SOAR"and C.Neon or KW=="TAKEOFF"and C.Warning or KW=="LANDING"and C.Pink or C.Success end end;KF=KF+dU;local KX=Vector3.zero;if KQ then KX=KR*KS;if KT and Kx<=KV+0.35 and KX.Y<0 then KX=Vector3.new(KX.X,0,KX.Z)end;KH=bE.Position.Y else local KY=math.sin(KF*JM.hoverFreq)*math.min(JM.hoverAmplitude*0.25,0.45)local KZ=KH+KY;local K_=math.clamp((KZ-bE.Position.Y)*6.5,-16,16)local L0=math.cos(KF*JM.hoverFreq*0.6)*0.25;KX=Vector3.new(L0,K_,0)if bt.flyVFX and ct-KL>1.35 then KL=ct;Jz(bE.Position-Vector3.new(0,2.7,0),Vector3.yAxis,1.4,5.8,0.65,C.Accent2,false)end end;KG=KG:Lerp(KX,math.clamp(dU*14,0.12,1.0))KB.Velocity=KG;local x,L1,x=X.CFrame:ToEulerAnglesYXZ()local L2=0;if KI then L2=math.atan2(math.sin(L1-KI),math.cos(L1-KI))/dU end;KI=L1;local L3=Vector3.new(m1.X,0,m1.Z)L3=L3.Magnitude>0.01 and L3.Unit or Vector3.new(0,0,-1)local L4=Vector3.new(m2.X,0,m2.Z)L4=L4.Magnitude>0.01 and L4.Unit or Vector3.new(1,0,0)local L5=KR:Dot(L3)local L6=KR:Dot(L4)local L7=0;local L8=0;if KW=="TAKEOFF"then L7=math.rad(12*math.clamp(1.0-(ct-KE)*2.0,-0.2,1.0))L8=math.rad(math.clamp(-L6*18,-22,22))elseif KW=="LANDING"then L7=math.rad(-16)L8=0 elseif KQ then local L9=JM.maxForwardPitch or 55;local La=0;if L5>=0 then La=-L5*L9*math.clamp(0.65+K1*0.35,0.65,1.15)else La=-L5*24 end;local Lb=KR.Y*32;L7=math.rad(math.clamp(La+Lb,-74,52))local Lc=JM.maxBankRoll or 36;local Ld=-L6*Lc;local Le=math.clamp(-L2*2.8,-22,22)*math.abs(L5)L8=math.rad(math.clamp(Ld+Le,-48,48))else L7=math.rad(math.sin(KF*JM.hoverFreq)*3.5)L8=math.rad(math.cos(KF*JM.hoverFreq*0.65)*2.5)end;local Lf=CFrame.new(bE.Position)*CFrame.Angles(0,L1,0)local Lg=Lf*CFrame.Angles(L7,0,L8)rK.CFrame=rK.CFrame:Lerp(Lg,math.clamp(dU*12,0.08,1.0))pcall(function()if KQ or KW=="SOAR"then JK(bm,Y,"soar",1.0)else JK(bm,Y,"float",1.0)end;local Lh=Jv and Ju[Jv]local Li=V(n)and Lh and Lh.IsPlaying;if Li then JW(bm)else J_(bm,Y,KW,ct-KE,KF,K1,dU)end end)end)end;bt.toggleFly=KA;Jm=EC(Jk,1,"4-Phase Cinematic Flight","Takeoff, zero-G float, supersonic soar & 3-point land",false,function()KA()end)Jl=Jm.subLbl;local Lj=EN(Jk,2,"Flight Style & Quick Pill","Tap pill to cycle style · Tap [⦿] to pin Fly quick-pill",Jr[bt.flyStyle].name:gsub(" .*",""),function(EU)bt.flyStyle=bt.flyStyle%#Jr+1;local b4=Jr[bt.flyStyle]EU.Text=b4.name:gsub(" .*","")Jv=nil;S("Flight Style","Switched to "..b4.name)end,function()Fh("fly")end,Fn["fly"]and"✓"or"⦿")Fm["fly"]={pillBtn=Lj.pillBtn,pillStroke=Lj.pillStroke,circleBtn=Lj.circleBtn,circleStroke=Lj.circleStroke,defaultLabel=Jr[bt.flyStyle].name:gsub(" .*","")}EC(Jk,3,"Flight shockwave & trail VFX","Spawns sonic rings, hover aura & neon ribbon trails",bt.flyVFX,function(b4)bt.flyVFX=b4;if bt.fly then local bm,x,bE=J0()if bt.flyVFX then JH(bm,bE)else JG()end else JG()end end)end;Er(F6,7,"Vanish Player & Ghost Invisibility Engine")local Lk=Ew(F6,8)local Ll=EC(Lk,1,"Self Vanish (Ghost Invisibility) [Key: H]","Hides your real character & lets you walk unseen as a local Ghost",bt.Vanish.selfActive,function(b4)if b4 then bt.Vanish:StartSelfVanish()else bt.Vanish:StopSelfVanish(false)end end)table.insert(bt.Vanish.uiSwitchSetters,Ll.setState)local Lm={"Skybox","Underground","BlinkDesync"}local Ln=1;EN(Lk,2,"Self Vanish Hide Pocket & Pill","Tap pill to cycle hide pocket · Tap [⦿] to pin Vanish floating pill",bt.Vanish.hideMode,function(EU)Ln=Ln%#Lm+1;bt.Vanish.hideMode=Lm[Ln]EU.Text=bt.Vanish.hideMode;S("👻 VANISH MODE","Self-Vanish pocket set to: "..bt.Vanish.hideMode)end,function()Fh("vanish")end,Fn["vanish"]and"✓"or"⦿")EC(Lk,3,"Reappear at Ghost Position","ON: unvanish where your Ghost is standing · OFF: return to start spot",bt.Vanish.unvanishAtGhost,function(b4)bt.Vanish.unvanishAtGhost=b4;S("👻 UNVANISH SPOT",b4 and"Will reappear at Ghost position"or"Will return to original start position")end)EN(Lk,4,"Vanish Target Player (Erase from Game)","Tap [Vanish] to erase/restore target · Tap [↺] to restore all players","Vanish",function(EU)local Lo=bt.Vanish:ToggleTargetVanish()EU.Text=Lo and"Vanished"or"Vanish"end,function()bt.Vanish:RestoreAllVanishedTargets()end,"↺")EN(Lk,5,"Server Void-Vanish Target (Banish for All)","Buries & banishes target player into the Void for the whole server","Banish ⚡",function()bt.Vanish:ServerBanishTarget()end,function()Fh("vanishtgt")end,Fn["vanishtgt"]and"✓"or"⦿")Er(F6,9,"FPS Booster, Anti-Lag & Vision Optimizer")local Lp=Ew(F6,10)EC(Lp,1,"Ultra FPS Booster & Lag Reducer","Disables heavy shadows, particles & reflections (reversible)",bt.fpsBoost,function(b4)bt.fpsBoost=b4;local jH=game:GetService("Lighting")if b4 then if not bt.savedLighting then bt.savedLighting={GlobalShadows=jH.GlobalShadows,FogEnd=jH.FogEnd,Brightness=jH.Brightness,ClockTime=jH.ClockTime,Ambient=jH.Ambient,OutdoorAmbient=jH.OutdoorAmbient}end;pcall(function()jH.GlobalShadows=false end)task.spawn(function()local fJ=workspace:GetDescendants()for eY,cU in ipairs(fJ)do if not bt.fpsBoost then break end;if cU:IsA("BasePart")and not(n.Character and cU:IsDescendantOf(n.Character))then if cU.CastShadow then bt.savedFpsParts[cU]=true;cU.CastShadow=false end elseif(cU:IsA("ParticleEmitter")or cU:IsA("Smoke")or cU:IsA("Fire")or cU:IsA("Sparkles"))and cU.Enabled then if not cU.Name:match("^Coco")then bt.savedFpsEffects[cU]=true;cU.Enabled=false end end;if eY%1000==0 then d.Heartbeat:Wait()end end end)S("🚀 FPS BOOSTER","Ultra FPS Booster ON — shadows & laggy particles suppressed!")M()else if bt.savedLighting and not bt.fullbright then pcall(function()jH.GlobalShadows=bt.savedLighting.GlobalShadows end)end;for bJ,x in pairs(bt.savedFpsParts)do if bJ and bJ.Parent then pcall(function()bJ.CastShadow=true end)end;bt.savedFpsParts[bJ]=nil end;for p9,x in pairs(bt.savedFpsEffects)do if p9 and p9.Parent then pcall(function()p9.Enabled=true end)end;bt.savedFpsEffects[p9]=nil end;S("🚀 FPS BOOSTER","FPS Booster disabled & visual effects restored")N()end end)EC(Lp,2,"Fullbright & No-Fog Vision","Crystal-clear daylight illumination & zero map fog",bt.fullbright,function(b4)bt.fullbright=b4;local jH=game:GetService("Lighting")if b4 then if not bt.savedLighting then bt.savedLighting={GlobalShadows=jH.GlobalShadows,FogEnd=jH.FogEnd,Brightness=jH.Brightness,ClockTime=jH.ClockTime,Ambient=jH.Ambient,OutdoorAmbient=jH.OutdoorAmbient}end;local function Lq()pcall(function()jH.Brightness=2.4;jH.ClockTime=14;jH.FogEnd=100000;jH.GlobalShadows=false;jH.Ambient=Color3.fromRGB(178,178,178)jH.OutdoorAmbient=Color3.fromRGB(178,178,178)end)end;Lq()if bt.fullbrightConn then bt.fullbrightConn:Disconnect()end;local Lr=0;bt.fullbrightConn=d.Heartbeat:Connect(function()if not bt.fullbright then return end;if tick()-Lr>=0.8 then Lr=tick()Lq()end end)S("☀️ FULLBRIGHT","Fullbright & No-Fog Vision ON")M()else if bt.fullbrightConn then bt.fullbrightConn:Disconnect()bt.fullbrightConn=nil end;if bt.savedLighting then pcall(function()jH.Brightness=bt.savedLighting.Brightness;jH.ClockTime=bt.savedLighting.ClockTime;jH.FogEnd=bt.savedLighting.FogEnd;jH.Ambient=bt.savedLighting.Ambient;jH.OutdoorAmbient=bt.savedLighting.OutdoorAmbient;if not bt.fpsBoost then jH.GlobalShadows=bt.savedLighting.GlobalShadows end end)end;S("☀️ FULLBRIGHT","Original map lighting restored")N()end end)local Ls=false;local Lt=nil;EC(Lp,3,"Infinite Air-Jump (Multi-Jump in Mid-Air) (NEW)","Press Space or Mobile Jump infinitely in mid-air without falling",false,function(b4)Ls=b4;if Lt then Lt:Disconnect()Lt=nil end;if b4 then local Lu=0;Lt=f.JumpRequest:Connect(function()if not Ls or ad or _~=nil then return end;if tick()-Lu<0.14 then return end;Lu=tick()local bm=n.Character;local Y=bm and bm:FindFirstChildOfClass("Humanoid")local bE=bm and bm:FindFirstChild("HumanoidRootPart")if Y and bE and Y.Health>0 then local c7=bE.AssemblyLinearVelocity;local Lv=Y.UseJumpPower and Y.JumpPower or 50;bE.AssemblyLinearVelocity=Vector3.new(c7.X,math.max(Lv,54),c7.Z)pcall(function()Y:ChangeState(Enum.HumanoidStateType.Jumping)end)end end)S("🦘 INFINITE JUMP","Infinite Mid-Air Jump ON!")M()else S("🦘 INFINITE JUMP","Infinite Mid-Air Jump OFF")N()end end)local Lw={{g=196.2,label="196.2 (Normal)"},{g=65.0,label="65.0 (Moon)"},{g=22.0,label="22.0 (Zero-G)"},{g=340.0,label="340.0 (Heavy)"}}local Lx=1;EN(Lp,4,"World Gravity Controller (Normal / Moon / Zero-G)","Tap pill to cycle workspace gravity · Tap [↺] to restore 196.2","196.2 (Normal)",function(EU)Lx=Lx%#Lw+1;local Ly=Lw[Lx]pcall(function()workspace.Gravity=Ly.g end)EU.Text=Ly.label;S("🌙 GRAVITY","Workspace Gravity set to "..Ly.label)end,function(x,EU)Lx=1;pcall(function()workspace.Gravity=196.2 end)if EU then EU.Text="196.2 (Normal)"end;S("🌙 GRAVITY","Restored default gravity (196.2)")end,"↺")local Lz={70,85,100,115,120}local LA=1;EN(Lp,5,"Camera FOV & Max Zoom Unlocker (5000 Studs)","Tap pill to cycle FOV (70°–120°) · Tap [🔭] to unlock 5000-stud zoom","FOV: 70°",function(EU)LA=LA%#Lz+1;local LB=Lz[LA]pcall(function()if workspace.CurrentCamera then workspace.CurrentCamera.FieldOfView=LB end end)EU.Text="FOV: "..tostring(LB).."°"S("🎥 CAMERA FOV","Field of View set to "..tostring(LB).."°")end,function()pcall(function()n.CameraMaxZoomDistance=5000;n.CameraMinZoomDistance=0.5;n.DevCameraOcclusionMode=Enum.DevCameraOcclusionMode.Invisicam end)S("🔭 ZOOM UNLOCKED","Max Camera Zoom unlocked to 5,000 studs + Invisicam wall-see!")K()end,"🔭")EN(Lp,6,"Purge Client Lag & Orphaned Debris","Clears exploded parts, stuck sounds & temporary clutter","Clean Now",function(EU)local lC=0;for x,H in ipairs(i:GetChildren())do if H:IsA("Sound")and not H.IsPlaying then pcall(function()H:Destroy()lC=lC+1 end)end end;for x,cU in ipairs(workspace:GetChildren())do if cU:IsA("Explosion")or cU:IsA("Part")and cU.Name:match("^CocoFlyVFX")then pcall(function()cU:Destroy()lC=lC+1 end)end end;EU.Text="Cleaned!"S("🧹 LAG PURGE","Cleaned temporary clutter & refreshed client stream!")K()task.delay(1.4,function()if EU and EU.Parent then EU.Text="Clean Now"end end)end)n.CharacterAdded:Connect(function(cj)if bt.stopFlyImmediate then pcall(bt.stopFlyImmediate)end;if Jm then Jm.setState(false,true)end;task.defer(function()local Y=cj:WaitForChild("Humanoid",3)if Y then if bt.speed then Y.WalkSpeed=vJ end;if bt.jump then Y.UseJumpPower=true;Y.JumpPower=I_ end end end)end)end;do local LC={}lJ=function()for x,hP in ipairs(LC)do if hP.sw then hP.sw.setState(hP.getState(),false)end end;if R then pcall(R)end end;local LD=Ew(F7,1)local LE=EN(LD,1,"Fortress Shield Suite (16 Layers)","Enable all defensive shields in 1 tap (or tap ✕ to clear)","Fortress ON",function()mI()end,function()mJ()end,"✕")Er(F7,2,"Defence Troll Matrix V3 (Active Counter-Radar)")local LF=Ew(F7,3)local LG=EC(LF,1,"Defence Troll Matrix V3","Pre-physics omni-radar countering incoming spinners & welds",lK.enabled,function(b4)if b4 then mG()else mH()end;if R then pcall(R)end end)local LH=EN(LF,2,"Counter-Attack Mode & Radar Range","Active mode: "..(lK.modeLabels[lK.mode]or lK.mode),"Cycle",function()local eY=1;for dt,il in ipairs(lK.modes)do if il==lK.mode then eY=dt;break end end;eY=eY%#lK.modes+1;lK.mode=lK.modes[eY]R()S("COCO POWDER","Defence Mode: "..(lK.modeLabels[lK.mode]or lK.mode))end,function(oQ)lK.rangeIdx=lK.rangeIdx%#lK.ranges+1;lK.range=lK.ranges[lK.rangeIdx]oQ.Text=tostring(lK.range)S("COCO POWDER","Radar Range: "..tostring(lK.range).." studs")end,tostring(lK.range))local LI,LJ,LK=Ex(LF,3,"Countered: 0 · Flings: 0 · Welds: 0 · Seats: 0","Last threat: Standby (Pre-Physics Radar Ready)",10,48)R=function()pcall(function()if LG then LG.setState(lK.enabled,false)end;if LH and LH.subLbl then LH.subLbl.Text="Active mode: "..(lK.modeLabels[lK.mode]or lK.mode).." · Range: "..tostring(lK.range).."s"end;local LL=0;for x,hP in ipairs(LC)do if hP.getState and hP.getState()then LL=LL+1 end end;if lK.enabled then LL=LL+1 end;if C9.catCountLabels["Privacy"]then C9.catCountLabels["Privacy"].Text=tostring(LL).."/16"end;if LE and LE.subLbl then LE.subLbl.Text=string.format("%d / 16 shields active · Tap [Fortress ON] or [✕]",LL)end;if LJ and LJ.Parent then LJ.Text=string.format("Counter: %d · Fling: %d · Weld: %d · Bring: %d · Seat: %d",lK.deflectCount or 0,bs.FlingShield.blockedFlings or 0,bs.Attach.severedCount or 0,bs.Bring.blockedBrings or 0,bs.SeatTrap.neutralizedSeats or 0)end;if LK and LK.Parent then LK.Text=string.format("Last Threat: %s (%s) · Tools Disarmed: %d",tostring(lK.lastAttackerName or"None"),tostring(lK.lastThreatReason or"Standby"),bs.ToolGuard.disarmedTools or 0)end end)end;Er(F7,4,"Character, Physics & Anti-Kidnap Shields")local LM=Ew(F7,5)local function LN(yI,Et,T,q8,LO,LP,LQ)local pT=EC(yI,Et,T,q8,LO(),function(b4)if b4 then LP()else LQ()end;lJ()end)table.insert(LC,{sw=pT,getState=LO})end;LN(LM,1,"Anti-Fling v3 (Zero-Impulse)","Pre/post-physics velocity clamp + spinner collision nullifier",function()return bs.FlingShield.enabled end,mA,mB)LN(LM,2,"Anti-Void v3 (Predictive Catch)","Velocity trajectory catch + ForceField safety floor",function()return bs.Void.enabled end,mg,mh)LN(LM,3,"Anti-Kill v2 (God-Touch)","Strips killbrick CanTouch + neutralizes explosion pressure",function()return bs.Kill.enabled end,mi,mj)LN(LM,4,"Anti-Seat & Couch-Kidnap","Disables Seats/VehicleSeats & blocks couch/cart void traps",function()return bs.SeatTrap.enabled end,function()bs.SeatTrap.startFn()end,function()bs.SeatTrap.stopFn()end)LN(LM,5,"Anti-Tool & Carry Disarmer","Disarms Couch, Stretcher, Handcuffs & Grab tools near you",function()return bs.ToolGuard.enabled end,function()bs.ToolGuard.startFn()end,function()bs.ToolGuard.stopFn()end)LN(LM,6,"Anti-Ragdoll, Stun & Trip","Prevents ragdoll, falling states, stun locks & joint breaks",function()return bs.Ragdoll.enabled end,mq,mr)LN(LM,7,"Anti-Anchor & Foreign Movers","Unanchors parts & purges hostile BodyPosition/BodyVelocity",function()return bs.Anchor.enabled end,ms,mt)LN(LM,8,"Anti-Attach & Hostile Welds","Severs unauthorized welds, ropes, grabs & constraints",function()return bs.Attach.enabled end,mu,mv)LN(LM,9,"Anti-Bring & Teleport Snap","Blocks FE tool-brings & forced CFrame pulls (>38 studs)",function()return bs.Bring.enabled end,my,mz)LN(LM,10,"Anti-Blind, Flashbang & Fog","Clears hostile screen overlays, camera blur & dark fog",function()return bs.Blind.enabled end,mw,mx)Er(F7,6,"Counter-Traps & Client Bypasses")local LR=Ew(F7,7)LN(LR,1,"Void-Pause Attacker","Banishes welded attackers straight into the deep void",function()return bs.PauseTrap.enabled end,mE,mF)LN(LR,2,"Redirect Attacker","Slingshots incoming attacker onto nearest bystander",function()return bs.Redirect.enabled end,mC,mD)LN(LR,3,"Anti-GameplayPaused","Prevents streaming pause & network freeze screens",function()return bs.GamePaused.enabled end,mk,ml)LN(LR,4,"Anti-AFK v2","Idled connection + VirtualUser anti-kick pulse",function()return bs.AFK.enabled end,mm,mn)local LS=EC(LR,5,"Coco Anti-VC / VC Bypass V5 Ultra","Status: Idle · 3 Bypass Modes + Hook Shield + Keep-Alive",bs.VC.enabled,function(b4)if b4 then mo(false)else mp()end;lJ()end)bs.VC.rowSubLbl=LS.subLbl;table.insert(LC,{sw=LS,getState=function()return bs.VC.enabled or bs.VC.running end})EN(LR,6,"Coco Anti-VC V5 Ultra Dashboard","Opens V5 panel with Mode Selector, Mic Toggle, Force Rejoin & Auto-Guard","Open V5",function()if bs.VC.openPanelFn then bs.VC.openPanelFn()end end,function()mo(true)end,"⚡")local LT=false;local LU=nil;EC(LR,7,"Anti-Camera Lock, Shake & Forced Cutscene (NEW)","Prevents scripts from locking CameraType to Scriptable or shaking your screen",false,function(b4)LT=b4;if LU then LU:Disconnect()LU=nil end;if b4 then LU=d.RenderStepped:Connect(function()if not LT or ad or an then return end;local H7=workspace.CurrentCamera;local bO=n.Character and n.Character:FindFirstChildOfClass("Humanoid")if H7 and bO then if H7.CameraType==Enum.CameraType.Scriptable or H7.CameraType==Enum.CameraType.Fixed then H7.CameraType=Enum.CameraType.Custom end;if H7.CameraSubject~=bO and not(bt and bt.Vanish and bt.Vanish.selfActive)then H7.CameraSubject=bO end end end)S("🛡️ ANTI-CAMERA LOCK","Camera Lock & Cutscene Guard ON")M()else S("🛡️ ANTI-CAMERA LOCK","Camera Lock Guard OFF")N()end end)local LV=true;EC(LR,8,"Chat Mention & Whisper Radar Alert (NEW)","Alerts you immediately when any player types your name or whispers in chat",LV,function(b4)LV=b4;S("🔔 MENTION RADAR",b4 and"Chat Mention & Whisper Radar ON"or"Chat Mention & Whisper Radar OFF")end)pcall(function()local function LW(aM,LX)if not LV or not aM or aM==n or type(LX)~="string"then return end;local f9=LX:lower()local LY=n.Name:lower()local LZ=(n.DisplayName or""):lower()if f9:find(LY,1,true)or#LZ>=3 and f9:find(LZ,1,true)or f9:sub(1,3)=="/w "then S("💬 @"..aM.Name.." MENTIONED YOU",LX:sub(1,90))end end;for x,cw in ipairs(e:GetPlayers())do if cw~=n then pcall(function()cw.Chatted:Connect(function(il)LW(cw,il)end)end)end end;e.PlayerAdded:Connect(function(cw)if cw~=n then pcall(function()cw.Chatted:Connect(function(il)LW(cw,il)end)end)end end)end)R()end;do Er(F8,1,"Target & Broadcast Configuration")local L_=Ew(F8,2)local M0=Instance.new("Frame")M0.Size=UDim2.new(1,0,0,82)M0.BackgroundTransparency=1;M0.LayoutOrder=1;M0.ZIndex=8;M0.Parent=L_;a2=Instance.new("TextBox")a2.Size=UDim2.new(1,0,0,32)a2.Position=UDim2.new(0,0,0,6)a2.BackgroundColor3=C.BG2;a2.PlaceholderText="Target name (blank = auto-nearest player)"a2.Text=""a2.TextColor3=C.Text;a2.PlaceholderColor3=C.Muted;a2.Font=Enum.Font.Gotham;a2.TextSize=10;a2.ClearTextOnFocus=false;a2.ZIndex=9;a2.Parent=M0;Instance.new("UICorner",a2).CornerRadius=UDim.new(0,9)local M1=Instance.new("UIPadding")M1.PaddingLeft=UDim.new(0,10)M1.PaddingRight=UDim.new(0,10)M1.Parent=a2;a4(a1)local M2=Instance.new("TextBox")M2.Size=UDim2.new(1,0,0,32)M2.Position=UDim2.new(0,0,0,44)M2.BackgroundColor3=C.BG2;M2.PlaceholderText="Custom message (used when Roast mode is OFF)..."M2.Text=""M2.TextColor3=C.Text;M2.PlaceholderColor3=C.Muted;M2.Font=Enum.Font.Gotham;M2.TextSize=10;M2.ClearTextOnFocus=false;M2.ZIndex=9;M2.Parent=M0;Instance.new("UICorner",M2).CornerRadius=UDim.new(0,9)local M3=Instance.new("UIPadding")M3.PaddingLeft=UDim.new(0,10)M3.PaddingRight=UDim.new(0,10)M3.Parent=M2;EC(L_,2,"Auto-Roast Generator Mode","Generates dynamic target roasts (turn OFF for custom msg)",true,function(b4)le=b4 and"roast"or"message"end)local M4;local function M5()if ld then return end;lf=(a2.Text or""):gsub("^%s*@+%s*","")lg=M2.Text;if le=="roast"then local lD=lf~=""and lf~=nil and ge(lf,n)or nil;if not lD then local zQ=gi()if zQ then lf=zQ.Name end end;if lf==""or lf==nil then S("COCO POWDER","No target or nearby player found")L()if M4 then M4.setState(false,false)end;return end;a2.Text=lf end;if le=="message"and lg==""then S("COCO POWDER","Enter a custom message first")L()if M4 then M4.setState(false,false)end;return end;ld=true;lj=lj+1;lh=0;if M4 and M4.subLbl then M4.subLbl.Text="Broadcasting · "..le end;local uL=lj;task.spawn(function()while ld and lj==uL do local il=ll()if il~=""then if lk(il)then lh=lh+1;if M4 and M4.subLbl then M4.subLbl.Text="Sent "..tostring(lh).." msgs via "..tostring(li)end end end;task.wait(lc)end end)M()S("COCO POWDER","Chat broadcaster started")end;Fd=function()ld=false;lj=lj+1;if M4 then M4.setState(false,false)if M4.subLbl then M4.subLbl.Text="Idle · "..tostring(lh).." messages sent"end end end;M4=EC(L_,3,"Active Chat Broadcaster","Idle · 0 messages sent",false,function(b4)if b4 then M5()else Fd()N()S("COCO POWDER","Chat broadcaster stopped")end end)local M6={1.8,2.5,4.0,5.0,7.5}local M7=4;EN(L_,4,"Send Single Message & Delay","Tap [Send 1] to fire once · Tap circle to cycle delay","Send 1",function(EU)lf=(a2.Text or""):gsub("^%s*@+%s*","")lg=M2.Text;local il=ll()if il~=""and lk(il)then lh=lh+1;EU.Text="Sent!"if M4 and M4.subLbl and not ld then M4.subLbl.Text="Sent "..tostring(lh).." msgs via "..tostring(li)end;K()task.delay(1.0,function()if EU and EU.Parent then EU.Text="Send 1"end end)else S("COCO POWDER","Could not send chat message")L()end end,function(oQ)M7=M7%#M6+1;lc=M6[M7]oQ.Text=string.format("%.0fs",lc)S("💬 CHAT DELAY",string.format("Broadcast interval set to %.1fs",lc))end,"5s")end;do Er(F9,1,"Novoline Theme Presets")local M8=Ew(F9,2)local M9={{name="Novoline Violet (Default)",accent=Color3.fromRGB(184,118,255),accent2=Color3.fromRGB(132,76,222),neon=Color3.fromRGB(226,200,255)},{name="Jamun Emerald (Teal)",accent=Color3.fromRGB(20,214,172),accent2=Color3.fromRGB(13,168,136),neon=Color3.fromRGB(167,248,228)},{name="Crimson Rose",accent=Color3.fromRGB(251,113,133),accent2=Color3.fromRGB(225,29,72),neon=Color3.fromRGB(254,205,211)},{name="Arctic Cyan",accent=Color3.fromRGB(56,189,248),accent2=Color3.fromRGB(2,132,199),neon=Color3.fromRGB(186,230,253)},{name="Solar Gold",accent=Color3.fromRGB(251,191,36),accent2=Color3.fromRGB(217,119,6),neon=Color3.fromRGB(254,240,138)},{name="Cyberpunk Magenta",accent=Color3.fromRGB(244,114,255),accent2=Color3.fromRGB(192,38,211),neon=Color3.fromRGB(250,208,255)},{name="Obsidian Frost",accent=Color3.fromRGB(165,180,252),accent2=Color3.fromRGB(99,102,241),neon=Color3.fromRGB(224,231,255)},{name="Matrix Hacker Green (NEW)",accent=Color3.fromRGB(34,235,110),accent2=Color3.fromRGB(16,165,74),neon=Color3.fromRGB(185,255,205)},{name="Blood Moon Abyss (NEW)",accent=Color3.fromRGB(239,68,68),accent2=Color3.fromRGB(185,28,28),neon=Color3.fromRGB(254,202,202)},{name="Royal Amethyst Crown (NEW)",accent=Color3.fromRGB(216,180,254),accent2=Color3.fromRGB(147,51,234),neon=Color3.fromRGB(250,232,255)}}local function Ma(hG)C.Accent=hG.accent;C.Accent2=hG.accent2;C.Neon=hG.neon;C.Border=hG.accent2:Lerp(Color3.fromRGB(28,22,38),0.72)if CH then g:Create(CH,Cl,{Color=C.Border}):Play()end;if vR then g:Create(vR,Cl,{Color=C.Border}):Play()end;for x,b4 in ipairs(C9.themeDynamicStrokes)do if b4 and b4.Parent then g:Create(b4,Cl,{Color=C.Accent}):Play()end end;for x,Mb in ipairs(C9.themeDynamicFills)do if Mb and Mb.Parent then g:Create(Mb,Cl,{BackgroundColor3=C.Accent2}):Play()Cp[Mb]=C.Accent2 end end;for x,lx in ipairs(C9.themeDynamicTexts)do if lx and lx.Parent then lx.TextColor3=C.Neon end end;for x,Mc in ipairs(C9.themeDynamicScrolls)do if Mc and Mc.Parent then Mc.ScrollBarImageColor3=C.Accent end end;for x,lO in ipairs(C9.switchSetters)do pcall(lO)end;DZ(C9.activeCategory)bA()if Fb then pcall(Fb)end;S("Appearance","Theme applied: "..hG.name)end;for eY,hG in ipairs(M9)do EN(M8,eY,hG.name,"Updates active switches, badges & highlights","Apply",function()Ma(hG)end)end;Er(F9,3,"Window & Audio Preferences")local Md=Ew(F9,4)EC(Md,1,"Translucent glass surfaces","Increases acrylic backdrop transparency on both cards",false,function(b4)C9.glassMode=b4;local Me=b4 and 0.14 or 0.02;g:Create(CG,TweenInfo.new(0.2),{BackgroundTransparency=Me}):Play()g:Create(ot,TweenInfo.new(0.2),{BackgroundTransparency=Me}):Play()end)EC(Md,2,"Show Categories sidebar card","Toggle between Dual-Card view and Single-Card view",C9.sidebarVisible,function(b4)C9.sidebarVisible=b4;DD(true)end)EC(Md,3,"UI sound effects (SFX)","Play subtle tactile clicks & hover audio",C9.sfxEnabled,function(b4)C9.sfxEnabled=b4 end)EC(Md,4,"Live Cosmic Nebula Background","Instant local purple energy clouds and drifting dust",C9.nebulaEnabled,function(b4)D7(b4)end)local Mf=EC(Md,5,"Above Head Name Tags (ON / OFF)","Small, sleek glowing badges over verified Coco Powder users",as.overheadTagsEnabled,function(b4)C9.setOverheadTagsEnabled(b4,true)end)table.insert(C9.overheadTagSwitches,Mf.setState)local Mg=EC(Md,6,"Show My Own Above Tag (ON / OFF)","Show or hide the overhead rank badge above your own head",as.showSelfOverheadTag,function(b4)C9.setSelfOverheadTagEnabled(b4,true)end)table.insert(C9.selfOverheadTagSwitches,Mg.setState)end;do local function Mh()local E9=ax(n)if C9.catRows["Admin Panel"]and C9.catRows["Admin Panel"].btn then C9.catRows["Admin Panel"].btn.Visible=E9 end;if not E9 and C9.activeCategory=="Admin Panel"then DZ("Weld & Troll")end end;Mh()Er(EZ,1,"Owner & Premium Access Status")local Mi=Ew(EZ,2)local Mj=av(n)and"👑 Script Owner: @"..n.Name.." (Full Authority)"or(aw(n)and"💎 Premium Admin: @"..n.Name.." (Admin Panel Unlocked)"or"🔒 Restricted: Owner & Premium Only")local Mk="Owner: shivyy73 · Premium: kaun_bhai, retreee_yawrrr, Armaan_lulla, cocacola"EN(Mi,1,Mj,Mk,"Copy ID",function(EU)if not ax(n)then S("🔒 ACCESS DENIED","Admin Panel is restricted to shivyy73 & Premium Users!")L()return end;local Ml=string.format("UserIds = { %d }, Usernames = { %q }",n.UserId,n.Name)pcall(function()if typeof(setclipboard)=="function"then setclipboard(Ml)elseif typeof(toclipboard)=="function"then toclipboard(Ml)end end)EU.Text="Copied!"S("👑 ADMIN INFO","Copied your UserId ("..tostring(n.UserId)..") to clipboard!")K()task.delay(1.8,function()if EU and EU.Parent then EU.Text="Copy ID"end end)end)EN(Mi,2,"Broadcast Admin Presence Alert","Sends the Crown / Diamond Admin banner & chime to all script users","Notify All",function()if not ax(n)then S("🔒 ACCESS DENIED","Only Owner & Premium Users can broadcast alerts!")L()return end;pZ(62,nil,"cpnotify")p_(n,av(n)and"👑 OWNER ALERT SENT"or"💎 PREMIUM ALERT SENT","Broadcasted presence notification to all script users in server!")end)Er(EZ,3,"Global Script-User Controls & Overhead Tags")local Mm=Ew(EZ,4)local Mn=EC(Mm,1,"Overhead Name Tags (ON / OFF)","Displays small, aesthetic glowing rank badges over Coco Powder users",as.overheadTagsEnabled,function(b4)C9.setOverheadTagsEnabled(b4,true)end)table.insert(C9.overheadTagSwitches,Mn.setState)local Mo=EC(Mm,2,"Show Overhead Tag above my own character","Lets you see your own rank badge above your head",as.showSelfOverheadTag,function(b4)C9.setSelfOverheadTagEnabled(b4,true)end)table.insert(C9.selfOverheadTagSwitches,Mo.setState)EC(Mm,3,"Show Tag above Verified Script Users","ON: shows '⚡ COCO USER' badge only over players running Coco Powder. OFF: hides tags.",as.showNormalPlayerTags,function(b4)as.showNormalPlayerTags=b4;if not b4 then for aN,x in pairs(ar)do local aM=e:GetPlayerByUserId(aN)if aM and not at(aM)and not au(aM)then bw(aN)end end end;pcall(bx)S("👑 NAME TAGS",b4 and"Verified script-user tags ON"or"Verified script-user tags OFF")end)EN(Mm,4,"Purge & Refresh Overhead Nametags","Instantly clears all active BillboardGuis from the screen and re-verifies script users","Purge Tags",function()if not ax(n)then S("🔒 ACCESS DENIED","Only Owner & Premium Users can purge tags!")L()return end;for aN,x in pairs(ar)do bw(aN)end;pcall(bx)if as.refreshAdminUIFn then pcall(as.refreshAdminUIFn)end;S("👑 NAME TAGS","Purged all overhead tags and re-scanned server!")K()end)EN(Mm,5,"Freeze ALL Script Users in Server","Anchors & locks every regular player in the server using this script","Freeze All",function()if not ax(n)then S("🔒 ACCESS DENIED","Only the Owner & Premium Users can freeze script users!")L()return end;for x,cw in ipairs(e:GetPlayers())do if cw~=n and not ay(cw)then as.ownerFrozenTargets[cw.UserId]=true end end;pZ(12,nil,"cpfreeze")if as.refreshAdminUIFn then pcall(as.refreshAdminUIFn)end;pcall(bx)S("❄️ FREEZE ALL","Sent Freeze command to all Coco Powder users in server!")K()end,function()if not ax(n)then return end;as.ownerFrozenTargets={}pZ(22,nil,"cpunfreeze")if as.refreshAdminUIFn then pcall(as.refreshAdminUIFn)end;pcall(bx)S("✅ UNFREEZE ALL","Sent Unfreeze command to all Coco Powder users in server!")K()end,"☀")EN(Mm,6,"Unfreeze ALL Script Users in Server","Releases freeze lock on all script users in the server","Unfreeze",function()if not ax(n)then S("🔒 ACCESS DENIED","Only the Owner & Premium Users can unfreeze script users!")L()return end;as.ownerFrozenTargets={}pZ(22,nil,"cpunfreeze")if as.refreshAdminUIFn then pcall(as.refreshAdminUIFn)end;pcall(bx)S("✅ UNFREEZE ALL","Unfroze all Coco Powder script users in server!")K()end)EN(Mm,7,"Summon / Bring ALL Script Users to Me","Teleports every player running this script right in front of you","Bring All",function()if not ax(n)then S("🔒 ACCESS DENIED","Only the Owner & Premium Users can summon script users!")L()return end;pZ(52,nil,"cpbring")S("👑 SUMMON ALL","Summoned all Coco Powder users in the server to your position!")K()end)EC(Mm,8,"Also send Chat command packet","Sends !cpfreeze / !cpban in chat alongside silent animation sync",as.sendChatPacketOnCommand,function(b4)if not ax(n)then return end;as.sendChatPacketOnCommand=b4 end)Er(EZ,5,"Vanish Player & Invisibility (From Libraries)")local Lk=Ew(EZ,6)EN(Lk,1,"Admin Ghost Vanish (Self Invisibility)","Hides your real character in coordinate pocket & walks as an invisible Ghost",bt and bt.Vanish and bt.Vanish.selfActive and"Unvanish"or"Vanish Self",function(EU)if not ax(n)then S("🔒 ACCESS DENIED","Only Owner & Premium Users can use Admin Vanish!")L()return end;if bt and bt.Vanish then bt.Vanish:ToggleSelfVanish()EU.Text=bt.Vanish.selfActive and"Unvanish"or"Vanish Self"end end,function()Fh("vanish")end,Fn["vanish"]and"✓"or"⦿")EN(Lk,2,"Vanish Selected Target Player","Client-side vanish: erases target character, accessories, nametags & sounds","Vanish Target",function(EU)if not ax(n)then S("🔒 ACCESS DENIED","Only Owner & Premium Users can vanish players!")L()return end;if bt and bt.Vanish then local Lo=bt.Vanish:ToggleTargetVanish()EU.Text=Lo and"Vanished"or"Vanish Target"end end,function()Fh("vanishtgt")end,Fn["vanishtgt"]and"✓"or"⦿")EN(Lk,3,"Restore All Vanished Players","Restores all client-erased player models back to normal visibility","Restore All",function()if not ax(n)then return end;if bt and bt.Vanish then bt.Vanish:RestoreAllVanishedTargets()end end,nil,nil)EN(Lk,4,"Server Void-Vanish Target (Banish for All)","Buries & banishes target into the void using zero-delay physics","Banish ⚡",function()if not ax(n)then S("🔒 ACCESS DENIED","Only Owner & Premium Users can banish players!")L()return end;if bt and bt.Vanish then bt.Vanish:ServerBanishTarget()end end,nil,nil)Er(EZ,7,"Remote Script-User Chat Control (Force Chat)")local Mp=Ew(EZ,8)local Mq=Instance.new("Frame")Mq.Name="ChatInputWrap"Mq.Size=UDim2.new(1,0,0,44)Mq.BackgroundTransparency=1;Mq.LayoutOrder=1;Mq.ZIndex=8;Mq.Parent=Mp;local Mr=Instance.new("TextBox")Mr.Name="ForcedMsgBox"Mr.Size=UDim2.new(1,0,0,32)Mr.Position=UDim2.new(0,0,0,6)Mr.BackgroundColor3=C.BG2;Mr.PlaceholderText="Type message to force script users to say in chat..."Mr.Text=as.lastForcedChatMessage or"Coco Powder on top! ⚡"Mr.TextColor3=C.Text;Mr.PlaceholderColor3=C.Muted;Mr.Font=Enum.Font.Gotham;Mr.TextSize=10;Mr.ClearTextOnFocus=false;Mr.ZIndex=9;Mr.Parent=Mq;Instance.new("UICorner",Mr).CornerRadius=UDim.new(0,9)local Ms=Instance.new("UIStroke")Ms.Color=C.Border;Ms.Thickness=1;Ms.Transparency=0.35;Ms.Parent=Mr;local Mt=Instance.new("UIPadding")Mt.PaddingLeft=UDim.new(0,10)Mt.PaddingRight=UDim.new(0,10)Mt.Parent=Mr;Mr:GetPropertyChangedSignal("Text"):Connect(function()as.lastForcedChatMessage=Mr.Text end)EN(Mp,2,"Force ALL Script Users to Chat","Commands all Coco Powder script users in server to say this message","Force All",function()if not ax(n)then S("🔒 ACCESS DENIED","Only Owner & Premium Users can use Chat Control!")L()return end;local kG=Mr.Text;if not kG or kG:gsub("%s+","")==""then S("💬 CHAT CONTROL","Please enter a message to force!")L()return end;as.broadcastOwnerChatCommand(nil,kG)end)EN(Mp,3,"Force Active Locked Target to Chat","Commands the locked target player to say this message in game chat","Force Say",function()if not ax(n)then S("🔒 ACCESS DENIED","Only Owner & Premium Users can use Chat Control!")L()return end;local jn=gi()if not jn then S("💬 CHAT CONTROL","No player target locked! Select target or use player list below.")L()return end;local kG=Mr.Text;if not kG or kG:gsub("%s+","")==""then S("💬 CHAT CONTROL","Please enter a message to force!")L()return end;as.broadcastOwnerChatCommand(jn,kG)end)local Mu={{label="👑 Praise Owner",text="shivyy73 is the goat 👑"},{label="⚡ Coco Powder",text="Coco Powder on top! ⚡"},{label="🥶 Frozen Plea",text="Help I got frozen by admin! 🥶"},{label="🏳️ Apologize",text="I apologize to the Admin! 🏳️"},{label="💃 Dance Troll",text="I love dancing in public! 💃"}}for Mv,Mw in ipairs(Mu)do EN(Mp,3+Mv,Mw.label,"Sets message: '"..Mw.text.."'","Set & Say",function()Mr.Text=Mw.text;as.lastForcedChatMessage=Mw.text;as.broadcastOwnerChatCommand(nil,Mw.text)end,function()Mr.Text=Mw.text;as.lastForcedChatMessage=Mw.text;S("💬 PRESET LOADED","Loaded: '"..Mw.text.."'")K()end,"✏️")end;EC(Mp,9,"Chat Puppet / Live Mirror Mode (ON / OFF)","ON: Anything you type in normal Roblox chat is automatically repeated by all script users!",as.chatPuppetMode,function(b4)if not ax(n)then S("🔒 ACCESS DENIED","Only Owner & Premium Users can use Chat Puppet Mode!")L()return end;as.chatPuppetMode=b4;S("💬 CHAT PUPPET",b4 and"Live Chat Puppet ON — script users will mirror your chat!"or"Live Chat Puppet OFF")if b4 then K()else N()end end)Er(EZ,8,"Remote Script-User Troll Actions (All / Target)")local Mx=Ew(EZ,9)EN(Mx,1,"Force Dance / Emote on Script Users","Tap [Dance All] for server-wide dance · Tap [🎯] for locked target only","Dance All",function()if not ax(n)then return end;pZ(102,nil,"cpdance")S("💃 FORCE DANCE","Commanded all Coco Powder users in server to dance!")K()end,function()if not ax(n)then return end;local jn=gi()if not jn then S("💃 FORCE DANCE","No target locked!")L()return end;pZ(102,jn,"cpdance")S("💃 FORCE DANCE","Commanded @"..jn.Name.." to dance!")K()end,"🎯")EN(Mx,2,"Sky-Launch Script Users Into Orbit","Tap [Launch All] to launch all users 180 studs up · Tap [🎯] for locked target","Launch All",function()if not ax(n)then return end;pZ(112,nil,"cplaunch")S("🚀 SKY LAUNCH","Launched all Coco Powder users into the sky!")O()end,function()if not ax(n)then return end;local jn=gi()if not jn then S("🚀 SKY LAUNCH","No target locked!")L()return end;pZ(112,jn,"cplaunch")S("🚀 SKY LAUNCH","Launched @"..jn.Name.." into the sky!")O()end,"🎯")EN(Mx,3,"Force Respawn / Reset Script Users","Tap [Reset All] to respawn all script users · Tap [🎯] for locked target","Reset All",function()if not ax(n)then return end;pZ(122,nil,"cpreset")S("💀 FORCE RESET","Forced all Coco Powder users in server to reset!")K()end,function()if not ax(n)then return end;local jn=gi()if not jn then S("💀 FORCE RESET","No target locked!")L()return end;pZ(122,jn,"cpreset")S("💀 FORCE RESET","Forced @"..jn.Name.." to reset!")K()end,"🎯")EN(Mx,4,"Blind / Unblind Script Users' Screens","Tap [Blind All] to toggle dark fog overlay on all users · Tap [☀] to unblind all","Blind All",function()if not ax(n)then return end;pZ(132,nil,"cpblind")S("👁️ BLIND USERS","Toggled screen blind on all Coco Powder users!")K()end,function()if not ax(n)then return end;pZ(132,nil,"cpunblind")S("✅ UNBLIND ALL","Restored vision for all Coco Powder users!")K()end,"☀")do Er(EZ,10,"Puppeteer Army, Swarm Formations & Remote Sky Destroyer")local My=Ew(EZ,11)EC(My,1,"Force Puppeteer Army (Mirror My Animations)","Locks all Coco Powder users' Animation Copy onto you with 0.00ms latency",as.puppetModeActive,function(b4)if not ax(n)then S("🔒 ACCESS DENIED","Only Owner & Premium Users can use Puppeteer Army!")L()return end;as.puppetModeActive=b4;if b4 then pZ(142,nil,"cppuppet")if as.sendChatPacketOnCommand then pcall(function()lk("!cppuppet all "..n.Name)end)end;S("🎭 PUPPETEER ARMY ON","All Coco Powder users are now mirroring your animations!")K()else pZ(143,nil,"cpunpuppet")S("🎭 PUPPETEER ARMY OFF","Released Animation Puppeteer lock on all users!")N()end end)EN(My,2,"Puppeteer Locked Target Only","Tap [Puppet 🎯] to make locked target mirror you · Tap [⏹] to release target","Puppet 🎯",function()if not ax(n)then return end;local jn=gi()if not jn then S("🎭 PUPPETEER","Lock a target player first!")L()return end;pZ(142,jn,"cppuppet")S("🎭 PUPPET TARGET","@"..jn.Name.." is now mirroring your animations!")K()end,function()if not ax(n)then return end;local jn=gi()pZ(143,jn,"cpunpuppet")S("🎭 PUPPET RELEASED","Released Puppeteer lock!")N()end,"⏹")local Mz={{name="Ring Orbit",code=152,key="ring"},{name="Bodyguard Wall",code=153,key="wall"},{name="V-Squad Wing",code=154,key="vwings"},{name="Line Rank",code=155,key="line"}}EN(My,3,"Deploy Coordinated Squad Formation Around Me","Tap pill to deploy current formation · Tap [↻] to cycle Ring / Wall / V-Wing / Line",Mz[as.formationStyleIdx or 1].name,function(EU)if not ax(n)then return end;local b4=Mz[as.formationStyleIdx or 1]EU.Text=b4.name;pZ(b4.code,nil,"cpform")if as.sendChatPacketOnCommand then pcall(function()lk("!cpform all "..b4.key..":"..n.Name)end)end;S("🛸 FORMATION DEPLOYED","Deployed ["..b4.name.."] around you for all Coco Users!")O()end,function(x,EU)as.formationStyleIdx=(as.formationStyleIdx or 1)%#Mz+1;local b4=Mz[as.formationStyleIdx]if EU then EU.Text=b4.name end;S("🛸 FORMATION STYLE","Selected formation: "..b4.name)end,"↻")EN(My,4,"Swarm Locked Target / Disband Formation","Tap [Swarm 🎯] to orbit/surround locked target · Tap [⏹] to disband squad","Swarm 🎯",function()if not ax(n)then return end;local jn=gi()if not jn then S("🛸 SWARM TARGET","Lock a target player first!")L()return end;local b4=Mz[as.formationStyleIdx or 1]pZ(b4.code,nil,nil)pcall(function()lk("!cpform all "..b4.key..":"..jn.Name)end)S("🛸 SWARMING TARGET","Commanded all Coco Users to surround @"..jn.Name.." ("..b4.name..")!")O()end,function()if not ax(n)then return end;as.stopAdminFormation()pZ(156,nil,"cpunform")S("🛸 SQUAD DISBANDED","Disbanded all active squad formations!")N()end,"⏹")EN(My,5,"Remote Sky + Ground Destroyer (All / Target)","Remotely triggers 3D Layered Clothing Sky + Ground Destroyer on Coco Users","SkyAll 💥",function()if not ax(n)then return end;pZ(162,nil,"cpskydestroy")S("💥 REMOTE SKY DESTROYER","Activated Full Sky + Ground Destroyer on all Coco Users!")K()end,function()if not ax(n)then return end;local jn=gi()if not jn then S("💥 REMOTE SKY DESTROYER","Lock a target player first!")L()return end;pZ(162,jn,"cpskydestroy")S("💥 REMOTE SKY DESTROYER","Activated Sky Destroyer on @"..jn.Name.."!")K()end,"🎯")EN(My,6,"Remote 4-Tier Cube Matrix / Stop Remote Sky Destroyer","Tap [Cube All] for 4-Tier Cube Matrix on all users · Tap [⏹] to stop all","Cube All",function()if not ax(n)then return end;pZ(165,nil,"cpskydestroy")S("💥 REMOTE CUBE MATRIX","Activated 4-Tier Cube Matrix on all Coco Users!")K()end,function()if not ax(n)then return end;pZ(166,nil,"cpskystop")S("💥 SKY DESTROYER STOPPED","Stopped Remote Sky Destroyer on all Coco Users!")N()end,"⏹")local MA={{key="facebang",name="Facebang"},{key="backshots",name="Backshots"},{key="headsit",name="Headsit"},{key="chootlelo",name="Choot Lelo"},{key="bang",name="Bang"}}local MB=1;EN(My,7,"Mass Weld Army onto Locked Target (NEW)","Commands all Coco Users in server to weld onto your locked target · Tap [↻] to cycle preset","Army: Facebang",function(EU)if not ax(n)then return end;local jn=gi()if not jn then S("⚡ MASS WELD ARMY","Lock a target player first!")L()return end;local Mw=MA[MB]EU.Text="Army: "..Mw.name;pZ(213,nil,nil)pcall(function()lk("!cpweld all "..Mw.key..":"..jn.Name)end)S("⚡ MASS WELD ARMY","Ordered all Coco Users to "..Mw.name.." @"..jn.Name.."!")K()end,function(x,EU)MB=MB%#MA+1;local Mw=MA[MB]if EU then EU.Text="Army: "..Mw.name end;S("⚡ MASS WELD PRESET","Selected Mass Weld Preset: "..Mw.name)end,"↻")EN(My,8,"Swarm Void-Fling Locked Target / Stop All Army Actions (NEW)","Tap [Swarm Fling] so all Coco Users fling locked target · Tap [⏹] to stop all users","Swarm Fling",function()if not ax(n)then return end;local jn=gi()if not jn then S("🌪️ SWARM FLING","Lock a target player first!")L()return end;pZ(212,nil,nil)pcall(function()lk("!cpfling all "..jn.Name)end)S("🌪️ SWARM FLING","Commanded all Coco Users to Void-Fling @"..jn.Name.."!")O()end,function()if not ax(n)then return end;pZ(214,nil,"cpstopall")S("⏹ ARMY STOPPED","Stopped all active welds, flings & formations across Coco Users!")N()end,"⏹")Er(EZ,12,"Group Chat Choreography & Visual Prank Payloads")local MC=Ew(EZ,13)EN(MC,1,"Synchronized 3-2-1-GO Group Countdown","All Coco Users count down 3... 2... 1... and shout your forced chat message in unison!","Countdown",function()if not ax(n)then return end;pZ(172,nil,"cpcountdown")if as.sendChatPacketOnCommand then pcall(function()lk("!cpcountdown "..(as.lastForcedChatMessage or"👑 COCO POWDER ON TOP! ⚡"))end)end;S("⏱️ SYNC COUNTDOWN","Triggered server-wide 3-2-1 countdown across all Coco Users!")K()end,function()if not ax(n)then return end;pZ(173,nil,"cpwavechat")S("🌊 WAVE CHAT","Triggered staggered Mexican Wave chat across all Coco Users!")K()end,"🌊")EN(MC,2,"Invert Movement Controls Prank (All / Target)","Reverses WASD & thumbstick walking directions on target or all script users","Invert All",function()if not ax(n)then return end;pZ(182,nil,"cpinvert")S("🔄 INVERT CONTROLS","Toggled Inverted Controls on all Coco Users!")K()end,function()if not ax(n)then return end;local jn=gi()if not jn then S("🔄 INVERT CONTROLS","Lock a target player first!")L()return end;pZ(182,jn,"cpinvert")S("🔄 INVERT CONTROLS","Toggled Inverted Controls on @"..jn.Name.."!")K()end,"🎯")EN(MC,3,"Drunk FOV Wobble & Rainbow Vision (All / Target)","Oscillates Camera FOV (45°–100°), 3D camera roll & rainbow tint on script users","Drunk All",function()if not ax(n)then return end;pZ(183,nil,"cpdrunk")S("🥴 DRUNK VISION","Toggled Drunk Wobble Vision on all Coco Users!")O()end,function()if not ax(n)then return end;local jn=gi()if not jn then S("🥴 DRUNK VISION","Lock a target player first!")L()return end;pZ(183,jn,"cpdrunk")S("🥴 DRUNK VISION","Toggled Drunk Wobble Vision on @"..jn.Name.."!")O()end,"🎯")EN(MC,4,"Solar Flashbang Screen Prank (All / Target)","Detonates a blinding white Solar Flashbang overlay with fade-out on script users","Flash All",function()if not ax(n)then return end;pZ(184,nil,"cpflashbang")S("⚡ SOLAR FLASHBANG","Flashbanged all Coco Powder users in the server!")K()end,function()if not ax(n)then return end;local jn=gi()if not jn then S("⚡ SOLAR FLASHBANG","Lock a target player first!")L()return end;pZ(184,jn,"cpflashbang")S("⚡ SOLAR FLASHBANG","Flashbanged @"..jn.Name.."!")K()end,"🎯")EN(MC,5,"Fake Roblox 'Disconnected' Kick Modal (All / Target)","Displays a realistic Error 267 Disconnected prank popup for 6.5s without kicking","Fake Kick",function()if not ax(n)then return end;pZ(185,nil,"cpfakemodal")S("🎭 FAKE KICK MODAL","Displayed Fake Disconnected Modal on all Coco Users!")K()end,function()if not ax(n)then return end;local jn=gi()if not jn then S("🎭 FAKE KICK MODAL","Lock a target player first!")L()return end;pZ(185,jn,"cpfakemodal")S("🎭 FAKE KICK MODAL","Displayed Fake Disconnected Modal on @"..jn.Name.."!")K()end,"🎯")EN(MC,6,"Moon Gravity (Low-G) & Snail Walk Prank (NEW)","Tap [Moon Grav] to toggle Low-G on all users · Tap [🐌] for Snail Slow-Mo prank","Moon Grav",function()if not ax(n)then return end;pZ(215,nil,"cpgravity")S("🌙 MOON GRAVITY","Toggled Low-G Moon Gravity across all Coco Users!")O()end,function()if not ax(n)then return end;pZ(216,nil,"cpspeed")S("🐌 SNAIL WALK","Toggled Snail Slow-Mo WalkSpeed across all Coco Users!")K()end,"🐌")EN(MC,7,"Clear All Visual Pranks & Restore Normal","Removes Invert, Drunk Wobble, Flashbang, Fake Kick Modal, Gravity & Blind on all users","Clear FX",function()if not ax(n)then return end;pcall(function()workspace.Gravity=196.2 end)as.clearAllAdminVisualPranks()pZ(186,nil,"cpclearfx")S("✅ ALL FX CLEARED","Cleared all visual pranks across the server!")K()end)Er(EZ,14,"Global Server Waypoint, VIP Sky Lounge & Protected VIP Sync")local MD=Ew(EZ,15)EN(MD,1,"Summon ALL Script Users to My Mouse Cursor","Teleports every Coco User in the server to the exact 3D point your mouse aims at","Cursor TP",function()if not ax(n)then return end;local sM=n:GetMouse()local sN=sM and sM.Hit and sM.Hit.Position or n.Character and n.Character:FindFirstChild("HumanoidRootPart")and n.Character.HumanoidRootPart.Position;if not sN then S("📍 CURSOR SUMMON","No valid target surface found!")L()return end;local ME=string.format("%.1f %.1f %.1f",sN.X,sN.Y+3.2,sN.Z)pZ(192,nil,nil)pcall(function()lk("!cptppos all "..ME)end)S("📍 CURSOR SUMMON","Summoned all Coco Users to ("..ME..")!")O()end,function()if not ax(n)then return end;local bq=n.Character and n.Character:FindFirstChild("HumanoidRootPart")if not bq then return end;local MF="WP #"..tostring(#as.savedWaypoints+1)table.insert(as.savedWaypoints,{name=MF,cf=bq.CFrame})as.activeWaypointIdx=#as.savedWaypoints;S("📍 WAYPOINT SAVED",string.format("Saved %s at (%.0f, %.0f, %.0f)",MF,bq.Position.X,bq.Position.Y,bq.Position.Z))K()end,"💾")EN(MD,2,"Teleport All Users to Saved Waypoint","Tap [TP Saved] to teleport yourself & all Coco Users to saved waypoint · Tap [↻] to cycle","TP Saved",function(EU)if not ax(n)then return end;local MG=as.savedWaypoints[as.activeWaypointIdx or 1]if not MG then S("📍 WAYPOINT","Tap [💾] on the row above to save a waypoint first!")L()return end;EU.Text=MG.name;if n.Character then cF(MG.cf)bz(n.Character,MG.cf)end;local cw=MG.cf.Position;local ME=string.format("%.1f %.1f %.1f",cw.X,cw.Y,cw.Z)pZ(192,nil,nil)pcall(function()lk("!cptppos all "..ME)end)S("📍 WAYPOINT TELEPORT","Teleported all Coco Users to "..MG.name.."!")O()end,function(x,EU)if#as.savedWaypoints==0 then S("📍 WAYPOINT","No saved waypoints yet — tap [💾] above to save one!")return end;as.activeWaypointIdx=(as.activeWaypointIdx or 1)%#as.savedWaypoints+1;local MG=as.savedWaypoints[as.activeWaypointIdx]if EU and MG then EU.Text=MG.name end;S("📍 WAYPOINT SELECTED","Active Waypoint: "..MG.name)end,"↻")EN(MD,3,"Spawn VIP Sky Lounge & Summon All (+650 Studs)","Spawns a glowing neon glass Sky Deck 650 studs up & summons all Coco Users · Tap [⬇] to close","Sky Lounge",function()if not ax(n)then return end;local bq=n.Character and n.Character:FindFirstChild("HumanoidRootPart")local fy=bq and bq.Position or Vector3.new(0,50,0)as.spawnOrTeleportToSkyLounge(fy)pZ(193,nil,"cpskylounge")S("🌌 VIP SKY LOUNGE","Spawned VIP Sky Lounge & summoned all Coco Users!")K()end,function()if not ax(n)then return end;as.destroySkyLoungeAndReturn()pZ(194,nil,"cpground")S("🌌 SKY LOUNGE CLOSED","Destroyed Sky Lounge & returned all users to ground!")N()end,"⬇")EN(MD,4,"Sync Protected VIP Whitelist to All Script Users","Broadcasts your Whitelist so no Coco User in the server can fling, void, or bang your VIPs","Sync VIPs",function()if not ax(n)then return end;local MH={tostring(n.UserId)}as.syncedVipIds[n.UserId]=true;for aN,c in pairs(as.sessionPremiumUsers)do if c then as.syncedVipIds[aN]=true;table.insert(MH,tostring(aN))end end;pZ(202,nil,nil)pcall(function()lk("!cpvip "..table.concat(MH," "))end)S("🛡️ VIP WHITELIST SYNCED","Protected "..tostring(#MH).." VIP account(s) across all Coco Users!")K()end,function()if not ax(n)then return end;pZ(203,nil,"cpbodyguard")S("🛡️ AUTO-BODYGUARD","Toggled Auto-Bodyguard Retaliation Mode on all Coco Users!")K()end,"⚔️")Er(EZ,16,"Live Target & Server Telemetry Inspector")local MI=Ew(EZ,17)local MJ=Instance.new("Frame")MJ.Name="TelemetryInfoCard"MJ.Size=UDim2.new(1,0,0,82)MJ.BackgroundColor3=C.BG2;MJ.BackgroundTransparency=0.15;MJ.BorderSizePixel=0;MJ.LayoutOrder=1;MJ.ZIndex=8;MJ.Parent=MI;Instance.new("UICorner",MJ).CornerRadius=UDim.new(0,10)local MK=Instance.new("UIStroke",MJ)MK.Color=C.Accent;MK.Thickness=1;MK.Transparency=0.35;local function ML(Eh,FB,B6,MM)local jK=Instance.new("TextLabel")jK.Size=UDim2.new(1,-20,0,16)jK.Position=UDim2.new(0,10,0,FB)jK.BackgroundTransparency=1;jK.Font=MM and Enum.Font.GothamBold or Enum.Font.GothamMedium;jK.TextSize=MM and 10 or 9.5;jK.TextColor3=B6;jK.TextXAlignment=Enum.TextXAlignment.Left;jK.TextTruncate=Enum.TextTruncate.AtEnd;jK.ZIndex=9;jK.Parent=MJ;return jK end;local MN=ML(1,6,C.Neon,true)local MO=ML(2,24,C.Text,false)local MP=ML(3,42,C.Muted,false)local MQ=ML(4,60,Color3.fromRGB(56,224,255),false)local function MR()if not MJ or not MJ.Parent then return end;local gQ=as.collectTargetTelemetry()if gQ then MN.Text=gQ.line1;MO.Text=gQ.line2;MP.Text=gQ.line3;MQ.Text=gQ.line4 end end;MR()EN(MI,3,"Copy Telemetry Dossier / Teleport to Inspected Player (NEW)","Tap [Copy Info] to copy full telemetry report · Tap [⚡] to teleport to inspected player","Copy Info",function(EU)local gQ=as.collectTargetTelemetry()if not gQ then return end;local MS=table.concat({gQ.line1,gQ.line2,gQ.line3,gQ.line4},"\n")pcall(function()if typeof(setclipboard)=="function"then setclipboard(MS)elseif typeof(toclipboard)=="function"then toclipboard(MS)end end)EU.Text="Copied!"S("📊 TELEMETRY COPIED","Copied telemetry dossier for @"..gQ.player.Name.." to clipboard!")K()task.delay(1.5,function()if EU and EU.Parent then EU.Text="Copy Info"end end)end,function()local MT=as.telemetryTargetPlr or gi()if not MT or MT==n then S("📊 TELEMETRY TP","Select another player with [Next Player] first!")return end;task.spawn(function()cE(MT,"torso",1.8,CFrame.new(0,1.5,3))S("⚡ TELEPORTED","Teleported to inspected player @"..MT.Name.."!")O()end)end,"⚡")EN(MI,2,"Cycle Inspected Player / Refresh Telemetry","Tap [Next Player] to inspect next player in server · Tap [🎯] to lock inspected player","Next Player",function()local fJ=e:GetPlayers()if#fJ==0 then return end;local fc=as.telemetryTargetPlr or gi()or n;local MU=1;for dt,cw in ipairs(fJ)do if cw==fc then MU=dt%#fJ+1;break end end;as.telemetryTargetPlr=fJ[MU]MR()S("📊 TELEMETRY","Inspecting @"..as.telemetryTargetPlr.Name)end,function()local MT=as.telemetryTargetPlr;if MT and MT~=n then a1=MT;a0=MT;if Fb then pcall(Fb)end;S("🎯 TARGET LOCKED","Locked target onto @"..MT.Name.."!")K()else MR()end end,"🎯")task.spawn(function()while MJ and MJ.Parent do if EZ.Visible and as.telemetryAutoRefresh then pcall(MR)end;task.wait(0.35)end end)end;Er(EZ,18,"Script Users & Server Players (Freeze / Chat / Vanish / Prem / Ban)")local MV=Ew(EZ,19)MV:SetAttribute("DynamicList",true)local MW=true;local function MX(IK)Mh()local MY={}local MZ=0;for x,cw in ipairs(e:GetPlayers())do if cw~=n then local qv=aq[cw.UserId]local M_=qv and qv.isScriptUser and tick()-(qv.lastSeen or 0)<25.0 or at(cw)or au(cw)if M_ then MZ=MZ+1 end;table.insert(MY,{player=cw,isUser=M_,det=qv})end end;if C9.catCountLabels["Admin Panel"]then C9.catCountLabels["Admin Panel"].Text=tostring(MZ)end;if not IK and not EZ.Visible then MW=true;return end;MW=false;for x,X in ipairs(MV:GetChildren())do if X:IsA("Frame")or X:IsA("TextLabel")then X:Destroy()end end;table.sort(MY,function(iF,la)if iF.isUser~=la.isUser then return iF.isUser and not la.isUser end;return iF.player.Name:lower()<la.player.Name:lower()end)if#MY==0 then local N0=Instance.new("TextLabel")N0.Size=UDim2.new(1,0,0,44)N0.BackgroundTransparency=1;N0.Text="No other players in server yet — waiting for players..."N0.TextColor3=C.Muted;N0.Font=Enum.Font.Gotham;N0.TextSize=10;N0.ZIndex=9;N0.Parent=MV;return end;for eY,kq in ipairs(MY)do local cw=kq.player;local aN=cw.UserId;local N1=at(cw)or kq.det and kq.det.isOwner;local N2=not N1 and(au(cw)or kq.det and kq.det.isPremium)local sa=as.ownerFrozenTargets[aN]or kq.det and kq.det.isFrozen or false;local aU=as.ownerBannedTargets[aN]or false;local N3=bt and bt.Vanish and bt.Vanish.vanishedTargets and bt.Vanish.vanishedTargets[aN]~=nil or false;local N4=N1 and" [👑 OWNER]"or N2 and" [💎 PREMIUM]"or(kq.isUser and" [⚡ SCRIPT USER]"or" [Server Player]")if aU then N4=" [🚫 BANNED]"elseif sa then N4=" [❄️ FROZEN]"elseif N3 then N4=" [👻 VANISHED]"end;local zh,b7,b8=Ex(MV,eY,cw.DisplayName..N4,"@"..cw.Name.." · [Freeze] [💬 Say] [👻 Vanish] [💎 Prem] [🚫 Ban]",190,48)local EU=Instance.new("TextButton")EU.Name="ActionFreezePill"EU.Size=UDim2.new(0,58,0,26)EU.Position=UDim2.new(1,-182,0.5,-13)EU.BackgroundColor3=sa and Color3.fromRGB(30,130,190)or C.BG2;EU.BorderSizePixel=0;EU.Text=sa and"Unfreeze"or"Freeze"EU.TextColor3=C.Text;EU.Font=Enum.Font.GothamBold;EU.TextSize=10;EU.AutoButtonColor=false;EU.ZIndex=9;EU.Parent=zh;Instance.new("UICorner",EU).CornerRadius=UDim.new(1,0)local EV=Instance.new("UIStroke",EU)EV.Color=sa and Color3.fromRGB(86,204,255)or C.Border;EV.Thickness=1.1;EV.Transparency=0.25;Cq(EU,EU.BackgroundColor3,0.12)EU.MouseButton1Click:Connect(function()Cu()if not ax(n)then S("🔒 ACCESS DENIED","Only Owner & Premium Users can freeze script users!")L()return end;if ay(cw)then S("👑 IMMUNITY","Cannot freeze the Script Owner!")L()return end;local N5=not sa;as.ownerFrozenTargets[aN]=N5 or nil;if N5 then pZ(12,cw,"cpfreeze")S("❄️ FROZEN USER","Froze @"..cw.Name.." ("..cw.DisplayName..")!")K()else pZ(22,cw,"cpunfreeze")S("✅ UNFROZEN USER","Unfroze @"..cw.Name.." ("..cw.DisplayName..")!")K()end;pcall(bx)pcall(MX)end)local N6=Instance.new("TextButton")N6.Name="ActionChatBtn"N6.Size=UDim2.new(0,26,0,26)N6.Position=UDim2.new(1,-118,0.5,-13)N6.BackgroundColor3=C.BG2;N6.BorderSizePixel=0;N6.Text="💬"N6.TextColor3=C.Text;N6.Font=Enum.Font.GothamBold;N6.TextSize=11;N6.AutoButtonColor=false;N6.ZIndex=9;N6.Parent=zh;Instance.new("UICorner",N6).CornerRadius=UDim.new(1,0)local N7=Instance.new("UIStroke",N6)N7.Color=C.Border;N7.Thickness=1.1;N7.Transparency=0.25;Cq(N6,C.BG2,0.12)N6.MouseButton1Click:Connect(function()Cu()if not ax(n)then S("🔒 ACCESS DENIED","Only Owner & Premium Users can use Chat Control!")L()return end;if ay(cw)then S("👑 IMMUNITY","Cannot control the Script Owner's chat!")L()return end;local kG=as.lastForcedChatMessage or Mr and Mr.Text or"Coco Powder on top! ⚡"as.broadcastOwnerChatCommand(cw,kG)end)local N8=Instance.new("TextButton")N8.Name="ActionVanishBtn"N8.Size=UDim2.new(0,26,0,26)N8.Position=UDim2.new(1,-88,0.5,-13)N8.BackgroundColor3=N3 and C.Accent or C.BG2;N8.BorderSizePixel=0;N8.Text="👻"N8.TextColor3=C.Text;N8.Font=Enum.Font.GothamBold;N8.TextSize=11;N8.AutoButtonColor=false;N8.ZIndex=9;N8.Parent=zh;Instance.new("UICorner",N8).CornerRadius=UDim.new(1,0)local N9=Instance.new("UIStroke",N8)N9.Color=N3 and C.Neon or C.Border;N9.Thickness=1.1;N9.Transparency=0.25;Cq(N8,N8.BackgroundColor3,0.12)N8.MouseButton1Click:Connect(function()Cu()if not ax(n)then S("🔒 ACCESS DENIED","Only Owner & Premium Users can vanish players!")L()return end;if ay(cw)then S("👑 IMMUNITY","Cannot vanish the Script Owner!")L()return end;if bt and bt.Vanish then bt.Vanish:ToggleTargetVanish(cw)pcall(MX)end end)local Na=as.sessionPremiumUsers[aN]==true;local Nb=Instance.new("TextButton")Nb.Name="ActionPremBtn"Nb.Size=UDim2.new(0,26,0,26)Nb.Position=UDim2.new(1,-58,0.5,-13)Nb.BackgroundColor3=(N2 or Na)and Color3.fromRGB(20,110,145)or C.BG2;Nb.BorderSizePixel=0;Nb.Text="💎"Nb.TextColor3=C.Text;Nb.Font=Enum.Font.GothamBold;Nb.TextSize=11;Nb.AutoButtonColor=false;Nb.ZIndex=9;Nb.Parent=zh;Instance.new("UICorner",Nb).CornerRadius=UDim.new(1,0)local Nc=Instance.new("UIStroke",Nb)Nc.Color=(N2 or Na)and Color3.fromRGB(56,224,255)or C.Border;Nc.Thickness=1.1;Nc.Transparency=0.25;Cq(Nb,Nb.BackgroundColor3,0.12)Nb.MouseButton1Click:Connect(function()Cu()if not av(n)then S("👑 OWNER ONLY","Only the Script Owner (shivyy73) can grant or revoke Session Premium!")L()return end;if ay(cw)then return end;local Nd=not as.sessionPremiumUsers[aN]as.sessionPremiumUsers[aN]=Nd or nil;if Nd then pZ(72,cw,"cpgrantprem")S("💎 GRANTED PREMIUM","Granted Session Premium & Admin Panel to @"..cw.Name.."!")K()else pZ(82,cw,"cprevokeprem")S("👑 REVOKED PREMIUM","Revoked Session Premium from @"..cw.Name.."!")N()end;pcall(bx)pcall(MX)end)local Ne=Instance.new("TextButton")Ne.Name="ActionBanBtn"Ne.Size=UDim2.new(0,26,0,26)Ne.Position=UDim2.new(1,-26,0.5,-13)Ne.BackgroundColor3=aU and C.Danger or C.BG2;Ne.BorderSizePixel=0;Ne.Text=aU and"✓"or"🚫"Ne.TextColor3=C.Text;Ne.Font=Enum.Font.GothamBold;Ne.TextSize=11;Ne.AutoButtonColor=false;Ne.ZIndex=9;Ne.Parent=zh;Instance.new("UICorner",Ne).CornerRadius=UDim.new(1,0)local Nf=Instance.new("UIStroke",Ne)Nf.Color=aU and C.Danger or C.Border;Nf.Thickness=1.1;Nf.Transparency=0.25;Cq(Ne,Ne.BackgroundColor3,0.12)Ne.MouseButton1Click:Connect(function()Cu()if not ax(n)then S("🔒 ACCESS DENIED","Only Owner & Premium Users can ban script users!")L()return end;if ay(cw)then S("👑 IMMUNITY","Cannot script-ban the Script Owner!")L()return end;local Ng=not aU;as.ownerBannedTargets[aN]=Ng or nil;if Ng then pZ(32,cw,"cpban")S("🚫 SCRIPT BANNED","Banned @"..cw.Name.." from using Coco Powder!")L()else pZ(42,cw,"cpunban")S("✅ SCRIPT UNBANNED","Unbanned @"..cw.Name.."!")K()end;pcall(bx)pcall(MX)end)if N1 then b7.TextColor3=Color3.fromRGB(255,215,70)elseif N2 then b7.TextColor3=Color3.fromRGB(56,224,255)elseif kq.isUser then b7.TextColor3=C.Neon end end end;as.refreshAdminUIFn=function()pcall(MX)if Fc then pcall(Fc)end end;EZ:GetPropertyChangedSignal("Visible"):Connect(function()if EZ.Visible and MW then pcall(MX,true)end end)pcall(MX,false)e.PlayerAdded:Connect(function()task.wait(0.6)pcall(MX)end)e.PlayerRemoving:Connect(function(Nh)if Nh then local Ni=Nh.UserId;as.ownerFrozenTargets[Ni]=nil;aq[Ni]=nil;if bt and bt.Vanish and bt.Vanish.vanishedTargets then bt.Vanish.vanishedTargets[Ni]=nil end;pcall(bw,Ni)end;task.wait(0.15)pcall(MX)end)end;do Er(Fa,1,"Click TP & Teleport Tools")local Nj=Ew(Fa,2)EN(Nj,1,"Give 'Click TP' Backpack Tool","Spawns equippable tool in inventory with void & skybox protection","Get Tool",function()sJ()end)local Nk=EN(Nj,2,"Click TP to Mouse Pointer","Tap [Click TP] to teleport now · Tap [⦿] to pin floating pill","Click TP",function()local sM=n:GetMouse()if sM and sM.Hit then sA(sM.Hit.Position,sM.Target)else S("🚫 CLICK TP","No surface targeted! Void teleport blocked.")L()end end,function()Fh("clicktp")end,Fn["clicktp"]and"✓"or"⦿")Fm["clicktp"]={pillBtn=Nk.pillBtn,pillStroke=Nk.pillStroke,circleBtn=Nk.circleBtn,circleStroke=Nk.circleStroke,defaultLabel="Click TP"}Er(Fa,3,"PC Troll Keybinds & Key Re-Assignment")local Nl=Ew(Fa,4)local Nm={"animcopy","jerktroll","voidthrow","facebang","backshots","headsit","kiss","headpat","fling","clicktp","fly","deflect","rewind","vanish","stop"}for eY,Nn in ipairs(Nm)do local No=sP.actionLabels[Nn]or Nn;local eu=sP.actionDescriptions[Nn]or"Customizable hotkey"local GV=EN(Nl,eY,No,eu,sP:GetKeyName(Nn),function(EU)if sP.listeningAction==Nn then sP.listeningAction=nil;sP:UpdateDisplay(Nn)S("⌨️ KEYBIND","Cancelled assignment for "..No)else sP.listeningAction=Nn;sP:UpdateDisplay(Nn)S("⌨️ KEYBIND","Press ANY key on your keyboard to bind "..No.."! (Backspace/Esc to clear)")O()end end)sP.buttonRefs[Nn]=GV;sP:UpdateDisplay(Nn)end;Er(Fa,5,"Session Utilities & Emergency Controls")local Np=Ew(Fa,6)EN(Np,1,"Toggle UI Visibility","Keybind: RightShift (or tap floating CP launcher)","Hide UI",function()DL(false)end)EN(Np,2,"Trigger Chrono-Rewind","Keybind: R (60Hz precision trajectory rewind)","Rewind",function()RewindSys:Start(RewindSys.duration)end)EN(Np,3,"Emergency Unweld & Safe Recovery","Clears all welds, stops fling & snaps back to ground","Recover",function()cz(false)bB:Cleanup(false)a8=nil;a9=nil;if n.Character then bz(n.Character,al)end;bA()S("COCO POWDER","Character state recovered & unwelded")end)EN(Np,4,"Reset All Movement & Flight","Restores default WalkSpeed (16), JumpPower & stops Fly/Spider/AirWalk","Reset",function()bt.speed,bt.jump,bt.noclip,bt.spiderWalk,bt.airWalk=false,false,false,false,false;if bt.speedLoopConn then bt.speedLoopConn:Disconnect()bt.speedLoopConn=nil end;if bt.noclipConn then bt.noclipConn:Disconnect()bt.noclipConn=nil end;if bt.spiderConn then bt.spiderConn:Disconnect()bt.spiderConn=nil end;if bt.airWalkConn then bt.airWalkConn:Disconnect()bt.airWalkConn=nil end;if bt.airWalkPart then pcall(function()bt.airWalkPart:Destroy()end)bt.airWalkPart=nil end;if bt.stopFlyImmediate then pcall(bt.stopFlyImmediate)end;local bm=n.Character;local Y=bm and bm:FindFirstChildOfClass("Humanoid")if Y then Y.WalkSpeed=16;Y.UseJumpPower=true;Y.JumpPower=50;Y.PlatformStand=false end;S("Movement","All movement states reset")end)EN(Np,5,"Rejoin Current Server","Teleports local player back into this server instance","Rejoin",function()pcall(function()game:GetService("TeleportService"):TeleportToPlaceInstance(game.PlaceId,game.JobId,n)end)end)EN(Np,6,"Smart Server Hop (Find New Live Server) (NEW)","Finds & teleports you to a different active server with open slots","Server Hop",function(EU)EU.Text="Scanning..."task.spawn(function()local Nq=false;pcall(function()local sV=game:GetService("HttpService")local Nr=game:GetService("TeleportService")local Ns="https://games.roblox.com/v1/games/"..tostring(game.PlaceId).."/servers/Public?sortOrder=Desc&limit=100"local lH=game:HttpGet(Ns)local vm=sV:JSONDecode(lH)if vm and type(vm.data)=="table"then for x,Nt in ipairs(vm.data)do if type(Nt)=="table"and Nt.id~=game.JobId and(tonumber(Nt.playing)or 0)<(tonumber(Nt.maxPlayers)or 0)then Nq=true;S("🌐 SERVER HOP","Hopping to server ("..tostring(Nt.playing).."/"..tostring(Nt.maxPlayers).." players)...")Nr:TeleportToPlaceInstance(game.PlaceId,Nt.id,n)break end end end end)if not Nq then pcall(function()game:GetService("TeleportService"):Teleport(game.PlaceId,n)end)end;if EU and EU.Parent then EU.Text="Server Hop"end end)end)local Nu=false;local Nv={}EC(Np,7,"Client VIP Door, Gate & Barrier Unlocker (NEW)","Walk straight through locked doors, VIP barriers, gates & invisible walls",false,function(b4)Nu=b4;if b4 then M()task.spawn(function()local lz=0;local fJ=workspace:GetDescendants()for eY,cU in ipairs(fJ)do if not Nu then break end;if cU:IsA("BasePart")and cU.CanCollide and not(n.Character and cU:IsDescendantOf(n.Character))then local aH=cU.Name:lower()local fN=cU.Parent and cU.Parent.Name:lower()or""if aH:find("door")or aH:find("gate")or aH:find("barrier")or aH:find("vip")or aH:find("lock")or aH:find("forcefield")or fN:find("door")or fN:find("vip")or fN:find("gate")then Nv[cU]=cU.Transparency;pcall(function()cU.CanCollide=false;if cU.Transparency<0.55 then cU.Transparency=0.55 end end)lz=lz+1 end end;if eY%1000==0 then d.Heartbeat:Wait()end end;if Nu then S("🔓 VIP DOOR UNLOCKER","Unlocked "..tostring(lz).." doors, gates & VIP barriers!")end end)else for bJ,Nw in pairs(Nv)do if bJ and bJ.Parent then pcall(function()bJ.CanCollide=true;bJ.Transparency=Nw end)end;Nv[bJ]=nil end;S("🔓 VIP DOOR UNLOCKER","Restored all doors & barriers to solid")N()end end)EN(Np,8,"Copy Server Join Script (JobId Snippet) (NEW)","Copies a 1-line Lua script so friends can join your exact server","Copy Link",function(EU)local Ml=string.format("game:GetService('TeleportService'):TeleportToPlaceInstance(%d, %q, game.Players.LocalPlayer)",game.PlaceId,tostring(game.JobId))pcall(function()if typeof(setclipboard)=="function"then setclipboard(Ml)elseif typeof(toclipboard)=="function"then toclipboard(Ml)end end)EU.Text="Copied!"S("📋 JOIN SCRIPT COPIED","Copied exact Server Join script to clipboard!")K()task.delay(1.5,function()if EU and EU.Parent then EU.Text="Copy Link"end end)end)end;CU.MouseButton1Click:Connect(function()Cu()cz(false)bB:Cleanup(false,false)a1=nil;a0=nil;a8=nil;a9=nil;aa.typedUsername=""aa.leftInfo=nil;aa.waitingForSpawn=false;if aa.setUsernameBoxText then pcall(aa.setUsernameBoxText,"")end;CS.Text="Auto: Nearest"CT.Text="stopped & disconnected"bA()if Fc then pcall(Fc)end;if Fb then pcall(Fb)end;pcall(function()workspace.FallenPartsDestroyHeight=a5 end)S("COCO POWDER","Unwelded & target disconnected")K()end)local Nx=Instance.new("UIScale")Nx.Scale=1;Nx.Parent=CE;DL=function(Ny)p.Enabled=true;C9.open=Ny;C9.minimized=not Ny;pcall(D5)if Ny then CE.Visible=true;CF.Visible=C9.sidebarVisible;CV.Visible=true;Cv.Visible=false;Nx.Scale=0.90;g:Create(Nx,Cn,{Scale=1}):Play()else CF.Visible=false;CV.Visible=false;CE.Visible=false;Cv.Visible=true;local Nz=Cv:FindFirstChildOfClass("UIScale")if not Nz then Nz=Instance.new("UIScale")Nz.Parent=Cv end;Nz.Scale=0.72;g:Create(Nz,Cn,{Scale=1}):Play()end end;Dm.MouseButton1Click:Connect(function()Cu()DL(false)end)local function NA()cz()if gq then pcall(function()gq:StopEmote()end)pcall(function()gq:StopJerk()end)end;for aN,x in pairs(ar)do bw(aN)end;if as.beaconTrack then pcall(function()as.beaconTrack:Stop(0)as.beaconTrack:Destroy()end)as.beaconTrack=nil end;bB:Cleanup(false)if Fd then pcall(Fd)end;pcall(function()workspace.FallenPartsDestroyHeight=a5 end)p:Destroy()print("[COCO POWDER] Terminated.")end;local function NB()local l1=Instance.new("Frame")l1.Size=UDim2.new(1,0,1,0)l1.BackgroundColor3=Color3.new(0,0,0)l1.BackgroundTransparency=0.45;l1.ZIndex=400;l1.Parent=p;local NC=Instance.new("Frame")NC.Size=UDim2.new(0,266,0,162)NC.Position=UDim2.new(0.5,-133,0.5,-81)NC.BackgroundColor3=C.BG;NC.BorderSizePixel=0;NC.ZIndex=401;NC.Parent=p;Instance.new("UICorner",NC).CornerRadius=UDim.new(0,18)local ND=Instance.new("UIStroke")ND.Color=C.Border;ND.Thickness=1.2;ND.Parent=NC;local dU=Instance.new("TextLabel")dU.Size=UDim2.new(1,-28,0,22)dU.Position=UDim2.new(0,14,0,14)dU.BackgroundTransparency=1;dU.Text="Session & Window Options"dU.TextColor3=C.Text;dU.Font=Enum.Font.GothamBold;dU.TextSize=13;dU.TextXAlignment=Enum.TextXAlignment.Left;dU.ZIndex=402;dU.Parent=NC;local NE=Instance.new("TextLabel")NE.Size=UDim2.new(1,-28,0,28)NE.Position=UDim2.new(0,14,0,36)NE.BackgroundTransparency=1;NE.Text="Minimize to the floating CP pill (keeps active welds & pills) or unload completely?"NE.TextColor3=C.Muted;NE.TextWrapped=true;NE.Font=Enum.Font.Gotham;NE.TextSize=10;NE.TextXAlignment=Enum.TextXAlignment.Left;NE.ZIndex=402;NE.Parent=NC;local NF=Instance.new("TextButton")NF.Size=UDim2.new(1,-28,0,30)NF.Position=UDim2.new(0,14,0,74)NF.Text="Minimize to CP Pill"NF.TextColor3=Color3.new(1,1,1)NF.Font=Enum.Font.GothamBold;NF.TextSize=10;NF.ZIndex=402;NF.Parent=NC;Instance.new("UICorner",NF).CornerRadius=UDim.new(1,0)Cq(NF,C.Accent2)local NG=Instance.new("TextButton")NG.Size=UDim2.new(0.5,-17,0,30)NG.Position=UDim2.new(0,14,1,-42)NG.Text="Unload Script"NG.TextColor3=Color3.new(1,1,1)NG.Font=Enum.Font.GothamBold;NG.TextSize=10;NG.ZIndex=402;NG.Parent=NC;Instance.new("UICorner",NG).CornerRadius=UDim.new(1,0)Cq(NG,C.Danger)local vj=Instance.new("TextButton")vj.Size=UDim2.new(0.5,-17,0,30)vj.Position=UDim2.new(0.5,3,1,-42)vj.Text="Cancel"vj.TextColor3=C.Text;vj.Font=Enum.Font.GothamBold;vj.TextSize=10;vj.ZIndex=402;vj.Parent=NC;Instance.new("UICorner",vj).CornerRadius=UDim.new(1,0)Cq(vj,C.PanelLt)local function NH()l1:Destroy()NC:Destroy()end;NF.MouseButton1Click:Connect(function()N()DL(false)NH()end)NG.MouseButton1Click:Connect(function()N()NA()end)vj.MouseButton1Click:Connect(function()Cu()NH()end)end;Dn.MouseButton1Click:Connect(function()Cu()NB()end)f.InputBegan:Connect(function(DK,Ly)if Ly or f:GetFocusedTextBox()then return end;if sP and sP.listeningAction then local sQ=sP.listeningAction;sP.listeningAction=nil;if DK.KeyCode==Enum.KeyCode.Escape or DK.KeyCode==Enum.KeyCode.Backspace or DK.KeyCode==Enum.KeyCode.Delete then sP.binds[sQ]=nil;sP:UpdateDisplay(sQ)S("⌨️ KEYBIND","Cleared keybind for "..(sP.actionLabels[sQ]or sQ))N()else sP.binds[sQ]=DK.KeyCode;sP:UpdateDisplay(sQ)S("⌨️ KEYBIND","Assigned ["..DK.KeyCode.Name.."] to "..(sP.actionLabels[sQ]or sQ).."!")K()end;return end;if DK.KeyCode==Enum.KeyCode.RightShift then DL(not C9.open)if C9.open then O()else N()end;return end;if sP and sP.binds then local NI=false;for sQ,xe in pairs(sP.binds)do if xe and DK.KeyCode==xe then NI=true;if sQ=="rewind"then RewindSys:Start(RewindSys.duration)elseif sQ=="clicktp"then local sM=n:GetMouse()if sM and sM.Hit then sA(sM.Hit.Position,sM.Target)else S("🚫 CLICK TP","No surface targeted! Void teleport blocked.")L()end elseif sQ=="fly"then if bt and bt.toggleFly then bt.toggleFly()end elseif sQ=="stop"then cz()bB:Cleanup(false)a8=nil;a9=nil;CT.Text="stopped"bA()S("COCO POWDER","Emergency Unweld triggered via ["..xe.Name.."]")N()else Fe(sQ)end;break end end;if NI then return end end;if DK.KeyCode==Enum.KeyCode.R and not(sP and sP.listeningAction)then RewindSys:Start(RewindSys.duration)return end end)DZ("Weld & Troll")end;local NJ,NK=xpcall(C3,function(oh)local NL=""pcall(function()if debug and typeof(debug.traceback)=="function"then NL="\n"..tostring(debug.traceback())end end)return tostring(oh)..NL end)if not NJ then warn("[COCO POWDER] GUI startup failed:\n"..tostring(NK))pcall(function()local BE=n:FindFirstChildOfClass("PlayerGui")or n:WaitForChild("PlayerGui",8)if not BE then return end;local jd=BE:FindFirstChild("CocoPowderStartupError")if jd then jd:Destroy()end;local NM=Instance.new("ScreenGui")NM.Name="CocoPowderStartupError"NM.ResetOnSpawn=false;NM.DisplayOrder=100000;NM.Parent=BE;local NN=Instance.new("Frame")NN.Size=UDim2.new(0.9,0,0,150)NN.Position=UDim2.new(0.05,0,0.08,0)NN.BackgroundColor3=Color3.fromRGB(25,25,30)NN.BorderSizePixel=0;NN.Parent=NM;Instance.new("UICorner",NN).CornerRadius=UDim.new(0,10)local T=Instance.new("TextLabel")T.Size=UDim2.new(1,-20,0,32)T.Position=UDim2.new(0,10,0,8)T.BackgroundTransparency=1;T.Font=Enum.Font.GothamBold;T.TextSize=16;T.TextColor3=Color3.fromRGB(255,115,115)T.TextXAlignment=Enum.TextXAlignment.Left;T.Text="COCO POWDER failed to start"T.Parent=NN;local NO=Instance.new("TextLabel")NO.Size=UDim2.new(1,-20,1,-48)NO.Position=UDim2.new(0,10,0,40)NO.BackgroundTransparency=1;NO.Font=Enum.Font.Code;NO.TextSize=11;NO.TextColor3=Color3.fromRGB(235,235,240)NO.TextWrapped=true;NO.TextXAlignment=Enum.TextXAlignment.Left;NO.TextYAlignment=Enum.TextYAlignment.Top;NO.Text=tostring(NK):sub(1,1800)NO.Parent=NN end)return end;S("COCO POWDER V36","Novoline Dual-Card Edition ready! RightShift or CP pill to toggle.")print("[COCO POWDER V36] Novoline Dual-Card UI Ready.")
+print(string.char(91,75,72,65,77,65,78,32,68,72,79,75,76,65,93,32,86,51,55,32,71,111,108,100,101,110,32,84,97,100,107,97,32,90,101,114,111,45,68,101,108,97,121,32,38,32,82,101,102,105,110,101,100,32,85,73,32,69,100,105,116,105,111,110,32,98,111,111,116,115,116,114,97,112,112,105,110,103,46,46,46))
+if not game:IsLoaded() then
+local _0xF999 = pcall(function() game.Loaded:Wait() end)
+if not _0xF999 then task.wait(1) end
+end
+local _0xC77A = game:GetService(string.char(82,117,110,83,101,114,118,105,99,101))
+local _0xC3F7 = game:GetService(string.char(80,108,97,121,101,114,115))
+local _0xB2E3 = game:GetService(string.char(85,115,101,114,73,110,112,117,116,83,101,114,118,105,99,101))
+local _0xFD0E = game:GetService(string.char(84,119,101,101,110,83,101,114,118,105,99,101))
+local _0x19ED = game:GetService(string.char(68,101,98,114,105,115))
+local _0xD606 = game:GetService(string.char(83,111,117,110,100,83,101,114,118,105,99,101))
+local _0x4CD5 = game:GetService(string.char(83,116,97,114,116,101,114,71,117,105))
+local _0x2083 = game:GetService(string.char(82,101,112,108,105,99,97,116,101,100,83,116,111,114,97,103,101))
+local _0xC00E = game:GetService(string.char(84,101,120,116,67,104,97,116,83,101,114,118,105,99,101))
+local _0x6B21 = nil
+pcall(function() _0x6B21 = game:GetService(string.char(67,111,114,101,71,117,105)) end)local _0xA6AA = _0xC3F7.LocalPlayer
+local _0xF60B = tick()
+while not _0xA6AA and tick() - _0xF60B < 12 do
+task.wait(0.1)
+_0xA6AA = _0xC3F7.LocalPlayer
+end
+if not _0xA6AA then
+warn(string.char(91,75,72,65,77,65,78,32,68,72,79,75,76,65,93,32,83,116,97,114,116,117,112,32,115,116,111,112,112,101,100,58,32,76,111,99,97,108,80,108,97,121,101,114,32,119,97,115,32,117,110,97,118,97,105,108,97,98,108,101,32,97,102,116,101,114,32,49,50,32,115,101,99,111,110,100,115,46,32,69,120,101,99,117,116,101,32,97,102,116,101,114,32,106,111,105,110,105,110,103,32,97,32,103,97,109,101,46))
+return
+end
+local _0xF28E = nillocal function _0x6A77()
+local _0x4CD6 = _0xA6AA:FindFirstChildOfClass(string.char(80,108,97,121,101,114,71,117,105)) or _0xA6AA:FindFirstChild(string.char(80,108,97,121,101,114,71,117,105))
+if not _0x4CD6 then
+pcall(function() _0x4CD6 = _0xA6AA:WaitForChild(string.char(80,108,97,121,101,114,71,117,105), 6) end)
+end
+if _0x4CD6 then return _0x4CD6 end
+local _0xA819, _0x90C7 = pcall(function()
+if typeof(gethui) ==string.char(102,117,110,99,116,105,111,110)then return gethui() end
+return nil
+end)
+if _0xA819 and typeof(_0x90C7) ==string.char(73,110,115,116,97,110,99,101)then return _0x90C7 end
+if _0x6B21 then
+local _0xF999 = pcall(function() return _0x6B21:GetChildren() end)
+if _0xF999 then return _0x6B21 end
+end
+return _0xA6AA:FindFirstChildOfClass(string.char(80,108,97,121,101,114,71,117,105))
+end
+local _0x9617 = _0x6A77()
+if not _0x9617 then
+warn(string.char(91,75,72,65,77,65,78,32,68,72,79,75,76,65,93,32,71,85,73,32,99,111,110,116,97,105,110,101,114,32,109,105,115,115,105,110,103,46,32,82,101,45,101,120,101,99,117,116,101,32,97,102,116,101,114,32,106,111,105,110,105,110,103,32,97,32,103,97,109,101,46))
+return
+end
+local function _0x3CEC(container)
+if not container then return end
+pcall(function()
+for _0x9094, child in ipairs(container:GetChildren()) do
+if child.Name:match(string.char(94,75,104,97,109,97,110,68,104,111,107,108,97)) or child.Name:match(string.char(94,67,111,99,111,80,111,119,100,101,114)) then
+child:Destroy()
+end
+end
+end)
+end
+_0x3CEC(_0x9617)
+_0x3CEC(_0xA6AA:FindFirstChildOfClass(string.char(80,108,97,121,101,114,71,117,105)))
+if _0x6B21 then _0x3CEC(_0x6B21) end
+local _0x2668 = _0x2668 or set_hidden_property or set_hidden_prop
+local _0x3E41 = nil
+pcall(function()
+if InstanceHandle and typeof(InstanceHandle.new) ==string.char(102,117,110,99,116,105,111,110)then
+_0x3E41 = InstanceHandle.new
+end
+end)local _0x8319 = workspace.CurrentCamera or workspace:FindFirstChildOfClass(string.char(67,97,109,101,114,97))
+if not _0x8319 then
+local _0x599C = tick()
+while not _0x8319 and tick() - _0x599C < 2.0 do
+task.wait(0.1)
+_0x8319 = workspace.CurrentCamera or workspace:FindFirstChildOfClass(string.char(67,97,109,101,114,97))
+end
+end
+workspace:GetPropertyChangedSignal(string.char(67,117,114,114,101,110,116,67,97,109,101,114,97)):Connect(function()
+if workspace.CurrentCamera then
+_0x8319 = workspace.CurrentCamera
+end
+end)
+local _0x90E7 = {BG = Color3.fromRGB(28, 21, 6),BG2 = Color3.fromRGB(42, 31, 9),Panel = Color3.fromRGB(58, 44, 12),PanelLt = Color3.fromRGB(82, 62, 17),Border = Color3.fromRGB(218, 165, 32),Accent = Color3.fromRGB(250, 204, 21),Accent2 = Color3.fromRGB(217, 138, 10),Neon = Color3.fromRGB(254, 243, 148),Success = Color3.fromRGB(38, 198, 90),Danger = Color3.fromRGB(239, 68, 68),Warning = Color3.fromRGB(245, 168, 18),Pink = Color3.fromRGB(252, 211, 77),Purple = Color3.fromRGB(234, 179, 8),Text = Color3.fromRGB(255, 252, 238),Muted = Color3.fromRGB(224, 201, 142),Dark = Color3.fromRGB(18, 13, 4),Active = Color3.fromRGB(108, 82, 20),}
+local function _0xD64C(id, vol, pitch)
+pcall(function()
+local _0x87D3 = Instance.new(string.char(83,111,117,110,100))
+_0x87D3.SoundId =string.char(114,98,120,97,115,115,101,116,105,100,58,47,47).. tostring(id)
+_0x87D3.Volume = vol or 0.4
+_0x87D3.PlaybackSpeed = pitch or 1
+_0x87D3.Parent = _0xD606
+_0x87D3:Play()
+_0x19ED:AddItem(_0x87D3, 4)
+end)
+end
+local _0x0909 = function() _0xD64C(12221967, 0.35, 1.8) end
+local _0x9FE9 = function() _0xD64C(12221967, 0.12, 2.5) end
+local _0xCAE4 = function() _0xD64C(5696552322, 0.5, 1.2) end
+local _0xB065 = function() _0xD64C(5766952670, 0.5, 0.9) end
+local _0xF140 = function() _0xD64C(5696552322, 0.4, 1.6) end
+local _0xED6E = function() _0xD64C(5696552322, 0.4, 0.7) end
+local _0xEA8A = function() _0xD64C(6895079853, 0.5, 1.4) end
+local _0x6F35 = function() _0xD64C(9069609267, 0.6, 1.2) end
+local _0x2DB3 = nil
+local _0x8AC6 = nil
+local function _0xA387(_0x1412, text)
+pcall(function()
+_0x4CD5:SetCore(string.char(83,101,110,100,78,111,116,105,102,105,99,97,116,105,111,110), {
+Title = _0x1412 orstring.char(75,72,65,77,65,78,32,68,72,79,75,76,65),
+Text = text or"",
+Duration = 3,
+Icon =string.char(114,98,120,97,115,115,101,116,105,100,58,47,47,49,48,56,53,48,50,53,55,52,48,52)})
+end)
+end
+local function _0xA1A7(player)
+if not player or not player.Character then return nil end
+local _0xA778 = player.Character:FindFirstChildOfClass(string.char(72,117,109,97,110,111,105,100))
+if not _0xA778 then return nil end
+return _0xA778.RigType
+end
+local function _0xC5B7(player)
+return _0xA1A7(player) == Enum.HumanoidRigType.R15
+end
+local _0x68F1 = { X = 0, Y = 0, Z = 1.3, RX = 0, RY = 0, RZ = 0, Speed = 1.0 }
+local _0xB42E = nil
+local _0x6652 = nil
+local _0x0A85 = nillocal _0xA36A = nil
+local _0xBBEA = {}
+local function _0x7A5D(player)if not _0xA36A or not _0xA36A.Parent then return end
+if player and player.Parent == _0xC3F7 then
+_0xA36A.Text = player.Name
+else
+_0xA36A.Text =""end
+end
+local _0x8668 = workspace.FallenPartsDestroyHeight
+if _0x8668 ~= _0x8668 or _0x8668 < -10000 or _0x8668 > 500 then
+_0x8668 = -500
+end
+local _0xF0B5 = nil
+local _0x2CD3 = true
+local _0x839F = nil
+local _0x518F = nil
+local _0x243A = { _0x0A3D = false, presetKey = nil, _0x43DF = nil, waitingForSpawn = false, autoNearest = false }
+local _0x4964 = 0
+local _0xF3B0 = false
+local _0xB7ED = nil
+local _0xCE0F = nil
+local _0x5752 = nil
+local _0x4652 = nil
+local _0xBF41 = nil
+local _0xA2C6 = nil
+local _0x3FD6 = nil
+local _0x7067 = nil
+local _0x1FB2 = 0
+local _0x5BCC = false
+local _0xA9FC = {}local function _0x97B4(_0x5685)
+if not _0x5685 then return false end
+local _0x41D2 = _0x5685.Position
+if _0x41D2.X ~= _0x41D2.X or _0x41D2.Y ~= _0x41D2.Y or _0x41D2.Z ~= _0x41D2.Z then return false end
+local _0x110E = _0x8668 + 15
+if _0x41D2.Y <= _0x110E or _0x41D2.Y > 150000 then return false end
+if _0x41D2.Magnitude > 250000 then return false end
+return true
+endlocal function _0xD510(_0x5685, velocity)
+if not _0x5685 then return true end
+local _0x41D2 = _0x5685.Position
+if _0x41D2.X ~= _0x41D2.X or _0x41D2.Y ~= _0x41D2.Y or _0x41D2.Z ~= _0x41D2.Z then return true end
+if _0x41D2.Magnitude > 450000 then return true end
+local _0x94A3 = velocity and velocity.Y or 0
+if _0x41D2.Y <= (_0x8668 + 8) then return true end
+if _0x41D2.Y <= (_0x8668 + 45) and _0x94A3 < -95 then return true end
+return false
+end
+local function _0x6660()
+if _0x97B4(_0x7067) then
+return _0x7067
+end
+local _0xD18E = workspace:FindFirstChildWhichIsA(string.char(83,112,97,119,110,76,111,99,97,116,105,111,110), true)
+if _0xD18E and _0x97B4(_0xD18E.CFrame) then
+return _0xD18E.CFrame + Vector3.new(0, 4, 0)
+end
+for _0x9094, _0x1CEE in ipairs(_0xC3F7:GetPlayers()) do
+if _0x1CEE ~= _0xA6AA and (not _0xF3B0 or _0x1CEE ~= _0x6652) and _0x1CEE.Character then
+local _0x5CFE = _0x1CEE.Character:FindFirstChild(string.char(72,117,109,97,110,111,105,100,82,111,111,116,80,97,114,116))
+if _0x5CFE and _0x97B4(_0x5CFE.CFrame) then
+return _0x5CFE.CFrame * CFrame.new(0, 2, 4)
+end
+end
+end
+return CFrame.new(0, 35, 0)
+end
+local _0x5DAB
+local _0xC3EF
+local _0xDF2E
+local _0x207A
+local _0x363C
+local _0xAE44
+local _0xB106 = false
+local _0x1978 = false
+local _0x8A10 = {}
+local _0x77B5 = {}
+local _0xD7A4 = {}local function _0x1B4F()
+return (_0xB42E ~= nil and not _0xB42E.destroyed) or _0xF3B0
+endlocal _0x02BF = {
+speed = false,
+jump = false,
+infiniteJump = false,
+noclip = false,
+fly = false,
+flyConn = nil,
+jumpConn = nil,
+noclipConn = nil,
+speedLoopConn = nil,
+lastTeleportTick = 0,
+desiredWalkSpeed = 32,
+}
+local _0x3E10 = 0local _0x977C = setmetatable({}, { __mode =string.char(107)})
+local function _0x04D0(_0x5BFE)
+if not _0x5BFE then return {} end
+local _0x4599 = _0x977C[_0x5BFE]
+if _0x4599 then return _0x4599.parts end
+local _0x6B2D = {}
+for _0x9094, _0x000B in ipairs(_0x5BFE:GetDescendants()) do
+if _0x000B:IsA(string.char(66,97,115,101,80,97,114,116)) then
+_0x6B2D[#_0x6B2D + 1] = _0x000B
+end
+end
+_0x4599 = { _0x6B2D = _0x6B2D }
+_0x977C[_0x5BFE] = _0x4599
+_0x5BFE.DescendantAdded:Connect(function(_0x000B)
+if _0x000B:IsA(string.char(66,97,115,101,80,97,114,116)) then
+_0x6B2D[#_0x6B2D + 1] = _0x000B
+end
+end)
+_0x5BFE.DescendantRemoving:Connect(function(_0x000B)
+if _0x000B:IsA(string.char(66,97,115,101,80,97,114,116)) then
+for i = #_0x6B2D, 1, -1 do
+if _0x6B2D[i] == _0x000B then
+table.remove(_0x6B2D, i)
+break
+end
+end
+end
+end)
+return _0x6B2D
+endlocal function _0x4DA4(_0x5BFE)
+if not _0x5BFE then return nil end
+local _0xDD60 = _0x5BFE:FindFirstChild(string.char(72,117,109,97,110,111,105,100,82,111,111,116,80,97,114,116))
+if _0xDD60 and _0xDD60:IsA(string.char(66,97,115,101,80,97,114,116)) then return _0xDD60 end
+local _0xA778 = _0x5BFE:FindFirstChildOfClass(string.char(72,117,109,97,110,111,105,100))
+if _0xA778 and _0xA778.RootPart and _0xA778.RootPart:IsA(string.char(66,97,115,101,80,97,114,116)) then return _0xA778.RootPart end
+if _0x5BFE.PrimaryPart and _0x5BFE.PrimaryPart:IsA(string.char(66,97,115,101,80,97,114,116)) then return _0x5BFE.PrimaryPart end
+local _0xA604 = _0x5BFE:FindFirstChild(string.char(85,112,112,101,114,84,111,114,115,111)) or _0x5BFE:FindFirstChild(string.char(76,111,119,101,114,84,111,114,115,111)) or _0x5BFE:FindFirstChild(string.char(84,111,114,115,111)) or _0x5BFE:FindFirstChild(string.char(72,101,97,100))
+if _0xA604 and _0xA604:IsA(string.char(66,97,115,101,80,97,114,116)) then return _0xA604 end
+return _0x5BFE:FindFirstChildWhichIsA(string.char(66,97,115,101,80,97,114,116))
+endlocal function _0xF424(_0x5BFE)
+if not _0x5BFE then return end
+local _0xA778 = _0x5BFE:FindFirstChildOfClass(string.char(72,117,109,97,110,111,105,100))
+if _0xA778 then
+pcall(function()
+local _0x0E07 = _0xA778.SeatPart
+if _0x0E07 then
+pcall(function() _0x0E07.CanTouch = false end)
+for _0x9094, _0x25EB in ipairs(_0x0E07:GetDescendants()) do
+if _0x25EB:IsA(string.char(87,101,108,100)) or _0x25EB:IsA(string.char(87,101,108,100,67,111,110,115,116,114,97,105,110,116)) or _0x25EB:IsA(string.char(77,111,116,111,114,54,68)) or _0x25EB.Name ==string.char(83,101,97,116,87,101,108,100)then
+_0x25EB:Destroy()
+end
+end
+end
+_0xA778.Sit = false
+end)
+end
+for _0x9094, _0x69FF in ipairs(_0x5BFE:GetDescendants()) do
+if _0x69FF:IsA(string.char(83,101,97,116,87,101,108,100)) or _0x69FF.Name ==string.char(83,101,97,116,87,101,108,100)then
+pcall(function() _0x69FF:Destroy() end)
+elseif _0x69FF:IsA(string.char(66,97,115,101,80,97,114,116)) then
+local _0x2340, _0x4BFD = pcall(function() return _0x69FF:GetJoints() end)
+if _0x2340 and _0x4BFD then
+for _0x9094, j in ipairs(_0x4BFD) do
+if j:IsA(string.char(74,111,105,110,116,73,110,115,116,97,110,99,101)) or j:IsA(string.char(87,101,108,100,67,111,110,115,116,114,97,105,110,116)) then
+local _0xD8D8, _0x9AC3 = j.Part0, j.Part1
+local _0x5043 = _0xD8D8 and _0xD8D8:IsDescendantOf(_0x5BFE)
+local _0x57B1 = _0x9AC3 and _0x9AC3:IsDescendantOf(_0x5BFE)
+if (_0x5043 and _0x9AC3 and not _0x57B1) or (_0x57B1 and _0xD8D8 and not _0x5043) then
+pcall(function() j:Destroy() end)
+end
+end
+end
+end
+end
+end
+end
+local _0x3C23 = {}
+function _0x3C23:StopAllAnimations()
+for _0x9094, _0xA453 in ipairs(_0xBBEA) do
+pcall(function() _0xA453:Stop(0) end)
+pcall(function() _0xA453:Destroy() end)
+end
+_0xBBEA = {}
+end
+function _0x3C23:ResetPhysics(character)
+if not character then return end
+local _0xE5AE = _0x4DA4(character)
+if _0xE5AE then
+if _0x2668 then
+pcall(function() _0x2668(_0xE5AE,string.char(80,104,121,115,105,99,115,82,101,112,82,111,111,116,80,97,114,116), nil) end)
+pcall(function() _0x2668(_0xE5AE,string.char(80,104,121,115,105,99,115,82,101,112,82,111,111,116,82,101,102), nil) end)
+end
+_0xE5AE.Anchored = false
+_0xE5AE.AssemblyLinearVelocity = Vector3.zero
+_0xE5AE.AssemblyAngularVelocity = Vector3.zero
+end
+for _0x9094, _0x5959 in ipairs(_0x04D0(character)) do
+if _0x5959.Parent then
+_0x5959.Massless = false
+pcall(function() _0x5959.CustomPhysicalProperties = nil end)
+if not (_0x02BF and _0x02BF.noclip) and (_0x5959.Name ==string.char(72,117,109,97,110,111,105,100,82,111,111,116,80,97,114,116)or _0x5959.Name ==string.char(84,111,114,115,111)or _0x5959.Name ==string.char(85,112,112,101,114,84,111,114,115,111)or _0x5959.Name ==string.char(76,111,119,101,114,84,111,114,115,111)or _0x5959.Name ==string.char(72,101,97,100)) then
+_0x5959.CanCollide = true
+end
+end
+end
+end
+function _0x3C23:StopFling(skipReturn)
+local _0xC45F = _0xF3B0
+local _0x2AAA = _0xCE0F
+if _0xB7ED then _0xB7ED:Disconnect(); _0xB7ED = nil end
+if self.FlingStepConn then self.FlingStepConn:Disconnect(); self.FlingStepConn = nil end
+if _0xA6AA.Character then
+local _0x32EC = _0x4DA4(_0xA6AA.Character)
+if _0x32EC and _0x2668 then
+pcall(function() _0x2668(_0x32EC,string.char(80,104,121,115,105,99,115,82,101,112,82,111,111,116,80,97,114,116), nil) end)
+pcall(function() _0x2668(_0x32EC,string.char(80,104,121,115,105,99,115,82,101,112,82,111,111,116,82,101,102), nil) end)
+end
+for _0x9094, _0x5959 in ipairs(_0x04D0(_0xA6AA.Character)) do
+if _0x5959.Parent then
+pcall(function() _0x5959.CustomPhysicalProperties = nil end)
+end
+end
+end
+_0xF3B0 = false
+_0xCE0F = nil
+if _0xA2C6 then _0xA2C6.Visible = false end
+local _0x6EE9 = workspace.CurrentCamera
+if _0x6EE9 and (_0x5752 or _0x4652) then
+pcall(function()
+_0x6EE9.CameraType = _0x5752 or Enum.CameraType.Custom
+local _0x4545 = _0xA6AA.Character and _0xA6AA.Character:FindFirstChildOfClass(string.char(72,117,109,97,110,111,105,100))
+_0x6EE9.CameraSubject = _0x4545 or _0x4652
+end)
+end
+_0x5752 = nil
+_0x4652 = nil
+_0xBF41 = nil
+if _0xC45F and not skipReturn and _0xA6AA.Character then
+_0x1FB2 = tick()
+_0xDF2E(_0xA6AA.Character, _0x2AAA)
+end
+if _0x207A then pcall(_0x207A) end
+end
+function _0x3C23:Cleanup(keepTarget, skipReturn)
+if _0xB42E then
+pcall(function() _0xB42E:Destroy(skipReturn) end)
+_0xB42E = nil
+end
+self:StopAllAnimations()
+self:StopFling(skipReturn)
+if _0xF0B5 then
+pcall(function()
+local _0x6EE9 = workspace.CurrentCamera
+if _0x6EE9 then
+_0x6EE9.CameraSubject = _0xF0B5
+_0x6EE9.CameraType = Enum.CameraType.Custom
+end
+end)
+_0xF0B5 = nil
+end
+if _0xA6AA.Character and not skipReturn then
+self:ResetPhysics(_0xA6AA.Character)
+local _0xE5AE = _0x4DA4(_0xA6AA.Character)
+if _0xE5AE and not _0x97B4(_0xE5AE.CFrame) then
+_0xDF2E(_0xA6AA.Character, _0x7067)
+end
+end
+if not keepTarget then _0x6652 = nil end
+end
+local _0x8AAF = 0.12
+local _0xEB3A = 2
+local function _0xC7E9(_0xA778)
+if not _0xA778 then return end
+pcall(function() _0xA778:SetStateEnabled(Enum.HumanoidStateType.Physics, true) end)
+pcall(function() _0xA778:ChangeState(Enum.HumanoidStateType.Physics) end)
+end
+local function _0x1A56(animId)
+local _0x1224 = tostring(animId or""):gsub(string.char(37,115,43),"")
+local _0x34FF = _0x1224:match(string.char(40,37,100,43,41,36))
+return _0x34FF or _0x1224
+endlocal function _0x8052(_0xFC4D, animId, fallbacks, _0xA778, priority)
+if not _0xFC4D or not animId then return nil, nil end
+local _0x1DAA = _0x1A56(animId)
+if _0x1DAA ==""then return nil, nil end
+local _0xC20E = Instance.new(string.char(65,110,105,109,97,116,105,111,110))
+_0xC20E.AnimationId =string.char(114,98,120,97,115,115,101,116,105,100,58,47,47).. _0x1DAA
+local _0x5253, _0xA453 = pcall(function() return _0xFC4D:LoadAnimation(_0xC20E) end)
+if (not _0x5253 or not _0xA453) and _0xA778 then
+_0x5253, _0xA453 = pcall(function() return _0xA778:LoadAnimation(_0xC20E) end)
+end
+if _0x5253 and _0xA453 then
+pcall(function() _0xA453.Priority = priority or Enum.AnimationPriority.Action4 end)
+pcall(function() if not _0xA453.Priority then _0xA453.Priority = Enum.AnimationPriority.Action end end)
+pcall(function() _0xA453.Looped = true end)
+_0xC7E9(_0xA778)
+local _0x0084 = math.clamp(_0x68F1.Speed or 1.0, 0.2, 6.0)
+local _0x8581 = pcall(function() _0xA453:Play(0, 1, _0x0084) end)
+if _0x8581 then
+pcall(function() _0xA453:AdjustSpeed(_0x0084) end)
+table.insert(_0xBBEA, _0xA453)
+return _0xA453, _0xC20E
+end
+end
+pcall(function() _0xC20E:Destroy() end)for _0x9094, fb in ipairs(fallbacks or {}) do
+local _0xD10F = _0x1A56(fb)
+if _0xD10F ~=""then
+local _0xB2A9 = Instance.new(string.char(65,110,105,109,97,116,105,111,110))
+_0xB2A9.AnimationId =string.char(114,98,120,97,115,115,101,116,105,100,58,47,47).. _0xD10F
+local _0x6FD2, _0x89EC = pcall(function() return _0xFC4D:LoadAnimation(_0xB2A9) end)
+if _0x6FD2 and _0x89EC then
+pcall(function() _0x89EC.Priority = priority or Enum.AnimationPriority.Action4 end)
+pcall(function() _0x89EC.Looped = true end)
+_0xC7E9(_0xA778)
+local _0x0084 = math.clamp(_0x68F1.Speed or 1.0, 0.2, 6.0)
+if pcall(function() _0x89EC:Play(0, 1, _0x0084) end) then
+pcall(function() _0x89EC:AdjustSpeed(_0x0084) end)
+table.insert(_0xBBEA, _0x89EC)
+return _0x89EC, _0xB2A9
+end
+end
+pcall(function() _0xB2A9:Destroy() end)
+end
+end
+return nil, nil
+end
+local _0x22AB = false
+local function _0x36A6(_0x4E33)
+local _0xA778 = _0x4E33 and _0x4E33:FindFirstChildOfClass(string.char(72,117,109,97,110,111,105,100))
+if not _0xA778 then return end
+local _0x2FBB = _0xA778:FindFirstChildOfClass(string.char(65,110,105,109,97,116,111,114))
+if _0x2FBB then
+local _0xF999, _0x6F65 = pcall(function() return _0x2FBB:GetPlayingAnimationTracks() end)
+if _0xF999 and _0x6F65 then
+for _0x9094, _0x6299 in ipairs(_0x6F65) do
+pcall(function() _0x6299:Stop(0) end); pcall(function() _0x6299:Destroy() end)
+end
+end
+end
+end
+local function _0x1B7E(_0x4E33)
+if not _0x4E33 then return end
+local _0x20CB = _0x4E33:FindFirstChild(string.char(65,110,105,109,97,116,101))
+if _0x20CB and not _0x20CB.Disabled then
+_0x20CB.Disabled = true
+_0x22AB = true
+end
+_0x36A6(_0x4E33)
+end
+local function _0x0334(_0x4E33)
+if _0x4E33 then
+local _0x20CB = _0x4E33:FindFirstChild(string.char(65,110,105,109,97,116,101))
+if _0x20CB and _0x20CB.Disabled then
+_0x20CB.Disabled = false
+end
+end
+_0x22AB = false
+end
+_0xC3EF = function(_0x5BFE, safeCF)
+_0x5BFE = _0x5BFE or (_0xA6AA and _0xA6AA.Character)
+if not _0x5BFE then return end
+local _0xE5AE = _0x4DA4(_0x5BFE)
+local _0xA778 = _0x5BFE:FindFirstChildOfClass(string.char(72,117,109,97,110,111,105,100))
+if _0xE5AE then
+if _0x2668 then
+pcall(function() _0x2668(_0xE5AE,string.char(80,104,121,115,105,99,115,82,101,112,82,111,111,116,80,97,114,116), nil) end)
+pcall(function() _0x2668(_0xE5AE,string.char(80,104,121,115,105,99,115,82,101,112,82,111,111,116,82,101,102), nil) end)
+end
+_0xE5AE.Anchored = false
+_0xE5AE.AssemblyLinearVelocity = Vector3.zero
+_0xE5AE.AssemblyAngularVelocity = Vector3.zero
+local _0x6424 = nil
+if _0x97B4(safeCF) then
+_0x6424 = safeCF
+elseif _0x97B4(_0xE5AE.CFrame) then
+_0x6424 = _0xE5AE.CFrame
+else
+_0x6424 = _0x6660()
+end
+if _0x6424 then
+local _0x41D2 = _0x6424.Position
+local _0x9094, _0x45E4, _0x9094 = _0x6424:ToEulerAnglesYXZ()
+_0xE5AE.CFrame = CFrame.new(_0x41D2) * CFrame.Angles(0, _0x45E4, 0)
+end
+end
+for _0x9094, _0x5959 in ipairs(_0x04D0(_0x5BFE)) do
+if _0x5959.Parent then
+_0x5959.Anchored = false
+_0x5959.Massless = false
+pcall(function() _0x5959.CustomPhysicalProperties = nil end)
+if not (_0x02BF and _0x02BF.noclip) and (_0x5959.Name ==string.char(72,117,109,97,110,111,105,100,82,111,111,116,80,97,114,116)or _0x5959.Name ==string.char(84,111,114,115,111)or _0x5959.Name ==string.char(85,112,112,101,114,84,111,114,115,111)or _0x5959.Name ==string.char(76,111,119,101,114,84,111,114,115,111)or _0x5959.Name ==string.char(72,101,97,100)) then
+_0x5959.CanCollide = true
+end
+if not (_0x5DAB and _0x5DAB.Kill and _0x5DAB.Kill.enabled) then
+_0x5959.CanTouch = true
+_0x5959.CanQuery = true
+end
+end
+end_0x36A6(_0x5BFE)
+_0x0334(_0x5BFE)
+if _0xA778 and _0xA778.Health > 0 then
+pcall(function()
+if not _0xA778.EvaluateStateMachine then _0xA778.EvaluateStateMachine = true end
+_0xA778:SetStateEnabled(Enum.HumanoidStateType.Running, true)
+_0xA778:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
+_0xA778:SetStateEnabled(Enum.HumanoidStateType.Freefall, true)
+_0xA778:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
+_0xA778:SetStateEnabled(Enum.HumanoidStateType.Climbing, true)
+_0xA778:SetStateEnabled(Enum.HumanoidStateType.Landed, true)
+_0xA778.PlatformStand = false
+_0xA778.Sit = false
+_0xA778.AutoRotate = true
+if _0xA778.WalkSpeed < 8 then
+_0xA778.WalkSpeed = (_0x02BF and _0x02BF.speed and _0x02BF.desiredWalkSpeed) or 16
+end
+_0xA778:ChangeState(Enum.HumanoidStateType.GettingUp)
+_0xA778:ChangeState(Enum.HumanoidStateType.Running)
+end)
+end
+local _0x6EE9 = workspace.CurrentCamera
+if _0x6EE9 and _0xA778 and not _0x5BCC then
+pcall(function()
+_0x6EE9.CameraType = Enum.CameraType.Custom
+_0x6EE9.CameraSubject = _0xA778
+end)
+end
+end_0xDF2E = function(_0x5BFE, preferredCF)
+_0x5BFE = _0x5BFE or (_0xA6AA and _0xA6AA.Character)
+if not _0x5BFE then return end
+if (_0xB42E ~= nil and not _0xB42E.destroyed) or _0xF3B0 then return end
+local _0xE5AE = _0x4DA4(_0x5BFE)
+local _0xA778 = _0x5BFE:FindFirstChildOfClass(string.char(72,117,109,97,110,111,105,100))
+local _0xDD0F = false
+if _0xE5AE then
+local _0x1CEE = _0xE5AE.Position
+local _0x324B = _0xE5AE.AssemblyLinearVelocity
+if _0x1CEE.Y <= math.max(_0x8668 + 45, -160) or _0x1CEE.Magnitude > 18000 or _0x324B.Magnitude > 160 then
+_0xDD0F = true
+end
+end
+local _0xA2EE = _0x97B4(preferredCF) and preferredCF
+or (_0xE5AE and _0x97B4(_0xE5AE.CFrame) and _0xE5AE.CFrame)
+or _0x6660()
+local _0x41D2 = _0xA2EE.Position
+local _0x9094, _0x45E4, _0x9094 = _0xA2EE:ToEulerAnglesYXZ()
+local _0x7D9B = CFrame.new(_0x41D2 + Vector3.new(0, 1.2, 0)) * CFrame.Angles(0, _0x45E4, 0)
+_0x363C(_0x7D9B)
+_0xC3EF(_0x5BFE, _0x7D9B)
+if not _0xE5AE or not _0xE5AE.Parent then return end
+_0x3E10 = _0x3E10 + 1
+local _0x9852 = _0x3E10if not _0xDD0F then
+_0xB106 = false
+return
+end
+task.spawn(function()
+_0xB106 = true
+pcall(function()
+_0xE5AE.Anchored = true
+for _0x9094 = 1, 2 do
+if not _0xE5AE.Parent or _0x9852 ~= _0x3E10 or (_0xB42E ~= nil and not _0xB42E.destroyed) or _0xF3B0 then
+break
+end
+_0xE5AE.AssemblyLinearVelocity = Vector3.zero
+_0xE5AE.AssemblyAngularVelocity = Vector3.zero
+_0xE5AE.CFrame = _0x7D9B
+_0xC77A.Heartbeat:Wait()
+end
+if _0xE5AE.Parent then
+_0xE5AE.Anchored = false
+if _0x9852 == _0x3E10 and (_0xB42E == nil or _0xB42E.destroyed) and not _0xF3B0 then
+_0xE5AE.AssemblyLinearVelocity = Vector3.zero
+_0xE5AE.AssemblyAngularVelocity = Vector3.zero
+_0xE5AE.CFrame = _0x7D9B
+end
+end
+if _0x9852 == _0x3E10 and (_0xB42E == nil or _0xB42E.destroyed) and not _0xF3B0 then
+if _0xA778 and _0xA778.Parent and _0xA778.Health > 0 then
+_0xA778.PlatformStand = false
+_0xA778.Sit = false
+_0xA778.AutoRotate = true
+_0xA778:ChangeState(Enum.HumanoidStateType.GettingUp)
+_0xA778:ChangeState(Enum.HumanoidStateType.Running)
+end
+end
+end)
+if _0x9852 == _0x3E10 then
+_0xB106 = false
+end
+if not (_0x5DAB and (_0x5DAB.AlwaysOnCore or (_0x5DAB.Void and _0x5DAB.Void.enabled) or (_0x5DAB.InfFallVoid and _0x5DAB.InfFallVoid.enabled) or (_0x5DAB.Kill and _0x5DAB.Kill.enabled))) and not _0x243A.active and not _0xF3B0 then
+pcall(function() workspace.FallenPartsDestroyHeight = _0x8668 end)
+end
+end)
+end_0xC77A.Heartbeat:Connect(function()
+local _0x5BFE = _0xA6AA.Character
+local _0xE5AE = _0x4DA4(_0x5BFE)
+local _0xA778 = _0x5BFE and _0x5BFE:FindFirstChildOfClass(string.char(72,117,109,97,110,111,105,100))
+if not _0xE5AE or not _0xA778 or _0xA778.Health <= 0 then return end
+if not _0x1B4F() and not (_0xAE44 and _0xAE44.rewinding) then
+local _0x6355 = _0xE5AE.AssemblyLinearVelocity.Magnitude
+if _0x97B4(_0xE5AE.CFrame) and _0x6355 < 110 and _0xA778.FloorMaterial ~= Enum.Material.Air then
+local _0x9094, _0x45E4, _0x9094 = _0xE5AE.CFrame:ToEulerAnglesYXZ()
+_0x7067 = CFrame.new(_0xE5AE.Position) * CFrame.Angles(0, _0x45E4, 0)
+elseif _0xE5AE.Position.Y <= math.max(_0x8668 + 22, -260) or _0xE5AE.Position.Magnitude > 22000 then
+if (_0x5DAB and _0x5DAB.Void and _0x5DAB.Void.enabled) or (tick() - _0x1FB2 < 6.0) then
+_0xDF2E(_0x5BFE, _0x7067)
+end
+end
+end
+end)
+local _0x7EF3local _0x4E36
+local _0x76B4
+local _0xF668
+local _0x5D16
+local _0xA4A2
+local _0x4681, _0x8324, _0x638F, _0xB894, _0xE84F, _0xE947
+dolocal function _0xFE31(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbacks, TargetPlayer, RefMode)
+local _0x4363 = Speaker.Character
+if not _0x4363 then return nil end
+local _0x5D4E = _0x4DA4(_0x4363)
+local _0x118B = _0x4363:FindFirstChildWhichIsA(string.char(72,117,109,97,110,111,105,100))
+if not _0x5D4E or not _0x118B or _0x118B.Health <= 0 then return nil end_0x3E10 = _0x3E10 + 1
+_0x5D4E.Anchored = false
+_0xF424(_0x4363)
+local _0x3C6D = (TargetPart and TargetPart.Parent) or (TargetPlayer and _0x4E36(TargetPlayer))
+local _0x6962 = _0x3C6D and _0x3C6D:FindFirstChildOfClass(string.char(72,117,109,97,110,111,105,100))local _0x9623 = nil
+if TargetPart and TargetPart.Parent and not _0xD510(TargetPart.CFrame, TargetPart.AssemblyLinearVelocity) then
+local _0x9094, _0x45E4, _0x9094 = TargetPart.CFrame:ToEulerAnglesYXZ()
+_0x9623 = CFrame.new(TargetPart.Position + Vector3.new(0, 2.5, 0)) * CFrame.Angles(0, _0x45E4, 0)
+_0x7067 = _0x9623
+else
+_0x9623 = (_0x97B4(_0x5D4E.CFrame) and _0x5D4E.CFrame)
+or (_0x97B4(_0x7067) and _0x7067)
+or _0x6660()
+end
+pcall(function() _0x118B.Sit = false end)
+pcall(function() _0x118B.PlatformStand = true end)
+pcall(function() _0x118B.AutoRotate = false end)
+_0xC7E9(_0x118B)
+_0x1B7E(_0x4363)
+local function _0xE560()
+if not _0x4363 or not _0x4363.Parent then return end
+for _0x9094, _0x324B in ipairs(_0x04D0(_0x4363)) do
+if _0x324B.Parent then
+if _0x324B.CanCollide then _0x324B.CanCollide = false end
+if _0x324B.CanTouch then _0x324B.CanTouch = false end
+if _0x324B.CanQuery then _0x324B.CanQuery = false end
+if not _0x324B.Massless then _0x324B.Massless = true end
+if _0x324B.Anchored then _0x324B.Anchored = false end
+end
+end
+if _0x118B and _0x118B.Sit then
+pcall(function() _0x118B.Sit = false end)
+end
+end
+_0xE560()local _0x4944 = 0
+local function _0x571C()
+local _0x0BC9 = CFrame.new(_0x68F1.X or 0, _0x68F1.Y or 0, (_0x68F1.Z or 1.3) - 1.3)
+local _0xAFF9 = Offset * _0x0BC9
+if Osc and Osc.period and Osc.period > 0 then
+local _0xBA8A = (math.sin(_0x4944 * (2 * math.pi) / Osc.period) + 1) * 0.5
+_0xAFF9 = _0xAFF9 * CFrame.new(0, 0, -Osc.distance * _0xBA8A)
+end
+return TargetPart.CFrame * _0xAFF9
+end
+local function _0x7E12(_0x5959)
+if not _0x2668 or not _0x5D4E or not _0x5D4E.Parent then return end
+pcall(function()
+_0x2668(_0x5D4E,string.char(80,104,121,115,105,99,115,82,101,112,82,111,111,116,80,97,114,116), _0x5959)
+if _0x3E41 then
+_0x2668(_0x5D4E,string.char(80,104,121,115,105,99,115,82,101,112,82,111,111,116,82,101,102), _0x5959 and _0x3E41(_0x5959) or nil)
+end
+end)
+end
+local _0xF49F = nil
+if TargetPart and TargetPart.Parent then
+_0xF49F = _0x571C()
+_0x363C(_0xF49F)
+_0x5D4E.CFrame = _0xF49F
+_0x5D4E.AssemblyLinearVelocity = Vector3.zero
+_0x5D4E.AssemblyAngularVelocity = Vector3.zero
+_0x7E12(TargetPart)
+endlocal _0x4F44, _0x61AF = nil, nil
+local _0x5F9F = 0
+local _0xB649 = { destroyed = false }
+local function _0x6F3A(force)
+if not AnimationId or _0xB649.destroyed then return end
+if _0x4F44 and not force then
+local _0x051D = false
+pcall(function()
+_0x051D = _0x4F44.IsPlaying
+if _0x051D and _0x4F44.Length > 0 and _0x4F44.TimePosition >= (_0x4F44.Length - 0.04) then
+_0x4F44.TimePosition = 0
+end
+end)
+if _0x051D then
+pcall(function() _0x4F44:AdjustSpeed(math.clamp(_0x68F1.Speed or 1.0, 0.2, 6.0)) end)
+return
+end
+end
+_0x5F9F = _0x5F9F + 1
+if not force and _0x5F9F % 10 ~= 0 and _0x4F44 then return end
+local _0xFC4D = _0x4363:FindFirstChildWhichIsA(string.char(65,110,105,109,97,116,111,114), true)
+if not _0xFC4D and _0x118B then
+_0xFC4D = Instance.new(string.char(65,110,105,109,97,116,111,114))
+_0xFC4D.Parent = _0x118B
+end
+if not _0xFC4D then return end
+local _0xA453, _0xC20E = _0x8052(_0xFC4D, AnimationId, AnimFallbacks, _0x118B)
+if _0xA453 then
+if _0x4F44 and _0x4F44 ~= _0xA453 then
+pcall(function() _0x4F44:Stop(0); _0x4F44:Destroy() end)
+end
+if _0x61AF and _0x61AF ~= _0xC20E then
+pcall(function() _0x61AF:Destroy() end)
+end
+_0x4F44 = _0xA453
+_0x61AF = _0xC20E
+end
+end
+_0x6F3A(true)
+local _0xC8E0 = nil
+local _0xFFC0 = nil
+local _0x9DAA = nil
+local _0x5E5A = 0
+function _0xB649:Destroy(skipReturn)
+if self.destroyed then return end
+self.destroyed = true
+if _0xC8E0 then _0xC8E0:Disconnect(); _0xC8E0 = nil end
+if _0xFFC0 then _0xFFC0:Disconnect(); _0xFFC0 = nil end
+if _0x9DAA then _0x9DAA:Disconnect(); _0x9DAA = nil end
+pcall(function() _0xA6AA.ReplicationFocus = nil end)
+if _0x5D4E and _0x2668 then
+pcall(function() _0x2668(_0x5D4E,string.char(80,104,121,115,105,99,115,82,101,112,82,111,111,116,80,97,114,116), nil) end)
+pcall(function() _0x2668(_0x5D4E,string.char(80,104,121,115,105,99,115,82,101,112,82,111,111,116,82,101,102), nil) end)
+end
+if _0x4F44 then
+pcall(function() _0x4F44:Stop(0) end)
+pcall(function() _0x4F44:Destroy() end)
+_0x4F44 = nil
+end
+if _0x61AF then
+pcall(function() _0x61AF:Destroy() end)
+_0x61AF = nil
+end
+if _0xB42E == self then
+_0xB42E = nil
+end
+if not skipReturn then
+_0x1FB2 = tick()
+_0xDF2E(_0x4363, _0x9623)
+if _0xA6AA.Character and _0xA6AA.Character ~= _0x4363 then
+_0xDF2E(_0xA6AA.Character, _0x9623)
+end
+end
+end_0x9DAA = _0xC77A.Stepped:Connect(function()
+if _0xB649.destroyed then return end
+_0xE560()
+if TargetPart and TargetPart.Parent and _0x5D4E and _0x5D4E.Parent and not _0xD510(TargetPart.CFrame, TargetPart.AssemblyLinearVelocity) then
+_0xF49F = _0x571C()
+_0x363C(_0xF49F)
+_0x5D4E.CFrame = _0xF49F
+_0x5D4E.AssemblyLinearVelocity = Vector3.zero
+_0x5D4E.AssemblyAngularVelocity = Vector3.zero
+_0x7E12(TargetPart)
+end
+end)_0xFFC0 = _0xC77A.RenderStepped:Connect(function()
+if _0xB649.destroyed then return end
+if TargetPart and TargetPart.Parent and _0x5D4E and _0x5D4E.Parent and not _0xD510(TargetPart.CFrame, TargetPart.AssemblyLinearVelocity) then
+_0xF49F = _0x571C()
+_0x363C(_0xF49F)
+_0x5D4E.CFrame = _0xF49F
+_0x7E12(TargetPart)
+end
+end)
+_0xC8E0 = _0xC77A.Heartbeat:Connect(function(_0x004C)if not _0x4363.Parent or _0x4363 ~= _0xA6AA.Character or not _0x5D4E.Parent or not _0x118B.Parent or _0x118B.Health <= 0 then
+_0xB649:Destroy(true)
+return
+endif TargetPlayer and TargetPlayer.Parent ~= _0xC3F7 then
+_0xB649:Destroy(false)
+if _0x7EF3 then pcall(_0x7EF3) end
+if _0x207A then pcall(_0x207A) end
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(84,97,114,103,101,116,32,108,101,102,116,32,115,101,114,118,101,114,32,226,128,148,32,115,97,102,101,108,121,32,114,101,116,117,114,110,101,100))
+return
+endif _0x6962 and _0x6962.Parent and _0x6962.Health <= 0 then
+_0xB649:Destroy(false)
+return
+endif not TargetPart or not TargetPart.Parent or (TargetPlayer and _0x4E36(TargetPlayer) ~= _0x3C6D) then
+if TargetPlayer then
+local _0xC855 = _0x4E36(TargetPlayer)
+local _0x12B5 = _0xC855 and _0xC855:FindFirstChildOfClass(string.char(72,117,109,97,110,111,105,100))
+if _0x12B5 and _0x12B5.Health <= 0 then
+_0xB649:Destroy(false)
+return
+end
+local _0x2E0F = _0xC855 and _0x76B4(_0xC855, RefMode orstring.char(116,111,114,115,111))
+if _0x2E0F and _0x2E0F.Parent then
+_0x3C6D = _0xC855
+_0x6962 = _0x12B5
+TargetPart = _0x2E0F
+_0x5E5A = 0
+else
+_0x5E5A = _0x5E5A + 1
+local _0x3526 = _0xF668(TargetPlayer)
+if _0x3526 and not _0xD510(_0x3526) then
+pcall(function() _0xA6AA:RequestStreamAroundAsync(_0x3526.Position, 1) end)
+_0x5D4E.CFrame = _0x3526 * Offset
+_0x5D4E.AssemblyLinearVelocity = Vector3.zero
+_0x5D4E.AssemblyAngularVelocity = Vector3.zero
+_0x363C(_0x5D4E.CFrame)
+end
+if _0x5E5A > 100 then
+_0xB649:Destroy(false)
+end
+return
+end
+else
+_0xB649:Destroy(false)
+return
+end
+else
+_0x5E5A = 0
+endlocal _0x3F0E = TargetPart.AssemblyLinearVelocity
+if _0xD510(TargetPart.CFrame, _0x3F0E) then
+_0xB649:Destroy(false)
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(84,97,114,103,101,116,32,102,101,108,108,32,105,110,116,111,32,108,101,116,104,97,108,32,86,111,105,100,32,226,128,148,32,100,101,116,97,99,104,101,100,32,115,97,102,101,108,121,33))
+return
+endpcall(function() _0xA6AA.ReplicationFocus = TargetPart end)if TargetPlayer then
+_0xA9FC[TargetPlayer.UserId] = { _0x5685 = TargetPart.CFrame, time = tick(), fromPart = true }
+end
+if not _0xD510(TargetPart.CFrame, _0x3F0E) then
+local _0x9094, _0x45E4, _0x9094 = TargetPart.CFrame:ToEulerAnglesYXZ()
+_0x9623 = CFrame.new(TargetPart.Position + Vector3.new(0, 2.5, 0)) * CFrame.Angles(0, _0x45E4, 0)
+_0x7067 = _0x9623
+end
+local _0x20CB = _0x4363:FindFirstChild(string.char(65,110,105,109,97,116,101))
+if _0x20CB and not _0x20CB.Disabled then
+_0x20CB.Disabled = true
+_0x22AB = true
+end
+local _0xF03B = math.clamp(_0x68F1.Speed or 1.0, 0.2, 6.0)
+_0x4944 = _0x4944 + (_0x004C * _0xF03B)
+_0xF49F = _0x571C()
+_0x5D4E.CFrame = _0xF49F
+_0x5D4E.AssemblyLinearVelocity = Vector3.zero
+_0x5D4E.AssemblyAngularVelocity = Vector3.zero
+_0x363C(_0x5D4E.CFrame)
+_0x7E12(TargetPart)
+pcall(function() _0x6F3A(false) end)
+pcall(function()
+if not _0x118B.PlatformStand then _0x118B.PlatformStand = true end
+if _0x118B.Sit then _0x118B.Sit = false end
+end)
+end)
+return _0xB649
+end
+local function _0x44C6(skipReturn)
+if _0xB42E then
+pcall(function() _0xB42E:Destroy(skipReturn) end)
+_0xB42E = nil
+elseif not skipReturn and _0xA6AA.Character then
+pcall(function() _0xDF2E(_0xA6AA.Character, _0x7067) end)
+end
+if not (_0x5DAB and _0x5DAB.Void and _0x5DAB.Void.enabled) and not (_0x5DAB and _0x5DAB.InfFallVoid and _0x5DAB.InfFallVoid.enabled) and not (_0x5DAB and _0x5DAB.Kill and _0x5DAB.Kill.enabled) then
+pcall(function() workspace.FallenPartsDestroyHeight = _0x8668 end)
+end
+end
+local _0xB18B = 116235062592344_0xA4A2 = {
+facebang = { _0x4CD8 = CFrame.new(0, 1.2, -3.0) * CFrame.Angles(0, math.rad(180), 0),
+anim15 = _0xB18B, anim6 = _0xB18B,
+animFallbacks = {128342454196913, 5918726674, 148840371, 4555808220, 109168916859109},
+osc = {distance = 2.5, period = 0.20}, _0xB516 =string.char(104,101,97,100), label =string.char(70,97,99,101,32,66,97,110,103)},
+backshots = { _0x4CD8 = CFrame.new(0, 0, 2.5),
+anim15 = _0xB18B, anim6 = _0xB18B,
+animFallbacks = {128342454196913, 5918726674, 148840371, 4555808220, 109168916859109},
+osc = {distance = 2.0, period = 0.20}, _0xB516 =string.char(116,111,114,115,111), label =string.char(66,97,99,107,115,104,111,116,115)},
+headsit = { _0x4CD8 = CFrame.new(0, 1.5, 0),
+anim15 = 2506281703, anim6 = 2506281703,
+animFallbacks = {2510238627, 507768375, 180426354},
+osc = nil, _0xB516 =string.char(104,101,97,100), label =string.char(72,101,97,100,115,105,116)},
+kiss = { _0x4CD8 = CFrame.new(0, 0, -1.2) * CFrame.Angles(0, math.rad(180), 0),
+anim15 = 81124524945738, anim6 = 81124524945738,
+animFallbacks = {3576686446, 3019619673, 15849372443},
+osc = nil, _0xB516 =string.char(116,111,114,115,111), label =string.char(75,105,115,115)},
+backpack = { _0x4CD8 = CFrame.new(0, 0.5, 1.1) * CFrame.Angles(0, math.rad(180), 0),
+anim15 = 2506281703, anim6 = 2506281703,
+animFallbacks = {2510238627, 507768375, 180426354},
+osc = nil, _0xB516 =string.char(116,111,114,115,111), label =string.char(66,97,99,107,112,97,99,107)},
+headpat = { _0x4CD8 = CFrame.new(0, 0, -2.5) * CFrame.Angles(0, math.rad(180), 0),
+anim15 = 114313599861536, anim6 = 114313599861536,
+animFallbacks = {}, osc = nil, _0xB516 =string.char(116,111,114,115,111), label =string.char(72,101,97,100,112,97,116)},
+propose = { _0x4CD8 = CFrame.new(0, -1.0, -2.5) * CFrame.Angles(0, math.rad(180), 0),
+anim15 = 70639053125611, anim6 = 70639053125611,
+animFallbacks = {}, osc = nil, _0xB516 =string.char(116,111,114,115,111), label =string.char(80,114,111,112,111,115,101)},
+hug = { _0x4CD8 = CFrame.new(0, 0, -1.2) * CFrame.Angles(0, math.rad(180), 0),
+anim15 = 95247520541805, anim6 = 95247520541805,
+animFallbacks = {}, osc = nil, _0xB516 =string.char(116,111,114,115,111), label =string.char(72,117,103)},
+}
+_0xA4A2.bang = _0xA4A2.backshots
+_0xA4A2.chase = {
+_0x4CD8 = CFrame.new(0, 0, 1.5),
+anim15 = nil,
+anim6 = nil,
+animFallbacks = {},
+osc = nil,
+_0xB516 =string.char(116,111,114,115,111),
+label =string.char(65,117,116,111,45,67,104,97,115,101,32,40,70,111,108,108,111,119,41)}local _0xA13B = {}
+local _0x0C55 = {string.char(67,104,97,114,97,99,116,101,114,115),string.char(80,108,97,121,101,114,115),string.char(69,110,116,105,116,105,101,115),string.char(76,105,118,101),string.char(85,110,105,116,115),string.char(73,110,103,97,109,101),string.char(67,104,97,114,115)}
+_0x4E36 = function(plr)
+if not plr then return nil end
+if plr.Character and plr.Character.Parent then
+_0xA13B[plr.UserId] = { model = plr.Character, lastScan = tick() }
+return plr.Character
+end
+local _0xA824 = _0xA13B[plr.UserId]
+if _0xA824 and _0xA824.model and _0xA824.model.Parent then
+return _0xA824.model
+end
+local _0x2FEB = workspace:FindFirstChild(plr.Name)
+if _0x2FEB and _0x2FEB:IsA(string.char(77,111,100,101,108)) and (_0x2FEB:FindFirstChildOfClass(string.char(72,117,109,97,110,111,105,100)) or _0x2FEB:FindFirstChild(string.char(72,117,109,97,110,111,105,100,82,111,111,116,80,97,114,116)) or _0x2FEB.PrimaryPart) then
+_0xA13B[plr.UserId] = { model = _0x2FEB, lastScan = tick() }
+return _0x2FEB
+end
+for _0x9094, folderName in ipairs(_0x0C55) do
+local _0x8D48 = workspace:FindFirstChild(folderName)
+local _0x42E3 = _0x8D48 and _0x8D48:FindFirstChild(plr.Name)
+if _0x42E3 and _0x42E3:IsA(string.char(77,111,100,101,108)) and (_0x42E3:FindFirstChildOfClass(string.char(72,117,109,97,110,111,105,100)) or _0x42E3:FindFirstChild(string.char(72,117,109,97,110,111,105,100,82,111,111,116,80,97,114,116)) or _0x42E3.PrimaryPart or _0x42E3:FindFirstChildWhichIsA(string.char(66,97,115,101,80,97,114,116), true)) then
+_0xA13B[plr.UserId] = { model = _0x42E3, lastScan = tick() }
+return _0x42E3
+end
+end
+local _0x60A3 = tick()
+if not _0xA824 or (_0x60A3 - (_0xA824.lastScan or 0)) > 1.5 then
+_0xA13B[plr.UserId] = { model = nil, lastScan = _0x60A3 }
+local _0xDB38 = workspace:FindFirstChild(plr.Name, true)
+if _0xDB38 and _0xDB38:IsA(string.char(77,111,100,101,108)) and _0xDB38:FindFirstChildOfClass(string.char(72,117,109,97,110,111,105,100)) then
+_0xA13B[plr.UserId] = { model = _0xDB38, lastScan = _0x60A3 }
+return _0xDB38
+end
+end
+return plr.Character
+end_0x76B4 = function(_0x5BFE, _0xA3C6)
+if not _0x5BFE then return nil end
+if _0xA3C6 ==string.char(104,101,97,100)then
+local _0xA077 = _0x5BFE:FindFirstChild(string.char(72,101,97,100)) or _0x5BFE:FindFirstChild(string.char(104,101,97,100), true)
+if _0xA077 and _0xA077:IsA(string.char(66,97,115,101,80,97,114,116)) then return _0xA077 end
+for _0x9094, _0x69FF in ipairs(_0x04D0(_0x5BFE)) do
+if _0x69FF.Name:lower():find(string.char(104,101,97,100), 1, true) then
+return _0x69FF
+end
+end
+end
+local _0xA778 = _0x5BFE:FindFirstChildOfClass(string.char(72,117,109,97,110,111,105,100))
+local _0xDD60 = _0x5BFE:FindFirstChild(string.char(72,117,109,97,110,111,105,100,82,111,111,116,80,97,114,116))
+or (_0xA778 and _0xA778.RootPart)
+or _0x5BFE.PrimaryPart
+or _0x5BFE:FindFirstChild(string.char(85,112,112,101,114,84,111,114,115,111))
+or _0x5BFE:FindFirstChild(string.char(76,111,119,101,114,84,111,114,115,111))
+or _0x5BFE:FindFirstChild(string.char(84,111,114,115,111))
+or _0x5BFE:FindFirstChild(string.char(72,101,97,100))
+if _0xDD60 and _0xDD60:IsA(string.char(66,97,115,101,80,97,114,116)) then return _0xDD60 end
+if _0xA778 and _0xA778.SeatPart and _0xA778.SeatPart:IsA(string.char(66,97,115,101,80,97,114,116)) then
+return _0xA778.SeatPart
+end
+return _0x5BFE:FindFirstChildWhichIsA(string.char(66,97,115,101,80,97,114,116), true)
+end_0xF668 = function(plr)
+if not plr then return nil end
+local _0x5BFE = _0x4E36(plr)
+if _0x5BFE then
+local _0xA778 = _0x5BFE:FindFirstChildOfClass(string.char(72,117,109,97,110,111,105,100))
+if not _0xA778 or _0xA778.Health > 0 then
+local _0x5959 = _0x76B4(_0x5BFE,string.char(116,111,114,115,111))
+if _0x5959 and _0x5959.Parent then
+local _0x5685 = _0x5959.CFrame
+if not _0xD510(_0x5685, _0x5959.AssemblyLinearVelocity) then
+_0xA9FC[plr.UserId] = { _0x5685 = _0x5685, time = tick(), fromPart = true }
+return _0x5685
+end
+end
+local _0xA824 = _0xA9FC[plr.UserId]
+local _0x190F, _0x15D9 = pcall(function() return _0x5BFE:GetPivot() end)
+if _0x190F and _0x15D9 and _0x15D9.Position.Magnitude > 5 and not _0xD510(_0x15D9) then
+if not _0xA824 or not _0xA824.fromPart or (tick() - (_0xA824.time or 0)) > 2.0 then
+_0xA9FC[plr.UserId] = { _0x5685 = _0x15D9, time = tick(), fromPart = false }
+return _0x15D9
+end
+end
+local _0x792E, _0xC76B = pcall(function() return _0x5BFE.WorldPivot end)
+if _0x792E and _0xC76B and _0xC76B.Position.Magnitude > 5 and not _0xD510(_0xC76B) then
+if not _0xA824 or not _0xA824.fromPart or (tick() - (_0xA824.time or 0)) > 2.0 then
+_0xA9FC[plr.UserId] = { _0x5685 = _0xC76B, time = tick(), fromPart = false }
+return _0xC76B
+end
+end
+end
+end
+local _0xA824 = _0xA9FC[plr.UserId]
+if _0xA824 and _0xA824.cf and not _0xD510(_0xA824.cf) then
+return _0xA824.cf
+end
+return nil
+enddo
+local _0xDDDF = 0
+_0xC77A.Heartbeat:Connect(function()
+local _0x60A3 = tick()
+if _0x60A3 - _0xDDDF < 0.15 then return end
+_0xDDDF = _0x60A3
+for _0x9094, _0x1CEE in ipairs(_0xC3F7:GetPlayers()) do
+if _0x1CEE ~= _0xA6AA then
+pcall(function() _0xF668(_0x1CEE) end)
+end
+end
+end)
+end_0x5D16 = function(_0x49D0, _0xB516, maxWaitSeconds, allowSweep)
+if not _0x49D0 or _0x49D0.Parent ~= _0xC3F7 then return nil, nil end
+maxWaitSeconds = maxWaitSeconds or 2.2local _0x2EC9 = _0x4E36(_0x49D0)
+local _0x6143 = _0x2EC9 and _0x2EC9:FindFirstChildOfClass(string.char(72,117,109,97,110,111,105,100))
+if _0x6143 and _0x6143.Health <= 0 then
+return _0x2EC9, nil
+end
+local _0x5378 = _0x2EC9 and _0x76B4(_0x2EC9, _0xB516 orstring.char(116,111,114,115,111))
+if _0x5378 and _0x5378.Parent then
+if _0xA6AA.Character then _0xF424(_0xA6AA.Character) end
+return _0x2EC9, _0x5378
+end
+local _0x1213 = _0xA6AA.Character
+local _0x32EC = _0x4DA4(_0x1213)
+local _0x9C01 = (_0x32EC and _0x97B4(_0x32EC.CFrame) and _0x32EC.CFrame) or _0x7067
+if _0x1213 then
+_0xF424(_0x1213)
+for _0x9094, _0x324B in ipairs(_0x04D0(_0x1213)) do
+if _0x324B.Parent then
+_0x324B.CanCollide = false
+_0x324B.CanTouch = false
+_0x324B.Anchored = false
+end
+end
+endlocal _0x1093 = tick()
+while tick() - _0x1093 < (maxWaitSeconds * 0.70) do
+if _0x49D0.Parent ~= _0xC3F7 then return nil, nil end
+_0x2EC9 = _0x4E36(_0x49D0)
+_0x6143 = _0x2EC9 and _0x2EC9:FindFirstChildOfClass(string.char(72,117,109,97,110,111,105,100))
+if _0x6143 and _0x6143.Health <= 0 then return _0x2EC9, nil end
+_0x5378 = _0x2EC9 and _0x76B4(_0x2EC9, _0xB516 orstring.char(116,111,114,115,111))
+if _0x5378 and _0x5378.Parent then
+return _0x2EC9, _0x5378
+end
+local _0x6424 = _0xF668(_0x49D0)
+if _0x6424 then
+task.spawn(function()
+pcall(function() _0xA6AA:RequestStreamAroundAsync(_0x6424.Position, 1.5) end)
+end)
+_0x1213 = _0xA6AA.Character
+_0x32EC = _0x4DA4(_0x1213)
+if _0x32EC then
+local _0xED15 = _0x6424 * CFrame.new(0, 2, 0)
+_0x363C(_0xED15)
+_0x32EC.AssemblyLinearVelocity = Vector3.zero
+_0x32EC.AssemblyAngularVelocity = Vector3.zero
+_0x32EC.CFrame = _0xED15
+end
+else
+break
+end
+_0xC77A.Heartbeat:Wait()
+end
+_0x2EC9 = _0x4E36(_0x49D0)
+_0x5378 = _0x2EC9 and _0x76B4(_0x2EC9, _0xB516 orstring.char(116,111,114,115,111))
+if _0x5378 and _0x5378.Parent then return _0x2EC9, _0x5378 end
+if not allowSweep then
+if (not _0x5378 or not _0x5378.Parent) and _0xA6AA.Character then
+_0xC3EF(_0xA6AA.Character, _0x9C01)
+end
+return _0x2EC9, _0x5378
+endlocal _0x2933 = {}
+for _0x9094, child in ipairs(workspace:GetChildren()) do
+if child:IsA(string.char(83,112,97,119,110,76,111,99,97,116,105,111,110)) or child:IsA(string.char(83,101,97,116)) or child:IsA(string.char(86,101,104,105,99,108,101,83,101,97,116)) then
+if not _0xD510(child.CFrame) then
+table.insert(_0x2933, child.CFrame)
+end
+elseif child:IsA(string.char(77,111,100,101,108)) and child ~= _0xA6AA.Character then
+local _0xCB85, _0x09D6 = pcall(function() return child:GetPivot() end)
+if _0xCB85 and _0x09D6 and _0x09D6.Position.Magnitude > 10 and not _0xD510(_0x09D6) then
+table.insert(_0x2933, _0x09D6)
+end
+end
+end
+for _0xF25B, probeCF in ipairs(_0x2933) do
+if tick() - _0x1093 > maxWaitSeconds or _0xF25B > 20 then break end
+_0x2EC9 = _0x4E36(_0x49D0)
+_0x6143 = _0x2EC9 and _0x2EC9:FindFirstChildOfClass(string.char(72,117,109,97,110,111,105,100))
+if _0x6143 and _0x6143.Health <= 0 then break end
+_0x5378 = _0x2EC9 and _0x76B4(_0x2EC9, _0xB516 orstring.char(116,111,114,115,111))
+if _0x5378 and _0x5378.Parent then return _0x2EC9, _0x5378 end
+local _0x60A5 = _0xF668(_0x49D0)
+local _0xED15 = _0x60A5 or probeCF
+task.spawn(function()
+pcall(function() _0xA6AA:RequestStreamAroundAsync(_0xED15.Position, 1) end)
+end)
+if _0x60A5 then
+_0x1213 = _0xA6AA.Character
+_0x32EC = _0x4DA4(_0x1213)
+if _0x32EC then
+local _0xE347 = _0x60A5 + Vector3.new(0, 3, 0)
+_0x363C(_0xE347)
+_0x32EC.CFrame = _0xE347
+_0x32EC.AssemblyLinearVelocity = Vector3.zero
+end
+end
+_0xC77A.Heartbeat:Wait()
+end
+_0x2EC9 = _0x4E36(_0x49D0)
+_0x5378 = _0x2EC9 and _0x76B4(_0x2EC9, _0xB516 orstring.char(116,111,114,115,111))
+if not _0x5378 or not _0x5378.Parent then
+_0x1213 = _0xA6AA.Character
+if _0x1213 then
+_0xC3EF(_0x1213, _0x9C01)
+end
+end
+return _0x2EC9, _0x5378
+end
+_0x4681 = function(speaker)
+speaker = speaker or _0xA6AA
+local _0x1213 = speaker and speaker.Character
+local _0x32EC = _0x4DA4(_0x1213)
+local _0xFC96 = _0x32EC and _0x32EC.Position or Vector3.zero
+local _0xE2FF, _0xC27B = nil, math.hugefor _0x9094, _0x1CEE in ipairs(_0xC3F7:GetPlayers()) do
+if _0x1CEE ~= speaker then
+local _0x4E33 = _0x4E36(_0x1CEE)
+local _0xA077 = _0x4E33 and _0x4E33:FindFirstChildOfClass(string.char(72,117,109,97,110,111,105,100))
+local _0x5685 = _0xF668(_0x1CEE)
+if _0x5685 and (not _0xA077 or _0xA077.Health > 0) then
+local _0x000B = (_0x5685.Position - _0xFC96).Magnitude
+if _0x000B < _0xC27B then
+_0xC27B = _0x000B
+_0xE2FF = _0x1CEE
+end
+end
+end
+endif not _0xE2FF then
+for _0x9094, _0x1CEE in ipairs(_0xC3F7:GetPlayers()) do
+if _0x1CEE ~= speaker then
+return _0x1CEE, math.huge
+end
+end
+end
+return _0xE2FF, _0xC27B
+end
+_0x8324 = function(query, speaker)
+speaker = speaker or _0xA6AA
+if not query then return nil end
+local _0xDDC2 = tostring(query):gsub(string.char(94,37,115,42,64,43,37,115,42),""):gsub(string.char(94,37,115,43),""):gsub(string.char(37,115,43,36),""):lower()
+if _0xDDC2 ==""then return nil end
+for _0x9094, _0x1CEE in ipairs(_0xC3F7:GetPlayers()) do
+if _0x1CEE ~= speaker and (_0x1CEE.Name:lower() == _0xDDC2 or _0x1CEE.DisplayName:lower() == _0xDDC2) then
+return _0x1CEE
+end
+end
+for _0x9094, _0x1CEE in ipairs(_0xC3F7:GetPlayers()) do
+if _0x1CEE ~= speaker and (_0x1CEE.Name:lower():sub(1, #_0xDDC2) == _0xDDC2 or _0x1CEE.DisplayName:lower():sub(1, #_0xDDC2) == _0xDDC2) then
+return _0x1CEE
+end
+end
+return nil
+end
+_0x638F = function(_0x43DF, speaker)
+speaker = speaker or _0xA6AA
+if typeof(_0x43DF) ==string.char(73,110,115,116,97,110,99,101)and _0x43DF:IsA(string.char(80,108,97,121,101,114)) then
+if _0x43DF.Parent == _0xC3F7 and _0x43DF ~= speaker then return _0x43DF end
+return _0x4681(speaker)
+end
+if _0x43DF ~= nil and tostring(_0x43DF) ~=""then
+local _0x42E3 = _0x8324(_0x43DF, speaker)
+if _0x42E3 and _0x42E3.Parent == _0xC3F7 then return _0x42E3 end
+end
+if _0x0A85 and _0x0A85.Parent == _0xC3F7 then
+return _0x0A85
+end
+return _0x4681(speaker)
+end
+_0xB894 = function()
+if _0x0A85 and _0x0A85.Parent == _0xC3F7 then
+return _0x0A85, false
+end
+if _0xA36A and _0xA36A.Parent then
+local _0xB58A = (_0xA36A.Text or""):gsub(string.char(94,37,115,42,64,43,37,115,42),""):gsub(string.char(94,37,115,43),""):gsub(string.char(37,115,43,36),"")
+if _0xB58A ~=""then
+local _0xDB38 = _0x8324(_0xB58A, _0xA6AA)
+if _0xDB38 and _0xDB38.Parent == _0xC3F7 then
+return _0xDB38, false
+end
+end
+end
+local _0xDEA7 = _0x4681(_0xA6AA)
+return _0xDEA7, true
+end
+local function _0x4EB3(_0x43DF, speaker, _0x4CD8, animId, osc, _0xB516, animFallbacks, callerGen)
+local _0xE160 = _0x638F(_0x43DF, speaker)
+if not _0xE160 or _0xE160.Parent ~= _0xC3F7 then return false, nil end
+local _0x9586 = callerGen or _0x4964
+pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
+local _0x1213 = speaker and speaker.Character
+local _0x32EC = _0x4DA4(_0x1213)local _0x55AA = _0x4E36(_0xE160)
+local _0xAF1D = _0x55AA and _0x55AA:FindFirstChildOfClass(string.char(72,117,109,97,110,111,105,100))
+local _0x1DC4 = _0x55AA and _0x76B4(_0x55AA, _0xB516 orstring.char(116,111,114,115,111))
+if _0x1213 and _0x32EC and _0x1DC4 and _0x1DC4.Parent and (not _0xAF1D or _0xAF1D.Health > 0) then
+local _0x9AED = _0xB42E
+if _0x9AED then
+_0xB42E = nil
+pcall(function() _0x9AED:Destroy(true) end)
+end
+if _0x2668 then
+pcall(function() _0x2668(_0x32EC,string.char(80,104,121,115,105,99,115,82,101,112,82,111,111,116,80,97,114,116), nil) end)
+pcall(function() _0x2668(_0x32EC,string.char(80,104,121,115,105,99,115,82,101,112,82,111,111,116,82,101,102), nil) end)
+end
+local _0x25EB = _0xFE31(_0x1DC4, _0x4CD8, speaker, animId, osc, animFallbacks, _0xE160, _0xB516 orstring.char(116,111,114,115,111))
+_0xB42E = _0x25EB
+if _0x207A then pcall(_0x207A) end
+return true, _0xE160
+endtask.spawn(function()
+local _0x599C = tick()
+while (not _0x1213 or not _0x32EC) and tick() - _0x599C < 2.5 do
+if _0x9586 ~= _0x4964 then return end
+_0xC77A.Heartbeat:Wait()
+_0x1213 = speaker and speaker.Character
+_0x32EC = _0x4DA4(_0x1213)
+end
+if not _0x1213 or not _0x32EC or _0x9586 ~= _0x4964 then return end
+local _0x5BFE, _0x1B62 = _0x5D16(_0xE160, _0xB516 orstring.char(116,111,114,115,111), 2.4, true)
+if _0x9586 ~= _0x4964 then return end
+if not _0x1B62 or not _0x1B62.Parent thenreturn
+end
+local _0x6143 = _0x5BFE and _0x5BFE:FindFirstChildOfClass(string.char(72,117,109,97,110,111,105,100))
+if _0x6143 and _0x6143.Health <= 0 then return end
+_0x1213 = speaker and speaker.Character
+_0x32EC = _0x4DA4(_0x1213)
+if _0x32EC then
+if _0x2668 then
+pcall(function() _0x2668(_0x32EC,string.char(80,104,121,115,105,99,115,82,101,112,82,111,111,116,80,97,114,116), nil) end)
+pcall(function() _0x2668(_0x32EC,string.char(80,104,121,115,105,99,115,82,101,112,82,111,111,116,82,101,102), nil) end)
+end
+_0x32EC.AssemblyLinearVelocity = Vector3.zero
+_0x32EC.AssemblyAngularVelocity = Vector3.zero
+local _0x6A8A = _0x1B62.CFrame * _0x4CD8
+_0x363C(_0x6A8A)
+_0x32EC.CFrame = _0x6A8A
+end
+local _0x9AED = _0xB42E
+if _0x9AED then
+_0xB42E = nil
+pcall(function() _0x9AED:Destroy(true) end)
+end
+local _0x25EB = _0xFE31(_0x1B62, _0x4CD8, speaker, animId, osc, animFallbacks, _0xE160, _0xB516 orstring.char(116,111,114,115,111))
+if _0x9586 ~= _0x4964 then
+if _0x25EB then pcall(function() _0x25EB:Destroy(false) end) end
+return
+end
+_0xB42E = _0x25EB
+if _0x207A then pcall(_0x207A) end
+end)
+return true, _0xE160
+end
+_0xE84F = function(presetKey, _0x43DF, callerGen)
+local _0x099A = _0xA4A2[presetKey]; if not _0x099A then return false end
+if callerGen and callerGen ~= _0x4964 then return false end
+local _0x9586 = _0x4964
+local _0xE160 = _0x638F(_0x43DF, _0xA6AA)
+if not _0xE160 or _0xE160.Parent ~= _0xC3F7 then return false end
+_0x243A.active = true
+_0x243A.presetKey = presetKey
+_0x243A.target = _0xE160
+_0x518F = presetKey
+_0x839F = _0xE160.UserId
+local _0xC20E = _0xC5B7(_0xA6AA) and _0x099A.anim15 or _0x099A.anim6
+local _0xF999 = _0x4EB3(_0xE160, _0xA6AA, _0x099A.offset, _0xC20E, _0x099A.osc, _0x099A.refMode, _0x099A.animFallbacks, _0x9586)
+return _0xF999
+end
+_0x7EF3 = function()
+_0x4964 = _0x4964 + 1
+_0x243A.active = false
+_0x243A.presetKey = nil
+_0x243A.target = nil
+pcall(function() _0xA6AA.ReplicationFocus = nil end)
+_0x44C6(false)
+if not (_0x5DAB and _0x5DAB.Void and _0x5DAB.Void.enabled) and not (_0x5DAB and _0x5DAB.InfFallVoid and _0x5DAB.InfFallVoid.enabled) and not (_0x5DAB and _0x5DAB.Kill and _0x5DAB.Kill.enabled) then
+pcall(function() workspace.FallenPartsDestroyHeight = _0x8668 end)
+end
+if _0xA6AA.Character then
+pcall(function() _0xC3EF(_0xA6AA.Character, nil) end)
+end
+end
+_0xE947 = function(_0x49D0)
+if not _0x49D0 then return end
+if _0x49D0:FindFirstChild(string.char(95,95,75,104,97,109,97,110,68,104,111,107,108,97,72,111,111,107)) then return end
+local _0xC0D0 = Instance.new(string.char(66,111,111,108,86,97,108,117,101))
+_0xC0D0.Name =string.char(95,95,75,104,97,109,97,110,68,104,111,107,108,97,72,111,111,107)_0xC0D0.Parent = _0x49D0
+_0x49D0.CharacterAdded:Connect(function(_0xC855)
+if not _0x2CD3 or not _0x243A.active then return end
+if _0x243A.target ~= _0x49D0 and _0x839F ~= _0x49D0.UserId then return endlocal _0x8923 = tick()
+while tick() - _0x8923 < 2.0 and _0xC855.Parent and not _0x76B4(_0xC855,string.char(116,111,114,115,111)) do
+_0xC77A.Heartbeat:Wait()
+end
+if not _0x243A.active or _0x49D0.Parent ~= _0xC3F7 then return end
+if _0xB42E then
+pcall(function() _0xB42E:Destroy(true) end)
+_0xB42E = nil
+end
+local _0xE12E = _0x243A.presetKey or _0x518F
+if _0xE12E and _0xA4A2[_0xE12E] then
+_0xE84F(_0xE12E, _0x49D0)
+if _0x207A then pcall(_0x207A) end
+end
+end)
+end_0xA6AA.CharacterAdded:Connect(function(newMyChar)
+if not _0x2CD3 or not _0x243A.active then return end
+local _0x8923 = tick()
+while tick() - _0x8923 < 2.5 and newMyChar.Parent and not _0x4DA4(newMyChar) do
+_0xC77A.Heartbeat:Wait()
+end
+if not _0x243A.active then return end
+local _0x9BBF = _0x243A.target
+local _0xE12E = _0x243A.presetKey or _0x518F
+if _0x9BBF and _0x9BBF.Parent == _0xC3F7 and _0xE12E and _0xA4A2[_0xE12E] then
+if _0xB42E then
+pcall(function() _0xB42E:Destroy(true) end)
+_0xB42E = nil
+end
+_0xE84F(_0xE12E, _0x9BBF)
+if _0x207A then pcall(_0x207A) end
+end
+end)local _0xA48A = false
+local _0xABCF = 0
+_0xC77A.Heartbeat:Connect(function()
+if not _0x2CD3 or not _0x243A.active or not _0x243A.presetKey or _0xF3B0 or _0xA48A then
+return
+end
+local _0x9BBF = _0x243A.target
+if not _0x9BBF or _0x9BBF.Parent ~= _0xC3F7 then
+_0x7EF3()
+if _0x207A then pcall(_0x207A) end
+return
+end
+if not _0xB42E or _0xB42E.destroyed then
+local _0x60A3 = tick()
+if _0x60A3 - _0xABCF < 0.20 then return end
+local _0x0391 = _0x4E36(_0x9BBF)
+local _0x6776 = _0x0391 and _0x0391:FindFirstChildOfClass(string.char(72,117,109,97,110,111,105,100))if _0x6776 and _0x6776.Health <= 0 then
+return
+end
+local _0x1213 = _0xA6AA.Character
+local _0x32EC = _0x4DA4(_0x1213)
+local _0x4545 = _0x1213 and _0x1213:FindFirstChildOfClass(string.char(72,117,109,97,110,111,105,100))
+if _0x32EC and _0x4545 and _0x4545.Health > 0 then
+_0xABCF = _0x60A3
+_0xA48A = true
+task.spawn(function()
+pcall(function()
+local _0x099A = _0xA4A2[_0x243A.presetKey]
+local _0xB516 = _0x099A and _0x099A.refMode orstring.char(116,111,114,115,111)local _0x2EC9, _0x5378 = _0x5D16(_0x9BBF, _0xB516, 1.0, false)
+local _0x6143 = _0x2EC9 and _0x2EC9:FindFirstChildOfClass(string.char(72,117,109,97,110,111,105,100))
+if _0x243A.active and (not _0xB42E or _0xB42E.destroyed) and _0x5378 and _0x5378.Parent and (not _0x6143 or _0x6143.Health > 0) then
+if not _0xD510(_0x5378.CFrame, _0x5378.AssemblyLinearVelocity) then
+_0xE84F(_0x243A.presetKey, _0x9BBF)
+if _0x207A then pcall(_0x207A) end
+end
+end
+end)
+_0xA48A = false
+end)
+end
+end
+end)
+end_0xAE44 = {
+enabled = true,
+rewinding = false,
+duration = 8.0,maxBufferSeconds = 10.5,speedMultiplier = 1.0,instantMode = false,rewindCamera = true,buffer = {},hudFrame = nil,
+hudLabel = nil,
+hudBarFill = nil,
+activeTracks = {},
+}
+dolocal _0x5E90 = 0
+local _0x5E0E = 1 / 60local function _0xF1A1(_0x5685)
+if not _0x5685 then return false end
+local _0x1CEE = _0x5685.Position
+return (_0x1CEE.X == _0x1CEE.X and _0x1CEE.Y == _0x1CEE.Y and _0x1CEE.Z == _0x1CEE.Z and _0x1CEE.Magnitude < 250000)
+end
+local function _0xF9A9(_0xA778)
+local _0xC218 = {}
+if not _0xA778 then return _0xC218 end
+local _0x2FBB = _0xA778:FindFirstChildOfClass(string.char(65,110,105,109,97,116,111,114))
+if not _0x2FBB then return _0xC218 end
+local _0xF999, _0x6F65 = pcall(function() return _0x2FBB:GetPlayingAnimationTracks() end)
+if not _0xF999 or not _0x6F65 then return _0xC218 end
+for _0x9094, _0x6F27 in ipairs(_0x6F65) do
+pcall(function()
+if _0x6F27.IsPlaying and _0x6F27.Animation and _0x6F27.Animation.AnimationId ~=""then
+table.insert(_0xC218, {
+id = _0x6F27.Animation.AnimationId,
+timePos = _0x6F27.TimePosition,
+speed = _0x6F27.Speed,
+_0x9766 = _0x6F27.WeightCurrent,
+pri = _0x6F27.Priority,
+})
+end
+end)
+end
+return _0xC218
+end
+local function _0x5986(_0x5BFE)
+if not _0x5BFE then return nil end
+local _0x4073 = _0x5BFE:FindFirstChildOfClass(string.char(84,111,111,108))
+return _0x4073 and _0x4073.Name or nil
+end
+local function _0x97D4(_0x5BFE, desiredToolName)
+if not _0x5BFE then return end
+local _0xA778 = _0x5BFE:FindFirstChildOfClass(string.char(72,117,109,97,110,111,105,100))
+if not _0xA778 then return end
+local _0x738F = _0x5BFE:FindFirstChildOfClass(string.char(84,111,111,108))
+if desiredToolName then
+if not _0x738F or _0x738F.Name ~= desiredToolName then
+local _0x92A3 = _0xA6AA:FindFirstChildOfClass(string.char(66,97,99,107,112,97,99,107))
+local _0x42E3 = _0x92A3 and _0x92A3:FindFirstChild(desiredToolName)
+if _0x42E3 and _0x42E3:IsA(string.char(84,111,111,108)) then
+pcall(function() _0xA778:EquipTool(_0x42E3) end)
+end
+end
+else
+if _0x738F then
+pcall(function() _0xA778:UnequipTools() end)
+end
+end
+end
+local function _0xC8AA()
+if _0xAE44.hudFrame and _0xAE44.hudFrame.Parent then
+return _0xAE44.hudFrame
+end
+if not _0xF28E or not _0xF28E.Parent then return nil end
+local _0x3FBB = Instance.new(string.char(70,114,97,109,101))
+_0x3FBB.Name =string.char(75,104,97,109,97,110,82,101,119,105,110,100,72,85,68)_0x3FBB.Size = UDim2.new(0, 276, 0, 44)
+_0x3FBB.Position = UDim2.new(0.5, -138, 0, 56)
+_0x3FBB.BackgroundColor3 = _0x90E7.BG2
+_0x3FBB.BackgroundTransparency = 0.08
+_0x3FBB.BorderSizePixel = 0
+_0x3FBB.Visible = false
+_0x3FBB.ZIndex = 950
+_0x3FBB.Parent = _0xF28E
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0x3FBB).CornerRadius = UDim.new(0, 10)
+local _0xE898 = Instance.new(string.char(85,73,83,116,114,111,107,101))
+_0xE898.Color = _0x90E7.Accent
+_0xE898.Thickness = 1.5
+_0xE898.Transparency = 0.15
+_0xE898.Parent = _0x3FBB
+local _0x2594 = Instance.new(string.char(84,101,120,116,76,97,98,101,108))
+_0x2594.Size = UDim2.new(1, -16, 0, 20)
+_0x2594.Position = UDim2.new(0, 8, 0, 4)
+_0x2594.BackgroundTransparency = 1
+_0x2594.Text =string.char(226,143,170,32,82,69,87,73,78,68,73,78,71,32,84,73,77,69,32,40,45,48,46,48,115,32,47,32,56,46,48,115,41)_0x2594.TextColor3 = _0x90E7.Neon
+_0x2594.Font = Enum.Font.GothamBold
+_0x2594.TextSize = 10
+_0x2594.ZIndex = 951
+_0x2594.Parent = _0x3FBB
+local _0x5B67 = Instance.new(string.char(70,114,97,109,101))
+_0x5B67.Size = UDim2.new(1, -20, 0, 6)
+_0x5B67.Position = UDim2.new(0, 10, 0, 29)
+_0x5B67.BackgroundColor3 = _0x90E7.PanelLt
+_0x5B67.BorderSizePixel = 0
+_0x5B67.ZIndex = 951
+_0x5B67.Parent = _0x3FBB
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0x5B67).CornerRadius = UDim.new(1, 0)
+local _0xF3D4 = Instance.new(string.char(70,114,97,109,101))
+_0xF3D4.Size = UDim2.new(1, 0, 1, 0)
+_0xF3D4.BackgroundColor3 = _0x90E7.Accent
+_0xF3D4.BorderSizePixel = 0
+_0xF3D4.ZIndex = 952
+_0xF3D4.Parent = _0x5B67
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0xF3D4).CornerRadius = UDim.new(1, 0)
+_0xAE44.hudFrame = _0x3FBB
+_0xAE44.hudLabel = _0x2594
+_0xAE44.hudBarFill = _0xF3D4
+return _0x3FBB
+end_0xC77A.Heartbeat:Connect(function()
+if not _0xAE44.enabled or _0xAE44.rewinding or _0xF3B0 or _0x1978 then
+return
+end
+local _0x60A3 = tick()
+if _0x60A3 - _0x5E90 < (_0x5E0E * 0.85) then return end
+_0x5E90 = _0x60A3
+local _0x5BFE = _0xA6AA.Character
+local _0xE5AE = _0x5BFE and _0x5BFE:FindFirstChild(string.char(72,117,109,97,110,111,105,100,82,111,111,116,80,97,114,116))
+local _0xA778 = _0x5BFE and _0x5BFE:FindFirstChildOfClass(string.char(72,117,109,97,110,111,105,100))
+if not _0xE5AE or not _0xA778 or _0xA778.Health <= 0 then return end
+if not _0xF1A1(_0xE5AE.CFrame) then return end
+local _0x6EE9 = workspace.CurrentCamera
+local _0x9BFA = {
+_0x6299 = _0x60A3,
+_0x5685 = _0xE5AE.CFrame,
+_0x6355 = _0xE5AE.AssemblyLinearVelocity,
+angVel = _0xE5AE.AssemblyAngularVelocity,
+camCF = _0x6EE9 and _0x6EE9.CFrame or nil,
+camFov = _0x6EE9 and _0x6EE9.FieldOfView or 70,
+humState = _0xA778:GetState(),
+walkSpeed = _0xA778.WalkSpeed,
+jumpPower = _0xA778.JumpPower,
+sit = _0xA778.Sit,
+platformStand = _0xA778.PlatformStand,
+toolName = _0x5986(_0x5BFE),
+weldActive = _0x243A.active,
+weldPreset = _0x243A.presetKey,
+weldTarget = _0x243A.target,
+vX = _0x68F1.X, vY = _0x68F1.Y, vZ = _0x68F1.Z, vSpeed = _0x68F1.Speed,
+anims = _0xF9A9(_0xA778),
+}
+local _0x7B35 = _0xAE44.buffer
+_0x7B35[#_0x7B35 + 1] = _0x9BFAlocal _0x0385 = _0x60A3 - _0xAE44.maxBufferSeconds
+while #_0x7B35 > 2 and _0x7B35[1].t < _0x0385 do
+table.remove(_0x7B35, 1)
+end
+end)
+local function _0xD0DD()
+for _0x9094, _0x6F27 in pairs(_0xAE44.activeTracks) do
+pcall(function() _0x6F27:Stop(0) end)
+pcall(function() _0x6F27:Destroy() end)
+end
+_0xAE44.activeTracks = {}
+end
+local function _0x97EB(_0x5BFE, _0xE5AE, _0xA778, _0x9BFA, scrubAnims)
+if not _0x5BFE or not _0xE5AE or not _0x9BFA then return end
+_0x363C(_0x9BFA.cf)
+_0xE5AE.CFrame = _0x9BFA.cf
+_0xE5AE.AssemblyLinearVelocity = Vector3.zero
+_0xE5AE.AssemblyAngularVelocity = Vector3.zero
+if _0x9BFA.vX then _0x68F1.X = _0x9BFA.vX; _0x68F1.Y = _0x9BFA.vY; _0x68F1.Z = _0x9BFA.vZ; _0x68F1.Speed = _0x9BFA.vSpeed end
+if _0xAE44.rewindCamera and _0x9BFA.camCF then
+local _0x6EE9 = workspace.CurrentCamera
+if _0x6EE9 and not _0x5BCC then
+pcall(function()
+_0x6EE9.CFrame = _0x9BFA.camCF
+if _0x9BFA.camFov then _0x6EE9.FieldOfView = _0x9BFA.camFov end
+end)
+end
+end
+if _0x9BFA.toolName ~= nil or _0x5BFE:FindFirstChildOfClass(string.char(84,111,111,108)) then
+_0x97D4(_0x5BFE, _0x9BFA.toolName)
+end
+if scrubAnims and _0xA778 and _0x9BFA.anims then
+local _0x2FBB = _0xA778:FindFirstChildOfClass(string.char(65,110,105,109,97,116,111,114))
+if _0x2FBB then
+for _0x9094, aInfo in ipairs(_0x9BFA.anims) do
+local _0x6F27 = _0xAE44.activeTracks[aInfo.id]
+if not _0x6F27 or not _0x6F27.IsPlaying then
+pcall(function()
+local _0x3A68 = Instance.new(string.char(65,110,105,109,97,116,105,111,110))
+_0x3A68.AnimationId = aInfo.id
+_0x6F27 = _0x2FBB:LoadAnimation(_0x3A68)
+_0x6F27.Priority = aInfo.pri or Enum.AnimationPriority.Action
+_0x6F27:Play(0.05)
+_0xAE44.activeTracks[aInfo.id] = _0x6F27
+end)
+end
+if _0x6F27 then
+pcall(function()
+_0x6F27:AdjustSpeed(0)
+_0x6F27.TimePosition = aInfo.timePos
+_0x6F27:AdjustWeight(math.clamp(aInfo.weight or 1, 0.05, 1))
+end)
+end
+end
+end
+end
+end
+function _0xAE44:Stop(restoreSnap)
+if not self.rewinding then return end
+self.rewinding = false
+_0xD0DD()
+if self.hudFrame then self.hudFrame.Visible = false end
+local _0x5BFE = _0xA6AA.Character
+local _0xE5AE = _0x5BFE and _0x5BFE:FindFirstChild(string.char(72,117,109,97,110,111,105,100,82,111,111,116,80,97,114,116))
+local _0xA778 = _0x5BFE and _0x5BFE:FindFirstChildOfClass(string.char(72,117,109,97,110,111,105,100))
+if _0x5BFE then
+for _0x9094, _0x5959 in ipairs(_0x04D0(_0x5BFE)) do
+if _0x5959.Parent then
+_0x5959.Massless = false
+if not (_0x02BF and _0x02BF.noclip) and (_0x5959.Name ==string.char(72,117,109,97,110,111,105,100,82,111,111,116,80,97,114,116)or _0x5959.Name ==string.char(84,111,114,115,111)or _0x5959.Name ==string.char(85,112,112,101,114,84,111,114,115,111)or _0x5959.Name ==string.char(76,111,119,101,114,84,111,114,115,111)or _0x5959.Name ==string.char(72,101,97,100)) then
+_0x5959.CanCollide = true
+end
+end
+end
+_0x0334(_0x5BFE)
+end
+if _0xE5AE and restoreSnap then
+_0x363C(_0xE5AE.CFrame)
+if _0x97B4(_0xE5AE.CFrame) then
+_0x7067 = _0xE5AE.CFrame
+end
+if restoreSnap.vel and restoreSnap.vel.Magnitude < 120 and restoreSnap.vel.Y > -65 then
+_0xE5AE.AssemblyLinearVelocity = restoreSnap.vel
+else
+_0xE5AE.AssemblyLinearVelocity = Vector3.zero
+end
+_0xE5AE.AssemblyAngularVelocity = Vector3.zero
+end
+if _0xA778 and _0xA778.Health > 0 then
+pcall(function()
+_0xA778.PlatformStand = false
+_0xA778.Sit = restoreSnap and restoreSnap.sit or false
+_0xA778.AutoRotate = true
+if restoreSnap and restoreSnap.walkSpeed and not (_0x02BF and _0x02BF.speed) then
+_0xA778.WalkSpeed = restoreSnap.walkSpeed
+end
+if restoreSnap and restoreSnap.humState and restoreSnap.humState ~= Enum.HumanoidStateType.Dead then
+_0xA778:ChangeState(restoreSnap.humState)
+else
+_0xA778:ChangeState(Enum.HumanoidStateType.Running)
+end
+end)
+end
+if not (_0x5DAB and (_0x5DAB.AlwaysOnCore or (_0x5DAB.Void and _0x5DAB.Void.enabled) or (_0x5DAB.InfFallVoid and _0x5DAB.InfFallVoid.enabled) or (_0x5DAB.Kill and _0x5DAB.Kill.enabled))) and not _0x243A.active and not _0xF3B0 then
+pcall(function() workspace.FallenPartsDestroyHeight = _0x8668 end)
+end
+if _0x207A then pcall(_0x207A) end
+end
+function _0xAE44:Start(customSeconds)
+if self.rewinding thenself:Stop(nil)
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(226,143,185,239,184,143,32,82,101,119,105,110,100,32,108,111,99,107,101,100,32,97,116,32,99,117,114,114,101,110,116,32,112,111,105,110,116,33))
+_0xED6E()
+return
+end
+local _0xCE98 = math.clamp(tonumber(customSeconds) or self.duration or 8.0, 1.0, 10.0)
+local _0x7B35 = self.buffer
+if #_0x7B35 < 2 then
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(82,101,119,105,110,100,32,98,117,102,102,101,114,32,119,97,114,109,105,110,103,32,117,112,32,226,128,148,32,109,111,118,101,32,97,114,111,117,110,100,32,102,111,114,32,97,32,109,111,109,101,110,116,33))
+_0xB065()
+return
+end
+local _0x5BFE = _0xA6AA.Character
+local _0xE5AE = _0x5BFE and _0x5BFE:FindFirstChild(string.char(72,117,109,97,110,111,105,100,82,111,111,116,80,97,114,116))
+local _0xA778 = _0x5BFE and _0x5BFE:FindFirstChildOfClass(string.char(72,117,109,97,110,111,105,100))
+if not _0x5BFE or not _0xE5AE or not _0xA778 or _0xA778.Health <= 0 then
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(67,104,97,114,97,99,116,101,114,32,110,111,116,32,114,101,97,100,121,32,116,111,32,114,101,119,105,110,100,33))
+_0xB065()
+return
+endif _0xF3B0 then _0x3C23:StopFling(true) end
+if _0x243A.active then _0x7EF3() end
+pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
+local _0xE0ED = _0x7B35[#_0x7B35].t
+local _0xB8DF = _0xE0ED - _0xCE98
+local _0xCC14 = #_0x7B35
+local _0x738E = 1
+for i = #_0x7B35, 1, -1 do
+if _0x7B35[i].t >= _0xB8DF then
+_0x738E = i
+else
+break
+end
+end
+local _0xB131 = math.max(0.1, _0xE0ED - _0x7B35[_0x738E].t)
+self.rewinding = true
+if _0x207A then pcall(_0x207A) end
+_0xEA8A()if self.instantMode then
+local _0x46D4 = _0x7B35[_0x738E]
+for i = #_0x7B35, _0x738E + 1, -1 do
+table.remove(_0x7B35, i)
+end
+_0x97EB(_0x5BFE, _0xE5AE, _0xA778, _0x46D4, false)
+self:Stop(_0x46D4)
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65), string.format(string.char(226,143,170,32,73,110,115,116,97,110,116,32,82,101,119,105,110,100,32,40,45,37,46,49,102,115,41,32,99,111,109,112,108,101,116,101,33), _0xB131))
+_0xCAE4()
+return
+endlocal _0xF27C = _0xC8AA()
+if _0xF27C then _0xF27C.Visible = true end
+_0x1B7E(_0x5BFE)
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65), string.format(string.char(226,143,170,32,82,101,119,105,110,100,105,110,103,32,37,46,49,102,32,115,101,99,111,110,100,115,32,119,105,116,104,32,101,120,97,99,116,32,112,114,101,99,105,115,105,111,110,46,46,46), _0xB131))
+task.spawn(function()
+local _0x7EAF = _0xE0ED
+local _0x8D1C = _0x7B35[_0xCC14]
+while self.rewinding do
+local _0x004C = _0xC77A.Heartbeat:Wait()
+if not self.rewinding then break end
+if not _0x5BFE.Parent or _0xA6AA.Character ~= _0x5BFE or not _0xE5AE.Parent or not _0xA778.Parent or _0xA778.Health <= 0 then
+break
+endfor _0x9094, _0x1CEE in ipairs(_0x04D0(_0x5BFE)) do
+if _0x1CEE.Parent and _0x1CEE.CanCollide then
+_0x1CEE.CanCollide = false
+end
+end
+_0x7EAF = _0x7EAF - (_0x004C * (self.speedMultiplier or 1.0))
+local _0xC3BD = _0xE0ED - _0x7EAF
+local _0x41AB = math.clamp(1 - (_0xC3BD / _0xB131), 0, 1)
+if self.hudLabel then
+self.hudLabel.Text = string.format(string.char(226,143,170,32,82,69,87,73,78,68,73,78,71,58,32,45,37,46,49,102,115,32,47,32,37,46,49,102,115,32,40,84,97,112,32,116,111,32,83,116,111,112,41), math.min(_0xC3BD, _0xB131), _0xB131)
+end
+if self.hudBarFill then
+self.hudBarFill.Size = UDim2.new(_0x41AB, 0, 1, 0)
+endwhile #_0x7B35 > _0x738E and _0x7B35[#_0x7B35].t > _0x7EAF do
+_0x8D1C = table.remove(_0x7B35, #_0x7B35)
+end
+local _0x7FAA = _0x7B35[#_0x7B35] or _0x8D1C
+if _0x7FAA and _0x8D1C and _0x7FAA ~= _0x8D1C and (_0x8D1C.t - _0x7FAA.t) > 0.0001 then
+local _0x5987 = math.clamp((_0x7EAF - _0x7FAA.t) / (_0x8D1C.t - _0x7FAA.t), 0, 1)
+local _0x881C = _0x7FAA.cf:Lerp(_0x8D1C.cf, _0x5987)
+local _0xFC50 = (_0x7FAA.camCF and _0x8D1C.camCF) and _0x7FAA.camCF:Lerp(_0x8D1C.camCF, _0x5987) or _0x7FAA.camCF
+local _0x9688 = {
+_0x5685 = _0x881C,
+camCF = _0xFC50,
+camFov = _0x7FAA.camFov,
+toolName = _0x7FAA.toolName,
+anims = _0x7FAA.anims,
+_0x6355 = _0x7FAA.vel,
+sit = _0x7FAA.sit,
+walkSpeed = _0x7FAA.walkSpeed,
+humState = _0x7FAA.humState,
+vX = _0x7FAA.vX, vY = _0x7FAA.vY, vZ = _0x7FAA.vZ, vSpeed = _0x7FAA.vSpeed,
+}
+_0x97EB(_0x5BFE, _0xE5AE, _0xA778, _0x9688, true)
+elseif _0x7FAA then
+_0x97EB(_0x5BFE, _0xE5AE, _0xA778, _0x7FAA, true)
+end
+if _0x7EAF <= _0x7B35[_0x738E].t or #_0x7B35 <= _0x738E then
+_0x8D1C = _0x7B35[_0x738E] or _0x7FAA
+break
+end
+end
+if self.rewinding then
+self:Stop(_0x8D1C)
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65), string.format(string.char(226,156,168,32,82,101,119,111,117,110,100,32,45,37,46,49,102,115,32,119,105,116,104,32,101,120,97,99,116,32,112,114,101,99,105,115,105,111,110,33), _0xB131))
+_0xCAE4()
+end
+end)
+end
+endlocal function _0x3D9C(_0x5BFE, isLocalRam)
+if not _0x5BFE then return end
+for _0x9094, _0x5959 in ipairs(_0x04D0(_0x5BFE)) do
+if _0x5959.Parent then
+local _0xD01E = (_0x5959.Name ==string.char(72,117,109,97,110,111,105,100,82,111,111,116,80,97,114,116)or _0x5959.Name ==string.char(84,111,114,115,111)or _0x5959.Name ==string.char(85,112,112,101,114,84,111,114,115,111)or _0x5959.Name ==string.char(76,111,119,101,114,84,111,114,115,111)or _0x5959.Name ==string.char(72,101,97,100))
+if isLocalRam then
+_0x5959.CanCollide = _0xD01E
+_0x5959.CanTouch = false
+_0x5959.Massless = false
+if _0xD01E then
+pcall(function()
+_0x5959.CustomPhysicalProperties = PhysicalProperties.new(100, 0.3, 0.5, 100, 100)
+end)
+end
+else
+if _0xD01E then
+_0x5959.CanCollide = true
+end
+_0x5959.Massless = false
+end
+end
+end
+end
+local function _0x0F95(durationSeconds, modeTitle, isVoidThrow, explicitTarget)
+local _0x0FE0 = (durationSeconds == nil or durationSeconds <= 0)
+local _0x49D0, _0xAF3C
+if explicitTarget and explicitTarget.Parent == _0xC3F7 then
+_0x49D0, _0xAF3C = explicitTarget, false
+else
+_0x49D0, _0xAF3C = _0xB894()
+end
+if not _0x49D0 or _0x49D0.Parent ~= _0xC3F7 then
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(78,111,32,116,97,114,103,101,116,32,112,108,97,121,101,114,32,102,111,117,110,100,32,105,110,32,115,101,114,118,101,114,33))
+_0xB065()
+return
+end
+local _0x1213 = _0xA6AA.Character
+local _0x32EC = _0x4DA4(_0x1213)
+local _0x4545 = _0x1213 and _0x1213:FindFirstChildOfClass(string.char(72,117,109,97,110,111,105,100))
+if not _0x32EC then
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(76,111,99,97,108,32,99,104,97,114,97,99,116,101,114,32,110,111,116,32,114,101,97,100,121,33))
+_0xB065()
+return
+endlocal _0xCE2F = _0x97B4(_0x32EC.CFrame) and _0x32EC.CFrame or _0x6660()local _0x2EC9 = _0x4E36(_0x49D0)
+local _0x9DA4 = _0x2EC9 and _0x2EC9:FindFirstChildOfClass(string.char(72,117,109,97,110,111,105,100))
+local _0x2876 = _0x2EC9 and _0x76B4(_0x2EC9,string.char(116,111,114,115,111))
+if not _0x2876 or not _0x2876.Parent then
+_0x2EC9, _0x2876 = _0x5D16(_0x49D0,string.char(116,111,114,115,111), 2.2)
+_0x9DA4 = _0x2EC9 and _0x2EC9:FindFirstChildOfClass(string.char(72,117,109,97,110,111,105,100))
+else
+_0xF424(_0x1213)
+end
+if not _0x0FE0 and (not _0x2876 or not _0x2876.Parent) then
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(67,111,117,108,100,32,110,111,116,32,115,116,114,101,97,109,32,116,97,114,103,101,116,32,226,128,148,32,116,114,121,32,97,103,97,105,110,33))
+_0xB065()
+return
+end
+local _0xFA9B = _0xCE2F
+_0x7067 = _0xFA9B
+_0x3C23:Cleanup(true, true)
+_0x6652 = _0x49D0
+_0xF3B0 = true
+_0xCE0F = _0xFA9Blocal _0x6EE9 = workspace.CurrentCamera
+if _0x6EE9 then
+_0x5752 = _0x6EE9.CameraType
+_0x4652 = _0x6EE9.CameraSubject
+_0xBF41 = _0x6EE9.CFrame
+pcall(function()
+if _0x9DA4 then
+_0x6EE9.CameraSubject = _0x9DA4
+end
+end)
+end
+if _0x207A then pcall(_0x207A) end
+pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
+_0x839F = _0x49D0.UserId
+_0xE947(_0x49D0)
+if _0x1213 then _0x1B7E(_0x1213) end
+if _0xA2C6 then
+_0xA2C6.Visible = true
+if _0x3FD6 then
+_0x3FD6.Text = _0x0FE0
+andstring.char(226,153,190,239,184,143,32,85,78,76,73,77,73,84,69,68,32,70,76,73,78,71,32,40,84,97,112,32,83,84,79,80,32,116,111,32,101,110,100,41)or (tostring(math.ceil(durationSeconds)) ..string.char(115,32,114,101,109,97,105,110,105,110,103))
+end
+end
+_0x6F35()
+local _0x59E7 = isVoidThrow andstring.char(86,111,105,100,32,84,104,114,111,119,32,118,50,32,40)or (_0xAF3C andstring.char(65,117,116,111,45,78,101,97,114,101,115,116,32,70,108,105,110,103,32,40)orstring.char(78,101,98,117,108,97,32,70,108,105,110,103,32,40))
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65), _0x59E7 .. tostring(modeTitle) ..string.char(41,32,45,62,32).. _0x49D0.Name)
+local _0x3292 = tick()
+local _0x0838 = 0
+local _0x1266 = (_0x2876 and _0x2876.Parent and _0x2876.CFrame) or _0xFA9B
+local _0x78F8 = Vector3.new(0, -150000, 0)
+local _0x19DF = Vector3.new(120000, 120000, 120000)
+local _0x555F = false
+local _0x8C6F = 0if _0x2876 and _0x2876.Parent and _0x32EC and _0x32EC.Parent then
+pcall(function() _0xA6AA.ReplicationFocus = _0x2876 end)
+if _0x2668 then
+pcall(function()
+_0x2668(_0x32EC,string.char(80,104,121,115,105,99,115,82,101,112,82,111,111,116,80,97,114,116), _0x2876)
+if _0x3E41 then
+_0x2668(_0x32EC,string.char(80,104,121,115,105,99,115,82,101,112,82,111,111,116,82,101,102), _0x3E41(_0x2876))
+end
+end)
+end
+_0x3D9C(_0x1213, true)
+if _0x2EC9 and _0x2EC9.Parent then
+_0x3D9C(_0x2EC9, false)
+end
+_0x363C(_0x1266)
+_0x32EC.CFrame = _0x1266
+_0x32EC.AssemblyLinearVelocity = _0x78F8
+_0x32EC.AssemblyAngularVelocity = _0x19DF
+end
+local function _0x1A70(msg, playSuccess)
+_0x3C23:StopFling(false)
+if msg then _0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65), msg) end
+if playSuccess then _0xCAE4() end
+end_0x3C23.FlingStepConn = _0xC77A.Stepped:Connect(function()
+if not _0xF3B0 then
+if _0x3C23.FlingStepConn then _0x3C23.FlingStepConn:Disconnect(); _0x3C23.FlingStepConn = nil end
+return
+end
+_0x1213 = _0xA6AA.Character
+_0x32EC = _0x4DA4(_0x1213)
+_0x4545 = _0x1213 and _0x1213:FindFirstChildOfClass(string.char(72,117,109,97,110,111,105,100))
+if not _0x1213 or not _0x32EC then return end
+pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
+if _0x555F thenif _0x2668 then
+pcall(function() _0x2668(_0x32EC,string.char(80,104,121,115,105,99,115,82,101,112,82,111,111,116,80,97,114,116), nil) end)
+pcall(function() _0x2668(_0x32EC,string.char(80,104,121,115,105,99,115,82,101,112,82,111,111,116,82,101,102), nil) end)
+end
+_0x32EC.CFrame = _0xFA9B
+_0x32EC.AssemblyLinearVelocity = Vector3.zero
+_0x32EC.AssemblyAngularVelocity = Vector3.zero
+return
+end
+if _0x2876 and _0x2876.Parent and _0x2668 then
+pcall(function()
+_0x2668(_0x32EC,string.char(80,104,121,115,105,99,115,82,101,112,82,111,111,116,80,97,114,116), _0x2876)
+if _0x3E41 then
+_0x2668(_0x32EC,string.char(80,104,121,115,105,99,115,82,101,112,82,111,111,116,82,101,102), _0x3E41(_0x2876))
+end
+end)
+end
+_0x3D9C(_0x1213, true)
+if _0x2EC9 and _0x2EC9.Parent then
+_0x3D9C(_0x2EC9, false)
+end
+if _0x4545 then
+pcall(function()
+if _0x4545.Sit then _0x4545.Sit = false end
+if not _0x4545.PlatformStand then _0x4545.PlatformStand = true end
+_0x4545:ChangeState(Enum.HumanoidStateType.Physics)
+end)
+end
+if _0x1266 then
+_0x32EC.CFrame = _0x1266
+_0x32EC.AssemblyLinearVelocity = _0x78F8
+_0x32EC.AssemblyAngularVelocity = _0x19DF
+pcall(function()
+_0x32EC.Velocity = _0x78F8
+_0x32EC.RotVelocity = _0x19DF
+end)
+end
+end)
+_0xB7ED = _0xC77A.Heartbeat:Connect(function()
+if not _0xF3B0 then
+_0x1A70(nil, false)
+return
+end_0x1213 = _0xA6AA.Character
+_0x32EC = _0x4DA4(_0x1213)
+_0x4545 = _0x1213 and _0x1213:FindFirstChildOfClass(string.char(72,117,109,97,110,111,105,100))
+if not _0x1213 or not _0x32EC or (_0x4545 and _0x4545.Health <= 0) then
+if _0x0FE0 then
+returnelse
+_0x1A70(string.char(76,111,99,97,108,32,99,104,97,114,97,99,116,101,114,32,114,101,115,101,116,32,226,128,148,32,102,108,105,110,103,32,115,116,111,112,112,101,100,46), false)
+return
+end
+endif not _0x49D0 or _0x49D0.Parent ~= _0xC3F7 then
+if _0x0FE0 and _0xAF3C then
+local _0x8CFA = _0x4681(_0xA6AA)
+if _0x8CFA and _0x8CFA.Parent == _0xC3F7 then
+_0x49D0 = _0x8CFA
+_0x6652 = _0x49D0
+_0x2EC9 = nil
+_0x2876 = nil
+else
+_0x555F = true
+if _0x3FD6 then _0x3FD6.Text =string.char(226,153,190,239,184,143,32,85,78,76,73,77,73,84,69,68,32,40,87,97,105,116,105,110,103,32,102,111,114,32,112,108,97,121,101,114,115,46,46,46,41)end
+return
+end
+else
+_0x1A70(string.char(226,156,168,32,84,97,114,103,101,116,32,108,101,102,116,32,115,101,114,118,101,114,32,226,128,148,32,115,97,102,101,108,121,32,114,101,116,117,114,110,101,100,33), true)
+return
+end
+endlocal _0x33F3 = _0x4E36(_0x49D0)
+if _0x33F3 ~= _0x2EC9 or not _0x2876 or not _0x2876.Parent then
+_0x2EC9 = _0x33F3
+_0x9DA4 = _0x2EC9 and _0x2EC9:FindFirstChildOfClass(string.char(72,117,109,97,110,111,105,100))
+_0x2876 = _0x2EC9 and _0x76B4(_0x2EC9,string.char(116,111,114,115,111))
+end
+local _0xE363 = (_0x9DA4 and _0x9DA4.Parent and _0x9DA4.Health <= 0)
+local _0x1312 = false
+if _0x2876 and _0x2876.Parent then
+local _0xA0DC = _0x2876.Position
+local _0x3F0E = _0x2876.AssemblyLinearVelocity
+local _0xF630 = math.min(_0x8668 + 14, -245)
+_0x1312 = (_0xA0DC.Y <= _0xF630)
+or (_0xA0DC.Y <= -190 and _0x3F0E.Y < -85)
+or (_0xA0DC.Magnitude > 28000)
+endif not _0x2876 or not _0x2876.Parent or _0xE363 or _0x1312 then
+if not _0x0FE0 thenif _0xE363 then
+_0x1A70(string.char(239,191,189,239,191,189,32).. _0x49D0.Name ..string.char(32,100,105,101,100,32,105,110,32,116,104,101,32,86,111,105,100,33,32,83,97,102,101,108,121,32,114,101,116,117,114,110,101,100,46), true)
+return
+elseif _0x1312 and _0x2876 then
+local _0xA0DC = _0x2876.Position
+local _0xFFDA = CFrame.new(_0xA0DC.X, math.clamp(_0x8668 - 180, -850, -380), _0xA0DC.Z)
+_0x32EC.CFrame = _0xFFDA
+_0x32EC.AssemblyLinearVelocity = Vector3.new(0, -180000, 0)
+_0x1A70(string.char(239,191,189,239,191,189,32).. _0x49D0.Name ..string.char(32,116,114,97,112,112,101,100,32,105,110,32,86,111,105,100,32,38,32,101,108,105,109,105,110,97,116,101,100,33,32,83,97,102,101,108,121,32,114,101,116,117,114,110,101,100,46), true)
+return
+else
+local _0x3526 = _0xF668(_0x49D0)
+if _0x3526 and _0xD510(_0x3526) then
+_0x1A70(string.char(239,191,189,239,191,189,32).. _0x49D0.Name ..string.char(32,100,101,115,116,114,111,121,101,100,32,105,110,32,116,104,101,32,86,111,105,100,33,32,83,97,102,101,108,121,32,114,101,116,117,114,110,101,100,46), true)
+return
+end
+return
+end
+elseif _0xAF3C then
+local _0x56CA = _0x4681(_0xA6AA)
+if _0x56CA and _0x56CA ~= _0x49D0 and _0x56CA.Parent == _0xC3F7 then
+local _0x8D83 = _0x4E36(_0x56CA)
+local _0x4207 = _0x8D83 and _0x8D83:FindFirstChildOfClass(string.char(72,117,109,97,110,111,105,100))
+local _0x5CBB = _0x8D83 and _0x76B4(_0x8D83,string.char(116,111,114,115,111))
+if _0x5CBB and (not _0x4207 or _0x4207.Health > 0) and not _0xD510(_0x5CBB.CFrame, _0x5CBB.AssemblyLinearVelocity) then
+_0x49D0 = _0x56CA
+_0x6652 = _0x56CA
+_0x2EC9 = _0x8D83
+_0x9DA4 = _0x4207
+_0x2876 = _0x5CBB
+_0x555F = false
+end
+end
+endif not _0x2876 or not _0x2876.Parent or _0xE363 or _0x1312 then
+_0x555F = true
+if _0x2668 then
+pcall(function() _0x2668(_0x32EC,string.char(80,104,121,115,105,99,115,82,101,112,82,111,111,116,80,97,114,116), nil) end)
+pcall(function() _0x2668(_0x32EC,string.char(80,104,121,115,105,99,115,82,101,112,82,111,111,116,82,101,102), nil) end)
+end
+_0x363C(_0xFA9B)
+_0x32EC.CFrame = _0xFA9B
+_0x32EC.AssemblyLinearVelocity = Vector3.zero
+_0x32EC.AssemblyAngularVelocity = Vector3.zero
+if _0x3FD6 then
+_0x3FD6.Text =string.char(226,153,190,239,184,143,32,85,78,76,73,77,73,84,69,68,32,40,87,97,105,116,105,110,103,32).. _0x49D0.Name ..string.char(32,114,101,115,112,97,119,110,41)endlocal _0x60A3 = tick()
+if not _0xE363 and (_0x60A3 - _0x8C6F) > 0.6 then
+_0x8C6F = _0x60A3
+local _0x60A5 = _0xF668(_0x49D0)
+if _0x60A5 and not _0xD510(_0x60A5) then
+task.spawn(function()
+pcall(function() _0xA6AA:RequestStreamAroundAsync(_0x60A5.Position, 1) end)
+end)
+end
+end
+return
+end
+end
+endif _0x555F then
+_0x555F = false
+_0x1B7E(_0x1213)
+if _0x6EE9 and _0x9DA4 and not _0x5BCC then
+pcall(function() _0x6EE9.CameraSubject = _0x9DA4 end)
+end
+end
+local _0xDFBB = tick() - _0x3292
+if not _0x0FE0 then
+local _0xD68B = math.max(0, durationSeconds - _0xDFBB)
+if _0x3FD6 then
+_0x3FD6.Text =string.char(226,143,179,32).. string.format(string.char(37,46,49,102), _0xD68B) ..string.char(115,32,108,101,102,116)end
+if _0xD68B <= 0 then
+_0x1A70(string.char(226,156,168,32).. tostring(modeTitle) ..string.char(32,102,105,110,105,115,104,101,100,32,38,32,115,97,102,101,108,121,32,114,101,116,117,114,110,101,100,33), true)
+return
+end
+else
+if _0x3FD6 then
+_0x3FD6.Text = string.format(string.char(226,153,190,239,184,143,32,85,78,76,73,77,73,84,69,68,32,194,183,32,37,46,48,102,115,32,40,37,115,41), _0xDFBB, _0x49D0.Name:sub(1, 10))
+end
+endpcall(function() _0xA6AA.ReplicationFocus = _0x2876 end)
+if _0x2668 then
+pcall(function()
+_0x2668(_0x32EC,string.char(80,104,121,115,105,99,115,82,101,112,82,111,111,116,80,97,114,116), _0x2876)
+if _0x3E41 then
+_0x2668(_0x32EC,string.char(80,104,121,115,105,99,115,82,101,112,82,111,111,116,82,101,102), _0x3E41(_0x2876))
+end
+end)
+end
+local _0xA0DC = _0x2876.Position
+local _0x3F0E = _0x2876.AssemblyLinearVelocity
+_0x0838 = _0x0838 + 1
+local _0x6299 = tick() * 45local _0x7DE7 = (_0x9DA4 and _0x9DA4.MoveDirection) or Vector3.zero
+local _0x2D75 = Vector3.new(_0x3F0E.X, 0, _0x3F0E.Z)
+if _0x2D75.Magnitude > 140 then
+_0x2D75 = _0x2D75.Unit * 140
+end
+local _0xE8E9 = (_0x2D75 * 0.065) + (_0x7DE7 * 1.35)
+local _0x0CC6 = _0xA0DC + _0xE8E9local _0xFD0F = Vector3.new(_0x0CC6.X, 0, _0x0CC6.Z)
+if _0xFD0F.Magnitude < 1 then
+_0xFD0F = Vector3.new(math.cos(_0x6299), 0, math.sin(_0x6299))
+else
+_0xFD0F = _0xFD0F.Unit
+end
+if isVoidThrow then
+local _0x817A = _0x0838 % 12
+if _0x817A <= 6 thenlocal _0x399A = 1.5 - ((_0x817A / 6) * 2.7)
+local _0x5B3C = Vector3.new(math.cos(_0x6299 * 1.9) * 0.55, _0x399A, math.sin(_0x6299 * 1.9) * 0.55)
+local _0x6273 = math.max(_0x0CC6.Y + _0x5B3C.Y, _0x8668 + 22)
+_0x1266 = CFrame.new(_0x0CC6.X + _0x5B3C.X, _0x6273, _0x0CC6.Z + _0x5B3C.Z)
+* CFrame.Angles(math.rad((_0x0838 * 73) % 360), _0x6299, math.rad((_0x0838 * 137) % 360))
+_0x78F8 = Vector3.new(
+_0xFD0F.X * 75000 + math.random(-25000, 25000),
+-175000,
+_0xFD0F.Z * 75000 + math.random(-25000, 25000)
+)
+_0x19DF = Vector3.new(145000, 145000, 145000)
+elseif _0x817A <= 9 thenlocal _0x75DD = -_0xFD0F * ((_0x817A % 2 == 0) and 0.85 or -0.45)
+local _0x6273 = math.max(_0x0CC6.Y - 0.35, _0x8668 + 22)
+_0x1266 = CFrame.new(_0x0CC6.X + _0x75DD.X, _0x6273, _0x0CC6.Z + _0x75DD.Z)
+* CFrame.Angles(_0x6299, _0x6299 * 1.7, -_0x6299)
+_0x78F8 = Vector3.new(
+_0xFD0F.X * 135000,
+-115000,
+_0xFD0F.Z * 135000
+)
+_0x19DF = Vector3.new(160000, -160000, 160000)
+elselocal _0xD0A4 = math.clamp(_0x8668 - 165, -820, -350)
+_0x1266 = CFrame.new(_0x0CC6.X, _0xD0A4, _0x0CC6.Z)
+* CFrame.Angles(math.rad(180), _0x6299, 0)
+_0x78F8 = Vector3.new(_0xFD0F.X * 95000, -195000, _0xFD0F.Z * 95000)
+_0x19DF = Vector3.new(150000, 150000, 150000)
+end
+elselocal _0x2AC4 = (_0x0838 % 3 == 0) and 0.15 or ((_0x0838 % 2 == 0) and 0.75 or 1.85)
+local _0xF611 = math.sin(_0x0838 * 0.85) * 1.1
+local _0x6273 = math.max(_0x0CC6.Y + _0xF611, _0x8668 + 22)
+local _0x20CA = Vector3.new(math.cos(_0x6299) * _0x2AC4, 0, math.sin(_0x6299) * _0x2AC4)
+_0x1266 = CFrame.new(Vector3.new(_0x0CC6.X, _0x6273, _0x0CC6.Z) + _0x20CA)
+* CFrame.Angles(math.rad((_0x0838 * 65) % 360), _0x6299, math.rad((_0x0838 * 115) % 360))
+_0x78F8 = Vector3.new(
+_0xFD0F.X * 90000 + math.random(-45000, 45000),
+(_0x0838 % 2 == 0) and -130000 or 110000,
+_0xFD0F.Z * 90000 + math.random(-45000, 45000)
+)
+_0x19DF = Vector3.new(135000, 135000, 135000)
+end
+_0x363C(_0x1266)
+_0x32EC.CFrame = _0x1266
+_0x32EC.AssemblyLinearVelocity = _0x78F8
+_0x32EC.AssemblyAngularVelocity = _0x19DF
+pcall(function()
+_0x32EC.Velocity = _0x78F8
+_0x32EC.RotVelocity = _0x19DF
+end)
+end)
+end
+local function _0xC789(explicitTarget, customDuration)
+_0x0F95(customDuration or 5.5,string.char(86,111,105,100,32,84,104,114,111,119,32,118,50), true, explicitTarget)
+end
+local function _0xFF07()
+local _0x49D0, _0xAF3C = _0xB894()
+if not _0x49D0 then
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(78,111,32,116,97,114,103,101,116,32,111,114,32,110,101,97,114,98,121,32,112,108,97,121,101,114,32,102,111,117,110,100,33))
+_0xB065()
+return
+end
+if not _0xF28E then return end
+local _0xA2A1 = Instance.new(string.char(70,114,97,109,101))
+_0xA2A1.Size = UDim2.new(1, 0, 1, 0)
+_0xA2A1.BackgroundColor3 = Color3.new(0, 0, 0)
+_0xA2A1.BackgroundTransparency = 0.5
+_0xA2A1.ZIndex = 120
+_0xA2A1.Parent = _0xF28E
+local _0xA400 = Instance.new(string.char(70,114,97,109,101))
+_0xA400.Size = UDim2.new(0, 306, 0, 284)
+_0xA400.Position = UDim2.new(0.5, -153, 0.5, -142)
+_0xA400.BackgroundColor3 = _0x90E7.Panel
+_0xA400.BorderSizePixel = 0
+_0xA400.ZIndex = 121
+_0xA400.Parent = _0xA2A1
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0xA400).CornerRadius = UDim.new(0, 12)
+local _0x2A64 = Instance.new(string.char(85,73,83,116,114,111,107,101))
+_0x2A64.Color = _0x90E7.Purple
+_0x2A64.Thickness = 1.5
+_0x2A64.Transparency = 0.3
+_0x2A64.Parent = _0xA400
+local _0x579D = Instance.new(string.char(84,101,120,116,76,97,98,101,108))
+_0x579D.Size = UDim2.new(1, -20, 0, 24)
+_0x579D.Position = UDim2.new(0, 10, 0, 10)
+_0x579D.BackgroundTransparency = 1
+_0x579D.Text =string.char(86,79,73,68,32,84,72,82,79,87,32,86,50,32,38,32,78,69,66,85,76,65,32,70,76,73,78,71)_0x579D.TextColor3 = _0x90E7.Purple
+_0x579D.Font = Enum.Font.GothamBold
+_0x579D.TextSize = 12
+_0x579D.ZIndex = 122
+_0x579D.Parent = _0xA400
+local _0x9BA5 = Instance.new(string.char(84,101,120,116,76,97,98,101,108))
+_0x9BA5.Size = UDim2.new(1, -20, 0, 18)
+_0x9BA5.Position = UDim2.new(0, 10, 0, 32)
+_0x9BA5.BackgroundTransparency = 1
+_0x9BA5.Text = (_0xAF3C andstring.char(97,117,116,111,45,110,101,97,114,101,115,116,58,32)orstring.char(116,97,114,103,101,116,58,32)) .. _0x49D0.Name ..string.char(32,40,49,48,48,45,100,101,110,115,105,116,121,32,118,111,105,100,32,116,114,97,112,41)_0x9BA5.TextColor3 = _0x90E7.Muted
+_0x9BA5.Font = Enum.Font.Gotham
+_0x9BA5.TextSize = 10
+_0x9BA5.ZIndex = 122
+_0x9BA5.Parent = _0xA400
+local function _0x630F(y, text, color, cb)
+local _0x4973 = Instance.new(string.char(84,101,120,116,66,117,116,116,111,110))
+_0x4973.Size = UDim2.new(1, -24, 0, 32)
+_0x4973.Position = UDim2.new(0, 12, 0, y)
+_0x4973.BackgroundColor3 = color
+_0x4973.Text = text
+_0x4973.TextColor3 = Color3.new(1, 1, 1)
+_0x4973.Font = Enum.Font.GothamBold
+_0x4973.TextSize = 10
+_0x4973.ZIndex = 123
+_0x4973.Parent = _0xA400
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0x4973).CornerRadius = UDim.new(0, 6)
+_0x4973.MouseEnter:Connect(function()
+_0x9FE9()
+_0xFD0E:Create(_0x4973, TweenInfo.new(0.12), {BackgroundColor3 = color:Lerp(Color3.new(1, 1, 1), 0.12)}):Play()
+end)
+_0x4973.MouseLeave:Connect(function()
+_0xFD0E:Create(_0x4973, TweenInfo.new(0.18), {BackgroundColor3 = color}):Play()
+end)
+_0x4973.MouseButton1Click:Connect(function()
+_0x0909()
+_0xA2A1:Destroy()
+cb()
+end)
+end
+_0x630F(58,string.char(226,153,190,239,184,143,32,85,110,108,105,109,105,116,101,100,32,78,101,98,117,108,97,32,70,108,105,110,103,32,40,78,111,110,45,83,116,111,112,32,84,105,108,108,32,83,116,111,112,112,101,100,41), _0x90E7.Accent2, function()
+_0x0F95(-1,string.char(85,110,108,105,109,105,116,101,100,32,78,111,110,45,83,116,111,112), false, _0x49D0)
+end)
+_0x630F(96,string.char(239,191,189,239,191,189,239,184,143,32,85,110,108,105,109,105,116,101,100,32,86,111,105,100,32,76,111,99,107,32,40,84,114,97,112,32,38,32,82,101,45,70,108,105,110,103,32,78,111,110,45,83,116,111,112,41), Color3.fromRGB(185, 45, 95), function()
+_0x0F95(-1,string.char(85,110,108,105,109,105,116,101,100,32,86,111,105,100,32,76,111,99,107), true, _0x49D0)
+end)
+_0x630F(134,string.char(226,154,161,32,86,111,105,100,32,84,104,114,111,119,32,118,50,32,40,53,46,53,115,32,66,117,114,121,32,43,32,67,97,116,97,112,117,108,116,32,43,32,83,105,110,107,104,111,108,101,41), Color3.fromRGB(145, 95, 18), function()
+_0xC789(_0x49D0, 5.5)
+end)
+_0x630F(172,string.char(239,191,189,239,191,189,239,184,143,32,52,32,83,101,99,111,110,100,115,32,40,72,105,103,104,45,68,101,110,115,105,116,121,32,86,111,114,116,101,120,32,66,108,97,115,116,41), Color3.fromRGB(76, 79, 87), function()
+_0x0F95(4.0,string.char(52,32,83,101,99,111,110,100,115), false, _0x49D0)
+end)
+_0x630F(210,string.char(226,152,132,239,184,143,32,56,32,83,101,99,111,110,100,115,32,40,69,120,116,114,101,109,101,32,79,109,110,105,45,86,111,114,116,101,120,41), Color3.fromRGB(104, 108, 117), function()
+_0x0F95(8.0,string.char(56,32,83,101,99,111,110,100,115), false, _0x49D0)
+end)
+local _0x7DA0 = Instance.new(string.char(84,101,120,116,66,117,116,116,111,110))
+_0x7DA0.Size = UDim2.new(0, 24, 0, 24)
+_0x7DA0.Position = UDim2.new(1, -30, 0, 8)
+_0x7DA0.BackgroundTransparency = 1
+_0x7DA0.Text =string.char(88)_0x7DA0.TextColor3 = _0x90E7.Muted
+_0x7DA0.Font = Enum.Font.GothamBold
+_0x7DA0.TextSize = 12
+_0x7DA0.ZIndex = 124
+_0x7DA0.Parent = _0xA400
+_0x7DA0.MouseButton1Click:Connect(function()
+_0x0909()
+_0xA2A1:Destroy()
+end)
+end
+local _0x59D4, _0x546D, _0xC080, _0x48CA, _0xC9A9, _0x50D5, _0x21C1, _0x7154, _0xA6C9 = false,string.char(114,111,97,115,116),"","", 0,string.char(45), 0, nil, nil
+do
+local _0xAB73 = 5
+local _0x3F08 = 200
+local _0xB53F =string.char(32,84,77,75,88,32,77,65,73,32)local _0x47FC =string.char(75,72,65,77,65,78,32,68,72,79,75,76,65,32,79,78,32,84,79,80)local _0x6939 = {string.char(78,79,79,66),string.char(82,79,79,75,73,69),string.char(65,77,65,84,69,85,82),string.char(84,82,65,73,78,69,69),string.char(66,69,71,73,78,78,69,82),string.char(83,76,79,87,80,79,75,69),string.char(83,76,69,69,80,89),string.char(67,76,85,77,83,89),string.char(68,79,82,75),string.char(78,69,82,68),string.char(71,69,69,75),string.char(68,87,69,69,66),string.char(83,81,85,73,83,72,89),string.char(87,79,66,66,76,89),string.char(70,85,90,90,89),string.char(83,80,65,82,75,76,89),string.char(71,73,71,71,76,89),string.char(87,73,71,71,76,89),string.char(83,78,65,73,76),string.char(84,85,82,84,76,69),string.char(80,65,78,68,65),string.char(83,76,79,84,72),string.char(77,79,79,83,69),string.char(72,65,77,83,84,69,82),string.char(80,85,80,80,89),string.char(75,73,84,84,69,78),string.char(68,85,67,75,76,73,78,71),string.char(80,69,78,71,85,73,78),string.char(78,65,82,87,72,65,76),string.char(80,76,65,84,89,80,85,83),string.char(67,65,80,89,66,65,82,65),string.char(65,76,80,65,67,65),string.char(82,65,67,67,79,79,78),string.char(83,81,85,73,82,82,69,76),string.char(79,84,84,69,82),string.char(66,69,65,86,69,82),string.char(72,69,68,71,69,72,79,71),string.char(77,69,69,82,75,65,84),string.char(70,69,82,82,69,84),string.char(66,85,78,78,89),string.char(67,72,73,80,77,85,78,75),string.char(80,85,70,70,73,78),string.char(84,79,85,67,65,78),string.char(70,76,65,77,73,78,71,79),string.char(77,65,78,65,84,69,69),string.char(87,65,76,82,85,83),string.char(80,69,76,73,67,65,78),string.char(83,69,65,71,85,76,76),string.char(80,73,71,69,79,78),string.char(83,80,65,82,82,79,87),string.char(82,79,66,73,78),string.char(70,73,78,67,72),string.char(87,82,69,78),string.char(77,65,71,80,73,69),string.char(67,82,79,87),string.char(82,65,86,69,78),string.char(83,84,65,82,76,73,78,71),string.char(83,87,65,76,76,79,87),string.char(77,65,82,84,73,78),string.char(83,87,73,70,84),string.char(68,79,86,69),string.char(81,85,65,73,76),string.char(80,72,69,65,83,65,78,84),string.char(84,85,82,75,69,89),string.char(68,85,67,75),string.char(67,72,73,67,75,69,78),string.char(82,79,79,83,84,69,82),string.char(80,65,82,82,79,84),string.char(77,65,67,65,87),string.char(67,79,67,75,65,84,79,79),string.char(66,85,68,71,73,69),string.char(67,65,78,65,82,89)}
+local _0x4E38 = {string.char(239,191,189,239,191,189),string.char(239,191,189,239,191,189),string.char(239,191,189,239,191,189),string.char(239,191,189,239,191,189),string.char(239,191,189,239,191,189),string.char(239,191,189,239,191,189),string.char(239,191,189,239,191,189),string.char(239,191,189,239,191,189),string.char(239,191,189,239,191,189),string.char(239,191,189,239,191,189),string.char(239,191,189,239,191,189),string.char(239,191,189,239,191,189),string.char(226,154,161),string.char(239,191,189,239,191,189),string.char(239,191,189,239,191,189),string.char(239,191,189,239,191,189),string.char(239,191,189,239,191,189),string.char(239,191,189,239,191,189),string.char(239,191,189,239,191,189),string.char(239,191,189,239,191,189),string.char(239,191,189,239,191,189),string.char(226,156,168),string.char(239,191,189,239,191,189),string.char(239,191,189,239,191,189)}
+local _0x175C =string.char(64)local _0x4D63 = 120
+local _0xF9A6 = nil
+local _0xEC6F = nil
+local function _0xA42A()
+if _0xC00E.ChatVersion ~= Enum.ChatVersion.TextChatService then return nil end
+local _0xF999, _0x2D15 = pcall(function()
+local _0x4E33 = _0xC00E:FindFirstChild(string.char(84,101,120,116,67,104,97,110,110,101,108,115))
+if not _0x4E33 then return nil end
+return _0x4E33:FindFirstChild(string.char(82,66,88,71,101,110,101,114,97,108)) or _0x4E33:GetChildren()[1]
+end)
+return _0xF999 and _0x2D15 or nil
+end
+local function _0xEC5E()
+local _0xF999, _0x2D15 = pcall(function()
+local _0x000B = _0x2083:FindFirstChild(string.char(68,101,102,97,117,108,116,67,104,97,116,83,121,115,116,101,109,67,104,97,116,69,118,101,110,116,115))
+if _0x000B and _0x000B:FindFirstChild(string.char(83,97,121,77,101,115,115,97,103,101,82,101,113,117,101,115,116)) then return _0x000B.SayMessageRequest end
+end)
+return _0xF999 and _0x2D15 or nil
+end
+_0xA6C9 = function(tx)
+if #tx > _0x3F08 then tx = tx:sub(1, _0x3F08) end
+if _0xC00E.ChatVersion == Enum.ChatVersion.TextChatService then
+if not _0xF9A6 or not _0xF9A6.Parent then _0xF9A6 = _0xA42A() end
+if _0xF9A6 then local _0xF999 = pcall(function() _0xF9A6:SendAsync(tx) end); if _0xF999 then _0x50D5 =string.char(84,101,120,116,67,104,97,116); return true end end
+end
+if not _0xEC6F then _0xEC6F = _0xEC5E() end
+if _0xEC6F then local _0xF999 = pcall(function() _0xEC6F:FireServer(tx,string.char(65,108,108)) end); if _0xF999 then _0x50D5 =string.char(76,101,103,97,99,121); return true end end
+return false
+end
+local function _0x4917()
+if math.random() > 0.75 then return""end
+local _0x342C = math.random(1, 3)
+local _0xF315 =""for _0x9094 = 1, _0x342C do
+_0xF315 = _0xF315 .. _0x4E38[math.random(1, #_0x4E38)]
+end
+return _0xF315
+end
+local function _0x64B5()
+if _0xC080 and _0xC080 ~=""then
+local _0xFD82 = tostring(_0xC080):gsub(string.char(94,37,115,42,64,43,37,115,42),"")
+local _0xD159 = _0x8324(_0xFD82, _0xA6AA)
+if _0xD159 then
+return (_0xD159.DisplayName ~=""and _0xD159.DisplayName) or _0xD159.Name
+end
+end
+local _0x49D0 = _0xB894()
+if _0x49D0 then
+local _0xF999, _0xBF87 = pcall(function() return _0x49D0.DisplayName end)
+if _0xF999 and _0xBF87 and _0xBF87 ~=""then return _0xBF87 end
+local _0x6FD2, _0x394C = pcall(function() return _0x49D0.Name end)
+if _0x6FD2 and _0x394C and _0x394C ~=""then return _0x394C end
+end
+if _0xC080 and _0xC080 ~=""then return (tostring(_0xC080):gsub(string.char(94,37,115,42,64,43,37,115,42),"")) end
+return nil
+end
+local function _0x4276()
+local _0xF315 =""for _0x9094 = 1, _0x4D63 do
+_0xF315 = _0xF315 .. _0x175C
+end
+return _0xF315
+end
+_0x7154 = function()
+if _0x546D ==string.char(109,101,115,115,97,103,101)then
+return (_0x47FC ..string.char(32).. _0x48CA:upper() .. _0x4276() .. _0x4917()):sub(1, _0x3F08)
+end
+local _0x1224 = _0x64B5()
+if not _0x1224 or _0x1224 ==""then _0x1224 = _0xC080 end
+if not _0x1224 or _0x1224 ==""then _0x1224 =string.char(101,118,101,114,121,111,110,101)end
+_0x1224 = tostring(_0x1224):gsub(string.char(94,37,115,42,64,43,37,115,42),"")
+local _0xA776 =string.char(64).. _0x1224 .. _0xB53F .. _0x6939[math.random(1, #_0x6939)]
+return (_0x47FC ..string.char(32).. _0x4276() ..string.char(32).. _0xA776:upper() .. _0x4917()):sub(1, _0x3F08)
+end
+endlocal _0xA00F = nil
+_0x5DAB = {
+AlwaysOnCore = true,Void = { enabled = false, alwaysOn = true, charAdded = nil, healthConns = {}, charConns = {}, loopConn = nil, steppedConn = nil, safetyFloor = nil, rescues = 0, startFn = nil, stopFn = nil },
+InfFallVoid = { enabled = false, alwaysOn = true, steppedConn = nil, startFn = nil, stopFn = nil },
+Lag = { enabled = false, alwaysOn = true, wsDescConn = nil, loopConn = nil, purgedItems = 0, throttledEmitters = setmetatable({}, {__mode =string.char(107)}), startFn = nil, stopFn = nil },
+Kill = { enabled = false, charAdded = nil, descConn = nil, loopConn = nil, wsDescConn = nil, blockedTouches = 0, originalPartFlags = setmetatable({}, {__mode =string.char(107)}), startFn = nil, stopFn = nil },
+GamePaused = { enabled = false, alwaysOn = true, childAdded = nil, propConn = nil, loopConn = nil, startFn = nil, stopFn = nil },
+AFK = { enabled = false, conn = nil, loopConn = nil, startFn = nil, stopFn = nil },
+VC = {
+enabled = false,
+running = false,
+userMuted = false,
+hookInstalled = false,
+blockedMutes = 0,
+rejoins = 0,
+watchdogConn = nil,
+stateConn = nil,
+statusText =string.char(83,116,97,116,117,115,58,32,73,100,108,101),
+statusLbl = nil,
+activateBtn = nil,
+_0x3185 = nil,
+micToggleBtn = nil,
+_0xFBCF = nil,
+rowSubLbl = nil,
+_0xA067 = nil,
+openPanelFn = nil,
+startFn = nil,
+stopFn = nil,
+forceBypassFn = nil,
+toggleMicFn = nil,
+rejoinFn = nil,
+},
+Redirect = { enabled = false, startFn = nil, stopFn = nil },
+PauseTrap = { enabled = false, startFn = nil, stopFn = nil },
+FlingShield = { enabled = false, steppedConn = nil, heartbeatConn = nil, plrAddedConn = nil, preStepCF = nil, blockedFlings = 0, startFn = nil, stopFn = nil },Ragdoll = { enabled = false, alwaysOn = true, steppedConn = nil, stateConn = nil, descConn = nil, charAdded = nil, recoveries = 0, lastDeepCleanse = 0, startFn = nil, stopFn = nil },
+Anchor = { enabled = false, alwaysOn = true, steppedConn = nil, descConn = nil, charAdded = nil, partConns = setmetatable({}, {__mode =string.char(107)}), purgedMovers = 0, lastMoverSweep = 0, startFn = nil, stopFn = nil },
+Attach = { enabled = false, steppedConn = nil, descConn = nil, severedCount = 0, startFn = nil, stopFn = nil },
+Blind = { enabled = false, loopConn = nil, lightChildConn = nil, camChildConn = nil, guiChildConn = nil, startFn = nil, stopFn = nil },
+Bring = { enabled = false, steppedConn = nil, heartbeatConn = nil, lastCF = nil, lastSafeTime = 0, blockedBrings = 0, startFn = nil, stopFn = nil },
+SeatTrap = { enabled = false, alwaysOn = true, wsDescConn = nil, loopConn = nil, savedSeats = setmetatable({}, {__mode =string.char(107)}), neutralizedSeats = 0, startFn = nil, stopFn = nil },
+ToolGuard = { enabled = false, loopConn = nil, disarmedTools = 0, startFn = nil, stopFn = nil },
+AntiHeadsit = { enabled = false, steppedConn = nil, evadedCount = 0, lastEvade = 0, startFn = nil, stopFn = nil },
+GlitchDesync = { enabled = false, _0xA3C6 =string.char(78,111,114,109,97,108), steppedConn = nil, heartbeatConn = nil, realCF = nil, realVel = Vector3.zero, realRot = Vector3.zero, startFn = nil, stopFn = nil },
+Kick = { enabled = false, hooked = false, originalKick = nil, blockedKicks = 0, startFn = nil, stopFn = nil },
+enableAll = nil,
+disableAll = nil,
+enforceAlwaysOn = nil,
+}
+local _0x7DE1 = {
+enabled = false,
+_0xA3C6 =string.char(71,111,100,77,97,116,114,105,120),
+range = 7.5,
+deflectCount = 0,
+lastAttackerName =string.char(78,111,110,101),
+lastThreatReason =string.char(83,116,97,110,100,98,121),
+modes = {string.char(71,111,100,77,97,116,114,105,120),string.char(82,101,118,101,114,115,101,70,108,105,110,103),string.char(86,111,105,100,80,97,117,115,101),string.char(82,101,100,105,114,101,99,116),string.char(66,108,97,99,107,104,111,108,101),string.char(83,107,121,79,114,98,105,116)},
+modeLabels = {
+GodMatrix =string.char(71,79,68,32,77,65,84,82,73,88,32,226,154,161),
+ReverseFling =string.char(82,69,86,69,82,83,69,32,70,76,73,78,71,32,239,191,189,239,191,189,239,184,143),
+VoidPause =string.char(86,79,73,68,45,80,65,85,83,69,32,226,157,132,239,184,143),
+Redirect =string.char(82,69,68,73,82,69,67,84,32,239,191,189,239,191,189),
+Blackhole =string.char(66,76,65,67,75,72,79,76,69,32,239,191,189,239,191,189),
+SkyOrbit =string.char(83,75,89,32,79,82,66,73,84,32,239,191,189,239,191,189),
+},
+ranges = { 5.0, 7.5, 11.0, 16.0, 22.0 },
+rangeIdx = 2,
+lastDeflect = 0,
+startFn = nil,
+stopFn = nil,
+}_0x363C = function(_0x5685)
+_0x02BF.lastTeleportTick = tick()
+if _0x5685 then
+_0x5DAB.Bring.lastCF = _0x5685
+_0x5DAB.Bring.lastSafeTime = tick()
+_0x5DAB.FlingShield.preStepCF = _0x5685
+if _0x5DAB.GlitchDesync and _0x5DAB.GlitchDesync.enabled then
+_0x5DAB.GlitchDesync.realCF = _0x5685
+end
+_0x7067 = _0x5685
+end
+end;(function()local _0xFC7F, _0xC54C, _0xA25E, _0x0606, _0x0E9F, _0xC838, _0x486A, _0xF12C, _0x879F, _0x559B
+local _0xE9DA, _0x8C2F, _0xE1A6, _0x708D, _0x557D, _0x3D9F, _0x2D4F, _0xA4A6
+local _0x8E13, _0xE011, _0xC237, _0x7E9F, _0xA023, _0xDCCA, _0x91B8, _0x1419
+local _0x9887, _0x41CA, _0xFE3D, _0x8024, _0x4D8B, _0x65FFlocal function _0x0CCA(_0x41D2, customY)
+local _0x1957 = _0x5DAB.Void.safetyFloor
+if not _0x1957 or not _0x1957.Parent then
+_0x1957 = Instance.new(string.char(80,97,114,116))
+_0x1957.Name =string.char(75,104,97,109,97,110,86,111,105,100,83,97,102,101,116,121,70,108,111,111,114)_0x1957.Anchored = true
+_0x1957.CanCollide = true
+_0x1957.CanTouch = false
+_0x1957.CanQuery = false
+_0x1957.Locked = true
+_0x1957.Size = Vector3.new(2048, 2, 2048)
+_0x1957.Transparency = 0.72
+_0x1957.Material = Enum.Material.ForceField
+_0x1957.Color = Color3.fromRGB(250, 204, 21)
+_0x1957.Parent = workspace
+_0x5DAB.Void.safetyFloor = _0x1957
+end
+_0x1957.CFrame = CFrame.new(_0x41D2.X, customY or (_0x41D2.Y - 3.5), _0x41D2.Z)
+end
+local function _0xFA7D()
+if _0x5DAB.Void.safetyFloor then
+pcall(function() _0x5DAB.Void.safetyFloor:Destroy() end)
+_0x5DAB.Void.safetyFloor = nil
+end
+end
+local function _0x8002(_0xA077)
+if not _0xA077 or not _0xA077.Parent then return end
+pcall(function()
+_0xA077:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
+_0xA077:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+_0xA077:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+_0xA077:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
+if _0xA077.MaxHealth <= 0 then _0xA077.MaxHealth = 100 end
+if _0xA077.Health <= 0 or _0xA077.Health < _0xA077.MaxHealth then _0xA077.Health = _0xA077.MaxHealth end
+if not _0x1B4F() and not (_0x02BF and _0x02BF.fly) then
+if _0xA077.PlatformStand then _0xA077.PlatformStand = false end
+if _0xA077.Sit then _0xA077.Sit = false end
+end
+if _0xA077:GetState() == Enum.HumanoidStateType.Dead then
+_0xA077:ChangeState(Enum.HumanoidStateType.Running)
+end
+end)
+end
+local function _0x738B(_0xA077)
+if not _0xA077 or not _0xA077.Parent then return end
+_0x8002(_0xA077)
+table.insert(_0x5DAB.Void.healthConns, _0xA077.HealthChanged:Connect(function(hp)
+if _0x5DAB.Void.enabled and hp < _0xA077.MaxHealth then
+task.defer(function() _0x8002(_0xA077) end)
+end
+end))
+table.insert(_0x5DAB.Void.healthConns, _0xA077.StateChanged:Connect(function(_0x9094, newState)
+if _0x5DAB.Void.enabled and newState == Enum.HumanoidStateType.Dead then
+_0x8002(_0xA077)
+end
+end))
+end
+local function _0x7FFA(_0x4E33)
+if not _0x4E33 then return end
+for _0x9094, x in ipairs(_0x5DAB.Void.charConns) do pcall(function() x:Disconnect() end) end
+_0x5DAB.Void.charConns = {}
+for _0x9094, x in ipairs(_0x5DAB.Void.healthConns) do pcall(function() x:Disconnect() end) end
+_0x5DAB.Void.healthConns = {}
+local _0xA778 = _0x4E33:FindFirstChildOfClass(string.char(72,117,109,97,110,111,105,100))
+if _0xA778 then _0x738B(_0xA778) end
+table.insert(_0x5DAB.Void.charConns, _0x4E33.ChildAdded:Connect(function(_0x7B2F)
+if _0x7B2F:IsA(string.char(72,117,109,97,110,111,105,100)) then _0x738B(_0x7B2F) end
+end))
+end
+_0xFC7F = function(silent)
+if _0x5DAB.Void.enabled and _0x5DAB.Void.steppedConn and _0x5DAB.Void.loopConn then return end
+_0x5DAB.Void.enabled = true
+pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
+_0x7FFA(_0xA6AA.Character)
+if _0x5DAB.Void.charAdded then _0x5DAB.Void.charAdded:Disconnect() end
+_0x5DAB.Void.charAdded = _0xA6AA.CharacterAdded:Connect(function(_0x4E33)
+if not _0x5DAB.Void.enabled then return end
+task.wait(0.1)
+_0x7FFA(_0x4E33)
+pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
+end)
+if _0x5DAB.Void.steppedConn then _0x5DAB.Void.steppedConn:Disconnect() end
+_0x5DAB.Void.steppedConn = _0xC77A.Stepped:Connect(function()
+if not _0x5DAB.Void.enabled then return end
+if workspace.FallenPartsDestroyHeight == workspace.FallenPartsDestroyHeight then
+pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
+end
+local _0x4E33 = _0xA6AA.Character
+local _0x5CFE = _0x4DA4(_0x4E33)
+if not _0x5CFE or _0x1B4F() or _0x1978 or (_0xAE44 and _0xAE44.rewinding) then
+return
+end
+local _0x41D2 = _0x5CFE.Position
+local _0x6355 = _0x5CFE.AssemblyLinearVelocity
+local _0x2585 = math.max(_0x8668 + 55, -180)
+local _0x221A = _0x41D2.Y + (_0x6355.Y * 0.055)
+if _0x41D2.Y <= _0x2585 or _0x221A <= _0x2585 or (_0x41D2.Y <= (_0x2585 + 45) and _0x6355.Y < -95) or _0x41D2.Magnitude > 45000 then
+_0x5CFE.AssemblyLinearVelocity = Vector3.new(_0x6355.X * 0.05, math.max(0, _0x6355.Y), _0x6355.Z * 0.05)
+_0x5CFE.AssemblyAngularVelocity = Vector3.zero
+_0x0CCA(_0x41D2, math.max(_0x41D2.Y - 3.5, _0x2585 + 12))
+_0x5DAB.Void.rescues = _0x5DAB.Void.rescues + 1
+_0x363C(_0x7067)
+_0xDF2E(_0x4E33, _0x7067)
+elseif _0x5DAB.Void.safetyFloor and _0x41D2.Y > -15 and math.abs(_0x6355.Y) < 25 then
+_0xFA7D()
+end
+end)
+if _0x5DAB.Void.loopConn then _0x5DAB.Void.loopConn:Disconnect() end
+local _0x747C = 0
+_0x5DAB.Void.loopConn = _0xC77A.Heartbeat:Connect(function()
+if not _0x5DAB.Void.enabled then return end
+local _0x60A3 = tick()
+if _0x60A3 - _0x747C < 0.35 then return end
+_0x747C = _0x60A3
+local _0x4E33 = _0xA6AA.Character
+if not _0x4E33 then return end
+local _0xA077 = _0x4E33:FindFirstChildOfClass(string.char(72,117,109,97,110,111,105,100))
+if _0xA077 and _0xA077.Health < _0xA077.MaxHealth then _0x8002(_0xA077) end
+end)
+if _0xA00F then pcall(_0xA00F) end
+if not silent then
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(65,110,116,105,45,86,111,105,100,32,118,52,32,40,65,108,119,97,121,115,45,79,110,32,50,48,52,56,120,50,48,52,56,32,70,108,111,111,114,32,43,32,67,97,116,99,104,41,32,65,67,84,73,86,69))
+_0xF140()
+end
+end
+_0xC54C = function()
+if _0x5DAB.AlwaysOnCore or _0x5DAB.Void.alwaysOn then
+_0xFC7F(true)
+if _0xA00F then pcall(_0xA00F) end
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(239,191,189,239,191,189,32,65,110,116,105,45,86,111,105,100,32,105,115,32,108,111,99,107,101,100,32,65,76,87,65,89,83,45,79,78,32,102,111,114,32,112,101,114,109,97,110,101,110,116,32,112,114,111,116,101,99,116,105,111,110,33))
+return
+end
+if not _0x5DAB.Void.enabled then return end
+_0x5DAB.Void.enabled = false
+if _0x5DAB.Void.charAdded then _0x5DAB.Void.charAdded:Disconnect(); _0x5DAB.Void.charAdded = nil end
+if _0x5DAB.Void.steppedConn then _0x5DAB.Void.steppedConn:Disconnect(); _0x5DAB.Void.steppedConn = nil end
+if _0x5DAB.Void.loopConn then _0x5DAB.Void.loopConn:Disconnect(); _0x5DAB.Void.loopConn = nil end
+for _0x9094, x in ipairs(_0x5DAB.Void.charConns) do pcall(function() x:Disconnect() end) end
+_0x5DAB.Void.charConns = {}
+for _0x9094, x in ipairs(_0x5DAB.Void.healthConns) do pcall(function() x:Disconnect() end) end
+_0x5DAB.Void.healthConns = {}
+_0xFA7D()
+if _0xA00F then pcall(_0xA00F) end
+end
+_0x5DAB.Void.startFn = _0xFC7F
+_0x5DAB.Void.stopFn = _0xC54C_0x5DAB.InfFallVoid.startFn = function(silent)
+if _0x5DAB.InfFallVoid.enabled then return end
+_0x5DAB.InfFallVoid.enabled = true
+pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
+if _0xA00F then pcall(_0xA00F) end
+if not silent then
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(73,110,102,105,110,105,116,101,32,70,97,108,108,32,86,111,105,100,32,79,78,32,40,70,97,108,108,101,110,80,97,114,116,115,68,101,115,116,114,111,121,72,101,105,103,104,116,32,61,32,78,97,78,41))
+_0xF140()
+end
+end
+_0x5DAB.InfFallVoid.stopFn = function()
+if _0x5DAB.AlwaysOnCore or _0x5DAB.InfFallVoid.alwaysOn then
+_0x5DAB.InfFallVoid.startFn(true)
+if _0xA00F then pcall(_0xA00F) end
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(239,191,189,239,191,189,32,73,110,102,105,110,105,116,101,32,70,97,108,108,32,86,111,105,100,32,105,115,32,108,111,99,107,101,100,32,65,76,87,65,89,83,45,79,78,33))
+return
+end
+_0x5DAB.InfFallVoid.enabled = false
+if _0xA00F then pcall(_0xA00F) end
+endlocal _0x6392 = {
+ParticleEmitter = true,
+Trail = true,
+Beam = true,
+Smoke = true,
+Fire = true,
+Sparkles = true,
+}
+local function _0x19EB(_0x4A72)
+if not _0x4A72 or not _0x4A72.Parent then return end
+if _0xF28E and _0x4A72:IsDescendantOf(_0xF28E) then return end
+local _0x9D92 = _0x4A72.ClassName
+if _0x6392[_0x9D92] then
+local _0x1213 = _0xA6AA.Character
+if not (_0x1213 and _0x4A72:IsDescendantOf(_0x1213)) then
+pcall(function()
+if _0x4A72.Enabled then
+_0x4A72.Enabled = false
+_0x5DAB.Lag.throttledEmitters[_0x4A72] = true
+_0x5DAB.Lag.purgedItems = (_0x5DAB.Lag.purgedItems or 0) + 1
+end
+if _0x9D92 ==string.char(80,97,114,116,105,99,108,101,69,109,105,116,116,101,114)and _0x4A72.Rate > 12 then
+_0x4A72.Rate = 0
+end
+end)
+end
+elseif _0x9D92 ==string.char(69,120,112,108,111,115,105,111,110)then
+pcall(function()
+_0x4A72.BlastPressure = 0
+_0x4A72.BlastRadius = 0
+_0x4A72.DestroyJointRadiusPercent = 0
+_0x4A72.Visible = false
+_0x5DAB.Lag.purgedItems = (_0x5DAB.Lag.purgedItems or 0) + 1
+end)
+elseif _0x9D92 ==string.char(80,111,105,110,116,76,105,103,104,116)or _0x9D92 ==string.char(83,117,114,102,97,99,101,76,105,103,104,116)or _0x9D92 ==string.char(83,112,111,116,76,105,103,104,116)then
+pcall(function()
+if _0x4A72.Shadows then _0x4A72.Shadows = false end
+end)
+elseif _0x4A72:IsA(string.char(66,97,115,101,80,97,114,116)) then
+local _0x1CEE = _0x4A72.Parent
+if _0x1CEE and (_0x1CEE:IsA(string.char(84,111,111,108)) or _0x1CEE:IsA(string.char(65,99,99,101,115,115,111,114,121)) or _0x1CEE:IsA(string.char(72,97,116))) and _0x1CEE.Parent == workspace then
+pcall(function()
+if _0x4A72.CanTouch then _0x4A72.CanTouch = false end
+if _0x4A72.CanCollide then _0x4A72.CanCollide = false end
+_0x4A72.Massless = true
+_0x5DAB.Lag.purgedItems = (_0x5DAB.Lag.purgedItems or 0) + 1
+end)
+end
+end
+end
+_0xFE3D = function(silent)
+if _0x5DAB.Lag.enabled and _0x5DAB.Lag.wsDescConn and _0x5DAB.Lag.loopConn then return end
+_0x5DAB.Lag.enabled = true
+pcall(function()
+local _0x0E3D = game:GetService(string.char(76,105,103,104,116,105,110,103))
+_0x0E3D.GlobalShadows = false
+end)
+if _0x5DAB.Lag.wsDescConn then _0x5DAB.Lag.wsDescConn:Disconnect() end
+_0x5DAB.Lag.wsDescConn = workspace.DescendantAdded:Connect(function(_0x4A72)
+if not _0x5DAB.Lag.enabled then return end
+_0x19EB(_0x4A72)
+end)
+if _0x5DAB.Lag.loopConn then _0x5DAB.Lag.loopConn:Disconnect() end
+local _0x619B = 0
+_0x5DAB.Lag.loopConn = _0xC77A.Heartbeat:Connect(function()
+if not _0x5DAB.Lag.enabled then return end
+local _0x60A3 = tick()
+if _0x60A3 - _0x619B < 2.5 then return end
+_0x619B = _0x60A3
+local _0xA3AD = 0
+for _0x9094, child in ipairs(workspace:GetChildren()) do
+if child:IsA(string.char(84,111,111,108)) or child:IsA(string.char(65,99,99,101,115,115,111,114,121)) or child:IsA(string.char(72,97,116)) then
+for _0x9094, _0x000B in ipairs(child:GetDescendants()) do
+if _0x000B:IsA(string.char(66,97,115,101,80,97,114,116)) then
+if _0x000B.CanTouch then _0x000B.CanTouch = false end
+if _0x000B.CanCollide then _0x000B.CanCollide = false end
+elseif _0x6392[_0x000B.ClassName] and _0x000B.Enabled then
+_0x000B.Enabled = false
+end
+end
+elseif child:IsA(string.char(83,111,117,110,100)) and child.IsPlaying then
+_0xA3AD = _0xA3AD + 1
+if _0xA3AD > 16 then
+pcall(function() child:Stop() end)
+_0x5DAB.Lag.purgedItems = (_0x5DAB.Lag.purgedItems or 0) + 1
+end
+end
+end
+for _0x975E, _0x9094 in pairs(_0xA9FC) do
+if not _0xC3F7:GetPlayerByUserId(_0x975E) then
+_0xA9FC[_0x975E] = nil
+end
+end
+end)
+if _0xA00F then pcall(_0xA00F) end
+if not silent then
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(65,110,116,105,45,76,97,103,32,118,52,32,40,65,108,119,97,121,115,45,79,110,32,80,97,114,116,105,99,108,101,47,67,108,111,110,101,45,66,111,109,98,32,80,117,114,103,101,114,41,32,65,67,84,73,86,69))
+_0xF140()
+end
+end
+_0x8024 = function()
+if _0x5DAB.AlwaysOnCore or _0x5DAB.Lag.alwaysOn then
+_0xFE3D(true)
+if _0xA00F then pcall(_0xA00F) end
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(239,191,189,239,191,189,32,65,110,116,105,45,76,97,103,32,105,115,32,108,111,99,107,101,100,32,65,76,87,65,89,83,45,79,78,32,102,111,114,32,109,97,120,32,70,80,83,32,38,32,99,114,97,115,104,32,112,114,111,116,101,99,116,105,111,110,33))
+return
+end
+if not _0x5DAB.Lag.enabled then return end
+_0x5DAB.Lag.enabled = false
+if _0x5DAB.Lag.wsDescConn then _0x5DAB.Lag.wsDescConn:Disconnect(); _0x5DAB.Lag.wsDescConn = nil end
+if _0x5DAB.Lag.loopConn then _0x5DAB.Lag.loopConn:Disconnect(); _0x5DAB.Lag.loopConn = nil end
+if _0xA00F then pcall(_0xA00F) end
+end
+_0x5DAB.Lag.startFn = _0xFE3D
+_0x5DAB.Lag.stopFn = _0x8024local function _0x3D9D(_0x1CEE)
+if not (_0x1CEE and _0x1CEE:IsA(string.char(66,97,115,101,80,97,114,116))) then return end
+local _0xBC73 = _0x5DAB.Kill.originalPartFlags[_0x1CEE]
+if not _0xBC73 then
+_0xBC73 = { CanTouch = _0x1CEE.CanTouch, CanQuery = _0x1CEE.CanQuery }
+_0x5DAB.Kill.originalPartFlags[_0x1CEE] = _0xBC73
+end
+pcall(function()
+if _0x1CEE.CanTouch then _0x1CEE.CanTouch = false end
+if _0x1CEE.CanQuery then _0x1CEE.CanQuery = false end
+end)
+end
+local function _0xEC2D(_0x5BFE)
+if not _0x5BFE then return end
+for _0x9094, _0x1CEE in ipairs(_0x04D0(_0x5BFE)) do
+_0x3D9D(_0x1CEE)
+end
+pcall(function()
+if not _0x5BFE:FindFirstChild(string.char(95,95,75,104,97,109,97,110,71,111,100,70,111,114,99,101,70,105,101,108,100)) then
+local _0xCC58 = Instance.new(string.char(70,111,114,99,101,70,105,101,108,100))
+_0xCC58.Name =string.char(95,95,75,104,97,109,97,110,71,111,100,70,111,114,99,101,70,105,101,108,100)_0xCC58.Visible = false
+_0xCC58.Parent = _0x5BFE
+end
+end)
+local _0xA778 = _0x5BFE:FindFirstChildOfClass(string.char(72,117,109,97,110,111,105,100))
+if _0xA778 then
+pcall(function()
+_0xA778:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
+if _0xA778.MaxHealth <= 0 then _0xA778.MaxHealth = 100 end
+if _0xA778.Health <= 0 or _0xA778.Health < _0xA778.MaxHealth then
+_0xA778.Health = _0xA778.MaxHealth
+end
+end)
+end
+end
+local function _0x63D8(_0x5BFE)
+if _0x5DAB.Kill.descConn then _0x5DAB.Kill.descConn:Disconnect(); _0x5DAB.Kill.descConn = nil end
+if not _0x5BFE then return end
+_0xEC2D(_0x5BFE)
+_0x5DAB.Kill.descConn = _0x5BFE.DescendantAdded:Connect(function(_0x4A72)
+if _0x5DAB.Kill.enabled and _0x4A72:IsA(string.char(66,97,115,101,80,97,114,116)) then _0x3D9D(_0x4A72) end
+end)
+end
+_0xA25E = function()
+if _0x5DAB.Kill.enabled then return end
+_0x5DAB.Kill.enabled = true
+pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
+_0x63D8(_0xA6AA.Character)
+if _0x5DAB.Kill.charAdded then _0x5DAB.Kill.charAdded:Disconnect() end
+_0x5DAB.Kill.charAdded = _0xA6AA.CharacterAdded:Connect(function(_0x4E33)
+if not _0x5DAB.Kill.enabled then return end
+task.wait(0.15)
+_0x63D8(_0x4E33)
+end)
+if _0x5DAB.Kill.wsDescConn then _0x5DAB.Kill.wsDescConn:Disconnect() end
+_0x5DAB.Kill.wsDescConn = workspace.DescendantAdded:Connect(function(_0x4A72)
+if not _0x5DAB.Kill.enabled then return end
+if _0x4A72:IsA(string.char(69,120,112,108,111,115,105,111,110)) then
+pcall(function()
+_0x4A72.BlastPressure = 0
+_0x4A72.BlastRadius = 0
+_0x4A72.DestroyJointRadiusPercent = 0
+end)
+end
+end)
+if _0x5DAB.Kill.loopConn then _0x5DAB.Kill.loopConn:Disconnect() end
+_0x5DAB.Kill.loopConn = _0xC77A.Stepped:Connect(function()
+if not _0x5DAB.Kill.enabled then return end
+local _0x4E33 = _0xA6AA.Character
+if not _0x4E33 then return end
+for _0x9094, _0x1CEE in ipairs(_0x04D0(_0x4E33)) do
+if _0x1CEE.Parent then
+if _0x1CEE.CanTouch then _0x1CEE.CanTouch = false end
+if _0x1CEE.CanQuery then _0x1CEE.CanQuery = false end
+end
+end
+local _0xA778 = _0x4E33:FindFirstChildOfClass(string.char(72,117,109,97,110,111,105,100))
+if _0xA778 and _0xA778.Health > 0 and _0xA778.Health < _0xA778.MaxHealth then
+pcall(function() _0xA778.Health = _0xA778.MaxHealth end)
+end
+end)
+if _0xA00F then pcall(_0xA00F) end
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(65,110,116,105,45,75,105,108,108,32,47,32,71,111,100,45,77,111,100,101,32,118,51,32,40,84,111,117,99,104,32,83,104,105,101,108,100,32,43,32,70,111,114,99,101,70,105,101,108,100,32,43,32,66,108,97,115,116,32,73,109,109,117,110,105,116,121,41,32,79,78))
+_0xF140()
+end
+_0x0606 = function()
+if not _0x5DAB.Kill.enabled then return end
+_0x5DAB.Kill.enabled = false
+if _0x5DAB.Kill.charAdded then _0x5DAB.Kill.charAdded:Disconnect(); _0x5DAB.Kill.charAdded = nil end
+if _0x5DAB.Kill.descConn then _0x5DAB.Kill.descConn:Disconnect(); _0x5DAB.Kill.descConn = nil end
+if _0x5DAB.Kill.wsDescConn then _0x5DAB.Kill.wsDescConn:Disconnect(); _0x5DAB.Kill.wsDescConn = nil end
+if _0x5DAB.Kill.loopConn then _0x5DAB.Kill.loopConn:Disconnect(); _0x5DAB.Kill.loopConn = nil end
+for _0x5959, _0xBC73 in pairs(_0x5DAB.Kill.originalPartFlags) do
+if _0x5959 and _0x5959.Parent then
+pcall(function()
+_0x5959.CanTouch = _0xBC73.CanTouch
+_0x5959.CanQuery = _0xBC73.CanQuery
+end)
+end
+_0x5DAB.Kill.originalPartFlags[_0x5959] = nil
+end
+local _0x4E33 = _0xA6AA.Character
+if _0x4E33 then
+local _0xCC58 = _0x4E33:FindFirstChild(string.char(95,95,75,104,97,109,97,110,71,111,100,70,111,114,99,101,70,105,101,108,100))
+if _0xCC58 then pcall(function() _0xCC58:Destroy() end) end
+local _0xA778 = _0x4E33:FindFirstChildOfClass(string.char(72,117,109,97,110,111,105,100))
+if _0xA778 and not (_0x5DAB.Void and _0x5DAB.Void.enabled) then
+pcall(function() _0xA778:SetStateEnabled(Enum.HumanoidStateType.Dead, true) end)
+end
+end
+if not (_0x5DAB.AlwaysOnCore or (_0x5DAB.Void and _0x5DAB.Void.enabled) or (_0x5DAB.InfFallVoid and _0x5DAB.InfFallVoid.enabled)) and not _0x243A.active and not _0xF3B0 then
+pcall(function() workspace.FallenPartsDestroyHeight = _0x8668 end)
+end
+if _0xA00F then pcall(_0xA00F) end
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(65,110,116,105,45,75,105,108,108,32,100,105,115,97,98,108,101,100,32,38,32,112,97,114,116,32,102,108,97,103,115,32,114,101,115,116,111,114,101,100))
+_0xED6E()
+end
+_0x5DAB.Kill.startFn = _0xA25E
+_0x5DAB.Kill.stopFn = _0x0606local function _0xF473()
+pcall(function()
+game:GetService(string.char(71,117,105,83,101,114,118,105,99,101)):SetGameplayPausedNotificationEnabled(false)
+end)
+pcall(function()
+if _0xA6AA.GameplayPaused then _0xA6AA.GameplayPaused = false end
+end)
+pcall(function()
+local _0xC59D = _0x6B21 and _0x6B21:FindFirstChild(string.char(82,111,98,108,111,120,71,117,105))
+if _0xC59D then
+local _0x644A = _0xC59D:FindFirstChild(string.char(67,111,114,101,83,99,114,105,112,116,115,47,78,101,116,119,111,114,107,80,97,117,115,101))
+if _0x644A then _0x644A:Destroy() end
+end
+end)
+end
+_0x0E9F = function(silent)
+if _0x5DAB.GamePaused.enabled and _0x5DAB.GamePaused.loopConn then return end
+_0x5DAB.GamePaused.enabled = true
+_0xF473()
+pcall(function()
+local _0xC59D = _0x6B21 and _0x6B21:FindFirstChild(string.char(82,111,98,108,111,120,71,117,105))
+if _0xC59D then
+if _0x5DAB.GamePaused.childAdded then _0x5DAB.GamePaused.childAdded:Disconnect() end
+_0x5DAB.GamePaused.childAdded = _0xC59D.ChildAdded:Connect(function(_0x4A72)
+if _0x5DAB.GamePaused.enabled and _0x4A72.Name:find(string.char(78,101,116,119,111,114,107,80,97,117,115,101)) then
+pcall(function() _0x4A72:Destroy() end)
+end
+end)
+end
+end)
+if _0x5DAB.GamePaused.propConn then _0x5DAB.GamePaused.propConn:Disconnect() end
+pcall(function()
+_0x5DAB.GamePaused.propConn = _0xA6AA:GetPropertyChangedSignal(string.char(71,97,109,101,112,108,97,121,80,97,117,115,101,100)):Connect(function()
+if _0x5DAB.GamePaused.enabled then
+pcall(function() _0xA6AA.GameplayPaused = false end)
+_0xF473()
+end
+end)
+end)
+if _0x5DAB.GamePaused.loopConn then _0x5DAB.GamePaused.loopConn:Disconnect() end
+_0x5DAB.GamePaused.loopConn = _0xC77A.Heartbeat:Connect(function()
+if not _0x5DAB.GamePaused.enabled then return end
+if _0xA6AA.GameplayPaused then
+pcall(function() _0xA6AA.GameplayPaused = false end)
+end
+end)
+if _0xA00F then pcall(_0xA00F) end
+if not silent then
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(65,110,116,105,45,71,97,109,101,112,108,97,121,80,97,117,115,101,100,32,47,32,65,110,116,105,45,70,114,101,101,122,101,32,118,52,32,65,67,84,73,86,69))
+_0xF140()
+end
+end
+_0xC838 = function()
+if _0x5DAB.AlwaysOnCore or _0x5DAB.GamePaused.alwaysOn then
+_0x0E9F(true)
+if _0xA00F then pcall(_0xA00F) end
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(239,191,189,239,191,189,32,65,110,116,105,45,71,97,109,101,112,108,97,121,80,97,117,115,101,100,32,105,115,32,108,111,99,107,101,100,32,65,76,87,65,89,83,45,79,78,33))
+return
+end
+if not _0x5DAB.GamePaused.enabled then return end
+_0x5DAB.GamePaused.enabled = false
+if _0x5DAB.GamePaused.childAdded then _0x5DAB.GamePaused.childAdded:Disconnect(); _0x5DAB.GamePaused.childAdded = nil end
+if _0x5DAB.GamePaused.propConn then _0x5DAB.GamePaused.propConn:Disconnect(); _0x5DAB.GamePaused.propConn = nil end
+if _0x5DAB.GamePaused.loopConn then _0x5DAB.GamePaused.loopConn:Disconnect(); _0x5DAB.GamePaused.loopConn = nil end
+if _0xA00F then pcall(_0xA00F) end
+end
+_0x5DAB.GamePaused.startFn = _0x0E9F
+_0x5DAB.GamePaused.stopFn = _0xC838local function _0xB998()
+pcall(function()
+local _0xADAD = game:GetService(string.char(86,105,114,116,117,97,108,85,115,101,114))
+_0xADAD:CaptureController()
+_0xADAD:ClickButton2(Vector2.zero, workspace.CurrentCamera and workspace.CurrentCamera.CFrame or CFrame.new())
+end)
+pcall(function()
+local _0xB22E = game:GetService(string.char(86,105,114,116,117,97,108,73,110,112,117,116,77,97,110,97,103,101,114))
+_0xB22E:SendMouseMoveEvent(1, 1, game)
+end)
+end
+_0x486A = function()
+if _0x5DAB.AFK.enabled then return end
+_0x5DAB.AFK.enabled = true
+pcall(function()
+if getconnections then
+for _0x9094, _0x4E33 in ipairs(getconnections(_0xA6AA.Idled)) do
+pcall(function() _0x4E33:Disable() end)
+pcall(function() _0x4E33:Disconnect() end)
+end
+end
+end)
+if _0x5DAB.AFK.conn then _0x5DAB.AFK.conn:Disconnect() end
+_0x5DAB.AFK.conn = _0xA6AA.Idled:Connect(function()
+if not _0x5DAB.AFK.enabled then return end
+_0xB998()
+end)
+if _0xA00F then pcall(_0xA00F) end
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(65,110,116,105,45,65,70,75,32,118,51,32,40,77,117,108,116,105,45,72,111,111,107,41,32,79,78))
+_0xF140()
+end
+_0xF12C = function()
+if not _0x5DAB.AFK.enabled then return end
+_0x5DAB.AFK.enabled = false
+if _0x5DAB.AFK.conn then _0x5DAB.AFK.conn:Disconnect(); _0x5DAB.AFK.conn = nil end
+if _0xA00F then pcall(_0xA00F) end
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(65,110,116,105,45,65,70,75,32,100,105,115,97,98,108,101,100))
+_0xED6E()
+end
+_0x5DAB.AFK.startFn = _0x486A
+_0x5DAB.AFK.stopFn = _0xF12Clocal _0xD5AF =string.char(114,98,120,97,115,115,101,116,58,47,47,116,101,120,116,117,114,101,115,47,117,105,47,86,111,105,99,101,67,104,97,116,47,77,105,99,76,105,103,104,116,47,77,117,116,101,100,46,112,110,103)local _0x6659 =string.char(114,98,120,97,115,115,101,116,58,47,47,116,101,120,116,117,114,101,115,47,117,105,47,86,111,105,99,101,67,104,97,116,47,77,105,99,76,105,103,104,116,47,85,110,109,117,116,101,100,46,112,110,103)local _0xC563 = nil
+local function _0x4506(_0x43E0)
+if not _0x43E0 then return nil end
+local _0xF999, _0x2D15 = pcall(function()
+local _0x3FBB = _0x43E0:FindFirstChild(string.char(73,110,116,101,103,114,97,116,105,111,110,73,99,111,110,70,114,97,109,101), true) or _0x43E0:WaitForChild(string.char(73,110,116,101,103,114,97,116,105,111,110,73,99,111,110,70,114,97,109,101), 1.5)
+local _0x5E4C = _0x3FBB and (_0x3FBB:FindFirstChild(string.char(73,110,116,101,103,114,97,116,105,111,110,73,99,111,110), true) or _0x3FBB:WaitForChild(string.char(73,110,116,101,103,114,97,116,105,111,110,73,99,111,110), 1.5))
+return _0x5E4C and (_0x5E4C:FindFirstChild(string.char(49)) or _0x5E4C:FindFirstChildWhichIsA(string.char(73,109,97,103,101,76,97,98,101,108)))
+end)
+if _0xF999 and _0x2D15 then return _0x2D15 end
+for _0x9094, _0x000B in ipairs(_0x43E0:GetDescendants()) do
+if _0x000B:IsA(string.char(73,109,97,103,101,76,97,98,101,108)) and (_0x000B.Name ==string.char(49)or _0x000B.Name:lower():find(string.char(105,99,111,110), 1, true) or _0x000B.Image:lower():find(string.char(118,111,105,99,101,99,104,97,116), 1, true) or _0x000B.Image:lower():find(string.char(109,105,99), 1, true)) then
+return _0x000B
+end
+end
+return nil
+end
+local function _0x6CFB(_0xFA91)
+if not _0xFA91 then return nil, nil end
+local _0x78E5 = nil
+pcall(function()
+for _0x9094, _0x324B in ipairs(_0xFA91:GetDescendants()) do
+if _0x324B.Name ==string.char(116,111,103,103,108,101,95,109,105,99,95,109,117,116,101)then
+_0x78E5 = _0x324B
+break
+end
+end
+if not _0x78E5 then
+for _0x9094, _0x324B in ipairs(_0xFA91:GetDescendants()) do
+if _0x324B.Name ==string.char(73,99,111,110,72,105,116,65,114,101,97,95,116,111,103,103,108,101,95,109,105,99,95,109,117,116,101)and _0x324B.Parent then
+_0x78E5 = _0x324B.Parent
+break
+end
+end
+end
+end)
+return _0x78E5, (_0x78E5 and _0x78E5.Parent or nil)
+end
+local function _0xB9AF(statusStr, statusCol, btnStr)
+_0x5DAB.VC.statusText = statusStr or _0x5DAB.VC.statusText
+local _0xA45D = _0x5DAB.VC.userMuted andstring.char(239,191,189,239,191,189,32,77,73,67,58,32,77,85,84,69,68,32,40,84,65,80,32,84,79,32,85,78,77,85,84,69,41)orstring.char(239,191,189,239,191,189,239,184,143,32,77,73,67,58,32,76,73,86,69,32,47,32,85,78,77,85,84,69,68,32,40,84,65,80,32,84,79,32,77,85,84,69,41)local _0x6F85 = _0x5DAB.VC.userMuted and _0x90E7.Danger or _0x90E7.Success
+if _0x5DAB.VC.statusLbl and _0x5DAB.VC.statusLbl.Parent then
+_0x5DAB.VC.statusLbl.Text = string.format(string.char(37,115,32,32,194,183,32,32,66,108,111,99,107,101,100,32,77,117,116,101,115,58,32,37,100), statusStr orstring.char(83,116,97,116,117,115,58,32,73,100,108,101), _0x5DAB.VC.blockedMutes or 0)
+if statusCol then _0x5DAB.VC.statusLbl.TextColor3 = statusCol end
+end
+if _0x5DAB.VC.activateBtn and _0x5DAB.VC.activateBtn.Parent and btnStr then
+_0x5DAB.VC.activateBtn.Text = btnStr
+end
+if _0x5DAB.VC.micToggleBtn and _0x5DAB.VC.micToggleBtn.Parent then
+_0x5DAB.VC.micToggleBtn.Text = _0xA45D
+_0x5DAB.VC.micToggleBtn.BackgroundColor3 = _0x6F85
+end
+if _0x5DAB.VC.inlineMicBtn and _0x5DAB.VC.inlineMicBtn.Parent then
+_0x5DAB.VC.inlineMicBtn.Text = _0x5DAB.VC.userMuted andstring.char(239,191,189,239,191,189,32,77,85,84,69,68)orstring.char(239,191,189,239,191,189,239,184,143,32,76,73,86,69)_0x5DAB.VC.inlineMicBtn.BackgroundColor3 = _0x6F85
+end
+if _0x5DAB.VC.rowSubLbl and _0x5DAB.VC.rowSubLbl.Parent then
+_0x5DAB.VC.rowSubLbl.Text = string.format(string.char(37,115,32,194,183,32,71,117,97,114,100,58,37,100), statusStr orstring.char(83,116,97,116,117,115,58,32,73,100,108,101), _0x5DAB.VC.blockedMutes or 0)
+end
+end
+local function _0x4F29()
+local _0xF364 = (type(cloneref) ==string.char(102,117,110,99,116,105,111,110)and cloneref) or function(...) return ... end
+local _0x33A0, _0xE7BC = nil, nil
+pcall(function() _0x33A0 = _0xF364(game:GetService(string.char(86,111,105,99,101,67,104,97,116,83,101,114,118,105,99,101))) end)
+pcall(function() _0xE7BC = _0xF364(game:GetService(string.char(86,111,105,99,101,67,104,97,116,73,110,116,101,114,110,97,108))) end)
+return _0x33A0, _0xE7BC
+end
+local function _0xA2A2(_0xE7BC, pauseState)
+if not _0xE7BC then
+local _0x9094, _0xCC6E = _0x4F29()
+_0xE7BC = _0xCC6E
+end
+if not _0xE7BC then return false end
+local _0xF999 = pcall(function()
+if _0xC563 then
+_0xC563(_0xE7BC, pauseState)
+else
+_0xE7BC:PublishPause(pauseState)
+end
+end)
+return _0xF999
+end
+local function _0xA9C5(_0xE7BC)
+if not _0xE7BC then
+local _0x9094, _0xCC6E = _0x4F29()
+_0xE7BC = _0xCC6E
+end
+if not _0xE7BC then return false end
+local _0xF999, _0x2D15 = pcall(function() return _0xE7BC:IsPublishPaused() end)
+return _0xF999 and _0x2D15 == true
+end
+local function _0xFB73(_0xE7BC, _0x33A0)
+local _0x83AA = (type(clonefunction) ==string.char(102,117,110,99,116,105,111,110)and clonefunction) or function(...) return ... end
+if type(getconnections) ~=string.char(102,117,110,99,116,105,111,110)then return 0 end
+local _0xEF86 = _0x83AA(getconnections)
+local _0x8577 = 0
+pcall(function()
+if _0xE7BC and _0xE7BC.StateChanged then
+local _0x9A50 = _0xEF86(_0xE7BC.StateChanged)
+for i = 1, #_0x9A50 do
+local _0x4E33 = _0x9A50[i]
+local _0x1C54 = (i >= 7)
+if not _0x1C54 and _0x4E33 and _0x4E33.Function and debug and type(debug.getconstants) ==string.char(102,117,110,99,116,105,111,110)then
+local _0x662A, _0xBCAC = pcall(debug.getconstants, _0x4E33.Function)
+if _0x662A and type(_0xBCAC) ==string.char(116,97,98,108,101)then
+for _0x9094, val in pairs(_0xBCAC) do
+local _0x87D3 = tostring(val):lower()
+if _0x87D3:find(string.char(115,117,115,112,101,110,100), 1, true) or _0x87D3:find(string.char(109,111,100,101,114,97,116,101,100), 1, true) or _0x87D3:find(string.char(98,97,110,110,101,100), 1, true) or _0x87D3:find(string.char(112,117,98,108,105,115,104,112,97,117,115,101), 1, true) then
+_0x1C54 = true
+break
+end
+end
+end
+end
+if _0x1C54 and _0x4E33 then
+pcall(function() _0x4E33:Disable() end)
+_0x8577 = _0x8577 + 1
+end
+end
+end
+end)
+for _0x9094, sigName in ipairs({string.char(76,111,99,97,108,80,108,97,121,101,114,77,111,100,101,114,97,116,101,100),string.char(80,108,97,121,101,114,77,105,99,65,99,116,105,118,105,116,121,83,105,103,110,97,108,67,104,97,110,103,101),string.char(80,97,114,116,105,99,105,112,97,110,116,115,83,116,97,116,101,67,104,97,110,103,101,100)}) do
+pcall(function()
+local _0x4552 = _0xE7BC and _0xE7BC[sigName]
+if _0x4552 and sigName ==string.char(76,111,99,97,108,80,108,97,121,101,114,77,111,100,101,114,97,116,101,100)then
+for _0x9094, _0x4E33 in ipairs(_0xEF86(_0x4552)) do
+pcall(function() _0x4E33:Disable() end)
+pcall(function() _0x4E33:Disconnect() end)
+_0x8577 = _0x8577 + 1
+end
+end
+end)
+pcall(function()
+local _0x4552 = _0x33A0 and _0x33A0[sigName]
+if _0x4552 and sigName ==string.char(76,111,99,97,108,80,108,97,121,101,114,77,111,100,101,114,97,116,101,100)then
+for _0x9094, _0x4E33 in ipairs(_0xEF86(_0x4552)) do
+pcall(function() _0x4E33:Disable() end)
+pcall(function() _0x4E33:Disconnect() end)
+_0x8577 = _0x8577 + 1
+end
+end
+end)
+end
+return _0x8577
+end
+local function _0x7C8A(_0xE7BC)
+if _0x5DAB.VC.hookInstalled or not _0xE7BC then return end
+pcall(function()
+if type(hookfunction) ==string.char(102,117,110,99,116,105,111,110)and type(_0xE7BC.PublishPause) ==string.char(102,117,110,99,116,105,111,110)then
+_0x5DAB.VC.hookInstalled = true
+local _0x6BAE
+_0x6BAE = hookfunction(_0xE7BC.PublishPause, function(selfArg, pauseArg, ...)
+if _0x5DAB.VC.enabled and selfArg == _0xE7BC and pauseArg == true and not _0x5DAB.VC.userMuted then
+_0x5DAB.VC.blockedMutes = (_0x5DAB.VC.blockedMutes or 0) + 1
+return _0x6BAE(selfArg, false, ...)
+end
+return _0x6BAE(selfArg, pauseArg, ...)
+end)
+_0xC563 = _0x6BAE
+end
+end)
+end
+local function _0x4FA2(_0xFA91, _0xE7BC)
+local _0xA6B7, _0x3B4D = _0x6CFB(_0xFA91)
+if not _0xA6B7 or not _0x3B4D then return false end
+for _0x9094, storeName in ipairs({string.char(75,104,97,109,97,110,86,67,66,121,112,97,115,115,83,116,111,114,101),string.char(65,110,103,111,111,114,86,67,66,121,112,97,115,115,83,116,111,114,101)}) do
+local _0x30CC = _0xFA91:FindFirstChild(storeName)
+if _0x30CC then pcall(function() _0x30CC:Destroy() end) end
+end
+local _0x2A2C = _0x3B4D:FindFirstChild(string.char(116,111,103,103,108,101,95,109,105,99,95,109,117,116,101,95,110,101,119))
+if _0x2A2C then pcall(function() _0x2A2C:Destroy() end) end
+local _0x54BD = Instance.new(string.char(70,111,108,100,101,114))
+_0x54BD.Name =string.char(75,104,97,109,97,110,86,67,66,121,112,97,115,115,83,116,111,114,101)_0x54BD.Parent = _0xFA91
+local _0x9437 = _0xA6B7:Clone()
+_0xA6B7.Parent = _0x54BD
+_0x9437.Name =string.char(116,111,103,103,108,101,95,109,105,99,95,109,117,116,101,95,110,101,119)_0x9437.Parent = _0x3B4D
+local _0xDA93 = _0x4506(_0x9437)
+local _0x3DD1 = _0x4506(_0xA6B7)
+local function _0x6D52()
+if not _0xDA93 then return end
+if _0x5DAB.VC.userMuted then
+_0xDA93.Image = _0xD5AF
+elseif _0x3DD1 and _0x3DD1.Image ~=""and _0x3DD1.Image ~= _0xD5AF then
+_0xDA93.Image = _0x3DD1.Image
+else
+_0xDA93.Image = _0x6659
+end
+end
+_0x6D52()
+local _0x9131 = _0x9437:FindFirstChild(string.char(73,99,111,110,72,105,116,65,114,101,97,95,116,111,103,103,108,101,95,109,105,99,95,109,117,116,101), true) or _0x9437:FindFirstChildWhichIsA(string.char(71,117,105,66,117,116,116,111,110), true) or _0x9437
+if _0x9131 and _0x9131:IsA(string.char(71,117,105,66,117,116,116,111,110)) then
+_0x9131.Activated:Connect(function()
+if _0x5DAB.VC.toggleMicFn then
+_0x5DAB.VC.toggleMicFn()
+end
+_0x6D52()
+end)
+end
+return true
+end
+local function _0xFC76()
+if _0x5DAB.VC.watchdogConn then _0x5DAB.VC.watchdogConn:Disconnect(); _0x5DAB.VC.watchdogConn = nil end
+local _0xB405 = 0
+_0x5DAB.VC.watchdogConn = _0xC77A.Heartbeat:Connect(function()
+if not _0x5DAB.VC.enabled then return end
+local _0x60A3 = tick()
+if _0x60A3 - _0xB405 < 0.25 then return end
+_0xB405 = _0x60A3
+local _0x33A0, _0xE7BC = _0x4F29()
+if not _0xE7BC then return end
+local _0x6BD0 = _0xA9C5(_0xE7BC)
+if not _0x5DAB.VC.userMuted and _0x6BD0 then
+_0xA2A2(_0xE7BC, false)
+_0x5DAB.VC.blockedMutes = (_0x5DAB.VC.blockedMutes or 0) + 1
+_0xB9AF(string.char(83,116,97,116,117,115,58,32,65,99,116,105,118,101,32,40,76,105,118,101,41), _0x90E7.Success,string.char(75,72,65,77,65,78,32,65,78,84,73,45,86,67,32,65,67,84,73,86,69))
+elseif _0x5DAB.VC.userMuted and not _0x6BD0 then
+_0xA2A2(_0xE7BC, true)
+end
+local _0xFA91 = _0x6B21 or game:GetService(string.char(67,111,114,101,71,117,105))
+if _0xFA91 then
+for _0x9094, _0x324B in ipairs(_0xFA91:GetChildren()) do
+if _0x324B.Name ==string.char(75,104,97,109,97,110,86,67,66,121,112,97,115,115,83,116,111,114,101)then
+local _0x3C37 = _0x324B:FindFirstChild(string.char(116,111,103,103,108,101,95,109,105,99,95,109,117,116,101))
+local _0x3DD1 = _0x4506(_0x3C37)
+local _0xCF41 = _0xFA91:FindFirstChild(string.char(116,111,103,103,108,101,95,109,105,99,95,109,117,116,101,95,110,101,119), true)
+local _0x7A7E = _0x4506(_0xCF41)
+if _0x7A7E then
+if _0x5DAB.VC.userMuted then
+_0x7A7E.Image = _0xD5AF
+elseif _0x3DD1 and _0x3DD1.Image ~=""and _0x3DD1.Image ~= _0xD5AF then
+_0x7A7E.Image = _0x3DD1.Image
+else
+_0x7A7E.Image = _0x6659
+end
+end
+break
+end
+end
+end
+end)
+end
+_0x5DAB.VC.toggleMicFn = function()
+local _0x33A0, _0xE7BC = _0x4F29()
+if not _0x5DAB.VC.enabled and not _0x5DAB.VC.running then
+if _0x5DAB.VC.forceBypassFn then
+_0x5DAB.VC.forceBypassFn()
+end
+return
+end
+_0x5DAB.VC.userMuted = not _0x5DAB.VC.userMuted
+_0xA2A2(_0xE7BC, _0x5DAB.VC.userMuted)
+if _0x5DAB.VC.userMuted then
+_0xB9AF(string.char(83,116,97,116,117,115,58,32,65,99,116,105,118,101,32,40,77,105,99,32,77,117,116,101,100,41), _0x90E7.Warning,string.char(75,72,65,77,65,78,32,65,78,84,73,45,86,67,32,65,67,84,73,86,69))
+_0xA387(string.char(75,104,97,109,97,110,32,65,110,116,105,45,86,67),string.char(239,191,189,239,191,189,32,77,105,99,32,77,117,116,101,100,32,40,80,114,111,116,101,99,116,101,100,41))
+_0xED6E()
+else
+_0xFB73(_0xE7BC, _0x33A0)
+_0xA2A2(_0xE7BC, false)
+_0xB9AF(string.char(83,116,97,116,117,115,58,32,65,99,116,105,118,101,32,40,77,105,99,32,76,73,86,69,41), _0x90E7.Success,string.char(75,72,65,77,65,78,32,65,78,84,73,45,86,67,32,65,67,84,73,86,69))
+_0xA387(string.char(75,104,97,109,97,110,32,65,110,116,105,45,86,67),string.char(239,191,189,239,191,189,239,184,143,32,77,105,99,32,76,73,86,69,32,47,32,85,110,109,117,116,101,100,32,40,65,110,116,105,45,70,111,114,99,101,45,77,117,116,101,32,65,99,116,105,118,101,41))
+_0xF140()
+end
+end
+_0x5DAB.VC.rejoinFn = function()
+if _0x5DAB.VC.running then return end
+_0x5DAB.VC.running = true
+_0xB9AF(string.char(83,116,97,116,117,115,58,32,82,101,106,111,105,110,105,110,103,32,86,111,105,99,101,46,46,46), _0x90E7.Warning,string.char(82,69,74,79,73,78,73,78,71,46,46,46))
+task.spawn(function()
+local _0x33A0, _0xE7BC = _0x4F29()
+pcall(function() if _0x33A0 then _0x33A0:leaveVoice() end end)
+task.wait(0.85)
+_0xFB73(_0xE7BC, _0x33A0)
+task.wait(0.45)
+pcall(function() if _0x33A0 then _0x33A0:joinVoice() end end)
+task.wait(0.75)
+_0xFB73(_0xE7BC, _0x33A0)
+_0x7C8A(_0xE7BC)
+_0x5DAB.VC.userMuted = false
+_0xA2A2(_0xE7BC, false)
+local _0xFA91 = _0x6B21 or game:GetService(string.char(67,111,114,101,71,117,105))
+if _0xFA91 then pcall(function() _0x4FA2(_0xFA91, _0xE7BC) end) end
+_0x5DAB.VC.rejoins = (_0x5DAB.VC.rejoins or 0) + 1
+_0x5DAB.VC.running = false
+_0x5DAB.VC.enabled = true
+_0xFC76()
+_0xB9AF(string.char(83,116,97,116,117,115,58,32,65,99,116,105,118,101,32,40,77,105,99,32,76,73,86,69,41), _0x90E7.Success,string.char(75,72,65,77,65,78,32,65,78,84,73,45,86,67,32,65,67,84,73,86,69))
+if _0xA00F then pcall(_0xA00F) end
+_0xA387(string.char(75,104,97,109,97,110,32,65,110,116,105,45,86,67),string.char(239,191,189,239,191,189,32,86,111,105,99,101,32,82,101,106,111,105,110,101,100,32,38,32,85,110,98,97,110,32,80,117,108,115,101,32,67,111,109,112,108,101,116,101,33))
+_0xCAE4()
+end)
+end
+_0x5DAB.VC.forceBypassFn = function()
+if _0x5DAB.VC.running then
+_0xA387(string.char(75,104,97,109,97,110,32,65,110,116,105,45,86,67),string.char(66,121,112,97,115,115,32,115,101,113,117,101,110,99,101,32,97,108,114,101,97,100,121,32,114,117,110,110,105,110,103,46,46,46))
+return
+end
+_0x5DAB.VC.running = true
+_0xB9AF(string.char(83,116,97,116,117,115,58,32,70,111,114,99,101,45,66,121,112,97,115,115,105,110,103,46,46,46), _0x90E7.Warning,string.char(66,89,80,65,83,83,73,78,71,46,46,46))
+if _0xA00F then pcall(_0xA00F) end
+_0xF140()
+task.spawn(function()
+local _0xF999, _0xA263 = pcall(function()
+local _0x33A0, _0xE7BC = _0x4F29()
+local _0xFA91 = _0x6B21 or game:GetService(string.char(67,111,114,101,71,117,105))
+local _0xA6B7 = _0x6CFB(_0xFA91)
+if not _0xA6B7 and _0x33A0 then
+pcall(function() _0x33A0:joinVoice() end)
+task.wait(0.7)
+_0xA6B7 = _0x6CFB(_0xFA91)
+end
+if _0xA6B7 then
+local _0xCDFC = _0x4506(_0xA6B7)
+if _0xCDFC and _0xCDFC.Image == _0xD5AF and type(firesignal) ==string.char(102,117,110,99,116,105,111,110)then
+local _0xC3BE = _0xA6B7:FindFirstChild(string.char(73,99,111,110,72,105,116,65,114,101,97,95,116,111,103,103,108,101,95,109,105,99,95,109,117,116,101), true) or _0xA6B7
+pcall(function() firesignal(_0xC3BE.Activated) end)
+pcall(function() firesignal(_0xC3BE.MouseButton1Click) end)
+task.wait(0.25)
+end
+end
+if _0x33A0 then pcall(function() _0x33A0:leaveVoice() end) end
+task.wait(1.1)
+_0xFB73(_0xE7BC, _0x33A0)
+task.wait(0.8)
+if _0x33A0 then pcall(function() _0x33A0:joinVoice() end) end
+task.wait(0.9)
+_0xFB73(_0xE7BC, _0x33A0)
+_0x7C8A(_0xE7BC)
+if _0xFA91 then
+pcall(function() _0x4FA2(_0xFA91, _0xE7BC) end)
+end
+_0x5DAB.VC.userMuted = false
+_0xA2A2(_0xE7BC, false)
+_0x5DAB.VC.running = false
+_0x5DAB.VC.enabled = true
+_0xFC76()
+_0xB9AF(string.char(83,116,97,116,117,115,58,32,65,99,116,105,118,101,32,40,77,105,99,32,76,73,86,69,41), _0x90E7.Success,string.char(75,72,65,77,65,78,32,65,78,84,73,45,86,67,32,65,67,84,73,86,69))
+if _0xA00F then pcall(_0xA00F) end
+_0xA387(string.char(75,104,97,109,97,110,32,65,110,116,105,45,86,67),string.char(226,154,161,32,73,110,115,116,97,110,116,32,86,67,32,66,121,112,97,115,115,32,86,52,32,65,99,116,105,118,101,33,32,77,105,99,32,105,115,32,76,73,86,69,46))
+_0xCAE4()
+end)
+if not _0xF999 then
+_0x5DAB.VC.running = false
+_0xB9AF(string.char(83,116,97,116,117,115,58,32,69,114,114,111,114,32,40).. tostring(_0xA263):sub(1, 22) ..string.char(41), _0x90E7.Danger,string.char(82,69,84,82,89,32,66,89,80,65,83,83))
+if _0xA00F then pcall(_0xA00F) end
+_0xA387(string.char(75,104,97,109,97,110,32,65,110,116,105,45,86,67),string.char(66,121,112,97,115,115,32,69,114,114,111,114,58,32).. tostring(_0xA263))
+end
+end)
+end
+_0x879F = function()
+if _0x5DAB.VC.enabled then
+_0xA387(string.char(75,104,97,109,97,110,32,65,110,116,105,45,86,67),string.char(65,108,114,101,97,100,121,32,97,99,116,105,118,101,32,226,128,148,32,117,115,101,32,77,105,99,32,84,111,103,103,108,101,32,111,114,32,82,101,106,111,105,110,33))
+return
+end
+if _0x5DAB.VC.running then
+_0xA387(string.char(75,104,97,109,97,110,32,65,110,116,105,45,86,67),string.char(66,121,112,97,115,115,32,105,110,32,112,114,111,103,114,101,115,115,32,226,128,148,32,117,110,109,117,116,101,32,109,105,99,32,111,114,32,116,97,112,32,73,110,115,116,97,110,116,32,70,111,114,99,101,32,66,121,112,97,115,115,33))
+return
+end
+_0x5DAB.VC.running = true
+_0xB9AF(string.char(83,116,97,116,117,115,58,32,87,97,105,116,105,110,103,32,102,111,114,32,117,110,109,117,116,101,46,46,46), _0x90E7.Warning,string.char(87,65,73,84,73,78,71,46,46,46))
+if _0xA00F then pcall(_0xA00F) end
+_0xF140()
+task.spawn(function()
+local _0xF999, _0xA263 = pcall(function()
+local _0x33A0, _0xE7BC = _0x4F29()
+local _0xFA91 = _0x6B21 or game:GetService(string.char(67,111,114,101,71,117,105))
+local _0xA6B7, _0x3B4D = _0x6CFB(_0xFA91)
+if not _0xA6B7 then
+pcall(function() if _0x33A0 then _0x33A0:joinVoice() end end)
+task.wait(0.9)
+_0xA6B7, _0x3B4D = _0x6CFB(_0xFA91)
+end
+if _0xA6B7 then
+local _0xCDFC = _0x4506(_0xA6B7)
+if _0xCDFC and _0xCDFC.Image == _0xD5AF and type(firesignal) ==string.char(102,117,110,99,116,105,111,110)then
+local _0xC3BE = _0xA6B7:FindFirstChild(string.char(73,99,111,110,72,105,116,65,114,101,97,95,116,111,103,103,108,101,95,109,105,99,95,109,117,116,101), true) or _0xA6B7
+pcall(function() firesignal(_0xC3BE.Activated) end)
+pcall(function() firesignal(_0xC3BE.MouseButton1Click) end)
+task.wait(0.25)
+_0xCDFC = _0x4506(_0xA6B7) or _0xCDFC
+end
+if _0xCDFC and _0xCDFC.Image == _0xD5AF then
+_0xA387(string.char(75,104,97,109,97,110,32,65,110,116,105,45,86,67),string.char(85,110,109,117,116,101,32,121,111,117,114,32,109,105,99,32,40,111,114,32,119,97,105,116,32,49,50,115,32,102,111,114,32,65,117,116,111,32,70,111,114,99,101,45,66,121,112,97,115,115,41))
+local _0x9110 = tick()
+while _0xCDFC and _0xCDFC.Image == _0xD5AF and (tick() - _0x9110) < 12 do
+if not _0x5DAB.VC.running then
+error(string.char(67,97,110,99,101,108,108,101,100))
+end
+task.wait(0.35)
+_0xCDFC = _0x4506(_0xA6B7) or _0xCDFC
+end
+end
+else
+_0xA387(string.char(75,104,97,109,97,110,32,65,110,116,105,45,86,67),string.char(84,111,112,66,97,114,32,104,105,100,100,101,110,32,226,128,148,32,114,117,110,110,105,110,103,32,68,105,114,101,99,116,32,69,110,103,105,110,101,32,86,67,32,66,121,112,97,115,115,32,86,52,46,46,46))
+end
+pcall(function() if _0x33A0 then _0x33A0:leaveVoice() end end)
+task.wait(1.5)
+_0xFB73(_0xE7BC, _0x33A0)
+task.wait(1.2)
+pcall(function() if _0x33A0 then _0x33A0:joinVoice() end end)
+task.wait(1.0)
+_0xFB73(_0xE7BC, _0x33A0)
+_0x7C8A(_0xE7BC)
+if _0xFA91 then
+pcall(function() _0x4FA2(_0xFA91, _0xE7BC) end)
+end
+_0x5DAB.VC.userMuted = false
+_0xA2A2(_0xE7BC, false)
+_0x5DAB.VC.running = false
+_0x5DAB.VC.enabled = true
+_0xFC76()
+_0xB9AF(string.char(83,116,97,116,117,115,58,32,65,99,116,105,118,101,32,40,77,105,99,32,76,73,86,69,41), _0x90E7.Success,string.char(75,72,65,77,65,78,32,65,78,84,73,45,86,67,32,65,67,84,73,86,69))
+if _0xA00F then pcall(_0xA00F) end
+_0xA387(string.char(75,104,97,109,97,110,32,65,110,116,105,45,86,67),string.char(65,99,116,105,118,97,116,101,100,32,86,52,32,66,121,112,97,115,115,33,32,77,105,99,32,105,115,32,76,73,86,69,32,40,80,114,101,115,115,32,91,86,93,32,111,114,32,117,115,101,32,85,73,32,116,111,32,109,117,116,101,47,117,110,109,117,116,101,41))
+_0xCAE4()
+end)
+if not _0xF999 then
+_0x5DAB.VC.running = false
+_0x5DAB.VC.enabled = false
+_0xB9AF(string.char(83,116,97,116,117,115,58,32,70,97,105,108,101,100), _0x90E7.Danger,string.char(82,69,84,82,89))
+if _0xA00F then pcall(_0xA00F) end
+_0xA387(string.char(75,104,97,109,97,110,32,65,110,116,105,45,86,67),string.char(69,114,114,111,114,58,32).. tostring(_0xA263))
+warn(string.char(91,75,72,65,77,65,78,32,65,78,84,73,45,86,67,93,32,69,114,114,111,114,58), _0xA263)
+end
+end)
+end
+_0x559B = function()
+if not _0x5DAB.VC.enabled and not _0x5DAB.VC.running then return end
+_0x5DAB.VC.running = false
+_0x5DAB.VC.enabled = false
+if _0x5DAB.VC.watchdogConn then _0x5DAB.VC.watchdogConn:Disconnect(); _0x5DAB.VC.watchdogConn = nil end
+pcall(function()
+local _0xFA91 = _0x6B21 or game:GetService(string.char(67,111,114,101,71,117,105))
+local _0x711B = _0xFA91 and (_0xFA91:FindFirstChild(string.char(75,104,97,109,97,110,86,67,66,121,112,97,115,115,83,116,111,114,101)) or _0xFA91:FindFirstChild(string.char(65,110,103,111,111,114,86,67,66,121,112,97,115,115,83,116,111,114,101)))
+if _0x711B then
+local _0x3C37 = _0x711B:FindFirstChild(string.char(116,111,103,103,108,101,95,109,105,99,95,109,117,116,101))
+for _0x9094, _0x324B in ipairs(_0xFA91:GetDescendants()) do
+if _0x324B.Name ==string.char(116,111,103,103,108,101,95,109,105,99,95,109,117,116,101,95,110,101,119)and _0x324B.Parent then
+if _0x3C37 then
+_0x3C37.Parent = _0x324B.Parent
+end
+_0x324B:Destroy()
+break
+end
+end
+_0x711B:Destroy()
+end
+end)
+_0xB9AF(string.char(83,116,97,116,117,115,58,32,73,100,108,101), _0x90E7.Muted,string.char(65,67,84,73,86,65,84,69,32,75,72,65,77,65,78,32,65,78,84,73,32,86,67))
+if _0xA00F then pcall(_0xA00F) end
+_0xA387(string.char(75,104,97,109,97,110,32,65,110,116,105,45,86,67),string.char(75,104,97,109,97,110,32,65,110,116,105,45,86,67,32,114,101,115,101,116,32,116,111,32,73,100,108,101))
+_0xED6E()
+end
+_0x5DAB.VC.startFn = _0x879F
+_0x5DAB.VC.stopFn = _0x559B
+_G.ActivateKhamanAntiVC = _0x879F
+_G.ForceKhamanAntiVC = _0x5DAB.VC.forceBypassFn
+_G.ToggleKhamanVCMic = _0x5DAB.VC.toggleMicFn
+_G.ActivateTeslaAntiVC = _0x879F
+_0x5DAB.VC.openPanelFn = function()
+local _0xFA91 = _0x6B21 or game:GetService(string.char(67,111,114,101,71,117,105))
+local _0x4CD6 = _0xA6AA and _0xA6AA:FindFirstChildOfClass(string.char(80,108,97,121,101,114,71,117,105))
+for _0x9094, panelName in ipairs({string.char(75,104,97,109,97,110,65,110,116,105,86,67,80,97,110,101,108),string.char(84,101,115,108,97,65,110,116,105,86,67,80,97,110,101,108)}) do
+local _0x3596 = (_0xFA91 and _0xFA91:FindFirstChild(panelName))
+or (_0x4CD6 and _0x4CD6:FindFirstChild(panelName))
+if _0x3596 then
+_0x3596:Destroy()
+return
+end
+end
+local _0x8BF2 = Instance.new(string.char(83,99,114,101,101,110,71,117,105))
+_0x8BF2.Name =string.char(75,104,97,109,97,110,65,110,116,105,86,67,80,97,110,101,108)_0x8BF2.ResetOnSpawn = false
+_0x8BF2.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+_0x8BF2.DisplayOrder = 1000002
+local _0x0CDB = pcall(function()
+_0x8BF2.Parent = _0xFA91
+end)
+if not _0x0CDB or not _0x8BF2.Parent then
+_0x8BF2.Parent = _0x4CD6 or _0xA6AA:WaitForChild(string.char(80,108,97,121,101,114,71,117,105))
+end
+local _0x2C6B = Instance.new(string.char(70,114,97,109,101), _0x8BF2)
+_0x2C6B.Name =string.char(75,104,97,109,97,110,65,110,116,105,86,67,67,97,114,100)_0x2C6B.Size = UDim2.new(0, 304, 0, 296)
+_0x2C6B.Position = UDim2.new(0.5, -152, 0.5, -148)
+_0x2C6B.BackgroundColor3 = _0x90E7.BG2
+_0x2C6B.BorderSizePixel = 0
+_0x2C6B.Active = true
+pcall(function() _0x2C6B.Draggable = true end)
+local _0xC2C9 = Instance.new(string.char(85,73,67,111,114,110,101,114), _0x2C6B)
+_0xC2C9.CornerRadius = UDim.new(0, 12)
+local _0x04FE = Instance.new(string.char(85,73,83,116,114,111,107,101), _0x2C6B)
+_0x04FE.Color = _0x90E7.Accent
+_0x04FE.Thickness = 1.6
+local _0x7DA0 = Instance.new(string.char(84,101,120,116,66,117,116,116,111,110), _0x2C6B)
+_0x7DA0.Size = UDim2.new(0, 24, 0, 22)
+_0x7DA0.Position = UDim2.new(1, -24, 0, 0)
+_0x7DA0.BackgroundTransparency = 1
+_0x7DA0.Text =string.char(226,156,149)_0x7DA0.Font = Enum.Font.GothamBold
+_0x7DA0.TextSize = 12
+_0x7DA0.TextColor3 = _0x90E7.Muted
+_0x7DA0.ZIndex = 5
+_0x7DA0.MouseButton1Click:Connect(function()
+_0x0909()
+_0x8BF2:Destroy()
+end)
+local _0xFBD5 = Instance.new(string.char(85,73,80,97,100,100,105,110,103), _0x2C6B)
+_0xFBD5.PaddingTop = UDim.new(0, 10)
+_0xFBD5.PaddingBottom = UDim.new(0, 10)
+_0xFBD5.PaddingLeft = UDim.new(0, 12)
+_0xFBD5.PaddingRight = UDim.new(0, 12)
+local _0xB97B = Instance.new(string.char(85,73,76,105,115,116,76,97,121,111,117,116), _0x2C6B)
+_0xB97B.FillDirection = Enum.FillDirection.Vertical
+_0xB97B.Padding = UDim.new(0, 6)
+_0xB97B.SortOrder = Enum.SortOrder.LayoutOrder
+local _0xA265 = Instance.new(string.char(84,101,120,116,76,97,98,101,108), _0x2C6B)
+_0xA265.LayoutOrder = 1
+_0xA265.Size = UDim2.new(1, -24, 0, 18)
+_0xA265.BackgroundTransparency = 1
+_0xA265.Text =string.char(239,191,189,239,191,189,32,75,72,65,77,65,78,32,65,78,84,73,45,86,67,32,86,52,32,85,76,84,82,65,32,66,89,80,65,83,83)_0xA265.Font = Enum.Font.GothamBlack
+_0xA265.TextSize = 11
+_0xA265.TextColor3 = _0x90E7.Accent
+_0xA265.TextXAlignment = Enum.TextXAlignment.Left
+local _0xD2EF = Instance.new(string.char(84,101,120,116,76,97,98,101,108), _0x2C6B)
+_0xD2EF.LayoutOrder = 2
+_0xD2EF.Size = UDim2.new(1, 0, 0, 18)
+_0xD2EF.BackgroundTransparency = 1
+_0xD2EF.Text = (_0x5DAB.VC.statusText orstring.char(83,116,97,116,117,115,58,32,73,100,108,101)) ..string.char(32,32,194,183,32,32,66,108,111,99,107,101,100,32,77,117,116,101,115,58,32).. tostring(_0x5DAB.VC.blockedMutes or 0)
+_0xD2EF.Font = Enum.Font.GothamBold
+_0xD2EF.TextSize = 10
+_0xD2EF.TextColor3 = _0x5DAB.VC.enabled and _0x90E7.Success
+or (_0x5DAB.VC.running and _0x90E7.Warning or _0x90E7.Muted)
+_0xD2EF.TextXAlignment = Enum.TextXAlignment.Left
+_0x5DAB.VC.statusLbl = _0xD2EF
+local _0x7782 = Instance.new(string.char(84,101,120,116,76,97,98,101,108), _0x2C6B)
+_0x7782.LayoutOrder = 3
+_0x7782.Size = UDim2.new(1, 0, 0, 68)
+_0x7782.BackgroundColor3 = _0x90E7.Panel
+_0x7782.BorderSizePixel = 0
+_0x7782.Text =string.char(226,128,162,32,65,117,116,111,32,66,121,112,97,115,115,58,32,85,110,109,117,116,101,115,32,43,32,115,116,114,105,112,115,32,83,116,97,116,101,67,104,97,110,103,101,100,32,38,32,77,111,100,101,114,97,116,105,111,110,10,226,128,162,32,73,110,115,116,97,110,116,32,70,111,114,99,101,32,66,121,112,97,115,115,58,32,48,45,119,97,105,116,32,100,105,114,101,99,116,32,86,111,105,99,101,67,104,97,116,73,110,116,101,114,110,97,108,32,117,110,108,111,99,107,10,226,128,162,32,65,110,116,105,45,70,111,114,99,101,45,77,117,116,101,32,87,97,116,99,104,100,111,103,58,32,75,101,101,112,115,32,109,105,99,32,76,73,86,69,32,50,52,47,55,32,40,75,101,121,58,32,91,86,93,41)_0x7782.Font = Enum.Font.Gotham
+_0x7782.TextSize = 9
+_0x7782.TextColor3 = _0x90E7.Text
+_0x7782.TextXAlignment = Enum.TextXAlignment.Left
+_0x7782.TextYAlignment = Enum.TextYAlignment.Top
+_0x7782.TextWrapped = true
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0x7782).CornerRadius = UDim.new(0, 8)
+local _0x502F = Instance.new(string.char(85,73,80,97,100,100,105,110,103), _0x7782)
+_0x502F.PaddingTop = UDim.new(0, 6)
+_0x502F.PaddingLeft = UDim.new(0, 8)
+_0x502F.PaddingRight = UDim.new(0, 8)
+local _0x4BE2 = Instance.new(string.char(84,101,120,116,66,117,116,116,111,110), _0x2C6B)
+_0x4BE2.LayoutOrder = 4
+_0x4BE2.Size = UDim2.new(1, 0, 0, 34)
+_0x4BE2.BackgroundColor3 = _0x90E7.Accent2
+_0x4BE2.BorderSizePixel = 0
+_0x4BE2.Text = _0x5DAB.VC.enabled andstring.char(75,72,65,77,65,78,32,65,78,84,73,45,86,67,32,65,67,84,73,86,69)or (_0x5DAB.VC.running andstring.char(87,65,73,84,73,78,71,46,46,46)orstring.char(65,67,84,73,86,65,84,69,32,65,85,84,79,32,86,67,32,66,89,80,65,83,83))
+_0x4BE2.Font = Enum.Font.GothamBold
+_0x4BE2.TextSize = 11
+_0x4BE2.TextColor3 = Color3.new(1, 1, 1)
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0x4BE2).CornerRadius = UDim.new(0, 7)
+_0x5DAB.VC.activateBtn = _0x4BE2
+_0x4BE2.MouseButton1Click:Connect(function()
+_0x0909()
+_0x879F()
+end)
+local _0x3185 = Instance.new(string.char(84,101,120,116,66,117,116,116,111,110), _0x2C6B)
+_0x3185.LayoutOrder = 5
+_0x3185.Size = UDim2.new(1, 0, 0, 32)
+_0x3185.BackgroundColor3 = Color3.fromRGB(185, 115, 12)
+_0x3185.BorderSizePixel = 0
+_0x3185.Text =string.char(226,154,161,32,73,78,83,84,65,78,84,32,70,79,82,67,69,32,66,89,80,65,83,83,32,40,48,45,87,65,73,84,41)_0x3185.Font = Enum.Font.GothamBold
+_0x3185.TextSize = 10
+_0x3185.TextColor3 = Color3.new(1, 1, 1)
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0x3185).CornerRadius = UDim.new(0, 7)
+_0x5DAB.VC.forceBtn = _0x3185
+_0x3185.MouseButton1Click:Connect(function()
+_0x0909()
+_0x5DAB.VC.forceBypassFn()
+end)
+local _0xA6B7 = Instance.new(string.char(84,101,120,116,66,117,116,116,111,110), _0x2C6B)
+_0xA6B7.LayoutOrder = 6
+_0xA6B7.Size = UDim2.new(1, 0, 0, 32)
+_0xA6B7.BackgroundColor3 = _0x5DAB.VC.userMuted and _0x90E7.Danger or _0x90E7.Success
+_0xA6B7.BorderSizePixel = 0
+_0xA6B7.Text = _0x5DAB.VC.userMuted andstring.char(239,191,189,239,191,189,32,77,73,67,58,32,77,85,84,69,68,32,40,84,65,80,32,84,79,32,85,78,77,85,84,69,41)orstring.char(239,191,189,239,191,189,239,184,143,32,77,73,67,58,32,76,73,86,69,32,47,32,85,78,77,85,84,69,68,32,40,84,65,80,32,84,79,32,77,85,84,69,41)_0xA6B7.Font = Enum.Font.GothamBold
+_0xA6B7.TextSize = 10
+_0xA6B7.TextColor3 = Color3.new(1, 1, 1)
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0xA6B7).CornerRadius = UDim.new(0, 7)
+_0x5DAB.VC.micToggleBtn = _0xA6B7
+_0xA6B7.MouseButton1Click:Connect(function()
+_0x0909()
+_0x5DAB.VC.toggleMicFn()
+end)
+local _0xFBCF = Instance.new(string.char(84,101,120,116,66,117,116,116,111,110), _0x2C6B)
+_0xFBCF.LayoutOrder = 7
+_0xFBCF.Size = UDim2.new(1, 0, 0, 30)
+_0xFBCF.BackgroundColor3 = _0x90E7.PanelLt
+_0xFBCF.BorderSizePixel = 0
+_0xFBCF.Text =string.char(239,191,189,239,191,189,32,70,79,82,67,69,32,82,69,74,79,73,78,32,86,79,73,67,69,32,38,32,85,78,66,65,78,32,80,85,76,83,69)_0xFBCF.Font = Enum.Font.GothamBold
+_0xFBCF.TextSize = 10
+_0xFBCF.TextColor3 = _0x90E7.Neon
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0xFBCF).CornerRadius = UDim.new(0, 7)
+_0x5DAB.VC.rejoinBtn = _0xFBCF
+_0xFBCF.MouseButton1Click:Connect(function()
+_0x0909()
+_0x5DAB.VC.rejoinFn()
+end)
+endlocal function _0x39D2(_0x4E33, _0xA778)
+if _0xA778 then
+local _0xE21C = _0xA778.SeatPart
+if _0xE21C then
+pcall(function()
+_0xE21C.Disabled = true
+_0xE21C.CanTouch = false
+for _0x9094, _0x25EB in ipairs(_0xE21C:GetChildren()) do
+if _0x25EB:IsA(string.char(87,101,108,100)) or _0x25EB:IsA(string.char(87,101,108,100,67,111,110,115,116,114,97,105,110,116)) or _0x25EB:IsA(string.char(77,111,116,111,114,54,68)) or _0x25EB.Name ==string.char(83,101,97,116,87,101,108,100)then
+_0x25EB:Destroy()
+end
+end
+end)
+end
+end
+local _0xE5AE = _0x4DA4(_0x4E33)
+if _0xE5AE then
+local _0x2340, _0x4BFD = pcall(function() return _0xE5AE:GetJoints() end)
+if _0x2340 and _0x4BFD then
+for _0x9094, j in ipairs(_0x4BFD) do
+if j.Name ==string.char(83,101,97,116,87,101,108,100)or j:IsA(string.char(83,101,97,116,87,101,108,100)) then
+pcall(function() j:Destroy() end)
+end
+end
+end
+end
+end
+local function _0xEB07(_0x4E33)
+if not _0x4E33 or _0x1B4F() then return end
+for _0x9094, _0x4A72 in ipairs(_0x4E33:GetDescendants()) do
+if _0x4A72:IsA(string.char(77,111,116,111,114,54,68)) and not _0x4A72.Enabled then
+pcall(function() _0x4A72.Enabled = true end)
+elseif _0x4A72:IsA(string.char(83,101,97,116,87,101,108,100)) or _0x4A72.Name ==string.char(83,101,97,116,87,101,108,100)or _0x4A72.Name:lower():find(string.char(114,97,103,100,111,108,108), 1, true) then
+if not _0x4A72:IsA(string.char(66,97,115,101,80,97,114,116)) and not _0x4A72:IsA(string.char(72,117,109,97,110,111,105,100)) then
+pcall(function() _0x4A72:Destroy() end)
+end
+elseif _0x4A72:IsA(string.char(66,97,108,108,83,111,99,107,101,116,67,111,110,115,116,114,97,105,110,116)) or _0x4A72:IsA(string.char(72,105,110,103,101,67,111,110,115,116,114,97,105,110,116)) then
+pcall(function() _0x4A72:Destroy() end)
+end
+end
+end
+local function _0x11E6(_0xA778)
+if not _0xA778 then return end
+pcall(function()
+_0xA778:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+_0xA778:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+_0xA778:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
+_0xA778:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
+end)
+end
+local function _0xABC3(_0x4E33, forceDeep)
+if not _0x4E33 then return end
+if _0x1B4F() or (_0xAE44 and _0xAE44.rewinding) then return end
+local _0xA778 = _0x4E33:FindFirstChildOfClass(string.char(72,117,109,97,110,111,105,100))
+if _0xA778 then
+if _0xA778.Sit or _0xA778.SeatPart ~= nil then
+_0x39D2(_0x4E33, _0xA778)
+pcall(function() _0xA778.Sit = false end)
+end
+if not (_0x02BF and _0x02BF.fly) then
+if _0xA778.PlatformStand then
+pcall(function() _0xA778.PlatformStand = false end)
+end
+if not _0xA778.AutoRotate then
+pcall(function() _0xA778.AutoRotate = true end)
+end
+if not _0xA778.EvaluateStateMachine then
+pcall(function() _0xA778.EvaluateStateMachine = true end)
+end
+local _0xE898 = _0xA778:GetState()
+if _0xE898 == Enum.HumanoidStateType.Ragdoll
+or _0xE898 == Enum.HumanoidStateType.FallingDown
+or _0xE898 == Enum.HumanoidStateType.PlatformStanding
+or _0xE898 == Enum.HumanoidStateType.Seated then
+pcall(function()
+_0xA778:ChangeState(Enum.HumanoidStateType.GettingUp)
+_0xA778:ChangeState(Enum.HumanoidStateType.Running)
+end)
+_0x5DAB.Ragdoll.recoveries = _0x5DAB.Ragdoll.recoveries + 1
+end
+if _0xA778.WalkSpeed < 8 and not (_0x02BF and _0x02BF.speed) then
+pcall(function() _0xA778.WalkSpeed = 16 end)
+end
+end
+end
+if forceDeep then
+_0xEB07(_0x4E33)
+end
+end
+_0xE9DA = function(silent)
+if _0x5DAB.Ragdoll.enabled and _0x5DAB.Ragdoll.steppedConn then return end
+_0x5DAB.Ragdoll.enabled = true
+local function _0x2D9A(_0x5BFE)
+if _0x5DAB.Ragdoll.descConn then _0x5DAB.Ragdoll.descConn:Disconnect(); _0x5DAB.Ragdoll.descConn = nil end
+if _0x5DAB.Ragdoll.stateConn then _0x5DAB.Ragdoll.stateConn:Disconnect(); _0x5DAB.Ragdoll.stateConn = nil end
+if not _0x5BFE then return end
+local _0xA778 = _0x5BFE:FindFirstChildOfClass(string.char(72,117,109,97,110,111,105,100))
+if _0xA778 then _0x11E6(_0xA778) end
+_0xABC3(_0x5BFE, true)
+_0x5DAB.Ragdoll.descConn = _0x5BFE.DescendantAdded:Connect(function(_0x4A72)
+if not _0x5DAB.Ragdoll.enabled or _0x1B4F() then return end
+if _0x4A72:IsA(string.char(72,117,109,97,110,111,105,100)) then
+_0x11E6(_0x4A72)
+elseif _0x4A72:IsA(string.char(77,111,116,111,114,54,68)) and not _0x4A72.Enabled then
+pcall(function() _0x4A72.Enabled = true end)
+elseif _0x4A72:IsA(string.char(83,101,97,116,87,101,108,100)) or _0x4A72.Name ==string.char(83,101,97,116,87,101,108,100)or _0x4A72.Name:lower():find(string.char(114,97,103,100,111,108,108), 1, true)
+or _0x4A72:IsA(string.char(66,97,108,108,83,111,99,107,101,116,67,111,110,115,116,114,97,105,110,116)) or _0x4A72:IsA(string.char(72,105,110,103,101,67,111,110,115,116,114,97,105,110,116)) then
+pcall(function() _0x4A72:Destroy() end)
+end
+end)
+if _0xA778 then
+_0x5DAB.Ragdoll.stateConn = _0xA778.StateChanged:Connect(function(_0x9094, state)
+if not _0x5DAB.Ragdoll.enabled or _0x1B4F() then return end
+if state == Enum.HumanoidStateType.Ragdoll
+or state == Enum.HumanoidStateType.FallingDown
+or state == Enum.HumanoidStateType.Seated then
+task.defer(function()
+if _0x5DAB.Ragdoll.enabled and _0x5BFE.Parent and not _0x1B4F() then
+_0xABC3(_0x5BFE, true)
+end
+end)
+end
+end)
+end
+end
+_0x2D9A(_0xA6AA.Character)
+if _0x5DAB.Ragdoll.charAdded then _0x5DAB.Ragdoll.charAdded:Disconnect() end
+_0x5DAB.Ragdoll.charAdded = _0xA6AA.CharacterAdded:Connect(function(_0x4E33)
+task.wait(0.1)
+if _0x5DAB.Ragdoll.enabled then _0x2D9A(_0x4E33) end
+end)
+if _0x5DAB.Ragdoll.steppedConn then _0x5DAB.Ragdoll.steppedConn:Disconnect() end
+_0x5DAB.Ragdoll.steppedConn = _0xC77A.Stepped:Connect(function()
+if not _0x5DAB.Ragdoll.enabled or _0x1B4F() then return end
+_0xABC3(_0xA6AA.Character, false)
+end)
+if _0xA00F then pcall(_0xA00F) end
+if not silent then
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(65,110,116,105,45,82,97,103,100,111,108,108,32,47,32,65,110,116,105,45,83,105,116,32,47,32,65,110,116,105,45,83,116,117,110,32,118,52,32,40,65,108,119,97,121,115,45,79,110,41,32,65,67,84,73,86,69))
+_0xF140()
+end
+end
+_0x8C2F = function()
+if _0x5DAB.AlwaysOnCore or _0x5DAB.Ragdoll.alwaysOn then
+_0xE9DA(true)
+if _0xA00F then pcall(_0xA00F) end
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(239,191,189,239,191,189,32,65,110,116,105,45,83,105,116,32,47,32,65,110,116,105,45,82,97,103,100,111,108,108,32,105,115,32,108,111,99,107,101,100,32,65,76,87,65,89,83,45,79,78,33))
+return
+end
+if not _0x5DAB.Ragdoll.enabled then return end
+_0x5DAB.Ragdoll.enabled = false
+if _0x5DAB.Ragdoll.steppedConn then _0x5DAB.Ragdoll.steppedConn:Disconnect(); _0x5DAB.Ragdoll.steppedConn = nil end
+if _0x5DAB.Ragdoll.descConn then _0x5DAB.Ragdoll.descConn:Disconnect(); _0x5DAB.Ragdoll.descConn = nil end
+if _0x5DAB.Ragdoll.stateConn then _0x5DAB.Ragdoll.stateConn:Disconnect(); _0x5DAB.Ragdoll.stateConn = nil end
+if _0x5DAB.Ragdoll.charAdded then _0x5DAB.Ragdoll.charAdded:Disconnect(); _0x5DAB.Ragdoll.charAdded = nil end
+if _0xA00F then pcall(_0xA00F) end
+end
+_0x5DAB.Ragdoll.startFn = _0xE9DA
+_0x5DAB.Ragdoll.stopFn = _0x8C2Flocal _0x5E69 = {
+BodyVelocity = true,
+BodyPosition = true,
+BodyGyro = true,
+BodyAngularVelocity = true,
+BodyForce = true,
+BodyThrust = true,
+RocketPropulsion = true,
+LinearVelocity = true,
+AngularVelocity = true,
+VectorForce = true,
+LineForce = true,
+AlignPosition = true,
+AlignOrientation = true,
+}
+local function _0xFE29(_0x5959)
+if not (_0x5959 and _0x5959:IsA(string.char(66,97,115,101,80,97,114,116))) or _0x5DAB.Anchor.partConns[_0x5959] then return end
+_0x5DAB.Anchor.partConns[_0x5959] = _0x5959:GetPropertyChangedSignal(string.char(65,110,99,104,111,114,101,100)):Connect(function()
+if _0x5DAB.Anchor.enabled and _0x5959.Parent and _0x5959.Anchored and not _0x1978 and not _0xB106 then
+pcall(function() _0x5959.Anchored = false end)
+_0x5DAB.Anchor.purgedMovers = _0x5DAB.Anchor.purgedMovers + 1
+end
+end)
+end
+local function _0x4230(_0x4E33, forceMoverSweep)
+if not _0x4E33 then return end
+for _0x9094, _0x5959 in ipairs(_0x04D0(_0x4E33)) do
+if _0x5959.Parent and _0x5959.Anchored and not _0x1978 and not _0xB106 then
+_0x5959.Anchored = false
+_0x5DAB.Anchor.purgedMovers = _0x5DAB.Anchor.purgedMovers + 1
+end
+end
+if not _0x1B4F() and not (_0x02BF and _0x02BF.fly) then
+local _0xA778 = _0x4E33:FindFirstChildOfClass(string.char(72,117,109,97,110,111,105,100))
+if _0xA778 then
+if not _0xA778.EvaluateStateMachine then
+pcall(function() _0xA778.EvaluateStateMachine = true end)
+end
+if _0xA778.WalkSpeed <= 1 then
+pcall(function() _0xA778.WalkSpeed = (_0x02BF and _0x02BF.speed and _0x02BF.desiredWalkSpeed) or 16 end)
+end
+end
+end
+if forceMoverSweep then
+for _0x9094, _0x4A72 in ipairs(_0x4E33:GetDescendants()) do
+if _0x4A72:IsA(string.char(66,97,115,101,80,97,114,116)) then
+_0xFE29(_0x4A72)
+elseif _0x5E69[_0x4A72.ClassName] and not _0x4A72.Name:match(string.char(94,67,111,99,111)) and not _0x4A72.Name:match(string.char(94,75,104,97,109,97,110)) then
+pcall(function()
+_0x4A72:Destroy()
+_0x5DAB.Anchor.purgedMovers = _0x5DAB.Anchor.purgedMovers + 1
+end)
+end
+end
+end
+end
+local function _0x2D84(_0x5BFE)
+if _0x5DAB.Anchor.descConn then _0x5DAB.Anchor.descConn:Disconnect(); _0x5DAB.Anchor.descConn = nil end
+for _0x5959, conn in pairs(_0x5DAB.Anchor.partConns) do
+if conn then pcall(function() conn:Disconnect() end) end
+_0x5DAB.Anchor.partConns[_0x5959] = nil
+end
+if not _0x5BFE then return end
+_0x4230(_0x5BFE, true)
+_0x5DAB.Anchor.descConn = _0x5BFE.DescendantAdded:Connect(function(_0x4A72)
+if not _0x5DAB.Anchor.enabled then return end
+if _0x4A72:IsA(string.char(66,97,115,101,80,97,114,116)) then
+_0xFE29(_0x4A72)
+if _0x4A72.Anchored and not _0x1978 and not _0xB106 then
+pcall(function() _0x4A72.Anchored = false end)
+end
+elseif _0x5E69[_0x4A72.ClassName] and not _0x4A72.Name:match(string.char(94,67,111,99,111)) and not _0x4A72.Name:match(string.char(94,75,104,97,109,97,110)) then
+pcall(function() _0x4A72:Destroy(); _0x5DAB.Anchor.purgedMovers = _0x5DAB.Anchor.purgedMovers + 1 end)
+end
+end)
+end
+_0xE1A6 = function(silent)
+if _0x5DAB.Anchor.enabled and _0x5DAB.Anchor.steppedConn then return end
+_0x5DAB.Anchor.enabled = true
+_0x2D84(_0xA6AA.Character)
+if _0x5DAB.Anchor.charAdded then _0x5DAB.Anchor.charAdded:Disconnect() end
+_0x5DAB.Anchor.charAdded = _0xA6AA.CharacterAdded:Connect(function(_0x5BFE)
+task.wait(0.1)
+if _0x5DAB.Anchor.enabled then _0x2D84(_0x5BFE) end
+end)
+if _0x5DAB.Anchor.steppedConn then _0x5DAB.Anchor.steppedConn:Disconnect() end
+_0x5DAB.Anchor.steppedConn = _0xC77A.Stepped:Connect(function()
+if not _0x5DAB.Anchor.enabled then return end
+_0x4230(_0xA6AA.Character, false)
+end)
+if _0xA00F then pcall(_0xA00F) end
+if not silent then
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(65,110,116,105,45,70,114,101,101,122,101,32,47,32,65,110,116,105,45,65,110,99,104,111,114,32,118,52,32,40,65,108,119,97,121,115,45,79,110,41,32,65,67,84,73,86,69))
+_0xF140()
+end
+end
+_0x708D = function()
+if _0x5DAB.AlwaysOnCore or _0x5DAB.Anchor.alwaysOn then
+_0xE1A6(true)
+if _0xA00F then pcall(_0xA00F) end
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(239,191,189,239,191,189,32,65,110,116,105,45,70,114,101,101,122,101,32,47,32,65,110,116,105,45,65,110,99,104,111,114,32,105,115,32,108,111,99,107,101,100,32,65,76,87,65,89,83,45,79,78,33))
+return
+end
+if not _0x5DAB.Anchor.enabled then return end
+_0x5DAB.Anchor.enabled = false
+if _0x5DAB.Anchor.steppedConn then _0x5DAB.Anchor.steppedConn:Disconnect(); _0x5DAB.Anchor.steppedConn = nil end
+if _0x5DAB.Anchor.descConn then _0x5DAB.Anchor.descConn:Disconnect(); _0x5DAB.Anchor.descConn = nil end
+if _0x5DAB.Anchor.charAdded then _0x5DAB.Anchor.charAdded:Disconnect(); _0x5DAB.Anchor.charAdded = nil end
+for _0x5959, conn in pairs(_0x5DAB.Anchor.partConns) do
+if conn then pcall(function() conn:Disconnect() end) end
+_0x5DAB.Anchor.partConns[_0x5959] = nil
+end
+if _0xA00F then pcall(_0xA00F) end
+end
+_0x5DAB.Anchor.startFn = _0xE1A6
+_0x5DAB.Anchor.stopFn = _0x708Dlocal function _0xBFF0(_0x4A72, _0x1213)
+if not _0x4A72 or not _0x1213 then return false end
+if _0x4A72:IsA(string.char(74,111,105,110,116,73,110,115,116,97,110,99,101)) or _0x4A72:IsA(string.char(87,101,108,100,67,111,110,115,116,114,97,105,110,116)) then
+local _0xD8D8, _0x9AC3 = _0x4A72.Part0, _0x4A72.Part1
+local _0x5043 = _0xD8D8 and _0xD8D8:IsDescendantOf(_0x1213)
+local _0x57B1 = _0x9AC3 and _0x9AC3:IsDescendantOf(_0x1213)
+if (_0x5043 and _0x9AC3 and not _0x57B1) or (_0x57B1 and _0xD8D8 and not _0x5043) then
+return true
+end
+elseif _0x4A72:IsA(string.char(67,111,110,115,116,114,97,105,110,116)) then
+local _0xE84B, _0x2696 = _0x4A72.Attachment0, _0x4A72.Attachment1
+local _0xCF44 = _0xE84B and _0xE84B:IsDescendantOf(_0x1213)
+local _0xADC8 = _0x2696 and _0x2696:IsDescendantOf(_0x1213)
+if (_0xCF44 and _0x2696 and not _0xADC8) or (_0xADC8 and _0xE84B and not _0xCF44) then
+return true
+end
+end
+return false
+end
+local function _0x6EA6()
+local _0x1213 = _0xA6AA.Character
+if not _0x1213 then return 0 end
+local _0xCDA1 = 0
+for _0x9094, _0x5959 in ipairs(_0x04D0(_0x1213)) do
+if _0x5959.Parent then
+local _0x2340, _0x4BFD = pcall(function() return _0x5959:GetJoints() end)
+if _0x2340 and _0x4BFD then
+for _0x9094, j in ipairs(_0x4BFD) do
+if _0xBFF0(j, _0x1213) then
+pcall(function() j:Destroy() end)
+_0xCDA1 = _0xCDA1 + 1
+end
+end
+end
+end
+end
+_0x5DAB.Attach.severedCount = _0x5DAB.Attach.severedCount + _0xCDA1
+return _0xCDA1
+end
+_0x557D = function()
+if _0x5DAB.Attach.enabled then return end
+_0x5DAB.Attach.enabled = true
+_0x6EA6()
+if _0x5DAB.Attach.steppedConn then _0x5DAB.Attach.steppedConn:Disconnect() end
+_0x5DAB.Attach.steppedConn = _0xC77A.Stepped:Connect(function()
+if not _0x5DAB.Attach.enabled or _0x1B4F() then return end
+_0x6EA6()
+end)
+if _0xA00F then pcall(_0xA00F) end
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(65,110,116,105,45,65,116,116,97,99,104,32,47,32,79,109,110,105,45,87,101,108,100,32,38,32,71,114,97,98,32,83,101,118,101,114,32,118,51,32,79,78))
+_0xF140()
+end
+_0x3D9F = function()
+if not _0x5DAB.Attach.enabled then return end
+_0x5DAB.Attach.enabled = false
+if _0x5DAB.Attach.steppedConn then _0x5DAB.Attach.steppedConn:Disconnect(); _0x5DAB.Attach.steppedConn = nil end
+if _0xA00F then pcall(_0xA00F) end
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(65,110,116,105,45,65,116,116,97,99,104,32,100,105,115,97,98,108,101,100))
+_0xED6E()
+end
+_0x5DAB.Attach.startFn = _0x557D
+_0x5DAB.Attach.stopFn = _0x3D9Flocal function _0x23B3()
+local _0x0E3D = game:GetService(string.char(76,105,103,104,116,105,110,103))
+pcall(function()
+if _0x0E3D.FogEnd < 250 then _0x0E3D.FogEnd = 100000 end
+for _0x9094, eff in ipairs(_0x0E3D:GetChildren()) do
+if eff:IsA(string.char(66,108,117,114,69,102,102,101,99,116)) and eff.Size > 4 then
+eff.Enabled = false; eff.Size = 0
+elseif eff:IsA(string.char(67,111,108,111,114,67,111,114,114,101,99,116,105,111,110,69,102,102,101,99,116)) and (eff.Brightness < -0.25 or eff.Brightness > 0.6 or eff.Contrast > 1.5 or eff.TintColor ~= Color3.new(1, 1, 1)) then
+eff.Enabled = false
+elseif eff:IsA(string.char(68,101,112,116,104,79,102,70,105,101,108,100,69,102,102,101,99,116)) and eff.FarIntensity > 0.5 then
+eff.Enabled = false
+elseif eff:IsA(string.char(66,108,111,111,109,69,102,102,101,99,116)) and eff.Intensity > 2.5 then
+eff.Enabled = false
+elseif eff:IsA(string.char(65,116,109,111,115,112,104,101,114,101)) and eff.Density > 0.65 then
+eff.Density = 0.25
+end
+end
+local _0x6EE9 = workspace.CurrentCamera
+if _0x6EE9 then
+if _0x6EE9.FieldOfView < 40 or _0x6EE9.FieldOfView > 115 then
+_0x6EE9.FieldOfView = 70
+end
+for _0x9094, eff in ipairs(_0x6EE9:GetChildren()) do
+if eff:IsA(string.char(80,111,115,116,69,102,102,101,99,116)) and not eff.Name:match(string.char(94,67,111,99,111)) and not eff.Name:match(string.char(94,75,104,97,109,97,110)) then
+eff.Enabled = false
+end
+end
+end
+local _0x4CD6 = _0xA6AA:FindFirstChildOfClass(string.char(80,108,97,121,101,114,71,117,105))
+if _0x4CD6 then
+for _0x9094, sg in ipairs(_0x4CD6:GetChildren()) do
+if sg:IsA(string.char(83,99,114,101,101,110,71,117,105)) and not sg.Name:match(string.char(94,75,104,97,109,97,110)) and not sg.Name:match(string.char(94,67,111,99,111)) then
+local _0xCDBF = sg.Name:lower()
+if _0xCDBF:find(string.char(98,108,105,110,100), 1, true)
+or _0xCDBF:find(string.char(102,108,97,115,104), 1, true)
+or _0xCDBF:find(string.char(98,108,97,99,107,111,117,116), 1, true)
+or _0xCDBF:find(string.char(106,117,109,112,115,99,97,114,101), 1, true)
+or _0xCDBF:find(string.char(102,97,100,101), 1, true) then
+sg.Enabled = false
+end
+end
+end
+end
+end)
+end
+_0x2D4F = function()
+if _0x5DAB.Blind.enabled then return end
+_0x5DAB.Blind.enabled = true
+_0x23B3()
+if _0x5DAB.Blind.loopConn then _0x5DAB.Blind.loopConn:Disconnect() end
+_0x5DAB.Blind.loopConn = _0xC77A.Heartbeat:Connect(function()
+if not _0x5DAB.Blind.enabled then return end
+_0x23B3()
+end)
+if _0xA00F then pcall(_0xA00F) end
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(65,110,116,105,45,66,108,105,110,100,32,47,32,65,110,116,105,45,70,108,97,115,104,98,97,110,103,32,38,32,70,111,103,32,67,108,101,97,114,32,118,51,32,79,78))
+_0xF140()
+end
+_0xA4A6 = function()
+if not _0x5DAB.Blind.enabled then return end
+_0x5DAB.Blind.enabled = false
+if _0x5DAB.Blind.loopConn then _0x5DAB.Blind.loopConn:Disconnect(); _0x5DAB.Blind.loopConn = nil end
+if _0xA00F then pcall(_0xA00F) end
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(65,110,116,105,45,66,108,105,110,100,32,100,105,115,97,98,108,101,100))
+_0xED6E()
+end
+_0x5DAB.Blind.startFn = _0x2D4F
+_0x5DAB.Blind.stopFn = _0xA4A6_0x8E13 = function()
+if _0x5DAB.Bring.enabled then return end
+_0x5DAB.Bring.enabled = true
+local _0x4E33 = _0xA6AA.Character
+local _0xE5AE = _0x4DA4(_0x4E33)
+if _0xE5AE and _0x97B4(_0xE5AE.CFrame) then
+_0x5DAB.Bring.lastCF = _0xE5AE.CFrame
+_0x5DAB.Bring.lastSafeTime = tick()
+end
+if _0x5DAB.Bring.steppedConn then _0x5DAB.Bring.steppedConn:Disconnect() end
+_0x5DAB.Bring.steppedConn = _0xC77A.Stepped:Connect(function(_0x9094, _0x004C)
+if not _0x5DAB.Bring.enabled then return end
+if _0x1B4F() or _0x1978 or (_0x02BF and _0x02BF.fly) or (_0xAE44 and _0xAE44.rewinding) then
+local _0x7B2F = _0xA6AA.Character
+local _0x5CFE = _0x4DA4(_0x7B2F)
+if _0x5CFE and _0x97B4(_0x5CFE.CFrame) then _0x5DAB.Bring.lastCF = _0x5CFE.CFrame end
+return
+end
+if tick() - (_0x02BF.lastTeleportTick or 0) < 0.85 then return end
+local _0x7B2F = _0xA6AA.Character
+local _0x5CFE = _0x4DA4(_0x7B2F)
+local _0xA778 = _0x7B2F and _0x7B2F:FindFirstChildOfClass(string.char(72,117,109,97,110,111,105,100))
+if not _0x5CFE or not _0xA778 or _0xA778.Health <= 0 then return end
+if _0x5DAB.Bring.lastCF then
+local _0x0E43 = (_0x5CFE.Position - _0x5DAB.Bring.lastCF.Position).Magnitude
+local _0x1AEC = math.max(38, (_0xA778.WalkSpeed or 16) * math.max(_0x004C or 0.016, 0.016) * 4.5 + 22)
+if _0x0E43 > _0x1AEC then
+_0x6EA6()
+_0x5CFE.AssemblyLinearVelocity = Vector3.zero
+_0x5CFE.AssemblyAngularVelocity = Vector3.zero
+_0x5CFE.CFrame = _0x5DAB.Bring.lastCF
+_0x5DAB.Bring.blockedBrings = _0x5DAB.Bring.blockedBrings + 1
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(65,110,116,105,45,66,114,105,110,103,32,118,51,58,32,66,108,111,99,107,101,100,32,104,111,115,116,105,108,101,32,116,101,108,101,112,111,114,116,47,103,114,97,98,33))
+elseif _0x97B4(_0x5CFE.CFrame) then
+_0x5DAB.Bring.lastCF = _0x5CFE.CFrame
+end
+elseif _0x97B4(_0x5CFE.CFrame) then
+_0x5DAB.Bring.lastCF = _0x5CFE.CFrame
+end
+end)
+if _0xA00F then pcall(_0xA00F) end
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(65,110,116,105,45,66,114,105,110,103,32,47,32,84,111,111,108,45,71,114,97,98,32,38,32,83,110,97,112,32,71,117,97,114,100,32,118,51,32,79,78))
+_0xF140()
+end
+_0xE011 = function()
+if not _0x5DAB.Bring.enabled then return end
+_0x5DAB.Bring.enabled = false
+if _0x5DAB.Bring.steppedConn then _0x5DAB.Bring.steppedConn:Disconnect(); _0x5DAB.Bring.steppedConn = nil end
+if _0xA00F then pcall(_0xA00F) end
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(65,110,116,105,45,66,114,105,110,103,32,100,105,115,97,98,108,101,100))
+_0xED6E()
+end
+_0x5DAB.Bring.startFn = _0x8E13
+_0x5DAB.Bring.stopFn = _0xE011local function _0x159C()
+local _0x1213 = _0xA6AA.Character
+local _0x32EC = _0x4DA4(_0x1213)
+if not _0x32EC then return end
+for _0x9094, _0x1CEE in ipairs(_0xC3F7:GetPlayers()) do
+if _0x1CEE ~= _0xA6AA and _0x1CEE.Character then
+local _0xEC72 = _0x4DA4(_0x1CEE.Character)
+local _0x1D3E = _0xEC72 and (_0xEC72.AssemblyLinearVelocity.Magnitude > 50 or _0xEC72.AssemblyAngularVelocity.Magnitude > 25)
+for _0x9094, _0x5959 in ipairs(_0x04D0(_0x1CEE.Character)) do
+if _0x5959.Parent then
+if _0x5959.CanCollide then _0x5959.CanCollide = false end
+if _0x5959.CanTouch then _0x5959.CanTouch = false end
+if not _0x5959.Massless then _0x5959.Massless = true end
+if _0x1D3E then
+pcall(function()
+_0x5959.AssemblyLinearVelocity = Vector3.zero
+_0x5959.AssemblyAngularVelocity = Vector3.zero
+end)
+end
+end
+end
+end
+end
+end
+_0xC237 = function()
+if _0x5DAB.FlingShield.enabled then return end
+_0x5DAB.FlingShield.enabled = true
+pcall(function()
+local _0x8AF0 = game:GetService(string.char(80,104,121,115,105,99,115,83,101,114,118,105,99,101))
+_0x8AF0:RegisterCollisionGroup(string.char(75,104,97,109,97,110,78,111,67,111,108,108,105,100,101))
+_0x8AF0:CollisionGroupSetCollidable(string.char(75,104,97,109,97,110,78,111,67,111,108,108,105,100,101),string.char(68,101,102,97,117,108,116), false)
+end)
+if _0x5DAB.FlingShield.steppedConn then _0x5DAB.FlingShield.steppedConn:Disconnect() end
+_0x5DAB.FlingShield.steppedConn = _0xC77A.Stepped:Connect(function()
+if not _0x5DAB.FlingShield.enabled and not _0x7DE1.enabled then return end
+if _0x1B4F() or _0x1978 or (_0xAE44 and _0xAE44.rewinding) then return end
+_0x159C()
+local _0x1213 = _0xA6AA.Character
+local _0x32EC = _0x4DA4(_0x1213)
+if _0x32EC and _0x97B4(_0x32EC.CFrame) then
+if _0x32EC.AssemblyLinearVelocity.Magnitude < 90 and _0x32EC.AssemblyAngularVelocity.Magnitude < 35 then
+_0x5DAB.FlingShield.preStepCF = _0x32EC.CFrame
+else
+_0x32EC.AssemblyLinearVelocity = Vector3.zero
+_0x32EC.AssemblyAngularVelocity = Vector3.zero
+if _0x5DAB.FlingShield.preStepCF then
+_0x32EC.CFrame = _0x5DAB.FlingShield.preStepCF
+end
+_0x5DAB.FlingShield.blockedFlings = _0x5DAB.FlingShield.blockedFlings + 1
+end
+end
+end)
+if _0x5DAB.FlingShield.heartbeatConn then _0x5DAB.FlingShield.heartbeatConn:Disconnect() end
+_0x5DAB.FlingShield.heartbeatConn = _0xC77A.Heartbeat:Connect(function()
+if not _0x5DAB.FlingShield.enabled and not _0x7DE1.enabled then return end
+if _0x1B4F() or _0x1978 or (_0xAE44 and _0xAE44.rewinding) then return end
+local _0x1213 = _0xA6AA.Character
+local _0x32EC = _0x4DA4(_0x1213)
+if not _0x32EC then return end
+if _0x32EC.AssemblyLinearVelocity.Magnitude > 90 or _0x32EC.AssemblyAngularVelocity.Magnitude > 35 then
+_0x32EC.AssemblyLinearVelocity = Vector3.zero
+_0x32EC.AssemblyAngularVelocity = Vector3.zero
+if _0x5DAB.FlingShield.preStepCF and _0x97B4(_0x5DAB.FlingShield.preStepCF) then
+_0x32EC.CFrame = _0x5DAB.FlingShield.preStepCF
+end
+_0x5DAB.FlingShield.blockedFlings = _0x5DAB.FlingShield.blockedFlings + 1
+end
+end)
+if _0xA00F then pcall(_0xA00F) end
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(65,110,116,105,45,70,108,105,110,103,32,83,104,105,101,108,100,32,118,51,32,40,83,101,114,118,101,114,45,87,105,100,101,32,78,111,45,67,111,108,108,105,100,101,32,43,32,90,101,114,111,45,73,109,112,117,108,115,101,41,32,79,78))
+_0xF140()
+end
+_0x7E9F = function()
+if not _0x5DAB.FlingShield.enabled then return end
+_0x5DAB.FlingShield.enabled = false
+if not _0x7DE1.enabled then
+if _0x5DAB.FlingShield.steppedConn then
+_0x5DAB.FlingShield.steppedConn:Disconnect()
+_0x5DAB.FlingShield.steppedConn = nil
+end
+if _0x5DAB.FlingShield.heartbeatConn then
+_0x5DAB.FlingShield.heartbeatConn:Disconnect()
+_0x5DAB.FlingShield.heartbeatConn = nil
+end
+end
+for _0x9094, _0x1CEE in ipairs(_0xC3F7:GetPlayers()) do
+if _0x1CEE ~= _0xA6AA and _0x1CEE.Character then
+for _0x9094, _0x5959 in ipairs(_0x04D0(_0x1CEE.Character)) do
+if _0x5959.Parent and (_0x5959.Name ==string.char(72,117,109,97,110,111,105,100,82,111,111,116,80,97,114,116)or _0x5959.Name ==string.char(84,111,114,115,111)or _0x5959.Name ==string.char(85,112,112,101,114,84,111,114,115,111)or _0x5959.Name ==string.char(76,111,119,101,114,84,111,114,115,111)or _0x5959.Name ==string.char(72,101,97,100)) then
+pcall(function() _0x5959.CanCollide = true; _0x5959.Massless = false end)
+end
+end
+end
+end
+if _0xA00F then pcall(_0xA00F) end
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(65,110,116,105,45,70,108,105,110,103,32,83,104,105,101,108,100,32,100,105,115,97,98,108,101,100))
+_0xED6E()
+end
+_0x5DAB.FlingShield.startFn = _0xC237
+_0x5DAB.FlingShield.stopFn = _0x7E9Flocal function _0xD41D(seat)
+if not seat or not (seat:IsA(string.char(83,101,97,116)) or seat:IsA(string.char(86,101,104,105,99,108,101,83,101,97,116))) then return end
+if not _0x5DAB.SeatTrap.savedSeats[seat] then
+_0x5DAB.SeatTrap.savedSeats[seat] = { Disabled = seat.Disabled, CanTouch = seat.CanTouch }
+end
+pcall(function()
+seat.Disabled = true
+seat.CanTouch = false
+for _0x9094, _0x7B2F in ipairs(seat:GetChildren()) do
+if _0x7B2F:IsA(string.char(87,101,108,100)) or _0x7B2F:IsA(string.char(87,101,108,100,67,111,110,115,116,114,97,105,110,116)) or _0x7B2F.Name ==string.char(83,101,97,116,87,101,108,100)then
+_0x7B2F:Destroy()
+end
+end
+end)
+_0x5DAB.SeatTrap.neutralizedSeats = (_0x5DAB.SeatTrap.neutralizedSeats or 0) + 1
+end
+_0x5DAB.SeatTrap.startFn = function(silent)
+if _0x5DAB.SeatTrap.enabled and _0x5DAB.SeatTrap.wsDescConn then return end
+_0x5DAB.SeatTrap.enabled = true
+task.spawn(function()
+local _0x69FF = workspace:GetDescendants()
+for i = 1, #_0x69FF do
+if not _0x5DAB.SeatTrap.enabled then break end
+local _0x4A72 = _0x69FF[i]
+if _0x4A72 and (_0x4A72:IsA(string.char(83,101,97,116)) or _0x4A72:IsA(string.char(86,101,104,105,99,108,101,83,101,97,116))) then
+_0xD41D(_0x4A72)
+end
+if i % 250 == 0 then
+task.wait(0.03)
+end
+end
+end)
+if _0x5DAB.SeatTrap.wsDescConn then _0x5DAB.SeatTrap.wsDescConn:Disconnect() end
+_0x5DAB.SeatTrap.wsDescConn = workspace.DescendantAdded:Connect(function(_0x4A72)
+if not _0x5DAB.SeatTrap.enabled then return end
+if _0x4A72:IsA(string.char(83,101,97,116)) or _0x4A72:IsA(string.char(86,101,104,105,99,108,101,83,101,97,116)) then
+_0xD41D(_0x4A72)
+elseif (_0x4A72:IsA(string.char(83,101,97,116,87,101,108,100)) or _0x4A72.Name ==string.char(83,101,97,116,87,101,108,100)) and _0xA6AA.Character then
+local _0xD8D8, _0x9AC3 = _0x4A72.Part0, _0x4A72.Part1
+if (_0xD8D8 and _0xD8D8:IsDescendantOf(_0xA6AA.Character)) or (_0x9AC3 and _0x9AC3:IsDescendantOf(_0xA6AA.Character)) then
+pcall(function() _0x4A72:Destroy() end)
+end
+end
+end)
+if _0xA00F then pcall(_0xA00F) end
+if _0x8AC6 then pcall(_0x8AC6) end
+if not silent then
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(65,110,116,105,45,83,101,97,116,32,47,32,67,111,117,99,104,45,75,105,100,110,97,112,32,68,101,115,116,114,111,121,101,114,32,118,52,32,40,65,108,119,97,121,115,45,79,110,41,32,65,67,84,73,86,69))
+_0xF140()
+end
+end
+_0x5DAB.SeatTrap.stopFn = function()
+if _0x5DAB.AlwaysOnCore or _0x5DAB.SeatTrap.alwaysOn then
+_0x5DAB.SeatTrap.startFn(true)
+if _0xA00F then pcall(_0xA00F) end
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(239,191,189,239,191,189,32,65,110,116,105,45,83,105,116,32,47,32,65,110,116,105,45,83,101,97,116,32,105,115,32,108,111,99,107,101,100,32,65,76,87,65,89,83,45,79,78,33))
+return
+end
+if not _0x5DAB.SeatTrap.enabled then return end
+_0x5DAB.SeatTrap.enabled = false
+if _0x5DAB.SeatTrap.wsDescConn then _0x5DAB.SeatTrap.wsDescConn:Disconnect(); _0x5DAB.SeatTrap.wsDescConn = nil end
+if _0xA00F then pcall(_0xA00F) end
+end
+_0x5DAB.ToolGuard.startFn = function()
+if _0x5DAB.ToolGuard.enabled then return end
+_0x5DAB.ToolGuard.enabled = true
+if _0x5DAB.ToolGuard.loopConn then _0x5DAB.ToolGuard.loopConn:Disconnect() end
+local _0x8DB2 = 0
+_0x5DAB.ToolGuard.loopConn = _0xC77A.Heartbeat:Connect(function()
+if not _0x5DAB.ToolGuard.enabled then return end
+local _0x60A3 = tick()
+if _0x60A3 - _0x8DB2 < 0.20 then return end
+_0x8DB2 = _0x60A3
+local _0x1213 = _0xA6AA.Character
+local _0x32EC = _0x4DA4(_0x1213)
+if not _0x32EC then return end
+for _0x9094, _0x1CEE in ipairs(_0xC3F7:GetPlayers()) do
+if _0x1CEE ~= _0xA6AA and _0x1CEE.Character then
+local _0x6DEF = _0x4DA4(_0x1CEE.Character)
+if not _0x6DEF or (_0x6DEF.Position - _0x32EC.Position).Magnitude < 45 then
+for _0x9094, child in ipairs(_0x1CEE.Character:GetChildren()) do
+if child:IsA(string.char(84,111,111,108)) or child:IsA(string.char(72,111,112,112,101,114,66,105,110)) then
+for _0x9094, _0x5959 in ipairs(child:GetDescendants()) do
+if _0x5959:IsA(string.char(66,97,115,101,80,97,114,116)) then
+if _0x5959.CanTouch or _0x5959.CanCollide then
+_0x5959.CanTouch = false
+_0x5959.CanCollide = false
+_0x5959.Massless = true
+_0x5DAB.ToolGuard.disarmedTools = (_0x5DAB.ToolGuard.disarmedTools or 0) + 1
+end
+elseif _0x5959:IsA(string.char(83,101,97,116)) or _0x5959:IsA(string.char(86,101,104,105,99,108,101,83,101,97,116)) then
+_0xD41D(_0x5959)
+elseif _0x1213 and _0xBFF0(_0x5959, _0x1213) then
+pcall(function() _0x5959:Destroy() end)
+_0x5DAB.Attach.severedCount = (_0x5DAB.Attach.severedCount or 0) + 1
+end
+end
+end
+end
+end
+end
+end
+end)
+if _0xA00F then pcall(_0xA00F) end
+if _0x8AC6 then pcall(_0x8AC6) end
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(65,110,116,105,45,84,111,111,108,32,47,32,67,111,117,99,104,32,47,32,67,97,114,114,121,32,68,105,115,97,114,109,101,114,32,118,51,32,79,78))
+_0xF140()
+end
+_0x5DAB.ToolGuard.stopFn = function()
+if not _0x5DAB.ToolGuard.enabled then return end
+_0x5DAB.ToolGuard.enabled = false
+if _0x5DAB.ToolGuard.loopConn then _0x5DAB.ToolGuard.loopConn:Disconnect(); _0x5DAB.ToolGuard.loopConn = nil end
+if _0xA00F then pcall(_0xA00F) end
+if _0x8AC6 then pcall(_0x8AC6) end
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(65,110,116,105,45,84,111,111,108,32,68,105,115,97,114,109,101,114,32,100,105,115,97,98,108,101,100))
+_0xED6E()
+end_0x5DAB.AntiHeadsit.startFn = function()
+if _0x5DAB.AntiHeadsit.enabled then return end
+_0x5DAB.AntiHeadsit.enabled = true
+if _0x5DAB.AntiHeadsit.steppedConn then _0x5DAB.AntiHeadsit.steppedConn:Disconnect() end
+_0x5DAB.AntiHeadsit.steppedConn = _0xC77A.Stepped:Connect(function()
+if not _0x5DAB.AntiHeadsit.enabled then return end
+if _0x1B4F() or _0x1978 or (_0xAE44 and _0xAE44.rewinding) then return end
+local _0x60A3 = tick()
+if _0x60A3 - (_0x5DAB.AntiHeadsit.lastEvade or 0) < 0.35 then return end
+local _0x1213 = _0xA6AA.Character
+local _0x32EC = _0x4DA4(_0x1213)
+if not _0x32EC then return end
+local _0x6CC4 = _0x32EC.CFrame
+local _0xB1BD = _0x6CC4 * CFrame.new(0, 0, -1.75)
+local _0xBDE4 = _0x6CC4 * CFrame.new(0, 0, 1.75)
+for _0x9094, _0x1CEE in ipairs(_0xC3F7:GetPlayers()) do
+if _0x1CEE ~= _0xA6AA and _0x1CEE.Character then
+local _0xEC72 = _0x4DA4(_0x1CEE.Character)
+if _0xEC72 then
+local _0x7D2D = _0xEC72.Position
+local _0xCA8D = _0x7D2D.Y - _0x6CC4.Position.Y
+local _0x6143 = _0x1CEE.Character:FindFirstChildOfClass(string.char(72,117,109,97,110,111,105,100))
+local _0x9EC6 = _0x6143 and (_0x6143.Sit or _0x6143.PlatformStand or _0x6143:GetState() == Enum.HumanoidStateType.Physics or _0xEC72.AssemblyLinearVelocity.Magnitude > 30)
+local _0xF269 = _0x9EC6 and (math.abs(_0x7D2D.X - _0x6CC4.Position.X) <= 2.2 and math.abs(_0x7D2D.Z - _0x6CC4.Position.Z) <= 2.2 and _0xCA8D >= 1.15 and _0xCA8D <= 4.8)
+local _0x2F64 = _0x9EC6 and (((_0x7D2D - _0xB1BD.Position).Magnitude <= 1.65) or ((_0x7D2D - _0xBDE4.Position).Magnitude <= 1.55))
+if (_0xF269 or _0x2F64) and (_0x60A3 - _0x1FB2 > 2.0) then
+_0x5DAB.AntiHeadsit.lastEvade = _0x60A3
+_0x5DAB.AntiHeadsit.evadedCount = (_0x5DAB.AntiHeadsit.evadedCount or 0) + 1
+pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
+task.spawn(function()
+pcall(function()
+_0x363C(_0x6CC4)
+_0x32EC.CFrame = CFrame.new(_0x6CC4.Position.X, math.clamp(_0x8668 - 180, -950, -350), _0x6CC4.Position.Z)
+task.wait(0.18)
+if _0x32EC and _0x32EC.Parent and not _0x1B4F() then
+_0x363C(_0x6CC4)
+_0x32EC.AssemblyLinearVelocity = Vector3.zero
+_0x32EC.AssemblyAngularVelocity = Vector3.zero
+_0x32EC.CFrame = _0x6CC4
+end
+end)
+end)
+break
+end
+end
+end
+end
+end)
+if _0xA00F then pcall(_0xA00F) end
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(65,110,116,105,45,72,101,97,100,115,105,116,32,38,32,65,110,116,105,45,70,97,99,101,98,97,110,103,32,69,118,97,100,101,114,32,40,70,117,108,108,32,76,105,98,114,97,114,121,41,32,79,78))
+_0xF140()
+end
+_0x5DAB.AntiHeadsit.stopFn = function()
+if not _0x5DAB.AntiHeadsit.enabled then return end
+_0x5DAB.AntiHeadsit.enabled = false
+if _0x5DAB.AntiHeadsit.steppedConn then _0x5DAB.AntiHeadsit.steppedConn:Disconnect(); _0x5DAB.AntiHeadsit.steppedConn = nil end
+if _0xA00F then pcall(_0xA00F) end
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(65,110,116,105,45,72,101,97,100,115,105,116,32,38,32,65,110,116,105,45,70,97,99,101,98,97,110,103,32,100,105,115,97,98,108,101,100))
+_0xED6E()
+end
+_0x5DAB.GlitchDesync.startFn = function()
+if _0x5DAB.GlitchDesync.enabled then return end
+_0x5DAB.GlitchDesync.enabled = true
+pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
+local _0x1213 = _0xA6AA.Character
+local _0x32EC = _0x4DA4(_0x1213)
+if _0x32EC then
+_0x5DAB.GlitchDesync.realCF = _0x32EC.CFrame
+_0x5DAB.GlitchDesync.realVel = _0x32EC.AssemblyLinearVelocity
+_0x5DAB.GlitchDesync.realRot = _0x32EC.AssemblyAngularVelocity
+end
+if _0x5DAB.GlitchDesync.steppedConn then _0x5DAB.GlitchDesync.steppedConn:Disconnect() end
+_0x5DAB.GlitchDesync.steppedConn = _0xC77A.Stepped:Connect(function()
+if not _0x5DAB.GlitchDesync.enabled then return end
+if _0x1B4F() or _0x1978 or (_0xAE44 and _0xAE44.rewinding) then return end
+local _0x5CFE = _0x4DA4(_0xA6AA.Character)
+if _0x5CFE and _0x5DAB.GlitchDesync.realCF then
+_0x5CFE.CFrame = _0x5DAB.GlitchDesync.realCF
+local _0x5E44 = _0x5DAB.GlitchDesync.realVel
+if _0x5E44 and _0x5E44.Magnitude < 1 then _0x5E44 = Vector3.new(0, 0.05, 0) end
+_0x5CFE.AssemblyLinearVelocity = _0x5E44 or Vector3.zero
+_0x5CFE.AssemblyAngularVelocity = _0x5DAB.GlitchDesync.realRot or Vector3.zero
+end
+end)
+pcall(function() _0xC77A:UnbindFromRenderStep(string.char(75,104,97,109,97,110,71,108,105,116,99,104,82,101,115,116,111,114,101)) end)
+pcall(function()
+_0xC77A:BindToRenderStep(string.char(75,104,97,109,97,110,71,108,105,116,99,104,82,101,115,116,111,114,101), 1, function()
+if not _0x5DAB.GlitchDesync.enabled then return end
+if _0x1B4F() or _0x1978 or (_0xAE44 and _0xAE44.rewinding) then return end
+local _0x5CFE = _0x4DA4(_0xA6AA.Character)
+if _0x5CFE and _0x5DAB.GlitchDesync.realCF then
+_0x5CFE.CFrame = _0x5DAB.GlitchDesync.realCF
+local _0x5E44 = _0x5DAB.GlitchDesync.realVel
+if _0x5E44 and _0x5E44.Magnitude < 1 then _0x5E44 = Vector3.new(0, 0.05, 0) end
+_0x5CFE.AssemblyLinearVelocity = _0x5E44 or Vector3.zero
+_0x5CFE.AssemblyAngularVelocity = _0x5DAB.GlitchDesync.realRot or Vector3.zero
+end
+end)
+end)
+if _0x5DAB.GlitchDesync.heartbeatConn then _0x5DAB.GlitchDesync.heartbeatConn:Disconnect() end
+_0x5DAB.GlitchDesync.heartbeatConn = _0xC77A.Heartbeat:Connect(function()
+if not _0x5DAB.GlitchDesync.enabled then return end
+if _0x1B4F() or _0x1978 or (_0xAE44 and _0xAE44.rewinding) then return end
+local _0x5CFE = _0x4DA4(_0xA6AA.Character)
+if not _0x5CFE then return end
+_0x5DAB.GlitchDesync.realCF = _0x5CFE.CFrame
+_0x5DAB.GlitchDesync.realVel = _0x5CFE.AssemblyLinearVelocity
+_0x5DAB.GlitchDesync.realRot = _0x5CFE.AssemblyAngularVelocity
+local _0x4032 = math.random(-50000, 50000)
+local _0x9794 = math.random(50, 1000)
+local _0xB872 = math.random(-50000, 50000)
+local _0x5822 = math.random(-100, 100)
+local _0x58BF = math.random(12, 145)
+local _0x886B = math.random(-100, 100)
+local _0x2473 = CFrame.new(_0x5CFE.Position) * CFrame.Angles(0, math.random(0, 314) / 100, 0) + Vector3.new(_0x5822, _0x58BF, _0x886B)
+_0x363C(_0x5DAB.GlitchDesync.realCF)
+_0x5CFE.AssemblyLinearVelocity = Vector3.new(_0x4032, _0x9794, _0xB872)
+_0x5CFE.AssemblyAngularVelocity = Vector3.new(_0x4032, _0x9794, _0xB872)
+_0x5CFE.CFrame = _0x2473
+end)
+if _0xA00F then pcall(_0xA00F) end
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(65,110,116,105,45,66,97,110,103,32,71,108,105,116,99,104,32,68,101,115,121,110,99,32,40,69,118,97,100,101,32,66,97,110,103,115,41,32,79,78))
+_0xF140()
+end
+_0x5DAB.GlitchDesync.stopFn = function()
+if not _0x5DAB.GlitchDesync.enabled then return end
+_0x5DAB.GlitchDesync.enabled = false
+pcall(function() _0xC77A:UnbindFromRenderStep(string.char(75,104,97,109,97,110,71,108,105,116,99,104,82,101,115,116,111,114,101)) end)
+if _0x5DAB.GlitchDesync.steppedConn then _0x5DAB.GlitchDesync.steppedConn:Disconnect(); _0x5DAB.GlitchDesync.steppedConn = nil end
+if _0x5DAB.GlitchDesync.heartbeatConn then _0x5DAB.GlitchDesync.heartbeatConn:Disconnect(); _0x5DAB.GlitchDesync.heartbeatConn = nil end
+local _0x5CFE = _0x4DA4(_0xA6AA.Character)
+if _0x5CFE and _0x5DAB.GlitchDesync.realCF then
+_0x363C(_0x5DAB.GlitchDesync.realCF)
+_0x5CFE.CFrame = _0x5DAB.GlitchDesync.realCF
+_0x5CFE.AssemblyLinearVelocity = _0x5DAB.GlitchDesync.realVel or Vector3.zero
+_0x5CFE.AssemblyAngularVelocity = _0x5DAB.GlitchDesync.realRot or Vector3.zero
+end
+if _0xA00F then pcall(_0xA00F) end
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(65,110,116,105,45,66,97,110,103,32,71,108,105,116,99,104,32,68,101,115,121,110,99,32,100,105,115,97,98,108,101,100))
+_0xED6E()
+end
+_0x5DAB.Kick.startFn = function()
+if _0x5DAB.Kick.enabled then return end
+_0x5DAB.Kick.enabled = true
+pcall(function()
+if type(hookfunction) ==string.char(102,117,110,99,116,105,111,110)and _0xA6AA and _0xA6AA.Kick and not _0x5DAB.Kick.hooked then
+_0x5DAB.Kick.hooked = true
+local _0xBDD1
+_0xBDD1 = hookfunction(_0xA6AA.Kick, function(selfArg, ...)
+if _0x5DAB.Kick.enabled and selfArg == _0xA6AA then
+_0x5DAB.Kick.blockedKicks = (_0x5DAB.Kick.blockedKicks or 0) + 1
+local _0x4F8A = tostring(... orstring.char(67,108,105,101,110,116,32,75,105,99,107))
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(239,191,189,239,191,189,239,184,143,32,65,110,116,105,45,75,105,99,107,32,98,108,111,99,107,101,100,58,32).. _0x4F8A:sub(1, 36))
+return nil
+end
+return _0xBDD1(selfArg, ...)
+end)
+_0x5DAB.Kick.originalKick = _0xBDD1
+end
+end)
+if _0xA00F then pcall(_0xA00F) end
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(65,110,116,105,45,75,105,99,107,32,40,67,108,105,101,110,116,32,75,105,99,107,32,73,110,116,101,114,99,101,112,116,111,114,41,32,79,78))
+_0xF140()
+end
+_0x5DAB.Kick.stopFn = function()
+if not _0x5DAB.Kick.enabled then return end
+_0x5DAB.Kick.enabled = false
+if _0xA00F then pcall(_0xA00F) end
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(65,110,116,105,45,75,105,99,107,32,100,105,115,97,98,108,101,100))
+_0xED6E()
+endlocal function _0xA4B1(attacker)
+local _0x1213 = _0xA6AA.Character
+local _0x32EC = _0x4DA4(_0x1213)
+if not _0x32EC then return nil end
+local _0xE2FF, _0xC27B = nil, math.huge
+for _0x9094, _0x1CEE in ipairs(_0xC3F7:GetPlayers()) do
+if _0x1CEE ~= _0xA6AA and _0x1CEE ~= attacker and _0x1CEE.Character then
+local _0x5CFE = _0x4DA4(_0x1CEE.Character)
+local _0xA077 = _0x1CEE.Character:FindFirstChildOfClass(string.char(72,117,109,97,110,111,105,100))
+if _0x5CFE and (not _0xA077 or _0xA077.Health > 0) and _0x5CFE.Position.Y > (_0x8668 + 25) then
+local _0x000B = (_0x5CFE.Position - _0x32EC.Position).Magnitude
+if _0x000B < _0xC27B then
+_0xC27B = _0x000B
+_0xE2FF = _0x1CEE
+end
+end
+end
+end
+return _0xE2FF
+end
+local function _0x6876(attacker, threatReason)
+if _0x1978 or _0x1B4F() then return end
+local _0x1213 = _0xA6AA.Character
+local _0x32EC = _0x4DA4(_0x1213)
+local _0x4545 = _0x1213 and _0x1213:FindFirstChildOfClass(string.char(72,117,109,97,110,111,105,100))
+if not _0x32EC or not _0x4545 or _0x4545.Health <= 0 then return end
+if not attacker or not attacker.Character then return end
+local _0x59C0 = _0x76B4(attacker.Character,string.char(116,111,114,115,111))
+if not _0x59C0 then return end
+_0x1978 = true
+_0x7DE1.deflectCount = _0x7DE1.deflectCount + 1
+_0x7DE1.lastAttackerName = attacker.Name
+_0x7DE1.lastThreatReason = threatReason orstring.char(80,114,111,120,105,109,105,116,121,47,84,114,111,108,108)local _0xA3C6 = _0x7DE1.mode orstring.char(71,111,100,77,97,116,114,105,120)if not _0x7DE1.enabled then
+if _0x5DAB.Redirect.enabled then _0xA3C6 =string.char(82,101,100,105,114,101,99,116)elseif _0x5DAB.PauseTrap.enabled then _0xA3C6 =string.char(86,111,105,100,80,97,117,115,101)end
+end
+local _0x6CC4 = _0x97B4(_0x32EC.CFrame) and _0x32EC.CFrame or _0x6660()
+_0x363C(_0x6CC4)
+local _0x6EE9 = workspace.CurrentCamera
+local _0xE4B4 = _0x6EE9 and _0x6EE9.CFrame
+local _0x3829 = _0x6EE9 and _0x6EE9.CameraType
+pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
+if _0x6EE9 and _0xE4B4 then
+pcall(function()
+_0x6EE9.CameraType = Enum.CameraType.Scriptable
+_0x6EE9.CFrame = _0xE4B4
+end)
+end
+_0x6EA6()
+for _0x9094, _0x5959 in ipairs(_0x04D0(_0x1213)) do
+if _0x5959.Parent then
+_0x5959.CanCollide = false
+_0x5959.CanTouch = false
+_0x5959.Massless = true
+end
+end
+local _0x0E65 =string.char(239,191,189,239,191,189,239,184,143,32).. (_0x7DE1.modeLabels[_0xA3C6] or _0xA3C6) ..string.char(32,45,62,32).. attacker.Name ..string.char(32,40).. tostring(_0x7DE1.lastThreatReason) ..string.char(41)_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65), _0x0E65)
+if _0x2DB3 then _0x2DB3(_0x0E65) end
+_0x6F35()
+local _0x67EE = math.clamp(_0x8668 - 155, -780, -340)
+local _0x89B7 = CFrame.new(_0x6CC4.Position.X, _0x67EE, _0x6CC4.Position.Z)
+if _0xA3C6 ==string.char(71,111,100,77,97,116,114,105,120)then
+for i = 1, 6 do
+if not _0x32EC.Parent or not _0x59C0.Parent then break end
+local _0xFD1C = i * 1.15
+_0x32EC.CFrame = _0x59C0.CFrame * CFrame.new(math.cos(_0xFD1C) * 0.65, 0, math.sin(_0xFD1C) * 0.65)
+* CFrame.Angles(math.rad(math.random(-180, 180)), _0xFD1C, math.rad(math.random(-180, 180)))
+_0x32EC.AssemblyAngularVelocity = Vector3.new(95000, 95000, 95000)
+_0x32EC.AssemblyLinearVelocity = Vector3.new(math.random(-28000, 28000), -60000, math.random(-28000, 28000))
+_0xC77A.Heartbeat:Wait()
+end
+for _0x9094 = 1, 5 do
+if not _0x32EC.Parent then break end
+_0x32EC.CFrame = _0x89B7
+_0x32EC.AssemblyLinearVelocity = Vector3.new(0, -75000, 0)
+_0x32EC.AssemblyAngularVelocity = Vector3.zero
+_0xC77A.Heartbeat:Wait()
+end
+local _0xB5AA = _0xA4B1(attacker)
+if _0xB5AA and _0xB5AA.Character then
+local _0x527A = _0x76B4(_0xB5AA.Character,string.char(116,111,114,115,111))
+if _0x527A and _0x97B4(_0x527A.CFrame) then
+for _0x9094 = 1, 4 do
+if not _0x32EC.Parent or not _0x527A.Parent then break end
+_0x32EC.CFrame = _0x527A.CFrame * CFrame.new(0, 0, 0.35)
+_0x32EC.AssemblyLinearVelocity = Vector3.zero
+_0xC77A.Heartbeat:Wait()
+end
+end
+end
+elseif _0xA3C6 ==string.char(82,101,118,101,114,115,101,70,108,105,110,103)then
+local _0xAD41 = tick()
+while tick() - _0xAD41 < 0.26 do
+if not _0x32EC.Parent or not _0x59C0.Parent then break end
+local _0x6299 = (tick() - _0xAD41) * 48
+local _0x6355 = _0x59C0.AssemblyLinearVelocity
+local _0x1857 = Vector3.new(_0x6355.X, 0, _0x6355.Z) * 0.06
+_0x32EC.CFrame = CFrame.new(_0x59C0.Position + _0x1857 + Vector3.new(math.cos(_0x6299) * 1.1, 0.3, math.sin(_0x6299) * 1.1))
+* CFrame.Angles(_0x6299, _0x6299 * 1.5, 0)
+_0x32EC.AssemblyAngularVelocity = Vector3.new(95000, 95000, 95000)
+_0x32EC.AssemblyLinearVelocity = Vector3.new(math.random(-22000, 22000), 48000, math.random(-22000, 22000))
+_0xC77A.Heartbeat:Wait()
+end
+elseif _0xA3C6 ==string.char(86,111,105,100,80,97,117,115,101)then
+for _0x9094 = 1, 7 do
+if not _0x32EC.Parent then break end
+_0x32EC.CFrame = _0x89B7
+_0x32EC.AssemblyLinearVelocity = Vector3.new(0, -78000, 0)
+_0x32EC.AssemblyAngularVelocity = Vector3.new(45000, 0, 45000)
+_0xC77A.Heartbeat:Wait()
+end
+elseif _0xA3C6 ==string.char(82,101,100,105,114,101,99,116)then
+local _0xB5AA = _0xA4B1(attacker)
+local _0x527A = _0xB5AA and _0xB5AA.Character and _0x76B4(_0xB5AA.Character,string.char(116,111,114,115,111))
+if _0x527A and _0x97B4(_0x527A.CFrame) then
+local _0xAD41 = tick()
+while tick() - _0xAD41 < 0.30 do
+if not _0x32EC.Parent or not _0x527A.Parent then break end
+_0x32EC.AssemblyLinearVelocity = Vector3.zero
+_0x32EC.AssemblyAngularVelocity = Vector3.zero
+_0x32EC.CFrame = _0x527A.CFrame * CFrame.new(0, 0, 0.32)
+_0xC77A.Heartbeat:Wait()
+end
+else
+for _0x9094 = 1, 6 do
+if not _0x32EC.Parent then break end
+_0x32EC.CFrame = _0x89B7
+_0x32EC.AssemblyLinearVelocity = Vector3.new(0, -70000, 0)
+_0xC77A.Heartbeat:Wait()
+end
+end
+elseif _0xA3C6 ==string.char(66,108,97,99,107,104,111,108,101)then
+local _0xAD41 = tick()
+while tick() - _0xAD41 < 0.26 do
+if not _0x32EC.Parent or not _0x59C0.Parent then break end
+local _0xDFBB = tick() - _0xAD41
+local _0x2AC4 = 0.8 + (_0xDFBB * 18)
+local _0xFD1C = _0xDFBB * 58
+local _0x4CD8 = Vector3.new(math.cos(_0xFD1C) * _0x2AC4, 0.6, math.sin(_0xFD1C) * _0x2AC4)
+_0x32EC.CFrame = CFrame.lookAt(_0x59C0.Position + _0x4CD8, _0x59C0.Position)
+_0x32EC.AssemblyLinearVelocity = _0x4CD8.Unit * 58000
+_0x32EC.AssemblyAngularVelocity = Vector3.new(0, 95000, 0)
+_0xC77A.Heartbeat:Wait()
+end
+elseif _0xA3C6 ==string.char(83,107,121,79,114,98,105,116)then
+local _0x0D54 = CFrame.new(_0x6CC4.Position.X, math.min(_0x6CC4.Position.Y + 18000, 45000), _0x6CC4.Position.Z)
+for _0x9094 = 1, 5 do
+if not _0x32EC.Parent or not _0x59C0.Parent then break end
+_0x32EC.CFrame = _0x59C0.CFrame
+_0x32EC.AssemblyLinearVelocity = Vector3.new(0, 85000, 0)
+_0x32EC.AssemblyAngularVelocity = Vector3.new(85000, 85000, 85000)
+_0xC77A.Heartbeat:Wait()
+end
+for _0x9094 = 1, 4 do
+if not _0x32EC.Parent then break end
+_0x32EC.CFrame = _0x0D54
+_0x32EC.AssemblyLinearVelocity = Vector3.new(0, 90000, 0)
+_0xC77A.Heartbeat:Wait()
+end
+end
+_0x1FB2 = tick()
+_0x363C(_0x6CC4)
+_0xDF2E(_0x1213, _0x6CC4)
+task.wait(0.06)
+if _0x6EE9 then
+pcall(function()
+_0x6EE9.CameraType = _0x3829 or Enum.CameraType.Custom
+if _0x4545 then _0x6EE9.CameraSubject = _0x4545 end
+end)
+end
+_0x1978 = false
+if _0x8AC6 then pcall(_0x8AC6) end
+end
+_0xC77A.Heartbeat:Connect(function(_0x004C)
+if not _0x7DE1.enabled and not _0x5DAB.Redirect.enabled and not _0x5DAB.PauseTrap.enabled then
+return
+end
+if _0x1B4F() or _0x1978 or (_0xAE44 and _0xAE44.rewinding) then return end
+local _0x1213 = _0xA6AA.Character
+local _0x32EC = _0x4DA4(_0x1213)
+local _0x4545 = _0x1213 and _0x1213:FindFirstChildOfClass(string.char(72,117,109,97,110,111,105,100))
+if not _0x32EC or not _0x4545 or _0x4545.Health <= 0 then return end
+local _0x3ABA = _0x7DE1.enabled and (_0x7DE1.range or 7.5) or 6.5
+local _0x60A3 = tick()
+for _0x9094, _0x1CEE in ipairs(_0xC3F7:GetPlayers()) do
+if _0x1CEE ~= _0xA6AA and _0x1CEE.Character then
+local _0xEC72 = _0x76B4(_0x1CEE.Character,string.char(116,111,114,115,111))
+local _0x6143 = _0x1CEE.Character:FindFirstChildOfClass(string.char(72,117,109,97,110,111,105,100))
+if _0xEC72 and (not _0x6143 or _0x6143.Health > 0) then
+local _0x0E43 = (_0xEC72.Position - _0x32EC.Position).Magnitude
+local _0x6355 = _0xEC72.AssemblyLinearVelocity
+local _0x1C8D = _0x6355.Magnitude
+local _0xC034 = _0xEC72.AssemblyAngularVelocity.Magnitude
+local _0xFD85 = (_0x32EC.Position - _0xEC72.Position)
+local _0xAB48 = (_0xFD85.Magnitude > 0.01) and _0x6355:Dot(_0xFD85.Unit) or 0
+local _0x6B0A = _0xD7A4[_0x1CEE.UserId]
+_0xD7A4[_0x1CEE.UserId] = _0xEC72.Position
+local _0x30F8 = _0x6B0A and (_0xEC72.Position - _0x6B0A).Magnitude or 0
+local _0x1510 = (_0x1C8D > 85 or _0xC034 > 45) and _0x0E43 <= (_0x3ABA * 2.4)
+local _0xF19D = _0x0E43 <= (_0x3ABA + 1.5) and (
+(_0x6143 and (_0x6143.PlatformStand or _0x6143.Sit or _0x6143:GetState() == Enum.HumanoidStateType.Physics))
+or (_0x0E43 < 4.2 and _0x30F8 > 1.1)
+or _0xAB48 > 42
+)
+if _0x1510 or _0xF19D or _0x0E43 <= _0x3ABA then
+local _0x9766 = 1.0
+local _0x4F8A =string.char(65,117,114,97,32,67,111,110,116,97,99,116)if _0x1510 then
+_0x9766 = 5.0
+_0x4F8A =string.char(70,108,105,110,103,32,83,112,105,110,110,101,114)elseif _0xF19D then
+_0x9766 = 3.8
+_0x4F8A =string.char(87,101,108,100,47,84,114,111,108,108,32,76,111,99,107)end
+_0x8A10[_0x1CEE.UserId] = (_0x8A10[_0x1CEE.UserId] or 0) + _0x004C * _0x9766
+local _0x1C78 = _0x77B5[_0x1CEE.UserId] or 0
+if (_0x8A10[_0x1CEE.UserId] >= 0.12 or _0x1510 or _0xF19D) and (_0x60A3 - _0x1C78) > 0.65 then
+_0x77B5[_0x1CEE.UserId] = _0x60A3
+_0x8A10[_0x1CEE.UserId] = 0
+task.spawn(function() _0x6876(_0x1CEE, _0x4F8A) end)
+break
+end
+else
+_0x8A10[_0x1CEE.UserId] = math.max(0, (_0x8A10[_0x1CEE.UserId] or 0) - _0x004C * 2)
+end
+end
+end
+end
+end)
+_0xA023 = function()
+_0x5DAB.Redirect.enabled = true
+if _0x207A then pcall(_0x207A) end
+if _0xA00F then pcall(_0xA00F) end
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(84,114,111,108,108,32,82,101,100,105,114,101,99,116,32,79,78,32,40,116,114,97,110,115,102,101,114,115,32,97,116,116,97,99,107,101,114,115,32,116,111,32,97,110,111,116,104,101,114,32,112,108,97,121,101,114,41))
+_0xF140()
+end
+_0xDCCA = function()
+_0x5DAB.Redirect.enabled = false
+if _0x207A then pcall(_0x207A) end
+if _0xA00F then pcall(_0xA00F) end
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(84,114,111,108,108,32,82,101,100,105,114,101,99,116,32,100,105,115,97,98,108,101,100))
+_0xED6E()
+end
+_0x5DAB.Redirect.startFn = _0xA023
+_0x5DAB.Redirect.stopFn = _0xDCCA
+_0x91B8 = function()
+_0x5DAB.PauseTrap.enabled = true
+if _0x207A then pcall(_0x207A) end
+if _0xA00F then pcall(_0xA00F) end
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(86,111,105,100,45,80,97,117,115,101,32,84,114,97,112,32,79,78,32,40,98,97,110,105,115,104,101,115,32,119,101,108,100,101,100,32,97,116,116,97,99,107,101,114,115,41))
+_0xF140()
+end
+_0x1419 = function()
+_0x5DAB.PauseTrap.enabled = false
+if _0x207A then pcall(_0x207A) end
+if _0xA00F then pcall(_0xA00F) end
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(86,111,105,100,45,80,97,117,115,101,32,84,114,97,112,32,100,105,115,97,98,108,101,100))
+_0xED6E()
+end
+_0x5DAB.PauseTrap.startFn = _0x91B8
+_0x5DAB.PauseTrap.stopFn = _0x1419
+_0x9887 = function()
+_0x7DE1.enabled = true
+_0xC237()
+if _0x207A then pcall(_0x207A) end
+if _0xA00F then pcall(_0xA00F) end
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(68,101,102,101,110,99,101,32,84,114,111,108,108,32,77,97,116,114,105,120,32,118,51,32,79,78,58,32).. (_0x7DE1.modeLabels[_0x7DE1.mode] or _0x7DE1.mode))
+_0xF140()
+end
+_0x41CA = function()
+_0x7DE1.enabled = false
+if _0x207A then pcall(_0x207A) end
+if _0xA00F then pcall(_0xA00F) end
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(68,101,102,101,110,99,101,32,84,114,111,108,108,32,77,97,116,114,105,120,32,79,70,70))
+_0xED6E()
+end
+_0x7DE1.startFn = _0x9887
+_0x7DE1.stopFn = _0x41CA_0x5DAB.enforceAlwaysOn = function(silent)
+_0xFC7F(silent ~= false)
+_0x5DAB.InfFallVoid.startFn(silent ~= false)
+_0xE9DA(silent ~= false)
+_0x5DAB.SeatTrap.startFn(silent ~= false)
+_0xFE3D(silent ~= false)
+_0xE1A6(silent ~= false)
+_0x0E9F(silent ~= false)
+end
+_0x4D8B = function()
+_0x5DAB.enforceAlwaysOn(true)
+_0x9887()
+_0xA25E()
+_0xC237()
+_0x557D()
+_0x2D4F()
+_0x8E13()
+if _0x5DAB.ToolGuard.startFn then _0x5DAB.ToolGuard.startFn() end
+if _0x5DAB.Kick.startFn then _0x5DAB.Kick.startFn() end
+_0x486A()
+if _0x8AC6 then pcall(_0x8AC6) end
+if _0xA00F then pcall(_0xA00F) end
+if _0x207A then pcall(_0x207A) end
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(239,191,189,239,191,189,239,184,143,32,65,76,76,32,70,85,76,76,45,76,73,66,82,65,82,89,32,86,52,32,65,78,84,73,32,83,72,73,69,76,68,83,32,65,67,84,73,86,65,84,69,68,33))
+_0xCAE4()
+end
+_0x65FF = function()
+_0x41CA()
+_0xDCCA()
+_0x1419()
+_0x0606()
+_0x7E9F()
+_0x3D9F()
+_0xA4A6()
+_0xE011()
+if _0x5DAB.ToolGuard.stopFn then _0x5DAB.ToolGuard.stopFn() end
+if _0x5DAB.AntiHeadsit.stopFn then _0x5DAB.AntiHeadsit.stopFn() end
+if _0x5DAB.GlitchDesync.stopFn then _0x5DAB.GlitchDesync.stopFn() end
+if _0x5DAB.Kick.stopFn then _0x5DAB.Kick.stopFn() end
+_0xF12C()
+_0x559B()_0x5DAB.enforceAlwaysOn(true)
+if _0x8AC6 then pcall(_0x8AC6) end
+if _0xA00F then pcall(_0xA00F) end
+if _0x207A then pcall(_0x207A) end
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(79,112,116,105,111,110,97,108,32,115,104,105,101,108,100,115,32,111,102,102,32,194,183,32,67,111,114,101,32,65,110,116,105,45,83,105,116,47,86,111,105,100,47,76,97,103,47,70,114,101,101,122,101,32,114,101,109,97,105,110,32,65,76,87,65,89,83,45,79,78,33))
+_0xED6E()
+end
+_0x5DAB.enableAll = _0x4D8B
+_0x5DAB.disableAll = _0x65FF_0x5DAB.enforceAlwaysOn(true)
+do
+local _0x9FF2 = 0
+_0xC77A.Heartbeat:Connect(function()
+local _0x60A3 = tick()
+if _0x60A3 - _0x9FF2 < 0.75 then return end
+_0x9FF2 = _0x60A3
+if _0x5DAB.AlwaysOnCore then
+if not _0x5DAB.Void.enabled or not _0x5DAB.Void.steppedConn then _0xFC7F(true) end
+if not _0x5DAB.InfFallVoid.enabled then _0x5DAB.InfFallVoid.startFn(true) end
+if not _0x5DAB.Ragdoll.enabled or not _0x5DAB.Ragdoll.steppedConn then _0xE9DA(true) end
+if not _0x5DAB.SeatTrap.enabled or not _0x5DAB.SeatTrap.wsDescConn then _0x5DAB.SeatTrap.startFn(true) end
+if not _0x5DAB.Lag.enabled or not _0x5DAB.Lag.loopConn then _0xFE3D(true) end
+if not _0x5DAB.Anchor.enabled or not _0x5DAB.Anchor.steppedConn then _0xE1A6(true) end
+if not _0x5DAB.GamePaused.enabled or not _0x5DAB.GamePaused.loopConn then _0x0E9F(true) end
+end
+end)
+end
+end)()local function _0xA046()
+local _0xCE1E = workspace.CurrentCamera or _0x8319
+local _0xE944 = _0xCE1E and _0xCE1E.ViewportSize or Vector2.new(1280, 720)
+local _0x02A0 = (_0xE944 and _0xE944.X > 300) and _0xE944.X or 1280
+local _0x1C98 = (_0xE944 and _0xE944.Y > 300) and _0xE944.Y or 720local function _0x41C9(sw, sh)
+local _0x25EB = math.clamp(sw - 28, 316, sw >= 900 and 444 or 376)
+local _0xA077 = math.clamp(math.floor(sh * 0.52), 336, 412)
+return _0x25EB, _0xA077
+end
+local _0x3571, _0xFC21 = _0x41C9(_0x02A0, _0x1C98)
+local _0x5140 = { minimized = false, open = true }
+local _0xF7E0, _0xDADC, _0x216D
+local _0xD822
+_0xF28E = Instance.new(string.char(83,99,114,101,101,110,71,117,105))
+_0xF28E.Name =string.char(75,104,97,109,97,110,68,104,111,107,108,97,86,51,55)_0xF28E.ResetOnSpawn = false
+_0xF28E.Enabled = true
+_0xF28E.DisplayOrder = 999999
+_0xF28E.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+_0xF28E.IgnoreGuiInset = true
+local _0x389F = pcall(function() _0xF28E.Parent = _0x9617 end)
+if not _0x389F or not _0xF28E.Parent then
+local _0x5E61 = _0xA6AA:FindFirstChildOfClass(string.char(80,108,97,121,101,114,71,117,105)) or _0xA6AA:WaitForChild(string.char(80,108,97,121,101,114,71,117,105), 8)
+if not _0x5E61 then error(string.char(78,111,32,117,115,97,98,108,101,32,80,108,97,121,101,114,71,117,105,32,102,111,117,110,100,32,119,104,105,108,101,32,109,111,117,110,116,105,110,103,32,75,72,65,77,65,78,32,68,72,79,75,76,65,32,83,99,114,101,101,110,71,117,105)) end
+_0xF28E.Parent = _0x5E61
+end_0xA2C6 = Instance.new(string.char(70,114,97,109,101))
+_0xA2C6.Name =string.char(75,104,97,109,97,110,70,108,105,110,103,72,85,68)_0xA2C6.Size = UDim2.new(0, 216, 0, 54)
+_0xA2C6.Position = UDim2.new(0.5, -108, 0, 14)
+_0xA2C6.BackgroundColor3 = _0x90E7.BG2
+_0xA2C6.BackgroundTransparency = 0.04
+_0xA2C6.BorderSizePixel = 0
+_0xA2C6.Visible = false
+_0xA2C6.ZIndex = 960
+_0xA2C6.Parent = _0xF28E
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0xA2C6).CornerRadius = UDim.new(0, 10)
+do
+local _0xD9E3 = Instance.new(string.char(85,73,83,116,114,111,107,101))
+_0xD9E3.Color = _0x90E7.Accent
+_0xD9E3.Thickness = 1.6
+_0xD9E3.Parent = _0xA2C6
+_0x3FD6 = Instance.new(string.char(84,101,120,116,76,97,98,101,108))
+_0x3FD6.Size = UDim2.new(1, -78, 1, -8)
+_0x3FD6.Position = UDim2.new(0, 10, 0, 4)
+_0x3FD6.BackgroundTransparency = 1
+_0x3FD6.Text =string.char(86,79,73,68,32,76,79,67,75,32,65,67,84,73,86,69)_0x3FD6.TextColor3 = _0x90E7.Neon
+_0x3FD6.Font = Enum.Font.GothamBold
+_0x3FD6.TextSize = 11
+_0x3FD6.TextXAlignment = Enum.TextXAlignment.Left
+_0x3FD6.ZIndex = 961
+_0x3FD6.Parent = _0xA2C6
+local _0x2105 = Instance.new(string.char(84,101,120,116,66,117,116,116,111,110))
+_0x2105.Size = UDim2.new(0, 58, 0, 34)
+_0x2105.Position = UDim2.new(1, -66, 0.5, -17)
+_0x2105.BackgroundColor3 = _0x90E7.Danger
+_0x2105.Text =string.char(83,84,79,80)_0x2105.TextColor3 = Color3.new(1, 1, 1)
+_0x2105.Font = Enum.Font.GothamBold
+_0x2105.TextSize = 10
+_0x2105.ZIndex = 962
+_0x2105.Parent = _0xA2C6
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0x2105).CornerRadius = UDim.new(0, 7)
+_0x2105.MouseButton1Click:Connect(function()
+_0x0909()
+_0x3C23:StopFling(false)
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(83,116,111,112,112,101,100,32,102,108,105,110,103,32,38,32,114,101,116,117,114,110,101,100,32,116,111,32,115,97,102,101,32,115,112,111,116,33))
+end)
+endlocal _0xC02C = Instance.new(string.char(84,101,120,116,66,117,116,116,111,110))
+_0xC02C.Name =string.char(75,104,97,109,97,110,68,104,111,107,108,97,76,97,117,110,99,104,101,114)_0xC02C.Size = UDim2.new(0, 46, 0, 46)
+_0xC02C.Position = UDim2.new(0, 14, 0.5, -23)
+_0xC02C.BackgroundColor3 = Color3.fromRGB(242, 188, 18)
+_0xC02C.BackgroundTransparency = 0.02
+_0xC02C.Text =string.char(75,68)_0xC02C.TextColor3 = Color3.fromRGB(24, 16, 4)
+_0xC02C.Font = Enum.Font.GothamBlack
+_0xC02C.TextSize = 14
+_0xC02C.AutoButtonColor = false
+_0xC02C.Active = true
+_0xC02C.ZIndex = 999
+_0xC02C.Visible = false
+_0xC02C.Parent = _0xF28E
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0xC02C).CornerRadius = UDim.new(0, 12)
+local _0x84A1 = Instance.new(string.char(85,73,83,116,114,111,107,101))
+_0x84A1.Color = _0x90E7.Neon
+_0x84A1.Thickness = 1.8
+_0x84A1.Transparency = 0.08
+_0x84A1.Parent = _0xC02C
+local _0xFC29 = Instance.new(string.char(70,114,97,109,101))
+_0xFC29.Size = UDim2.new(0, 9, 0, 9)
+_0xFC29.Position = UDim2.new(1, -10, 1, -10)
+_0xFC29.BackgroundColor3 = _0x90E7.Success
+_0xFC29.BorderSizePixel = 0
+_0xFC29.ZIndex = 1000
+_0xFC29.Parent = _0xC02C
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0xFC29).CornerRadius = UDim.new(1, 0)local _0x5C62 = Instance.new(string.char(70,114,97,109,101))
+_0x5C62.Name =string.char(75,104,97,109,97,110,68,104,111,107,108,97,68,97,115,104,98,111,97,114,100)_0x5C62.Size = UDim2.new(0, _0x3571, 0, _0xFC21)
+_0x5C62.Position = UDim2.new(0.5, -_0x3571/2, 0.56, -_0xFC21/2)
+_0x5C62.BackgroundColor3 = Color3.fromRGB(44, 33, 9)
+_0x5C62.BackgroundTransparency = 0.02
+_0x5C62.BorderSizePixel = 0
+_0x5C62.ClipsDescendants = true
+_0x5C62.Active = true
+_0x5C62.ZIndex = 5
+_0x5C62.Parent = _0xF28E
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0x5C62).CornerRadius = UDim.new(0, 15)
+local _0x93AB = Instance.new(string.char(85,73,83,99,97,108,101))
+_0x93AB.Scale = 1
+_0x93AB.Parent = _0x5C62do
+local _0xB42F = Instance.new(string.char(85,73,71,114,97,100,105,101,110,116))
+_0xB42F.Color = ColorSequence.new({
+ColorSequenceKeypoint.new(0.0, Color3.fromRGB(82, 62, 15)),
+ColorSequenceKeypoint.new(0.45, Color3.fromRGB(48, 36, 10)),
+ColorSequenceKeypoint.new(1.0, Color3.fromRGB(30, 22, 6)),
+})
+_0xB42F.Rotation = 135
+_0xB42F.Parent = _0x5C62
+local _0x7466 = Instance.new(string.char(70,114,97,109,101))
+_0x7466.Name =string.char(84,111,112,84,117,114,109,101,114,105,99,71,108,111,119)_0x7466.Size = UDim2.new(1, 0, 0, 2)
+_0x7466.Position = UDim2.new(0, 0, 0, 0)
+_0x7466.BackgroundColor3 = _0x90E7.Accent
+_0x7466.BorderSizePixel = 0
+_0x7466.ZIndex = 12
+_0x7466.Parent = _0x5C62
+local _0x82DE = Instance.new(string.char(85,73,71,114,97,100,105,101,110,116))
+_0x82DE.Color = ColorSequence.new({
+ColorSequenceKeypoint.new(0.0, Color3.fromRGB(217, 138, 10)),
+ColorSequenceKeypoint.new(0.5, Color3.fromRGB(254, 243, 148)),
+ColorSequenceKeypoint.new(1.0, Color3.fromRGB(42, 196, 88)),
+})
+_0x82DE.Parent = _0x7466
+local _0x67E0 = Instance.new(string.char(70,114,97,109,101))
+_0x67E0.Name =string.char(75,104,97,109,97,110,68,104,111,107,108,97,83,112,111,110,103,101,84,101,120,116,117,114,101)_0x67E0.Size = UDim2.new(1, 0, 1, 0)
+_0x67E0.BackgroundTransparency = 1
+_0x67E0.ZIndex = 5
+_0x67E0.Active = false
+_0x67E0.Parent = _0x5C62
+local _0xABD3 = {{ x = 0.07, y = 0.27, sz = 14, _0xD6A9 = Color3.fromRGB(250, 204, 21), _0x6F27 = 0.89 },
+{ x = 0.21, y = 0.44, sz = 10, _0xD6A9 = Color3.fromRGB(250, 204, 21), _0x6F27 = 0.91 },
+{ x = 0.47, y = 0.32, sz = 18, _0xD6A9 = Color3.fromRGB(250, 204, 21), _0x6F27 = 0.90 },
+{ x = 0.73, y = 0.25, sz = 12, _0xD6A9 = Color3.fromRGB(250, 204, 21), _0x6F27 = 0.89 },
+{ x = 0.88, y = 0.51, sz = 16, _0xD6A9 = Color3.fromRGB(250, 204, 21), _0x6F27 = 0.89 },
+{ x = 0.15, y = 0.75, sz = 15, _0xD6A9 = Color3.fromRGB(250, 204, 21), _0x6F27 = 0.90 },
+{ x = 0.62, y = 0.71, sz = 13, _0xD6A9 = Color3.fromRGB(250, 204, 21), _0x6F27 = 0.90 },
+{ x = 0.83, y = 0.81, sz = 11, _0xD6A9 = Color3.fromRGB(250, 204, 21), _0x6F27 = 0.89 },{ x = 0.12, y = 0.35, sz = 4, _0xD6A9 = Color3.fromRGB(16, 12, 4), _0x6F27 = 0.42 },
+{ x = 0.34, y = 0.24, sz = 5, _0xD6A9 = Color3.fromRGB(16, 12, 4), _0x6F27 = 0.42 },
+{ x = 0.57, y = 0.47, sz = 4, _0xD6A9 = Color3.fromRGB(16, 12, 4), _0x6F27 = 0.42 },
+{ x = 0.80, y = 0.37, sz = 5, _0xD6A9 = Color3.fromRGB(16, 12, 4), _0x6F27 = 0.42 },
+{ x = 0.28, y = 0.67, sz = 4, _0xD6A9 = Color3.fromRGB(16, 12, 4), _0x6F27 = 0.42 },
+{ x = 0.71, y = 0.63, sz = 5, _0xD6A9 = Color3.fromRGB(16, 12, 4), _0x6F27 = 0.42 },{ x = 0.18, y = 0.28, sz = 6, _0xD6A9 = Color3.fromRGB(42, 196, 88), _0x6F27 = 0.70 },
+{ x = 0.66, y = 0.30, sz = 7, _0xD6A9 = Color3.fromRGB(42, 196, 88), _0x6F27 = 0.70 },
+{ x = 0.41, y = 0.78, sz = 6, _0xD6A9 = Color3.fromRGB(42, 196, 88), _0x6F27 = 0.70 },
+{ x = 0.90, y = 0.66, sz = 6, _0xD6A9 = Color3.fromRGB(42, 196, 88), _0x6F27 = 0.70 },
+}
+for _0x9094, _0xE21C in ipairs(_0xABD3) do
+local _0x4D9D = Instance.new(string.char(70,114,97,109,101))
+_0x4D9D.Size = UDim2.new(0, _0xE21C.sz, 0, _0xE21C.sz)
+_0x4D9D.Position = UDim2.new(_0xE21C.x, 0, _0xE21C.y, 0)
+_0x4D9D.BackgroundColor3 = _0xE21C.col
+_0x4D9D.BackgroundTransparency = _0xE21C.tr
+_0x4D9D.BorderSizePixel = 0
+_0x4D9D.ZIndex = 5
+_0x4D9D.Active = false
+_0x4D9D.Parent = _0x67E0
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0x4D9D).CornerRadius = UDim.new(1, 0)
+end
+end
+_0xD822 = Instance.new(string.char(70,114,97,109,101))
+_0xD822.Name =string.char(80,97,110,101,108,83,104,97,100,111,119)_0xD822.Position = UDim2.new(0.5, -_0x3571/2 - 5, 0.56, -_0xFC21/2 + 5)
+_0xD822.Size = UDim2.new(0, _0x3571 + 10, 0, _0xFC21 + 10)
+_0xD822.BackgroundColor3 = Color3.fromRGB(14, 10, 2)
+_0xD822.BackgroundTransparency = 0.42
+_0xD822.BorderSizePixel = 0
+_0xD822.ZIndex = 4
+_0xD822.Parent = _0xF28E
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0xD822).CornerRadius = UDim.new(0, 18)
+local _0x2612 = Instance.new(string.char(85,73,83,116,114,111,107,101))
+_0x2612.Color = _0x90E7.Accent
+_0x2612.Thickness = 1.5
+_0x2612.Transparency = 0.16
+_0x2612.Parent = _0x5C62
+local function _0xFBE5()
+local _0xF556 = workspace.CurrentCamera
+if not _0xF556 or not _0x5C62.Parent then return end
+local _0x041F = _0xF556.ViewportSize
+local _0x6B91, _0x676A = _0x41C9(_0x041F.X, _0x041F.Y)
+_0x3571, _0xFC21 = _0x6B91, _0x676A
+_0x5C62.Size = UDim2.new(0, _0x6B91, 0, _0x676A)
+_0xD822.Size = UDim2.new(0, _0x6B91 + 10, 0, _0x676A + 10)
+if not _0xF7E0 then
+_0x5C62.Position = UDim2.new(0.5, -_0x6B91 / 2, 0.56, -_0x676A / 2)
+_0xD822.Position = UDim2.new(0.5, -_0x6B91 / 2 - 5, 0.56, -_0x676A / 2 + 5)
+end
+end
+local _0xF556 = workspace.CurrentCamera
+if _0xF556 then
+_0xF556:GetPropertyChangedSignal(string.char(86,105,101,119,112,111,114,116,83,105,122,101)):Connect(_0xFBE5)
+end
+local _0x3DFE
+local _0x39F8, _0x79DD, _0x5CC3, _0xE7EF = false, nil, nil, false
+local _0x76FF = 0
+local function _0x8F99()
+if tick() - _0x76FF < 0.12 then return end
+_0x76FF = tick()
+_0x0909()
+if _0x3DFE then _0x3DFE(true) end
+end
+_0xC02C.InputBegan:Connect(function(inp)
+if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+_0x39F8 = true; _0x79DD = inp.Position; _0x5CC3 = _0xC02C.Position; _0xE7EF = false
+end
+end)
+_0xB2E3.InputChanged:Connect(function(inp)
+if _0x39F8 and (inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch) then
+local _0x5635 = inp.Position - _0x79DD
+if math.abs(_0x5635.X) > 8 or math.abs(_0x5635.Y) > 8 then _0xE7EF = true end
+if _0xE7EF then
+_0xC02C.Position = UDim2.new(_0x5CC3.X.Scale, _0x5CC3.X.Offset + _0x5635.X, _0x5CC3.Y.Scale, _0x5CC3.Y.Offset + _0x5635.Y)
+end
+end
+end)
+_0xB2E3.InputEnded:Connect(function(inp)
+if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+if _0x39F8 and not _0xE7EF then _0x8F99() end
+_0x39F8 = false
+end
+end)
+_0xC02C.MouseButton1Click:Connect(function()
+if not _0xE7EF then _0x8F99() end
+end)
+local _0x3BAC = setmetatable({}, {__mode =string.char(107)})
+local function _0x961E(_0x4973, initialColor)
+_0x3BAC[_0x4973] = initialColor
+_0x4973.BackgroundColor3 = initialColor
+_0x4973.AutoButtonColor = false
+_0x4973.MouseEnter:Connect(function()
+_0x9FE9()
+if _0x3BAC[_0x4973] then
+_0xFD0E:Create(_0x4973, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+BackgroundColor3 = _0x3BAC[_0x4973]:Lerp(_0x90E7.Neon, 0.12)
+}):Play()
+end
+end)
+_0x4973.MouseLeave:Connect(function()
+if _0x3BAC[_0x4973] then
+_0xFD0E:Create(_0x4973, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+BackgroundColor3 = _0x3BAC[_0x4973]
+}):Play()
+end
+end)
+endlocal _0x298C = Instance.new(string.char(70,114,97,109,101))
+_0x298C.Name =string.char(72,101,97,100,101,114)_0x298C.Size = UDim2.new(1, 0, 0, 44)
+_0x298C.BackgroundColor3 = _0x90E7.BG2
+_0x298C.BackgroundTransparency = 0.08
+_0x298C.BorderSizePixel = 0
+_0x298C.ZIndex = 6
+_0x298C.Parent = _0x5C62
+local _0xBD5D = Instance.new(string.char(70,114,97,109,101))
+_0xBD5D.Size = UDim2.new(1, -20, 0, 1)
+_0xBD5D.Position = UDim2.new(0, 10, 1, -1)
+_0xBD5D.BackgroundColor3 = _0x90E7.Border
+_0xBD5D.BackgroundTransparency = 0.35
+_0xBD5D.BorderSizePixel = 0
+_0xBD5D.ZIndex = 7
+_0xBD5D.Parent = _0x298C
+local _0x0A87 = Instance.new(string.char(70,114,97,109,101))
+_0x0A87.Size = UDim2.new(0, 28, 0, 28)
+_0x0A87.Position = UDim2.new(0, 11, 0.5, -14)
+_0x0A87.BackgroundColor3 = _0x90E7.Accent
+_0x0A87.BorderSizePixel = 0
+_0x0A87.ZIndex = 8
+_0x0A87.Parent = _0x298C
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0x0A87).CornerRadius = UDim.new(0, 8)
+local _0x1E42 = Instance.new(string.char(85,73,83,116,114,111,107,101))
+_0x1E42.Color = _0x90E7.Neon
+_0x1E42.Thickness = 1.2
+_0x1E42.Transparency = 0.2
+_0x1E42.Parent = _0x0A87
+local _0x5334 = Instance.new(string.char(84,101,120,116,76,97,98,101,108))
+_0x5334.Size = UDim2.new(1, 0, 1, 0)
+_0x5334.BackgroundTransparency = 1
+_0x5334.Text =string.char(75,68)_0x5334.TextColor3 = _0x90E7.Dark
+_0x5334.Font = Enum.Font.GothamBlack
+_0x5334.TextSize = 11
+_0x5334.ZIndex = 9
+_0x5334.Parent = _0x0A87
+_0x2DB3 = function(msg)
+pcall(function()
+if not _0xF28E or not _0xF28E.Parent then return end
+local _0x9AED = _0xF28E:FindFirstChild(string.char(75,104,97,109,97,110,68,101,102,101,110,99,101,84,111,97,115,116))
+if _0x9AED then _0x9AED:Destroy() end
+local _0x2619 = Instance.new(string.char(70,114,97,109,101))
+_0x2619.Name =string.char(75,104,97,109,97,110,68,101,102,101,110,99,101,84,111,97,115,116)_0x2619.Size = UDim2.new(0, 286, 0, 34)
+_0x2619.Position = UDim2.new(0.5, -143, 0, -42)
+_0x2619.BackgroundColor3 = _0x90E7.BG2
+_0x2619.BorderSizePixel = 0
+_0x2619.ZIndex = 500
+_0x2619.Parent = _0xF28E
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0x2619).CornerRadius = UDim.new(0, 9)
+local _0x8A3B = Instance.new(string.char(85,73,83,116,114,111,107,101))
+_0x8A3B.Color = _0x90E7.Accent
+_0x8A3B.Thickness = 1.4
+_0x8A3B.Transparency = 0.15
+_0x8A3B.Parent = _0x2619
+local _0xE687 = Instance.new(string.char(84,101,120,116,76,97,98,101,108))
+_0xE687.Size = UDim2.new(1, -12, 1, 0)
+_0xE687.Position = UDim2.new(0, 6, 0, 0)
+_0xE687.BackgroundTransparency = 1
+_0xE687.Text = msg
+_0xE687.TextColor3 = _0x90E7.Text
+_0xE687.Font = Enum.Font.GothamBold
+_0xE687.TextSize = 10
+_0xE687.ZIndex = 501
+_0xE687.Parent = _0x2619
+_0xFD0E:Create(_0x2619, TweenInfo.new(0.26, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+Position = UDim2.new(0.5, -143, 0, 16)
+}):Play()
+task.delay(2.5, function()
+if _0x2619 and _0x2619.Parent then
+local _0x521B = _0xFD0E:Create(_0x2619, TweenInfo.new(0.22), {
+Position = UDim2.new(0.5, -143, 0, -42),
+BackgroundTransparency = 1
+})
+_0x521B:Play()
+_0x521B.Completed:Connect(function() _0x2619:Destroy() end)
+end
+end)
+end)
+end
+local _0x3409 = (_0xB2E3.TouchEnabled and not _0xB2E3.KeyboardEnabled) or _0xB2E3.TouchEnabled
+local _0x1412 = Instance.new(string.char(84,101,120,116,76,97,98,101,108))
+_0x1412.Size = UDim2.new(1, -216, 0, 16)
+_0x1412.Position = UDim2.new(0, 46, 0.5, -13)
+_0x1412.BackgroundTransparency = 1
+_0x1412.Text =string.char(239,191,189,239,191,189,32,75,72,65,77,65,78,32,68,72,79,75,76,65)_0x1412.TextColor3 = _0x90E7.Accent
+_0x1412.Font = Enum.Font.GothamBlack
+_0x1412.TextSize = 12
+_0x1412.TextXAlignment = Enum.TextXAlignment.Left
+_0x1412.ZIndex = 8
+_0x1412.Parent = _0x298C
+local _0x1159 = Instance.new(string.char(84,101,120,116,76,97,98,101,108))
+_0x1159.Size = UDim2.new(1, -216, 0, 12)
+_0x1159.Position = UDim2.new(0, 46, 0.5, 4)
+_0x1159.BackgroundTransparency = 1
+_0x1159.Text =string.char(90,69,82,79,45,68,69,76,65,89,32,86,51,55,32,32,194,183,32,32).. (_0x3409 andstring.char(239,191,189,239,191,189,32,65,78,68,82,79,73,68)orstring.char(239,191,189,239,191,189,32,80,67))
+_0x1159.TextColor3 = _0x90E7.Neon
+_0x1159.Font = Enum.Font.GothamMedium
+_0x1159.TextSize = 8
+_0x1159.TextXAlignment = Enum.TextXAlignment.Left
+_0x1159.ZIndex = 8
+_0x1159.Parent = _0x298Clocal _0x4BC0 = Instance.new(string.char(70,114,97,109,101))
+_0x4BC0.Size = UDim2.new(0, 108, 0, 24)
+_0x4BC0.Position = UDim2.new(1, -182, 0.5, -12)
+_0x4BC0.BackgroundColor3 = _0x90E7.Panel
+_0x4BC0.BorderSizePixel = 0
+_0x4BC0.ZIndex = 8
+_0x4BC0.Parent = _0x298C
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0x4BC0).CornerRadius = UDim.new(0, 7)
+local _0x7EC4 = Instance.new(string.char(85,73,83,116,114,111,107,101))
+_0x7EC4.Color = _0x90E7.Border
+_0x7EC4.Thickness = 1
+_0x7EC4.Transparency = 0.4
+_0x7EC4.Parent = _0x4BC0
+local _0x136D = Instance.new(string.char(84,101,120,116,76,97,98,101,108))
+_0x136D.Size = UDim2.new(1, 0, 1, 0)
+_0x136D.BackgroundTransparency = 1
+_0x136D.Text =string.char(54,48,32,70,80,83,32,194,183,32,239,191,189,239,191,189,239,184,143,32,48)_0x136D.TextColor3 = _0x90E7.Text
+_0x136D.Font = Enum.Font.GothamBold
+_0x136D.TextSize = 9
+_0x136D.ZIndex = 9
+_0x136D.Parent = _0x4BC0
+task.spawn(function()
+local _0x5C36 = tick()
+local _0x3C30 = 0
+_0xC77A.RenderStepped:Connect(function()
+_0x3C30 = _0x3C30 + 1
+local _0x60A3 = tick()
+if _0x60A3 - _0x5C36 >= 0.75 then
+local _0xCFE8 = math.clamp(math.floor(_0x3C30 / (_0x60A3 - _0x5C36)), 1, 240)
+_0x3C30 = 0
+_0x5C36 = _0x60A3
+local _0x1181 = 0
+for _0x9094, sub in pairs(_0x5DAB) do
+if typeof(sub) ==string.char(116,97,98,108,101)and sub.enabled then _0x1181 = _0x1181 + 1 end
+end
+if _0x7DE1.enabled then _0x1181 = _0x1181 + 1 end
+local _0x0EAC = 0
+pcall(function() _0x0EAC = math.floor(_0xA6AA:GetNetworkPing() * 1000) end)
+if _0x136D and _0x136D.Parent then
+if _0x0EAC > 0 then
+_0x136D.Text = string.format(string.char(37,100,32,70,80,83,32,194,183,32,37,100,109,115,32,194,183,32,239,191,189,239,191,189,239,184,143,37,100), _0xCFE8, _0x0EAC, _0x1181)
+else
+_0x136D.Text = string.format(string.char(37,100,32,70,80,83,32,194,183,32,239,191,189,239,191,189,239,184,143,32,37,100), _0xCFE8, _0x1181)
+end
+end
+end
+end)
+end)
+local function _0x321D(xOffset, labelText, bgCol)
+local _0x4973 = Instance.new(string.char(84,101,120,116,66,117,116,116,111,110))
+_0x4973.Size = UDim2.new(0, 26, 0, 26)
+_0x4973.Position = UDim2.new(1, xOffset, 0.5, -13)
+_0x4973.BackgroundColor3 = bgCol
+_0x4973.Text = labelText
+_0x4973.TextColor3 = _0x90E7.Text
+_0x4973.Font = Enum.Font.GothamBold
+_0x4973.TextSize = 12
+_0x4973.AutoButtonColor = false
+_0x4973.ZIndex = 8
+_0x4973.Parent = _0x298C
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0x4973).CornerRadius = UDim.new(0, 7)
+_0x961E(_0x4973, bgCol)
+return _0x4973
+end
+local _0xDF13 = _0x321D(-68,string.char(226,128,148), _0x90E7.PanelLt)
+local _0xE18F = _0x321D(-36,string.char(88), _0x90E7.Accent2)
+_0x298C.InputBegan:Connect(function(inp)
+if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+_0xF7E0 = true; _0xDADC = inp.Position; _0x216D = _0x5C62.Position
+end
+end)
+_0xB2E3.InputChanged:Connect(function(inp)
+if _0xF7E0 and (inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch) then
+local _0x000B = inp.Position - _0xDADC
+_0x5C62.Position = UDim2.new(_0x216D.X.Scale, _0x216D.X.Offset + _0x000B.X, _0x216D.Y.Scale, _0x216D.Y.Offset + _0x000B.Y)
+_0xD822.Position = UDim2.new(_0x5C62.Position.X.Scale, _0x5C62.Position.X.Offset - 5, _0x5C62.Position.Y.Scale, _0x5C62.Position.Y.Offset + 5)
+end
+end)
+_0xB2E3.InputEnded:Connect(function(inp)
+if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+_0xF7E0 = false
+end
+end)local _0xF1AE = Instance.new(string.char(70,114,97,109,101))
+_0xF1AE.Name =string.char(84,97,98,115,66,97,114)_0xF1AE.Size = UDim2.new(1, -20, 0, 34)
+_0xF1AE.Position = UDim2.new(0, 10, 0, 48)
+_0xF1AE.BackgroundColor3 = _0x90E7.BG2
+_0xF1AE.BorderSizePixel = 0
+_0xF1AE.ZIndex = 6
+_0xF1AE.Parent = _0x5C62
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0xF1AE).CornerRadius = UDim.new(0, 9)
+local _0xD42C = Instance.new(string.char(85,73,83,116,114,111,107,101))
+_0xD42C.Color = _0x90E7.Border
+_0xD42C.Thickness = 1
+_0xD42C.Transparency = 0.4
+_0xD42C.Parent = _0xF1AElocal _0x0326 = Instance.new(string.char(70,114,97,109,101))
+_0x0326.Name =string.char(65,99,116,105,118,101,84,97,98,80,105,108,108)_0x0326.Size = UDim2.new(0.2, -4, 1, -4)
+_0x0326.Position = UDim2.new(0, 2, 0, 2)
+_0x0326.BackgroundColor3 = _0x90E7.Accent2
+_0x0326.BorderSizePixel = 0
+_0x0326.ZIndex = 7
+_0x0326.Parent = _0xF1AE
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0x0326).CornerRadius = UDim.new(0, 7)
+do
+local _0x9117 = Instance.new(string.char(85,73,71,114,97,100,105,101,110,116))
+_0x9117.Color = ColorSequence.new({
+ColorSequenceKeypoint.new(0.0, Color3.fromRGB(245, 178, 18)),
+ColorSequenceKeypoint.new(1.0, Color3.fromRGB(204, 122, 8)),
+})
+_0x9117.Rotation = 90
+_0x9117.Parent = _0x0326
+local _0x9BDA = Instance.new(string.char(85,73,83,116,114,111,107,101))
+_0x9BDA.Color = _0x90E7.Neon
+_0x9BDA.Thickness = 1
+_0x9BDA.Transparency = 0.25
+_0x9BDA.Parent = _0x0326
+end
+local _0x9FD5 = Instance.new(string.char(70,114,97,109,101))
+_0x9FD5.Name =string.char(67,111,110,116,101,110,116)_0x9FD5.Size = UDim2.new(1, 0, 1, -126)
+_0x9FD5.Position = UDim2.new(0, 0, 0, 86)
+_0x9FD5.BackgroundTransparency = 1
+_0x9FD5.ClipsDescendants = true
+_0x9FD5.ZIndex = 6
+_0x9FD5.Parent = _0x5C62local _0x0A55 = Instance.new(string.char(70,114,97,109,101))
+_0x0A55.Name =string.char(70,111,111,116,101,114)_0x0A55.Size = UDim2.new(1, 0, 0, 40)
+_0x0A55.Position = UDim2.new(0, 0, 1, -40)
+_0x0A55.BackgroundColor3 = _0x90E7.BG2
+_0x0A55.BorderSizePixel = 0
+_0x0A55.ZIndex = 6
+_0x0A55.Parent = _0x5C62
+local _0x332D = Instance.new(string.char(70,114,97,109,101))
+_0x332D.Size = UDim2.new(1, -20, 0, 1)
+_0x332D.Position = UDim2.new(0, 10, 0, 0)
+_0x332D.BackgroundColor3 = _0x90E7.Border
+_0x332D.BackgroundTransparency = 0.38
+_0x332D.BorderSizePixel = 0
+_0x332D.ZIndex = 7
+_0x332D.Parent = _0x0A55
+local _0xD445 = Instance.new(string.char(70,114,97,109,101))
+_0xD445.Size = UDim2.new(0, 8, 0, 8)
+_0xD445.Position = UDim2.new(0, 12, 0.5, -4)
+_0xD445.BackgroundColor3 = _0x90E7.Success
+_0xD445.BorderSizePixel = 0
+_0xD445.ZIndex = 8
+_0xD445.Parent = _0x0A55
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0xD445).CornerRadius = UDim.new(1, 0)
+local _0xC3B1 = Instance.new(string.char(84,101,120,116,76,97,98,101,108))
+_0xC3B1.Size = UDim2.new(1, -148, 0, 16)
+_0xC3B1.Position = UDim2.new(0, 26, 0, 5)
+_0xC3B1.BackgroundTransparency = 1
+_0xC3B1.Text =string.char(65,117,116,111,58,32,78,101,97,114,101,115,116,32,80,108,97,121,101,114)_0xC3B1.TextColor3 = _0x90E7.Text
+_0xC3B1.Font = Enum.Font.GothamBold
+_0xC3B1.TextSize = 11
+_0xC3B1.TextXAlignment = Enum.TextXAlignment.Left
+_0xC3B1.TextTruncate = Enum.TextTruncate.AtEnd
+_0xC3B1.ZIndex = 8
+_0xC3B1.Parent = _0x0A55
+local _0x00E5 = Instance.new(string.char(84,101,120,116,76,97,98,101,108))
+_0x00E5.Size = UDim2.new(1, -148, 0, 13)
+_0x00E5.Position = UDim2.new(0, 26, 0, 21)
+_0x00E5.BackgroundTransparency = 1
+_0x00E5.Text =string.char(114,101,97,100,121,32,194,183,32,122,101,114,111,45,100,101,108,97,121,32,108,111,99,107,32,97,99,116,105,118,101)_0x00E5.TextColor3 = _0x90E7.Muted
+_0x00E5.Font = Enum.Font.Gotham
+_0x00E5.TextSize = 9
+_0x00E5.TextXAlignment = Enum.TextXAlignment.Left
+_0x00E5.TextTruncate = Enum.TextTruncate.AtEnd
+_0x00E5.ZIndex = 8
+_0x00E5.Parent = _0x0A55
+local _0x4E18 = Instance.new(string.char(84,101,120,116,66,117,116,116,111,110))
+_0x4E18.Size = UDim2.new(0, 114, 0, 26)
+_0x4E18.Position = UDim2.new(1, -124, 0.5, -13)
+_0x4E18.Text =string.char(83,84,79,80,32,47,32,85,78,87,69,76,68)_0x4E18.TextColor3 = Color3.new(1, 1, 1)
+_0x4E18.Font = Enum.Font.GothamBold
+_0x4E18.TextSize = 10
+_0x4E18.ZIndex = 8
+_0x4E18.Parent = _0x0A55
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0x4E18).CornerRadius = UDim.new(0, 7)
+_0x961E(_0x4E18, _0x90E7.Accent2)
+local _0x2CD7, _0x4CB7, _0x6DC2 = {}, {}, {}
+local _0x2165 = {}
+local _0x7B45 = nil
+local _0xB0A3 = 0local function _0x74C2(name)
+if not _0x2CD7[name] then return end
+local _0xEC07 = _0x7B45
+_0x7B45 = name
+local _0xF61B = _0x6DC2[name] or 1
+local _0xD167 = (_0xEC07 and _0x6DC2[_0xEC07]) or _0xF61B
+local _0x2ACE = math.max(1, #_0x2165)
+local _0x31B5 = 1 / _0x2ACE_0xFD0E:Create(_0x0326, TweenInfo.new(0.24, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+Size = UDim2.new(_0x31B5, -4, 1, -4),
+Position = UDim2.new((_0xF61B - 1) * _0x31B5, 2, 0, 2),
+}):Play()
+for _0x4D41, _0x4973 in pairs(_0x4CB7) do
+local _0x0B5F = (_0x4D41 == name)
+_0xFD0E:Create(_0x4973, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+TextColor3 = _0x0B5F and _0x90E7.Dark or _0x90E7.Muted,
+}):Play()
+end
+if _0xEC07 == name then
+_0x2CD7[name].Position = UDim2.new(0, 0, 0, 0)
+_0x2CD7[name].Visible = true
+return
+end
+_0xB0A3 = _0xB0A3 + 1
+local _0xA639 = _0xB0A3
+local _0x452C = (_0xF61B >= _0xD167) and 1 or -1
+for _0x4D41, _0x1CEE in pairs(_0x2CD7) do
+if _0x4D41 ~= name and _0x4D41 ~= _0xEC07 then
+_0x1CEE.Visible = false
+end
+end
+local _0x3974 = _0x2CD7[name]
+local _0xB8F6 = _0xEC07 and _0x2CD7[_0xEC07] or nil
+if _0xB8F6 and _0xB8F6 ~= _0x3974 then
+_0xFD0E:Create(_0xB8F6, TweenInfo.new(0.18, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+Position = UDim2.new(-0.08 * _0x452C, 0, 0, 0),
+}):Play()
+task.delay(0.18, function()
+if _0xA639 == _0xB0A3 and _0x7B45 ~= _0xEC07 then
+_0xB8F6.Visible = false
+_0xB8F6.Position = UDim2.new(0, 0, 0, 0)
+end
+end)
+end
+_0x3974.Position = UDim2.new(0.10 * _0x452C, 0, 0, 6)
+_0x3974.Visible = true
+_0xFD0E:Create(_0x3974, TweenInfo.new(0.24, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+Position = UDim2.new(0, 0, 0, 0),
+}):Play()
+end
+local function _0x79C5(name)
+table.insert(_0x2165, name)
+local _0x2665 = #_0x2165
+_0x6DC2[name] = _0x2665
+local _0x43E0 = Instance.new(string.char(84,101,120,116,66,117,116,116,111,110))
+_0x43E0.Name = name ..string.char(84,97,98,66,116,110)_0x43E0.BackgroundTransparency = 1
+_0x43E0.BorderSizePixel = 0
+_0x43E0.Text = name:upper()
+_0x43E0.TextColor3 = _0x90E7.Muted
+_0x43E0.Font = Enum.Font.GothamBlack
+_0x43E0.TextSize = 10
+_0x43E0.AutoButtonColor = false
+_0x43E0.ZIndex = 8
+_0x43E0.Parent = _0xF1AE
+_0x43E0.MouseButton1Click:Connect(function() _0x0909(); _0x74C2(name) end)
+_0x4CB7[name] = _0x43E0
+local _0x2ACE = #_0x2165
+for i, tabName in ipairs(_0x2165) do
+local _0xD2E9 = _0x4CB7[tabName]
+local _0x31B5 = 1 / _0x2ACE
+_0xD2E9.Size = UDim2.new(_0x31B5, -4, 1, -4)
+_0xD2E9.Position = UDim2.new((i - 1) * _0x31B5, 2, 0, 2)
+end
+_0x0326.Size = UDim2.new(1 / _0x2ACE, -4, 1, -4)
+local _0xB578 = Instance.new(string.char(83,99,114,111,108,108,105,110,103,70,114,97,109,101))
+_0xB578.Name = name ..string.char(80,97,103,101)_0xB578.Size = UDim2.new(1, 0, 1, 0)
+_0xB578.BackgroundTransparency = 1
+_0xB578.BorderSizePixel = 0
+_0xB578.ScrollBarThickness = 3
+_0xB578.ScrollBarImageColor3 = _0x90E7.Accent
+_0xB578.CanvasSize = UDim2.new(0, 0, 0, 0)
+_0xB578.AutomaticCanvasSize = Enum.AutomaticSize.Y
+_0xB578.Visible = false
+_0xB578.ZIndex = 6
+_0xB578.Parent = _0x9FD5
+local _0x26A5 = Instance.new(string.char(85,73,80,97,100,100,105,110,103))
+_0x26A5.PaddingTop = UDim.new(0, 6)
+_0x26A5.PaddingBottom = UDim.new(0, 8)
+_0x26A5.PaddingLeft = UDim.new(0, 10)
+_0x26A5.PaddingRight = UDim.new(0, 10)
+_0x26A5.Parent = _0xB578
+local _0x6B2A = Instance.new(string.char(85,73,76,105,115,116,76,97,121,111,117,116))
+_0x6B2A.Padding = UDim.new(0, 6)
+_0x6B2A.SortOrder = Enum.SortOrder.LayoutOrder
+_0x6B2A.Parent = _0xB578
+_0x2CD7[name] = _0xB578
+return _0xB578
+end
+local function _0x8DC1(parent, order, txt, color)
+local _0xEB52 = Instance.new(string.char(84,101,120,116,76,97,98,101,108))
+_0xEB52.Size = UDim2.new(1, 0, 0, 14)
+_0xEB52.BackgroundTransparency = 1
+_0xEB52.Text = txt
+_0xEB52.TextColor3 = color or _0x90E7.Muted
+_0xEB52.Font = Enum.Font.GothamBold
+_0xEB52.TextSize = 9
+_0xEB52.TextXAlignment = Enum.TextXAlignment.Left
+_0xEB52.LayoutOrder = order
+_0xEB52.ZIndex = 7
+_0xEB52.Parent = parent
+return _0xEB52
+endlocal _0x710C = _0x79C5(string.char(87,101,108,100))
+local _0x30B6 = _0x79C5(string.char(84,97,114,103,101,116))
+local _0xE441 = _0x79C5(string.char(67,104,97,116))
+local _0x7261 = _0x79C5(string.char(65,110,116,105))
+local _0xAC95 = _0x79C5(string.char(77,111,118,101))local _0xEDD7 = Instance.new(string.char(70,114,97,109,101))
+_0xEDD7.Name =string.char(84,97,114,103,101,116,80,114,101,118,105,101,119)_0xEDD7.Size = UDim2.new(1, 0, 0, 52)
+_0xEDD7.BackgroundColor3 = _0x90E7.Panel
+_0xEDD7.BorderSizePixel = 0
+_0xEDD7.LayoutOrder = 1
+_0xEDD7.ZIndex = 7
+_0xEDD7.Parent = _0x710C
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0xEDD7).CornerRadius = UDim.new(0, 9)
+local _0x04FE = Instance.new(string.char(85,73,83,116,114,111,107,101))
+_0x04FE.Color = _0x90E7.Border
+_0x04FE.Thickness = 1
+_0x04FE.Transparency = 0.35
+_0x04FE.Parent = _0xEDD7
+local _0x29AA = Instance.new(string.char(70,114,97,109,101))
+_0x29AA.Size = UDim2.new(0, 38, 0, 38)
+_0x29AA.Position = UDim2.new(0, 8, 0.5, -19)
+_0x29AA.BackgroundColor3 = _0x90E7.PanelLt
+_0x29AA.BorderSizePixel = 0
+_0x29AA.ZIndex = 8
+_0x29AA.Parent = _0xEDD7
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0x29AA).CornerRadius = UDim.new(1, 0)
+local _0x2EDB = Instance.new(string.char(73,109,97,103,101,76,97,98,101,108))
+_0x2EDB.Size = UDim2.new(1, 0, 1, 0)
+_0x2EDB.BackgroundTransparency = 1
+_0x2EDB.Image =""_0x2EDB.ZIndex = 9
+_0x2EDB.Parent = _0x29AA
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0x2EDB).CornerRadius = UDim.new(1, 0)
+local _0xB6B7 = Instance.new(string.char(84,101,120,116,76,97,98,101,108))
+_0xB6B7.Size = UDim2.new(1, 0, 1, 0)
+_0xB6B7.BackgroundTransparency = 1
+_0xB6B7.Text =string.char(63)_0xB6B7.TextColor3 = _0x90E7.Muted
+_0xB6B7.Font = Enum.Font.GothamBold
+_0xB6B7.TextSize = 15
+_0xB6B7.ZIndex = 8
+_0xB6B7.Parent = _0x29AA
+local _0xD634 = Instance.new(string.char(84,101,120,116,76,97,98,101,108))
+_0xD634.Size = UDim2.new(1, -124, 0, 18)
+_0xD634.Position = UDim2.new(0, 54, 0, 8)
+_0xD634.BackgroundTransparency = 1
+_0xD634.Text =string.char(65,117,116,111,58,32,78,101,97,114,101,115,116,32,80,108,97,121,101,114)_0xD634.TextColor3 = _0x90E7.Text
+_0xD634.Font = Enum.Font.GothamBold
+_0xD634.TextSize = 12
+_0xD634.TextXAlignment = Enum.TextXAlignment.Left
+_0xD634.TextTruncate = Enum.TextTruncate.AtEnd
+_0xD634.ZIndex = 9
+_0xD634.Parent = _0xEDD7
+local _0x6860 = Instance.new(string.char(70,114,97,109,101))
+_0x6860.Size = UDim2.new(0, 6, 0, 6)
+_0x6860.Position = UDim2.new(0, 54, 0, 33)
+_0x6860.BackgroundColor3 = _0x90E7.Success
+_0x6860.BorderSizePixel = 0
+_0x6860.ZIndex = 9
+_0x6860.Parent = _0xEDD7
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0x6860).CornerRadius = UDim.new(1, 0)
+local _0x9A42 = Instance.new(string.char(84,101,120,116,76,97,98,101,108))
+_0x9A42.Size = UDim2.new(1, -136, 0, 14)
+_0x9A42.Position = UDim2.new(0, 65, 0, 29)
+_0x9A42.BackgroundTransparency = 1
+_0x9A42.Text =string.char(115,99,97,110,110,105,110,103,32,110,101,97,114,101,115,116,32,112,108,97,121,101,114)_0x9A42.TextColor3 = _0x90E7.Muted
+_0x9A42.Font = Enum.Font.GothamMedium
+_0x9A42.TextSize = 10
+_0x9A42.TextXAlignment = Enum.TextXAlignment.Left
+_0x9A42.TextTruncate = Enum.TextTruncate.AtEnd
+_0x9A42.ZIndex = 9
+_0x9A42.Parent = _0xEDD7
+local _0xDED3 = Instance.new(string.char(84,101,120,116,66,117,116,116,111,110))
+_0xDED3.Size = UDim2.new(0, 56, 0, 26)
+_0xDED3.Position = UDim2.new(1, -64, 0.5, -13)
+_0xDED3.Text =string.char(65,85,84,79)_0xDED3.TextColor3 = Color3.new(1, 1, 1)
+_0xDED3.Font = Enum.Font.GothamBold
+_0xDED3.TextSize = 10
+_0xDED3.ZIndex = 9
+_0xDED3.Parent = _0xEDD7
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0xDED3).CornerRadius = UDim.new(0, 6)
+_0x961E(_0xDED3, _0x90E7.PanelLt)
+local _0xBEB0 = nil
+local _0xA982local function _0x7382()
+local _0x9BBF, _0x41F6 = _0xB894()
+_0x3BAC[_0xDED3] = _0x41F6 and _0x90E7.Success or _0x90E7.PanelLt
+_0xDED3.BackgroundColor3 = _0x41F6 and _0x90E7.Success or _0x90E7.PanelLt
+if not _0x9BBF then
+_0xD634.Text =string.char(65,117,116,111,58,32,78,101,97,114,101,115,116,32,80,108,97,121,101,114)_0x9A42.Text =string.char(119,97,105,116,105,110,103,32,102,111,114,32,110,101,97,114,98,121,32,112,108,97,121,101,114,115,46,46,46)_0x6860.BackgroundColor3 = _0x90E7.Accent
+_0x2EDB.Image =""_0xB6B7.Visible = true
+_0x04FE.Color = _0x90E7.Border
+_0xBEB0 = nil
+return
+end
+_0xB6B7.Visible = false
+local _0x975E = _0x9BBF.UserId
+local _0x5E54 = (_0x9BBF.Parent == _0xC3F7)
+_0xD634.Text = (_0x41F6 andstring.char(78,101,97,114,101,115,116,58,32)orstring.char(84,97,114,103,101,116,58,32)) .. (_0x9BBF.DisplayName or _0x9BBF.Name orstring.char(63))
+if _0xBEB0 ~= _0x975E then
+_0xBEB0 = _0x975E
+pcall(function()
+_0x2EDB.Image =string.char(114,98,120,116,104,117,109,98,58,47,47,116,121,112,101,61,65,118,97,116,97,114,72,101,97,100,83,104,111,116,38,105,100,61).. _0x975E ..string.char(38,119,61,49,53,48,38,104,61,49,53,48)end)
+end
+if not _0x5E54 then
+_0x9A42.Text =string.char(64).. _0x9BBF.Name ..string.char(32,194,183,32,108,101,102,116,32,115,101,114,118,101,114)_0x6860.BackgroundColor3 = _0x90E7.Danger
+_0x04FE.Color = _0x90E7.Danger
+else
+local _0x5BFE = _0x4E36(_0x9BBF)
+local _0xA778 = _0x5BFE and _0x5BFE:FindFirstChildOfClass(string.char(72,117,109,97,110,111,105,100))
+local _0x9D7F = _0x5BFE and _0x76B4(_0x5BFE,string.char(116,111,114,115,111))
+if _0xA778 and _0xA778.Health <= 0 then
+_0x9A42.Text =string.char(64).. _0x9BBF.Name ..string.char(32,194,183,32,114,101,115,112,97,119,110,105,110,103)_0x6860.BackgroundColor3 = _0x90E7.Warning
+_0x04FE.Color = _0x90E7.Warning
+elseif not _0x9D7F then
+_0x9A42.Text =string.char(64).. _0x9BBF.Name ..string.char(32,194,183,32,104,105,100,100,101,110,47,102,97,114,32,40,97,117,116,111,45,115,101,101,107,32,114,101,97,100,121,41)_0x6860.BackgroundColor3 = _0x90E7.Accent
+_0x04FE.Color = _0x90E7.Accent
+else
+local _0xC925 =""pcall(function()
+local _0xFB7E = _0xA6AA.Character and _0xA6AA.Character:FindFirstChild(string.char(72,117,109,97,110,111,105,100,82,111,111,116,80,97,114,116))
+if _0xFB7E then _0xC925 =string.char(32,194,183,32).. tostring(math.floor((_0x9D7F.Position - _0xFB7E.Position).Magnitude)) ..string.char(115)end
+end)
+_0x9A42.Text =string.char(64).. _0x9BBF.Name .. _0xC925 ..string.char(32,194,183,32,108,111,99,107,101,100)_0x6860.BackgroundColor3 = _0x90E7.Success
+_0x04FE.Color = _0x41F6 and _0x90E7.Border or _0x90E7.Success
+end
+end
+end
+_0xDED3.MouseButton1Click:Connect(function()
+_0x0909()
+_0x0A85 = nil
+_0x7A5D(nil)
+_0xC3B1.Text =string.char(65,117,116,111,58,32,78,101,97,114,101,115,116,32,80,108,97,121,101,114)_0x00E5.Text =string.char(97,117,116,111,45,99,111,110,110,101,99,116,115,32,116,111,32,110,101,97,114,101,115,116,32,112,108,97,121,101,114)if _0xA982 then pcall(_0xA982) end
+pcall(_0x7382)
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(65,117,116,111,45,78,101,97,114,101,115,116,32,80,108,97,121,101,114,32,109,111,100,101,32,97,99,116,105,118,101))
+end)
+_0x7382()
+task.spawn(function()
+while _0xEDD7 and _0xEDD7.Parent do
+task.wait(0.5)
+pcall(_0x7382)
+end
+end)local _0xF580 = Color3.fromRGB(32, 156, 72)
+do_0x8DC1(_0x710C, 2,string.char(84,82,79,76,76,32,38,32,87,69,76,68,32,65,67,84,73,79,78,83,32,32,40,84,65,80,32,91,43,93,32,84,79,32,80,73,78,32,70,76,79,65,84,73,78,71,32,73,67,79,78,41), _0x90E7.Muted)
+local _0xF39D = {
+{ _0xE12E =string.char(104,101,97,100,112,97,116), pillLabel =string.char(80,97,116), width = 82 },
+{ _0xE12E =string.char(104,101,97,100,115,105,116), pillLabel =string.char(72,101,97,100,115,105,116), width = 104 },
+{ _0xE12E =string.char(102,97,99,101,98,97,110,103), pillLabel =string.char(70,97,99,101,98,97,110,103), width = 112 },
+{ _0xE12E =string.char(98,97,99,107,115,104,111,116,115), pillLabel =string.char(66,97,99,107,115,104,111,116,115), width = 114 },
+{ _0xE12E =string.char(107,105,115,115), pillLabel =string.char(75,105,115,115), width = 82 },
+{ _0xE12E =string.char(98,97,99,107,112,97,99,107), pillLabel =string.char(66,97,99,107,112,97,99,107), width = 110 },
+{ _0xE12E =string.char(112,114,111,112,111,115,101), pillLabel =string.char(80,114,111,112,111,115,101), width = 104 },
+{ _0xE12E =string.char(104,117,103), pillLabel =string.char(72,117,103), width = 82 },
+{ _0xE12E =string.char(99,104,97,115,101), pillLabel =string.char(67,104,97,115,101,84,80), width = 104 },
+{ _0xE12E =string.char(102,108,105,110,103), pillLabel =string.char(70,108,105,110,103), width = 86 },
+{ _0xE12E =string.char(118,111,105,100,116,104,114,111,119), pillLabel =string.char(86,111,105,100,84,104,114,111,119), width = 112 },
+{ _0xE12E =string.char(100,101,102,108,101,99,116), pillLabel =string.char(68,101,102,108,101,99,116), width = 100 },
+{ _0xE12E =string.char(114,101,119,105,110,100), pillLabel =string.char(82,101,119,105,110,100), width = 96 },
+}
+local _0x539F = {}
+for _0x9094, item in ipairs(_0xF39D) do _0x539F[item.key] = item end
+local _0x013D = Color3.fromRGB(48, 36, 11)
+local _0x52D9 = Color3.fromRGB(185, 142, 24)
+local _0x9B90 = Color3.fromRGB(168, 132, 36)
+local _0xDF4E = Color3.fromRGB(234, 179, 8)
+local _0x8E27 = Color3.fromRGB(255, 251, 235)
+_0xF580 = Color3.fromRGB(32, 156, 72)
+local _0x7C19 = Color3.fromRGB(250, 204, 21)
+local _0x68C3 = Color3.fromRGB(254, 240, 138)
+local _0x9C92 = Color3.fromRGB(255, 255, 255)
+local _0x8377 = Color3.fromRGB(255, 255, 255)
+local _0x391C = {}local _0x7C4D = {}
+local _0x052D = {}
+local _0x6717 = {}
+local function _0x6E01(_0xE12E)
+if _0xE12E ==string.char(114,101,119,105,110,100)then return _0xAE44.rewinding == true end
+if _0xE12E ==string.char(102,108,105,110,103)or _0xE12E ==string.char(118,111,105,100,116,104,114,111,119)then return _0xF3B0 == true end
+if _0xE12E ==string.char(100,101,102,108,101,99,116)then return (_0x7DE1.enabled or _0x5DAB.Redirect.enabled or _0x5DAB.PauseTrap.enabled) end
+return (_0x243A.active == true and _0x243A.presetKey == _0xE12E)
+endlocal function _0xDD4F()
+local _0xF25B = 0
+for _0x9094, _0xE12E in ipairs(_0x6717) do
+local _0x4599 = _0x052D[_0xE12E]
+if _0x4599 and _0x4599.btn and _0x4599.btn.Parent then
+_0xF25B = _0xF25B + 1
+if not _0x4599.customMoved then
+local _0x37A2 = 58 + (_0xF25B - 1) * 35
+_0x4599.btn.Position = UDim2.new(1, -(_0x4599.width + 12), 0, _0x37A2)
+end
+end
+end
+end
+local function _0x21AD(_0xE12E)
+local _0x9E03 = _0x052D[_0xE12E] ~= nil
+local _0x2127 = _0x7C4D[_0xE12E]
+if _0x2127 and _0x2127.Parent then
+_0x2127.Text = _0x9E03 andstring.char(226,156,147)orstring.char(43)_0x2127.BackgroundColor3 = _0x9E03 and _0xF580 or _0x90E7.BG2
+_0x2127.TextColor3 = _0x9E03 and Color3.new(1, 1, 1) or _0x90E7.Muted
+end
+end
+_0x207A = function()
+for _0xE12E, item in pairs(_0x391C) do
+if item and item.btn and item.btn.Parent then
+local _0x0B5F = _0x6E01(_0xE12E)
+local _0xD6A9 = _0x0B5F and _0xF580 or _0x90E7.Panel
+_0x3BAC[item.btn] = _0xD6A9
+_0xFD0E:Create(item.btn, TweenInfo.new(0.15), {BackgroundColor3 = _0xD6A9}):Play()
+if item.dot then
+item.dot.BackgroundColor3 = _0x0B5F and _0x68C3 or _0x9B90
+end
+if item.stroke then
+item.stroke.Color = _0x0B5F and _0x7C19 or _0x90E7.Border
+item.stroke.Transparency = _0x0B5F and 0.1 or 0.45
+end
+end
+end
+for _0xE12E, _0x4599 in pairs(_0x052D) do
+if _0x4599 and _0x4599.btn and _0x4599.btn.Parent then
+local _0x0B5F = _0x6E01(_0xE12E)
+_0xFD0E:Create(_0x4599.btn, TweenInfo.new(0.15), {
+BackgroundColor3 = _0x0B5F and _0xF580 or _0x013D,
+BackgroundTransparency = _0x0B5F and 0.04 or 0.12,
+}):Play()
+_0xFD0E:Create(_0x4599.stroke, TweenInfo.new(0.15), {
+Color = _0x0B5F and _0x7C19 or _0x52D9,
+Transparency = _0x0B5F and 0.05 or 0.25,
+}):Play()
+_0xFD0E:Create(_0x4599.dot, TweenInfo.new(0.15), {
+BackgroundColor3 = _0x0B5F and _0x68C3 or _0x9B90,
+}):Play()
+_0xFD0E:Create(_0x4599.dotStroke, TweenInfo.new(0.15), {
+Color = _0x0B5F and _0x9C92 or _0xDF4E,
+}):Play()
+_0x4599.label.TextColor3 = _0x0B5F and _0x8377 or _0x8E27
+end
+end
+end
+local function _0xFE9A(_0xE12E)
+if _0xE12E ==string.char(114,101,119,105,110,100)then
+_0xAE44:Start(_0xAE44.duration)
+_0x207A()
+return
+end
+if _0xE12E ==string.char(100,101,102,108,101,99,116)then
+local _0x55A0 = not (_0x7DE1.enabled or _0x5DAB.Redirect.enabled or _0x5DAB.PauseTrap.enabled)
+_0x7DE1.enabled = _0x55A0
+_0x5DAB.Redirect.enabled = _0x55A0
+_0x5DAB.PauseTrap.enabled = _0x55A0
+_0x5DAB.FlingShield.enabled = _0x55A0
+if _0x55A0 then
+_0x5DAB.FlingShield.startFn()
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(68,101,102,101,110,99,101,32,84,114,111,108,108,32,79,78,32,40).. (_0x7DE1.modeLabels[_0x7DE1.mode] or _0x7DE1.mode) ..string.char(41))
+else
+_0x5DAB.FlingShield.stopFn()
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(68,101,102,101,110,99,101,32,84,114,111,108,108,32,79,70,70))
+end
+_0x207A()
+if _0x8AC6 then pcall(_0x8AC6) end
+return
+end
+if _0xE12E ==string.char(118,111,105,100,116,104,114,111,119)then
+if _0xF3B0 then
+_0x3C23:StopFling(false)
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(86,111,105,100,32,84,104,114,111,119,32,115,116,111,112,112,101,100,32,38,32,115,97,102,101,108,121,32,114,101,116,117,114,110,101,100))
+_0xED6E()
+else
+_0xC789()
+end
+_0x207A()
+return
+end
+if _0xE12E ==string.char(102,108,105,110,103)then
+if _0xF3B0 then
+_0x3C23:StopFling(false)
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(70,108,105,110,103,32,115,116,111,112,112,101,100,32,38,32,115,97,102,101,108,121,32,114,101,116,117,114,110,101,100))
+_0xED6E()
+else
+_0x0F95(-1,string.char(85,110,108,105,109,105,116,101,100), false)
+end
+_0x207A()
+return
+end
+if _0x243A.active and _0x243A.presetKey == _0xE12E then
+_0x7EF3()
+_0x3C23:Cleanup(true)
+_0x518F = nil
+_0x00E5.Text =string.char(115,116,111,112,112,101,100)_0x207A()
+_0xED6E()
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65), (_0xA4A2[_0xE12E] and _0xA4A2[_0xE12E].label or _0xE12E) ..string.char(32,115,116,111,112,112,101,100))
+return
+end
+local _0x49D0, _0xAF3C = _0xB894()
+if not _0x49D0 or _0x49D0.Parent ~= _0xC3F7 then
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(78,111,32,116,97,114,103,101,116,32,112,108,97,121,101,114,32,102,111,117,110,100,32,105,110,32,115,101,114,118,101,114,33))
+_0xB065()
+_0x207A()
+return
+end
+_0x3C23:Cleanup(true, true)
+_0x6652 = _0x49D0
+_0x839F = _0x49D0.UserId
+_0xE947(_0x49D0)
+local _0xF999 = _0xE84F(_0xE12E, _0x49D0)
+if _0xF999 then
+_0xC3B1.Text = (_0xAF3C andstring.char(78,101,97,114,101,115,116,58,32)orstring.char(84,97,114,103,101,116,58,32)) .. _0x49D0.Name
+_0x00E5.Text =string.char(97,99,116,105,118,101,32,194,183,32).. (_0xA4A2[_0xE12E].label or _0xE12E)
+_0x207A()
+_0xCAE4()
+local _0x59E7 = _0xAF3C andstring.char(65,117,116,111,45,78,101,97,114,101,115,116,32,40).. (_0xA4A2[_0xE12E].label or _0xE12E) ..string.char(41,32,45,62,32)or ((_0xA4A2[_0xE12E].label or _0xE12E) ..string.char(32,45,62,32))
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65), _0x59E7 .. _0x49D0.Name)
+else
+_0x207A()
+_0xB065()
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(70,97,105,108,101,100,32,226,128,148,32,114,101,102,101,114,101,110,99,101,32,112,97,114,116,32,109,105,115,115,105,110,103))
+end
+end
+local function _0x5691(_0xE12E)
+local _0x4599 = _0x052D[_0xE12E]
+if not _0x4599 then return end
+if _0x4599.btn then pcall(function() _0x4599.btn:Destroy() end) end
+_0x052D[_0xE12E] = nil
+for i = #_0x6717, 1, -1 do
+if _0x6717[i] == _0xE12E then table.remove(_0x6717, i) end
+end
+_0xDD4F()
+_0x21AD(_0xE12E)
+end
+local function _0x8057(_0xE12E)
+if _0x052D[_0xE12E] then return end
+local _0x510F = _0x539F[_0xE12E]
+if not _0x510F then return end
+local _0x50B6 = _0x510F.width or 100
+local _0xFDCB = Instance.new(string.char(84,101,120,116,66,117,116,116,111,110))
+_0xFDCB.Name =string.char(81,117,105,99,107,80,105,108,108,95).. _0xE12E
+_0xFDCB.Size = UDim2.new(0, _0x50B6, 0, 32)
+_0xFDCB.BackgroundColor3 = _0x013D
+_0xFDCB.BackgroundTransparency = 0.12
+_0xFDCB.BorderSizePixel = 0
+_0xFDCB.Text =""_0xFDCB.AutoButtonColor = false
+_0xFDCB.Active = true
+_0xFDCB.ZIndex = 995
+_0xFDCB.Parent = _0xF28E
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0xFDCB).CornerRadius = UDim.new(1, 0)
+local _0x2A85 = Instance.new(string.char(85,73,83,116,114,111,107,101))
+_0x2A85.Color = _0x52D9
+_0x2A85.Thickness = 1.4
+_0x2A85.Transparency = 0.25
+_0x2A85.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+_0x2A85.Parent = _0xFDCB
+local _0x4D9D = Instance.new(string.char(70,114,97,109,101))
+_0x4D9D.Name =string.char(83,116,97,116,117,115,67,105,114,99,108,101)_0x4D9D.Size = UDim2.new(0, 10, 0, 10)
+_0x4D9D.Position = UDim2.new(0, 11, 0.5, -5)
+_0x4D9D.BackgroundColor3 = _0x9B90
+_0x4D9D.BorderSizePixel = 0
+_0x4D9D.ZIndex = 996
+_0x4D9D.Parent = _0xFDCB
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0x4D9D).CornerRadius = UDim.new(1, 0)
+local _0x0435 = Instance.new(string.char(85,73,83,116,114,111,107,101))
+_0x0435.Color = _0xDF4E
+_0x0435.Thickness = 1.2
+_0x0435.Transparency = 0.2
+_0x0435.Parent = _0x4D9D
+local _0x2594 = Instance.new(string.char(84,101,120,116,76,97,98,101,108))
+_0x2594.Name =string.char(80,105,108,108,84,105,116,108,101)_0x2594.Size = UDim2.new(1, -28, 1, 0)
+_0x2594.Position = UDim2.new(0, 26, 0, 0)
+_0x2594.BackgroundTransparency = 1
+_0x2594.Text = _0x510F.pillLabel
+_0x2594.TextColor3 = _0x8E27
+_0x2594.Font = Enum.Font.GothamBold
+_0x2594.TextSize = 12
+_0x2594.TextXAlignment = Enum.TextXAlignment.Left
+_0x2594.ZIndex = 996
+_0x2594.Parent = _0xFDCB
+local _0x4599 = {
+_0x43E0 = _0xFDCB,
+stroke = _0x2A85,
+_0x4D9D = _0x4D9D,
+_0x0435 = _0x0435,
+label = _0x2594,
+width = _0x50B6,
+customMoved = false,
+}
+_0x052D[_0xE12E] = _0x4599
+table.insert(_0x6717, _0xE12E)
+_0xDD4F()
+local _0x97F2, _0x1578, _0xFAF0, _0xDCD7 = false, nil, nil, false
+local _0x51E9 = 0
+local function _0x35AC()
+if tick() - _0x51E9 < 0.18 then return end
+_0x51E9 = tick()
+_0x0909()
+_0xFE9A(_0xE12E)
+end
+_0xFDCB.InputBegan:Connect(function(inp)
+if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+_0x97F2 = true; _0x1578 = inp.Position; _0xFAF0 = _0xFDCB.Position; _0xDCD7 = false
+elseif inp.UserInputType == Enum.UserInputType.MouseButton2 then
+_0x0909()
+_0x5691(_0xE12E)
+end
+end)
+_0xB2E3.InputChanged:Connect(function(inp)
+if _0x97F2 and (inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch) then
+local _0x5635 = inp.Position - _0x1578
+if math.abs(_0x5635.X) > 8 or math.abs(_0x5635.Y) > 8 then
+_0xDCD7 = true
+_0x4599.customMoved = true
+end
+if _0xDCD7 then
+_0xFDCB.Position = UDim2.new(_0xFAF0.X.Scale, _0xFAF0.X.Offset + _0x5635.X, _0xFAF0.Y.Scale, _0xFAF0.Y.Offset + _0x5635.Y)
+end
+end
+end)
+_0xB2E3.InputEnded:Connect(function(inp)
+if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+if _0x97F2 and not _0xDCD7 then _0x35AC() end
+_0x97F2 = false
+end
+end)
+_0xFDCB.MouseButton1Click:Connect(function()
+if not _0xDCD7 then _0x35AC() end
+end)
+_0x21AD(_0xE12E)
+_0x207A()
+end
+local function _0x5A88(_0xE12E)
+if _0x052D[_0xE12E] then
+_0x5691(_0xE12E)
+else
+_0x8057(_0xE12E)
+end
+endlocal function _0x8133(order, entries)
+local _0xD663 = Instance.new(string.char(70,114,97,109,101))
+_0xD663.Size = UDim2.new(1, 0, 0, 34)
+_0xD663.BackgroundTransparency = 1
+_0xD663.LayoutOrder = order
+_0xD663.ZIndex = 7
+_0xD663.Parent = _0x710C
+local _0x342C = #entries
+for i, cfg in ipairs(entries) do
+local _0xCFA1 = 1 / _0x342C
+local _0x4973 = Instance.new(string.char(84,101,120,116,66,117,116,116,111,110))
+_0x4973.Size = UDim2.new(_0xCFA1, -4, 1, 0)
+_0x4973.Position = UDim2.new((i - 1) * _0xCFA1, (i == 1) and 0 or 4, 0, 0)
+_0x4973.Text =""_0x4973.AutoButtonColor = false
+_0x4973.ZIndex = 8
+_0x4973.Parent = _0xD663
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0x4973).CornerRadius = UDim.new(0, 8)
+_0x961E(_0x4973, _0x90E7.Panel)
+local _0xE898 = Instance.new(string.char(85,73,83,116,114,111,107,101))
+_0xE898.Color = _0x90E7.Border
+_0xE898.Thickness = 1
+_0xE898.Transparency = 0.45
+_0xE898.Parent = _0x4973
+local _0x4D9D = Instance.new(string.char(70,114,97,109,101))
+_0x4D9D.Size = UDim2.new(0, 8, 0, 8)
+_0x4D9D.Position = UDim2.new(0, 10, 0.5, -4)
+_0x4D9D.BackgroundColor3 = _0x9B90
+_0x4D9D.BorderSizePixel = 0
+_0x4D9D.ZIndex = 9
+_0x4D9D.Parent = _0x4973
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0x4D9D).CornerRadius = UDim.new(1, 0)
+local _0x2816 = cfg.key and _0x539F[cfg.key] ~= nil
+local _0x2594 = Instance.new(string.char(84,101,120,116,76,97,98,101,108))
+_0x2594.Size = UDim2.new(1, _0x2816 and -54 or -24, 1, 0)
+_0x2594.Position = UDim2.new(0, 24, 0, 0)
+_0x2594.BackgroundTransparency = 1
+_0x2594.Text = cfg.text
+_0x2594.TextColor3 = _0x90E7.Text
+_0x2594.Font = Enum.Font.GothamBold
+_0x2594.TextSize = 11
+_0x2594.TextXAlignment = Enum.TextXAlignment.Left
+_0x2594.TextTruncate = Enum.TextTruncate.AtEnd
+_0x2594.ZIndex = 9
+_0x2594.Parent = _0x4973
+if cfg.key then
+_0x391C[cfg.key] = { _0x43E0 = _0x4973, _0x4D9D = _0x4D9D, label = _0x2594, stroke = _0xE898 }
+_0x4973.MouseButton1Click:Connect(function()
+_0x0909()
+if cfg.cb then cfg.cb() else _0xFE9A(cfg.key) end
+end)
+if _0x2816 then
+local _0x4B66 = Instance.new(string.char(84,101,120,116,66,117,116,116,111,110))
+_0x4B66.Size = UDim2.new(0, 22, 0, 22)
+_0x4B66.Position = UDim2.new(1, -27, 0.5, -11)
+_0x4B66.BackgroundColor3 = _0x90E7.BG2
+_0x4B66.Text =string.char(43)_0x4B66.TextColor3 = _0x90E7.Muted
+_0x4B66.Font = Enum.Font.GothamBold
+_0x4B66.TextSize = 11
+_0x4B66.AutoButtonColor = false
+_0x4B66.ZIndex = 10
+_0x4B66.Parent = _0x4973
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0x4B66).CornerRadius = UDim.new(0, 6)
+_0x7C4D[cfg.key] = _0x4B66
+_0x4B66.MouseButton1Click:Connect(function()
+_0x0909()
+_0x5A88(cfg.key)
+end)
+end
+elseif cfg.cb then
+_0x4973.MouseButton1Click:Connect(function() _0x0909(); cfg.cb() end)
+end
+end
+end
+_0x8133(3, {
+{ text =string.char(70,97,99,101,98,97,110,103), _0xE12E =string.char(102,97,99,101,98,97,110,103)},
+{ text =string.char(72,101,97,100,115,105,116), _0xE12E =string.char(104,101,97,100,115,105,116)},
+})
+_0x8133(4, {
+{ text =string.char(66,97,99,107,115,104,111,116,115), _0xE12E =string.char(98,97,99,107,115,104,111,116,115)},
+{ text =string.char(80,97,116), _0xE12E =string.char(104,101,97,100,112,97,116)},
+})
+_0x8133(5, {
+{ text =string.char(75,105,115,115), _0xE12E =string.char(107,105,115,115)},
+{ text =string.char(66,97,99,107,112,97,99,107), _0xE12E =string.char(98,97,99,107,112,97,99,107)},
+})
+_0x8133(6, {
+{ text =string.char(80,114,111,112,111,115,101), _0xE12E =string.char(112,114,111,112,111,115,101)},
+{ text =string.char(72,117,103), _0xE12E =string.char(104,117,103)},
+})
+_0x8133(7, {
+{ text =string.char(65,117,116,111,45,67,104,97,115,101,32,40,69,118,101,114,121,119,104,101,114,101,41), _0xE12E =string.char(99,104,97,115,101)},
+{ text =string.char(86,111,105,100,32,84,104,114,111,119,32,118,50,32,226,154,161), _0xE12E =string.char(118,111,105,100,116,104,114,111,119)},
+})
+_0x8133(8, {
+{ text =string.char(78,101,98,117,108,97,32,70,108,105,110,103,32,47,32,86,111,105,100,32,76,111,99,107), _0xE12E =string.char(102,108,105,110,103), cb = function() _0xFF07() end },
+{ text =string.char(226,143,170,32,82,101,119,105,110,100,32,40,54,45,49,48,115,41), _0xE12E =string.char(114,101,119,105,110,100)},
+})
+_0x8133(9, {
+{ text =string.char(65,110,116,105,45,84,114,111,108,108,32,68,101,102,108,101,99,116), _0xE12E =string.char(100,101,102,108,101,99,116)},
+{ text =string.char(86,111,105,100,32,76,111,99,107,32,40,85,110,116,105,108,32,68,101,97,100,41), cb = function() _0x0F95(-1,string.char(86,111,105,100,32,76,111,99,107,32,85,110,116,105,108,32,68,101,97,100), true) end },
+})_0x8DC1(_0x710C, 10,string.char(76,73,86,69,32,84,82,79,76,76,32,38,32,87,69,76,68,32,84,85,78,69,82,32,32,40,90,69,82,79,45,68,69,76,65,89,32,72,69,73,71,72,84,32,47,32,68,73,83,84,32,47,32,83,80,69,69,68,41), _0x90E7.Accent)
+local _0x3345 = Instance.new(string.char(70,114,97,109,101))
+_0x3345.Size = UDim2.new(1, 0, 0, 28)
+_0x3345.BackgroundTransparency = 1
+_0x3345.LayoutOrder = 11
+_0x3345.ZIndex = 7
+_0x3345.Parent = _0x710C
+local _0xFCEF = Instance.new(string.char(70,114,97,109,101))
+_0xFCEF.Size = UDim2.new(1, 0, 0, 28)
+_0xFCEF.BackgroundTransparency = 1
+_0xFCEF.LayoutOrder = 12
+_0xFCEF.ZIndex = 7
+_0xFCEF.Parent = _0x710C
+local _0x7055 = { 0.6, 1.0, 1.6, 2.5, 4.0, 5.5 }
+local _0x4A58 = 2
+local function _0xB32A(parentRow, xScale, _0x31B5, label, onClick)
+local _0x4973 = Instance.new(string.char(84,101,120,116,66,117,116,116,111,110))
+_0x4973.Size = UDim2.new(_0x31B5, -4, 1, 0)
+_0x4973.Position = UDim2.new(xScale, 2, 0, 0)
+_0x4973.BackgroundColor3 = _0x90E7.PanelLt
+_0x4973.Text = label
+_0x4973.TextColor3 = _0x90E7.Text
+_0x4973.Font = Enum.Font.GothamBold
+_0x4973.TextSize = 9
+_0x4973.AutoButtonColor = false
+_0x4973.ZIndex = 8
+_0x4973.Parent = parentRow
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0x4973).CornerRadius = UDim.new(0, 6)
+_0x961E(_0x4973, _0x90E7.PanelLt)
+_0x4973.MouseButton1Click:Connect(function()
+_0x0909()
+onClick(_0x4973)
+end)
+return _0x4973
+end
+_0xB32A(_0x3345, 0.00, 0.28,string.char(83,80,69,69,68,58,32,49,46,48,120), function(_0x43E0)
+_0x4A58 = (_0x4A58 % #_0x7055) + 1
+_0x68F1.Speed = _0x7055[_0x4A58]
+_0x43E0.Text = string.format(string.char(83,80,69,69,68,58,32,37,46,49,102,120), _0x68F1.Speed)
+end)
+_0xB32A(_0x3345, 0.28, 0.18,string.char(68,73,83,84,32,45), function()
+_0x68F1.Z = math.clamp((_0x68F1.Z or 1.3) - 0.25, -3.5, 6.0)
+end)
+_0xB32A(_0x3345, 0.46, 0.18,string.char(68,73,83,84,32,43), function()
+_0x68F1.Z = math.clamp((_0x68F1.Z or 1.3) + 0.25, -3.5, 6.0)
+end)
+_0xB32A(_0x3345, 0.64, 0.18,string.char(72,69,73,71,72,84,32,45), function()
+_0x68F1.Y = math.clamp((_0x68F1.Y or 0) - 0.25, -4.0, 4.0)
+end)
+_0xB32A(_0x3345, 0.82, 0.18,string.char(72,69,73,71,72,84,32,43), function()
+_0x68F1.Y = math.clamp((_0x68F1.Y or 0) + 0.25, -4.0, 4.0)
+end)
+_0xB32A(_0xFCEF, 0.00, 0.34,string.char(82,69,83,69,84,32,79,70,70,83,69,84), function()
+_0x68F1.X = 0; _0x68F1.Y = 0; _0x68F1.Z = 1.3
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(72,101,105,103,104,116,32,38,32,68,105,115,116,97,110,99,101,32,111,102,102,115,101,116,115,32,114,101,115,101,116,32,116,111,32,100,101,102,97,117,108,116))
+end)
+_0xB32A(_0xFCEF, 0.34, 0.34,string.char(226,154,161,32,83,69,69,75,32,38,32,84,80), function()
+local _0x9BBF = _0xB894()
+if not _0x9BBF or _0x9BBF.Parent ~= _0xC3F7 then
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(78,111,32,116,97,114,103,101,116,32,112,108,97,121,101,114,32,105,110,32,115,101,114,118,101,114,33))
+_0xB065()
+return
+end
+task.spawn(function()
+local _0x9094, _0x5378 = _0x5D16(_0x9BBF,string.char(116,111,114,115,111), 2.2, true)
+if _0x5378 and _0x5378.Parent then
+local _0x6A8A = _0x5378.CFrame * CFrame.new(0, 1.5, 2.5)
+_0x363C(_0x6A8A)
+_0xDF2E(_0xA6AA.Character, _0x6A8A)
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(84,101,108,101,112,111,114,116,101,100,32,116,111,32).. _0x9BBF.Name ..string.char(33))
+_0xCAE4()
+else
+local _0x2201 = _0xF668(_0x9BBF)
+if _0x2201 then
+_0x363C(_0x2201)
+_0xDF2E(_0xA6AA.Character, _0x2201 * CFrame.new(0, 2, 0))
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(84,101,108,101,112,111,114,116,101,100,32,116,111,32).. _0x9BBF.Name ..string.char(39,115,32,104,105,100,100,101,110,32,122,111,110,101,33))
+_0xCAE4()
+else
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(84,97,114,103,101,116,32,105,115,32,114,101,115,112,97,119,110,105,110,103,32,226,128,148,32,101,110,97,98,108,101,32,65,117,116,111,45,67,104,97,115,101,32,116,111,32,108,111,99,107,32,111,110,33))
+_0xB065()
+end
+end
+end)
+end)
+_0xB32A(_0xFCEF, 0.68, 0.32,string.char(239,191,189,239,191,189,239,184,143,32,86,73,69,87,58,32,79,70,70), function(_0x43E0)
+_0x5BCC = not _0x5BCC
+local _0x6EE9 = workspace.CurrentCamera
+if _0x5BCC then
+local _0x9BBF = _0xB894()
+local _0x2EC9 = _0x9BBF and _0x4E36(_0x9BBF)
+local _0xE5C6 = _0x2EC9 and (_0x2EC9:FindFirstChildOfClass(string.char(72,117,109,97,110,111,105,100)) or _0x4DA4(_0x2EC9))
+if _0x6EE9 and _0xE5C6 then
+_0x6EE9.CameraSubject = _0xE5C6
+_0x43E0.Text =string.char(239,191,189,239,191,189,239,184,143,32,86,73,69,87,58,32,79,78)_0x3BAC[_0x43E0] = _0xF580
+_0x43E0.BackgroundColor3 = _0xF580
+return
+end
+_0x5BCC = false
+end
+if _0x6EE9 and _0xA6AA.Character then
+local _0x4545 = _0xA6AA.Character:FindFirstChildOfClass(string.char(72,117,109,97,110,111,105,100))
+if _0x4545 then _0x6EE9.CameraSubject = _0x4545 end
+end
+_0x43E0.Text =string.char(239,191,189,239,191,189,239,184,143,32,86,73,69,87,58,32,79,70,70)_0x3BAC[_0x43E0] = _0x90E7.PanelLt
+_0x43E0.BackgroundColor3 = _0x90E7.PanelLt
+end)_0x8057(string.char(104,101,97,100,112,97,116))
+_0x8057(string.char(104,101,97,100,115,105,116))
+_0x8057(string.char(102,97,99,101,98,97,110,103))
+_0x8057(string.char(118,111,105,100,116,104,114,111,119))
+_0x8057(string.char(114,101,119,105,110,100))
+enddo
+local _0xD293 = Instance.new(string.char(70,114,97,109,101))
+_0xD293.Size = UDim2.new(1, 0, 0, 32)
+_0xD293.BackgroundTransparency = 1
+_0xD293.LayoutOrder = 1
+_0xD293.ZIndex = 7
+_0xD293.Parent = _0x30B6
+local _0x121A = Instance.new(string.char(84,101,120,116,66,111,120))
+_0x121A.Size = UDim2.new(1, -92, 1, 0)
+_0x121A.BackgroundColor3 = _0x90E7.Panel
+_0x121A.PlaceholderText =string.char(83,101,97,114,99,104,32,112,108,97,121,101,114,46,46,46)_0x121A.Text =""_0x121A.TextColor3 = _0x90E7.Text
+_0x121A.PlaceholderColor3 = _0x90E7.Muted
+_0x121A.Font = Enum.Font.Gotham
+_0x121A.TextSize = 11
+_0x121A.ClearTextOnFocus = false
+_0x121A.ZIndex = 8
+_0x121A.Parent = _0xD293
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0x121A).CornerRadius = UDim.new(0, 7)
+local _0xA05D = Instance.new(string.char(85,73,80,97,100,100,105,110,103))
+_0xA05D.PaddingLeft = UDim.new(0, 10)
+_0xA05D.PaddingRight = UDim.new(0, 10)
+_0xA05D.Parent = _0x121A
+local _0x1690 = Instance.new(string.char(84,101,120,116,66,117,116,116,111,110))
+_0x1690.Size = UDim2.new(0, 86, 1, 0)
+_0x1690.Position = UDim2.new(1, -86, 0, 0)
+_0x1690.Text =string.char(65,85,84,79,45,78,69,65,82)_0x1690.TextColor3 = Color3.new(1, 1, 1)
+_0x1690.Font = Enum.Font.GothamBold
+_0x1690.TextSize = 10
+_0x1690.ZIndex = 8
+_0x1690.Parent = _0xD293
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0x1690).CornerRadius = UDim.new(0, 7)
+_0x961E(_0x1690, _0x90E7.Accent2)
+local _0xE91D = Instance.new(string.char(70,114,97,109,101))
+_0xE91D.Size = UDim2.new(1, 0, 0, 195)
+_0xE91D.BackgroundColor3 = _0x90E7.Panel
+_0xE91D.BorderSizePixel = 0
+_0xE91D.LayoutOrder = 2
+_0xE91D.ClipsDescendants = true
+_0xE91D.ZIndex = 7
+_0xE91D.Parent = _0x30B6
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0xE91D).CornerRadius = UDim.new(0, 8)
+local _0x67BA = Instance.new(string.char(83,99,114,111,108,108,105,110,103,70,114,97,109,101))
+_0x67BA.Size = UDim2.new(1, -8, 1, -8)
+_0x67BA.Position = UDim2.new(0, 4, 0, 4)
+_0x67BA.BackgroundTransparency = 1
+_0x67BA.BorderSizePixel = 0
+_0x67BA.ScrollBarThickness = 2
+_0x67BA.ScrollBarImageColor3 = _0x90E7.Accent
+_0x67BA.CanvasSize = UDim2.new(0, 0, 0, 0)
+_0x67BA.AutomaticCanvasSize = Enum.AutomaticSize.Y
+_0x67BA.ZIndex = 8
+_0x67BA.Parent = _0xE91D
+local _0xB97B = Instance.new(string.char(85,73,76,105,115,116,76,97,121,111,117,116))
+_0xB97B.Padding = UDim.new(0, 4)
+_0xB97B.SortOrder = Enum.SortOrder.LayoutOrder
+_0xB97B.Parent = _0x67BA
+local function _0x9D0A(_0xDDC2)
+_0xDDC2 = (_0xDDC2 or""):lower()
+local _0xC218 = {}
+for _0x9094, _0x1CEE in ipairs(_0xC3F7:GetPlayers()) do
+if _0x1CEE ~= _0xA6AA then
+if _0xDDC2 ==""or _0x1CEE.Name:lower():sub(1, #_0xDDC2) == _0xDDC2 or _0x1CEE.DisplayName:lower():sub(1, #_0xDDC2) == _0xDDC2 then
+table.insert(_0xC218, _0x1CEE)
+end
+end
+end
+return _0xC218
+end
+_0xA982 = function()
+for _0x9094, _0x4E33 in ipairs(_0x67BA:GetChildren()) do
+if _0x4E33:IsA(string.char(84,101,120,116,66,117,116,116,111,110)) or _0x4E33:IsA(string.char(84,101,120,116,76,97,98,101,108)) then _0x4E33:Destroy() end
+end
+local _0x2EC1 = _0x9D0A(_0x121A.Text)
+if #_0x2EC1 == 0 then
+local _0x69BD = Instance.new(string.char(84,101,120,116,76,97,98,101,108))
+_0x69BD.Size = UDim2.new(1, 0, 0, 32)
+_0x69BD.BackgroundTransparency = 1
+_0x69BD.Text =string.char(78,111,32,109,97,116,99,104,105,110,103,32,112,108,97,121,101,114,115,32,226,128,148,32,65,117,116,111,45,78,101,97,114,101,115,116,32,119,105,108,108,32,98,101,32,117,115,101,100)_0x69BD.TextColor3 = _0x90E7.Muted
+_0x69BD.Font = Enum.Font.Gotham
+_0x69BD.TextSize = 10
+_0x69BD.ZIndex = 9
+_0x69BD.Parent = _0x67BA
+return
+end
+for i, _0x1CEE in ipairs(_0x2EC1) do
+local _0xCB15 = (_0x0A85 == _0x1CEE)
+local _0x43E0 = Instance.new(string.char(84,101,120,116,66,117,116,116,111,110))
+_0x43E0.Size = UDim2.new(1, -4, 0, 34)
+_0x43E0.BackgroundColor3 = _0xCB15 and _0xF580 or _0x90E7.PanelLt
+_0x43E0.Text =""_0x43E0.AutoButtonColor = false
+_0x43E0.LayoutOrder = i
+_0x43E0.ZIndex = 9
+_0x43E0.Parent = _0x67BA
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0x43E0).CornerRadius = UDim.new(0, 6)
+_0x961E(_0x43E0, _0xCB15 and _0xF580 or _0x90E7.PanelLt)
+local _0x0372 = Instance.new(string.char(73,109,97,103,101,76,97,98,101,108))
+_0x0372.Size = UDim2.new(0, 24, 0, 24)
+_0x0372.Position = UDim2.new(0, 6, 0.5, -12)
+_0x0372.BackgroundColor3 = _0x90E7.BG2
+_0x0372.Image =string.char(114,98,120,116,104,117,109,98,58,47,47,116,121,112,101,61,65,118,97,116,97,114,72,101,97,100,83,104,111,116,38,105,100,61).. _0x1CEE.UserId ..string.char(38,119,61,52,56,38,104,61,52,56)_0x0372.ZIndex = 10
+_0x0372.Parent = _0x43E0
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0x0372).CornerRadius = UDim.new(1, 0)
+local _0x6969 =""pcall(function()
+local _0xFB7E = _0xA6AA.Character and _0xA6AA.Character:FindFirstChild(string.char(72,117,109,97,110,111,105,100,82,111,111,116,80,97,114,116))
+local _0xA298 = _0xF668(_0x1CEE)
+if _0xFB7E and _0xA298 then
+_0x6969 = string.format(string.char(32,194,183,32,37,100,115), math.floor((_0xA298.Position - _0xFB7E.Position).Magnitude))
+else
+_0x6969 =string.char(32,194,183,32,104,105,100,100,101,110)end
+end)
+local _0x394C = Instance.new(string.char(84,101,120,116,76,97,98,101,108))
+_0x394C.Size = UDim2.new(1, -124, 1, 0)
+_0x394C.Position = UDim2.new(0, 36, 0, 0)
+_0x394C.BackgroundTransparency = 1
+_0x394C.Text = _0x1CEE.DisplayName ..string.char(32,40,64).. _0x1CEE.Name ..string.char(41).. _0x6969
+_0x394C.TextColor3 = _0x90E7.Text
+_0x394C.Font = Enum.Font.GothamMedium
+_0x394C.TextSize = 10
+_0x394C.TextXAlignment = Enum.TextXAlignment.Left
+_0x394C.TextTruncate = Enum.TextTruncate.AtEnd
+_0x394C.ZIndex = 10
+_0x394C.Parent = _0x43E0
+local _0xA973 = Instance.new(string.char(84,101,120,116,66,117,116,116,111,110))
+_0xA973.Size = UDim2.new(0, 34, 0, 22)
+_0xA973.Position = UDim2.new(1, -80, 0.5, -11)
+_0xA973.BackgroundColor3 = _0x90E7.BG2
+_0xA973.Text =string.char(84,80)_0xA973.TextColor3 = _0x90E7.Neon
+_0xA973.Font = Enum.Font.GothamBold
+_0xA973.TextSize = 9
+_0xA973.AutoButtonColor = false
+_0xA973.ZIndex = 11
+_0xA973.Parent = _0x43E0
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0xA973).CornerRadius = UDim.new(0, 5)
+_0xA973.MouseButton1Click:Connect(function()
+_0x0909()
+_0x0A85 = _0x1CEE
+_0x7A5D(_0x1CEE)
+task.spawn(function()
+local _0x9094, _0x5378 = _0x5D16(_0x1CEE,string.char(116,111,114,115,111), 2.4)
+if _0x5378 and _0x5378.Parent then
+local _0x6A8A = _0x5378.CFrame * CFrame.new(0, 1.5, 2.5)
+_0x363C(_0x6A8A)
+_0xDF2E(_0xA6AA.Character, _0x6A8A)
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(70,111,117,110,100,32,38,32,116,101,108,101,112,111,114,116,101,100,32,116,111,32).. _0x1CEE.Name ..string.char(33))
+_0xCAE4()
+else
+local _0x2201 = _0xF668(_0x1CEE)
+if _0x2201 then
+_0x363C(_0x2201)
+_0xDF2E(_0xA6AA.Character, _0x2201 * CFrame.new(0, 2, 0))
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(84,101,108,101,112,111,114,116,101,100,32,116,111,32).. _0x1CEE.Name ..string.char(39,115,32,104,105,100,100,101,110,32,108,111,99,97,116,105,111,110,33))
+_0xCAE4()
+else
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(83,101,101,107,105,110,103,32).. _0x1CEE.Name ..string.char(32,226,128,148,32,116,117,114,110,101,100,32,111,110,32,65,117,116,111,45,67,104,97,115,101,33))
+_0xE84F(string.char(99,104,97,115,101), _0x1CEE)
+_0x207A()
+end
+end
+end)
+end)
+local _0xF7D0 = Instance.new(string.char(84,101,120,116,66,117,116,116,111,110))
+_0xF7D0.Size = UDim2.new(0, 40, 0, 22)
+_0xF7D0.Position = UDim2.new(1, -43, 0.5, -11)
+_0xF7D0.BackgroundColor3 = _0x90E7.Accent2
+_0xF7D0.Text =string.char(86,79,73,68)_0xF7D0.TextColor3 = Color3.new(1, 1, 1)
+_0xF7D0.Font = Enum.Font.GothamBold
+_0xF7D0.TextSize = 9
+_0xF7D0.AutoButtonColor = false
+_0xF7D0.ZIndex = 11
+_0xF7D0.Parent = _0x43E0
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0xF7D0).CornerRadius = UDim.new(0, 5)
+_0xF7D0.MouseButton1Click:Connect(function()
+_0x0909()
+_0x0A85 = _0x1CEE
+_0x7A5D(_0x1CEE)
+_0xC789(_0x1CEE)
+end)
+_0x43E0.MouseButton1Click:Connect(function()
+if _0x0A85 == _0x1CEE then
+_0x0A85 = nil
+_0xC3B1.Text =string.char(65,117,116,111,58,32,78,101,97,114,101,115,116,32,80,108,97,121,101,114)_0x00E5.Text =string.char(97,117,116,111,45,99,111,110,110,101,99,116,115,32,116,111,32,110,101,97,114,101,115,116,32,112,108,97,121,101,114)_0x7A5D(nil)
+else
+_0x0A85 = _0x1CEE
+_0xC3B1.Text =string.char(84,97,114,103,101,116,58,32).. _0x1CEE.Name
+_0x00E5.Text =string.char(108,111,99,107,101,100,32,40,116,97,112,32,97,103,97,105,110,32,102,111,114,32,97,117,116,111,45,110,101,97,114,101,115,116,41)_0x7A5D(_0x1CEE)
+end
+_0x0909()
+_0xA982()
+pcall(_0x7382)
+end)
+end
+end
+_0x1690.MouseButton1Click:Connect(function()
+_0x0909()
+_0x0A85 = nil
+_0x121A.Text =""_0x7A5D(nil)
+_0xC3B1.Text =string.char(65,117,116,111,58,32,78,101,97,114,101,115,116,32,80,108,97,121,101,114)_0x00E5.Text =string.char(97,117,116,111,45,99,111,110,110,101,99,116,115,32,116,111,32,110,101,97,114,101,115,116,32,112,108,97,121,101,114)pcall(_0xA982)
+pcall(_0x7382)
+end)
+_0x121A:GetPropertyChangedSignal(string.char(84,101,120,116)):Connect(function() pcall(_0xA982) end)
+pcall(_0xA982)
+_0xC3F7.PlayerAdded:Connect(function(_0x1CEE)
+task.wait(0.35)
+pcall(_0xA982)
+if _0x2CD3 and _0x839F and _0x1CEE.UserId == _0x839F then
+_0xE947(_0x1CEE)
+local _0x599C = tick()
+while tick() - _0x599C < 12.0 and _0x1CEE.Parent == _0xC3F7 and not _0x4E36(_0x1CEE) do
+_0xC77A.Heartbeat:Wait()
+end
+if _0x1CEE.Parent ~= _0xC3F7 then return end
+_0x0A85 = _0x1CEE
+_0xC3B1.Text =string.char(84,97,114,103,101,116,58,32).. _0x1CEE.Name
+_0x00E5.Text =string.char(114,101,106,111,105,110,101,100,32,226,128,148,32,97,117,116,111,32,114,101,45,119,101,108,100,105,110,103)_0x7A5D(_0x1CEE)
+local _0xE12E = _0x243A.presetKey or _0x518F
+if _0xE12E and _0xA4A2[_0xE12E] then
+_0xE84F(_0xE12E, _0x1CEE)
+_0x207A()
+end
+end
+end)
+_0xC3F7.PlayerRemoving:Connect(function(_0x1CEE)
+if _0x243A.target == _0x1CEE or _0x6652 == _0x1CEE or _0x0A85 == _0x1CEE then
+_0x839F = _0x1CEE.UserId
+_0x7EF3()
+_0x3C23:Cleanup(false)
+if _0x0A85 == _0x1CEE then
+_0x0A85 = nil
+_0x7A5D(nil)
+end
+_0xC3B1.Text =string.char(65,117,116,111,58,32,78,101,97,114,101,115,116,32,80,108,97,121,101,114)_0x00E5.Text =string.char(116,97,114,103,101,116,32,108,101,102,116,32,226,128,148,32,115,97,102,101,108,121,32,114,101,116,117,114,110,101,100)pcall(_0x207A)
+end
+task.wait(0.1)
+pcall(_0xA982)
+pcall(_0x7382)
+end)endlocal _0xFA8C
+do
+_0x8DC1(_0xE441, 1,string.char(67,72,65,84,32,83,80,65,77,77,69,82,32,40,65,85,84,79,45,78,69,65,82,69,83,84,32,87,72,69,78,32,66,76,65,78,75,41), _0x90E7.Muted)
+_0xA36A = Instance.new(string.char(84,101,120,116,66,111,120))
+_0xA36A.Size = UDim2.new(1, 0, 0, 32)
+_0xA36A.BackgroundColor3 = _0x90E7.Panel
+_0xA36A.PlaceholderText =string.char(84,97,114,103,101,116,32,110,97,109,101,32,40,108,101,97,118,101,32,98,108,97,110,107,32,102,111,114,32,110,101,97,114,101,115,116,32,112,108,97,121,101,114,41)_0xA36A.Text =""_0xA36A.TextColor3 = _0x90E7.Text
+_0xA36A.PlaceholderColor3 = _0x90E7.Muted
+_0xA36A.Font = Enum.Font.Gotham
+_0xA36A.TextSize = 11
+_0xA36A.LayoutOrder = 2
+_0xA36A.ClearTextOnFocus = false
+_0xA36A.ZIndex = 7
+_0xA36A.Parent = _0xE441
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0xA36A).CornerRadius = UDim.new(0, 7)
+local _0x6EAE = Instance.new(string.char(85,73,80,97,100,100,105,110,103))
+_0x6EAE.PaddingLeft = UDim.new(0, 10)
+_0x6EAE.PaddingRight = UDim.new(0, 10)
+_0x6EAE.Parent = _0xA36A
+_0x7A5D(_0x0A85)
+local _0xD4EB = Instance.new(string.char(70,114,97,109,101))
+_0xD4EB.Size = UDim2.new(1, 0, 0, 30)
+_0xD4EB.BackgroundTransparency = 1
+_0xD4EB.LayoutOrder = 3
+_0xD4EB.ZIndex = 7
+_0xD4EB.Parent = _0xE441
+local _0x2E3D = Instance.new(string.char(84,101,120,116,66,117,116,116,111,110))
+_0x2E3D.Size = UDim2.new(0.5, -3, 1, 0)
+_0x2E3D.Text =string.char(82,79,65,83,84)_0x2E3D.TextColor3 = _0x90E7.Text
+_0x2E3D.Font = Enum.Font.GothamBold
+_0x2E3D.TextSize = 10
+_0x2E3D.ZIndex = 8
+_0x2E3D.Parent = _0xD4EB
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0x2E3D).CornerRadius = UDim.new(0, 6)
+_0x961E(_0x2E3D, _0x90E7.Accent2)
+local _0xF9A2 = Instance.new(string.char(84,101,120,116,66,117,116,116,111,110))
+_0xF9A2.Size = UDim2.new(0.5, -3, 1, 0)
+_0xF9A2.Position = UDim2.new(0.5, 3, 0, 0)
+_0xF9A2.Text =string.char(77,69,83,83,65,71,69)_0xF9A2.TextColor3 = _0x90E7.Text
+_0xF9A2.Font = Enum.Font.GothamBold
+_0xF9A2.TextSize = 10
+_0xF9A2.ZIndex = 8
+_0xF9A2.Parent = _0xD4EB
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0xF9A2).CornerRadius = UDim.new(0, 6)
+_0x961E(_0xF9A2, _0x90E7.PanelLt)
+local _0x5695 = Instance.new(string.char(84,101,120,116,66,111,120))
+_0x5695.Size = UDim2.new(1, 0, 0, 32)
+_0x5695.BackgroundColor3 = _0x90E7.Panel
+_0x5695.PlaceholderText =string.char(67,117,115,116,111,109,32,109,101,115,115,97,103,101,32,116,111,32,115,112,97,109,46,46,46)_0x5695.Text =""_0x5695.TextColor3 = _0x90E7.Text
+_0x5695.PlaceholderColor3 = _0x90E7.Muted
+_0x5695.Font = Enum.Font.Gotham
+_0x5695.TextSize = 11
+_0x5695.LayoutOrder = 4
+_0x5695.ClearTextOnFocus = false
+_0x5695.Visible = false
+_0x5695.ZIndex = 7
+_0x5695.Parent = _0xE441
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0x5695).CornerRadius = UDim.new(0, 7)
+local _0x6F75 = Instance.new(string.char(85,73,80,97,100,100,105,110,103))
+_0x6F75.PaddingLeft = UDim.new(0, 10)
+_0x6F75.PaddingRight = UDim.new(0, 10)
+_0x6F75.Parent = _0x5695
+local function _0x3CDC(_0xC05B)
+_0x546D = _0xC05B
+_0x3BAC[_0x2E3D] = (_0xC05B ==string.char(114,111,97,115,116)) and _0x90E7.Accent2 or _0x90E7.PanelLt
+_0x3BAC[_0xF9A2] = (_0xC05B ==string.char(109,101,115,115,97,103,101)) and _0x90E7.Accent2 or _0x90E7.PanelLt
+_0x2E3D.BackgroundColor3 = _0x3BAC[_0x2E3D]
+_0xF9A2.BackgroundColor3 = _0x3BAC[_0xF9A2]
+_0x5695.Visible = (_0xC05B ==string.char(109,101,115,115,97,103,101))
+end
+_0x2E3D.MouseButton1Click:Connect(function() _0x0909(); _0x3CDC(string.char(114,111,97,115,116)) end)
+_0xF9A2.MouseButton1Click:Connect(function() _0x0909(); _0x3CDC(string.char(109,101,115,115,97,103,101)) end)
+local _0x91FC = Instance.new(string.char(84,101,120,116,76,97,98,101,108))
+_0x91FC.Size = UDim2.new(1, 0, 0, 16)
+_0x91FC.BackgroundTransparency = 1
+_0x91FC.LayoutOrder = 5
+_0x91FC.Text =string.char(115,116,97,116,117,115,58,32,105,100,108,101)_0x91FC.TextColor3 = _0x90E7.Muted
+_0x91FC.Font = Enum.Font.Gotham
+_0x91FC.TextSize = 10
+_0x91FC.TextXAlignment = Enum.TextXAlignment.Left
+_0x91FC.ZIndex = 7
+_0x91FC.Parent = _0xE441
+local _0x31E2 = Instance.new(string.char(70,114,97,109,101))
+_0x31E2.Size = UDim2.new(1, 0, 0, 32)
+_0x31E2.BackgroundTransparency = 1
+_0x31E2.LayoutOrder = 6
+_0x31E2.ZIndex = 7
+_0x31E2.Parent = _0xE441
+local _0x3DB1 = Instance.new(string.char(84,101,120,116,66,117,116,116,111,110))
+_0x3DB1.Size = UDim2.new(0.5, -3, 1, 0)
+_0x3DB1.Text =string.char(83,84,65,82,84)_0x3DB1.TextColor3 = Color3.new(1, 1, 1)
+_0x3DB1.Font = Enum.Font.GothamBold
+_0x3DB1.TextSize = 11
+_0x3DB1.ZIndex = 8
+_0x3DB1.Parent = _0x31E2
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0x3DB1).CornerRadius = UDim.new(0, 6)
+_0x961E(_0x3DB1, _0xF580)
+local _0x6F1E = Instance.new(string.char(84,101,120,116,66,117,116,116,111,110))
+_0x6F1E.Size = UDim2.new(0.5, -3, 1, 0)
+_0x6F1E.Position = UDim2.new(0.5, 3, 0, 0)
+_0x6F1E.Text =string.char(83,84,79,80)_0x6F1E.TextColor3 = Color3.new(1, 1, 1)
+_0x6F1E.Font = Enum.Font.GothamBold
+_0x6F1E.TextSize = 11
+_0x6F1E.ZIndex = 8
+_0x6F1E.Parent = _0x31E2
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0x6F1E).CornerRadius = UDim.new(0, 6)
+_0x961E(_0x6F1E, _0x90E7.Danger)
+local function _0x46FD()
+if _0x59D4 then return end
+_0xC080 = (_0xA36A.Text or""):gsub(string.char(94,37,115,42,64,43,37,115,42),"")
+_0x48CA = _0x5695.Text
+if _0x546D ==string.char(114,111,97,115,116)then
+local _0xD159 = (_0xC080 ~=""and _0xC080 ~= nil) and _0x8324(_0xC080, _0xA6AA) or nil
+if not _0xD159 then
+local _0x5CE2 = _0xB894()
+if _0x5CE2 then _0xC080 = _0x5CE2.Name end
+end
+if _0xC080 ==""or _0xC080 == nil then
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(78,111,32,116,97,114,103,101,116,32,111,114,32,110,101,97,114,98,121,32,112,108,97,121,101,114,32,102,111,117,110,100))
+_0xB065()
+return
+end
+_0xA36A.Text = _0xC080
+end
+if _0x546D ==string.char(109,101,115,115,97,103,101)and _0x48CA ==""then
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(69,110,116,101,114,32,97,32,109,101,115,115,97,103,101))
+_0xB065()
+return
+end
+_0x59D4 = true
+_0x21C1 = _0x21C1 + 1
+_0xC9A9 = 0
+_0x91FC.Text =string.char(114,117,110,110,105,110,103,32,194,183,32).. _0x546D
+_0x91FC.TextColor3 = _0x90E7.Success
+local _0xA9E7 = _0x21C1
+task.spawn(function()
+while _0x59D4 and _0x21C1 == _0xA9E7 do
+local _0xC05B = _0x7154()
+if _0xC05B ~=""then
+if _0xA6C9(_0xC05B) then
+_0xC9A9 = _0xC9A9 + 1
+_0x91FC.Text =string.char(114,117,110,110,105,110,103,32,194,183,32).. _0x50D5 ..string.char(32,194,183,32).. _0xC9A9
+else
+_0x91FC.Text =string.char(102,97,105,108,101,100,32,116,111,32,115,101,110,100)_0x91FC.TextColor3 = _0x90E7.Danger
+end
+end
+task.wait(_0xAB73)
+end
+end)
+_0xF140()
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(67,104,97,116,32,115,112,97,109,109,101,114,32,115,116,97,114,116,101,100))
+end
+_0xFA8C = function()
+_0x59D4 = false
+_0x21C1 = _0x21C1 + 1
+_0x91FC.Text =string.char(115,116,111,112,112,101,100,32,194,183,32).. _0xC9A9 ..string.char(32,115,101,110,116)_0x91FC.TextColor3 = _0x90E7.Muted
+_0xED6E()
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(67,104,97,116,32,115,112,97,109,109,101,114,32,115,116,111,112,112,101,100))
+end
+_0x3DB1.MouseButton1Click:Connect(function() _0x0909(); _0x46FD() end)
+_0x6F1E.MouseButton1Click:Connect(function() _0x0909(); _0xFA8C() end)
+_0x3CDC(string.char(114,111,97,115,116))
+enddolocal _0xB650 = {}_0xA00F = function()
+for _0x9094, _0x4599 in ipairs(_0xB650) do
+if _0x4599.btn and _0x4599.btn.Parent then
+local _0xE898 = _0x4599.getState()
+local _0xBEC2 = _0x4599.isAlwaysOn and _0x5DAB.AlwaysOnCore
+_0x3BAC[_0x4599.btn] = _0xE898 and _0xF580 or _0x90E7.PanelLt
+_0x4599.btn.BackgroundColor3 = _0x3BAC[_0x4599.btn]
+_0x4599.btn.Text = _0xBEC2 andstring.char(65,76,87,65,89,83,32,79,78)or (_0xE898 andstring.char(79,78)orstring.char(79,70,70))
+end
+end
+if _0x8AC6 then pcall(_0x8AC6) end
+endlocal _0x3514 = Instance.new(string.char(70,114,97,109,101))
+_0x3514.Size = UDim2.new(1, 0, 0, 30)
+_0x3514.BackgroundTransparency = 1
+_0x3514.LayoutOrder = 0
+_0x3514.ZIndex = 7
+_0x3514.Parent = _0x7261
+local _0x28D7 = Instance.new(string.char(84,101,120,116,66,117,116,116,111,110))
+_0x28D7.Size = UDim2.new(0.64, -3, 1, 0)
+_0x28D7.Text =string.char(239,191,189,239,191,189,239,184,143,32,69,78,65,66,76,69,32,65,76,76,32,65,68,86,65,78,67,69,68,32,65,78,84,73)_0x28D7.TextColor3 = Color3.new(1, 1, 1)
+_0x28D7.Font = Enum.Font.GothamBold
+_0x28D7.TextSize = 10
+_0x28D7.ZIndex = 8
+_0x28D7.Parent = _0x3514
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0x28D7).CornerRadius = UDim.new(0, 7)
+_0x961E(_0x28D7, _0xF580)
+_0x28D7.MouseButton1Click:Connect(function()
+_0x0909()
+_0x5DAB.enableAll()
+end)
+local _0x468D = Instance.new(string.char(84,101,120,116,66,117,116,116,111,110))
+_0x468D.Size = UDim2.new(0.36, -3, 1, 0)
+_0x468D.Position = UDim2.new(0.64, 6, 0, 0)
+_0x468D.Text =string.char(68,73,83,65,66,76,69,32,79,80,84,46)_0x468D.TextColor3 = Color3.new(1, 1, 1)
+_0x468D.Font = Enum.Font.GothamBold
+_0x468D.TextSize = 10
+_0x468D.ZIndex = 8
+_0x468D.Parent = _0x3514
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0x468D).CornerRadius = UDim.new(0, 7)
+_0x961E(_0x468D, _0x90E7.Danger)
+_0x468D.MouseButton1Click:Connect(function()
+_0x0909()
+_0x5DAB.disableAll()
+end)
+_0x8DC1(_0x7261, 1,string.char(68,69,70,69,78,67,69,32,84,82,79,76,76,32,77,65,84,82,73,88,32,86,51,32,32,40,54,32,67,79,85,78,84,69,82,45,77,79,68,69,83,32,43,32,79,77,78,73,45,82,65,68,65,82,41), _0x90E7.Accent)local _0x2A28 = Instance.new(string.char(70,114,97,109,101))
+_0x2A28.Size = UDim2.new(1, 0, 0, 122)
+_0x2A28.BackgroundColor3 = _0x90E7.Panel
+_0x2A28.BorderSizePixel = 0
+_0x2A28.LayoutOrder = 2
+_0x2A28.ZIndex = 7
+_0x2A28.Parent = _0x7261
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0x2A28).CornerRadius = UDim.new(0, 8)
+local _0x4740 = Instance.new(string.char(85,73,83,116,114,111,107,101))
+_0x4740.Color = _0x90E7.Accent
+_0x4740.Thickness = 1.2
+_0x4740.Transparency = 0.35
+_0x4740.Parent = _0x2A28local _0x7FC7 = Instance.new(string.char(70,114,97,109,101))
+_0x7FC7.Size = UDim2.new(1, 0, 0, 36)
+_0x7FC7.BackgroundTransparency = 1
+_0x7FC7.ZIndex = 8
+_0x7FC7.Parent = _0x2A28
+local _0xA0DD = Instance.new(string.char(84,101,120,116,76,97,98,101,108))
+_0xA0DD.Size = UDim2.new(1, -94, 1, 0)
+_0xA0DD.Position = UDim2.new(0, 12, 0, 0)
+_0xA0DD.BackgroundTransparency = 1
+_0xA0DD.Text =string.char(68,69,70,69,78,67,69,32,84,82,79,76,76,32,77,65,84,82,73,88,32,86,51)_0xA0DD.TextColor3 = Color3.fromRGB(255, 255, 255)
+_0xA0DD.Font = Enum.Font.GothamBold
+_0xA0DD.TextSize = 11
+_0xA0DD.TextXAlignment = Enum.TextXAlignment.Left
+_0xA0DD.ZIndex = 9
+_0xA0DD.Parent = _0x7FC7
+local _0xB63F = Instance.new(string.char(84,101,120,116,66,117,116,116,111,110))
+_0xB63F.Size = UDim2.new(0, 72, 0, 24)
+_0xB63F.Position = UDim2.new(1, -82, 0.5, -12)
+_0xB63F.Text = _0x7DE1.enabled andstring.char(79,78)orstring.char(79,70,70)_0xB63F.TextColor3 = Color3.new(1, 1, 1)
+_0xB63F.Font = Enum.Font.GothamBold
+_0xB63F.TextSize = 10
+_0xB63F.ZIndex = 9
+_0xB63F.Parent = _0x7FC7
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0xB63F).CornerRadius = UDim.new(1, 0)
+_0x961E(_0xB63F, _0x7DE1.enabled and _0xF580 or _0x90E7.PanelLt)local _0xDBF1 = Instance.new(string.char(70,114,97,109,101))
+_0xDBF1.Size = UDim2.new(1, -20, 0, 28)
+_0xDBF1.Position = UDim2.new(0, 10, 0, 40)
+_0xDBF1.BackgroundTransparency = 1
+_0xDBF1.ZIndex = 8
+_0xDBF1.Parent = _0x2A28
+local _0x3508 = Instance.new(string.char(84,101,120,116,66,117,116,116,111,110))
+_0x3508.Size = UDim2.new(0.62, -4, 1, 0)
+_0x3508.BackgroundColor3 = _0x90E7.PanelLt
+_0x3508.Text =string.char(77,79,68,69,58,32).. (_0x7DE1.modeLabels[_0x7DE1.mode] or _0x7DE1.mode)
+_0x3508.TextColor3 = _0x90E7.Neon
+_0x3508.Font = Enum.Font.GothamBold
+_0x3508.TextSize = 9
+_0x3508.ZIndex = 9
+_0x3508.Parent = _0xDBF1
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0x3508).CornerRadius = UDim.new(0, 6)
+_0x961E(_0x3508, _0x90E7.PanelLt)
+local _0x24BD = Instance.new(string.char(84,101,120,116,66,117,116,116,111,110))
+_0x24BD.Size = UDim2.new(0.38, 0, 1, 0)
+_0x24BD.Position = UDim2.new(0.62, 2, 0, 0)
+_0x24BD.BackgroundColor3 = _0x90E7.PanelLt
+_0x24BD.Text =string.char(82,65,68,65,82,58,32).. tostring(_0x7DE1.range) ..string.char(115)_0x24BD.TextColor3 = _0x90E7.Text
+_0x24BD.Font = Enum.Font.GothamBold
+_0x24BD.TextSize = 9
+_0x24BD.ZIndex = 9
+_0x24BD.Parent = _0xDBF1
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0x24BD).CornerRadius = UDim.new(0, 6)
+_0x961E(_0x24BD, _0x90E7.PanelLt)local _0xCAE3 = Instance.new(string.char(84,101,120,116,76,97,98,101,108))
+_0xCAE3.Size = UDim2.new(1, -24, 0, 40)
+_0xCAE3.Position = UDim2.new(0, 12, 0, 74)
+_0xCAE3.BackgroundTransparency = 1
+_0xCAE3.Text =string.char(226,154,161,32,67,79,85,78,84,69,82,69,68,58,32,48,32,32,194,183,32,32,70,76,73,78,71,83,58,32,48,32,32,194,183,32,32,76,65,71,32,80,85,82,71,69,68,58,32,48,10,67,79,82,69,32,50,52,47,55,58,32,65,110,116,105,45,83,105,116,32,194,183,32,65,110,116,105,45,86,111,105,100,32,194,183,32,65,110,116,105,45,76,97,103,32,194,183,32,65,110,116,105,45,70,114,101,101,122,101,32,65,67,84,73,86,69)_0xCAE3.TextColor3 = _0x90E7.Muted
+_0xCAE3.Font = Enum.Font.GothamMedium
+_0xCAE3.TextSize = 8
+_0xCAE3.TextWrapped = true
+_0xCAE3.TextXAlignment = Enum.TextXAlignment.Left
+_0xCAE3.ZIndex = 9
+_0xCAE3.Parent = _0x2A28
+_0x8AC6 = function()
+pcall(function()
+if _0xCAE3 and _0xCAE3.Parent then
+_0xCAE3.Text = string.format(string.char(226,154,161,32,67,79,85,78,84,69,82,69,68,58,32,37,100,32,32,194,183,32,32,70,76,73,78,71,83,58,32,37,100,32,32,194,183,32,32,83,69,65,84,83,58,32,37,100,32,32,194,183,32,32,76,65,71,58,32,37,100,10,76,65,83,84,58,32,37,115,32,40,37,115,41,32,32,194,183,32,32,50,52,47,55,32,67,79,82,69,32,83,72,73,69,76,68,83,32,79,78),
+_0x7DE1.deflectCount or 0,
+_0x5DAB.FlingShield.blockedFlings or 0,
+_0x5DAB.SeatTrap.neutralizedSeats or 0,
+_0x5DAB.Lag.purgedItems or 0,
+tostring(_0x7DE1.lastAttackerName orstring.char(78,111,110,101)),
+tostring(_0x7DE1.lastThreatReason orstring.char(83,116,97,110,100,98,121))
+)
+end
+if _0xB63F and _0xB63F.Parent then
+_0xB63F.Text = _0x7DE1.enabled andstring.char(79,78)orstring.char(79,70,70)_0x3BAC[_0xB63F] = _0x7DE1.enabled and _0xF580 or _0x90E7.PanelLt
+_0xB63F.BackgroundColor3 = _0x3BAC[_0xB63F]
+end
+end)
+end
+_0xB63F.MouseButton1Click:Connect(function()
+_0x0909()
+if _0x7DE1.enabled then
+_0x7DE1.stopFn()
+else
+_0x7DE1.startFn()
+end
+_0x8AC6()
+end)
+_0x3508.MouseButton1Click:Connect(function()
+_0x0909()
+local _0xF25B = 1
+for i, _0xC05B in ipairs(_0x7DE1.modes) do
+if _0xC05B == _0x7DE1.mode then _0xF25B = i; break end
+end
+_0xF25B = (_0xF25B % #_0x7DE1.modes) + 1
+_0x7DE1.mode = _0x7DE1.modes[_0xF25B]
+_0x3508.Text =string.char(77,79,68,69,58,32).. (_0x7DE1.modeLabels[_0x7DE1.mode] or _0x7DE1.mode)
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(68,101,102,101,110,99,101,32,77,111,100,101,32,115,101,116,58,32).. (_0x7DE1.modeLabels[_0x7DE1.mode] or _0x7DE1.mode))
+_0x8AC6()
+end)
+_0x24BD.MouseButton1Click:Connect(function()
+_0x0909()
+_0x7DE1.rangeIdx = (_0x7DE1.rangeIdx % #_0x7DE1.ranges) + 1
+_0x7DE1.range = _0x7DE1.ranges[_0x7DE1.rangeIdx]
+_0x24BD.Text =string.char(82,65,68,65,82,58,32).. tostring(_0x7DE1.range) ..string.char(115)_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(68,101,102,108,101,99,116,32,82,97,100,97,114,32,82,97,110,103,101,58,32).. tostring(_0x7DE1.range) ..string.char(32,115,116,117,100,115))
+end)
+_0x8DC1(_0x7261, 3,string.char(239,191,189,239,191,189,32,50,52,47,55,32,65,76,87,65,89,83,45,79,78,32,67,79,82,69,32,83,72,73,69,76,68,83,32,40,65,78,84,73,45,83,73,84,32,47,32,86,79,73,68,32,47,32,76,65,71,32,47,32,70,82,69,69,90,69,41), _0x90E7.Success)
+local function _0x813C(order, label, getState, onEnable, onDisable, isAlwaysOn)
+local _0xD663 = Instance.new(string.char(70,114,97,109,101))
+_0xD663.Size = UDim2.new(1, 0, 0, 34)
+_0xD663.BackgroundColor3 = _0x90E7.Panel
+_0xD663.BorderSizePixel = 0
+_0xD663.LayoutOrder = order
+_0xD663.ZIndex = 7
+_0xD663.Parent = _0x7261
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0xD663).CornerRadius = UDim.new(0, 7)
+local _0x2594 = Instance.new(string.char(84,101,120,116,76,97,98,101,108))
+_0x2594.Size = UDim2.new(1, -98, 1, 0)
+_0x2594.Position = UDim2.new(0, 12, 0, 0)
+_0x2594.BackgroundTransparency = 1
+_0x2594.Text = label
+_0x2594.TextColor3 = isAlwaysOn and _0x90E7.Neon or _0x90E7.Text
+_0x2594.Font = isAlwaysOn and Enum.Font.GothamBold or Enum.Font.GothamMedium
+_0x2594.TextSize = 10
+_0x2594.TextXAlignment = Enum.TextXAlignment.Left
+_0x2594.TextTruncate = Enum.TextTruncate.AtEnd
+_0x2594.ZIndex = 8
+_0x2594.Parent = _0xD663
+local _0xE898 = getState()
+local _0xBEC2 = isAlwaysOn and _0x5DAB.AlwaysOnCore
+local _0x43E0 = Instance.new(string.char(84,101,120,116,66,117,116,116,111,110))
+_0x43E0.Size = UDim2.new(0, 78, 0, 24)
+_0x43E0.Position = UDim2.new(1, -86, 0.5, -12)
+_0x43E0.Text = _0xBEC2 andstring.char(65,76,87,65,89,83,32,79,78)or (_0xE898 andstring.char(79,78)orstring.char(79,70,70))
+_0x43E0.TextColor3 = Color3.new(1, 1, 1)
+_0x43E0.Font = Enum.Font.GothamBold
+_0x43E0.TextSize = _0xBEC2 and 8 or 10
+_0x43E0.ZIndex = 8
+_0x43E0.Parent = _0xD663
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0x43E0).CornerRadius = UDim.new(1, 0)
+_0x961E(_0x43E0, _0xE898 and _0xF580 or _0x90E7.PanelLt)
+table.insert(_0xB650, { _0x43E0 = _0x43E0, getState = getState, isAlwaysOn = isAlwaysOn })
+_0x43E0.MouseButton1Click:Connect(function()
+_0x0909()
+if getState() then
+onDisable()
+else
+onEnable()
+end
+_0xA00F()
+end)
+return _0x43E0
+end_0x813C(4,string.char(239,191,189,239,191,189,32,65,110,116,105,45,83,105,116,32,47,32,67,111,117,99,104,45,75,105,100,110,97,112,32,68,101,115,116,114,111,121,101,114,32,118,52,32,40,50,52,47,55,41), function() return _0x5DAB.SeatTrap.enabled end, _0x5DAB.SeatTrap.startFn, _0x5DAB.SeatTrap.stopFn, true)
+_0x813C(5,string.char(239,191,189,239,191,189,32,65,110,116,105,45,82,97,103,100,111,108,108,32,47,32,65,110,116,105,45,83,105,116,32,47,32,65,110,116,105,45,83,116,117,110,32,118,52,32,40,50,52,47,55,41), function() return _0x5DAB.Ragdoll.enabled end, _0x5DAB.Ragdoll.startFn, _0x5DAB.Ragdoll.stopFn, true)
+_0x813C(6,string.char(239,191,189,239,191,189,32,65,110,116,105,45,86,111,105,100,32,118,52,32,40,50,48,52,56,120,50,48,52,56,32,70,108,111,111,114,32,43,32,67,97,116,99,104,32,50,52,47,55,41), function() return _0x5DAB.Void.enabled end, _0x5DAB.Void.startFn, _0x5DAB.Void.stopFn, true)
+_0x813C(7,string.char(239,191,189,239,191,189,32,73,110,102,105,110,105,116,101,32,70,97,108,108,32,86,111,105,100,32,40,78,97,78,32,75,105,108,108,80,108,97,110,101,32,76,111,99,107,32,50,52,47,55,41), function() return _0x5DAB.InfFallVoid.enabled end, _0x5DAB.InfFallVoid.startFn, _0x5DAB.InfFallVoid.stopFn, true)
+_0x813C(8,string.char(239,191,189,239,191,189,32,65,110,116,105,45,76,97,103,32,118,52,32,40,80,97,114,116,105,99,108,101,32,38,32,67,108,111,110,101,45,66,111,109,98,32,80,117,114,103,101,114,32,50,52,47,55,41), function() return _0x5DAB.Lag.enabled end, _0x5DAB.Lag.startFn, _0x5DAB.Lag.stopFn, true)
+_0x813C(9,string.char(239,191,189,239,191,189,32,65,110,116,105,45,70,114,101,101,122,101,32,47,32,65,110,116,105,45,65,110,99,104,111,114,32,38,32,77,111,118,101,114,32,80,117,114,103,101,114,32,118,52,32,40,50,52,47,55,41), function() return _0x5DAB.Anchor.enabled end, _0x5DAB.Anchor.startFn, _0x5DAB.Anchor.stopFn, true)
+_0x813C(10,string.char(239,191,189,239,191,189,32,65,110,116,105,45,71,97,109,101,112,108,97,121,80,97,117,115,101,100,32,47,32,65,110,116,105,45,78,101,116,119,111,114,107,70,114,101,101,122,101,32,118,52,32,40,50,52,47,55,41), function() return _0x5DAB.GamePaused.enabled end, _0x5DAB.GamePaused.startFn, _0x5DAB.GamePaused.stopFn, true)
+_0x8DC1(_0x7261, 11,string.char(65,68,68,73,84,73,79,78,65,76,32,67,72,65,82,65,67,84,69,82,32,38,32,80,72,89,83,73,67,83,32,83,72,73,69,76,68,83,32,40,86,52,41), _0x90E7.Muted)
+_0x813C(12,string.char(65,110,116,105,45,70,108,105,110,103,32,118,51,32,40,83,101,114,118,101,114,32,78,111,45,67,111,108,108,105,100,101,32,43,32,90,101,114,111,45,73,109,112,117,108,115,101,41), function() return _0x5DAB.FlingShield.enabled end, _0x5DAB.FlingShield.startFn, _0x5DAB.FlingShield.stopFn, false)
+_0x813C(13,string.char(65,110,116,105,45,75,105,108,108,32,47,32,71,111,100,45,77,111,100,101,32,118,51,32,40,84,111,117,99,104,32,83,104,105,101,108,100,32,43,32,70,111,114,99,101,70,105,101,108,100,41), function() return _0x5DAB.Kill.enabled end, _0x5DAB.Kill.startFn, _0x5DAB.Kill.stopFn, false)
+_0x813C(14,string.char(65,110,116,105,45,65,116,116,97,99,104,32,47,32,79,109,110,105,45,87,101,108,100,32,38,32,71,114,97,98,32,83,101,118,101,114,32,118,51), function() return _0x5DAB.Attach.enabled end, _0x5DAB.Attach.startFn, _0x5DAB.Attach.stopFn, false)
+_0x813C(15,string.char(65,110,116,105,45,66,114,105,110,103,32,47,32,84,111,111,108,45,71,114,97,98,32,38,32,84,101,108,101,112,111,114,116,32,71,117,97,114,100,32,118,51), function() return _0x5DAB.Bring.enabled end, _0x5DAB.Bring.startFn, _0x5DAB.Bring.stopFn, false)
+_0x813C(16,string.char(65,110,116,105,45,84,111,111,108,32,47,32,67,111,117,99,104,32,47,32,67,97,114,114,121,32,47,32,67,117,102,102,115,32,68,105,115,97,114,109,101,114,32,118,51), function() return _0x5DAB.ToolGuard.enabled end, _0x5DAB.ToolGuard.startFn, _0x5DAB.ToolGuard.stopFn, false)
+_0x813C(17,string.char(65,110,116,105,45,72,101,97,100,115,105,116,32,38,32,65,110,116,105,45,70,97,99,101,98,97,110,103,32,69,118,97,100,101,114,32,40,76,105,98,114,97,114,121,41), function() return _0x5DAB.AntiHeadsit.enabled end, _0x5DAB.AntiHeadsit.startFn, _0x5DAB.AntiHeadsit.stopFn, false)
+_0x813C(18,string.char(65,110,116,105,45,66,97,110,103,32,71,108,105,116,99,104,32,68,101,115,121,110,99,32,40,69,118,97,100,101,32,66,97,110,103,115,32,47,32,67,70,114,97,109,101,32,83,112,111,111,102,41), function() return _0x5DAB.GlitchDesync.enabled end, _0x5DAB.GlitchDesync.startFn, _0x5DAB.GlitchDesync.stopFn, false)
+_0x813C(19,string.char(65,110,116,105,45,66,108,105,110,100,32,47,32,65,110,116,105,45,70,108,97,115,104,98,97,110,103,32,38,32,70,111,103,32,67,108,101,97,114,32,118,51), function() return _0x5DAB.Blind.enabled end, _0x5DAB.Blind.startFn, _0x5DAB.Blind.stopFn, false)
+_0x8DC1(_0x7261, 20,string.char(75,72,65,77,65,78,32,65,78,84,73,45,86,67,32,86,52,32,85,76,84,82,65,32,66,89,80,65,83,83,32,38,32,67,79,85,78,84,69,82,45,84,82,65,80,83), _0x90E7.Accent)
+_0x813C(21,string.char(75,104,97,109,97,110,32,65,110,116,105,45,86,67,32,118,52,32,40,65,117,116,111,32,43,32,70,111,114,99,101,32,86,111,105,99,101,32,66,121,112,97,115,115,41), function() return _0x5DAB.VC.enabled or _0x5DAB.VC.running end, _0x5DAB.VC.startFn, _0x5DAB.VC.stopFn, false)
+_0x813C(22,string.char(86,111,105,100,45,80,97,117,115,101,32,65,116,116,97,99,107,101,114,32,40,66,97,110,105,115,104,32,87,101,108,100,101,100,32,84,114,111,108,108,115,41), function() return _0x5DAB.PauseTrap.enabled end, _0x5DAB.PauseTrap.startFn, _0x5DAB.PauseTrap.stopFn, false)
+_0x813C(23,string.char(82,101,100,105,114,101,99,116,32,65,116,116,97,99,107,101,114,32,45,62,32,78,101,97,114,101,115,116,32,66,121,115,116,97,110,100,101,114), function() return _0x5DAB.Redirect.enabled end, _0x5DAB.Redirect.startFn, _0x5DAB.Redirect.stopFn, false)
+_0x813C(24,string.char(65,110,116,105,45,75,105,99,107,32,40,73,110,116,101,114,99,101,112,116,32,67,108,105,101,110,116,32,76,111,99,97,108,80,108,97,121,101,114,58,75,105,99,107,41), function() return _0x5DAB.Kick.enabled end, _0x5DAB.Kick.startFn, _0x5DAB.Kick.stopFn, false)
+_0x813C(25,string.char(65,110,116,105,45,65,70,75,32,118,51,32,40,73,100,108,101,100,32,43,32,86,105,114,116,117,97,108,85,115,101,114,32,43,32,73,110,112,117,116,32,80,117,108,115,101,41), function() return _0x5DAB.AFK.enabled end, _0x5DAB.AFK.startFn, _0x5DAB.AFK.stopFn, false)
+do
+local _0x8873 = Instance.new(string.char(70,114,97,109,101))
+_0x8873.Size = UDim2.new(1, 0, 0, 68)
+_0x8873.BackgroundColor3 = _0x90E7.Panel
+_0x8873.BorderSizePixel = 0
+_0x8873.LayoutOrder = 26
+_0x8873.ZIndex = 7
+_0x8873.Parent = _0x7261
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0x8873).CornerRadius = UDim.new(0, 7)
+local _0xB122 = Instance.new(string.char(84,101,120,116,76,97,98,101,108))
+_0xB122.Size = UDim2.new(1, -138, 0, 28)
+_0xB122.Position = UDim2.new(0, 12, 0, 4)
+_0xB122.BackgroundTransparency = 1
+_0xB122.Text =string.char(83,116,97,116,117,115,58,32,73,100,108,101,32,194,183,32,71,117,97,114,100,58,48)_0xB122.TextColor3 = _0x90E7.Neon
+_0xB122.Font = Enum.Font.GothamBold
+_0xB122.TextSize = 10
+_0xB122.TextXAlignment = Enum.TextXAlignment.Left
+_0xB122.ZIndex = 8
+_0xB122.Parent = _0x8873
+_0x5DAB.VC.rowSubLbl = _0xB122
+local _0x56EA = Instance.new(string.char(84,101,120,116,66,117,116,116,111,110))
+_0x56EA.Size = UDim2.new(0, 118, 0, 24)
+_0x56EA.Position = UDim2.new(1, -126, 0, 6)
+_0x56EA.Text =string.char(79,80,69,78,32,65,78,84,73,45,86,67,32,85,73)_0x56EA.TextColor3 = Color3.new(1, 1, 1)
+_0x56EA.Font = Enum.Font.GothamBold
+_0x56EA.TextSize = 9
+_0x56EA.ZIndex = 8
+_0x56EA.Parent = _0x8873
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0x56EA).CornerRadius = UDim.new(0, 6)
+_0x961E(_0x56EA, _0x90E7.Accent2)
+_0x56EA.MouseButton1Click:Connect(function()
+_0x0909()
+if _0x5DAB.VC.openPanelFn then _0x5DAB.VC.openPanelFn() end
+end)
+local _0x49A1 = Instance.new(string.char(84,101,120,116,66,117,116,116,111,110))
+_0x49A1.Size = UDim2.new(0.36, -6, 0, 26)
+_0x49A1.Position = UDim2.new(0, 8, 0, 36)
+_0x49A1.Text =string.char(226,154,161,32,70,79,82,67,69,32,66,89,80,65,83,83)_0x49A1.TextColor3 = Color3.new(1, 1, 1)
+_0x49A1.Font = Enum.Font.GothamBold
+_0x49A1.TextSize = 9
+_0x49A1.ZIndex = 8
+_0x49A1.Parent = _0x8873
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0x49A1).CornerRadius = UDim.new(0, 6)
+_0x961E(_0x49A1, Color3.fromRGB(185, 115, 12))
+_0x49A1.MouseButton1Click:Connect(function()
+_0x0909()
+if _0x5DAB.VC.forceBypassFn then _0x5DAB.VC.forceBypassFn() end
+end)
+local _0xA067 = Instance.new(string.char(84,101,120,116,66,117,116,116,111,110))
+_0xA067.Size = UDim2.new(0.32, -4, 0, 26)
+_0xA067.Position = UDim2.new(0.36, 4, 0, 36)
+_0xA067.Text =string.char(239,191,189,239,191,189,239,184,143,32,76,73,86,69)_0xA067.TextColor3 = Color3.new(1, 1, 1)
+_0xA067.Font = Enum.Font.GothamBold
+_0xA067.TextSize = 9
+_0xA067.ZIndex = 8
+_0xA067.Parent = _0x8873
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0xA067).CornerRadius = UDim.new(0, 6)
+_0x961E(_0xA067, _0xF580)
+_0x5DAB.VC.inlineMicBtn = _0xA067
+_0xA067.MouseButton1Click:Connect(function()
+_0x0909()
+if _0x5DAB.VC.toggleMicFn then _0x5DAB.VC.toggleMicFn() end
+end)
+local _0x5E9E = Instance.new(string.char(84,101,120,116,66,117,116,116,111,110))
+_0x5E9E.Size = UDim2.new(0.32, -8, 0, 26)
+_0x5E9E.Position = UDim2.new(0.68, 4, 0, 36)
+_0x5E9E.Text =string.char(239,191,189,239,191,189,32,82,69,74,79,73,78,32,86,67)_0x5E9E.TextColor3 = _0x90E7.Neon
+_0x5E9E.Font = Enum.Font.GothamBold
+_0x5E9E.TextSize = 9
+_0x5E9E.ZIndex = 8
+_0x5E9E.Parent = _0x8873
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0x5E9E).CornerRadius = UDim.new(0, 6)
+_0x961E(_0x5E9E, _0x90E7.PanelLt)
+_0x5E9E.MouseButton1Click:Connect(function()
+_0x0909()
+if _0x5DAB.VC.rejoinFn then _0x5DAB.VC.rejoinFn() end
+end)
+end
+_0xA00F()
+enddo_0x8DC1(_0xAC95, -4,string.char(67,72,82,79,78,79,45,82,69,87,73,78,68,32,83,89,83,84,69,77,32,32,40,54,115,32,226,128,147,32,49,48,115,32,69,88,65,67,84,32,80,82,69,67,73,83,73,79,78,41), _0x90E7.Neon)
+local _0xE23B = Instance.new(string.char(84,101,120,116,66,117,116,116,111,110))
+_0xE23B.Size = UDim2.new(1, 0, 0, 34)
+_0xE23B.BackgroundColor3 = _0x90E7.Accent2
+_0xE23B.BorderSizePixel = 0
+_0xE23B.Text =string.char(226,143,170,32,82,69,87,73,78,68,32,84,73,77,69,32,78,79,87,32,32,40).. tostring(_0xAE44.duration) ..string.char(115,32,80,82,69,67,73,83,73,79,78,41,32,32,91,75,69,89,58,32,82,93)_0xE23B.TextColor3 = Color3.new(1, 1, 1)
+_0xE23B.Font = Enum.Font.GothamBold
+_0xE23B.TextSize = 10
+_0xE23B.LayoutOrder = -3
+_0xE23B.ZIndex = 7
+_0xE23B.Parent = _0xAC95
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0xE23B).CornerRadius = UDim.new(0, 7)
+_0x961E(_0xE23B, _0x90E7.Accent2)
+_0xE23B.MouseButton1Click:Connect(function()
+_0x0909()
+_0xAE44:Start(_0xAE44.duration)
+end)
+local _0xCD1A = Instance.new(string.char(70,114,97,109,101))
+_0xCD1A.Size = UDim2.new(1, 0, 0, 28)
+_0xCD1A.BackgroundTransparency = 1
+_0xCD1A.LayoutOrder = -2
+_0xCD1A.ZIndex = 7
+_0xCD1A.Parent = _0xAC95
+local _0x4384 = {
+{ label =string.char(54,32,83,69,67), val = 6.0 },
+{ label =string.char(56,32,83,69,67), val = 8.0 },
+{ label =string.char(49,48,32,83,69,67,32,40,77,65,88,41), val = 10.0 },
+}
+local _0xE703 = {}
+local function _0xF35E()
+for _0x9094, item in ipairs(_0xE703) do
+local _0x0A3D = math.abs(_0xAE44.duration - item.val) < 0.1
+_0x3BAC[item.btn] = _0x0A3D and _0xF580 or _0x90E7.PanelLt
+item.btn.BackgroundColor3 = _0x3BAC[item.btn]
+item.btn.TextColor3 = _0x0A3D and Color3.new(1, 1, 1) or _0x90E7.Text
+end
+_0xE23B.Text =string.char(226,143,170,32,82,69,87,73,78,68,32,84,73,77,69,32,78,79,87,32,32,40).. tostring(_0xAE44.duration) ..string.char(115,32,80,82,69,67,73,83,73,79,78,41,32,32,91,75,69,89,58,32,82,93)end
+for i, opt in ipairs(_0x4384) do
+local _0x22CF = Instance.new(string.char(84,101,120,116,66,117,116,116,111,110))
+_0x22CF.Size = UDim2.new(1 / 3, -3, 1, 0)
+_0x22CF.Position = UDim2.new((i - 1) / 3, (i == 1) and 0 or 3, 0, 0)
+_0x22CF.Text = opt.label
+_0x22CF.Font = Enum.Font.GothamBold
+_0x22CF.TextSize = 9
+_0x22CF.ZIndex = 8
+_0x22CF.Parent = _0xCD1A
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0x22CF).CornerRadius = UDim.new(0, 6)
+_0x961E(_0x22CF, _0x90E7.PanelLt)
+table.insert(_0xE703, { _0x43E0 = _0x22CF, val = opt.val })
+_0x22CF.MouseButton1Click:Connect(function()
+_0x0909()
+_0xAE44.duration = opt.val
+_0xF35E()
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(82,101,119,105,110,100,32,119,105,110,100,111,119,32,115,101,116,32,116,111,32).. tostring(opt.val) ..string.char(32,115,101,99,111,110,100,115,32,40,54,48,72,122,32,101,120,97,99,116,41))
+end)
+end
+_0xF35E()
+local _0xD70A = Instance.new(string.char(70,114,97,109,101))
+_0xD70A.Size = UDim2.new(1, 0, 0, 26)
+_0xD70A.BackgroundTransparency = 1
+_0xD70A.LayoutOrder = -1
+_0xD70A.ZIndex = 7
+_0xD70A.Parent = _0xAC95
+local _0x5A92 = Instance.new(string.char(84,101,120,116,66,117,116,116,111,110))
+_0x5A92.Size = UDim2.new(0.55, -2, 1, 0)
+_0x5A92.Text =string.char(77,79,68,69,58,32,83,77,79,79,84,72,32,82,69,86,69,82,83,69,32,82,69,80,76,65,89)_0x5A92.TextColor3 = _0x90E7.Neon
+_0x5A92.Font = Enum.Font.GothamBold
+_0x5A92.TextSize = 8
+_0x5A92.ZIndex = 8
+_0x5A92.Parent = _0xD70A
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0x5A92).CornerRadius = UDim.new(0, 6)
+_0x961E(_0x5A92, _0x90E7.Panel)
+_0x5A92.MouseButton1Click:Connect(function()
+_0x0909()
+_0xAE44.instantMode = not _0xAE44.instantMode
+_0x5A92.Text = _0xAE44.instantMode andstring.char(77,79,68,69,58,32,73,78,83,84,65,78,84,32,83,78,65,80,66,65,67,75)orstring.char(77,79,68,69,58,32,83,77,79,79,84,72,32,82,69,86,69,82,83,69,32,82,69,80,76,65,89)end)
+local _0x239C = Instance.new(string.char(84,101,120,116,66,117,116,116,111,110))
+_0x239C.Size = UDim2.new(0.45, -2, 1, 0)
+_0x239C.Position = UDim2.new(0.55, 4, 0, 0)
+_0x239C.Text =string.char(67,65,77,32,82,69,87,73,78,68,58,32,79,78)_0x239C.TextColor3 = Color3.new(1, 1, 1)
+_0x239C.Font = Enum.Font.GothamBold
+_0x239C.TextSize = 8
+_0x239C.ZIndex = 8
+_0x239C.Parent = _0xD70A
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0x239C).CornerRadius = UDim.new(0, 6)
+_0x961E(_0x239C, _0xF580)
+_0x239C.MouseButton1Click:Connect(function()
+_0x0909()
+_0xAE44.rewindCamera = not _0xAE44.rewindCamera
+_0x239C.Text = _0xAE44.rewindCamera andstring.char(67,65,77,32,82,69,87,73,78,68,58,32,79,78)orstring.char(67,65,77,32,82,69,87,73,78,68,58,32,79,70,70)_0x3BAC[_0x239C] = _0xAE44.rewindCamera and _0xF580 or _0x90E7.Panel
+_0x239C.BackgroundColor3 = _0x3BAC[_0x239C]
+end)
+_0x8DC1(_0xAC95, 1,string.char(87,65,76,75,32,83,80,69,69,68,32,32,40,85,80,32,84,79,32,53,48,48,41), _0x90E7.Accent)
+local _0xD6EC, _0x7868 = 16, 50
+local _0x373A, _0x0AD9 = 32, 75
+local _0xAA2C, _0x3E58 = 16, 500
+local _0xAD02, _0x0295 = 350, 25
+local function _0x6171()
+local _0x7B2F = _0xA6AA.Character
+if not _0x7B2F then return nil, nil, nil end
+return _0x7B2F, _0x7B2F:FindFirstChildOfClass(string.char(72,117,109,97,110,111,105,100)), _0x7B2F:FindFirstChild(string.char(72,117,109,97,110,111,105,100,82,111,111,116,80,97,114,116))
+end
+local function _0xB1D3(parent, order, text, callback, color)
+local _0x4973 = Instance.new(string.char(84,101,120,116,66,117,116,116,111,110))
+_0x4973.Size = UDim2.new(1, 0, 0, 32)
+_0x4973.BackgroundColor3 = color or _0x90E7.Panel
+_0x4973.BorderSizePixel = 0
+_0x4973.Text = text
+_0x4973.TextColor3 = _0x90E7.Text
+_0x4973.Font = Enum.Font.GothamBold
+_0x4973.TextSize = 10
+_0x4973.LayoutOrder = order
+_0x4973.ZIndex = 7
+_0x4973.Parent = parent
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0x4973).CornerRadius = UDim.new(0, 7)
+_0x961E(_0x4973, color or _0x90E7.Panel)
+_0x4973.MouseButton1Click:Connect(callback)
+return _0x4973
+end
+local _0x3A47
+_0x3A47 = _0xB1D3(_0xAC95, 2,string.char(87,65,76,75,32,83,80,69,69,68,32,32,194,183,32,32,79,70,70,32,32,40,51,50,41), function()
+local _0x9094, _0xA778 = _0x6171()
+if not _0xA778 then _0xA387(string.char(77,111,118,101,109,101,110,116),string.char(67,104,97,114,97,99,116,101,114,32,110,111,116,32,114,101,97,100,121,46)); return end
+_0x02BF.speed = not _0x02BF.speed
+_0xA778.WalkSpeed = _0x02BF.speed and _0x373A or _0xD6EC
+_0x3A47.Text =string.char(87,65,76,75,32,83,80,69,69,68,32,32,194,183,32,32).. (_0x02BF.speed andstring.char(79,78)orstring.char(79,70,70)) ..string.char(32,32,40).. tostring(_0x373A) ..string.char(41)_0x3BAC[_0x3A47] = _0x02BF.speed and _0xF580 or _0x90E7.Panel
+_0x3A47.BackgroundColor3 = _0x3BAC[_0x3A47]if _0x02BF.speed then
+if _0x02BF.speedLoopConn then _0x02BF.speedLoopConn:Disconnect() end
+_0x02BF.speedLoopConn = _0xC77A.Heartbeat:Connect(function()
+if not _0x02BF.speed then return end
+local _0x9094, _0xA077 = _0x6171()
+if _0xA077 and _0xA077.WalkSpeed ~= _0x373A then
+_0xA077.WalkSpeed = _0x373A
+end
+end)
+else
+if _0x02BF.speedLoopConn then
+_0x02BF.speedLoopConn:Disconnect()
+_0x02BF.speedLoopConn = nil
+end
+end
+end)
+local function _0x5302(val)
+_0x373A = math.clamp(math.floor(val), _0xAA2C, _0x3E58)
+_0x02BF.desiredWalkSpeed = _0x373A
+local _0x9094, _0xA778 = _0x6171()
+if _0xA778 and _0x02BF.speed then _0xA778.WalkSpeed = _0x373A end
+if _0x3A47 then
+_0x3A47.Text =string.char(87,65,76,75,32,83,80,69,69,68,32,32,194,183,32,32).. (_0x02BF.speed andstring.char(79,78)orstring.char(79,70,70)) ..string.char(32,32,40).. tostring(_0x373A) ..string.char(41)end
+endlocal _0x7E2C = Instance.new(string.char(70,114,97,109,101))
+_0x7E2C.Size = UDim2.new(1, 0, 0, 28)
+_0x7E2C.BackgroundTransparency = 1
+_0x7E2C.LayoutOrder = 3
+_0x7E2C.ZIndex = 7
+_0x7E2C.Parent = _0xAC95
+local function _0xEA35(parent, xPos, width, txt, step)
+local _0x4973 = Instance.new(string.char(84,101,120,116,66,117,116,116,111,110))
+_0x4973.Size = width
+_0x4973.Position = xPos
+_0x4973.Text = txt
+_0x4973.TextColor3 = _0x90E7.Text
+_0x4973.Font = Enum.Font.GothamBold
+_0x4973.TextSize = 9
+_0x4973.ZIndex = 8
+_0x4973.Parent = parent
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0x4973).CornerRadius = UDim.new(0, 6)
+_0x961E(_0x4973, _0x90E7.PanelLt)
+_0x4973.MouseButton1Click:Connect(function() _0x5302(_0x373A + step) end)
+return _0x4973
+end
+_0xEA35(_0x7E2C, UDim2.new(0, 0, 0, 0), UDim2.new(0.24, -2, 1, 0),string.char(45,53,48), -50)
+_0xEA35(_0x7E2C, UDim2.new(0.25, 0, 0, 0), UDim2.new(0.24, -2, 1, 0),string.char(45,49,48), -10)
+_0xEA35(_0x7E2C, UDim2.new(0.50, 2, 0, 0), UDim2.new(0.24, -2, 1, 0),string.char(43,49,48), 10)
+_0xEA35(_0x7E2C, UDim2.new(0.75, 2, 0, 0), UDim2.new(0.25, -2, 1, 0),string.char(43,53,48), 50)local _0xD60E = Instance.new(string.char(70,114,97,109,101))
+_0xD60E.Size = UDim2.new(1, 0, 0, 26)
+_0xD60E.BackgroundTransparency = 1
+_0xD60E.LayoutOrder = 4
+_0xD60E.ZIndex = 7
+_0xD60E.Parent = _0xAC95
+local _0x69BC = { {_0x6299=string.char(49,54), _0x324B=16}, {_0x6299=string.char(54,48), _0x324B=60}, {_0x6299=string.char(49,50,48), _0x324B=120}, {_0x6299=string.char(50,53,48), _0x324B=250}, {_0x6299=string.char(53,48,48,32,77,65,88), _0x324B=500} }
+local _0x3E17 = 1 / #_0x69BC
+for i, _0x1CEE in ipairs(_0x69BC) do
+local _0x5C7D = Instance.new(string.char(84,101,120,116,66,117,116,116,111,110))
+_0x5C7D.Size = UDim2.new(_0x3E17, -3, 1, 0)
+_0x5C7D.Position = UDim2.new((i - 1) * _0x3E17, 2, 0, 0)
+_0x5C7D.Text = _0x1CEE.t
+_0x5C7D.TextColor3 = _0x1CEE.v == 500 and _0x90E7.Neon or _0x90E7.Muted
+_0x5C7D.Font = Enum.Font.GothamBold
+_0x5C7D.TextSize = 8
+_0x5C7D.ZIndex = 8
+_0x5C7D.Parent = _0xD60E
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0x5C7D).CornerRadius = UDim.new(0, 5)
+_0x961E(_0x5C7D, _0x1CEE.v == 500 and _0x90E7.Accent2 or _0x90E7.Panel)
+_0x5C7D.MouseButton1Click:Connect(function()
+_0x5302(_0x1CEE.v)
+_0xA387(string.char(83,112,101,101,100),string.char(87,97,108,107,83,112,101,101,100,32,115,101,116,32,116,111,32).. tostring(_0x1CEE.v))
+end)
+endlocal _0xC546 = Instance.new(string.char(70,114,97,109,101))
+_0xC546.Size = UDim2.new(1, 0, 0, 30)
+_0xC546.BackgroundColor3 = _0x90E7.Panel
+_0xC546.BorderSizePixel = 0
+_0xC546.LayoutOrder = 5
+_0xC546.ZIndex = 7
+_0xC546.Parent = _0xAC95
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0xC546).CornerRadius = UDim.new(0, 6)
+local _0x5DAF = Instance.new(string.char(84,101,120,116,76,97,98,101,108))
+_0x5DAF.Size = UDim2.new(0.55, 0, 1, 0)
+_0x5DAF.Position = UDim2.new(0, 10, 0, 0)
+_0x5DAF.BackgroundTransparency = 1
+_0x5DAF.Text =string.char(67,85,83,84,79,77,32,83,80,69,69,68,32,40,49,54,45,53,48,48,41,58)_0x5DAF.TextColor3 = _0x90E7.Muted
+_0x5DAF.Font = Enum.Font.GothamMedium
+_0x5DAF.TextSize = 9
+_0x5DAF.TextXAlignment = Enum.TextXAlignment.Left
+_0x5DAF.ZIndex = 8
+_0x5DAF.Parent = _0xC546
+local _0x4C7C = Instance.new(string.char(84,101,120,116,66,111,120))
+_0x4C7C.Size = UDim2.new(0.4, -10, 1, -6)
+_0x4C7C.Position = UDim2.new(0.6, 0, 0, 3)
+_0x4C7C.BackgroundColor3 = _0x90E7.PanelLt
+_0x4C7C.Text = tostring(_0x373A)
+_0x4C7C.TextColor3 = _0x90E7.Neon
+_0x4C7C.Font = Enum.Font.GothamBold
+_0x4C7C.TextSize = 11
+_0x4C7C.ClearTextOnFocus = false
+_0x4C7C.ZIndex = 8
+_0x4C7C.Parent = _0xC546
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0x4C7C).CornerRadius = UDim.new(0, 5)
+_0x4C7C.FocusLost:Connect(function()
+local _0x4D41 = tonumber(_0x4C7C.Text)
+if _0x4D41 then
+_0x5302(_0x4D41)
+_0x4C7C.Text = tostring(_0x373A)
+else
+_0x4C7C.Text = tostring(_0x373A)
+end
+end)
+_0x8DC1(_0xAC95, 6,string.char(74,85,77,80,32,38,32,80,72,89,83,73,67,83), _0x90E7.Muted)
+local _0xAF41
+_0xAF41 = _0xB1D3(_0xAC95, 7,string.char(74,85,77,80,32,80,79,87,69,82,32,32,194,183,32,32,79,70,70,32,32,40,55,53,41), function()
+local _0x9094, _0xA778 = _0x6171()
+if not _0xA778 then _0xA387(string.char(77,111,118,101,109,101,110,116),string.char(67,104,97,114,97,99,116,101,114,32,110,111,116,32,114,101,97,100,121,46)); return end
+_0x02BF.jump = not _0x02BF.jump
+_0xA778.UseJumpPower = true
+_0xA778.JumpPower = _0x02BF.jump and _0x0AD9 or _0x7868
+_0xAF41.Text =string.char(74,85,77,80,32,80,79,87,69,82,32,32,194,183,32,32).. (_0x02BF.jump andstring.char(79,78)orstring.char(79,70,70)) ..string.char(32,32,40).. tostring(_0x0AD9) ..string.char(41)_0x3BAC[_0xAF41] = _0x02BF.jump and _0xF580 or _0x90E7.Panel
+_0xAF41.BackgroundColor3 = _0x3BAC[_0xAF41]
+end)
+_0xB1D3(_0xAC95, 8,string.char(74,85,77,80,32,43,50,53,32,32,40,77,65,88,32,51,53,48,41), function()
+_0x0AD9 = math.min(_0xAD02, _0x0AD9 + _0x0295)
+local _0x9094, _0xA778 = _0x6171()
+if _0xA778 then _0xA778.UseJumpPower = true; if _0x02BF.jump then _0xA778.JumpPower = _0x0AD9 end end
+_0xAF41.Text =string.char(74,85,77,80,32,80,79,87,69,82,32,32,194,183,32,32).. (_0x02BF.jump andstring.char(79,78)orstring.char(79,70,70)) ..string.char(32,32,40).. tostring(_0x0AD9) ..string.char(41)end, _0x90E7.PanelLt)
+local _0x9543
+_0x9543 = _0xB1D3(_0xAC95, 9,string.char(73,78,70,73,78,73,84,69,32,74,85,77,80,32,32,194,183,32,32,79,70,70), function()
+_0x02BF.infiniteJump = not _0x02BF.infiniteJump
+if _0x02BF.infiniteJump then
+_0x02BF.jumpConn = _0xB2E3.JumpRequest:Connect(function()
+if not _0x02BF.infiniteJump then return end
+local _0x9094, _0xA778 = _0x6171()
+if _0xA778 and _0xA778.Health > 0 then _0xA778:ChangeState(Enum.HumanoidStateType.Jumping) end
+end)
+elseif _0x02BF.jumpConn then
+_0x02BF.jumpConn:Disconnect(); _0x02BF.jumpConn = nil
+end
+_0x9543.Text =string.char(73,78,70,73,78,73,84,69,32,74,85,77,80,32,32,194,183,32,32).. (_0x02BF.infiniteJump andstring.char(79,78)orstring.char(79,70,70))
+_0x3BAC[_0x9543] = _0x02BF.infiniteJump and _0xF580 or _0x90E7.Panel
+_0x9543.BackgroundColor3 = _0x3BAC[_0x9543]
+end)local _0x92E7
+_0x92E7 = _0xB1D3(_0xAC95, 10,string.char(78,79,67,76,73,80,32,40,87,65,76,75,32,84,72,82,79,85,71,72,32,87,65,76,76,83,41,32,32,194,183,32,32,79,70,70), function()
+_0x02BF.noclip = not _0x02BF.noclip
+if _0x02BF.noclip then
+if _0x02BF.noclipConn then _0x02BF.noclipConn:Disconnect() end
+_0x02BF.noclipConn = _0xC77A.Stepped:Connect(function()
+if not _0x02BF.noclip then return end
+local _0x7B2F = _0xA6AA.Character
+if _0x7B2F then
+for _0x9094, _0x1CEE in ipairs(_0x04D0(_0x7B2F)) do
+if _0x1CEE.Parent and _0x1CEE.CanCollide then
+_0x1CEE.CanCollide = false
+end
+end
+end
+end)
+elseif _0x02BF.noclipConn then
+_0x02BF.noclipConn:Disconnect()
+_0x02BF.noclipConn = nil
+end
+_0x92E7.Text =string.char(78,79,67,76,73,80,32,40,87,65,76,75,32,84,72,82,79,85,71,72,32,87,65,76,76,83,41,32,32,194,183,32,32).. (_0x02BF.noclip andstring.char(79,78)orstring.char(79,70,70))
+_0x3BAC[_0x92E7] = _0x02BF.noclip and _0xF580 or _0x90E7.Panel
+_0x92E7.BackgroundColor3 = _0x3BAC[_0x92E7]
+end)
+_0x8DC1(_0xAC95, 11,string.char(85,78,73,86,69,82,83,65,76,32,70,76,73,71,72,84,32,40,80,67,32,38,32,65,78,68,82,79,73,68,41), _0x90E7.Accent)local _0x4199, _0x2757 = false, false
+local _0x1E04 = nil
+local function _0xD2BE()
+if _0x1E04 and _0x1E04.Parent then return end
+_0x1E04 = Instance.new(string.char(70,114,97,109,101))
+_0x1E04.Name =string.char(67,111,99,111,77,111,98,105,108,101,70,108,121,72,85,68)_0x1E04.Size = UDim2.new(0, 72, 0, 144)
+_0x1E04.Position = UDim2.new(1, -86, 0.5, -72)
+_0x1E04.BackgroundColor3 = _0x90E7.BG2
+_0x1E04.BackgroundTransparency = 0.2
+_0x1E04.BorderSizePixel = 0
+_0x1E04.ZIndex = 200
+_0x1E04.Parent = _0xF28E
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0x1E04).CornerRadius = UDim.new(0, 12)
+local _0x2A64 = Instance.new(string.char(85,73,83,116,114,111,107,101))
+_0x2A64.Color = _0x90E7.Accent
+_0x2A64.Thickness = 1.4
+_0x2A64.Transparency = 0.2
+_0x2A64.Parent = _0x1E04
+local _0x5D58 = Instance.new(string.char(84,101,120,116,76,97,98,101,108))
+_0x5D58.Size = UDim2.new(1, 0, 0, 22)
+_0x5D58.BackgroundTransparency = 1
+_0x5D58.Text =string.char(65,76,84,73,84,85,68,69)_0x5D58.TextColor3 = _0x90E7.Neon
+_0x5D58.Font = Enum.Font.GothamBold
+_0x5D58.TextSize = 8
+_0x5D58.ZIndex = 201
+_0x5D58.Parent = _0x1E04
+local _0xB0B4 = Instance.new(string.char(84,101,120,116,66,117,116,116,111,110))
+_0xB0B4.Size = UDim2.new(1, -12, 0, 50)
+_0xB0B4.Position = UDim2.new(0, 6, 0, 24)
+_0xB0B4.BackgroundColor3 = _0x90E7.Panel
+_0xB0B4.Text =string.char(226,150,178,10,85,80)_0xB0B4.TextColor3 = Color3.new(1, 1, 1)
+_0xB0B4.Font = Enum.Font.GothamBold
+_0xB0B4.TextSize = 11
+_0xB0B4.ZIndex = 201
+_0xB0B4.AutoButtonColor = false
+_0xB0B4.Parent = _0x1E04
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0xB0B4).CornerRadius = UDim.new(0, 8)
+local _0xA0F4 = Instance.new(string.char(84,101,120,116,66,117,116,116,111,110))
+_0xA0F4.Size = UDim2.new(1, -12, 0, 50)
+_0xA0F4.Position = UDim2.new(0, 6, 0, 82)
+_0xA0F4.BackgroundColor3 = _0x90E7.Panel
+_0xA0F4.Text =string.char(226,150,188,10,68,79,87,78)_0xA0F4.TextColor3 = Color3.new(1, 1, 1)
+_0xA0F4.Font = Enum.Font.GothamBold
+_0xA0F4.TextSize = 11
+_0xA0F4.ZIndex = 201
+_0xA0F4.AutoButtonColor = false
+_0xA0F4.Parent = _0x1E04
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0xA0F4).CornerRadius = UDim.new(0, 8)
+local function _0x1950(_0x43E0, setFlag)
+_0x43E0.InputBegan:Connect(function(inp)
+if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+setFlag(true)
+_0x43E0.BackgroundColor3 = _0x90E7.Accent2
+end
+end)
+_0x43E0.InputEnded:Connect(function(inp)
+if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+setFlag(false)
+_0x43E0.BackgroundColor3 = _0x90E7.Panel
+end
+end)
+end
+_0x1950(_0xB0B4, function(_0x87D3) _0x4199 = _0x87D3 end)
+_0x1950(_0xA0F4, function(_0x87D3) _0x2757 = _0x87D3 end)
+end
+local function _0xCB98()
+if _0x1E04 then
+_0x1E04:Destroy()
+_0x1E04 = nil
+end
+_0x4199 = false
+_0x2757 = false
+end
+local _0x53CA
+_0x53CA = _0xB1D3(_0xAC95, 12,string.char(70,76,89,32,32,194,183,32,32,79,70,70,32,32,40,87,65,83,68,32,47,32,74,79,89,83,84,73,67,75,32,43,32,65,76,84,41), function()
+local _0x9094, _0xA778, _0xE5AE = _0x6171()
+if not _0xA778 or not _0xE5AE then _0xA387(string.char(77,111,118,101,109,101,110,116),string.char(67,104,97,114,97,99,116,101,114,32,110,111,116,32,114,101,97,100,121,46)); return end
+_0x02BF.fly = not _0x02BF.fly
+if _0x02BF.fly then
+local _0xD11D = Instance.new(string.char(66,111,100,121,86,101,108,111,99,105,116,121))
+_0xD11D.Name =string.char(67,111,99,111,70,108,121,86,101,108,111,99,105,116,121)_0xD11D.MaxForce = Vector3.new(1e5, 1e5, 1e5)
+_0xD11D.P = 2e4
+_0xD11D.Velocity = Vector3.zero
+_0xD11D.Parent = _0xE5AE
+local _0xBA01 = Instance.new(string.char(66,111,100,121,71,121,114,111))
+_0xBA01.Name =string.char(67,111,99,111,70,108,121,71,121,114,111)_0xBA01.MaxTorque = Vector3.new(1e5, 1e5, 1e5)
+_0xBA01.P = 1e4
+_0xBA01.D = 650
+_0xBA01.CFrame = _0xE5AE.CFrame
+_0xBA01.Parent = _0xE5AE
+_0xA778.PlatformStand = true
+_0x53CA.Text =string.char(70,76,89,32,32,194,183,32,32,79,78,32,32,40,87,65,83,68,32,47,32,74,79,89,83,84,73,67,75,32,43,32,65,76,84,41)_0x3BAC[_0x53CA] = _0xF580
+_0x53CA.BackgroundColor3 = _0xF580
+_0xD2BE()
+_0x02BF.flyConn = _0xC77A.RenderStepped:Connect(function(_0x004C)
+if not _0x02BF.fly or not _0xE5AE.Parent then return end
+local _0x4E33 = workspace.CurrentCamera
+if not _0x4E33 then return end
+local _0x452C = Vector3.zeroif _0xB2E3:IsKeyDown(Enum.KeyCode.W) then _0x452C = _0x452C + (_0x4E33.CFrame.LookVector) end
+if _0xB2E3:IsKeyDown(Enum.KeyCode.S) then _0x452C = _0x452C - (_0x4E33.CFrame.LookVector) end
+if _0xB2E3:IsKeyDown(Enum.KeyCode.D) then _0x452C = _0x452C + (_0x4E33.CFrame.RightVector) end
+if _0xB2E3:IsKeyDown(Enum.KeyCode.A) then _0x452C = _0x452C - (_0x4E33.CFrame.RightVector) end
+if _0xB2E3:IsKeyDown(Enum.KeyCode.Space) then _0x452C = _0x452C + (Vector3.yAxis) end
+if _0xB2E3:IsKeyDown(Enum.KeyCode.LeftControl) or _0xB2E3:IsKeyDown(Enum.KeyCode.C) then _0x452C = _0x452C - (Vector3.yAxis) endif _0xA778 and _0xA778.MoveDirection.Magnitude > 0.05 then
+local _0x52EB = _0x4E33.CFrame.LookVector
+local _0x9A18 = _0x4E33.CFrame.RightVector
+local _0xDE5A = Vector3.new(_0x52EB.X, 0, _0x52EB.Z).Unit
+local _0x2115 = Vector3.new(_0x9A18.X, 0, _0x9A18.Z).Unit
+local _0xF2AF = _0xA778.MoveDirection:Dot(_0xDE5A)
+local _0x68A5 = _0xA778.MoveDirection:Dot(_0x2115)_0x452C = _0x452C + ((_0x52EB * _0xF2AF) + (_0x9A18 * _0x68A5))
+endif _0x4199 or (_0xA778 and _0xA778.Jump) then _0x452C = _0x452C + (Vector3.yAxis) end
+if _0x2757 then _0x452C = _0x452C - (Vector3.yAxis) end
+local _0xC015 = _0x452C.Magnitude > 0.05
+local _0xDC52 = math.max(24, _0x373A)
+_0xD11D.Velocity = _0xC015 and (_0x452C.Unit * _0xDC52) or Vector3.zero
+local _0x43DF = CFrame.lookAt(_0xE5AE.Position, _0xE5AE.Position + _0x4E33.CFrame.LookVector, Vector3.yAxis)
+_0xBA01.CFrame = _0xBA01.CFrame:Lerp(_0x43DF, math.clamp((_0x004C or 1/60) * 8, 0, 1))
+end)
+else
+if _0x02BF.flyConn then _0x02BF.flyConn:Disconnect(); _0x02BF.flyConn = nil end
+_0xCB98()
+if _0xE5AE then
+local _0xD11D = _0xE5AE:FindFirstChild(string.char(67,111,99,111,70,108,121,86,101,108,111,99,105,116,121)); if _0xD11D then _0xD11D:Destroy() end
+local _0xBA01 = _0xE5AE:FindFirstChild(string.char(67,111,99,111,70,108,121,71,121,114,111)); if _0xBA01 then _0xBA01:Destroy() end
+end
+if _0xA778 then _0xA778.PlatformStand = false end
+_0x53CA.Text =string.char(70,76,89,32,32,194,183,32,32,79,70,70,32,32,40,87,65,83,68,32,47,32,74,79,89,83,84,73,67,75,32,43,32,65,76,84,41)_0x3BAC[_0x53CA] = _0x90E7.Panel
+_0x53CA.BackgroundColor3 = _0x90E7.Panel
+end
+end)
+_0xB1D3(_0xAC95, 13,string.char(82,69,83,69,84,32,65,76,76,32,77,79,86,69,77,69,78,84), function()
+_0x02BF.speed, _0x02BF.jump, _0x02BF.noclip = false, false, false
+if _0x02BF.speedLoopConn then _0x02BF.speedLoopConn:Disconnect(); _0x02BF.speedLoopConn = nil end
+if _0x02BF.noclipConn then _0x02BF.noclipConn:Disconnect(); _0x02BF.noclipConn = nil end
+local _0x9094, _0xA778, _0xE5AE = _0x6171()
+if _0xA778 then _0xA778.WalkSpeed = _0xD6EC; _0xA778.UseJumpPower = true; _0xA778.JumpPower = _0x7868; _0xA778.PlatformStand = false end
+if _0x02BF.fly then
+_0x02BF.fly = false
+if _0x02BF.flyConn then _0x02BF.flyConn:Disconnect(); _0x02BF.flyConn = nil end
+_0xCB98()
+if _0xE5AE then
+local _0xD11D = _0xE5AE:FindFirstChild(string.char(67,111,99,111,70,108,121,86,101,108,111,99,105,116,121)); if _0xD11D then _0xD11D:Destroy() end
+local _0xBA01 = _0xE5AE:FindFirstChild(string.char(67,111,99,111,70,108,121,71,121,114,111)); if _0xBA01 then _0xBA01:Destroy() end
+end
+end
+_0x3A47.Text =string.char(87,65,76,75,32,83,80,69,69,68,32,32,194,183,32,32,79,70,70,32,32,40).. tostring(_0x373A) ..string.char(41); _0x3BAC[_0x3A47] = _0x90E7.Panel; _0x3A47.BackgroundColor3 = _0x90E7.Panel
+_0xAF41.Text =string.char(74,85,77,80,32,80,79,87,69,82,32,32,194,183,32,32,79,70,70,32,32,40).. tostring(_0x0AD9) ..string.char(41); _0x3BAC[_0xAF41] = _0x90E7.Panel; _0xAF41.BackgroundColor3 = _0x90E7.Panel
+if _0x92E7 then _0x92E7.Text =string.char(78,79,67,76,73,80,32,40,87,65,76,75,32,84,72,82,79,85,71,72,32,87,65,76,76,83,41,32,32,194,183,32,32,79,70,70); _0x3BAC[_0x92E7] = _0x90E7.Panel; _0x92E7.BackgroundColor3 = _0x90E7.Panel end
+_0x53CA.Text =string.char(70,76,89,32,32,194,183,32,32,79,70,70,32,32,40,87,65,83,68,32,47,32,74,79,89,83,84,73,67,75,32,43,32,65,76,84,41); _0x3BAC[_0x53CA] = _0x90E7.Panel; _0x53CA.BackgroundColor3 = _0x90E7.Panel
+_0xA387(string.char(77,111,118,101,109,101,110,116),string.char(65,108,108,32,109,111,118,101,109,101,110,116,32,118,97,108,117,101,115,32,114,101,115,101,116,46))
+end, _0x90E7.Danger)
+_0xA6AA.CharacterAdded:Connect(function(_0x5BFE)
+task.wait(0.5)
+local _0xA778 = _0x5BFE:FindFirstChildOfClass(string.char(72,117,109,97,110,111,105,100))
+if _0xA778 then
+if _0x02BF.speed then _0xA778.WalkSpeed = _0x373A end
+if _0x02BF.jump then _0xA778.UseJumpPower = true; _0xA778.JumpPower = _0x0AD9 end
+end
+_0x02BF.fly = false
+if _0x02BF.flyConn then _0x02BF.flyConn:Disconnect(); _0x02BF.flyConn = nil end
+_0xCB98()
+_0x53CA.Text =string.char(70,76,89,32,32,194,183,32,32,79,70,70,32,32,40,87,65,83,68,32,47,32,74,79,89,83,84,73,67,75,32,43,32,65,76,84,41); _0x3BAC[_0x53CA] = _0x90E7.Panel; _0x53CA.BackgroundColor3 = _0x90E7.Panel
+end)
+end_0x4E18.MouseButton1Click:Connect(function()
+_0x0909()
+_0x7EF3()
+_0x3C23:Cleanup(false)
+_0x839F = nil
+_0x518F = nil
+_0x00E5.Text =string.char(115,116,111,112,112,101,100)_0x207A()
+if not (_0x5DAB and (_0x5DAB.AlwaysOnCore or (_0x5DAB.Void and _0x5DAB.Void.enabled) or (_0x5DAB.InfFallVoid and _0x5DAB.InfFallVoid.enabled) or (_0x5DAB.Kill and _0x5DAB.Kill.enabled))) then
+pcall(function() workspace.FallenPartsDestroyHeight = _0x8668 end)
+end
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65),string.char(85,110,119,101,108,100,101,100,32,38,32,115,116,97,116,101,32,99,108,101,97,114,101,100))
+_0xCAE4()
+end)_0x3DFE = function(isOpen)
+_0xF28E.Enabled = true
+_0x5140.open = isOpen
+_0x5140.minimized = not isOpen
+if isOpen then
+_0xC02C.Visible = false
+_0x93AB.Scale = 0.92
+_0x5C62.Visible = true
+_0xD822.Visible = true
+_0xFD0E:Create(_0x93AB, TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+Scale = 1.0
+}):Play()
+else
+local _0x521B = _0xFD0E:Create(_0x93AB, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+Scale = 0.92
+})
+_0x521B:Play()
+task.delay(0.14, function()
+if not _0x5140.open then
+_0x5C62.Visible = false
+_0xD822.Visible = false
+_0xC02C.Visible = true
+end
+end)
+end
+end
+_0xDF13.MouseButton1Click:Connect(function()
+_0x0909()
+_0x3DFE(false)
+end)
+local function _0xA7AC()
+_0x7EF3()
+_0x3C23:Cleanup(false)
+_0xFA8C()
+pcall(function() workspace.FallenPartsDestroyHeight = _0x8668 end)
+_0xF28E:Destroy()
+print(string.char(91,75,72,65,77,65,78,32,68,72,79,75,76,65,93,32,84,101,114,109,105,110,97,116,101,100,46))
+end
+local function _0xBB22()
+local _0xA2A1 = Instance.new(string.char(70,114,97,109,101))
+_0xA2A1.Size = UDim2.new(1, 0, 1, 0)
+_0xA2A1.BackgroundColor3 = Color3.new(0, 0, 0)
+_0xA2A1.BackgroundTransparency = 0.45
+_0xA2A1.ZIndex = 100
+_0xA2A1.Parent = _0xF28E
+local _0x3706 = Instance.new(string.char(70,114,97,109,101))
+_0x3706.Size = UDim2.new(0, 250, 0, 154)
+_0x3706.Position = UDim2.new(0.5, -125, 0.5, -77)
+_0x3706.BackgroundColor3 = _0x90E7.BG2
+_0x3706.BorderSizePixel = 0
+_0x3706.ZIndex = 101
+_0x3706.Parent = _0xF28E
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0x3706).CornerRadius = UDim.new(0, 12)
+local _0x6517 = Instance.new(string.char(85,73,83,116,114,111,107,101))
+_0x6517.Color = _0x90E7.Border
+_0x6517.Thickness = 1.2
+_0x6517.Parent = _0x3706
+local _0x004C = Instance.new(string.char(84,101,120,116,76,97,98,101,108))
+_0x004C.Size = UDim2.new(1, -24, 0, 22)
+_0x004C.Position = UDim2.new(0, 12, 0, 12)
+_0x004C.BackgroundTransparency = 1
+_0x004C.Text =string.char(67,108,111,115,101,32,75,72,65,77,65,78,32,68,72,79,75,76,65,63)_0x004C.TextColor3 = _0x90E7.Text
+_0x004C.Font = Enum.Font.GothamBold
+_0x004C.TextSize = 13
+_0x004C.ZIndex = 102
+_0x004C.Parent = _0x3706
+local _0x3CD2 = Instance.new(string.char(84,101,120,116,76,97,98,101,108))
+_0x3CD2.Size = UDim2.new(1, -24, 0, 28)
+_0x3CD2.Position = UDim2.new(0, 12, 0, 34)
+_0x3CD2.BackgroundTransparency = 1
+_0x3CD2.Text =string.char(72,105,100,101,32,116,111,32,116,104,101,32,75,68,32,68,104,111,107,108,97,32,105,99,111,110,32,111,114,32,117,110,108,111,97,100,32,99,111,109,112,108,101,116,101,108,121,63)_0x3CD2.TextColor3 = _0x90E7.Muted
+_0x3CD2.TextWrapped = true
+_0x3CD2.Font = Enum.Font.Gotham
+_0x3CD2.TextSize = 10
+_0x3CD2.ZIndex = 102
+_0x3CD2.Parent = _0x3706
+local _0xF64B = Instance.new(string.char(84,101,120,116,66,117,116,116,111,110))
+_0xF64B.Size = UDim2.new(1, -24, 0, 30)
+_0xF64B.Position = UDim2.new(0, 12, 0, 70)
+_0xF64B.Text =string.char(72,73,68,69,32,80,65,78,69,76,32,40,75,69,69,80,32,73,67,79,78,83,41)_0xF64B.TextColor3 = Color3.new(1, 1, 1)
+_0xF64B.Font = Enum.Font.GothamBold
+_0xF64B.TextSize = 10
+_0xF64B.ZIndex = 102
+_0xF64B.Parent = _0x3706
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0xF64B).CornerRadius = UDim.new(0, 6)
+_0x961E(_0xF64B, _0x90E7.Accent2)
+local _0x02C9 = Instance.new(string.char(84,101,120,116,66,117,116,116,111,110))
+_0x02C9.Size = UDim2.new(0.5, -15, 0, 30)
+_0x02C9.Position = UDim2.new(0, 12, 1, -40)
+_0x02C9.Text =string.char(85,78,76,79,65,68)_0x02C9.TextColor3 = Color3.new(1, 1, 1)
+_0x02C9.Font = Enum.Font.GothamBold
+_0x02C9.TextSize = 10
+_0x02C9.ZIndex = 102
+_0x02C9.Parent = _0x3706
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0x02C9).CornerRadius = UDim.new(0, 6)
+_0x961E(_0x02C9, _0x90E7.Danger)
+local _0x4B59 = Instance.new(string.char(84,101,120,116,66,117,116,116,111,110))
+_0x4B59.Size = UDim2.new(0.5, -15, 0, 30)
+_0x4B59.Position = UDim2.new(0.5, 3, 1, -40)
+_0x4B59.Text =string.char(67,65,78,67,69,76)_0x4B59.TextColor3 = _0x90E7.Text
+_0x4B59.Font = Enum.Font.GothamBold
+_0x4B59.TextSize = 10
+_0x4B59.ZIndex = 102
+_0x4B59.Parent = _0x3706
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0x4B59).CornerRadius = UDim.new(0, 6)
+_0x961E(_0x4B59, _0x90E7.PanelLt)
+local function _0x2F5E()
+_0xA2A1:Destroy()
+_0x3706:Destroy()
+end
+_0xF64B.MouseButton1Click:Connect(function()
+_0xED6E()
+_0x3DFE(false)
+_0x2F5E()
+end)
+_0x02C9.MouseButton1Click:Connect(function() _0xED6E(); _0xA7AC() end)
+_0x4B59.MouseButton1Click:Connect(function() _0x0909(); _0x2F5E() end)
+end
+_0xE18F.MouseButton1Click:Connect(function() _0x0909(); _0xBB22() end)
+_0xB2E3.InputBegan:Connect(function(inp, gp)
+if gp or _0xB2E3:GetFocusedTextBox() then return end
+if inp.KeyCode == Enum.KeyCode.RightShift then
+_0x3DFE(not _0x5140.open)
+if _0x5140.open then _0xEA8A() else _0xED6E() end
+elseif inp.KeyCode == Enum.KeyCode.R then
+_0xAE44:Start(_0xAE44.duration)
+elseif inp.KeyCode == Enum.KeyCode.V and (_0x5DAB.VC.enabled or _0x5DAB.VC.running) then
+if _0x5DAB.VC.toggleMicFn then _0x5DAB.VC.toggleMicFn() end
+end
+end)
+_0x74C2(string.char(87,101,108,100))
+end
+local _0xA8DB, _0x6357 = xpcall(_0xA046, function(_0xA263)
+local _0x9528 =""pcall(function()
+if debug and typeof(debug.traceback) ==string.char(102,117,110,99,116,105,111,110)then
+_0x9528 =string.char(10).. tostring(debug.traceback())
+end
+end)
+return tostring(_0xA263) .. _0x9528
+end)
+if not _0xA8DB then
+warn(string.char(91,75,72,65,77,65,78,32,68,72,79,75,76,65,93,32,71,85,73,32,115,116,97,114,116,117,112,32,102,97,105,108,101,100,58,10).. tostring(_0x6357))pcall(function()
+local _0x5E61 = _0xA6AA:FindFirstChildOfClass(string.char(80,108,97,121,101,114,71,117,105)) or _0xA6AA:WaitForChild(string.char(80,108,97,121,101,114,71,117,105), 8)
+if not _0x5E61 then return end
+local _0x9AED = _0x5E61:FindFirstChild(string.char(75,104,97,109,97,110,68,104,111,107,108,97,83,116,97,114,116,117,112,69,114,114,111,114))
+if _0x9AED then _0x9AED:Destroy() end
+local _0xA592 = Instance.new(string.char(83,99,114,101,101,110,71,117,105))
+_0xA592.Name =string.char(75,104,97,109,97,110,68,104,111,107,108,97,83,116,97,114,116,117,112,69,114,114,111,114)_0xA592.ResetOnSpawn = false
+_0xA592.DisplayOrder = 100000
+_0xA592.Parent = _0x5E61
+local _0x088B = Instance.new(string.char(70,114,97,109,101))
+_0x088B.Size = UDim2.new(0.9, 0, 0, 150)
+_0x088B.Position = UDim2.new(0.05, 0, 0.08, 0)
+_0x088B.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+_0x088B.BorderSizePixel = 0
+_0x088B.Parent = _0xA592
+Instance.new(string.char(85,73,67,111,114,110,101,114), _0x088B).CornerRadius = UDim.new(0, 10)
+local _0x1412 = Instance.new(string.char(84,101,120,116,76,97,98,101,108))
+_0x1412.Size = UDim2.new(1, -20, 0, 32)
+_0x1412.Position = UDim2.new(0, 10, 0, 8)
+_0x1412.BackgroundTransparency = 1
+_0x1412.Font = Enum.Font.GothamBold
+_0x1412.TextSize = 16
+_0x1412.TextColor3 = Color3.fromRGB(255, 115, 115)
+_0x1412.TextXAlignment = Enum.TextXAlignment.Left
+_0x1412.Text =string.char(75,72,65,77,65,78,32,68,72,79,75,76,65,32,102,97,105,108,101,100,32,116,111,32,115,116,97,114,116)_0x1412.Parent = _0x088B
+local _0xD6FE = Instance.new(string.char(84,101,120,116,76,97,98,101,108))
+_0xD6FE.Size = UDim2.new(1, -20, 1, -48)
+_0xD6FE.Position = UDim2.new(0, 10, 0, 40)
+_0xD6FE.BackgroundTransparency = 1
+_0xD6FE.Font = Enum.Font.Code
+_0xD6FE.TextSize = 11
+_0xD6FE.TextColor3 = Color3.fromRGB(235, 235, 240)
+_0xD6FE.TextWrapped = true
+_0xD6FE.TextXAlignment = Enum.TextXAlignment.Left
+_0xD6FE.TextYAlignment = Enum.TextYAlignment.Top
+_0xD6FE.Text = tostring(_0x6357):sub(1, 1800)
+_0xD6FE.Parent = _0x088B
+end)
+return
+end
+_0xA387(string.char(75,72,65,77,65,78,32,68,72,79,75,76,65,32,86,51,57),string.char(90,101,114,111,45,70,114,101,101,122,101,32,84,114,111,108,108,32,43,32,84,114,117,101,32,85,110,108,105,109,105,116,101,100,32,70,108,105,110,103,32,43,32,50,52,47,55,32,67,111,114,101,32,83,104,105,101,108,100,115,32,43,32,86,67,32,86,52,32,82,101,97,100,121,33))
+print(string.char(91,75,72,65,77,65,78,32,68,72,79,75,76,65,32,86,51,57,93,32,82,101,97,100,121,46))
