@@ -118,7 +118,7 @@ local cam = workspace.CurrentCamera or workspace:FindFirstChildOfClass("Camera")
 if not cam then
     local waitStart = tick()
     while not cam and tick() - waitStart < 2.0 do
-        task.wait(0.1)
+        RunService.Heartbeat:Wait()
         cam = workspace.CurrentCamera or workspace:FindFirstChildOfClass("Camera")
     end
 end
@@ -847,28 +847,28 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
         return TargetPart.CFrame * localOffset
     end
 
-    local cachedRepPart, cachedRepHandle = nil, nil
     local function bindZeroDelayPhysicsRep(part)
         if not sethiddenproperty or not Root or not Root.Parent then return end
         pcall(function()
             sethiddenproperty(Root, "PhysicsRepRootPart", part)
             if InstanceHandleNew then
-                if part ~= cachedRepPart then
-                    cachedRepPart = part
-                    cachedRepHandle = part and InstanceHandleNew(part) or nil
-                end
-                sethiddenproperty(Root, "PhysicsRepRootRef", cachedRepHandle)
+                sethiddenproperty(Root, "PhysicsRepRootRef", part and InstanceHandleNew(part) or nil)
             end
         end)
     end
 
     local currentLockCF = nil
     if TargetPart and TargetPart.Parent then
+        pcall(function() LP.ReplicationFocus = TargetPart end)
         currentLockCF = computeCurrentTargetLockCF()
         markIntentionalTeleport(currentLockCF)
         Root.CFrame = currentLockCF
         Root.AssemblyLinearVelocity = Vector3.zero
         Root.AssemblyAngularVelocity = Vector3.zero
+        pcall(function()
+            Root.Velocity = Vector3.zero
+            Root.RotVelocity = Vector3.zero
+        end)
         bindZeroDelayPhysicsRep(TargetPart)
     end
 
@@ -951,10 +951,33 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
         end
     end
 
+    -- Instant sub-frame target reference refresher (used by Stepped, RenderStepped, and Heartbeat for 0.00s lock)
+    local function refreshTargetPartInstant()
+        if not TargetPlayer then return end
+        local latestChar = findPlayerCharacterAnywhere(TargetPlayer)
+        if not TargetPart or not TargetPart.Parent or latestChar ~= TargetChar then
+            if latestChar then
+                local newPart = pickTargetRef(latestChar, RefMode or "torso")
+                if newPart and newPart.Parent then
+                    TargetChar = latestChar
+                    TargetHum  = latestChar:FindFirstChildOfClass("Humanoid")
+                    TargetPart = newPart
+                    missingFrames = 0
+                end
+            end
+        elseif RefMode == "head" and TargetPart.Name ~= "Head" and TargetChar then
+            local headPart = TargetChar:FindFirstChild("Head")
+            if headPart and headPart:IsA("BasePart") then
+                TargetPart = headPart
+            end
+        end
+    end
+
     -- Stepped pass ensures we phase through walls, doors, roofs, and seats inside any hiding spot + zero-delay PhysicsRepRootPart lock
     StepConn = RunService.Stepped:Connect(function()
         if Weld.destroyed then return end
         applyPhaseNoclip()
+        refreshTargetPartInstant()
         if TargetPart and TargetPart.Parent and Root and Root.Parent and not isLethalVoidCF(TargetPart.CFrame, TargetPart.AssemblyLinearVelocity) then
             currentLockCF = computeCurrentTargetLockCF()
             markIntentionalTeleport(currentLockCF)
@@ -968,10 +991,13 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
     -- RenderStepped pass guarantees zero-jitter visual lock when the target sprints or turns camera
     RenderConn = RunService.RenderStepped:Connect(function()
         if Weld.destroyed then return end
+        refreshTargetPartInstant()
         if TargetPart and TargetPart.Parent and Root and Root.Parent and not isLethalVoidCF(TargetPart.CFrame, TargetPart.AssemblyLinearVelocity) then
             currentLockCF = computeCurrentTargetLockCF()
             markIntentionalTeleport(currentLockCF)
             Root.CFrame = currentLockCF
+            Root.AssemblyLinearVelocity = Vector3.zero
+            Root.AssemblyAngularVelocity = Vector3.zero
             bindZeroDelayPhysicsRep(TargetPart)
         end
     end)
@@ -1034,6 +1060,12 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
                 return
             end
         else
+            if RefMode == "head" and TargetPart.Name ~= "Head" and TargetChar then
+                local headPart = TargetChar:FindFirstChild("Head")
+                if headPart and headPart:IsA("BasePart") then
+                    TargetPart = headPart
+                end
+            end
             missingFrames = 0
         end
 
@@ -1502,6 +1534,22 @@ local function weldToTarget(target, speaker, offset, animId, osc, refMode, animF
         return true, TPlayer
     end
 
+    -- Frame-0 pre-snap when target is unstreamed across the map: teleport immediately to their known pivot/cached CFrame!
+    if myChar and myRoot then
+        local knownCF = getBestTargetCFrame(TPlayer)
+        if knownCF and not isLethalVoidCF(knownCF) then
+            breakLocalSeatAndTrapWelds(myChar)
+            local instantSnapCF = knownCF * offset
+            markIntentionalTeleport(instantSnapCF)
+            myRoot.AssemblyLinearVelocity = Vector3.zero
+            myRoot.AssemblyAngularVelocity = Vector3.zero
+            myRoot.CFrame = instantSnapCF
+            task.spawn(function()
+                pcall(function() LP:RequestStreamAroundAsync(knownCF.Position, 1.5) end)
+            end)
+        end
+    end
+
     -- Fallback async path only when target is currently unstreamed or mid-respawn
     task.spawn(function()
         local waitStart = tick()
@@ -1587,19 +1635,18 @@ stopWeld = function()
     end
 end
 
+local HookedRespawnPlayers = setmetatable({}, { __mode = "k" })
 hookTargetRespawn = function(targetPlr)
-    if not targetPlr then return end
-    if targetPlr:FindFirstChild("__KhamanDhoklaHook") then return end
-    local marker = Instance.new("BoolValue")
-    marker.Name = "__KhamanDhoklaHook"
-    marker.Parent = targetPlr
+    if not targetPlr or HookedRespawnPlayers[targetPlr] then return end
+    HookedRespawnPlayers[targetPlr] = true
     targetPlr.CharacterAdded:Connect(function(newChar)
+        CustomCharCache[targetPlr.UserId] = { model = newChar, lastScan = tick() }
         if not AutoReweldEnabled or not WeldIntent.active then return end
         if WeldIntent.target ~= targetPlr and LastWeldTargetUserId ~= targetPlr.UserId then return end
-        -- Zero-delay respawn lock: wait only until a root/base part exists on the new character!
+        -- Zero-delay respawn lock: lock on Frame 0 if part already exists, else wait on pre-physics Stepped!
         local t0 = tick()
         while tick() - t0 < 2.0 and newChar.Parent and not pickTargetRef(newChar, "torso") do
-            RunService.Heartbeat:Wait()
+            RunService.Stepped:Wait()
         end
         if not WeldIntent.active or targetPlr.Parent ~= Players then return end
         if CurrentWeld then
@@ -1614,12 +1661,12 @@ hookTargetRespawn = function(targetPlr)
     end)
 end
 
--- Local Character Respawn Hook: automatically re-attaches if local player respawns while WeldIntent is active
+-- Local Character Respawn Hook: automatically re-attaches in 0.00s if local player respawns while WeldIntent is active
 LP.CharacterAdded:Connect(function(newMyChar)
     if not AutoReweldEnabled or not WeldIntent.active then return end
     local t0 = tick()
     while tick() - t0 < 2.5 and newMyChar.Parent and not getRootPart(newMyChar) do
-        RunService.Heartbeat:Wait()
+        RunService.Stepped:Wait()
     end
     if not WeldIntent.active then return end
     local tgt = WeldIntent.target
@@ -1635,7 +1682,7 @@ LP.CharacterAdded:Connect(function(newMyChar)
 end)
 
 -- Zero-Delay Heartbeat Omnipresent Watchdog:
--- Instantly re-locks as soon as a target streams in or finishes respawning (never freezes local player while target is dead)!
+-- Instantly re-locks in 0.00s on the exact frame a target streams in or finishes respawning (never freezes local player while target is dead)!
 local reweldWatchdogBusy = false
 local lastWatchdogAttempt = 0
 RunService.Heartbeat:Connect(function()
@@ -1649,8 +1696,6 @@ RunService.Heartbeat:Connect(function()
         return
     end
     if not CurrentWeld or CurrentWeld.destroyed then
-        local now = tick()
-        if now - lastWatchdogAttempt < 0.20 then return end
         local tCharCheck = findPlayerCharacterAnywhere(tgt)
         local tHumCheck  = tCharCheck and tCharCheck:FindFirstChildOfClass("Humanoid")
         -- If target is currently dead and waiting to respawn, keep local player completely free & unfrozen!
@@ -1660,25 +1705,36 @@ RunService.Heartbeat:Connect(function()
         local myChar = LP.Character
         local myRoot = getRootPart(myChar)
         local myHum  = myChar and myChar:FindFirstChildOfClass("Humanoid")
-        if myRoot and myHum and myHum.Health > 0 then
-            lastWatchdogAttempt = now
-            reweldWatchdogBusy = true
-            task.spawn(function()
-                pcall(function()
-                    local preset = WELD_PRESETS[WeldIntent.presetKey]
-                    local refMode = preset and preset.refMode or "torso"
-                    local tChar, tRef = streamAndTeleportToTarget(tgt, refMode, 1.0, false)
-                    local tHum = tChar and tChar:FindFirstChildOfClass("Humanoid")
-                    if WeldIntent.active and (not CurrentWeld or CurrentWeld.destroyed) and tRef and tRef.Parent and (not tHum or tHum.Health > 0) then
-                        if not isLethalVoidCF(tRef.CFrame, tRef.AssemblyLinearVelocity) then
-                            applyWeldPreset(WeldIntent.presetKey, tgt)
-                            if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
-                        end
-                    end
-                end)
-                reweldWatchdogBusy = false
-            end)
+        if not myRoot or not myHum or myHum.Health <= 0 then return end
+
+        local preset = WELD_PRESETS[WeldIntent.presetKey]
+        local refMode = preset and preset.refMode or "torso"
+        local tRefFast = tCharCheck and pickTargetRef(tCharCheck, refMode)
+
+        -- 0.00s Synchronous Fast Lock: if target's reference part is already in workspace, lock immediately with ZERO throttle!
+        if tRefFast and tRefFast.Parent and not isLethalVoidCF(tRefFast.CFrame, tRefFast.AssemblyLinearVelocity) then
+            applyWeldPreset(WeldIntent.presetKey, tgt)
+            if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
+            return
         end
+
+        local now = tick()
+        if now - lastWatchdogAttempt < 0.15 then return end
+        lastWatchdogAttempt = now
+        reweldWatchdogBusy = true
+        task.spawn(function()
+            pcall(function()
+                local tChar, tRef = streamAndTeleportToTarget(tgt, refMode, 1.0, false)
+                local tHum = tChar and tChar:FindFirstChildOfClass("Humanoid")
+                if WeldIntent.active and (not CurrentWeld or CurrentWeld.destroyed) and tRef and tRef.Parent and (not tHum or tHum.Health > 0) then
+                    if not isLethalVoidCF(tRef.CFrame, tRef.AssemblyLinearVelocity) then
+                        applyWeldPreset(WeldIntent.presetKey, tgt)
+                        if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
+                    end
+                end
+            end)
+            reweldWatchdogBusy = false
+        end)
     end
 end)
 end -- end Zero-Delay WeldTo, Seeker & Watchdog scope
@@ -2980,7 +3036,6 @@ avStart = function(silent)
     if Anti.Void.charAdded then Anti.Void.charAdded:Disconnect() end
     Anti.Void.charAdded = LP.CharacterAdded:Connect(function(c)
         if not Anti.Void.enabled then return end
-        task.wait(0.1)
         avHookChar(c)
         pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
     end)
@@ -3254,7 +3309,6 @@ akStart = function()
     if Anti.Kill.charAdded then Anti.Kill.charAdded:Disconnect() end
     Anti.Kill.charAdded = LP.CharacterAdded:Connect(function(c)
         if not Anti.Kill.enabled then return end
-        task.wait(0.15)
         akHookCharacter(c)
     end)
     if Anti.Kill.wsDescConn then Anti.Kill.wsDescConn:Disconnect() end
@@ -4268,7 +4322,6 @@ ragdollStart = function(silent)
     hookRagdollChar(LP.Character)
     if Anti.Ragdoll.charAdded then Anti.Ragdoll.charAdded:Disconnect() end
     Anti.Ragdoll.charAdded = LP.CharacterAdded:Connect(function(c)
-        task.wait(0.1)
         if Anti.Ragdoll.enabled then hookRagdollChar(c) end
     end)
     if Anti.Ragdoll.steppedConn then Anti.Ragdoll.steppedConn:Disconnect() end
@@ -4390,7 +4443,6 @@ anchorStart = function(silent)
     anchorHookChar(LP.Character)
     if Anti.Anchor.charAdded then Anti.Anchor.charAdded:Disconnect() end
     Anti.Anchor.charAdded = LP.CharacterAdded:Connect(function(char)
-        task.wait(0.1)
         if Anti.Anchor.enabled then anchorHookChar(char) end
     end)
     if Anti.Anchor.steppedConn then Anti.Anchor.steppedConn:Disconnect() end
@@ -5279,7 +5331,7 @@ local function executeDeflectAction(attacker, threatReason)
     LastVoidActionEnd = tick()
     markIntentionalTeleport(savedCF)
     safeReturnFromVoid(myChar, savedCF)
-    task.wait(0.06)
+    RunService.Heartbeat:Wait()
     if currentCam then
         pcall(function()
             currentCam.CameraType = savedCamType or Enum.CameraType.Custom
@@ -5725,7 +5777,7 @@ local function buildMainUI()
     local mobDrag, mobStart, mobPos, mobMoved = false, nil, nil, false
     local lastLauncherToggle = 0
     local function triggerLauncherToggle()
-        if tick() - lastLauncherToggle < 0.12 then return end
+        if tick() - lastLauncherToggle < 0.03 then return end
         lastLauncherToggle = tick()
         sClick()
         if setPanelOpen then setPanelOpen(true) end
@@ -6404,6 +6456,17 @@ local function buildMainUI()
         syncChatTarget(nil)
         footerLabel.Text = "Auto: Nearest Player"
         footerSub.Text = "auto-connects to nearest player"
+        if WeldIntent.active and WeldIntent.presetKey then
+            local nearestPlr = getNearestPlayer(LP)
+            if nearestPlr and nearestPlr.Parent == Players then
+                CurrentTarget = nearestPlr
+                LastWeldTargetUserId = nearestPlr.UserId
+                hookTargetRespawn(nearestPlr)
+                applyWeldPreset(WeldIntent.presetKey, nearestPlr)
+                footerLabel.Text = "Nearest: " .. nearestPlr.Name
+                footerSub.Text = "active · " .. (WELD_PRESETS[WeldIntent.presetKey] and WELD_PRESETS[WeldIntent.presetKey].label or WeldIntent.presetKey)
+            end
+        end
         if refreshList then pcall(refreshList) end
         pcall(refreshCard)
         notify("KHAMAN DHOKLA", "Auto-Nearest Player mode active")
@@ -6698,7 +6761,7 @@ local function buildMainUI()
         local pDrag, pStart, pPos, pMoved = false, nil, nil, false
         local lastPillActivate = 0
         local function onPillActivate()
-            if tick() - lastPillActivate < 0.18 then return end
+            if tick() - lastPillActivate < 0.03 then return end
             lastPillActivate = tick()
             sClick()
             togglePresetOrAction(key)
@@ -7193,6 +7256,13 @@ local function buildMainUI()
                     footerLabel.Text = "Target: " .. p.Name
                     footerSub.Text = "locked (tap again for auto-nearest)"
                     syncChatTarget(p)
+                    if WeldIntent.active and WeldIntent.presetKey then
+                        CurrentTarget = p
+                        LastWeldTargetUserId = p.UserId
+                        hookTargetRespawn(p)
+                        applyWeldPreset(WeldIntent.presetKey, p)
+                        footerSub.Text = "active · " .. (WELD_PRESETS[WeldIntent.presetKey] and WELD_PRESETS[WeldIntent.presetKey].label or WeldIntent.presetKey)
+                    end
                 end
                 sClick()
                 refreshList()
@@ -7208,6 +7278,17 @@ local function buildMainUI()
         syncChatTarget(nil)
         footerLabel.Text = "Auto: Nearest Player"
         footerSub.Text = "auto-connects to nearest player"
+        if WeldIntent.active and WeldIntent.presetKey then
+            local nearestPlr = getNearestPlayer(LP)
+            if nearestPlr and nearestPlr.Parent == Players then
+                CurrentTarget = nearestPlr
+                LastWeldTargetUserId = nearestPlr.UserId
+                hookTargetRespawn(nearestPlr)
+                applyWeldPreset(WeldIntent.presetKey, nearestPlr)
+                footerLabel.Text = "Nearest: " .. nearestPlr.Name
+                footerSub.Text = "active · " .. (WELD_PRESETS[WeldIntent.presetKey] and WELD_PRESETS[WeldIntent.presetKey].label or WeldIntent.presetKey)
+            end
+        end
         pcall(refreshList)
         pcall(refreshCard)
     end)
@@ -7216,13 +7297,12 @@ local function buildMainUI()
     pcall(refreshList)
 
     Players.PlayerAdded:Connect(function(p)
-        task.wait(0.35)
-        pcall(refreshList)
+        task.defer(function() pcall(refreshList) end)
         if AutoReweldEnabled and LastWeldTargetUserId and p.UserId == LastWeldTargetUserId then
             hookTargetRespawn(p)
             local waitStart = tick()
             while tick() - waitStart < 12.0 and p.Parent == Players and not findPlayerCharacterAnywhere(p) do
-                RunService.Heartbeat:Wait()
+                RunService.Stepped:Wait()
             end
             if p.Parent ~= Players then return end
             selectedPlayer = p
@@ -7250,9 +7330,10 @@ local function buildMainUI()
             footerSub.Text = "target left — safely returned"
             pcall(syncAllActiveIndicators)
         end
-        task.wait(0.1)
-        pcall(refreshList)
-        pcall(refreshCard)
+        task.defer(function()
+            pcall(refreshList)
+            pcall(refreshCard)
+        end)
     end)
 
     -- ═══════════════════════════════════════════════════════════════════════════
@@ -8514,16 +8595,15 @@ local function buildMainUI()
     end, T.Danger)
 
     LP.CharacterAdded:Connect(function(char)
-        task.wait(0.5)
-        local hum = char:FindFirstChildOfClass("Humanoid")
-        if hum then
-            if moveState.speed then hum.WalkSpeed = currentSpeed end
-            if moveState.jump then hum.UseJumpPower = true; hum.JumpPower = currentJump end
-        end
         moveState.fly = false
         if moveState.flyConn then moveState.flyConn:Disconnect(); moveState.flyConn = nil end
         removeMobileFlyHUD()
         flyStatus.Text = "FLY  ·  OFF  (WASD / JOYSTICK + ALT)"; BtnColors[flyStatus] = T.Panel; flyStatus.BackgroundColor3 = T.Panel
+        local hum = char:FindFirstChildOfClass("Humanoid") or char:WaitForChild("Humanoid", 2)
+        if hum then
+            if moveState.speed then hum.WalkSpeed = currentSpeed end
+            if moveState.jump then hum.UseJumpPower = true; hum.JumpPower = currentJump end
+        end
     end)
     end -- end Move Tab scope block
 
@@ -8558,6 +8638,7 @@ local function buildMainUI()
                 Scale = 1.0
             }):Play()
         else
+            mobToggle.Visible = true
             local tw = TweenService:Create(mainScale, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
                 Scale = 0.92
             })
@@ -8566,7 +8647,6 @@ local function buildMainUI()
                 if not uiState.open then
                     main.Visible = false
                     panelShadow.Visible = false
-                    mobToggle.Visible = true
                 end
             end)
         end
