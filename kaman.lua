@@ -1,5 +1,13 @@
 --[[═══════════════════════════════════════════════════════════════════════════════
-  🟨 KHAMAN DHOKLA — V37 "GOLDEN TADKA ZERO-DELAY & ULTRA-REFINED UI" EDITION
+  🟨 KHAMAN DHOKLA — V39 "ANTI-FREEZE TROLL FIX, TRUE UNLIMITED FLING & ULTRA VC V4"
+  Upgrades & Fixes:
+    • Zero-Freeze Troll & Weld Engine: Preserves all Troll & Weld presets/offsets while
+      fixing post-weld character freeze, Animate track corruption, and mid-respawn noclip drops
+    • True Unlimited Nebula Fling & Void Lock: Runs non-stop across target deaths & respawns
+      (and chains targets in Auto-Nearest mode) until manually stopped by the user
+    • 24/7 Always-On Core Shields: Anti-Sit, Anti-Void, Anti-Lag & Anti-Freeze enabled at boot
+      with zero-overhead Stepped/event architecture (0 GetDescendants/SetStateEnabled lag)
+    • Ultra Khaman Anti-VC V4: Auto & 0-Wait Force Bypass + PublishPause Hook + Watchdog
   Tabs: WELD | TARGET | CHAT | ANTI | MOVE
   Toggle: RightShift (or floating KD Dhokla Cube launcher)
   Theme: Authentic Khaman Dhokla (Steamed Golden Besan Sponge, Roasted Rai Mustard
@@ -273,6 +281,18 @@ local Anti
 local recoverCharacterState
 local safeReturnFromVoid
 local syncAllActiveIndicators
+local markIntentionalTeleport
+local RewindSys
+local VoidRescueActive = false
+local deflectBusy = false
+local contactTimers = {}
+local deflectCooldowns = {}
+local attackerLastPos = {}
+
+-- Helper: Returns true ONLY when local character is actively attached in a Troll Weld or Fling
+local function isActivelyWeldedOrFlinging()
+    return (CurrentWeld ~= nil and not CurrentWeld.destroyed) or FlingActive
+end
 
 -- Hoisted shared movement & defence state so RewindSys, WeldTo, and Anti modules share exact upvalues
 local moveState = {
@@ -286,8 +306,8 @@ local moveState = {
     noclipConn = nil,
     speedLoopConn = nil,
     lastTeleportTick = 0,
+    desiredWalkSpeed = 32,
 }
--- deflectBusy, contactTimers, deflectCooldowns, attackerLastPos hoisted above RewindSys
 local RescueGeneration = 0
 
 -- Event-Driven Character BasePart Cache: avoids redundant GetDescendants() scans on every Stepped frame!
@@ -399,7 +419,8 @@ function StateManager:ResetPhysics(character)
     for _, part in ipairs(getCachedCharParts(character)) do
         if part.Parent then
             part.Massless = false
-            if part.Name == "HumanoidRootPart" or part.Name == "Torso" or part.Name == "UpperTorso" or part.Name == "LowerTorso" or part.Name == "Head" then
+            pcall(function() part.CustomPhysicalProperties = nil end)
+            if not (moveState and moveState.noclip) and (part.Name == "HumanoidRootPart" or part.Name == "Torso" or part.Name == "UpperTorso" or part.Name == "LowerTorso" or part.Name == "Head") then
                 part.CanCollide = true
             end
         end
@@ -558,10 +579,11 @@ local function killAnimate(c)
 end
 
 local function restoreAnimate(c)
-    if not AnimateWasDisabled then return end
     if c then
         local animate = c:FindFirstChild("Animate")
-        if animate then animate.Disabled = false end
+        if animate and animate.Disabled then
+            animate.Disabled = false
+        end
     end
     AnimateWasDisabled = false
 end
@@ -584,7 +606,7 @@ recoverCharacterState = function(char, safeCF)
         if isSafePlayableCF(safeCF) then
             targetCF = safeCF
         elseif isSafePlayableCF(root.CFrame) then
-            targetCF = root.CFrame + Vector3.new(0, 1.5, 0)
+            targetCF = root.CFrame
         else
             targetCF = findFallbackSafeCF()
         end
@@ -597,31 +619,67 @@ recoverCharacterState = function(char, safeCF)
     end
     for _, part in ipairs(getCachedCharParts(char)) do
         if part.Parent then
+            part.Anchored = false
             part.Massless = false
-            if part.Name == "HumanoidRootPart" or part.Name == "Torso" or part.Name == "UpperTorso" or part.Name == "LowerTorso" or part.Name == "Head" then
+            pcall(function() part.CustomPhysicalProperties = nil end)
+            if not (moveState and moveState.noclip) and (part.Name == "HumanoidRootPart" or part.Name == "Torso" or part.Name == "UpperTorso" or part.Name == "LowerTorso" or part.Name == "Head") then
                 part.CanCollide = true
+            end
+            if not (Anti and Anti.Kill and Anti.Kill.enabled) then
+                part.CanTouch = true
+                part.CanQuery = true
             end
         end
     end
-    restoreAnimate(char)
+    -- Stop custom/troll tracks FIRST, then re-enable Animate so default idle/walk tracks are never destroyed!
     stopDefaultTracks(char)
+    restoreAnimate(char)
     if hum and hum.Health > 0 then
-        pcall(function() hum.PlatformStand = false end)
-        pcall(function() hum.Sit = false end)
-        pcall(function() hum.AutoRotate = true end)
-        pcall(function() hum:ChangeState(Enum.HumanoidStateType.GettingUp) end)
-        pcall(function() hum:ChangeState(Enum.HumanoidStateType.Running) end)
+        pcall(function()
+            if not hum.EvaluateStateMachine then hum.EvaluateStateMachine = true end
+            hum:SetStateEnabled(Enum.HumanoidStateType.Running, true)
+            hum:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
+            hum:SetStateEnabled(Enum.HumanoidStateType.Freefall, true)
+            hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
+            hum:SetStateEnabled(Enum.HumanoidStateType.Climbing, true)
+            hum:SetStateEnabled(Enum.HumanoidStateType.Landed, true)
+            hum.PlatformStand = false
+            hum.Sit = false
+            hum.AutoRotate = true
+            if hum.WalkSpeed < 8 then
+                hum.WalkSpeed = (moveState and moveState.speed and moveState.desiredWalkSpeed) or 16
+            end
+            hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+            hum:ChangeState(Enum.HumanoidStateType.Running)
+        end)
+    end
+    local currentCam = workspace.CurrentCamera
+    if currentCam and hum and not SpectatingTarget then
+        pcall(function()
+            currentCam.CameraType = Enum.CameraType.Custom
+            currentCam.CameraSubject = hum
+        end)
     end
 end
 
--- Multi-frame anchored void rescue: aborts immediately if a new Weld or Fling starts so it NEVER fights player connections!
+-- Instant zero-freeze return: only anchors for 2 frames if actually rescuing from deep void / high-speed fling!
 safeReturnFromVoid = function(char, preferredCF)
     char = char or (LP and LP.Character)
     if not char then return end
     if (CurrentWeld ~= nil and not CurrentWeld.destroyed) or FlingActive then return end
     local root = getRootPart(char)
     local hum  = char:FindFirstChildOfClass("Humanoid")
-    local resolvedCF = isSafePlayableCF(preferredCF) and preferredCF or findFallbackSafeCF()
+    local wasInDeepVoid = false
+    if root then
+        local p = root.Position
+        local v = root.AssemblyLinearVelocity
+        if p.Y <= math.max(OriginalFPDH + 45, -160) or p.Magnitude > 18000 or v.Magnitude > 160 then
+            wasInDeepVoid = true
+        end
+    end
+    local resolvedCF = isSafePlayableCF(preferredCF) and preferredCF
+        or (root and isSafePlayableCF(root.CFrame) and root.CFrame)
+        or findFallbackSafeCF()
     local pos = resolvedCF.Position
     local _, yYaw, _ = resolvedCF:ToEulerAnglesYXZ()
     local cleanCF = CFrame.new(pos + Vector3.new(0, 1.2, 0)) * CFrame.Angles(0, yYaw, 0)
@@ -633,10 +691,17 @@ safeReturnFromVoid = function(char, preferredCF)
     RescueGeneration = RescueGeneration + 1
     local myRescueGen = RescueGeneration
 
+    -- If already on safe ground (e.g. stopping a normal Troll weld), do NOT anchor the character at all!
+    if not wasInDeepVoid then
+        VoidRescueActive = false
+        return
+    end
+
     task.spawn(function()
+        VoidRescueActive = true
         pcall(function()
             root.Anchored = true
-            for _ = 1, 4 do
+            for _ = 1, 2 do
                 if not root.Parent or myRescueGen ~= RescueGeneration or (CurrentWeld ~= nil and not CurrentWeld.destroyed) or FlingActive then
                     break
                 end
@@ -661,14 +726,12 @@ safeReturnFromVoid = function(char, preferredCF)
                     hum:ChangeState(Enum.HumanoidStateType.GettingUp)
                     hum:ChangeState(Enum.HumanoidStateType.Running)
                 end
-                local currentCam = workspace.CurrentCamera
-                if currentCam and hum and not SpectatingTarget then
-                    currentCam.CameraType = Enum.CameraType.Custom
-                    currentCam.CameraSubject = hum
-                end
             end
         end)
-        if not (Anti and Anti.Void and Anti.Void.enabled) and not (Anti and Anti.InfFallVoid and Anti.InfFallVoid.enabled) and not (Anti and Anti.Kill and Anti.Kill.enabled) and not WeldIntent.active and not FlingActive then
+        if myRescueGen == RescueGeneration then
+            VoidRescueActive = false
+        end
+        if not (Anti and (Anti.AlwaysOnCore or (Anti.Void and Anti.Void.enabled) or (Anti.InfFallVoid and Anti.InfFallVoid.enabled) or (Anti.Kill and Anti.Kill.enabled))) and not WeldIntent.active and not FlingActive then
             pcall(function() workspace.FallenPartsDestroyHeight = OriginalFPDH end)
         end
     end)
@@ -681,7 +744,7 @@ RunService.Heartbeat:Connect(function()
     local hum  = char and char:FindFirstChildOfClass("Humanoid")
     if not root or not hum or hum.Health <= 0 then return end
 
-    if not FlingActive and not WeldIntent.active and CurrentWeld == nil and not (RewindSys and RewindSys.rewinding) then
+    if not isActivelyWeldedOrFlinging() and not (RewindSys and RewindSys.rewinding) then
         local vel = root.AssemblyLinearVelocity.Magnitude
         if isSafePlayableCF(root.CFrame) and vel < 110 and hum.FloorMaterial ~= Enum.Material.Air then
             local _, yYaw, _ = root.CFrame:ToEulerAnglesYXZ()
@@ -699,7 +762,6 @@ local findPlayerCharacterAnywhere
 local pickTargetRef
 local getBestTargetCFrame
 local streamAndTeleportToTarget
-local markIntentionalTeleport
 local WELD_PRESETS
 local getNearestPlayer, findPlayerByNameOrDisplay, resolvePlayer, resolveActiveTarget, applyWeldPreset, hookTargetRespawn
 
@@ -774,12 +836,7 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
         Root.CFrame = currentLockCF
         Root.AssemblyLinearVelocity = Vector3.zero
         Root.AssemblyAngularVelocity = Vector3.zero
-        if sethiddenproperty then pcall(function()
-            sethiddenproperty(Root, "PhysicsRepRootPart", TargetPart)
-            if InstanceHandleNew then
-                sethiddenproperty(Root, "PhysicsRepRootRef", InstanceHandleNew(TargetPart))
-            end
-        end) end
+        -- Frame-0 CFrame lock active via Stepped + RenderStepped + Heartbeat (avoids PhysicsRepRootPart assembly freeze)
     end
 
     -- ZERO-DELAY FRAME-0 ANIMATION: Start animation immediately without any task.wait!
@@ -979,12 +1036,7 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
         Root.AssemblyLinearVelocity = Vector3.zero
         Root.AssemblyAngularVelocity = Vector3.zero
         markIntentionalTeleport(Root.CFrame)
-        if sethiddenproperty then pcall(function()
-            sethiddenproperty(Root, "PhysicsRepRootPart", TargetPart)
-            if InstanceHandleNew then
-                sethiddenproperty(Root, "PhysicsRepRootRef", InstanceHandleNew(TargetPart))
-            end
-        end) end
+        -- Frame-0 CFrame lock active via Stepped + RenderStepped + Heartbeat (avoids PhysicsRepRootPart assembly freeze)
         pcall(function() ensureAnim(false) end)
         pcall(function()
             if not Humanoid.PlatformStand then Humanoid.PlatformStand = true end
@@ -1159,20 +1211,39 @@ getBestTargetCFrame = function(plr)
     return nil
 end
 
--- Zero-delay continuous Heartbeat position & pivot tracker
-RunService.Heartbeat:Connect(function()
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= LP then
-            pcall(function() getBestTargetCFrame(p) end)
+-- Throttled 0.15s position & pivot tracker (zero frame-drop on large 50-player servers)
+do
+    local lastTrackTick = 0
+    RunService.Heartbeat:Connect(function()
+        local now = tick()
+        if now - lastTrackTick < 0.15 then return end
+        lastTrackTick = now
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= LP then
+                pcall(function() getBestTargetCFrame(p) end)
+            end
         end
-    end
-end)
+    end)
+end
 
 -- Active Stream-Piercer & Server Hiding-Spot Seeker:
--- Returns synchronously in 0.00s when target is already streamed!
+-- Returns synchronously in 0.00s when target is already streamed (without stripping local collision if target is dead)!
 streamAndTeleportToTarget = function(targetPlr, refMode, maxWaitSeconds, allowSweep)
     if not targetPlr or targetPlr.Parent ~= Players then return nil, nil end
     maxWaitSeconds = maxWaitSeconds or 2.2
+
+    -- 0.00s Zero-Delay Fast Path FIRST (before touching local character collision!):
+    local tChar = findPlayerCharacterAnywhere(targetPlr)
+    local tHum  = tChar and tChar:FindFirstChildOfClass("Humanoid")
+    if tHum and tHum.Health <= 0 then
+        return tChar, nil
+    end
+    local tRef = tChar and pickTargetRef(tChar, refMode or "torso")
+    if tRef and tRef.Parent then
+        if LP.Character then breakLocalSeatAndTrapWelds(LP.Character) end
+        return tChar, tRef
+    end
+
     local myChar = LP.Character
     local myRoot = getRootPart(myChar)
     local originSafeCF = (myRoot and isSafePlayableCF(myRoot.CFrame) and myRoot.CFrame) or LastKnownSafeCF
@@ -1186,17 +1257,6 @@ streamAndTeleportToTarget = function(targetPlr, refMode, maxWaitSeconds, allowSw
                 v.Anchored = false
             end
         end
-    end
-
-    -- 0.00s Zero-Delay Fast Path: if target part is already streamed, return immediately without yielding!
-    local tChar = findPlayerCharacterAnywhere(targetPlr)
-    local tHum  = tChar and tChar:FindFirstChildOfClass("Humanoid")
-    if tHum and tHum.Health <= 0 then
-        return tChar, nil
-    end
-    local tRef = tChar and pickTargetRef(tChar, refMode or "torso")
-    if tRef and tRef.Parent then
-        return tChar, tRef
     end
 
     -- Target is in an unstreamed chunk: stream around their replicated Model:GetPivot() or cached location
@@ -1235,6 +1295,9 @@ streamAndTeleportToTarget = function(targetPlr, refMode, maxWaitSeconds, allowSw
     if tRef and tRef.Parent then return tChar, tRef end
 
     if not allowSweep then
+        if (not tRef or not tRef.Parent) and LP.Character then
+            recoverCharacterState(LP.Character, originSafeCF)
+        end
         return tChar, tRef
     end
 
@@ -1282,13 +1345,10 @@ streamAndTeleportToTarget = function(targetPlr, refMode, maxWaitSeconds, allowSw
 
     tChar = findPlayerCharacterAnywhere(targetPlr)
     tRef  = tChar and pickTargetRef(tChar, refMode or "torso")
-    if (not tRef or not tRef.Parent) and originSafeCF then
+    if not tRef or not tRef.Parent then
         myChar = LP.Character
-        myRoot = getRootPart(myChar)
-        if myRoot then
-            markIntentionalTeleport(originSafeCF)
-            myRoot.CFrame = originSafeCF
-            myRoot.AssemblyLinearVelocity = Vector3.zero
+        if myChar then
+            recoverCharacterState(myChar, originSafeCF)
         end
     end
     return tChar, tRef
@@ -1540,8 +1600,9 @@ LP.CharacterAdded:Connect(function(newMyChar)
 end)
 
 -- Zero-Delay Heartbeat Omnipresent Watchdog:
--- Instantly re-locks on the exact frame a target streams in or respawns!
+-- Instantly re-locks as soon as a target streams in or finishes respawning (never freezes local player while target is dead)!
 local reweldWatchdogBusy = false
+local lastWatchdogAttempt = 0
 RunService.Heartbeat:Connect(function()
     if not AutoReweldEnabled or not WeldIntent.active or not WeldIntent.presetKey or FlingActive or reweldWatchdogBusy then
         return
@@ -1553,16 +1614,25 @@ RunService.Heartbeat:Connect(function()
         return
     end
     if not CurrentWeld or CurrentWeld.destroyed then
+        local now = tick()
+        if now - lastWatchdogAttempt < 0.20 then return end
+        local tCharCheck = findPlayerCharacterAnywhere(tgt)
+        local tHumCheck  = tCharCheck and tCharCheck:FindFirstChildOfClass("Humanoid")
+        -- If target is currently dead and waiting to respawn, keep local player completely free & unfrozen!
+        if tHumCheck and tHumCheck.Health <= 0 then
+            return
+        end
         local myChar = LP.Character
         local myRoot = getRootPart(myChar)
         local myHum  = myChar and myChar:FindFirstChildOfClass("Humanoid")
         if myRoot and myHum and myHum.Health > 0 then
+            lastWatchdogAttempt = now
             reweldWatchdogBusy = true
             task.spawn(function()
                 pcall(function()
                     local preset = WELD_PRESETS[WeldIntent.presetKey]
                     local refMode = preset and preset.refMode or "torso"
-                    local tChar, tRef = streamAndTeleportToTarget(tgt, refMode, 1.2, false)
+                    local tChar, tRef = streamAndTeleportToTarget(tgt, refMode, 1.0, false)
                     local tHum = tChar and tChar:FindFirstChildOfClass("Humanoid")
                     if WeldIntent.active and (not CurrentWeld or CurrentWeld.destroyed) and tRef and tRef.Parent and (not tHum or tHum.Health > 0) then
                         if not isLethalVoidCF(tRef.CFrame, tRef.AssemblyLinearVelocity) then
@@ -1581,7 +1651,7 @@ end -- end Zero-Delay WeldTo, Seeker & Watchdog scope
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- HIGH-PRECISION 6s–10s CHRONO-REWIND ENGINE (60Hz Frame-Exact State, Anim & Action Recorder)
 -- ═══════════════════════════════════════════════════════════════════════════════
-local RewindSys = {
+RewindSys = {
     enabled = true,
     rewinding = false,
     duration = 8.0,          -- Configurable: 6s, 8s, or 10s (up to 10s precision buffer)
@@ -1826,10 +1896,10 @@ do -- Scoped block for RewindSys & Void Throw v2 internals (preserves top-level 
         local root = char and char:FindFirstChild("HumanoidRootPart")
         local hum  = char and char:FindFirstChildOfClass("Humanoid")
         if char then
-            for _, part in ipairs(char:GetDescendants()) do
-                if part:IsA("BasePart") then
+            for _, part in ipairs(getCachedCharParts(char)) do
+                if part.Parent then
                     part.Massless = false
-                    if part.Name == "HumanoidRootPart" or part.Name == "Torso" or part.Name == "UpperTorso" or part.Name == "LowerTorso" or part.Name == "Head" then
+                    if not (moveState and moveState.noclip) and (part.Name == "HumanoidRootPart" or part.Name == "Torso" or part.Name == "UpperTorso" or part.Name == "LowerTorso" or part.Name == "Head") then
                         part.CanCollide = true
                     end
                 end
@@ -1863,7 +1933,7 @@ do -- Scoped block for RewindSys & Void Throw v2 internals (preserves top-level 
                 end
             end)
         end
-        if not (Anti and Anti.Void and Anti.Void.enabled) and not (Anti and Anti.Kill and Anti.Kill.enabled) and not WeldIntent.active and not FlingActive then
+        if not (Anti and (Anti.AlwaysOnCore or (Anti.Void and Anti.Void.enabled) or (Anti.InfFallVoid and Anti.InfFallVoid.enabled) or (Anti.Kill and Anti.Kill.enabled))) and not WeldIntent.active and not FlingActive then
             pcall(function() workspace.FallenPartsDestroyHeight = OriginalFPDH end)
         end
         if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
@@ -1949,8 +2019,8 @@ do -- Scoped block for RewindSys & Void Throw v2 internals (preserves top-level 
                 end
 
                 -- Phase noclip during rewind so doors/walls never block reverse movement
-                for _, p in ipairs(char:GetDescendants()) do
-                    if p:IsA("BasePart") then
+                for _, p in ipairs(getCachedCharParts(char)) do
+                    if p.Parent and p.CanCollide then
                         p.CanCollide = false
                     end
                 end
@@ -2030,8 +2100,8 @@ end
 
 local function restorePartCollisionAndDensity(char, isLocalRam)
     if not char then return end
-    for _, part in ipairs(char:GetDescendants()) do
-        if part:IsA("BasePart") then
+    for _, part in ipairs(getCachedCharParts(char)) do
+        if part.Parent then
             local isCore = (part.Name == "HumanoidRootPart" or part.Name == "Torso" or part.Name == "UpperTorso" or part.Name == "LowerTorso" or part.Name == "Head")
             if isLocalRam then
                 part.CanCollide = isCore
@@ -2053,6 +2123,7 @@ local function restorePartCollisionAndDensity(char, isLocalRam)
 end
 
 local function launchNebulaFling(durationSeconds, modeTitle, isVoidThrow, explicitTarget)
+    local isUnlimited = (durationSeconds == nil or durationSeconds <= 0)
     local targetPlr, usedNearest
     if explicitTarget and explicitTarget.Parent == Players then
         targetPlr, usedNearest = explicitTarget, false
@@ -2065,7 +2136,7 @@ local function launchNebulaFling(durationSeconds, modeTitle, isVoidThrow, explic
         return
     end
     local myChar = LP.Character
-    local myRoot = myChar and (myChar:FindFirstChild("HumanoidRootPart") or myChar:FindFirstChildWhichIsA("BasePart"))
+    local myRoot = getRootPart(myChar)
     local myHum  = myChar and myChar:FindFirstChildOfClass("Humanoid")
     if not myRoot then
         notify("KHAMAN DHOKLA", "Local character not ready!")
@@ -2077,7 +2148,7 @@ local function launchNebulaFling(durationSeconds, modeTitle, isVoidThrow, explic
     local preSeekOriginCF = isSafePlayableCF(myRoot.CFrame) and myRoot.CFrame or findFallbackSafeCF()
     local tChar, targetRoot = streamAndTeleportToTarget(targetPlr, "torso", 2.2)
     local targetHum = tChar and tChar:FindFirstChildOfClass("Humanoid")
-    if not targetRoot or not targetRoot.Parent then
+    if not isUnlimited and (not targetRoot or not targetRoot.Parent) then
         notify("KHAMAN DHOKLA", "Could not stream target — try again!")
         sError()
         return
@@ -2091,7 +2162,7 @@ local function launchNebulaFling(durationSeconds, modeTitle, isVoidThrow, explic
     FlingActive = true
     FlingOriginCF = origCF
 
-    -- Lock camera on target so our screen stays stable while slamming them into the void
+    -- Lock camera on target when available so our screen stays stable while slamming them
     local currentCam = workspace.CurrentCamera
     if currentCam then
         FlingCamType = currentCam.CameraType
@@ -2108,14 +2179,14 @@ local function launchNebulaFling(durationSeconds, modeTitle, isVoidThrow, explic
     pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
     LastWeldTargetUserId = targetPlr.UserId
     hookTargetRespawn(targetPlr)
-    killAnimate(myChar)
+    if myChar then killAnimate(myChar) end
 
     if FlingSidePanel then
         FlingSidePanel.Visible = true
         if FlingCountdownLabel then
-            FlingCountdownLabel.Text = (durationSeconds > 0)
-                and (tostring(math.ceil(durationSeconds)) .. "s remaining")
-                or "VOID LOCK (Active)"
+            FlingCountdownLabel.Text = isUnlimited
+                and "♾️ UNLIMITED FLING (Tap STOP to end)"
+                or (tostring(math.ceil(durationSeconds)) .. "s remaining")
         end
     end
 
@@ -2125,9 +2196,11 @@ local function launchNebulaFling(durationSeconds, modeTitle, isVoidThrow, explic
 
     local startTime = tick()
     local phaseCounter = 0
-    local nextTargetCFrame = targetRoot.CFrame
+    local nextTargetCFrame = (targetRoot and targetRoot.Parent and targetRoot.CFrame) or origCF
     local nextLinearVel = Vector3.new(0, -150000, 0)
     local nextAngularVel = Vector3.new(120000, 120000, 120000)
+    local waitingForRespawn = false
+    local lastStreamSeekTick = 0
 
     local function finishVoidThrow(msg, playSuccess)
         StateManager:StopFling(false)
@@ -2138,19 +2211,32 @@ local function launchNebulaFling(durationSeconds, modeTitle, isVoidThrow, explic
     -- Pre-Simulation (RunService.Stepped): Enforce collision & 100-density mass on our torso/root
     -- AND target's character right before Roblox's internal physics step!
     StateManager.FlingStepConn = RunService.Stepped:Connect(function()
-        if not FlingActive or not myChar.Parent or not myRoot.Parent then
+        if not FlingActive then
             if StateManager.FlingStepConn then StateManager.FlingStepConn:Disconnect(); StateManager.FlingStepConn = nil end
             return
         end
+        myChar = LP.Character
+        myRoot = getRootPart(myChar)
+        myHum  = myChar and myChar:FindFirstChildOfClass("Humanoid")
+        if not myChar or not myRoot then return end
+
         pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
+        if waitingForRespawn then
+            -- While waiting for target respawn in Unlimited mode, hold safely at origCF with 0 velocity
+            myRoot.CFrame = origCF
+            myRoot.AssemblyLinearVelocity = Vector3.zero
+            myRoot.AssemblyAngularVelocity = Vector3.zero
+            return
+        end
+
         restorePartCollisionAndDensity(myChar, true)
         if tChar and tChar.Parent then
             restorePartCollisionAndDensity(tChar, false)
         end
         if myHum then
             pcall(function()
-                myHum.Sit = false
-                myHum.PlatformStand = true
+                if myHum.Sit then myHum.Sit = false end
+                if not myHum.PlatformStand then myHum.PlatformStand = true end
                 myHum:ChangeState(Enum.HumanoidStateType.Physics)
             end)
         end
@@ -2166,57 +2252,142 @@ local function launchNebulaFling(durationSeconds, modeTitle, isVoidThrow, explic
     end)
 
     FlingConn = RunService.Heartbeat:Connect(function()
-        if not FlingActive
-            or not myChar.Parent
-            or LP.Character ~= myChar
-            or not myRoot.Parent
-            or not targetPlr.Parent
-            or targetPlr.Parent ~= Players
-        then
-            finishVoidThrow("✨ Target eliminated / left — safely returned!", true)
+        if not FlingActive then
+            finishVoidThrow(nil, false)
             return
         end
 
-        -- Dynamically re-acquire target character/root if they streamed or unseated
-        if not targetRoot or not targetRoot.Parent or findPlayerCharacterAnywhere(targetPlr) ~= tChar then
-            tChar = findPlayerCharacterAnywhere(targetPlr)
-            targetHum = tChar and tChar:FindFirstChildOfClass("Humanoid")
-            targetRoot = tChar and pickTargetRef(tChar, "torso")
-            if not targetRoot or not targetRoot.Parent then
-                local hiddenCF = getBestTargetCFrame(targetPlr)
-                if hiddenCF and isLethalVoidCF(hiddenCF) then
-                    finishVoidThrow("🎯 " .. targetPlr.Name .. " destroyed in the Void! Safely returned.", true)
-                    return
-                end
+        -- Keep local character references fresh across local respawns in Unlimited mode!
+        myChar = LP.Character
+        myRoot = getRootPart(myChar)
+        myHum  = myChar and myChar:FindFirstChildOfClass("Humanoid")
+        if not myChar or not myRoot or (myHum and myHum.Health <= 0) then
+            if isUnlimited then
+                return -- Wait for local respawn and continue Unlimited Fling automatically!
+            else
+                finishVoidThrow("Local character reset — fling stopped.", false)
                 return
             end
         end
 
-        -- Check if target died!
-        if targetHum and targetHum.Parent and targetHum.Health <= 0 then
-            finishVoidThrow("💀 " .. targetPlr.Name .. " died in the Void! Safely returned.", true)
-            return
+        -- Check if target left the server
+        if not targetPlr or targetPlr.Parent ~= Players then
+            if isUnlimited and usedNearest then
+                local nextNearest = getNearestPlayer(LP)
+                if nextNearest and nextNearest.Parent == Players then
+                    targetPlr = nextNearest
+                    CurrentTarget = targetPlr
+                    tChar = nil
+                    targetRoot = nil
+                else
+                    waitingForRespawn = true
+                    if FlingCountdownLabel then FlingCountdownLabel.Text = "♾️ UNLIMITED (Waiting for players...)" end
+                    return
+                end
+            else
+                finishVoidThrow("✨ Target left server — safely returned!", true)
+                return
+            end
         end
 
-        -- Check if target is genuinely trapped deep in the lethal void killzone or far null-zone!
-        local tPos = targetRoot.Position
-        local tVel = targetRoot.AssemblyLinearVelocity
-        local lethalVoidFloor = math.min(OriginalFPDH + 14, -245)
-        local targetConfirmedInVoid = (tPos.Y <= lethalVoidFloor)
-            or (tPos.Y <= -190 and tVel.Y < -85)
-            or (tPos.Magnitude > 28000)
+        -- Dynamically re-acquire target character/root
+        local latestChar = findPlayerCharacterAnywhere(targetPlr)
+        if latestChar ~= tChar or not targetRoot or not targetRoot.Parent then
+            tChar = latestChar
+            targetHum = tChar and tChar:FindFirstChildOfClass("Humanoid")
+            targetRoot = tChar and pickTargetRef(tChar, "torso")
+        end
 
-        if targetConfirmedInVoid then
-            -- Deliver final downward lock pulse in the void so they can never recover
-            local sinkCF = CFrame.new(tPos.X, math.clamp(OriginalFPDH - 180, -850, -380), tPos.Z)
-            myRoot.CFrame = sinkCF
-            myRoot.AssemblyLinearVelocity = Vector3.new(0, -180000, 0)
-            finishVoidThrow("🎯 " .. targetPlr.Name .. " trapped in Void & eliminated! Safely returned.", true)
-            return
+        local targetDead = (targetHum and targetHum.Parent and targetHum.Health <= 0)
+        local targetConfirmedInVoid = false
+        if targetRoot and targetRoot.Parent then
+            local tPos = targetRoot.Position
+            local tVel = targetRoot.AssemblyLinearVelocity
+            local lethalVoidFloor = math.min(OriginalFPDH + 14, -245)
+            targetConfirmedInVoid = (tPos.Y <= lethalVoidFloor)
+                or (tPos.Y <= -190 and tVel.Y < -85)
+                or (tPos.Magnitude > 28000)
+        end
+
+        -- Handle target eliminated / unstreamed / respawning:
+        if not targetRoot or not targetRoot.Parent or targetDead or targetConfirmedInVoid then
+            if not isUnlimited then
+                -- Timed modes (4s, 8s, 5.5s Void Throw): finish once target is confirmed dead or deep in void
+                if targetDead then
+                    finishVoidThrow("💀 " .. targetPlr.Name .. " died in the Void! Safely returned.", true)
+                    return
+                elseif targetConfirmedInVoid and targetRoot then
+                    local tPos = targetRoot.Position
+                    local sinkCF = CFrame.new(tPos.X, math.clamp(OriginalFPDH - 180, -850, -380), tPos.Z)
+                    myRoot.CFrame = sinkCF
+                    myRoot.AssemblyLinearVelocity = Vector3.new(0, -180000, 0)
+                    finishVoidThrow("🎯 " .. targetPlr.Name .. " trapped in Void & eliminated! Safely returned.", true)
+                    return
+                else
+                    local hiddenCF = getBestTargetCFrame(targetPlr)
+                    if hiddenCF and isLethalVoidCF(hiddenCF) then
+                        finishVoidThrow("🎯 " .. targetPlr.Name .. " destroyed in the Void! Safely returned.", true)
+                        return
+                    end
+                    return
+                end
+            else
+                -- TRUE UNLIMITED MODE: NEVER stop!
+                -- If in Auto-Nearest mode, check if another alive player is nearby to chain-fling while this one respawns
+                if usedNearest then
+                    local altPlr = getNearestPlayer(LP)
+                    if altPlr and altPlr ~= targetPlr and altPlr.Parent == Players then
+                        local altChar = findPlayerCharacterAnywhere(altPlr)
+                        local altHum  = altChar and altChar:FindFirstChildOfClass("Humanoid")
+                        local altRoot = altChar and pickTargetRef(altChar, "torso")
+                        if altRoot and (not altHum or altHum.Health > 0) and not isLethalVoidCF(altRoot.CFrame, altRoot.AssemblyLinearVelocity) then
+                            targetPlr = altPlr
+                            CurrentTarget = altPlr
+                            tChar = altChar
+                            targetHum = altHum
+                            targetRoot = altRoot
+                            waitingForRespawn = false
+                        end
+                    end
+                end
+
+                -- If target is still dead/in-void/unstreamed, park safely at origCF and wait for their respawn!
+                if not targetRoot or not targetRoot.Parent or targetDead or targetConfirmedInVoid then
+                    waitingForRespawn = true
+                    markIntentionalTeleport(origCF)
+                    myRoot.CFrame = origCF
+                    myRoot.AssemblyLinearVelocity = Vector3.zero
+                    myRoot.AssemblyAngularVelocity = Vector3.zero
+                    if FlingCountdownLabel then
+                        FlingCountdownLabel.Text = "♾️ UNLIMITED (Waiting " .. targetPlr.Name .. " respawn)"
+                    end
+                    -- Try streaming around target's known CFrame every 0.6s in case they respawned far away
+                    local now = tick()
+                    if not targetDead and (now - lastStreamSeekTick) > 0.6 then
+                        lastStreamSeekTick = now
+                        local knownCF = getBestTargetCFrame(targetPlr)
+                        if knownCF and not isLethalVoidCF(knownCF) then
+                            task.spawn(function()
+                                pcall(function() LP:RequestStreamAroundAsync(knownCF.Position, 1) end)
+                            end)
+                        end
+                    end
+                    return
+                end
+            end
+        end
+
+        -- Target is alive and ready: resume full-power fling!
+        if waitingForRespawn then
+            waitingForRespawn = false
+            killAnimate(myChar)
+            if currentCam and targetHum and not SpectatingTarget then
+                pcall(function() currentCam.CameraSubject = targetHum end)
+            end
         end
 
         local elapsed = tick() - startTime
-        if durationSeconds > 0 then
+        if not isUnlimited then
             local remaining = math.max(0, durationSeconds - elapsed)
             if FlingCountdownLabel then
                 FlingCountdownLabel.Text = "⏳ " .. string.format("%.1f", remaining) .. "s left"
@@ -2225,19 +2396,17 @@ local function launchNebulaFling(durationSeconds, modeTitle, isVoidThrow, explic
                 finishVoidThrow("✨ " .. tostring(modeTitle) .. " finished & safely returned!", true)
                 return
             end
+        else
+            if FlingCountdownLabel then
+                FlingCountdownLabel.Text = string.format("♾️ UNLIMITED · %.0fs (%s)", elapsed, targetPlr.Name:sub(1, 10))
+            end
         end
 
-        -- Focus stream on target and bind PhysicsRepRootPart for network-sync drag
+        -- Focus stream on target
         pcall(function() LP.ReplicationFocus = targetRoot end)
-        if sethiddenproperty then
-            pcall(function()
-                sethiddenproperty(myRoot, "PhysicsRepRootPart", targetRoot)
-                if InstanceHandleNew then
-                    sethiddenproperty(myRoot, "PhysicsRepRootRef", InstanceHandleNew(targetRoot))
-                end
-            end)
-        end
 
+        local tPos = targetRoot.Position
+        local tVel = targetRoot.AssemblyLinearVelocity
         phaseCounter = phaseCounter + 1
         local t = tick() * 45
 
@@ -2262,8 +2431,6 @@ local function launchNebulaFling(durationSeconds, modeTitle, isVoidThrow, explic
             local subStage = phaseCounter % 12
             if subStage <= 6 then
                 -- STAGE 1: SUB-FLOOR VOID BURY & TOP-DOWN SLAM
-                -- Sweeps vertically from +1.5 studs above target's head/torso to -1.2 studs below their feet
-                -- while injecting massive downward (-175,000) + outward impulse to drive them into the floor/void!
                 local verticalWedge = 1.5 - ((subStage / 6) * 2.7)
                 local tightJitter = Vector3.new(math.cos(t * 1.9) * 0.55, verticalWedge, math.sin(t * 1.9) * 0.55)
                 local safeY = math.max(predictedPos.Y + tightJitter.Y, OriginalFPDH + 22)
@@ -2288,7 +2455,7 @@ local function launchNebulaFling(durationSeconds, modeTitle, isVoidThrow, explic
                 )
                 nextAngularVel = Vector3.new(160000, -160000, 160000)
             else
-                -- STAGE 3: DEEP-VOID SINKHOLE DRAG (Instantly kills/traps welded, attached, or PhysicsRep targets!)
+                -- STAGE 3: DEEP-VOID SINKHOLE DRAG
                 local voidSinkY = math.clamp(OriginalFPDH - 165, -820, -350)
                 nextTargetCFrame = CFrame.new(predictedPos.X, voidSinkY, predictedPos.Z)
                     * CFrame.Angles(math.rad(180), t, 0)
@@ -2404,20 +2571,20 @@ local function promptNebulaFling()
         end)
     end
 
-    makeOptBtn(58, "⚡ Void Throw v2 (5.5s Bury + Catapult + Sinkhole)", T.Accent2, function()
+    makeOptBtn(58, "♾️ Unlimited Nebula Fling (Non-Stop Till Stopped)", T.Accent2, function()
+        launchNebulaFling(-1, "Unlimited Non-Stop", false, targetPlr)
+    end)
+    makeOptBtn(96, "🕳️ Unlimited Void Lock (Trap & Re-Fling Non-Stop)", Color3.fromRGB(185, 45, 95), function()
+        launchNebulaFling(-1, "Unlimited Void Lock", true, targetPlr)
+    end)
+    makeOptBtn(134, "⚡ Void Throw v2 (5.5s Bury + Catapult + Sinkhole)", Color3.fromRGB(145, 95, 18), function()
         launchVoidThrow(targetPlr, 5.5)
     end)
-    makeOptBtn(96, "🕳️ Void Lock (Relentless Trap Until Dead/Voided)", Color3.fromRGB(185, 45, 95), function()
-        launchNebulaFling(-1, "Void Lock Until Dead", true, targetPlr)
-    end)
-    makeOptBtn(134, "🌪️ 4 Seconds (High-Density Vortex Blast)", Color3.fromRGB(76, 79, 87), function()
+    makeOptBtn(172, "🌪️ 4 Seconds (High-Density Vortex Blast)", Color3.fromRGB(76, 79, 87), function()
         launchNebulaFling(4.0, "4 Seconds", false, targetPlr)
     end)
-    makeOptBtn(172, "☄️ 8 Seconds (Extreme Omni-Vortex)", Color3.fromRGB(104, 108, 117), function()
+    makeOptBtn(210, "☄️ 8 Seconds (Extreme Omni-Vortex)", Color3.fromRGB(104, 108, 117), function()
         launchNebulaFling(8.0, "8 Seconds", false, targetPlr)
-    end)
-    makeOptBtn(210, "♾️ Unlimited Fling (Auto-Stops On Void Kill)", Color3.fromRGB(139, 143, 152), function()
-        launchNebulaFling(-1, "Unlimited", false, targetPlr)
     end)
 
     local closeBtn = Instance.new("TextButton")
@@ -2528,26 +2695,54 @@ end -- end Chat Spammer internal scope
 local syncAllAntiButtons = nil
 
 Anti = {
-    Void         = { enabled = false, charAdded = nil, healthConns = {}, charConns = {}, loopConn = nil, steppedConn = nil, safetyFloor = nil, rescues = 0 },
-    InfFallVoid  = { enabled = false, steppedConn = nil, startFn = nil, stopFn = nil },
-    Kill         = { enabled = false, charAdded = nil, descConn = nil, loopConn = nil, wsDescConn = nil, blockedTouches = 0, originalPartFlags = setmetatable({}, {__mode = "k"}) },
-    GamePaused   = { enabled = false, childAdded = nil, propConn = nil, loopConn = nil },
-    AFK          = { enabled = false, conn = nil, loopConn = nil },
-    VC           = { enabled = false, running = false, statusText = "Status: Idle", statusLbl = nil, activateBtn = nil, rowSubLbl = nil, openPanelFn = nil },
-    Redirect     = { enabled = false },
-    PauseTrap    = { enabled = false },
-    FlingShield  = { enabled = false, steppedConn = nil, heartbeatConn = nil, plrAddedConn = nil, preStepCF = nil, blockedFlings = 0 },
-    -- FULL LIBRARY MULTI-LAYER ANTI-SYSTEMS V3:
-    Ragdoll      = { enabled = false, steppedConn = nil, stateConn = nil, descConn = nil, charAdded = nil, recoveries = 0 },
-    Anchor       = { enabled = false, steppedConn = nil, descConn = nil, charAdded = nil, partConns = setmetatable({}, {__mode = "k"}), purgedMovers = 0 },
-    Attach       = { enabled = false, steppedConn = nil, descConn = nil, severedCount = 0 },
-    Blind        = { enabled = false, loopConn = nil, lightChildConn = nil, camChildConn = nil, guiChildConn = nil },
-    Bring        = { enabled = false, steppedConn = nil, heartbeatConn = nil, lastCF = nil, lastSafeTime = 0, blockedBrings = 0 },
-    SeatTrap     = { enabled = false, wsDescConn = nil, loopConn = nil, savedSeats = setmetatable({}, {__mode = "k"}), neutralizedSeats = 0, startFn = nil, stopFn = nil },
+    AlwaysOnCore = true, -- Keeps Anti-Sit, Anti-Void, Anti-Lag, and Anti-Freeze enabled 24/7 at all times!
+    Void         = { enabled = false, alwaysOn = true, charAdded = nil, healthConns = {}, charConns = {}, loopConn = nil, steppedConn = nil, safetyFloor = nil, rescues = 0, startFn = nil, stopFn = nil },
+    InfFallVoid  = { enabled = false, alwaysOn = true, steppedConn = nil, startFn = nil, stopFn = nil },
+    Lag          = { enabled = false, alwaysOn = true, wsDescConn = nil, loopConn = nil, purgedItems = 0, throttledEmitters = setmetatable({}, {__mode = "k"}), startFn = nil, stopFn = nil },
+    Kill         = { enabled = false, charAdded = nil, descConn = nil, loopConn = nil, wsDescConn = nil, blockedTouches = 0, originalPartFlags = setmetatable({}, {__mode = "k"}), startFn = nil, stopFn = nil },
+    GamePaused   = { enabled = false, alwaysOn = true, childAdded = nil, propConn = nil, loopConn = nil, startFn = nil, stopFn = nil },
+    AFK          = { enabled = false, conn = nil, loopConn = nil, startFn = nil, stopFn = nil },
+    VC           = {
+        enabled = false,
+        running = false,
+        userMuted = false,
+        hookInstalled = false,
+        blockedMutes = 0,
+        rejoins = 0,
+        watchdogConn = nil,
+        stateConn = nil,
+        statusText = "Status: Idle",
+        statusLbl = nil,
+        activateBtn = nil,
+        forceBtn = nil,
+        micToggleBtn = nil,
+        rejoinBtn = nil,
+        rowSubLbl = nil,
+        inlineMicBtn = nil,
+        openPanelFn = nil,
+        startFn = nil,
+        stopFn = nil,
+        forceBypassFn = nil,
+        toggleMicFn = nil,
+        rejoinFn = nil,
+    },
+    Redirect     = { enabled = false, startFn = nil, stopFn = nil },
+    PauseTrap    = { enabled = false, startFn = nil, stopFn = nil },
+    FlingShield  = { enabled = false, steppedConn = nil, heartbeatConn = nil, plrAddedConn = nil, preStepCF = nil, blockedFlings = 0, startFn = nil, stopFn = nil },
+    -- FULL LIBRARY MULTI-LAYER ANTI-SYSTEMS V4:
+    Ragdoll      = { enabled = false, alwaysOn = true, steppedConn = nil, stateConn = nil, descConn = nil, charAdded = nil, recoveries = 0, lastDeepCleanse = 0, startFn = nil, stopFn = nil },
+    Anchor       = { enabled = false, alwaysOn = true, steppedConn = nil, descConn = nil, charAdded = nil, partConns = setmetatable({}, {__mode = "k"}), purgedMovers = 0, lastMoverSweep = 0, startFn = nil, stopFn = nil },
+    Attach       = { enabled = false, steppedConn = nil, descConn = nil, severedCount = 0, startFn = nil, stopFn = nil },
+    Blind        = { enabled = false, loopConn = nil, lightChildConn = nil, camChildConn = nil, guiChildConn = nil, startFn = nil, stopFn = nil },
+    Bring        = { enabled = false, steppedConn = nil, heartbeatConn = nil, lastCF = nil, lastSafeTime = 0, blockedBrings = 0, startFn = nil, stopFn = nil },
+    SeatTrap     = { enabled = false, alwaysOn = true, wsDescConn = nil, loopConn = nil, savedSeats = setmetatable({}, {__mode = "k"}), neutralizedSeats = 0, startFn = nil, stopFn = nil },
     ToolGuard    = { enabled = false, loopConn = nil, disarmedTools = 0, startFn = nil, stopFn = nil },
     AntiHeadsit  = { enabled = false, steppedConn = nil, evadedCount = 0, lastEvade = 0, startFn = nil, stopFn = nil },
     GlitchDesync = { enabled = false, mode = "Normal", steppedConn = nil, heartbeatConn = nil, realCF = nil, realVel = Vector3.zero, realRot = Vector3.zero, startFn = nil, stopFn = nil },
     Kick         = { enabled = false, hooked = false, originalKick = nil, blockedKicks = 0, startFn = nil, stopFn = nil },
+    enableAll    = nil,
+    disableAll   = nil,
+    enforceAlwaysOn = nil,
 }
 
 local DefenceTroll = {
@@ -2569,12 +2764,9 @@ local DefenceTroll = {
     ranges = { 5.0, 7.5, 11.0, 16.0, 22.0 },
     rangeIdx = 2,
     lastDeflect = 0,
+    startFn = nil,
+    stopFn = nil,
 }
-
-local deflectBusy = false
-local contactTimers = {}
-local deflectCooldowns = {}
-local attackerLastPos = {}
 
 -- Helper: Mark an intentional local teleport so Anti-Bring, Anti-FlingShield, and DefenceTroll never fight our own teleports/welds
 markIntentionalTeleport = function(cf)
@@ -2591,12 +2783,13 @@ markIntentionalTeleport = function(cf)
 end
 
 -- ═══════════════════════════════════════════════════════════════════════════════
+;(function() -- Isolated function frame for internal Anti helper functions (preserves top-level local register budget)
 local avStart, avStop, akStart, akStop, agpStart, agpStop, afkStart, afkStop, vcStart, vcStop
 local ragdollStart, ragdollStop, anchorStart, anchorStop, attachStart, attachStop, blindStart, blindStop
 local bringStart, bringStop, flingShieldStart, flingShieldStop, redirectStart, redirectStop, pauseTrapStart, pauseTrapStop
-local defenceTrollStart, defenceTrollStop, enableAllAntiSystems, disableAllAntiSystems
-do -- Scoped block for internal Anti helper functions (preserves top-level local register budget)
--- 1. ADVANCED ANTI-VOID V3 + INFINITE FALL VOID (Full Library Dynamic 2048x2048 Floor + Predictive Catch + Death Block)
+local defenceTrollStart, defenceTrollStop, lagStart, lagStop, enableAllAntiSystems, disableAllAntiSystems
+
+-- 1. ALWAYS-ON ANTI-VOID V4 + INFINITE FALL VOID (2048x2048 ForceField Floor + Predictive Catch + Death Block)
 -- ═══════════════════════════════════════════════════════════════════════════════
 local function avEnsureSafetyFloor(pos, customY)
     local floor = Anti.Void.safetyFloor
@@ -2631,12 +2824,13 @@ local function avForceAlive(h)
         h:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
         h:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
         h:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+        h:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
         if h.MaxHealth <= 0 then h.MaxHealth = 100 end
         if h.Health <= 0 or h.Health < h.MaxHealth then h.Health = h.MaxHealth end
-        if h.PlatformStand and not (moveState and moveState.fly) and not WeldIntent.active and CurrentWeld == nil then
-            h.PlatformStand = false
+        if not isActivelyWeldedOrFlinging() and not (moveState and moveState.fly) then
+            if h.PlatformStand then h.PlatformStand = false end
+            if h.Sit then h.Sit = false end
         end
-        if h.Sit and not WeldIntent.active and CurrentWeld == nil then h.Sit = false end
         if h:GetState() == Enum.HumanoidStateType.Dead then
             h:ChangeState(Enum.HumanoidStateType.Running)
         end
@@ -2671,25 +2865,27 @@ local function avHookChar(c)
     end))
 end
 
-avStart = function()
-    if Anti.Void.enabled then return end
+avStart = function(silent)
+    if Anti.Void.enabled and Anti.Void.steppedConn and Anti.Void.loopConn then return end
     Anti.Void.enabled = true
     pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
     avHookChar(LP.Character)
     if Anti.Void.charAdded then Anti.Void.charAdded:Disconnect() end
     Anti.Void.charAdded = LP.CharacterAdded:Connect(function(c)
         if not Anti.Void.enabled then return end
-        task.wait(0.15)
+        task.wait(0.1)
         avHookChar(c)
         pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
     end)
     if Anti.Void.steppedConn then Anti.Void.steppedConn:Disconnect() end
     Anti.Void.steppedConn = RunService.Stepped:Connect(function()
         if not Anti.Void.enabled then return end
-        pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
+        if workspace.FallenPartsDestroyHeight == workspace.FallenPartsDestroyHeight then
+            pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
+        end
         local c = LP.Character
         local r = getRootPart(c)
-        if not r or FlingActive or deflectBusy or WeldIntent.active or CurrentWeld ~= nil or (RewindSys and RewindSys.rewinding) then
+        if not r or isActivelyWeldedOrFlinging() or deflectBusy or (RewindSys and RewindSys.rewinding) then
             return
         end
         local pos = r.Position
@@ -2712,19 +2908,27 @@ avStart = function()
     Anti.Void.loopConn = RunService.Heartbeat:Connect(function()
         if not Anti.Void.enabled then return end
         local now = tick()
-        if now - lastHealthGuard < 0.20 then return end
+        if now - lastHealthGuard < 0.35 then return end
         lastHealthGuard = now
         local c = LP.Character
         if not c then return end
         local h = c:FindFirstChildOfClass("Humanoid")
-        if h then avForceAlive(h) end
+        if h and h.Health < h.MaxHealth then avForceAlive(h) end
     end)
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("KHAMAN DHOKLA", "Anti-Void v3 (2048x2048 Floor + Predictive Catch) ON")
-    sToggleOn()
+    if not silent then
+        notify("KHAMAN DHOKLA", "Anti-Void v4 (Always-On 2048x2048 Floor + Catch) ACTIVE")
+        sToggleOn()
+    end
 end
 
 avStop = function()
+    if Anti.AlwaysOnCore or Anti.Void.alwaysOn then
+        avStart(true)
+        if syncAllAntiButtons then pcall(syncAllAntiButtons) end
+        notify("KHAMAN DHOKLA", "🔒 Anti-Void is locked ALWAYS-ON for permanent protection!")
+        return
+    end
     if not Anti.Void.enabled then return end
     Anti.Void.enabled = false
     if Anti.Void.charAdded then Anti.Void.charAdded:Disconnect(); Anti.Void.charAdded = nil end
@@ -2735,40 +2939,155 @@ avStop = function()
     for _, x in ipairs(Anti.Void.healthConns) do pcall(function() x:Disconnect() end) end
     Anti.Void.healthConns = {}
     avRemoveSafetyFloor()
-    if not (Anti.InfFallVoid and Anti.InfFallVoid.enabled) and not (Anti.Kill and Anti.Kill.enabled) and not WeldIntent.active and not FlingActive then
-        pcall(function() workspace.FallenPartsDestroyHeight = OriginalFPDH end)
-    end
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("KHAMAN DHOKLA", "Anti-Void disabled")
-    sToggleOff()
 end
+Anti.Void.startFn = avStart
+Anti.Void.stopFn  = avStop
 
--- Infinite Fall Void (from full library chunk_06: fall infinitely below map without dying)
-Anti.InfFallVoid.startFn = function()
+-- Infinite Fall Void (Always-On FallenPartsDestroyHeight = NaN lock)
+Anti.InfFallVoid.startFn = function(silent)
     if Anti.InfFallVoid.enabled then return end
     Anti.InfFallVoid.enabled = true
     pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
-    if Anti.InfFallVoid.steppedConn then Anti.InfFallVoid.steppedConn:Disconnect() end
-    Anti.InfFallVoid.steppedConn = RunService.Stepped:Connect(function()
-        if not Anti.InfFallVoid.enabled then return end
-        pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
-    end)
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("KHAMAN DHOKLA", "Infinite Fall Void ON (FallenPartsDestroyHeight = NaN)")
-    sToggleOn()
+    if not silent then
+        notify("KHAMAN DHOKLA", "Infinite Fall Void ON (FallenPartsDestroyHeight = NaN)")
+        sToggleOn()
+    end
 end
 
 Anti.InfFallVoid.stopFn = function()
-    if not Anti.InfFallVoid.enabled then return end
-    Anti.InfFallVoid.enabled = false
-    if Anti.InfFallVoid.steppedConn then Anti.InfFallVoid.steppedConn:Disconnect(); Anti.InfFallVoid.steppedConn = nil end
-    if not (Anti.Void and Anti.Void.enabled) and not (Anti.Kill and Anti.Kill.enabled) and not WeldIntent.active and not FlingActive then
-        pcall(function() workspace.FallenPartsDestroyHeight = OriginalFPDH end)
+    if Anti.AlwaysOnCore or Anti.InfFallVoid.alwaysOn then
+        Anti.InfFallVoid.startFn(true)
+        if syncAllAntiButtons then pcall(syncAllAntiButtons) end
+        notify("KHAMAN DHOKLA", "🔒 Infinite Fall Void is locked ALWAYS-ON!")
+        return
     end
+    Anti.InfFallVoid.enabled = false
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("KHAMAN DHOKLA", "Infinite Fall Void disabled")
-    sToggleOff()
 end
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- 1B. ALWAYS-ON ANTI-LAG & ANTI-CRASH ENGINE V4 (Zero-Overhead Event + Throttled Purger)
+-- ═══════════════════════════════════════════════════════════════════════════════
+local LAG_EFFECT_CLASSES = {
+    ParticleEmitter = true,
+    Trail = true,
+    Beam = true,
+    Smoke = true,
+    Fire = true,
+    Sparkles = true,
+}
+
+local function sanitizeLagInstance(obj)
+    if not obj or not obj.Parent then return end
+    if gui and obj:IsDescendantOf(gui) then return end
+    local cls = obj.ClassName
+    if LAG_EFFECT_CLASSES[cls] then
+        local myChar = LP.Character
+        if not (myChar and obj:IsDescendantOf(myChar)) then
+            pcall(function()
+                if obj.Enabled then
+                    obj.Enabled = false
+                    Anti.Lag.throttledEmitters[obj] = true
+                    Anti.Lag.purgedItems = (Anti.Lag.purgedItems or 0) + 1
+                end
+                if cls == "ParticleEmitter" and obj.Rate > 12 then
+                    obj.Rate = 0
+                end
+            end)
+        end
+    elseif cls == "Explosion" then
+        pcall(function()
+            obj.BlastPressure = 0
+            obj.BlastRadius = 0
+            obj.DestroyJointRadiusPercent = 0
+            obj.Visible = false
+            Anti.Lag.purgedItems = (Anti.Lag.purgedItems or 0) + 1
+        end)
+    elseif cls == "PointLight" or cls == "SurfaceLight" or cls == "SpotLight" then
+        pcall(function()
+            if obj.Shadows then obj.Shadows = false end
+        end)
+    elseif obj:IsA("BasePart") then
+        local p = obj.Parent
+        if p and (p:IsA("Tool") or p:IsA("Accessory") or p:IsA("Hat")) and p.Parent == workspace then
+            pcall(function()
+                if obj.CanTouch then obj.CanTouch = false end
+                if obj.CanCollide then obj.CanCollide = false end
+                obj.Massless = true
+                Anti.Lag.purgedItems = (Anti.Lag.purgedItems or 0) + 1
+            end)
+        end
+    end
+end
+
+lagStart = function(silent)
+    if Anti.Lag.enabled and Anti.Lag.wsDescConn and Anti.Lag.loopConn then return end
+    Anti.Lag.enabled = true
+    pcall(function()
+        local Lighting = game:GetService("Lighting")
+        Lighting.GlobalShadows = false
+    end)
+    if Anti.Lag.wsDescConn then Anti.Lag.wsDescConn:Disconnect() end
+    Anti.Lag.wsDescConn = workspace.DescendantAdded:Connect(function(obj)
+        if not Anti.Lag.enabled then return end
+        sanitizeLagInstance(obj)
+    end)
+    if Anti.Lag.loopConn then Anti.Lag.loopConn:Disconnect() end
+    local lastLagSweep = 0
+    Anti.Lag.loopConn = RunService.Heartbeat:Connect(function()
+        if not Anti.Lag.enabled then return end
+        local now = tick()
+        if now - lastLagSweep < 2.5 then return end
+        lastLagSweep = now
+        local rootSoundCount = 0
+        for _, child in ipairs(workspace:GetChildren()) do
+            if child:IsA("Tool") or child:IsA("Accessory") or child:IsA("Hat") then
+                for _, d in ipairs(child:GetDescendants()) do
+                    if d:IsA("BasePart") then
+                        if d.CanTouch then d.CanTouch = false end
+                        if d.CanCollide then d.CanCollide = false end
+                    elseif LAG_EFFECT_CLASSES[d.ClassName] and d.Enabled then
+                        d.Enabled = false
+                    end
+                end
+            elseif child:IsA("Sound") and child.IsPlaying then
+                rootSoundCount = rootSoundCount + 1
+                if rootSoundCount > 16 then
+                    pcall(function() child:Stop() end)
+                    Anti.Lag.purgedItems = (Anti.Lag.purgedItems or 0) + 1
+                end
+            end
+        end
+        for uid, _ in pairs(PlayerLocationCache) do
+            if not Players:GetPlayerByUserId(uid) then
+                PlayerLocationCache[uid] = nil
+            end
+        end
+    end)
+    if syncAllAntiButtons then pcall(syncAllAntiButtons) end
+    if not silent then
+        notify("KHAMAN DHOKLA", "Anti-Lag v4 (Always-On Particle/Clone-Bomb Purger) ACTIVE")
+        sToggleOn()
+    end
+end
+
+lagStop = function()
+    if Anti.AlwaysOnCore or Anti.Lag.alwaysOn then
+        lagStart(true)
+        if syncAllAntiButtons then pcall(syncAllAntiButtons) end
+        notify("KHAMAN DHOKLA", "🔒 Anti-Lag is locked ALWAYS-ON for max FPS & crash protection!")
+        return
+    end
+    if not Anti.Lag.enabled then return end
+    Anti.Lag.enabled = false
+    if Anti.Lag.wsDescConn then Anti.Lag.wsDescConn:Disconnect(); Anti.Lag.wsDescConn = nil end
+    if Anti.Lag.loopConn then Anti.Lag.loopConn:Disconnect(); Anti.Lag.loopConn = nil end
+    if syncAllAntiButtons then pcall(syncAllAntiButtons) end
+end
+Anti.Lag.startFn = lagStart
+Anti.Lag.stopFn  = lagStop
 
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- 2. ADVANCED ANTI-KILL / FULL GOD-MODE SHIELD V3 (Touch/Query Shield + ForceField + Explosion Immunity)
@@ -2854,13 +3173,8 @@ akStart = function()
             end
         end
         local hum = c:FindFirstChildOfClass("Humanoid")
-        if hum then
-            pcall(function()
-                hum:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
-                if hum.Health > 0 and hum.Health < hum.MaxHealth then
-                    hum.Health = hum.MaxHealth
-                end
-            end)
+        if hum and hum.Health > 0 and hum.Health < hum.MaxHealth then
+            pcall(function() hum.Health = hum.MaxHealth end)
         end
     end)
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
@@ -2893,16 +3207,18 @@ akStop = function()
             pcall(function() hum:SetStateEnabled(Enum.HumanoidStateType.Dead, true) end)
         end
     end
-    if not (Anti.Void and Anti.Void.enabled) and not (Anti.InfFallVoid and Anti.InfFallVoid.enabled) and not WeldIntent.active and not FlingActive then
+    if not (Anti.AlwaysOnCore or (Anti.Void and Anti.Void.enabled) or (Anti.InfFallVoid and Anti.InfFallVoid.enabled)) and not WeldIntent.active and not FlingActive then
         pcall(function() workspace.FallenPartsDestroyHeight = OriginalFPDH end)
     end
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
     notify("KHAMAN DHOKLA", "Anti-Kill disabled & part flags restored")
     sToggleOff()
 end
+Anti.Kill.startFn = akStart
+Anti.Kill.stopFn  = akStop
 
 -- ═══════════════════════════════════════════════════════════════════════════════
--- 3. ADVANCED ANTI-GAMEPLAYPAUSED V3 (GuiService + CoreGui + Property Unfreeze)
+-- 3. ALWAYS-ON ANTI-GAMEPLAYPAUSED / ANTI-NETWORKPAUSE FREEZE V4
 -- ═══════════════════════════════════════════════════════════════════════════════
 local function agpCleanse()
     pcall(function()
@@ -2920,8 +3236,8 @@ local function agpCleanse()
     end)
 end
 
-agpStart = function()
-    if Anti.GamePaused.enabled then return end
+agpStart = function(silent)
+    if Anti.GamePaused.enabled and Anti.GamePaused.loopConn then return end
     Anti.GamePaused.enabled = true
     agpCleanse()
     pcall(function()
@@ -2952,20 +3268,28 @@ agpStart = function()
         end
     end)
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("KHAMAN DHOKLA", "Anti-GameplayPaused v3 ON")
-    sToggleOn()
+    if not silent then
+        notify("KHAMAN DHOKLA", "Anti-GameplayPaused / Anti-Freeze v4 ACTIVE")
+        sToggleOn()
+    end
 end
 
 agpStop = function()
+    if Anti.AlwaysOnCore or Anti.GamePaused.alwaysOn then
+        agpStart(true)
+        if syncAllAntiButtons then pcall(syncAllAntiButtons) end
+        notify("KHAMAN DHOKLA", "🔒 Anti-GameplayPaused is locked ALWAYS-ON!")
+        return
+    end
     if not Anti.GamePaused.enabled then return end
     Anti.GamePaused.enabled = false
     if Anti.GamePaused.childAdded then Anti.GamePaused.childAdded:Disconnect(); Anti.GamePaused.childAdded = nil end
     if Anti.GamePaused.propConn then Anti.GamePaused.propConn:Disconnect(); Anti.GamePaused.propConn = nil end
     if Anti.GamePaused.loopConn then Anti.GamePaused.loopConn:Disconnect(); Anti.GamePaused.loopConn = nil end
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("KHAMAN DHOKLA", "Anti-GameplayPaused disabled")
-    sToggleOff()
 end
+Anti.GamePaused.startFn = agpStart
+Anti.GamePaused.stopFn  = agpStop
 
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- 4. ADVANCED ANTI-AFK V3 (Idled Signal + VirtualUser + VirtualInputManager)
@@ -3011,39 +3335,406 @@ afkStop = function()
     notify("KHAMAN DHOKLA", "Anti-AFK disabled")
     sToggleOff()
 end
+Anti.AFK.startFn = afkStart
+Anti.AFK.stopFn  = afkStop
 
 -- ═══════════════════════════════════════════════════════════════════════════════
--- 5. KHAMAN ANTI-VC / VC BYPASS (Full Deobfuscated Tesla/Eternity VoiceChatInternal Bypass)
+-- 5. KHAMAN ANTI-VC V4 ULTRA MULTI-VECTOR VOICECHAT BYPASS
 -- ═══════════════════════════════════════════════════════════════════════════════
+local MUTED_MIC_IMG   = "rbxasset://textures/ui/VoiceChat/MicLight/Muted.png"
+local UNMUTED_MIC_IMG = "rbxasset://textures/ui/VoiceChat/MicLight/Unmuted.png"
+local vcRawPublishPause = nil
+
 local function findMicIcon(btn)
+    if not btn then return nil end
     local ok, res = pcall(function()
-        return btn:WaitForChild("IntegrationIconFrame", 15)
-            :WaitForChild("IntegrationIcon", 15)["1"]
+        local f = btn:FindFirstChild("IntegrationIconFrame", true) or btn:WaitForChild("IntegrationIconFrame", 1.5)
+        local ii = f and (f:FindFirstChild("IntegrationIcon", true) or f:WaitForChild("IntegrationIcon", 1.5))
+        return ii and (ii:FindFirstChild("1") or ii:FindFirstChildWhichIsA("ImageLabel"))
     end)
-    return (ok and res) or nil
+    if ok and res then return res end
+    for _, d in ipairs(btn:GetDescendants()) do
+        if d:IsA("ImageLabel") and (d.Name == "1" or d.Name:lower():find("icon", 1, true) or d.Image:lower():find("voicechat", 1, true) or d.Image:lower():find("mic", 1, true)) then
+            return d
+        end
+    end
+    return nil
+end
+
+local function locateTopBarMicButton(coreGui)
+    if not coreGui then return nil, nil end
+    local foundBtn = nil
+    pcall(function()
+        for _, v in ipairs(coreGui:GetDescendants()) do
+            if v.Name == "toggle_mic_mute" then
+                foundBtn = v
+                break
+            end
+        end
+        if not foundBtn then
+            for _, v in ipairs(coreGui:GetDescendants()) do
+                if v.Name == "IconHitArea_toggle_mic_mute" and v.Parent then
+                    foundBtn = v.Parent
+                    break
+                end
+            end
+        end
+    end)
+    return foundBtn, (foundBtn and foundBtn.Parent or nil)
 end
 
 local function updateKhamanAntiVCVisuals(statusStr, statusCol, btnStr)
     Anti.VC.statusText = statusStr or Anti.VC.statusText
+    local micLabel = Anti.VC.userMuted and "🔇 MIC: MUTED (TAP TO UNMUTE)" or "🎙️ MIC: LIVE / UNMUTED (TAP TO MUTE)"
+    local micCol   = Anti.VC.userMuted and T.Danger or T.Success
     if Anti.VC.statusLbl and Anti.VC.statusLbl.Parent then
-        Anti.VC.statusLbl.Text = statusStr or "Status: Idle"
+        Anti.VC.statusLbl.Text = string.format("%s  ·  Blocked Mutes: %d", statusStr or "Status: Idle", Anti.VC.blockedMutes or 0)
         if statusCol then Anti.VC.statusLbl.TextColor3 = statusCol end
     end
     if Anti.VC.activateBtn and Anti.VC.activateBtn.Parent and btnStr then
         Anti.VC.activateBtn.Text = btnStr
     end
-    if Anti.VC.rowSubLbl and Anti.VC.rowSubLbl.Parent then
-        Anti.VC.rowSubLbl.Text = (statusStr or "Status: Idle") .. " · Khaman Anti-VC"
+    if Anti.VC.micToggleBtn and Anti.VC.micToggleBtn.Parent then
+        Anti.VC.micToggleBtn.Text = micLabel
+        Anti.VC.micToggleBtn.BackgroundColor3 = micCol
     end
+    if Anti.VC.inlineMicBtn and Anti.VC.inlineMicBtn.Parent then
+        Anti.VC.inlineMicBtn.Text = Anti.VC.userMuted and "🔇 MUTED" or "🎙️ LIVE"
+        Anti.VC.inlineMicBtn.BackgroundColor3 = micCol
+    end
+    if Anti.VC.rowSubLbl and Anti.VC.rowSubLbl.Parent then
+        Anti.VC.rowSubLbl.Text = string.format("%s · Guard:%d", statusStr or "Status: Idle", Anti.VC.blockedMutes or 0)
+    end
+end
+
+local function getVCServices()
+    local safeCloneref = (type(cloneref) == "function" and cloneref) or function(...) return ... end
+    local vcs, vci = nil, nil
+    pcall(function() vcs = safeCloneref(game:GetService("VoiceChatService")) end)
+    pcall(function() vci = safeCloneref(game:GetService("VoiceChatInternal")) end)
+    return vcs, vci
+end
+
+local function setVCPublishPaused(vci, pauseState)
+    if not vci then
+        local _, resolved = getVCServices()
+        vci = resolved
+    end
+    if not vci then return false end
+    local ok = pcall(function()
+        if vcRawPublishPause then
+            vcRawPublishPause(vci, pauseState)
+        else
+            vci:PublishPause(pauseState)
+        end
+    end)
+    return ok
+end
+
+local function isVCPublishPaused(vci)
+    if not vci then
+        local _, resolved = getVCServices()
+        vci = resolved
+    end
+    if not vci then return false end
+    local ok, res = pcall(function() return vci:IsPublishPaused() end)
+    return ok and res == true
+end
+
+local function stripVCModerationConnections(vci, vcs)
+    local safeClonefunc = (type(clonefunction) == "function" and clonefunction) or function(...) return ... end
+    if type(getconnections) ~= "function" then return 0 end
+    local getConns = safeClonefunc(getconnections)
+    local disabledCount = 0
+
+    pcall(function()
+        if vci and vci.StateChanged then
+            local conns = getConns(vci.StateChanged)
+            for i = 1, #conns do
+                local c = conns[i]
+                local shouldDisable = (i >= 7)
+                if not shouldDisable and c and c.Function and debug and type(debug.getconstants) == "function" then
+                    local okC, consts = pcall(debug.getconstants, c.Function)
+                    if okC and type(consts) == "table" then
+                        for _, val in pairs(consts) do
+                            local s = tostring(val):lower()
+                            if s:find("suspend", 1, true) or s:find("moderated", 1, true) or s:find("banned", 1, true) or s:find("publishpause", 1, true) then
+                                shouldDisable = true
+                                break
+                            end
+                        end
+                    end
+                end
+                if shouldDisable and c then
+                    pcall(function() c:Disable() end)
+                    disabledCount = disabledCount + 1
+                end
+            end
+        end
+    end)
+
+    for _, sigName in ipairs({ "LocalPlayerModerated", "PlayerMicActivitySignalChange", "ParticipantsStateChanged" }) do
+        pcall(function()
+            local sig = vci and vci[sigName]
+            if sig and sigName == "LocalPlayerModerated" then
+                for _, c in ipairs(getConns(sig)) do
+                    pcall(function() c:Disable() end)
+                    pcall(function() c:Disconnect() end)
+                    disabledCount = disabledCount + 1
+                end
+            end
+        end)
+        pcall(function()
+            local sig = vcs and vcs[sigName]
+            if sig and sigName == "LocalPlayerModerated" then
+                for _, c in ipairs(getConns(sig)) do
+                    pcall(function() c:Disable() end)
+                    pcall(function() c:Disconnect() end)
+                    disabledCount = disabledCount + 1
+                end
+            end
+        end)
+    end
+    return disabledCount
+end
+
+local function installVCPublishHook(vci)
+    if Anti.VC.hookInstalled or not vci then return end
+    pcall(function()
+        if type(hookfunction) == "function" and type(vci.PublishPause) == "function" then
+            Anti.VC.hookInstalled = true
+            local origFn
+            origFn = hookfunction(vci.PublishPause, function(selfArg, pauseArg, ...)
+                if Anti.VC.enabled and selfArg == vci and pauseArg == true and not Anti.VC.userMuted then
+                    Anti.VC.blockedMutes = (Anti.VC.blockedMutes or 0) + 1
+                    return origFn(selfArg, false, ...)
+                end
+                return origFn(selfArg, pauseArg, ...)
+            end)
+            vcRawPublishPause = origFn
+        end
+    end)
+end
+
+local function bindCustomTopBarMicClone(coreGui, vci)
+    local micBtn, micParent = locateTopBarMicButton(coreGui)
+    if not micBtn or not micParent then return false end
+
+    for _, storeName in ipairs({ "KhamanVCBypassStore", "AngoorVCBypassStore" }) do
+        local oldStore = coreGui:FindFirstChild(storeName)
+        if oldStore then pcall(function() oldStore:Destroy() end) end
+    end
+    local oldCustom = micParent:FindFirstChild("toggle_mic_mute_new")
+    if oldCustom then pcall(function() oldCustom:Destroy() end) end
+
+    local storeFolder = Instance.new("Folder")
+    storeFolder.Name = "KhamanVCBypassStore"
+    storeFolder.Parent = coreGui
+
+    local newBtn = micBtn:Clone()
+    micBtn.Parent = storeFolder
+
+    newBtn.Name = "toggle_mic_mute_new"
+    newBtn.Parent = micParent
+
+    local newIcon = findMicIcon(newBtn)
+    local origIcon = findMicIcon(micBtn)
+
+    local function syncCloneIcon()
+        if not newIcon then return end
+        if Anti.VC.userMuted then
+            newIcon.Image = MUTED_MIC_IMG
+        elseif origIcon and origIcon.Image ~= "" and origIcon.Image ~= MUTED_MIC_IMG then
+            newIcon.Image = origIcon.Image
+        else
+            newIcon.Image = UNMUTED_MIC_IMG
+        end
+    end
+    syncCloneIcon()
+
+    local hitArea = newBtn:FindFirstChild("IconHitArea_toggle_mic_mute", true) or newBtn:FindFirstChildWhichIsA("GuiButton", true) or newBtn
+    if hitArea and hitArea:IsA("GuiButton") then
+        hitArea.Activated:Connect(function()
+            if Anti.VC.toggleMicFn then
+                Anti.VC.toggleMicFn()
+            end
+            syncCloneIcon()
+        end)
+    end
+    return true
+end
+
+local function startVCWatchdog()
+    if Anti.VC.watchdogConn then Anti.VC.watchdogConn:Disconnect(); Anti.VC.watchdogConn = nil end
+    local lastCheck = 0
+    Anti.VC.watchdogConn = RunService.Heartbeat:Connect(function()
+        if not Anti.VC.enabled then return end
+        local now = tick()
+        if now - lastCheck < 0.25 then return end
+        lastCheck = now
+
+        local vcs, vci = getVCServices()
+        if not vci then return end
+
+        local currentlyPaused = isVCPublishPaused(vci)
+        if not Anti.VC.userMuted and currentlyPaused then
+            setVCPublishPaused(vci, false)
+            Anti.VC.blockedMutes = (Anti.VC.blockedMutes or 0) + 1
+            updateKhamanAntiVCVisuals("Status: Active (Live)", T.Success, "KHAMAN ANTI-VC ACTIVE")
+        elseif Anti.VC.userMuted and not currentlyPaused then
+            setVCPublishPaused(vci, true)
+        end
+
+        local coreGui = CoreGui or game:GetService("CoreGui")
+        if coreGui then
+            for _, v in ipairs(coreGui:GetChildren()) do
+                if v.Name == "KhamanVCBypassStore" then
+                    local origBtn = v:FindFirstChild("toggle_mic_mute")
+                    local origIcon = findMicIcon(origBtn)
+                    local customBtn = coreGui:FindFirstChild("toggle_mic_mute_new", true)
+                    local customIcon = findMicIcon(customBtn)
+                    if customIcon then
+                        if Anti.VC.userMuted then
+                            customIcon.Image = MUTED_MIC_IMG
+                        elseif origIcon and origIcon.Image ~= "" and origIcon.Image ~= MUTED_MIC_IMG then
+                            customIcon.Image = origIcon.Image
+                        else
+                            customIcon.Image = UNMUTED_MIC_IMG
+                        end
+                    end
+                    break
+                end
+            end
+        end
+    end)
+end
+
+Anti.VC.toggleMicFn = function()
+    local vcs, vci = getVCServices()
+    if not Anti.VC.enabled and not Anti.VC.running then
+        if Anti.VC.forceBypassFn then
+            Anti.VC.forceBypassFn()
+        end
+        return
+    end
+    Anti.VC.userMuted = not Anti.VC.userMuted
+    setVCPublishPaused(vci, Anti.VC.userMuted)
+    if Anti.VC.userMuted then
+        updateKhamanAntiVCVisuals("Status: Active (Mic Muted)", T.Warning, "KHAMAN ANTI-VC ACTIVE")
+        notify("Khaman Anti-VC", "🔇 Mic Muted (Protected)")
+        sToggleOff()
+    else
+        stripVCModerationConnections(vci, vcs)
+        setVCPublishPaused(vci, false)
+        updateKhamanAntiVCVisuals("Status: Active (Mic LIVE)", T.Success, "KHAMAN ANTI-VC ACTIVE")
+        notify("Khaman Anti-VC", "🎙️ Mic LIVE / Unmuted (Anti-Force-Mute Active)")
+        sToggleOn()
+    end
+end
+
+Anti.VC.rejoinFn = function()
+    if Anti.VC.running then return end
+    Anti.VC.running = true
+    updateKhamanAntiVCVisuals("Status: Rejoining Voice...", T.Warning, "REJOINING...")
+    task.spawn(function()
+        local vcs, vci = getVCServices()
+        pcall(function() if vcs then vcs:leaveVoice() end end)
+        task.wait(0.85)
+        stripVCModerationConnections(vci, vcs)
+        task.wait(0.45)
+        pcall(function() if vcs then vcs:joinVoice() end end)
+        task.wait(0.75)
+        stripVCModerationConnections(vci, vcs)
+        installVCPublishHook(vci)
+        Anti.VC.userMuted = false
+        setVCPublishPaused(vci, false)
+        local coreGui = CoreGui or game:GetService("CoreGui")
+        if coreGui then pcall(function() bindCustomTopBarMicClone(coreGui, vci) end) end
+        Anti.VC.rejoins = (Anti.VC.rejoins or 0) + 1
+        Anti.VC.running = false
+        Anti.VC.enabled = true
+        startVCWatchdog()
+        updateKhamanAntiVCVisuals("Status: Active (Mic LIVE)", T.Success, "KHAMAN ANTI-VC ACTIVE")
+        if syncAllAntiButtons then pcall(syncAllAntiButtons) end
+        notify("Khaman Anti-VC", "🔄 Voice Rejoined & Unban Pulse Complete!")
+        sSuccess()
+    end)
+end
+
+Anti.VC.forceBypassFn = function()
+    if Anti.VC.running then
+        notify("Khaman Anti-VC", "Bypass sequence already running...")
+        return
+    end
+    Anti.VC.running = true
+    updateKhamanAntiVCVisuals("Status: Force-Bypassing...", T.Warning, "BYPASSING...")
+    if syncAllAntiButtons then pcall(syncAllAntiButtons) end
+    sToggleOn()
+
+    task.spawn(function()
+        local ok, err = pcall(function()
+            local vcs, vci = getVCServices()
+            local coreGui = CoreGui or game:GetService("CoreGui")
+
+            local micBtn = locateTopBarMicButton(coreGui)
+            if not micBtn and vcs then
+                pcall(function() vcs:joinVoice() end)
+                task.wait(0.7)
+                micBtn = locateTopBarMicButton(coreGui)
+            end
+            if micBtn then
+                local icon = findMicIcon(micBtn)
+                if icon and icon.Image == MUTED_MIC_IMG and type(firesignal) == "function" then
+                    local hit = micBtn:FindFirstChild("IconHitArea_toggle_mic_mute", true) or micBtn
+                    pcall(function() firesignal(hit.Activated) end)
+                    pcall(function() firesignal(hit.MouseButton1Click) end)
+                    task.wait(0.25)
+                end
+            end
+
+            if vcs then pcall(function() vcs:leaveVoice() end) end
+            task.wait(1.1)
+
+            stripVCModerationConnections(vci, vcs)
+            task.wait(0.8)
+
+            if vcs then pcall(function() vcs:joinVoice() end) end
+            task.wait(0.9)
+
+            stripVCModerationConnections(vci, vcs)
+            installVCPublishHook(vci)
+
+            if coreGui then
+                pcall(function() bindCustomTopBarMicClone(coreGui, vci) end)
+            end
+
+            Anti.VC.userMuted = false
+            setVCPublishPaused(vci, false)
+
+            Anti.VC.running = false
+            Anti.VC.enabled = true
+            startVCWatchdog()
+            updateKhamanAntiVCVisuals("Status: Active (Mic LIVE)", T.Success, "KHAMAN ANTI-VC ACTIVE")
+            if syncAllAntiButtons then pcall(syncAllAntiButtons) end
+            notify("Khaman Anti-VC", "⚡ Instant VC Bypass V4 Active! Mic is LIVE.")
+            sSuccess()
+        end)
+        if not ok then
+            Anti.VC.running = false
+            updateKhamanAntiVCVisuals("Status: Error (" .. tostring(err):sub(1, 22) .. ")", T.Danger, "RETRY BYPASS")
+            if syncAllAntiButtons then pcall(syncAllAntiButtons) end
+            notify("Khaman Anti-VC", "Bypass Error: " .. tostring(err))
+        end
+    end)
 end
 
 vcStart = function()
     if Anti.VC.enabled then
-        notify("Khaman Anti-VC", "Already active")
+        notify("Khaman Anti-VC", "Already active — use Mic Toggle or Rejoin!")
         return
     end
     if Anti.VC.running then
-        notify("Khaman Anti-VC", "Waiting for mic unmute...")
+        notify("Khaman Anti-VC", "Bypass in progress — unmute mic or tap Instant Force Bypass!")
         return
     end
 
@@ -3054,164 +3745,66 @@ vcStart = function()
 
     task.spawn(function()
         local ok, err = pcall(function()
-            local safeCloneref = cloneref or function(...)
-                return ...
-            end
-            local safeClonefunc = clonefunction or function(...)
-                return ...
-            end
-
-            local VoiceChatService = safeCloneref(game:GetService("VoiceChatService"))
-            local VoiceChatInternal = safeCloneref(game:GetService("VoiceChatInternal"))
+            local vcs, vci = getVCServices()
             local coreGui = CoreGui or game:GetService("CoreGui")
 
-            local micBtn = nil
-            local micParent = nil
-
-            pcall(function()
-                for _, v in ipairs(coreGui:GetDescendants()) do
-                    if v.Name == "toggle_mic_mute" then
-                        micBtn = v
-                        micParent = v.Parent
-                        break
-                    end
-                end
-            end)
-
-            local function isPaused()
-                return VoiceChatInternal:IsPublishPaused()
-            end
-
-            local function setPaused(state)
-                VoiceChatInternal:PublishPause(state)
-            end
-
+            local micBtn, micParent = locateTopBarMicButton(coreGui)
             if not micBtn then
-                pcall(function()
-                    VoiceChatService:joinVoice()
-                end)
-                task.wait(1)
-
-                pcall(function()
-                    for _, v in ipairs(coreGui:GetDescendants()) do
-                        if v.Name == "toggle_mic_mute" then
-                            micBtn = v
-                            micParent = v.Parent
-                            break
-                        end
-                    end
-                end)
-
-                if not micBtn then
-                    error("Mic button not found — open Voice Chat first")
-                end
+                pcall(function() if vcs then vcs:joinVoice() end end)
+                task.wait(0.9)
+                micBtn, micParent = locateTopBarMicButton(coreGui)
             end
 
-            notify("Khaman Anti-VC", "Unmute your mic to continue")
-
-            local icon = findMicIcon(micBtn)
-            local mutedImg = "rbxasset://textures/ui/VoiceChat/MicLight/Muted.png"
-            local startTick = tick()
-
-            while icon and icon.Image == mutedImg and (tick() - startTick) < 60 do
-                if not Anti.VC.running then
-                    error("Cancelled")
+            if micBtn then
+                local icon = findMicIcon(micBtn)
+                if icon and icon.Image == MUTED_MIC_IMG and type(firesignal) == "function" then
+                    local hit = micBtn:FindFirstChild("IconHitArea_toggle_mic_mute", true) or micBtn
+                    pcall(function() firesignal(hit.Activated) end)
+                    pcall(function() firesignal(hit.MouseButton1Click) end)
+                    task.wait(0.25)
+                    icon = findMicIcon(micBtn) or icon
                 end
-                task.wait(0.5)
-                icon = findMicIcon(micBtn) or icon
-            end
 
-            -- Step 1: Leave Voice Chat
-            pcall(function()
-                VoiceChatService:leaveVoice()
-            end)
-            task.wait(2)
-
-            -- Step 2: Disable StateChanged connections from index 7..#conns
-            pcall(function()
-                if type(getconnections) == "function" then
-                    local getConns = safeClonefunc(getconnections)
-                    local conns = getConns(VoiceChatInternal.StateChanged)
-                    for i = 7, #conns, 1 do
-                        pcall(function()
-                            if conns[i] then conns[i]:Disable() end
-                        end)
+                if icon and icon.Image == MUTED_MIC_IMG then
+                    notify("Khaman Anti-VC", "Unmute your mic (or wait 12s for Auto Force-Bypass)")
+                    local startTick = tick()
+                    while icon and icon.Image == MUTED_MIC_IMG and (tick() - startTick) < 12 do
+                        if not Anti.VC.running then
+                            error("Cancelled")
+                        end
+                        task.wait(0.35)
+                        icon = findMicIcon(micBtn) or icon
                     end
                 end
-            end)
-            task.wait(2)
-
-            -- Step 3: Rejoin Voice Chat
-            pcall(function()
-                VoiceChatService:joinVoice()
-            end)
-            task.wait(1)
-
-            -- Step 4: Re-locate "toggle_mic_mute" in CoreGui
-            pcall(function()
-                if micParent then
-                    local waited = micParent:FindFirstChild("toggle_mic_mute") or micParent:WaitForChild("toggle_mic_mute", 10)
-                    if waited then micBtn = waited end
-                end
-                if not micBtn or not micBtn.Parent then
-                    for _, v in ipairs(coreGui:GetDescendants()) do
-                        if v.Name == "toggle_mic_mute" then
-                            micBtn = v
-                            micParent = v.Parent
-                            break
-                        end
-                    end
-                end
-            end)
-
-            -- Step 5: Replace original mic button with custom clone bound to PublishPause
-            if micBtn and micParent then
-                for _, storeName in ipairs({ "KhamanVCBypassStore", "AngoorVCBypassStore" }) do
-                    local oldStore = coreGui:FindFirstChild(storeName)
-                    if oldStore then pcall(function() oldStore:Destroy() end) end
-                end
-                local oldCustom = micParent:FindFirstChild("toggle_mic_mute_new")
-                if oldCustom then pcall(function() oldCustom:Destroy() end) end
-
-                local storeFolder = Instance.new("Folder")
-                storeFolder.Name = "KhamanVCBypassStore"
-                storeFolder.Parent = coreGui
-
-                local newBtn = micBtn:Clone()
-                micBtn.Parent = storeFolder
-
-                newBtn.Name = "toggle_mic_mute_new"
-                newBtn.Parent = micParent
-
-                local newIcon = findMicIcon(newBtn)
-                local origIcon = findMicIcon(micBtn)
-
-                setPaused(true)
-                if newIcon then
-                    newIcon.Image = mutedImg
-                end
-
-                local hitArea = newBtn:FindFirstChild("IconHitArea_toggle_mic_mute", true) or newBtn:WaitForChild("IconHitArea_toggle_mic_mute", 10)
-                if hitArea then
-                    hitArea.Activated:Connect(function()
-                        local nextPaused = not isPaused()
-                        setPaused(nextPaused)
-                        if newIcon then
-                            if nextPaused then
-                                newIcon.Image = mutedImg
-                            elseif origIcon then
-                                newIcon.Image = origIcon.Image
-                            end
-                        end
-                    end)
-                end
+            else
+                notify("Khaman Anti-VC", "TopBar hidden — running Direct Engine VC Bypass V4...")
             end
+
+            pcall(function() if vcs then vcs:leaveVoice() end end)
+            task.wait(1.5)
+
+            stripVCModerationConnections(vci, vcs)
+            task.wait(1.2)
+
+            pcall(function() if vcs then vcs:joinVoice() end end)
+            task.wait(1.0)
+
+            stripVCModerationConnections(vci, vcs)
+            installVCPublishHook(vci)
+
+            if coreGui then
+                pcall(function() bindCustomTopBarMicClone(coreGui, vci) end)
+            end
+
+            Anti.VC.userMuted = false
+            setVCPublishPaused(vci, false)
 
             Anti.VC.running = false
             Anti.VC.enabled = true
-            updateKhamanAntiVCVisuals("Status: Active", T.Success, "KHAMAN ANTI VC ACTIVE")
+            startVCWatchdog()
+            updateKhamanAntiVCVisuals("Status: Active (Mic LIVE)", T.Success, "KHAMAN ANTI-VC ACTIVE")
             if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-            notify("Khaman Anti-VC", "Activated successfully!")
+            notify("Khaman Anti-VC", "Activated V4 Bypass! Mic is LIVE (Press [V] or use UI to mute/unmute)")
             sSuccess()
         end)
 
@@ -3230,6 +3823,7 @@ vcStop = function()
     if not Anti.VC.enabled and not Anti.VC.running then return end
     Anti.VC.running = false
     Anti.VC.enabled = false
+    if Anti.VC.watchdogConn then Anti.VC.watchdogConn:Disconnect(); Anti.VC.watchdogConn = nil end
     pcall(function()
         local coreGui = CoreGui or game:GetService("CoreGui")
         local store = coreGui and (coreGui:FindFirstChild("KhamanVCBypassStore") or coreGui:FindFirstChild("AngoorVCBypassStore"))
@@ -3253,7 +3847,11 @@ vcStop = function()
     sToggleOff()
 end
 
+Anti.VC.startFn = vcStart
+Anti.VC.stopFn  = vcStop
 _G.ActivateKhamanAntiVC = vcStart
+_G.ForceKhamanAntiVC    = Anti.VC.forceBypassFn
+_G.ToggleKhamanVCMic    = Anti.VC.toggleMicFn
 _G.ActivateTeslaAntiVC  = vcStart
 
 Anti.VC.openPanelFn = function()
@@ -3283,8 +3881,8 @@ Anti.VC.openPanelFn = function()
 
     local mainCard = Instance.new("Frame", screenGui)
     mainCard.Name = "KhamanAntiVCCard"
-    mainCard.Size = UDim2.new(0, 286, 0, 222)
-    mainCard.Position = UDim2.new(0.5, -143, 0.5, -111)
+    mainCard.Size = UDim2.new(0, 304, 0, 296)
+    mainCard.Position = UDim2.new(0.5, -152, 0.5, -148)
     mainCard.BackgroundColor3 = T.BG2
     mainCard.BorderSizePixel = 0
     mainCard.Active = true
@@ -3312,10 +3910,10 @@ Anti.VC.openPanelFn = function()
     end)
 
     local cardPadding = Instance.new("UIPadding", mainCard)
-    cardPadding.PaddingTop = UDim.new(0, 12)
-    cardPadding.PaddingBottom = UDim.new(0, 12)
-    cardPadding.PaddingLeft = UDim.new(0, 14)
-    cardPadding.PaddingRight = UDim.new(0, 14)
+    cardPadding.PaddingTop = UDim.new(0, 10)
+    cardPadding.PaddingBottom = UDim.new(0, 10)
+    cardPadding.PaddingLeft = UDim.new(0, 12)
+    cardPadding.PaddingRight = UDim.new(0, 12)
 
     local listLayout = Instance.new("UIListLayout", mainCard)
     listLayout.FillDirection = Enum.FillDirection.Vertical
@@ -3324,21 +3922,21 @@ Anti.VC.openPanelFn = function()
 
     local headerLbl = Instance.new("TextLabel", mainCard)
     headerLbl.LayoutOrder = 1
-    headerLbl.Size = UDim2.new(1, -24, 0, 20)
+    headerLbl.Size = UDim2.new(1, -24, 0, 18)
     headerLbl.BackgroundTransparency = 1
-    headerLbl.Text = "🟨 KHAMAN ANTI VC / VC BYPASS"
+    headerLbl.Text = "🟨 KHAMAN ANTI-VC V4 ULTRA BYPASS"
     headerLbl.Font = Enum.Font.GothamBlack
-    headerLbl.TextSize = 12
+    headerLbl.TextSize = 11
     headerLbl.TextColor3 = T.Accent
     headerLbl.TextXAlignment = Enum.TextXAlignment.Left
 
     local stLbl = Instance.new("TextLabel", mainCard)
     stLbl.LayoutOrder = 2
-    stLbl.Size = UDim2.new(1, 0, 0, 22)
+    stLbl.Size = UDim2.new(1, 0, 0, 18)
     stLbl.BackgroundTransparency = 1
-    stLbl.Text = Anti.VC.statusText or "Status: Idle"
+    stLbl.Text = (Anti.VC.statusText or "Status: Idle") .. "  ·  Blocked Mutes: " .. tostring(Anti.VC.blockedMutes or 0)
     stLbl.Font = Enum.Font.GothamBold
-    stLbl.TextSize = 11
+    stLbl.TextSize = 10
     stLbl.TextColor3 = Anti.VC.enabled and T.Success
         or (Anti.VC.running and T.Warning or T.Muted)
     stLbl.TextXAlignment = Enum.TextXAlignment.Left
@@ -3346,78 +3944,121 @@ Anti.VC.openPanelFn = function()
 
     local infoLbl = Instance.new("TextLabel", mainCard)
     infoLbl.LayoutOrder = 3
-    infoLbl.Size = UDim2.new(1, 0, 0, 92)
+    infoLbl.Size = UDim2.new(1, 0, 0, 68)
     infoLbl.BackgroundColor3 = T.Panel
     infoLbl.BorderSizePixel = 0
-    infoLbl.Text = "1. Click Activate Khaman Anti-VC\n2. Unmute your mic when prompted\n3. Wait ~6s for bypass to finish\n4. Use the custom mic button after"
+    infoLbl.Text = "• Auto Bypass: Unmutes + strips StateChanged & Moderation\n• Instant Force Bypass: 0-wait direct VoiceChatInternal unlock\n• Anti-Force-Mute Watchdog: Keeps mic LIVE 24/7 (Key: [V])"
     infoLbl.Font = Enum.Font.Gotham
-    infoLbl.TextSize = 11
+    infoLbl.TextSize = 9
     infoLbl.TextColor3 = T.Text
     infoLbl.TextXAlignment = Enum.TextXAlignment.Left
     infoLbl.TextYAlignment = Enum.TextYAlignment.Top
     infoLbl.TextWrapped = true
-
-    local infoCorner = Instance.new("UICorner", infoLbl)
-    infoCorner.CornerRadius = UDim.new(0, 8)
-
+    Instance.new("UICorner", infoLbl).CornerRadius = UDim.new(0, 8)
     local infoPad = Instance.new("UIPadding", infoLbl)
-    infoPad.PaddingTop = UDim.new(0, 8)
-    infoPad.PaddingLeft = UDim.new(0, 10)
+    infoPad.PaddingTop = UDim.new(0, 6)
+    infoPad.PaddingLeft = UDim.new(0, 8)
+    infoPad.PaddingRight = UDim.new(0, 8)
 
     local actBtn = Instance.new("TextButton", mainCard)
     actBtn.LayoutOrder = 4
-    actBtn.Size = UDim2.new(1, 0, 0, 40)
+    actBtn.Size = UDim2.new(1, 0, 0, 34)
     actBtn.BackgroundColor3 = T.Accent2
     actBtn.BorderSizePixel = 0
-    actBtn.Text = Anti.VC.enabled and "KHAMAN ANTI VC ACTIVE" or (Anti.VC.running and "WAITING..." or "ACTIVATE KHAMAN ANTI VC")
+    actBtn.Text = Anti.VC.enabled and "KHAMAN ANTI-VC ACTIVE" or (Anti.VC.running and "WAITING..." or "ACTIVATE AUTO VC BYPASS")
     actBtn.Font = Enum.Font.GothamBold
-    actBtn.TextSize = 12
+    actBtn.TextSize = 11
     actBtn.TextColor3 = Color3.new(1, 1, 1)
-    actBtn.AutoButtonColor = true
+    Instance.new("UICorner", actBtn).CornerRadius = UDim.new(0, 7)
     Anti.VC.activateBtn = actBtn
-
-    local btnCorner = Instance.new("UICorner", actBtn)
-    btnCorner.CornerRadius = UDim.new(0, 8)
-
     actBtn.MouseButton1Click:Connect(function()
         sClick()
         vcStart()
     end)
+
+    local forceBtn = Instance.new("TextButton", mainCard)
+    forceBtn.LayoutOrder = 5
+    forceBtn.Size = UDim2.new(1, 0, 0, 32)
+    forceBtn.BackgroundColor3 = Color3.fromRGB(185, 115, 12)
+    forceBtn.BorderSizePixel = 0
+    forceBtn.Text = "⚡ INSTANT FORCE BYPASS (0-WAIT)"
+    forceBtn.Font = Enum.Font.GothamBold
+    forceBtn.TextSize = 10
+    forceBtn.TextColor3 = Color3.new(1, 1, 1)
+    Instance.new("UICorner", forceBtn).CornerRadius = UDim.new(0, 7)
+    Anti.VC.forceBtn = forceBtn
+    forceBtn.MouseButton1Click:Connect(function()
+        sClick()
+        Anti.VC.forceBypassFn()
+    end)
+
+    local micBtn = Instance.new("TextButton", mainCard)
+    micBtn.LayoutOrder = 6
+    micBtn.Size = UDim2.new(1, 0, 0, 32)
+    micBtn.BackgroundColor3 = Anti.VC.userMuted and T.Danger or T.Success
+    micBtn.BorderSizePixel = 0
+    micBtn.Text = Anti.VC.userMuted and "🔇 MIC: MUTED (TAP TO UNMUTE)" or "🎙️ MIC: LIVE / UNMUTED (TAP TO MUTE)"
+    micBtn.Font = Enum.Font.GothamBold
+    micBtn.TextSize = 10
+    micBtn.TextColor3 = Color3.new(1, 1, 1)
+    Instance.new("UICorner", micBtn).CornerRadius = UDim.new(0, 7)
+    Anti.VC.micToggleBtn = micBtn
+    micBtn.MouseButton1Click:Connect(function()
+        sClick()
+        Anti.VC.toggleMicFn()
+    end)
+
+    local rejoinBtn = Instance.new("TextButton", mainCard)
+    rejoinBtn.LayoutOrder = 7
+    rejoinBtn.Size = UDim2.new(1, 0, 0, 30)
+    rejoinBtn.BackgroundColor3 = T.PanelLt
+    rejoinBtn.BorderSizePixel = 0
+    rejoinBtn.Text = "🔄 FORCE REJOIN VOICE & UNBAN PULSE"
+    rejoinBtn.Font = Enum.Font.GothamBold
+    rejoinBtn.TextSize = 10
+    rejoinBtn.TextColor3 = T.Neon
+    Instance.new("UICorner", rejoinBtn).CornerRadius = UDim.new(0, 7)
+    Anti.VC.rejoinBtn = rejoinBtn
+    rejoinBtn.MouseButton1Click:Connect(function()
+        sClick()
+        Anti.VC.rejoinFn()
+    end)
 end
 
 -- ═══════════════════════════════════════════════════════════════════════════════
--- 6. ADVANCED ANTI-RAGDOLL / ANTI-SIT / ANTI-KIDNAP / ANTI-STUN V3
+-- 6. ALWAYS-ON ANTI-RAGDOLL / ANTI-SIT / ANTI-KIDNAP / ANTI-STUN V4 (Zero-Lag Event + Stepped)
+--    NEVER calls SetStateEnabled(Physics, false) on every frame (which froze Troll welds!)
 -- ═══════════════════════════════════════════════════════════════════════════════
-local function ragdollCleanseCharacter(c)
-    if not c then return end
-    local hum = c:FindFirstChildOfClass("Humanoid")
+local function breakCharacterSeatWeldsFast(c, hum)
     if hum then
-        pcall(function()
-            hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
-            hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
-            hum:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
-            hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
-            if not WeldIntent.active and CurrentWeld == nil and not FlingActive and not (moveState and moveState.fly) then
-                hum:SetStateEnabled(Enum.HumanoidStateType.Physics, false)
-                if hum.PlatformStand then hum.PlatformStand = false end
-                if hum.Sit then hum.Sit = false end
-                if not hum.AutoRotate then hum.AutoRotate = true end
-                local st = hum:GetState()
-                if st == Enum.HumanoidStateType.Ragdoll
-                    or st == Enum.HumanoidStateType.FallingDown
-                    or st == Enum.HumanoidStateType.PlatformStanding
-                    or st == Enum.HumanoidStateType.Seated
-                    or st == Enum.HumanoidStateType.Physics then
-                    hum:ChangeState(Enum.HumanoidStateType.GettingUp)
-                    hum:ChangeState(Enum.HumanoidStateType.Running)
-                    Anti.Ragdoll.recoveries = Anti.Ragdoll.recoveries + 1
+        local sp = hum.SeatPart
+        if sp then
+            pcall(function()
+                sp.Disabled = true
+                sp.CanTouch = false
+                for _, w in ipairs(sp:GetChildren()) do
+                    if w:IsA("Weld") or w:IsA("WeldConstraint") or w:IsA("Motor6D") or w.Name == "SeatWeld" then
+                        w:Destroy()
+                    end
                 end
-                if hum.WalkSpeed < 8 and not (moveState and moveState.speed) then
-                    hum.WalkSpeed = 16
+            end)
+        end
+    end
+    local root = getRootPart(c)
+    if root then
+        local okJ, joints = pcall(function() return root:GetJoints() end)
+        if okJ and joints then
+            for _, j in ipairs(joints) do
+                if j.Name == "SeatWeld" or j:IsA("SeatWeld") then
+                    pcall(function() j:Destroy() end)
                 end
             end
-        end)
+        end
     end
+end
+
+local function ragdollDeepCleanseDescendants(c)
+    if not c or isActivelyWeldedOrFlinging() then return end
     for _, obj in ipairs(c:GetDescendants()) do
         if obj:IsA("Motor6D") and not obj.Enabled then
             pcall(function() obj.Enabled = true end)
@@ -3425,37 +4066,93 @@ local function ragdollCleanseCharacter(c)
             if not obj:IsA("BasePart") and not obj:IsA("Humanoid") then
                 pcall(function() obj:Destroy() end)
             end
-        elseif obj:IsA("BallSocketConstraint") or obj:IsA("HingeConstraint") or obj:IsA("NoCollisionConstraint") then
+        elseif obj:IsA("BallSocketConstraint") or obj:IsA("HingeConstraint") then
             pcall(function() obj:Destroy() end)
         end
     end
 end
 
-ragdollStart = function()
-    if Anti.Ragdoll.enabled then return end
+local function ragdollApplyHumanoidStateLocks(hum)
+    if not hum then return end
+    pcall(function()
+        hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+        hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+        hum:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
+        hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
+    end)
+end
+
+local function ragdollCleanseCharacter(c, forceDeep)
+    if not c then return end
+    if isActivelyWeldedOrFlinging() or (RewindSys and RewindSys.rewinding) then return end
+    local hum = c:FindFirstChildOfClass("Humanoid")
+    if hum then
+        if hum.Sit or hum.SeatPart ~= nil then
+            breakCharacterSeatWeldsFast(c, hum)
+            pcall(function() hum.Sit = false end)
+        end
+        if not (moveState and moveState.fly) then
+            if hum.PlatformStand then
+                pcall(function() hum.PlatformStand = false end)
+            end
+            if not hum.AutoRotate then
+                pcall(function() hum.AutoRotate = true end)
+            end
+            if not hum.EvaluateStateMachine then
+                pcall(function() hum.EvaluateStateMachine = true end)
+            end
+            local st = hum:GetState()
+            if st == Enum.HumanoidStateType.Ragdoll
+                or st == Enum.HumanoidStateType.FallingDown
+                or st == Enum.HumanoidStateType.PlatformStanding
+                or st == Enum.HumanoidStateType.Seated then
+                pcall(function()
+                    hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+                    hum:ChangeState(Enum.HumanoidStateType.Running)
+                end)
+                Anti.Ragdoll.recoveries = Anti.Ragdoll.recoveries + 1
+            end
+            if hum.WalkSpeed < 8 and not (moveState and moveState.speed) then
+                pcall(function() hum.WalkSpeed = 16 end)
+            end
+        end
+    end
+    if forceDeep then
+        ragdollDeepCleanseDescendants(c)
+    end
+end
+
+ragdollStart = function(silent)
+    if Anti.Ragdoll.enabled and Anti.Ragdoll.steppedConn then return end
     Anti.Ragdoll.enabled = true
     local function hookRagdollChar(char)
         if Anti.Ragdoll.descConn then Anti.Ragdoll.descConn:Disconnect(); Anti.Ragdoll.descConn = nil end
         if Anti.Ragdoll.stateConn then Anti.Ragdoll.stateConn:Disconnect(); Anti.Ragdoll.stateConn = nil end
         if not char then return end
-        ragdollCleanseCharacter(char)
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if hum then ragdollApplyHumanoidStateLocks(hum) end
+        ragdollCleanseCharacter(char, true)
         Anti.Ragdoll.descConn = char.DescendantAdded:Connect(function(obj)
-            if not Anti.Ragdoll.enabled then return end
-            if obj:IsA("Motor6D") and not obj.Enabled then
+            if not Anti.Ragdoll.enabled or isActivelyWeldedOrFlinging() then return end
+            if obj:IsA("Humanoid") then
+                ragdollApplyHumanoidStateLocks(obj)
+            elseif obj:IsA("Motor6D") and not obj.Enabled then
                 pcall(function() obj.Enabled = true end)
             elseif obj:IsA("SeatWeld") or obj.Name == "SeatWeld" or obj.Name:lower():find("ragdoll", 1, true)
                 or obj:IsA("BallSocketConstraint") or obj:IsA("HingeConstraint") then
                 pcall(function() obj:Destroy() end)
             end
         end)
-        local hum = char:FindFirstChildOfClass("Humanoid")
         if hum then
             Anti.Ragdoll.stateConn = hum.StateChanged:Connect(function(_, state)
-                if Anti.Ragdoll.enabled and (state == Enum.HumanoidStateType.Ragdoll
+                if not Anti.Ragdoll.enabled or isActivelyWeldedOrFlinging() then return end
+                if state == Enum.HumanoidStateType.Ragdoll
                     or state == Enum.HumanoidStateType.FallingDown
-                    or state == Enum.HumanoidStateType.Seated) then
+                    or state == Enum.HumanoidStateType.Seated then
                     task.defer(function()
-                        if Anti.Ragdoll.enabled and char.Parent then ragdollCleanseCharacter(char) end
+                        if Anti.Ragdoll.enabled and char.Parent and not isActivelyWeldedOrFlinging() then
+                            ragdollCleanseCharacter(char, true)
+                        end
                     end)
                 end
             end)
@@ -3464,40 +4161,41 @@ ragdollStart = function()
     hookRagdollChar(LP.Character)
     if Anti.Ragdoll.charAdded then Anti.Ragdoll.charAdded:Disconnect() end
     Anti.Ragdoll.charAdded = LP.CharacterAdded:Connect(function(c)
-        task.wait(0.15)
+        task.wait(0.1)
         if Anti.Ragdoll.enabled then hookRagdollChar(c) end
     end)
     if Anti.Ragdoll.steppedConn then Anti.Ragdoll.steppedConn:Disconnect() end
     Anti.Ragdoll.steppedConn = RunService.Stepped:Connect(function()
-        if not Anti.Ragdoll.enabled then return end
-        ragdollCleanseCharacter(LP.Character)
+        if not Anti.Ragdoll.enabled or isActivelyWeldedOrFlinging() then return end
+        ragdollCleanseCharacter(LP.Character, false)
     end)
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("KHAMAN DHOKLA", "Anti-Ragdoll / Anti-Sit / Anti-Stun v3 ON")
-    sToggleOn()
+    if not silent then
+        notify("KHAMAN DHOKLA", "Anti-Ragdoll / Anti-Sit / Anti-Stun v4 (Always-On) ACTIVE")
+        sToggleOn()
+    end
 end
 
 ragdollStop = function()
+    if Anti.AlwaysOnCore or Anti.Ragdoll.alwaysOn then
+        ragdollStart(true)
+        if syncAllAntiButtons then pcall(syncAllAntiButtons) end
+        notify("KHAMAN DHOKLA", "🔒 Anti-Sit / Anti-Ragdoll is locked ALWAYS-ON!")
+        return
+    end
     if not Anti.Ragdoll.enabled then return end
     Anti.Ragdoll.enabled = false
     if Anti.Ragdoll.steppedConn then Anti.Ragdoll.steppedConn:Disconnect(); Anti.Ragdoll.steppedConn = nil end
     if Anti.Ragdoll.descConn then Anti.Ragdoll.descConn:Disconnect(); Anti.Ragdoll.descConn = nil end
     if Anti.Ragdoll.stateConn then Anti.Ragdoll.stateConn:Disconnect(); Anti.Ragdoll.stateConn = nil end
     if Anti.Ragdoll.charAdded then Anti.Ragdoll.charAdded:Disconnect(); Anti.Ragdoll.charAdded = nil end
-    local c = LP.Character
-    local hum = c and c:FindFirstChildOfClass("Humanoid")
-    if hum then
-        pcall(function()
-            hum:SetStateEnabled(Enum.HumanoidStateType.Seated, true)
-        end)
-    end
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("KHAMAN DHOKLA", "Anti-Ragdoll disabled")
-    sToggleOff()
 end
+Anti.Ragdoll.startFn = ragdollStart
+Anti.Ragdoll.stopFn  = ragdollStop
 
 -- ═══════════════════════════════════════════════════════════════════════════════
--- 7. ADVANCED ANTI-ANCHOR / ANTI-FREEZE / ANTI-MOVER V3 (Event-Driven + Stepped)
+-- 7. ALWAYS-ON ANTI-ANCHOR / ANTI-FREEZE / BODYMOVER PURGER V4 (Zero-Lag Cached Parts + Event)
 -- ═══════════════════════════════════════════════════════════════════════════════
 local HOSTILE_MOVER_CLASSES = {
     BodyVelocity = true,
@@ -3518,27 +4216,42 @@ local HOSTILE_MOVER_CLASSES = {
 local function anchorWatchPart(part)
     if not (part and part:IsA("BasePart")) or Anti.Anchor.partConns[part] then return end
     Anti.Anchor.partConns[part] = part:GetPropertyChangedSignal("Anchored"):Connect(function()
-        if Anti.Anchor.enabled and part.Parent and part.Anchored and not deflectBusy then
+        if Anti.Anchor.enabled and part.Parent and part.Anchored and not deflectBusy and not VoidRescueActive then
             pcall(function() part.Anchored = false end)
             Anti.Anchor.purgedMovers = Anti.Anchor.purgedMovers + 1
         end
     end)
 end
 
-local function anchorCleanse(c)
+local function anchorCleanse(c, forceMoverSweep)
     if not c then return end
-    for _, obj in ipairs(c:GetDescendants()) do
-        if obj:IsA("BasePart") then
-            anchorWatchPart(obj)
-            if obj.Anchored and not deflectBusy then
-                obj.Anchored = false
-                Anti.Anchor.purgedMovers = Anti.Anchor.purgedMovers + 1
+    for _, part in ipairs(getCachedCharParts(c)) do
+        if part.Parent and part.Anchored and not deflectBusy and not VoidRescueActive then
+            part.Anchored = false
+            Anti.Anchor.purgedMovers = Anti.Anchor.purgedMovers + 1
+        end
+    end
+    if not isActivelyWeldedOrFlinging() and not (moveState and moveState.fly) then
+        local hum = c:FindFirstChildOfClass("Humanoid")
+        if hum then
+            if not hum.EvaluateStateMachine then
+                pcall(function() hum.EvaluateStateMachine = true end)
             end
-        elseif HOSTILE_MOVER_CLASSES[obj.ClassName] and not obj.Name:match("^Coco") and not obj.Name:match("^Khaman") then
-            pcall(function()
-                obj:Destroy()
-                Anti.Anchor.purgedMovers = Anti.Anchor.purgedMovers + 1
-            end)
+            if hum.WalkSpeed <= 1 then
+                pcall(function() hum.WalkSpeed = (moveState and moveState.speed and moveState.desiredWalkSpeed) or 16 end)
+            end
+        end
+    end
+    if forceMoverSweep then
+        for _, obj in ipairs(c:GetDescendants()) do
+            if obj:IsA("BasePart") then
+                anchorWatchPart(obj)
+            elseif HOSTILE_MOVER_CLASSES[obj.ClassName] and not obj.Name:match("^Coco") and not obj.Name:match("^Khaman") then
+                pcall(function()
+                    obj:Destroy()
+                    Anti.Anchor.purgedMovers = Anti.Anchor.purgedMovers + 1
+                end)
+            end
         end
     end
 end
@@ -3550,12 +4263,12 @@ local function anchorHookChar(char)
         Anti.Anchor.partConns[part] = nil
     end
     if not char then return end
-    anchorCleanse(char)
+    anchorCleanse(char, true)
     Anti.Anchor.descConn = char.DescendantAdded:Connect(function(obj)
         if not Anti.Anchor.enabled then return end
         if obj:IsA("BasePart") then
             anchorWatchPart(obj)
-            if obj.Anchored and not deflectBusy then
+            if obj.Anchored and not deflectBusy and not VoidRescueActive then
                 pcall(function() obj.Anchored = false end)
             end
         elseif HOSTILE_MOVER_CLASSES[obj.ClassName] and not obj.Name:match("^Coco") and not obj.Name:match("^Khaman") then
@@ -3564,26 +4277,34 @@ local function anchorHookChar(char)
     end)
 end
 
-anchorStart = function()
-    if Anti.Anchor.enabled then return end
+anchorStart = function(silent)
+    if Anti.Anchor.enabled and Anti.Anchor.steppedConn then return end
     Anti.Anchor.enabled = true
     anchorHookChar(LP.Character)
     if Anti.Anchor.charAdded then Anti.Anchor.charAdded:Disconnect() end
     Anti.Anchor.charAdded = LP.CharacterAdded:Connect(function(char)
-        task.wait(0.15)
+        task.wait(0.1)
         if Anti.Anchor.enabled then anchorHookChar(char) end
     end)
     if Anti.Anchor.steppedConn then Anti.Anchor.steppedConn:Disconnect() end
     Anti.Anchor.steppedConn = RunService.Stepped:Connect(function()
         if not Anti.Anchor.enabled then return end
-        anchorCleanse(LP.Character)
+        anchorCleanse(LP.Character, false)
     end)
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("KHAMAN DHOKLA", "Anti-Anchor / Anti-Freeze / BodyMover Purger v3 ON")
-    sToggleOn()
+    if not silent then
+        notify("KHAMAN DHOKLA", "Anti-Freeze / Anti-Anchor v4 (Always-On) ACTIVE")
+        sToggleOn()
+    end
 end
 
 anchorStop = function()
+    if Anti.AlwaysOnCore or Anti.Anchor.alwaysOn then
+        anchorStart(true)
+        if syncAllAntiButtons then pcall(syncAllAntiButtons) end
+        notify("KHAMAN DHOKLA", "🔒 Anti-Freeze / Anti-Anchor is locked ALWAYS-ON!")
+        return
+    end
     if not Anti.Anchor.enabled then return end
     Anti.Anchor.enabled = false
     if Anti.Anchor.steppedConn then Anti.Anchor.steppedConn:Disconnect(); Anti.Anchor.steppedConn = nil end
@@ -3594,9 +4315,9 @@ anchorStop = function()
         Anti.Anchor.partConns[part] = nil
     end
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("KHAMAN DHOKLA", "Anti-Anchor disabled")
-    sToggleOff()
 end
+Anti.Anchor.startFn = anchorStart
+Anti.Anchor.stopFn  = anchorStop
 
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- 8. ADVANCED ANTI-ATTACH / HOSTILE WELD & GRAB SEVER V3
@@ -3625,28 +4346,15 @@ local function severAllHostileAttachments()
     local myChar = LP.Character
     if not myChar then return 0 end
     local severed = 0
-    for _, obj in ipairs(myChar:GetDescendants()) do
-        if isJointHostileToCharacter(obj, myChar) then
-            pcall(function() obj:Destroy() end)
-            severed = severed + 1
-        elseif obj:IsA("BasePart") then
-            local okJ, joints = pcall(function() return obj:GetJoints() end)
+    for _, part in ipairs(getCachedCharParts(myChar)) do
+        if part.Parent then
+            local okJ, joints = pcall(function() return part:GetJoints() end)
             if okJ and joints then
                 for _, j in ipairs(joints) do
                     if isJointHostileToCharacter(j, myChar) then
                         pcall(function() j:Destroy() end)
                         severed = severed + 1
                     end
-                end
-            end
-        end
-    end
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= LP and p.Character then
-            for _, obj in ipairs(p.Character:GetDescendants()) do
-                if isJointHostileToCharacter(obj, myChar) then
-                    pcall(function() obj:Destroy() end)
-                    severed = severed + 1
                 end
             end
         end
@@ -3661,7 +4369,7 @@ attachStart = function()
     severAllHostileAttachments()
     if Anti.Attach.steppedConn then Anti.Attach.steppedConn:Disconnect() end
     Anti.Attach.steppedConn = RunService.Stepped:Connect(function()
-        if not Anti.Attach.enabled then return end
+        if not Anti.Attach.enabled or isActivelyWeldedOrFlinging() then return end
         severAllHostileAttachments()
     end)
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
@@ -3677,6 +4385,8 @@ attachStop = function()
     notify("KHAMAN DHOKLA", "Anti-Attach disabled")
     sToggleOff()
 end
+Anti.Attach.startFn = attachStart
+Anti.Attach.stopFn  = attachStop
 
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- 9. ADVANCED ANTI-BLIND / ANTI-FLASH & VISION CLEAR V3
@@ -3749,6 +4459,8 @@ blindStop = function()
     notify("KHAMAN DHOKLA", "Anti-Blind disabled")
     sToggleOff()
 end
+Anti.Blind.startFn = blindStart
+Anti.Blind.stopFn  = blindStop
 
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- 10. ADVANCED ANTI-BRING / ANTI-TELEPORT / ANTI-TOOL-GRAB GUARD V3
@@ -3765,7 +4477,7 @@ bringStart = function()
     if Anti.Bring.steppedConn then Anti.Bring.steppedConn:Disconnect() end
     Anti.Bring.steppedConn = RunService.Stepped:Connect(function(_, dt)
         if not Anti.Bring.enabled then return end
-        if WeldIntent.active or CurrentWeld ~= nil or FlingActive or deflectBusy or (moveState and moveState.fly) or (RewindSys and RewindSys.rewinding) then
+        if isActivelyWeldedOrFlinging() or deflectBusy or (moveState and moveState.fly) or (RewindSys and RewindSys.rewinding) then
             local ch = LP.Character
             local r = getRootPart(ch)
             if r and isSafePlayableCF(r.CFrame) then Anti.Bring.lastCF = r.CFrame end
@@ -3777,25 +4489,6 @@ bringStart = function()
         local r = getRootPart(ch)
         local hum = ch and ch:FindFirstChildOfClass("Humanoid")
         if not r or not hum or hum.Health <= 0 then return end
-
-        for _, p in ipairs(Players:GetPlayers()) do
-            if p ~= LP and p.Character then
-                for _, tool in ipairs(p.Character:GetChildren()) do
-                    if tool:IsA("Tool") then
-                        local handle = tool:FindFirstChild("Handle")
-                        if handle and (handle.Position - r.Position).Magnitude < 7.5 then
-                            for _, j in ipairs(handle:GetDescendants()) do
-                                if j:IsA("JointInstance") or j:IsA("WeldConstraint") then
-                                    if (j.Part0 and j.Part0:IsDescendantOf(ch)) or (j.Part1 and j.Part1:IsDescendantOf(ch)) then
-                                        pcall(function() j:Destroy() end)
-                                    end
-                                end
-                            end
-                        end
-                    end
-                end
-            end
-        end
 
         if Anti.Bring.lastCF then
             local dist = (r.Position - Anti.Bring.lastCF.Position).Magnitude
@@ -3827,9 +4520,11 @@ bringStop = function()
     notify("KHAMAN DHOKLA", "Anti-Bring disabled")
     sToggleOff()
 end
+Anti.Bring.startFn = bringStart
+Anti.Bring.stopFn  = bringStop
 
 -- ═══════════════════════════════════════════════════════════════════════════════
--- 11. ADVANCED ANTI-FLING & SERVER-WIDE NO-COLLIDE SHIELD V3 (Tesla + Eternity Full Library)
+-- 11. ADVANCED ANTI-FLING & SERVER-WIDE NO-COLLIDE SHIELD V3
 -- ═══════════════════════════════════════════════════════════════════════════════
 local function neutralizeOtherPlayersCollision()
     local myChar = LP.Character
@@ -3867,7 +4562,7 @@ flingShieldStart = function()
     if Anti.FlingShield.steppedConn then Anti.FlingShield.steppedConn:Disconnect() end
     Anti.FlingShield.steppedConn = RunService.Stepped:Connect(function()
         if not Anti.FlingShield.enabled and not DefenceTroll.enabled then return end
-        if WeldIntent.active or CurrentWeld ~= nil or FlingActive or deflectBusy or (RewindSys and RewindSys.rewinding) then return end
+        if isActivelyWeldedOrFlinging() or deflectBusy or (RewindSys and RewindSys.rewinding) then return end
         neutralizeOtherPlayersCollision()
         local myChar = LP.Character
         local myRoot = getRootPart(myChar)
@@ -3887,7 +4582,7 @@ flingShieldStart = function()
     if Anti.FlingShield.heartbeatConn then Anti.FlingShield.heartbeatConn:Disconnect() end
     Anti.FlingShield.heartbeatConn = RunService.Heartbeat:Connect(function()
         if not Anti.FlingShield.enabled and not DefenceTroll.enabled then return end
-        if WeldIntent.active or CurrentWeld ~= nil or FlingActive or deflectBusy or (RewindSys and RewindSys.rewinding) then return end
+        if isActivelyWeldedOrFlinging() or deflectBusy or (RewindSys and RewindSys.rewinding) then return end
         local myChar = LP.Character
         local myRoot = getRootPart(myChar)
         if not myRoot then return end
@@ -3931,9 +4626,11 @@ flingShieldStop = function()
     notify("KHAMAN DHOKLA", "Anti-Fling Shield disabled")
     sToggleOff()
 end
+Anti.FlingShield.startFn = flingShieldStart
+Anti.FlingShield.stopFn  = flingShieldStop
 
 -- ═══════════════════════════════════════════════════════════════════════════════
--- 12. ADVANCED ANTI-SEAT / COUCH-KIDNAP DESTROYER V3 + ANTI-TOOL-GRAB DISARMER V3
+-- 12. ALWAYS-ON ANTI-SEAT / COUCH-KIDNAP DESTROYER V4 + ANTI-TOOL-GRAB DISARMER V3
 -- ═══════════════════════════════════════════════════════════════════════════════
 local function neutralizeSeatInstance(seat)
     if not seat or not (seat:IsA("Seat") or seat:IsA("VehicleSeat")) then return end
@@ -3952,23 +4649,22 @@ local function neutralizeSeatInstance(seat)
     Anti.SeatTrap.neutralizedSeats = (Anti.SeatTrap.neutralizedSeats or 0) + 1
 end
 
-Anti.SeatTrap.startFn = function()
-    if Anti.SeatTrap.enabled then return end
+Anti.SeatTrap.startFn = function(silent)
+    if Anti.SeatTrap.enabled and Anti.SeatTrap.wsDescConn then return end
     Anti.SeatTrap.enabled = true
-    for _, obj in ipairs(workspace:GetDescendants()) do
-        if obj:IsA("Seat") or obj:IsA("VehicleSeat") then
-            neutralizeSeatInstance(obj)
-        end
-    end
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p.Character then
-            for _, obj in ipairs(p.Character:GetDescendants()) do
-                if obj:IsA("Seat") or obj:IsA("VehicleSeat") then
-                    neutralizeSeatInstance(obj)
-                end
+    task.spawn(function()
+        local desc = workspace:GetDescendants()
+        for i = 1, #desc do
+            if not Anti.SeatTrap.enabled then break end
+            local obj = desc[i]
+            if obj and (obj:IsA("Seat") or obj:IsA("VehicleSeat")) then
+                neutralizeSeatInstance(obj)
+            end
+            if i % 250 == 0 then
+                task.wait(0.03)
             end
         end
-    end
+    end)
     if Anti.SeatTrap.wsDescConn then Anti.SeatTrap.wsDescConn:Disconnect() end
     Anti.SeatTrap.wsDescConn = workspace.DescendantAdded:Connect(function(obj)
         if not Anti.SeatTrap.enabled then return end
@@ -3981,46 +4677,25 @@ Anti.SeatTrap.startFn = function()
             end
         end
     end)
-    if Anti.SeatTrap.loopConn then Anti.SeatTrap.loopConn:Disconnect() end
-    Anti.SeatTrap.loopConn = RunService.Stepped:Connect(function()
-        if not Anti.SeatTrap.enabled then return end
-        local ch = LP.Character
-        local hum = ch and ch:FindFirstChildOfClass("Humanoid")
-        if hum and hum.Sit then
-            pcall(function()
-                hum.Sit = false
-                hum:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
-            end)
-        end
-    end)
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
     if updateDefenceStatsUI then pcall(updateDefenceStatsUI) end
-    notify("KHAMAN DHOKLA", "Anti-Seat / Couch-Kidnap Destroyer v3 ON")
-    sToggleOn()
+    if not silent then
+        notify("KHAMAN DHOKLA", "Anti-Seat / Couch-Kidnap Destroyer v4 (Always-On) ACTIVE")
+        sToggleOn()
+    end
 end
 
 Anti.SeatTrap.stopFn = function()
+    if Anti.AlwaysOnCore or Anti.SeatTrap.alwaysOn then
+        Anti.SeatTrap.startFn(true)
+        if syncAllAntiButtons then pcall(syncAllAntiButtons) end
+        notify("KHAMAN DHOKLA", "🔒 Anti-Sit / Anti-Seat is locked ALWAYS-ON!")
+        return
+    end
     if not Anti.SeatTrap.enabled then return end
     Anti.SeatTrap.enabled = false
     if Anti.SeatTrap.wsDescConn then Anti.SeatTrap.wsDescConn:Disconnect(); Anti.SeatTrap.wsDescConn = nil end
-    if Anti.SeatTrap.loopConn then Anti.SeatTrap.loopConn:Disconnect(); Anti.SeatTrap.loopConn = nil end
-    for seat, saved in pairs(Anti.SeatTrap.savedSeats) do
-        if seat and seat.Parent then
-            pcall(function()
-                seat.Disabled = saved.Disabled
-                seat.CanTouch = saved.CanTouch
-            end)
-        end
-        Anti.SeatTrap.savedSeats[seat] = nil
-    end
-    local hum = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
-    if hum and not Anti.Ragdoll.enabled then
-        pcall(function() hum:SetStateEnabled(Enum.HumanoidStateType.Seated, true) end)
-    end
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    if updateDefenceStatsUI then pcall(updateDefenceStatsUI) end
-    notify("KHAMAN DHOKLA", "Anti-Seat disabled & map seats restored")
-    sToggleOff()
 end
 
 Anti.ToolGuard.startFn = function()
@@ -4031,7 +4706,7 @@ Anti.ToolGuard.startFn = function()
     Anti.ToolGuard.loopConn = RunService.Heartbeat:Connect(function()
         if not Anti.ToolGuard.enabled then return end
         local now = tick()
-        if now - lastToolScan < 0.14 then return end
+        if now - lastToolScan < 0.20 then return end
         lastToolScan = now
         local myChar = LP.Character
         local myRoot = getRootPart(myChar)
@@ -4080,7 +4755,7 @@ Anti.ToolGuard.stopFn = function()
 end
 
 -- ═══════════════════════════════════════════════════════════════════════════════
--- 13. FULL LIBRARY ANTI-HEADSIT & ANTI-FACEBANG EVADER + GLITCH DESYNC + ANTI-KICK (from chunk_06)
+-- 13. FULL LIBRARY ANTI-HEADSIT & ANTI-FACEBANG EVADER + GLITCH DESYNC + ANTI-KICK
 -- ═══════════════════════════════════════════════════════════════════════════════
 Anti.AntiHeadsit.startFn = function()
     if Anti.AntiHeadsit.enabled then return end
@@ -4088,7 +4763,7 @@ Anti.AntiHeadsit.startFn = function()
     if Anti.AntiHeadsit.steppedConn then Anti.AntiHeadsit.steppedConn:Disconnect() end
     Anti.AntiHeadsit.steppedConn = RunService.Stepped:Connect(function()
         if not Anti.AntiHeadsit.enabled then return end
-        if WeldIntent.active or CurrentWeld ~= nil or FlingActive or deflectBusy or (RewindSys and RewindSys.rewinding) then return end
+        if isActivelyWeldedOrFlinging() or deflectBusy or (RewindSys and RewindSys.rewinding) then return end
         local now = tick()
         if now - (Anti.AntiHeadsit.lastEvade or 0) < 0.35 then return end
         local myChar = LP.Character
@@ -4116,7 +4791,7 @@ Anti.AntiHeadsit.startFn = function()
                                 markIntentionalTeleport(savedCF)
                                 myRoot.CFrame = CFrame.new(savedCF.Position.X, math.clamp(OriginalFPDH - 180, -950, -350), savedCF.Position.Z)
                                 task.wait(0.18)
-                                if myRoot and myRoot.Parent and not WeldIntent.active and not FlingActive then
+                                if myRoot and myRoot.Parent and not isActivelyWeldedOrFlinging() then
                                     markIntentionalTeleport(savedCF)
                                     myRoot.AssemblyLinearVelocity = Vector3.zero
                                     myRoot.AssemblyAngularVelocity = Vector3.zero
@@ -4144,7 +4819,6 @@ Anti.AntiHeadsit.stopFn = function()
     sToggleOff()
 end
 
--- Evade Bangs / Glitch Desync (from chunk_06 tbl10: scrambles server CFrame on Heartbeat while restoring real CFrame on Stepped & RenderStep)
 Anti.GlitchDesync.startFn = function()
     if Anti.GlitchDesync.enabled then return end
     Anti.GlitchDesync.enabled = true
@@ -4159,7 +4833,7 @@ Anti.GlitchDesync.startFn = function()
     if Anti.GlitchDesync.steppedConn then Anti.GlitchDesync.steppedConn:Disconnect() end
     Anti.GlitchDesync.steppedConn = RunService.Stepped:Connect(function()
         if not Anti.GlitchDesync.enabled then return end
-        if WeldIntent.active or CurrentWeld ~= nil or FlingActive or deflectBusy or (RewindSys and RewindSys.rewinding) then return end
+        if isActivelyWeldedOrFlinging() or deflectBusy or (RewindSys and RewindSys.rewinding) then return end
         local r = getRootPart(LP.Character)
         if r and Anti.GlitchDesync.realCF then
             r.CFrame = Anti.GlitchDesync.realCF
@@ -4173,7 +4847,7 @@ Anti.GlitchDesync.startFn = function()
     pcall(function()
         RunService:BindToRenderStep("KhamanGlitchRestore", 1, function()
             if not Anti.GlitchDesync.enabled then return end
-            if WeldIntent.active or CurrentWeld ~= nil or FlingActive or deflectBusy or (RewindSys and RewindSys.rewinding) then return end
+            if isActivelyWeldedOrFlinging() or deflectBusy or (RewindSys and RewindSys.rewinding) then return end
             local r = getRootPart(LP.Character)
             if r and Anti.GlitchDesync.realCF then
                 r.CFrame = Anti.GlitchDesync.realCF
@@ -4187,7 +4861,7 @@ Anti.GlitchDesync.startFn = function()
     if Anti.GlitchDesync.heartbeatConn then Anti.GlitchDesync.heartbeatConn:Disconnect() end
     Anti.GlitchDesync.heartbeatConn = RunService.Heartbeat:Connect(function()
         if not Anti.GlitchDesync.enabled then return end
-        if WeldIntent.active or CurrentWeld ~= nil or FlingActive or deflectBusy or (RewindSys and RewindSys.rewinding) then return end
+        if isActivelyWeldedOrFlinging() or deflectBusy or (RewindSys and RewindSys.rewinding) then return end
         local r = getRootPart(LP.Character)
         if not r then return end
         Anti.GlitchDesync.realCF = r.CFrame
@@ -4228,7 +4902,6 @@ Anti.GlitchDesync.stopFn = function()
     sToggleOff()
 end
 
--- Anti-Kick (from chunk_06: intercepts client-side LocalPlayer:Kick calls via hookfunction)
 Anti.Kick.startFn = function()
     if Anti.Kick.enabled then return end
     Anti.Kick.enabled = true
@@ -4286,7 +4959,7 @@ local function findBestRedirectVictim(attacker)
 end
 
 local function executeDeflectAction(attacker, threatReason)
-    if deflectBusy or WeldIntent.active or CurrentWeld ~= nil or FlingActive then return end
+    if deflectBusy or isActivelyWeldedOrFlinging() then return end
     local myChar = LP.Character
     local myRoot = getRootPart(myChar)
     local myHum  = myChar and myChar:FindFirstChildOfClass("Humanoid")
@@ -4451,12 +5124,11 @@ local function executeDeflectAction(attacker, threatReason)
     if updateDefenceStatsUI then pcall(updateDefenceStatsUI) end
 end
 
--- Omni-Threat Radar: Detects Spinners, Weld/Backshot/Facebang Trolls, High-Speed Rams & Hostile Joints
 RunService.Heartbeat:Connect(function(dt)
     if not DefenceTroll.enabled and not Anti.Redirect.enabled and not Anti.PauseTrap.enabled then
         return
     end
-    if WeldIntent.active or CurrentWeld ~= nil or FlingActive or deflectBusy or (RewindSys and RewindSys.rewinding) then return end
+    if isActivelyWeldedOrFlinging() or deflectBusy or (RewindSys and RewindSys.rewinding) then return end
 
     local myChar = LP.Character
     local myRoot = getRootPart(myChar)
@@ -4530,6 +5202,8 @@ redirectStop = function()
     notify("KHAMAN DHOKLA", "Troll Redirect disabled")
     sToggleOff()
 end
+Anti.Redirect.startFn = redirectStart
+Anti.Redirect.stopFn  = redirectStop
 
 pauseTrapStart = function()
     Anti.PauseTrap.enabled = true
@@ -4545,6 +5219,8 @@ pauseTrapStop = function()
     notify("KHAMAN DHOKLA", "Void-Pause Trap disabled")
     sToggleOff()
 end
+Anti.PauseTrap.startFn = pauseTrapStart
+Anti.PauseTrap.stopFn  = pauseTrapStop
 
 defenceTrollStart = function()
     DefenceTroll.enabled = true
@@ -4561,26 +5237,35 @@ defenceTrollStop = function()
     notify("KHAMAN DHOKLA", "Defence Troll Matrix OFF")
     sToggleOff()
 end
+DefenceTroll.startFn = defenceTrollStart
+DefenceTroll.stopFn  = defenceTrollStop
+
+-- Permanent Always-On Core Enforcer: guarantees Anti-Sit, Anti-Void, Anti-Lag, and Anti-Freeze are enabled 100% of the time!
+Anti.enforceAlwaysOn = function(silent)
+    avStart(silent ~= false)
+    Anti.InfFallVoid.startFn(silent ~= false)
+    ragdollStart(silent ~= false)
+    Anti.SeatTrap.startFn(silent ~= false)
+    lagStart(silent ~= false)
+    anchorStart(silent ~= false)
+    agpStart(silent ~= false)
+end
 
 enableAllAntiSystems = function()
+    Anti.enforceAlwaysOn(true)
     defenceTrollStart()
-    avStart()
     akStart()
     flingShieldStart()
-    ragdollStart()
-    anchorStart()
     attachStart()
     blindStart()
     bringStart()
-    if Anti.SeatTrap.startFn then Anti.SeatTrap.startFn() end
     if Anti.ToolGuard.startFn then Anti.ToolGuard.startFn() end
     if Anti.Kick.startFn then Anti.Kick.startFn() end
-    agpStart()
     afkStart()
     if updateDefenceStatsUI then pcall(updateDefenceStatsUI) end
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
     if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
-    notify("KHAMAN DHOKLA", "🛡️ ALL FULL-LIBRARY V3 ANTI SHIELDS ACTIVATED!")
+    notify("KHAMAN DHOKLA", "🛡️ ALL FULL-LIBRARY V4 ANTI SHIELDS ACTIVATED!")
     sSuccess()
 end
 
@@ -4588,30 +5273,49 @@ disableAllAntiSystems = function()
     defenceTrollStop()
     redirectStop()
     pauseTrapStop()
-    avStop()
-    if Anti.InfFallVoid.stopFn then Anti.InfFallVoid.stopFn() end
     akStop()
     flingShieldStop()
-    ragdollStop()
-    anchorStop()
     attachStop()
     blindStop()
     bringStop()
-    if Anti.SeatTrap.stopFn then Anti.SeatTrap.stopFn() end
     if Anti.ToolGuard.stopFn then Anti.ToolGuard.stopFn() end
     if Anti.AntiHeadsit.stopFn then Anti.AntiHeadsit.stopFn() end
     if Anti.GlitchDesync.stopFn then Anti.GlitchDesync.stopFn() end
     if Anti.Kick.stopFn then Anti.Kick.stopFn() end
-    agpStop()
     afkStop()
     vcStop()
+    -- Re-enforce Always-On Core Shields (Anti-Sit, Anti-Void, Anti-Lag, Anti-Freeze stay enabled 24/7!)
+    Anti.enforceAlwaysOn(true)
     if updateDefenceStatsUI then pcall(updateDefenceStatsUI) end
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
     if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
-    notify("KHAMAN DHOKLA", "All Anti shields disabled")
+    notify("KHAMAN DHOKLA", "Optional shields off · Core Anti-Sit/Void/Lag/Freeze remain ALWAYS-ON!")
     sToggleOff()
 end
-end -- end Anti internal scope
+
+Anti.enableAll  = enableAllAntiSystems
+Anti.disableAll = disableAllAntiSystems
+
+-- Immediately boot Always-On Core Shields (Anti-Sit, Anti-Void, Anti-Lag, Anti-Freeze) and run 0.75s Self-Healing Watchdog
+Anti.enforceAlwaysOn(true)
+do
+    local lastCoreCheck = 0
+    RunService.Heartbeat:Connect(function()
+        local now = tick()
+        if now - lastCoreCheck < 0.75 then return end
+        lastCoreCheck = now
+        if Anti.AlwaysOnCore then
+            if not Anti.Void.enabled or not Anti.Void.steppedConn then avStart(true) end
+            if not Anti.InfFallVoid.enabled then Anti.InfFallVoid.startFn(true) end
+            if not Anti.Ragdoll.enabled or not Anti.Ragdoll.steppedConn then ragdollStart(true) end
+            if not Anti.SeatTrap.enabled or not Anti.SeatTrap.wsDescConn then Anti.SeatTrap.startFn(true) end
+            if not Anti.Lag.enabled or not Anti.Lag.loopConn then lagStart(true) end
+            if not Anti.Anchor.enabled or not Anti.Anchor.steppedConn then anchorStart(true) end
+            if not Anti.GamePaused.enabled or not Anti.GamePaused.loopConn then agpStart(true) end
+        end
+    end)
+end
+end)() -- end Anti internal scope
 
 local function buildMainUI()
     local currentCamInit = workspace.CurrentCamera or cam
@@ -5552,6 +6256,8 @@ local function buildMainUI()
     -- Tap preset button -> toggles action ON (turns green) / OFF
     -- Tap right-side [+] / [✓] badge -> adds or removes floating pill icon on screen
     -- ═══════════════════════════════════════════════════════════════════════════
+    local PILL_BG_ON = Color3.fromRGB(32, 156, 72)
+    do -- Scoped block for Weld Tab Presets & Floating Pills (preserves buildMainUI local register budget)
     sectionLbl(weldTab, 2, "TROLL & WELD ACTIONS  (TAP [+] TO PIN FLOATING ICON)", T.Muted)
 
     local PILL_CATALOG = {
@@ -5578,7 +6284,7 @@ local function buildMainUI()
     local PILL_DOT_RING_OFF = Color3.fromRGB(234, 179, 8)
     local PILL_TXT_OFF      = Color3.fromRGB(255, 251, 235)
 
-    local PILL_BG_ON        = Color3.fromRGB(32, 156, 72)
+    PILL_BG_ON              = Color3.fromRGB(32, 156, 72)
     local PILL_STROKE_ON    = Color3.fromRGB(250, 204, 21)
     local PILL_DOT_ON       = Color3.fromRGB(254, 240, 138)
     local PILL_DOT_RING_ON  = Color3.fromRGB(255, 255, 255)
@@ -5672,10 +6378,10 @@ local function buildMainUI()
             Anti.PauseTrap.enabled = turningOn
             Anti.FlingShield.enabled = turningOn
             if turningOn then
-                flingShieldStart()
+                Anti.FlingShield.startFn()
                 notify("KHAMAN DHOKLA", "Defence Troll ON (" .. (DefenceTroll.modeLabels[DefenceTroll.mode] or DefenceTroll.mode) .. ")")
             else
-                flingShieldStop()
+                Anti.FlingShield.stopFn()
                 notify("KHAMAN DHOKLA", "Defence Troll OFF")
             end
             syncAllActiveIndicators()
@@ -6105,6 +6811,7 @@ local function buildMainUI()
     addFloatingPill("facebang")
     addFloatingPill("voidthrow")
     addFloatingPill("rewind")
+    end -- end Weld Tab Presets & Floating Pills scope
 
     -- ═══════════════════════════════════════════════════════════════════════════
     -- TAB 2: TARGET (Clean Player Search + Auto-Nearest Toggle)
@@ -6576,22 +7283,24 @@ local function buildMainUI()
     end -- end Chat Tab scope
 
     -- ═══════════════════════════════════════════════════════════════════════════
-    -- TAB 4: ANTI (ADVANCED DEFENCE TROLL MATRIX V2 + MULTI-LAYER SHIELD SUITE)
+    -- TAB 4: ANTI (ALWAYS-ON CORE SHIELDS + DEFENCE TROLL MATRIX + ULTRA VC BYPASS V4)
     -- ═══════════════════════════════════════════════════════════════════════════
-    local antiToggleRegistry = {} -- list of { btn = TextButton, getState = fn }
+    do -- Scoped block for Anti Tab UI (preserves buildMainUI local register budget)
+    local antiToggleRegistry = {} -- list of { btn = TextButton, getState = fn, isAlwaysOn = bool }
     syncAllAntiButtons = function()
         for _, entry in ipairs(antiToggleRegistry) do
             if entry.btn and entry.btn.Parent then
                 local st = entry.getState()
+                local lockedOn = entry.isAlwaysOn and Anti.AlwaysOnCore
                 BtnColors[entry.btn] = st and PILL_BG_ON or T.PanelLt
                 entry.btn.BackgroundColor3 = BtnColors[entry.btn]
-                entry.btn.Text = st and "ON" or "OFF"
+                entry.btn.Text = lockedOn and "ALWAYS ON" or (st and "ON" or "OFF")
             end
         end
         if updateDefenceStatsUI then pcall(updateDefenceStatsUI) end
     end
 
-    -- One-Tap Master Shield Bar (Enable All / Disable All)
+    -- One-Tap Master Shield Bar (Enable All / Disable Optional)
     local masterRow = Instance.new("Frame")
     masterRow.Size = UDim2.new(1, 0, 0, 30)
     masterRow.BackgroundTransparency = 1
@@ -6611,13 +7320,13 @@ local function buildMainUI()
     styleBtn(btnEnableAll, PILL_BG_ON)
     btnEnableAll.MouseButton1Click:Connect(function()
         sClick()
-        enableAllAntiSystems()
+        Anti.enableAll()
     end)
 
     local btnDisableAll = Instance.new("TextButton")
     btnDisableAll.Size = UDim2.new(0.36, -3, 1, 0)
     btnDisableAll.Position = UDim2.new(0.64, 6, 0, 0)
-    btnDisableAll.Text = "DISABLE ALL"
+    btnDisableAll.Text = "DISABLE OPT."
     btnDisableAll.TextColor3 = Color3.new(1, 1, 1)
     btnDisableAll.Font = Enum.Font.GothamBold
     btnDisableAll.TextSize = 10
@@ -6627,10 +7336,10 @@ local function buildMainUI()
     styleBtn(btnDisableAll, T.Danger)
     btnDisableAll.MouseButton1Click:Connect(function()
         sClick()
-        disableAllAntiSystems()
+        Anti.disableAll()
     end)
 
-    sectionLbl(antiTab, 1, "DEFENCE TROLL MATRIX V2  (6 COUNTER-MODES + OMNI-RADAR)", T.Accent)
+    sectionLbl(antiTab, 1, "DEFENCE TROLL MATRIX V3  (6 COUNTER-MODES + OMNI-RADAR)", T.Accent)
 
     -- Dedicated Defence Troll Matrix Control Card
     local defCard = Instance.new("Frame")
@@ -6658,7 +7367,7 @@ local function buildMainUI()
     defTitle.Size = UDim2.new(1, -94, 1, 0)
     defTitle.Position = UDim2.new(0, 12, 0, 0)
     defTitle.BackgroundTransparency = 1
-    defTitle.Text = "DEFENCE TROLL MATRIX V2"
+    defTitle.Text = "DEFENCE TROLL MATRIX V3"
     defTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
     defTitle.Font = Enum.Font.GothamBold
     defTitle.TextSize = 11
@@ -6716,7 +7425,7 @@ local function buildMainUI()
     defStatsLbl.Size = UDim2.new(1, -24, 0, 40)
     defStatsLbl.Position = UDim2.new(0, 12, 0, 74)
     defStatsLbl.BackgroundTransparency = 1
-    defStatsLbl.Text = "⚡ COUNTERED: 0  ·  FLINGS BLOCKED: 0  ·  WELDS SEVERED: 0\nLAST THREAT: Standby (Pre-Physics Radar Ready)"
+    defStatsLbl.Text = "⚡ COUNTERED: 0  ·  FLINGS: 0  ·  LAG PURGED: 0\nCORE 24/7: Anti-Sit · Anti-Void · Anti-Lag · Anti-Freeze ACTIVE"
     defStatsLbl.TextColor3 = T.Muted
     defStatsLbl.Font = Enum.Font.GothamMedium
     defStatsLbl.TextSize = 8
@@ -6729,11 +7438,11 @@ local function buildMainUI()
         pcall(function()
             if defStatsLbl and defStatsLbl.Parent then
                 defStatsLbl.Text = string.format(
-                    "⚡ COUNTERED: %d  ·  FLINGS: %d  ·  WELDS: %d  ·  BRINGS: %d\nLAST: %s (%s)",
+                    "⚡ COUNTERED: %d  ·  FLINGS: %d  ·  SEATS: %d  ·  LAG: %d\nLAST: %s (%s)  ·  24/7 CORE SHIELDS ON",
                     DefenceTroll.deflectCount or 0,
                     Anti.FlingShield.blockedFlings or 0,
-                    Anti.Attach.severedCount or 0,
-                    Anti.Bring.blockedBrings or 0,
+                    Anti.SeatTrap.neutralizedSeats or 0,
+                    Anti.Lag.purgedItems or 0,
                     tostring(DefenceTroll.lastAttackerName or "None"),
                     tostring(DefenceTroll.lastThreatReason or "Standby")
                 )
@@ -6749,9 +7458,9 @@ local function buildMainUI()
     defToggleBtn.MouseButton1Click:Connect(function()
         sClick()
         if DefenceTroll.enabled then
-            defenceTrollStop()
+            DefenceTroll.stopFn()
         else
-            defenceTrollStart()
+            DefenceTroll.startFn()
         end
         updateDefenceStatsUI()
     end)
@@ -6777,9 +7486,9 @@ local function buildMainUI()
         notify("KHAMAN DHOKLA", "Deflect Radar Range: " .. tostring(DefenceTroll.range) .. " studs")
     end)
 
-    sectionLbl(antiTab, 3, "ADVANCED CHARACTER & PHYSICS SHIELDS (V2)", T.Muted)
+    sectionLbl(antiTab, 3, "🔒 24/7 ALWAYS-ON CORE SHIELDS (ANTI-SIT / VOID / LAG / FREEZE)", T.Success)
 
-    local function makeAntiToggle(order, label, getState, onEnable, onDisable)
+    local function makeAntiToggle(order, label, getState, onEnable, onDisable, isAlwaysOn)
         local row = Instance.new("Frame")
         row.Size = UDim2.new(1, 0, 0, 34)
         row.BackgroundColor3 = T.Panel
@@ -6790,30 +7499,33 @@ local function buildMainUI()
         Instance.new("UICorner", row).CornerRadius = UDim.new(0, 7)
 
         local lbl = Instance.new("TextLabel")
-        lbl.Size = UDim2.new(1, -94, 1, 0)
+        lbl.Size = UDim2.new(1, -98, 1, 0)
         lbl.Position = UDim2.new(0, 12, 0, 0)
         lbl.BackgroundTransparency = 1
         lbl.Text = label
-        lbl.TextColor3 = T.Text
-        lbl.Font = Enum.Font.GothamMedium
+        lbl.TextColor3 = isAlwaysOn and T.Neon or T.Text
+        lbl.Font = isAlwaysOn and Enum.Font.GothamBold or Enum.Font.GothamMedium
         lbl.TextSize = 10
         lbl.TextXAlignment = Enum.TextXAlignment.Left
+        lbl.TextTruncate = Enum.TextTruncate.AtEnd
         lbl.ZIndex = 8
         lbl.Parent = row
 
+        local st = getState()
+        local lockedOn = isAlwaysOn and Anti.AlwaysOnCore
         local btn = Instance.new("TextButton")
-        btn.Size = UDim2.new(0, 72, 0, 24)
-        btn.Position = UDim2.new(1, -80, 0.5, -12)
-        btn.Text = getState() and "ON" or "OFF"
+        btn.Size = UDim2.new(0, 78, 0, 24)
+        btn.Position = UDim2.new(1, -86, 0.5, -12)
+        btn.Text = lockedOn and "ALWAYS ON" or (st and "ON" or "OFF")
         btn.TextColor3 = Color3.new(1, 1, 1)
         btn.Font = Enum.Font.GothamBold
-        btn.TextSize = 10
+        btn.TextSize = lockedOn and 8 or 10
         btn.ZIndex = 8
         btn.Parent = row
         Instance.new("UICorner", btn).CornerRadius = UDim.new(1, 0)
-        styleBtn(btn, getState() and PILL_BG_ON or T.PanelLt)
+        styleBtn(btn, st and PILL_BG_ON or T.PanelLt)
 
-        table.insert(antiToggleRegistry, { btn = btn, getState = getState })
+        table.insert(antiToggleRegistry, { btn = btn, getState = getState, isAlwaysOn = isAlwaysOn })
 
         btn.MouseButton1Click:Connect(function()
             sClick()
@@ -6827,43 +7539,47 @@ local function buildMainUI()
         return btn
     end
 
-    makeAntiToggle(4, "Anti-Fling v3 (Server No-Collide + Zero-Impulse)", function() return Anti.FlingShield.enabled end, flingShieldStart, flingShieldStop)
-    makeAntiToggle(5, "Anti-Void v3 (2048x2048 Floor + Velocity Catch)", function() return Anti.Void.enabled end, avStart, avStop)
-    makeAntiToggle(6, "Infinite Fall Void (Fall Below Map Without Dying)", function() return Anti.InfFallVoid.enabled end, Anti.InfFallVoid.startFn, Anti.InfFallVoid.stopFn)
-    makeAntiToggle(7, "Anti-Kill / God-Mode v3 (Touch Shield + ForceField)", function() return Anti.Kill.enabled end, akStart, akStop)
-    makeAntiToggle(8, "Anti-Ragdoll / Anti-Sit / Anti-Stun / Motor6D v3", function() return Anti.Ragdoll.enabled end, ragdollStart, ragdollStop)
-    makeAntiToggle(9, "Anti-Anchor / Anti-Freeze / Purge BodyMovers v3", function() return Anti.Anchor.enabled end, anchorStart, anchorStop)
-    makeAntiToggle(10, "Anti-Attach / Omni-Weld & Grab Sever v3", function() return Anti.Attach.enabled end, attachStart, attachStop)
-    makeAntiToggle(11, "Anti-Bring / Tool-Grab & Teleport Guard v3", function() return Anti.Bring.enabled end, bringStart, bringStop)
-    makeAntiToggle(12, "Anti-Seat / Couch-Kidnap Destroyer v3", function() return Anti.SeatTrap.enabled end, Anti.SeatTrap.startFn, Anti.SeatTrap.stopFn)
-    makeAntiToggle(13, "Anti-Tool / Couch / Carry / Cuffs Disarmer v3", function() return Anti.ToolGuard.enabled end, Anti.ToolGuard.startFn, Anti.ToolGuard.stopFn)
-    makeAntiToggle(14, "Anti-Headsit & Anti-Facebang Evader (Library)", function() return Anti.AntiHeadsit.enabled end, Anti.AntiHeadsit.startFn, Anti.AntiHeadsit.stopFn)
-    makeAntiToggle(15, "Anti-Bang Glitch Desync (Evade Bangs / CFrame Spoof)", function() return Anti.GlitchDesync.enabled end, Anti.GlitchDesync.startFn, Anti.GlitchDesync.stopFn)
-    makeAntiToggle(16, "Anti-Blind / Anti-Flashbang & Fog Clear v3", function() return Anti.Blind.enabled end, blindStart, blindStop)
+    -- 24/7 Always-On Core Shields
+    makeAntiToggle(4, "🔒 Anti-Sit / Couch-Kidnap Destroyer v4 (24/7)", function() return Anti.SeatTrap.enabled end, Anti.SeatTrap.startFn, Anti.SeatTrap.stopFn, true)
+    makeAntiToggle(5, "🔒 Anti-Ragdoll / Anti-Sit / Anti-Stun v4 (24/7)", function() return Anti.Ragdoll.enabled end, Anti.Ragdoll.startFn, Anti.Ragdoll.stopFn, true)
+    makeAntiToggle(6, "🔒 Anti-Void v4 (2048x2048 Floor + Catch 24/7)", function() return Anti.Void.enabled end, Anti.Void.startFn, Anti.Void.stopFn, true)
+    makeAntiToggle(7, "🔒 Infinite Fall Void (NaN KillPlane Lock 24/7)", function() return Anti.InfFallVoid.enabled end, Anti.InfFallVoid.startFn, Anti.InfFallVoid.stopFn, true)
+    makeAntiToggle(8, "🔒 Anti-Lag v4 (Particle & Clone-Bomb Purger 24/7)", function() return Anti.Lag.enabled end, Anti.Lag.startFn, Anti.Lag.stopFn, true)
+    makeAntiToggle(9, "🔒 Anti-Freeze / Anti-Anchor & Mover Purger v4 (24/7)", function() return Anti.Anchor.enabled end, Anti.Anchor.startFn, Anti.Anchor.stopFn, true)
+    makeAntiToggle(10, "🔒 Anti-GameplayPaused / Anti-NetworkFreeze v4 (24/7)", function() return Anti.GamePaused.enabled end, Anti.GamePaused.startFn, Anti.GamePaused.stopFn, true)
 
-    sectionLbl(antiTab, 17, "COUNTER-TRAPS, KHAMAN ANTI-VC & CLIENT BYPASSES", T.Accent)
-    makeAntiToggle(18, "Void-Pause Attacker (Banish Welded Trolls)", function() return Anti.PauseTrap.enabled end, pauseTrapStart, pauseTrapStop)
-    makeAntiToggle(19, "Redirect Attacker -> Nearest Bystander", function() return Anti.Redirect.enabled end, redirectStart, redirectStop)
-    makeAntiToggle(20, "Anti-Kick (Intercept Client LocalPlayer:Kick)", function() return Anti.Kick.enabled end, Anti.Kick.startFn, Anti.Kick.stopFn)
-    makeAntiToggle(21, "Anti-GameplayPaused / Anti-NetworkPause v3", function() return Anti.GamePaused.enabled end, agpStart, agpStop)
-    makeAntiToggle(22, "Anti-AFK v3 (Idled + VirtualUser + Input Pulse)", function() return Anti.AFK.enabled end, afkStart, afkStop)
-    makeAntiToggle(23, "Khaman Anti-VC (Voice Chat Bypass Toggle)", function() return Anti.VC.enabled or Anti.VC.running end, vcStart, vcStop)
+    sectionLbl(antiTab, 11, "ADDITIONAL CHARACTER & PHYSICS SHIELDS (V4)", T.Muted)
+    makeAntiToggle(12, "Anti-Fling v3 (Server No-Collide + Zero-Impulse)", function() return Anti.FlingShield.enabled end, Anti.FlingShield.startFn, Anti.FlingShield.stopFn, false)
+    makeAntiToggle(13, "Anti-Kill / God-Mode v3 (Touch Shield + ForceField)", function() return Anti.Kill.enabled end, Anti.Kill.startFn, Anti.Kill.stopFn, false)
+    makeAntiToggle(14, "Anti-Attach / Omni-Weld & Grab Sever v3", function() return Anti.Attach.enabled end, Anti.Attach.startFn, Anti.Attach.stopFn, false)
+    makeAntiToggle(15, "Anti-Bring / Tool-Grab & Teleport Guard v3", function() return Anti.Bring.enabled end, Anti.Bring.startFn, Anti.Bring.stopFn, false)
+    makeAntiToggle(16, "Anti-Tool / Couch / Carry / Cuffs Disarmer v3", function() return Anti.ToolGuard.enabled end, Anti.ToolGuard.startFn, Anti.ToolGuard.stopFn, false)
+    makeAntiToggle(17, "Anti-Headsit & Anti-Facebang Evader (Library)", function() return Anti.AntiHeadsit.enabled end, Anti.AntiHeadsit.startFn, Anti.AntiHeadsit.stopFn, false)
+    makeAntiToggle(18, "Anti-Bang Glitch Desync (Evade Bangs / CFrame Spoof)", function() return Anti.GlitchDesync.enabled end, Anti.GlitchDesync.startFn, Anti.GlitchDesync.stopFn, false)
+    makeAntiToggle(19, "Anti-Blind / Anti-Flashbang & Fog Clear v3", function() return Anti.Blind.enabled end, Anti.Blind.startFn, Anti.Blind.stopFn, false)
+
+    sectionLbl(antiTab, 20, "KHAMAN ANTI-VC V4 ULTRA BYPASS & COUNTER-TRAPS", T.Accent)
+    makeAntiToggle(21, "Khaman Anti-VC v4 (Auto + Force Voice Bypass)", function() return Anti.VC.enabled or Anti.VC.running end, Anti.VC.startFn, Anti.VC.stopFn, false)
+    makeAntiToggle(22, "Void-Pause Attacker (Banish Welded Trolls)", function() return Anti.PauseTrap.enabled end, Anti.PauseTrap.startFn, Anti.PauseTrap.stopFn, false)
+    makeAntiToggle(23, "Redirect Attacker -> Nearest Bystander", function() return Anti.Redirect.enabled end, Anti.Redirect.startFn, Anti.Redirect.stopFn, false)
+    makeAntiToggle(24, "Anti-Kick (Intercept Client LocalPlayer:Kick)", function() return Anti.Kick.enabled end, Anti.Kick.startFn, Anti.Kick.stopFn, false)
+    makeAntiToggle(25, "Anti-AFK v3 (Idled + VirtualUser + Input Pulse)", function() return Anti.AFK.enabled end, Anti.AFK.startFn, Anti.AFK.stopFn, false)
 
     do
         local vcPanelRow = Instance.new("Frame")
-        vcPanelRow.Size = UDim2.new(1, 0, 0, 36)
+        vcPanelRow.Size = UDim2.new(1, 0, 0, 68)
         vcPanelRow.BackgroundColor3 = T.Panel
         vcPanelRow.BorderSizePixel = 0
-        vcPanelRow.LayoutOrder = 24
+        vcPanelRow.LayoutOrder = 26
         vcPanelRow.ZIndex = 7
         vcPanelRow.Parent = antiTab
         Instance.new("UICorner", vcPanelRow).CornerRadius = UDim.new(0, 7)
 
         local vcRowLbl = Instance.new("TextLabel")
-        vcRowLbl.Size = UDim2.new(1, -138, 1, 0)
-        vcRowLbl.Position = UDim2.new(0, 12, 0, 0)
+        vcRowLbl.Size = UDim2.new(1, -138, 0, 28)
+        vcRowLbl.Position = UDim2.new(0, 12, 0, 4)
         vcRowLbl.BackgroundTransparency = 1
-        vcRowLbl.Text = "Status: Idle · Khaman Anti-VC"
+        vcRowLbl.Text = "Status: Idle · Guard:0"
         vcRowLbl.TextColor3 = T.Neon
         vcRowLbl.Font = Enum.Font.GothamBold
         vcRowLbl.TextSize = 10
@@ -6874,7 +7590,7 @@ local function buildMainUI()
 
         local openVcPanelBtn = Instance.new("TextButton")
         openVcPanelBtn.Size = UDim2.new(0, 118, 0, 24)
-        openVcPanelBtn.Position = UDim2.new(1, -126, 0.5, -12)
+        openVcPanelBtn.Position = UDim2.new(1, -126, 0, 6)
         openVcPanelBtn.Text = "OPEN ANTI-VC UI"
         openVcPanelBtn.TextColor3 = Color3.new(1, 1, 1)
         openVcPanelBtn.Font = Enum.Font.GothamBold
@@ -6887,7 +7603,58 @@ local function buildMainUI()
             sClick()
             if Anti.VC.openPanelFn then Anti.VC.openPanelFn() end
         end)
+
+        local quickForceBtn = Instance.new("TextButton")
+        quickForceBtn.Size = UDim2.new(0.36, -6, 0, 26)
+        quickForceBtn.Position = UDim2.new(0, 8, 0, 36)
+        quickForceBtn.Text = "⚡ FORCE BYPASS"
+        quickForceBtn.TextColor3 = Color3.new(1, 1, 1)
+        quickForceBtn.Font = Enum.Font.GothamBold
+        quickForceBtn.TextSize = 9
+        quickForceBtn.ZIndex = 8
+        quickForceBtn.Parent = vcPanelRow
+        Instance.new("UICorner", quickForceBtn).CornerRadius = UDim.new(0, 6)
+        styleBtn(quickForceBtn, Color3.fromRGB(185, 115, 12))
+        quickForceBtn.MouseButton1Click:Connect(function()
+            sClick()
+            if Anti.VC.forceBypassFn then Anti.VC.forceBypassFn() end
+        end)
+
+        local inlineMicBtn = Instance.new("TextButton")
+        inlineMicBtn.Size = UDim2.new(0.32, -4, 0, 26)
+        inlineMicBtn.Position = UDim2.new(0.36, 4, 0, 36)
+        inlineMicBtn.Text = "🎙️ LIVE"
+        inlineMicBtn.TextColor3 = Color3.new(1, 1, 1)
+        inlineMicBtn.Font = Enum.Font.GothamBold
+        inlineMicBtn.TextSize = 9
+        inlineMicBtn.ZIndex = 8
+        inlineMicBtn.Parent = vcPanelRow
+        Instance.new("UICorner", inlineMicBtn).CornerRadius = UDim.new(0, 6)
+        styleBtn(inlineMicBtn, PILL_BG_ON)
+        Anti.VC.inlineMicBtn = inlineMicBtn
+        inlineMicBtn.MouseButton1Click:Connect(function()
+            sClick()
+            if Anti.VC.toggleMicFn then Anti.VC.toggleMicFn() end
+        end)
+
+        local inlineRejoinBtn = Instance.new("TextButton")
+        inlineRejoinBtn.Size = UDim2.new(0.32, -8, 0, 26)
+        inlineRejoinBtn.Position = UDim2.new(0.68, 4, 0, 36)
+        inlineRejoinBtn.Text = "🔄 REJOIN VC"
+        inlineRejoinBtn.TextColor3 = T.Neon
+        inlineRejoinBtn.Font = Enum.Font.GothamBold
+        inlineRejoinBtn.TextSize = 9
+        inlineRejoinBtn.ZIndex = 8
+        inlineRejoinBtn.Parent = vcPanelRow
+        Instance.new("UICorner", inlineRejoinBtn).CornerRadius = UDim.new(0, 6)
+        styleBtn(inlineRejoinBtn, T.PanelLt)
+        inlineRejoinBtn.MouseButton1Click:Connect(function()
+            sClick()
+            if Anti.VC.rejoinFn then Anti.VC.rejoinFn() end
+        end)
     end
+    syncAllAntiButtons()
+    end -- end Anti Tab UI scope
 
     -- ═══════════════════════════════════════════════════════════════════════════
     -- TAB 5: MOVE (SPEED UP TO 500 & UNIVERSAL ANDROID / PC FLIGHT)
@@ -7059,6 +7826,7 @@ local function buildMainUI()
 
     local function applySpeedValue(val)
         currentSpeed = math.clamp(math.floor(val), MIN_SPEED, MAX_SPEED)
+        moveState.desiredWalkSpeed = currentSpeed
         local _, hum = getMoveCharacter()
         if hum and moveState.speed then hum.WalkSpeed = currentSpeed end
         if speedStatus then
@@ -7439,7 +8207,9 @@ local function buildMainUI()
         LastPresetKey = nil
         footerSub.Text = "stopped"
         syncAllActiveIndicators()
-        pcall(function() workspace.FallenPartsDestroyHeight = OriginalFPDH end)
+        if not (Anti and (Anti.AlwaysOnCore or (Anti.Void and Anti.Void.enabled) or (Anti.InfFallVoid and Anti.InfFallVoid.enabled) or (Anti.Kill and Anti.Kill.enabled))) then
+            pcall(function() workspace.FallenPartsDestroyHeight = OriginalFPDH end)
+        end
         notify("KHAMAN DHOKLA", "Unwelded & state cleared")
         sSuccess()
     end)
@@ -7591,6 +8361,8 @@ local function buildMainUI()
             if uiState.open then sWhoosh() else sToggleOff() end
         elseif inp.KeyCode == Enum.KeyCode.R then
             RewindSys:Start(RewindSys.duration)
+        elseif inp.KeyCode == Enum.KeyCode.V and (Anti.VC.enabled or Anti.VC.running) then
+            if Anti.VC.toggleMicFn then Anti.VC.toggleMicFn() end
         end
     end)
 
@@ -7653,5 +8425,5 @@ if not bootOk then
     end)
     return
 end
-notify("KHAMAN DHOKLA V37", "Omnipresent Seeker & Void-Safe ready. Finds & TPs to hidden players anywhere!")
-print("[KHAMAN DHOKLA V37] Ready.")
+notify("KHAMAN DHOKLA V39", "Zero-Freeze Troll + True Unlimited Fling + 24/7 Core Shields + VC V4 Ready!")
+print("[KHAMAN DHOKLA V39] Ready.")
