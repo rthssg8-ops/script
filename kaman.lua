@@ -433,6 +433,11 @@ function StateManager:StopFling(skipReturn)
     if FlingConn then FlingConn:Disconnect(); FlingConn = nil end
     if self.FlingStepConn then self.FlingStepConn:Disconnect(); self.FlingStepConn = nil end
     if LP.Character then
+        local myRoot = getRootPart(LP.Character)
+        if myRoot and sethiddenproperty then
+            pcall(function() sethiddenproperty(myRoot, "PhysicsRepRootPart", nil) end)
+            pcall(function() sethiddenproperty(myRoot, "PhysicsRepRootRef", nil) end)
+        end
         for _, part in ipairs(getCachedCharParts(LP.Character)) do
             if part.Parent then
                 pcall(function() part.CustomPhysicalProperties = nil end)
@@ -829,6 +834,16 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
         return TargetPart.CFrame * localOffset
     end
 
+    local function bindZeroDelayPhysicsRep(part)
+        if not sethiddenproperty or not Root or not Root.Parent then return end
+        pcall(function()
+            sethiddenproperty(Root, "PhysicsRepRootPart", part)
+            if InstanceHandleNew then
+                sethiddenproperty(Root, "PhysicsRepRootRef", part and InstanceHandleNew(part) or nil)
+            end
+        end)
+    end
+
     local currentLockCF = nil
     if TargetPart and TargetPart.Parent then
         currentLockCF = computeCurrentTargetLockCF()
@@ -836,7 +851,7 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
         Root.CFrame = currentLockCF
         Root.AssemblyLinearVelocity = Vector3.zero
         Root.AssemblyAngularVelocity = Vector3.zero
-        -- Frame-0 CFrame lock active via Stepped + RenderStepped + Heartbeat (avoids PhysicsRepRootPart assembly freeze)
+        bindZeroDelayPhysicsRep(TargetPart)
     end
 
     -- ZERO-DELAY FRAME-0 ANIMATION: Start animation immediately without any task.wait!
@@ -918,7 +933,7 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
         end
     end
 
-    -- Stepped pass ensures we phase through walls, doors, roofs, and seats inside any hiding spot
+    -- Stepped pass ensures we phase through walls, doors, roofs, and seats inside any hiding spot + zero-delay PhysicsRepRootPart lock
     StepConn = RunService.Stepped:Connect(function()
         if Weld.destroyed then return end
         applyPhaseNoclip()
@@ -928,6 +943,7 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
             Root.CFrame = currentLockCF
             Root.AssemblyLinearVelocity = Vector3.zero
             Root.AssemblyAngularVelocity = Vector3.zero
+            bindZeroDelayPhysicsRep(TargetPart)
         end
     end)
 
@@ -938,6 +954,7 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
             currentLockCF = computeCurrentTargetLockCF()
             markIntentionalTeleport(currentLockCF)
             Root.CFrame = currentLockCF
+            bindZeroDelayPhysicsRep(TargetPart)
         end
     end)
 
@@ -1036,7 +1053,7 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
         Root.AssemblyLinearVelocity = Vector3.zero
         Root.AssemblyAngularVelocity = Vector3.zero
         markIntentionalTeleport(Root.CFrame)
-        -- Frame-0 CFrame lock active via Stepped + RenderStepped + Heartbeat (avoids PhysicsRepRootPart assembly freeze)
+        bindZeroDelayPhysicsRep(TargetPart)
         pcall(function() ensureAnim(false) end)
         pcall(function()
             if not Humanoid.PlatformStand then Humanoid.PlatformStand = true end
@@ -2146,8 +2163,16 @@ local function launchNebulaFling(durationSeconds, modeTitle, isVoidThrow, explic
 
     -- Save origin BEFORE streaming/teleporting to a hidden target so we always return to our original spot!
     local preSeekOriginCF = isSafePlayableCF(myRoot.CFrame) and myRoot.CFrame or findFallbackSafeCF()
-    local tChar, targetRoot = streamAndTeleportToTarget(targetPlr, "torso", 2.2)
+    -- 0.00s ZERO-DELAY FAST PATH: If target is already streamed in, lock on Frame 0 without yielding!
+    local tChar = findPlayerCharacterAnywhere(targetPlr)
     local targetHum = tChar and tChar:FindFirstChildOfClass("Humanoid")
+    local targetRoot = tChar and pickTargetRef(tChar, "torso")
+    if not targetRoot or not targetRoot.Parent then
+        tChar, targetRoot = streamAndTeleportToTarget(targetPlr, "torso", 2.2)
+        targetHum = tChar and tChar:FindFirstChildOfClass("Humanoid")
+    else
+        breakLocalSeatAndTrapWelds(myChar)
+    end
     if not isUnlimited and (not targetRoot or not targetRoot.Parent) then
         notify("KHAMAN DHOKLA", "Could not stream target — try again!")
         sError()
@@ -2202,6 +2227,27 @@ local function launchNebulaFling(durationSeconds, modeTitle, isVoidThrow, explic
     local waitingForRespawn = false
     local lastStreamSeekTick = 0
 
+    -- ZERO-DELAY FRAME-0 WELD & LOCK FOR NEBULA FLING / VOID THROW:
+    if targetRoot and targetRoot.Parent and myRoot and myRoot.Parent then
+        pcall(function() LP.ReplicationFocus = targetRoot end)
+        if sethiddenproperty then
+            pcall(function()
+                sethiddenproperty(myRoot, "PhysicsRepRootPart", targetRoot)
+                if InstanceHandleNew then
+                    sethiddenproperty(myRoot, "PhysicsRepRootRef", InstanceHandleNew(targetRoot))
+                end
+            end)
+        end
+        restorePartCollisionAndDensity(myChar, true)
+        if tChar and tChar.Parent then
+            restorePartCollisionAndDensity(tChar, false)
+        end
+        markIntentionalTeleport(nextTargetCFrame)
+        myRoot.CFrame = nextTargetCFrame
+        myRoot.AssemblyLinearVelocity = nextLinearVel
+        myRoot.AssemblyAngularVelocity = nextAngularVel
+    end
+
     local function finishVoidThrow(msg, playSuccess)
         StateManager:StopFling(false)
         if msg then notify("KHAMAN DHOKLA", msg) end
@@ -2209,7 +2255,7 @@ local function launchNebulaFling(durationSeconds, modeTitle, isVoidThrow, explic
     end
 
     -- Pre-Simulation (RunService.Stepped): Enforce collision & 100-density mass on our torso/root
-    -- AND target's character right before Roblox's internal physics step!
+    -- AND target's character + zero-delay PhysicsRepRootPart weld right before Roblox's internal physics step!
     StateManager.FlingStepConn = RunService.Stepped:Connect(function()
         if not FlingActive then
             if StateManager.FlingStepConn then StateManager.FlingStepConn:Disconnect(); StateManager.FlingStepConn = nil end
@@ -2222,11 +2268,24 @@ local function launchNebulaFling(durationSeconds, modeTitle, isVoidThrow, explic
 
         pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
         if waitingForRespawn then
-            -- While waiting for target respawn in Unlimited mode, hold safely at origCF with 0 velocity
+            -- While waiting for target respawn in Unlimited mode, clear PhysicsRepRootPart and hold safely at origCF with 0 velocity
+            if sethiddenproperty then
+                pcall(function() sethiddenproperty(myRoot, "PhysicsRepRootPart", nil) end)
+                pcall(function() sethiddenproperty(myRoot, "PhysicsRepRootRef", nil) end)
+            end
             myRoot.CFrame = origCF
             myRoot.AssemblyLinearVelocity = Vector3.zero
             myRoot.AssemblyAngularVelocity = Vector3.zero
             return
+        end
+
+        if targetRoot and targetRoot.Parent and sethiddenproperty then
+            pcall(function()
+                sethiddenproperty(myRoot, "PhysicsRepRootPart", targetRoot)
+                if InstanceHandleNew then
+                    sethiddenproperty(myRoot, "PhysicsRepRootRef", InstanceHandleNew(targetRoot))
+                end
+            end)
         end
 
         restorePartCollisionAndDensity(myChar, true)
@@ -2354,6 +2413,10 @@ local function launchNebulaFling(durationSeconds, modeTitle, isVoidThrow, explic
                 -- If target is still dead/in-void/unstreamed, park safely at origCF and wait for their respawn!
                 if not targetRoot or not targetRoot.Parent or targetDead or targetConfirmedInVoid then
                     waitingForRespawn = true
+                    if sethiddenproperty then
+                        pcall(function() sethiddenproperty(myRoot, "PhysicsRepRootPart", nil) end)
+                        pcall(function() sethiddenproperty(myRoot, "PhysicsRepRootRef", nil) end)
+                    end
                     markIntentionalTeleport(origCF)
                     myRoot.CFrame = origCF
                     myRoot.AssemblyLinearVelocity = Vector3.zero
@@ -2402,8 +2465,16 @@ local function launchNebulaFling(durationSeconds, modeTitle, isVoidThrow, explic
             end
         end
 
-        -- Focus stream on target
+        -- Focus stream on target and bind PhysicsRepRootPart for zero-delay network-sync weld & drag (from oyee hoye.lua)
         pcall(function() LP.ReplicationFocus = targetRoot end)
+        if sethiddenproperty then
+            pcall(function()
+                sethiddenproperty(myRoot, "PhysicsRepRootPart", targetRoot)
+                if InstanceHandleNew then
+                    sethiddenproperty(myRoot, "PhysicsRepRootRef", InstanceHandleNew(targetRoot))
+                end
+            end)
+        end
 
         local tPos = targetRoot.Position
         local tVel = targetRoot.AssemblyLinearVelocity
