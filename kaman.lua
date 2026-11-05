@@ -1,6 +1,12 @@
 --[[═══════════════════════════════════════════════════════════════════════════════
-  🟨 KHAMAN DHOKLA — V39 "ANTI-FREEZE TROLL FIX, TRUE UNLIMITED FLING & ULTRA VC V4"
+  🟨 KHAMAN DHOKLA — V39 "ANTI-FREEZE TROLL FIX, CHAT TIMER RESTORED & ULTRA VC V4"
   Upgrades & Fixes:
+    • Restored Chat Box Timer & Anti-Rapid Spam Guard: Fixed nil CS_D scope bug that caused
+      0-frame rapid message spam; added live 0.1s countdown timer, custom delay TextBox
+      (0.5s–60s), and 1-tap delay presets (-1s / 2.5s / 5.0s / 8.0s / +1s) in the Chat Tab
+    • Deep Runtime & Frame-Loop Optimizations: O(1) CorePart hash lookup, pre-allocated
+      100-density PhysicalProperties, cached InstanceHandle replication refs, O(1) cached
+      chat symbol string, and event-driven + throttled Anti-Blind / Anti-Attach sweeps
     • Zero-Freeze Troll & Weld Engine: Preserves all Troll & Weld presets/offsets while
       fixing post-weld character freeze, Animate track corruption, and mid-respawn noclip drops
     • True Unlimited Nebula Fling & Void Lock: Runs non-stop across target deaths & respawns
@@ -188,7 +194,7 @@ local function isR15(player)
     return getRig(player) == Enum.HumanoidRigType.R15
 end
 
-local V = { X = 0, Y = 0, Z = 1.3, RX = 0, RY = 0, RZ = 0, Speed = 1.0 }
+local V = { X = 0, Y = 0, Z = 1.3, RX = 0, RY = 0, RZ = 0, Speed = 1.0, ChatDelay = 5.0 }
 
 local CurrentWeld         = nil
 local CurrentTarget       = nil
@@ -310,7 +316,14 @@ local moveState = {
 }
 local RescueGeneration = 0
 
--- Event-Driven Character BasePart Cache: avoids redundant GetDescendants() scans on every Stepped frame!
+-- Event-Driven Character BasePart & Core-Part Cache: avoids redundant GetDescendants() scans and string chains on every Stepped frame!
+local CORE_PART_NAMES = {
+    HumanoidRootPart = true,
+    Torso = true,
+    UpperTorso = true,
+    LowerTorso = true,
+    Head = true,
+}
 local CharPartCache = setmetatable({}, { __mode = "k" })
 local function getCachedCharParts(char)
     if not char then return {} end
@@ -420,7 +433,7 @@ function StateManager:ResetPhysics(character)
         if part.Parent then
             part.Massless = false
             pcall(function() part.CustomPhysicalProperties = nil end)
-            if not (moveState and moveState.noclip) and (part.Name == "HumanoidRootPart" or part.Name == "Torso" or part.Name == "UpperTorso" or part.Name == "LowerTorso" or part.Name == "Head") then
+            if not (moveState and moveState.noclip) and CORE_PART_NAMES[part.Name] then
                 part.CanCollide = true
             end
         end
@@ -627,7 +640,7 @@ recoverCharacterState = function(char, safeCF)
             part.Anchored = false
             part.Massless = false
             pcall(function() part.CustomPhysicalProperties = nil end)
-            if not (moveState and moveState.noclip) and (part.Name == "HumanoidRootPart" or part.Name == "Torso" or part.Name == "UpperTorso" or part.Name == "LowerTorso" or part.Name == "Head") then
+            if not (moveState and moveState.noclip) and CORE_PART_NAMES[part.Name] then
                 part.CanCollide = true
             end
             if not (Anti and Anti.Kill and Anti.Kill.enabled) then
@@ -834,12 +847,17 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
         return TargetPart.CFrame * localOffset
     end
 
+    local cachedRepPart, cachedRepHandle = nil, nil
     local function bindZeroDelayPhysicsRep(part)
         if not sethiddenproperty or not Root or not Root.Parent then return end
         pcall(function()
             sethiddenproperty(Root, "PhysicsRepRootPart", part)
             if InstanceHandleNew then
-                sethiddenproperty(Root, "PhysicsRepRootRef", part and InstanceHandleNew(part) or nil)
+                if part ~= cachedRepPart then
+                    cachedRepPart = part
+                    cachedRepHandle = part and InstanceHandleNew(part) or nil
+                end
+                sethiddenproperty(Root, "PhysicsRepRootRef", cachedRepHandle)
             end
         end)
     end
@@ -1916,7 +1934,7 @@ do -- Scoped block for RewindSys & Void Throw v2 internals (preserves top-level 
             for _, part in ipairs(getCachedCharParts(char)) do
                 if part.Parent then
                     part.Massless = false
-                    if not (moveState and moveState.noclip) and (part.Name == "HumanoidRootPart" or part.Name == "Torso" or part.Name == "UpperTorso" or part.Name == "LowerTorso" or part.Name == "Head") then
+                    if not (moveState and moveState.noclip) and CORE_PART_NAMES[part.Name] then
                         part.CanCollide = true
                     end
                 end
@@ -2115,25 +2133,26 @@ end
 -- 4) Never stops prematurely from small horizontal bumps — continues until the target is
 --    confirmed dead (Health <= 0) or deep in the Void killzone!
 
+local HEAVY_RAM_PHYS_PROPS = PhysicalProperties.new(100, 0.3, 0.5, 100, 100)
 local function restorePartCollisionAndDensity(char, isLocalRam)
     if not char then return end
     for _, part in ipairs(getCachedCharParts(char)) do
         if part.Parent then
-            local isCore = (part.Name == "HumanoidRootPart" or part.Name == "Torso" or part.Name == "UpperTorso" or part.Name == "LowerTorso" or part.Name == "Head")
+            local isCore = CORE_PART_NAMES[part.Name] == true
             if isLocalRam then
-                part.CanCollide = isCore
-                part.CanTouch = false
-                part.Massless = false
-                if isCore then
+                if part.CanCollide ~= isCore then part.CanCollide = isCore end
+                if part.CanTouch then part.CanTouch = false end
+                if part.Massless then part.Massless = false end
+                if isCore and part.CustomPhysicalProperties ~= HEAVY_RAM_PHYS_PROPS then
                     pcall(function()
-                        part.CustomPhysicalProperties = PhysicalProperties.new(100, 0.3, 0.5, 100, 100)
+                        part.CustomPhysicalProperties = HEAVY_RAM_PHYS_PROPS
                     end)
                 end
             else
-                if isCore then
+                if isCore and not part.CanCollide then
                     part.CanCollide = true
                 end
-                part.Massless = false
+                if part.Massless then part.Massless = false end
             end
         end
     end
@@ -2676,7 +2695,7 @@ end
 
 local csOn, csMode, csTgt, csMsg, csCnt, csMtd, csGen, bld, snd2 = false, "roast", "", "", 0, "-", 0, nil, nil
 do
-local CS_D = 5
+V.ChatDelay = tonumber(V.ChatDelay) or 5.0
 local CS_M = 200
 local CS_R = " TMKX MAI "
 local CS_HDR = "KHAMAN DHOKLA ON TOP"
@@ -2684,9 +2703,11 @@ local CS_W = {"NOOB","ROOKIE","AMATEUR","TRAINEE","BEGINNER","SLOWPOKE","SLEEPY"
 local CS_E = {"🔥","😂","💀","🗿","😭","😎","🤡","👻","👀","💯","🚨","🎯","⚡","🌊","🎪","🧠","🤖","🥶","😈","🤣","💥","✨","🙏","👑"}
 local CS_SYM = "@"
 local CS_REPEAT = 120
+local CS_SYM_CACHED = string.rep(CS_SYM, CS_REPEAT)
 
 local csCh = nil
 local csLg = nil
+local csLastSendTick = 0
 
 local function gC()
     if TextChatService.ChatVersion ~= Enum.ChatVersion.TextChatService then return nil end
@@ -2705,23 +2726,42 @@ local function gL()
     return ok and res or nil
 end
 snd2 = function(tx)
+    local now = tick()
+    if now - csLastSendTick < 0.35 then
+        return false
+    end
     if #tx > CS_M then tx = tx:sub(1, CS_M) end
     if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
         if not csCh or not csCh.Parent then csCh = gC() end
-        if csCh then local ok = pcall(function() csCh:SendAsync(tx) end); if ok then csMtd = "TextChat"; return true end end
+        if csCh then
+            local ok = pcall(function() csCh:SendAsync(tx) end)
+            if ok then
+                csLastSendTick = tick()
+                csMtd = "TextChat"
+                return true
+            end
+        end
     end
     if not csLg then csLg = gL() end
-    if csLg then local ok = pcall(function() csLg:FireServer(tx, "All") end); if ok then csMtd = "Legacy"; return true end end
+    if csLg then
+        local ok = pcall(function() csLg:FireServer(tx, "All") end)
+        if ok then
+            csLastSendTick = tick()
+            csMtd = "Legacy"
+            return true
+        end
+    end
     return false
 end
 local function pickEmojis()
     if math.random() > 0.75 then return "" end
     local count = math.random(1, 3)
-    local out = ""
-    for _ = 1, count do
-        out = out .. CS_E[math.random(1, #CS_E)]
+    if count == 1 then
+        return CS_E[math.random(1, #CS_E)]
+    elseif count == 2 then
+        return CS_E[math.random(1, #CS_E)] .. CS_E[math.random(1, #CS_E)]
     end
-    return out
+    return CS_E[math.random(1, #CS_E)] .. CS_E[math.random(1, #CS_E)] .. CS_E[math.random(1, #CS_E)]
 end
 local function resolveTargetDisplay()
     if csTgt and csTgt ~= "" then
@@ -2742,11 +2782,7 @@ local function resolveTargetDisplay()
     return nil
 end
 local function genSymbols()
-    local out = ""
-    for _ = 1, CS_REPEAT do
-        out = out .. CS_SYM
-    end
-    return out
+    return CS_SYM_CACHED
 end
 bld = function()
     if csMode == "message" then
@@ -4438,10 +4474,47 @@ attachStart = function()
     if Anti.Attach.enabled then return end
     Anti.Attach.enabled = true
     severAllHostileAttachments()
+    local function hookAttachChar(c)
+        if Anti.Attach.descConn then Anti.Attach.descConn:Disconnect(); Anti.Attach.descConn = nil end
+        if not c then return end
+        Anti.Attach.descConn = c.DescendantAdded:Connect(function(obj)
+            if not Anti.Attach.enabled or isActivelyWeldedOrFlinging() then return end
+            if isJointHostileToCharacter(obj, c) then
+                pcall(function() obj:Destroy() end)
+                Anti.Attach.severedCount = (Anti.Attach.severedCount or 0) + 1
+            end
+        end)
+    end
+    hookAttachChar(LP.Character)
     if Anti.Attach.steppedConn then Anti.Attach.steppedConn:Disconnect() end
+    local lastFullAttachSweep = 0
+    local trackedAttachChar = LP.Character
     Anti.Attach.steppedConn = RunService.Stepped:Connect(function()
         if not Anti.Attach.enabled or isActivelyWeldedOrFlinging() then return end
-        severAllHostileAttachments()
+        local myChar = LP.Character
+        if not myChar then return end
+        if myChar ~= trackedAttachChar then
+            trackedAttachChar = myChar
+            hookAttachChar(myChar)
+        end
+        local now = tick()
+        if now - lastFullAttachSweep >= 0.08 then
+            lastFullAttachSweep = now
+            severAllHostileAttachments()
+        else
+            local r = getRootPart(myChar)
+            if r then
+                local okJ, joints = pcall(function() return r:GetJoints() end)
+                if okJ and joints then
+                    for _, j in ipairs(joints) do
+                        if isJointHostileToCharacter(j, myChar) then
+                            pcall(function() j:Destroy() end)
+                            Anti.Attach.severedCount = (Anti.Attach.severedCount or 0) + 1
+                        end
+                    end
+                end
+            end
+        end
     end)
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
     notify("KHAMAN DHOKLA", "Anti-Attach / Omni-Weld & Grab Sever v3 ON")
@@ -4452,6 +4525,7 @@ attachStop = function()
     if not Anti.Attach.enabled then return end
     Anti.Attach.enabled = false
     if Anti.Attach.steppedConn then Anti.Attach.steppedConn:Disconnect(); Anti.Attach.steppedConn = nil end
+    if Anti.Attach.descConn then Anti.Attach.descConn:Disconnect(); Anti.Attach.descConn = nil end
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
     notify("KHAMAN DHOKLA", "Anti-Attach disabled")
     sToggleOff()
@@ -4460,7 +4534,7 @@ Anti.Attach.startFn = attachStart
 Anti.Attach.stopFn  = attachStop
 
 -- ═══════════════════════════════════════════════════════════════════════════════
--- 9. ADVANCED ANTI-BLIND / ANTI-FLASH & VISION CLEAR V3
+-- 9. ADVANCED ANTI-BLIND / ANTI-FLASH & VISION CLEAR V3 (Event + Throttled 5Hz Guard)
 -- ═══════════════════════════════════════════════════════════════════════════════
 local function blindCleanse()
     local Lighting = game:GetService("Lighting")
@@ -4512,9 +4586,27 @@ blindStart = function()
     if Anti.Blind.enabled then return end
     Anti.Blind.enabled = true
     blindCleanse()
+    pcall(function()
+        local Lighting = game:GetService("Lighting")
+        if Anti.Blind.lightChildConn then Anti.Blind.lightChildConn:Disconnect() end
+        Anti.Blind.lightChildConn = Lighting.ChildAdded:Connect(function()
+            if Anti.Blind.enabled then task.defer(blindCleanse) end
+        end)
+        local pgui = LP:FindFirstChildOfClass("PlayerGui")
+        if pgui then
+            if Anti.Blind.guiChildConn then Anti.Blind.guiChildConn:Disconnect() end
+            Anti.Blind.guiChildConn = pgui.ChildAdded:Connect(function()
+                if Anti.Blind.enabled then task.defer(blindCleanse) end
+            end)
+        end
+    end)
     if Anti.Blind.loopConn then Anti.Blind.loopConn:Disconnect() end
+    local lastBlindSweep = 0
     Anti.Blind.loopConn = RunService.Heartbeat:Connect(function()
         if not Anti.Blind.enabled then return end
+        local now = tick()
+        if now - lastBlindSweep < 0.20 then return end
+        lastBlindSweep = now
         blindCleanse()
     end)
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
@@ -4526,6 +4618,9 @@ blindStop = function()
     if not Anti.Blind.enabled then return end
     Anti.Blind.enabled = false
     if Anti.Blind.loopConn then Anti.Blind.loopConn:Disconnect(); Anti.Blind.loopConn = nil end
+    if Anti.Blind.lightChildConn then Anti.Blind.lightChildConn:Disconnect(); Anti.Blind.lightChildConn = nil end
+    if Anti.Blind.camChildConn then Anti.Blind.camChildConn:Disconnect(); Anti.Blind.camChildConn = nil end
+    if Anti.Blind.guiChildConn then Anti.Blind.guiChildConn:Disconnect(); Anti.Blind.guiChildConn = nil end
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
     notify("KHAMAN DHOKLA", "Anti-Blind disabled")
     sToggleOff()
@@ -4687,7 +4782,7 @@ flingShieldStop = function()
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= LP and p.Character then
             for _, part in ipairs(getCachedCharParts(p.Character)) do
-                if part.Parent and (part.Name == "HumanoidRootPart" or part.Name == "Torso" or part.Name == "UpperTorso" or part.Name == "LowerTorso" or part.Name == "Head") then
+                if part.Parent and CORE_PART_NAMES[part.Name] then
                     pcall(function() part.CanCollide = true; part.Massless = false end)
                 end
             end
@@ -7163,7 +7258,7 @@ local function buildMainUI()
     -- ═══════════════════════════════════════════════════════════════════════════
     end -- end Target Tab scope
     -- ═══════════════════════════════════════════════════════════════════════════
-    -- TAB 3: CHAT
+    -- TAB 3: CHAT (WITH RESTORED CHAT BOX TIMER, DELAY PRESETS & LIVE COUNTDOWN)
     -- ═══════════════════════════════════════════════════════════════════════════
     local chatStopFn
     do
@@ -7250,10 +7345,134 @@ local function buildMainUI()
     roastBtn.MouseButton1Click:Connect(function() sClick(); setChatMode("roast") end)
     messageBtn.MouseButton1Click:Connect(function() sClick(); setChatMode("message") end)
 
+    -- Restored Chat Box Timer / Delay Controls (Prevents rapid message spam & shows live countdown)
+    sectionLbl(chatTab, 5, "CHAT BOX TIMER / DELAY (SECONDS PER MESSAGE)", T.Accent)
+
+    local timerInputRow = Instance.new("Frame")
+    timerInputRow.Size = UDim2.new(1, 0, 0, 32)
+    timerInputRow.BackgroundColor3 = T.Panel
+    timerInputRow.BorderSizePixel = 0
+    timerInputRow.LayoutOrder = 6
+    timerInputRow.ZIndex = 7
+    timerInputRow.Parent = chatTab
+    Instance.new("UICorner", timerInputRow).CornerRadius = UDim.new(0, 7)
+
+    local timerBoxLbl = Instance.new("TextLabel")
+    timerBoxLbl.Size = UDim2.new(0.58, -10, 1, 0)
+    timerBoxLbl.Position = UDim2.new(0, 10, 0, 0)
+    timerBoxLbl.BackgroundTransparency = 1
+    timerBoxLbl.Text = "⏱️ MESSAGE TIMER (0.5s – 60s):"
+    timerBoxLbl.TextColor3 = T.Text
+    timerBoxLbl.Font = Enum.Font.GothamBold
+    timerBoxLbl.TextSize = 10
+    timerBoxLbl.TextXAlignment = Enum.TextXAlignment.Left
+    timerBoxLbl.ZIndex = 8
+    timerBoxLbl.Parent = timerInputRow
+
+    local chatTimerInput = Instance.new("TextBox")
+    chatTimerInput.Size = UDim2.new(0.42, -12, 1, -6)
+    chatTimerInput.Position = UDim2.new(0.58, 2, 0, 3)
+    chatTimerInput.BackgroundColor3 = T.PanelLt
+    chatTimerInput.PlaceholderText = "5.0"
+    chatTimerInput.Text = string.format("%.1f", tonumber(V.ChatDelay) or 5.0)
+    chatTimerInput.TextColor3 = T.Neon
+    chatTimerInput.PlaceholderColor3 = T.Muted
+    chatTimerInput.Font = Enum.Font.GothamBold
+    chatTimerInput.TextSize = 11
+    chatTimerInput.ClearTextOnFocus = false
+    chatTimerInput.ZIndex = 8
+    chatTimerInput.Parent = timerInputRow
+    Instance.new("UICorner", chatTimerInput).CornerRadius = UDim.new(0, 5)
+
+    local timerPresetRow = Instance.new("Frame")
+    timerPresetRow.Size = UDim2.new(1, 0, 0, 26)
+    timerPresetRow.BackgroundTransparency = 1
+    timerPresetRow.LayoutOrder = 7
+    timerPresetRow.ZIndex = 7
+    timerPresetRow.Parent = chatTab
+
+    local chatTimerStatusLbl = Instance.new("TextLabel")
+    chatTimerStatusLbl.Size = UDim2.new(1, 0, 0, 16)
+    chatTimerStatusLbl.BackgroundTransparency = 1
+    chatTimerStatusLbl.LayoutOrder = 8
+    chatTimerStatusLbl.Text = string.format("⏱️ Timer active: %.1fs interval between messages", tonumber(V.ChatDelay) or 5.0)
+    chatTimerStatusLbl.TextColor3 = T.Neon
+    chatTimerStatusLbl.Font = Enum.Font.GothamMedium
+    chatTimerStatusLbl.TextSize = 10
+    chatTimerStatusLbl.TextXAlignment = Enum.TextXAlignment.Left
+    chatTimerStatusLbl.ZIndex = 7
+    chatTimerStatusLbl.Parent = chatTab
+
+    local timerPresetBtns = {}
+    local function applyChatDelay(newDelay, announce)
+        local clamped = math.clamp(tonumber(newDelay) or 5.0, 0.5, 60.0)
+        clamped = math.floor(clamped * 10 + 0.5) / 10
+        V.ChatDelay = clamped
+        if chatTimerInput and chatTimerInput.Parent then
+            chatTimerInput.Text = string.format("%.1f", clamped)
+        end
+        for _, item in ipairs(timerPresetBtns) do
+            if item.val and item.btn and item.btn.Parent then
+                local isCurrent = math.abs(clamped - item.val) < 0.08
+                BtnColors[item.btn] = isCurrent and T.Accent2 or T.PanelLt
+                item.btn.BackgroundColor3 = BtnColors[item.btn]
+                item.btn.TextColor3 = isCurrent and Color3.new(1, 1, 1) or T.Text
+            end
+        end
+        if not csOn and chatTimerStatusLbl and chatTimerStatusLbl.Parent then
+            chatTimerStatusLbl.Text = string.format("⏱️ Timer active: %.1fs interval between messages", clamped)
+            chatTimerStatusLbl.TextColor3 = T.Neon
+        end
+        if announce then
+            notify("KHAMAN DHOKLA", string.format("Chat Box Timer set to %.1fs", clamped))
+        end
+    end
+
+    local timerSpecs = {
+        { label = "-1s",  delta = -1.0 },
+        { label = "2.5s", val   = 2.5  },
+        { label = "5.0s", val   = 5.0  },
+        { label = "8.0s", val   = 8.0  },
+        { label = "+1s",  delta = 1.0  },
+    }
+    local tpw = 1 / #timerSpecs
+    for idx, spec in ipairs(timerSpecs) do
+        local tb = Instance.new("TextButton")
+        tb.Size = UDim2.new(tpw, -3, 1, 0)
+        tb.Position = UDim2.new((idx - 1) * tpw, (idx == 1) and 0 or 2, 0, 0)
+        tb.Text = spec.label
+        tb.TextColor3 = T.Text
+        tb.Font = Enum.Font.GothamBold
+        tb.TextSize = 9
+        tb.ZIndex = 8
+        tb.Parent = timerPresetRow
+        Instance.new("UICorner", tb).CornerRadius = UDim.new(0, 5)
+        styleBtn(tb, T.PanelLt)
+        table.insert(timerPresetBtns, { btn = tb, val = spec.val })
+        tb.MouseButton1Click:Connect(function()
+            sClick()
+            if spec.val then
+                applyChatDelay(spec.val, true)
+            elseif spec.delta then
+                applyChatDelay((tonumber(V.ChatDelay) or 5.0) + spec.delta, false)
+            end
+        end)
+    end
+
+    chatTimerInput.FocusLost:Connect(function()
+        local parsed = tonumber((chatTimerInput.Text or ""):match("[%d%.]+"))
+        if parsed then
+            applyChatDelay(parsed, true)
+        else
+            applyChatDelay(V.ChatDelay or 5.0, false)
+        end
+    end)
+    applyChatDelay(V.ChatDelay or 5.0, false)
+
     local chatStatusLbl = Instance.new("TextLabel")
     chatStatusLbl.Size = UDim2.new(1, 0, 0, 16)
     chatStatusLbl.BackgroundTransparency = 1
-    chatStatusLbl.LayoutOrder = 5
+    chatStatusLbl.LayoutOrder = 9
     chatStatusLbl.Text = "status: idle"
     chatStatusLbl.TextColor3 = T.Muted
     chatStatusLbl.Font = Enum.Font.Gotham
@@ -7265,7 +7484,7 @@ local function buildMainUI()
     local chatBtnRow = Instance.new("Frame")
     chatBtnRow.Size = UDim2.new(1, 0, 0, 32)
     chatBtnRow.BackgroundTransparency = 1
-    chatBtnRow.LayoutOrder = 6
+    chatBtnRow.LayoutOrder = 10
     chatBtnRow.ZIndex = 7
     chatBtnRow.Parent = chatTab
 
@@ -7292,8 +7511,13 @@ local function buildMainUI()
     Instance.new("UICorner", chatStopBtn).CornerRadius = UDim.new(0, 6)
     styleBtn(chatStopBtn, T.Danger)
 
+    local lastLoopMessageTick = 0
     local function chatStartFn()
         if csOn then return end
+        local parsedTimer = tonumber((chatTimerInput.Text or ""):match("[%d%.]+"))
+        if parsedTimer then
+            applyChatDelay(parsedTimer, false)
+        end
         csTgt = (chatTargetInput.Text or ""):gsub("^%s*@+%s*", "")
         csMsg = chatMsgInput.Text
         if csMode == "roast" then
@@ -7317,26 +7541,55 @@ local function buildMainUI()
         csOn = true
         csGen = csGen + 1
         csCnt = 0
-        chatStatusLbl.Text = "running · " .. csMode
+        chatStatusLbl.Text = string.format("running · %s · timer %.1fs", csMode, tonumber(V.ChatDelay) or 5.0)
         chatStatusLbl.TextColor3 = T.Success
         local g = csGen
         task.spawn(function()
+            -- Anti-rapid restart guard: if stopped and restarted before timer elapsed, finish previous cooldown first
+            local sinceLast = tick() - lastLoopMessageTick
+            local initWait = math.clamp(tonumber(V.ChatDelay) or 5.0, 0.5, 60.0) - sinceLast
+            if lastLoopMessageTick > 0 and initWait > 0.1 then
+                local wStart = tick()
+                while csOn and csGen == g do
+                    local rem = initWait - (tick() - wStart)
+                    if rem <= 0 then break end
+                    if chatTimerStatusLbl and chatTimerStatusLbl.Parent then
+                        chatTimerStatusLbl.Text = string.format("⏱️ Cooldown: %.1fs  (Interval: %.1fs)", rem, tonumber(V.ChatDelay) or 5.0)
+                    end
+                    task.wait(0.1)
+                end
+            end
+
             while csOn and csGen == g do
                 local m = bld()
                 if m ~= "" then
                     if snd2(m) then
                         csCnt = csCnt + 1
-                        chatStatusLbl.Text = "running · " .. csMtd .. " · " .. csCnt
+                        lastLoopMessageTick = tick()
+                        chatStatusLbl.Text = "running · " .. csMtd .. " · " .. csCnt .. " sent"
+                        chatStatusLbl.TextColor3 = T.Success
                     else
-                        chatStatusLbl.Text = "failed to send"
-                        chatStatusLbl.TextColor3 = T.Danger
+                        chatStatusLbl.Text = "waiting / rate-limited · " .. csCnt .. " sent"
+                        chatStatusLbl.TextColor3 = T.Warning
                     end
                 end
-                task.wait(CS_D)
+
+                -- Precision Chat Box Timer Countdown Loop (ticks every 0.1s & responds live to timer edits)
+                local waitStart = tick()
+                while csOn and csGen == g do
+                    local activeDelay = math.clamp(tonumber(V.ChatDelay) or 5.0, 0.5, 60.0)
+                    local rem = activeDelay - (tick() - waitStart)
+                    if rem <= 0 then break end
+                    if chatTimerStatusLbl and chatTimerStatusLbl.Parent then
+                        chatTimerStatusLbl.Text = string.format("⏱️ Next message in: %.1fs  (Timer: %.1fs)", rem, activeDelay)
+                        chatTimerStatusLbl.TextColor3 = T.Neon
+                    end
+                    task.wait(0.1)
+                end
             end
         end)
         sToggleOn()
-        notify("KHAMAN DHOKLA", "Chat spammer started")
+        notify("KHAMAN DHOKLA", string.format("Chat spammer started (Timer: %.1fs)", tonumber(V.ChatDelay) or 5.0))
     end
 
     chatStopFn = function()
@@ -7344,6 +7597,10 @@ local function buildMainUI()
         csGen = csGen + 1
         chatStatusLbl.Text = "stopped · " .. csCnt .. " sent"
         chatStatusLbl.TextColor3 = T.Muted
+        if chatTimerStatusLbl and chatTimerStatusLbl.Parent then
+            chatTimerStatusLbl.Text = string.format("⏱️ Timer ready: %.1fs interval between messages", tonumber(V.ChatDelay) or 5.0)
+            chatTimerStatusLbl.TextColor3 = T.Muted
+        end
         sToggleOff()
         notify("KHAMAN DHOKLA", "Chat spammer stopped")
     end
