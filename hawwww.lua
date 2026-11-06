@@ -7154,497 +7154,147 @@ afkStop = function()
 end
 
 -- ═══════════════════════════════════════════════════════════════════════════════
--- 5. COCO ANTI-VC / VC BYPASS V5 ULTRA (3-Mode Engine + Multi-Signal Shield + Keep-Alive + Watchdog)
---    • 3 Bypass Modes: [Hybrid V5 (Re-Handshake + Clone)], [Instant 0s (Direct Hook)], [Deep Reset (Anti-Ban)]
---    • Zero-hang instant multi-layout TopBar / Unibar / Chrome mic button & icon resolver
---    • Neutralizes StateChanged & moderation signals with reversible connection tracking
---    • Anti-AFK Voice Keep-Alive Pulse + Self-Healing TopBar Clone Watchdog
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- 5. VC BYPASS (Original Activation/Mic Logic + Standalone Custom GUI)
+--    • Replaces previous Coco Anti-VC with the exact logic & GUI from vc_original_logic_custom_gui.lua
+--    • Requires executor getconnections; clones CoreGui toggle_mic_mute and hooks IconHitArea_toggle_mic_mute
 -- ═══════════════════════════════════════════════════════════════════════════════
 local vcDisabledConns = {}
-local vcWatchdogConn = nil
-local vcSkipWaitRequested = false
-local vcAutoGuardEnabled = true
-local vcKeepAliveEnabled = true
-local vcShieldedHookCount = 0
-local VC_BYPASS_MODES = {
-    { key = "hybrid",  name = "Hybrid V6 (Full Shield)",   desc = "Leave + Hook Shield + Rejoin + TopBar Clone" },
-    { key = "instant", name = "Instant 0s (No Leave)",     desc = "Direct 0.1s Hook Shield + TopBar Clone without leaving VC" },
-    { key = "deep",    name = "Deep Reset (Anti-Suspend)", desc = "Double Re-Handshake + Full Signal Purge + Unmute Force" },
-    { key = "stealth", name = "Stealth Desync (Fake Mute)", desc = "Displays Muted Icon on TopBar while Mic transmits LIVE" },
-}
-local vcBypassModeIdx = 1
-local vcStrobeEnabled = false
-local vcPttHoldEnabled = false
+local vcStoredFolder = nil
 
-local VC_MUTED_ICON = "rbxasset://textures/ui/VoiceChat/MicLight/Muted.png"
-local VC_UNMUTED_ICON = "rbxasset://textures/ui/VoiceChat/MicLight/Unmuted.png"
-
-local function getVoiceServices()
-    local safeCloneref = cloneref or function(...) return ... end
-    local vcs, vci = nil, nil
-    pcall(function() vcs = safeCloneref(game:GetService("VoiceChatService")) end)
-    pcall(function() vci = safeCloneref(game:GetService("VoiceChatInternal")) end)
-    return vcs, vci
-end
-
--- Instant 0ms non-blocking Mic Icon resolver (supports Classic TopBar, Unibar, Chrome & custom containers)
-local function findMicIcon(btn)
-    if not btn then return nil end
-    local frame = btn:FindFirstChild("IntegrationIconFrame")
-    local integ = frame and frame:FindFirstChild("IntegrationIcon")
-    local direct = integ and (integ:FindFirstChild("1") or integ:FindFirstChildWhichIsA("ImageLabel"))
-    if direct and direct:IsA("ImageLabel") then
-        return direct
-    end
-    for _, d in ipairs(btn:GetDescendants()) do
-        if d:IsA("ImageLabel") then
-            local img = tostring(d.Image or "")
-            if d.Name == "1" or d.Name:lower():find("icon") or d.Name:lower():find("mic") or img:find("VoiceChat") or img:find("Mic") then
-                return d
-            end
-        end
-    end
-    return btn:FindFirstChildWhichIsA("ImageLabel", true)
-end
-
--- Instant multi-layout Mic Button locator in CoreGui (ignores stored original inside CocoVCBypassStore)
-local function findMicButtonAndParent(coreGui, preferCustom)
-    coreGui = coreGui or CoreGui or game:GetService("CoreGui")
-    if not coreGui then return nil, nil end
-    local store = coreGui:FindFirstChild("CocoVCBypassStore") or coreGui:FindFirstChild("AngoorVCBypassStore")
-    local fallbackBtn, fallbackParent = nil, nil
+local function vcNotify(t)
+    print("[VC Bypass] " .. tostring(t))
     pcall(function()
-        for _, v in ipairs(coreGui:GetDescendants()) do
-            if not (store and v:IsDescendantOf(store)) then
-                if preferCustom and v.Name == "toggle_mic_mute_new" and v.Parent then
-                    fallbackBtn, fallbackParent = v, v.Parent
-                    break
-                elseif v.Name == "toggle_mic_mute" and v.Parent then
-                    fallbackBtn, fallbackParent = v, v.Parent
-                    break
-                elseif not fallbackBtn and v.Name == "IconHitArea_toggle_mic_mute" and v.Parent then
-                    local cand = v.Parent
-                    if cand.Parent and cand.Parent.Name:find("toggle_mic") then
-                        cand = cand.Parent
-                    end
-                    fallbackBtn, fallbackParent = cand, cand.Parent
-                end
-            end
-        end
-    end)
-    return fallbackBtn, fallbackParent
-end
-
-local function isMicMutedIcon(imgStr)
-    local s = tostring(imgStr or ""):lower()
-    if s == "" then return false end
-    return (s:find("muted") ~= nil and s:find("unmuted") == nil) or s:find("micoff") ~= nil
-end
-
-local function getVCMicPausedState(vci, iconObj)
-    if vci then
-        local okP, paused = pcall(function() return vci:IsPublishPaused() end)
-        if okP and type(paused) == "boolean" then
-            return paused
-        end
-    end
-    if iconObj and iconObj.Parent then
-        return isMicMutedIcon(iconObj.Image)
-    end
-    return true
-end
-
-local function setVCMicPausedState(vci, pausedState)
-    if not vci then return false end
-    local okP = pcall(function()
-        vci:PublishPause(pausedState == true)
-    end)
-    return okP
-end
-
-local function updateAntiVCVisuals(statusStr, statusCol, btnStr)
-    Anti.VC.statusText = statusStr or Anti.VC.statusText
-    if Anti.VC.statusLbl and Anti.VC.statusLbl.Parent then
-        Anti.VC.statusLbl.Text = statusStr or "Status: Idle"
-        if statusCol then Anti.VC.statusLbl.TextColor3 = statusCol end
-    end
-    if Anti.VC.activateBtn and Anti.VC.activateBtn.Parent and btnStr then
-        Anti.VC.activateBtn.Text = btnStr
-    end
-    if Anti.VC.rowSubLbl and Anti.VC.rowSubLbl.Parent then
-        local modeName = VC_BYPASS_MODES[vcBypassModeIdx] and VC_BYPASS_MODES[vcBypassModeIdx].name or "Hybrid V5"
-        Anti.VC.rowSubLbl.Text = (statusStr or "Status: Idle") .. " · [" .. modeName .. "]"
-    end
-    if Anti.VC.micStateLbl and Anti.VC.micStateLbl.Parent then
-        local _, vci = getVoiceServices()
-        local customBtn = findMicButtonAndParent(nil, true)
-        local ic = findMicIcon(customBtn)
-        local paused = getVCMicPausedState(vci, ic)
-        if Anti.VC.enabled then
-            Anti.VC.micStateLbl.Text = string.format(
-                "Mic: %s  ·  Shielded Hooks: %d",
-                paused and "🔇 MUTED" or "🎙️ LIVE / UNMUTED",
-                vcShieldedHookCount
-            )
-            Anti.VC.micStateLbl.TextColor3 = paused and Color3.fromRGB(255, 190, 90) or Color3.fromRGB(80, 235, 135)
-        else
-            Anti.VC.micStateLbl.Text = string.format(
-                "Mic: %s  ·  Mode: %s",
-                paused and "🔇 Muted" or "🎙️ Unmuted",
-                VC_BYPASS_MODES[vcBypassModeIdx].name
-            )
-            Anti.VC.micStateLbl.TextColor3 = Color3.fromRGB(165, 170, 190)
-        end
-    end
-end
-
-local function disableVCStateChangedConns(vci)
-    if not vci or type(getconnections) ~= "function" then return 0 end
-    local disabledCount = 0
-    pcall(function()
-        local conns = getconnections(vci.StateChanged)
-        if type(conns) == "table" and #conns > 0 then
-            local startIdx = (#conns >= 7) and 7 or math.max(2, math.floor(#conns * 0.5))
-            for i = startIdx, #conns do
-                local c = conns[i]
-                if c then
-                    pcall(function()
-                        c:Disable()
-                        table.insert(vcDisabledConns, c)
-                        disabledCount = disabledCount + 1
-                    end)
-                end
-            end
-        end
-    end)
-    if disabledCount > 0 then
-        vcShieldedHookCount = vcShieldedHookCount + disabledCount
-    end
-    return disabledCount
-end
-
-local function restoreVCStateChangedConns()
-    for i = #vcDisabledConns, 1, -1 do
-        local c = vcDisabledConns[i]
-        if c then
-            pcall(function() c:Enable() end)
-        end
-        vcDisabledConns[i] = nil
-    end
-    vcShieldedHookCount = 0
-end
-
-local function syncCustomMicIconVisual(newIcon, origIcon, paused)
-    if not newIcon or not newIcon.Parent then return end
-    pcall(function()
-        local activeMode = VC_BYPASS_MODES[vcBypassModeIdx]
-        if activeMode and activeMode.key == "stealth" then
-            -- Stealth Desync: always show Muted icon on TopBar even when mic is LIVE!
-            newIcon.Image = VC_MUTED_ICON
-        elseif paused then
-            newIcon.Image = VC_MUTED_ICON
-        else
-            local liveImg = (origIcon and origIcon.Parent and origIcon.Image ~= "" and not isMicMutedIcon(origIcon.Image))
-                and origIcon.Image or VC_UNMUTED_ICON
-            newIcon.Image = liveImg
-        end
+        StarterGui:SetCore("SendNotification", {
+            Title = "VC Bypass",
+            Text = tostring(t),
+            Duration = 5,
+        })
     end)
 end
 
-local function toggleCocoVCMic(explicitPauseState)
-    local _, vci = getVoiceServices()
-    if not vci then
-        notify("Coco Anti-VC V5", "VoiceChatInternal unavailable on this client")
-        return false
-    end
-    local customBtn = findMicButtonAndParent(nil, true) or findMicButtonAndParent(nil, false)
-    local customIcon = findMicIcon(customBtn)
-    local coreGui = CoreGui or game:GetService("CoreGui")
-    local store = coreGui and coreGui:FindFirstChild("CocoVCBypassStore")
-    local origBtn = store and store:FindFirstChild("toggle_mic_mute")
-    local origIcon = findMicIcon(origBtn)
-
-    local currentPaused = getVCMicPausedState(vci, customIcon)
-    local nextPaused = (type(explicitPauseState) == "boolean") and explicitPauseState or (not currentPaused)
-    setVCMicPausedState(vci, nextPaused)
-    syncCustomMicIconVisual(customIcon, origIcon, nextPaused)
-    updateAntiVCVisuals(
-        Anti.VC.enabled and (nextPaused and "Status: Active (Mic Muted)" or "Status: Active (Mic LIVE)") or nil,
-        Anti.VC.enabled and Color3.fromRGB(80, 220, 120) or nil,
-        nil
-    )
-    return not nextPaused
-end
-
-_G.ToggleCocoVCMic = toggleCocoVCMic
-
-local function mountCustomMicButton(coreGui, vci)
-    coreGui = coreGui or CoreGui or game:GetService("CoreGui")
-    if not coreGui then return false end
-    local micBtn, micParent = findMicButtonAndParent(coreGui, false)
-    if not micBtn or not micParent then return false end
-
-    local oldStore = coreGui:FindFirstChild("CocoVCBypassStore") or coreGui:FindFirstChild("AngoorVCBypassStore")
-    if oldStore then
-        local prevOrig = oldStore:FindFirstChild("toggle_mic_mute")
-        if prevOrig and prevOrig ~= micBtn then
-            pcall(function() prevOrig:Destroy() end)
+local function updateVCBypassUI(statusText, statusColor, buttonText)
+    if statusText then
+        Anti.VC.statusText = statusText
+        if Anti.VC.statusLbl and Anti.VC.statusLbl.Parent then
+            Anti.VC.statusLbl.Text = statusText
         end
-        pcall(function() oldStore:Destroy() end)
-    end
-    local oldCustom = micParent:FindFirstChild("toggle_mic_mute_new")
-    if oldCustom then pcall(function() oldCustom:Destroy() end) end
-
-    local storeFolder = Instance.new("Folder")
-    storeFolder.Name = "CocoVCBypassStore"
-    storeFolder.Parent = coreGui
-
-    local newBtn = micBtn:Clone()
-    micBtn.Parent = storeFolder
-
-    newBtn.Name = "toggle_mic_mute_new"
-    newBtn.Parent = micParent
-
-    local newIcon = findMicIcon(newBtn)
-    local origIcon = findMicIcon(micBtn)
-
-    setVCMicPausedState(vci, true)
-    syncCustomMicIconVisual(newIcon, origIcon, true)
-
-    local lastClickTick = 0
-    local function onMicButtonPressed()
-        if tick() - lastClickTick < 0.12 then return end
-        lastClickTick = tick()
-        toggleCocoVCMic()
-    end
-
-    local hitArea = newBtn:FindFirstChild("IconHitArea_toggle_mic_mute", true) or newBtn:FindFirstChildWhichIsA("GuiButton", true)
-    if hitArea and hitArea:IsA("GuiButton") then
-        pcall(function() hitArea.Activated:Connect(onMicButtonPressed) end)
-        pcall(function() hitArea.MouseButton1Click:Connect(onMicButtonPressed) end)
-    end
-    if newBtn:IsA("GuiButton") then
-        pcall(function() newBtn.Activated:Connect(onMicButtonPressed) end)
-        pcall(function() newBtn.MouseButton1Click:Connect(onMicButtonPressed) end)
-    end
-    return true
-end
-
-local function startVCWatchdog()
-    if vcWatchdogConn then vcWatchdogConn:Disconnect(); vcWatchdogConn = nil end
-    local lastCheck = 0
-    local lastKeepAlive = os.clock()
-    local lastStrobe = 0
-    local strobePhase = false
-    vcWatchdogConn = RunService.Heartbeat:Connect(function()
-        if not Anti.VC.enabled then return end
-        local now = os.clock()
-        if vcStrobeEnabled and (now - lastStrobe) >= 0.085 then
-            lastStrobe = now
-            strobePhase = not strobePhase
-            local _, vci = getVoiceServices()
-            if vci then pcall(function() vci:PublishPause(strobePhase) end) end
+        if Anti.VC.rowSubLbl and Anti.VC.rowSubLbl.Parent then
+            Anti.VC.rowSubLbl.Text = statusText
         end
-        if now - lastCheck < 1.1 then return end
-        lastCheck = now
-        pcall(function()
-            local coreGui = CoreGui or game:GetService("CoreGui")
-            local _, vci = getVoiceServices()
-            if not vci then return end
-            if vcAutoGuardEnabled then
-                disableVCStateChangedConns(vci)
-                local customBtn = findMicButtonAndParent(coreGui, true)
-                if not customBtn or not customBtn.Parent then
-                    local rawBtn = findMicButtonAndParent(coreGui, false)
-                    if rawBtn and rawBtn.Parent then
-                        mountCustomMicButton(coreGui, vci)
-                    end
-                end
-            end
-            if vcKeepAliveEnabled and (now - lastKeepAlive) > 18.0 then
-                lastKeepAlive = now
-                local customBtn = findMicButtonAndParent(coreGui, true)
-                local ic = findMicIcon(customBtn)
-                local paused = getVCMicPausedState(vci, ic)
-                pcall(function() vci:PublishPause(paused) end)
-            end
-            updateAntiVCVisuals(nil, nil, nil)
-        end)
-    end)
+    end
+    if statusColor and Anti.VC.statusLbl and Anti.VC.statusLbl.Parent then
+        Anti.VC.statusLbl.TextColor3 = statusColor
+    end
+    if buttonText and Anti.VC.activateBtn and Anti.VC.activateBtn.Parent then
+        Anti.VC.activateBtn.Text = buttonText
+    end
 end
 
-local function forceRejoinAndBypassVC()
-    task.spawn(function()
-        local vcs, vci = getVoiceServices()
-        if not vcs or not vci then
-            notify("Coco Anti-VC V5", "VoiceChat services unavailable")
-            return
-        end
-        updateAntiVCVisuals("Status: Rejoining Voice...", Color3.fromRGB(130, 195, 255), "REJOINING...")
-        pcall(function() vcs:leaveVoice() end)
-        task.wait(0.85)
-        disableVCStateChangedConns(vci)
-        task.wait(0.35)
-        pcall(function() vcs:joinVoice() end)
-        task.wait(0.85)
-        disableVCStateChangedConns(vci)
-        local coreGui = CoreGui or game:GetService("CoreGui")
-        mountCustomMicButton(coreGui, vci)
-        Anti.VC.enabled = true
-        Anti.VC.running = false
-        startVCWatchdog()
-        updateAntiVCVisuals("Status: Active (Rejoined V5)", Color3.fromRGB(80, 220, 120), "COCO ANTI VC V5 ACTIVE")
-        if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-        notify("Coco Anti-VC V5", "Voice stream rejoined & V5 anti-suspension shield locked!")
-        sSuccess()
-    end)
-end
-
-_G.RejoinCocoVC = forceRejoinAndBypassVC
-
-vcStart = function(forceImmediate)
-    if Anti.VC.enabled and not forceImmediate then
-        notify("Coco Anti-VC V5", "Coco Anti-VC V5 is already active!")
+vcStart = function()
+    if Anti.VC.running or Anti.VC.enabled then
+        vcNotify(Anti.VC.enabled and "Already active" or "Already running")
         return
     end
-    if Anti.VC.running then
-        if forceImmediate then
-            vcSkipWaitRequested = true
-            notify("Coco Anti-VC V5", "Skipping unmute wait — executing V5 bypass now!")
-        else
-            notify("Coco Anti-VC V5", "Bypass is waiting for mic unmute (or click Force Now in panel)")
-        end
-        return
-    end
-
-    local activeMode = VC_BYPASS_MODES[vcBypassModeIdx] or VC_BYPASS_MODES[1]
     Anti.VC.running = true
-    vcSkipWaitRequested = (forceImmediate == true) or (activeMode.key == "instant")
-    updateAntiVCVisuals("Status: Initializing " .. activeMode.name .. "...", Color3.fromRGB(255, 200, 80), "STARTING V5...")
+    updateVCBypassUI("Status: Waiting for unmute...", Color3.new(1, 1, 1), "WORKING...")
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    sToggleOn()
 
     task.spawn(function()
         local ok, err = pcall(function()
-            local VoiceChatService, VoiceChatInternal = getVoiceServices()
-            if not VoiceChatService or not VoiceChatInternal then
-                error("VoiceChatService / VoiceChatInternal not available")
-            end
+            -- Original feature logic below, with original CoreGui mic clone and its own hit area.
+            local cloneref_ = cloneref or function(x) return x end
+            local clonefunction_ = clonefunction or function(x) return x end
+            local voice = cloneref_(game:GetService("VoiceChatService"))
+            local internal = cloneref_(game:GetService("VoiceChatInternal"))
+            local callback = clonefunction_(getconnections)
+            local folder = Instance.new("Folder", game:GetService("RobloxReplicatedStorage"))
+            vcStoredFolder = folder
+            local originalParent = nil
+            local originalMic = nil
             local coreGui = CoreGui or game:GetService("CoreGui")
-
-            local micBtn, micParent = findMicButtonAndParent(coreGui, false)
-            if not micBtn then
-                updateAntiVCVisuals("Status: Joining Voice Chat...", Color3.fromRGB(255, 200, 80), "JOINING VC...")
-                pcall(function() VoiceChatService:joinVoice() end)
-                local joinWaitStart = tick()
-                while not micBtn and (tick() - joinWaitStart) < 2.2 do
-                    task.wait(0.15)
-                    micBtn, micParent = findMicButtonAndParent(coreGui, false)
-                end
-            end
-
-            -- Fast Mode 2: Instant 0s Direct Hook (no leave/rejoin voice drop!)
-            if activeMode.key == "instant" then
-                disableVCStateChangedConns(VoiceChatInternal)
-                mountCustomMicButton(coreGui, VoiceChatInternal)
-                pcall(function() VoiceChatInternal:PublishPause(false) end)
-                Anti.VC.running = false
-                Anti.VC.enabled = true
-                vcSkipWaitRequested = false
-                startVCWatchdog()
-                updateAntiVCVisuals("Status: Active (Instant 0s Hook)", Color3.fromRGB(80, 220, 120), "COCO ANTI VC V5 ACTIVE")
-                if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-                notify("Coco Anti-VC V5", "Instant 0s Direct Hook Bypass active!")
-                sSuccess()
-                return
-            end
-
-            local icon = findMicIcon(micBtn)
-            local alreadyUnmuted = not getVCMicPausedState(VoiceChatInternal, icon)
-
-            if not alreadyUnmuted then
-                pcall(function() VoiceChatInternal:PublishPause(false) end)
-                task.wait(0.15)
-                icon = findMicIcon(micBtn) or icon
-                alreadyUnmuted = not getVCMicPausedState(VoiceChatInternal, icon)
-            end
-
-            if not alreadyUnmuted and not vcSkipWaitRequested then
-                updateAntiVCVisuals("Status: Unmute Mic (or tap Force)...", Color3.fromRGB(255, 200, 80), "WAITING UNMUTE...")
-                notify("Coco Anti-VC V5", "Unmute your mic once (or tap Force Bypass in panel) to lock V5 bypass")
-                local startTick = tick()
-                while (tick() - startTick) < 45 do
-                    if not Anti.VC.running then
-                        error("Cancelled")
-                    end
-                    if vcSkipWaitRequested then
+            pcall(function()
+                for _, descendant in ipairs(coreGui:GetDescendants()) do
+                    if descendant.Name == "toggle_mic_mute" then
+                        originalMic = descendant
+                        originalParent = descendant.Parent
                         break
                     end
-                    micBtn, micParent = findMicButtonAndParent(coreGui, false)
-                    icon = findMicIcon(micBtn) or icon
-                    local pausedNow = getVCMicPausedState(VoiceChatInternal, icon)
-                    if not pausedNow then
-                        break
+                end
+            end)
+            local function getIcon(arg)
+                return (arg or originalMic):WaitForChild("IntegrationIconFrame", 15):WaitForChild("IntegrationIcon", 15)["1"]
+            end
+            local function isPaused() return internal:IsPublishPaused() end
+            local function setPaused(value) internal:PublishPause(value) end
+            if not originalMic then
+                voice:joinVoice()
+                pcall(function()
+                    if originalParent then
+                        originalMic = originalParent:WaitForChild("toggle_mic_mute", 15)
+                    else
+                        for _, descendant in ipairs(coreGui:GetDescendants()) do
+                            if descendant.Name == "toggle_mic_mute" then
+                                originalMic = descendant
+                                originalParent = descendant.Parent
+                                break
+                            end
+                        end
                     end
-                    task.wait(0.08)
+                end)
+                if not originalMic then error("Mic button not found") end
+            end
+            vcNotify("Unmute your mic to continue")
+            repeat
+                task.wait(2)
+            until getIcon().Image ~= "rbxasset://textures/ui/VoiceChat/MicLight/Muted.png"
+            voice:leaveVoice()
+            task.wait(2)
+            local connections = callback(internal.StateChanged)
+            vcDisabledConns = {}
+            for i = 7, #connections do
+                if connections[i] then
+                    connections[i]:Disable()
+                    table.insert(vcDisabledConns, connections[i])
                 end
             end
-
-            if not Anti.VC.running then
-                error("Cancelled")
-            end
-
-            -- Stage 1: Leave Voice Chat cleanly
-            updateAntiVCVisuals("Status: Stage 1/3 Leaving Voice...", Color3.fromRGB(130, 195, 255), "STAGE 1/3...")
+            task.wait(2)
+            voice:joinVoice()
             pcall(function()
-                VoiceChatService:leaveVoice()
+                if originalParent then originalMic = originalParent:WaitForChild("toggle_mic_mute", 15) end
             end)
-            task.wait(activeMode.key == "deep" and 1.55 or 1.1)
-
-            -- Stage 2: Neutralize VoiceChatInternal.StateChanged moderation & disconnect handlers
-            updateAntiVCVisuals("Status: Stage 2/3 Hooking StateChanged...", Color3.fromRGB(175, 130, 255), "STAGE 2/3...")
-            disableVCStateChangedConns(VoiceChatInternal)
-            task.wait(activeMode.key == "deep" and 1.15 or 0.8)
-
-            -- Stage 3: Rejoin Voice Chat & mount custom TopBar controller
-            updateAntiVCVisuals("Status: Stage 3/3 Rejoining Voice...", Color3.fromRGB(110, 225, 175), "STAGE 3/3...")
-            pcall(function()
-                VoiceChatService:joinVoice()
-            end)
-            task.wait(0.95)
-            disableVCStateChangedConns(VoiceChatInternal)
-
-            if activeMode.key == "deep" then
-                pcall(function() VoiceChatInternal:PublishPause(false) end)
-                task.wait(0.18)
+            if originalMic and originalParent then
+                local clonedMic = originalMic:Clone()
+                originalMic.Parent = folder
+                clonedMic.Name = "toggle_mic_mute_new"
+                clonedMic.Parent = originalParent
+                local clonedIcon = getIcon(clonedMic)
+                local originalIcon = getIcon(originalMic)
+                setPaused(true)
+                clonedIcon.Image = "rbxasset://textures/ui/VoiceChat/MicLight/Muted.png"
+                clonedMic:WaitForChild("IconHitArea_toggle_mic_mute", 15).Activated:Connect(function()
+                    -- Same original handler: click cloned Roblox mic icon to toggle.
+                    local paused = not isPaused()
+                    setPaused(paused)
+                    if paused then
+                        clonedIcon.Image = "rbxasset://textures/ui/VoiceChat/MicLight/Muted.png"
+                    else
+                        clonedIcon.Image = originalIcon.Image
+                    end
+                end)
             end
-
-            mountCustomMicButton(coreGui, VoiceChatInternal)
-
-            Anti.VC.running = false
-            Anti.VC.enabled = true
-            vcSkipWaitRequested = false
-            startVCWatchdog()
-            updateAntiVCVisuals("Status: Active (" .. activeMode.name .. ")", Color3.fromRGB(80, 220, 120), "COCO ANTI VC V5 ACTIVE")
-            if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-            notify("Coco Anti-VC V5", "Coco Anti-VC V5 (" .. activeMode.name .. ") activated!")
-            sSuccess()
         end)
-
-        if not ok then
-            Anti.VC.running = false
-            Anti.VC.enabled = false
-            vcSkipWaitRequested = false
-            local errMsg = tostring(err)
-            if errMsg:find("Cancelled") then
-                updateAntiVCVisuals("Status: Idle", Color3.fromRGB(160, 165, 185), "ACTIVATE COCO ANTI VC V5")
-            else
-                updateAntiVCVisuals("Status: Failed (" .. errMsg:sub(1, 26) .. ")", Color3.fromRGB(255, 80, 80), "RETRY V5 BYPASS")
-                notify("Coco Anti-VC V5", "Error: " .. errMsg)
-                warn("[COCO POWDER] Coco Anti-VC V5 error:", err)
-                sError()
-            end
+        Anti.VC.running = false
+        if ok then
+            Anti.VC.enabled = true
+            updateVCBypassUI("Status: Active", Color3.fromRGB(102, 235, 150), "ANTI VC ACTIVE")
             if syncAllAntiButtons then pcall(syncAllAntiButtons) end
+            vcNotify("Sequence completed. Toggle mic using the cloned Roblox mic icon.")
+        else
+            Anti.VC.enabled = false
+            updateVCBypassUI("Status: Failed", Color3.fromRGB(255, 118, 118), "RETRY")
+            if syncAllAntiButtons then pcall(syncAllAntiButtons) end
+            vcNotify("Error: " .. tostring(err))
         end
     end)
 end
@@ -7653,1860 +7303,138 @@ vcStop = function()
     if not Anti.VC.enabled and not Anti.VC.running then return end
     Anti.VC.running = false
     Anti.VC.enabled = false
-    vcSkipWaitRequested = false
-    if vcWatchdogConn then
-        vcWatchdogConn:Disconnect()
-        vcWatchdogConn = nil
+    for i = #vcDisabledConns, 1, -1 do
+        local c = vcDisabledConns[i]
+        if c then pcall(function() c:Enable() end) end
+        vcDisabledConns[i] = nil
     end
-    restoreVCStateChangedConns()
     pcall(function()
         local coreGui = CoreGui or game:GetService("CoreGui")
-        local store = coreGui and (coreGui:FindFirstChild("CocoVCBypassStore") or coreGui:FindFirstChild("AngoorVCBypassStore"))
-        if store then
-            local origBtn = store:FindFirstChild("toggle_mic_mute")
-            for _, v in ipairs(coreGui:GetDescendants()) do
-                if v.Name == "toggle_mic_mute_new" and v.Parent then
-                    if origBtn then
-                        origBtn.Parent = v.Parent
+        if vcStoredFolder and vcStoredFolder.Parent then
+            local origMic = vcStoredFolder:FindFirstChild("toggle_mic_mute")
+            if coreGui then
+                for _, v in ipairs(coreGui:GetDescendants()) do
+                    if v.Name == "toggle_mic_mute_new" and v.Parent then
+                        if origMic then origMic.Parent = v.Parent end
+                        v:Destroy()
+                        break
                     end
-                    v:Destroy()
-                    break
                 end
             end
-            store:Destroy()
+            vcStoredFolder:Destroy()
+            vcStoredFolder = nil
         end
     end)
-    updateAntiVCVisuals("Status: Idle", Color3.fromRGB(160, 165, 185), "ACTIVATE COCO ANTI VC V5")
+    updateVCBypassUI("Status: Not active", Color3.new(1, 1, 1), "Activate VC Bypass")
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("Coco Anti-VC V5", "Coco Anti-VC V5 reset to Idle")
-    sToggleOff()
+    vcNotify("VC Bypass reset")
+end
+
+local function openStandaloneOriginalVCGUI()
+    local host
+    if type(gethui) == "function" then
+        local ok, value = pcall(gethui)
+        if ok and typeof(value) == "Instance" then host = value end
+    end
+    host = host or CoreGui or (LP and LP:FindFirstChildOfClass("PlayerGui"))
+    if not host then return end
+
+    local previous = host:FindFirstChild("StandaloneOriginalVCGUI")
+    if previous then
+        previous:Destroy()
+        return
+    end
+
+    local vcGui = Instance.new("ScreenGui")
+    vcGui.Name = "StandaloneOriginalVCGUI"
+    vcGui.ResetOnSpawn = false
+    vcGui.IgnoreGuiInset = true
+    vcGui.DisplayOrder = 999999
+    pcall(function() if syn and syn.protect_gui then syn.protect_gui(vcGui) end end)
+    vcGui.Parent = host
+
+    local function make(class, parent, props)
+        local o = Instance.new(class)
+        for k, v in pairs(props) do o[k] = v end
+        o.Parent = parent
+        return o
+    end
+
+    local panel = make("Frame", vcGui, {
+        Size = UDim2.fromOffset(320, 155),
+        Position = UDim2.new(0.5, -160, 0.35, 0),
+        BackgroundColor3 = Color3.fromRGB(29, 31, 41),
+        BorderSizePixel = 0,
+        Active = true,
+        Draggable = true,
+    })
+    make("UICorner", panel, { CornerRadius = UDim.new(0, 10) })
+
+    make("TextLabel", panel, {
+        Size = UDim2.new(1, -55, 0, 34),
+        Position = UDim2.fromOffset(12, 6),
+        Text = "VC BYPASS",
+        TextColor3 = Color3.new(1, 1, 1),
+        BackgroundTransparency = 1,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Font = Enum.Font.GothamBold,
+        TextSize = 17,
+    })
+
+    local close = make("TextButton", panel, {
+        Size = UDim2.fromOffset(30, 28),
+        Position = UDim2.new(1, -37, 0, 8),
+        Text = "X",
+        BackgroundColor3 = Color3.fromRGB(146, 54, 67),
+        TextColor3 = Color3.new(1, 1, 1),
+        Font = Enum.Font.GothamBold,
+    })
+
+    local status = make("TextLabel", panel, {
+        Size = UDim2.new(1, -24, 0, 35),
+        Position = UDim2.fromOffset(12, 44),
+        Text = Anti.VC.enabled and "Status: Active" or (Anti.VC.running and "Status: Waiting for unmute..." or "Status: Not active"),
+        TextColor3 = Anti.VC.enabled and Color3.fromRGB(102, 235, 150) or Color3.new(1, 1, 1),
+        BackgroundColor3 = Color3.fromRGB(43, 46, 58),
+        Font = Enum.Font.Gotham,
+        TextSize = 14,
+    })
+
+    local button = make("TextButton", panel, {
+        Size = UDim2.new(1, -24, 0, 43),
+        Position = UDim2.fromOffset(12, 91),
+        Text = Anti.VC.enabled and "ANTI VC ACTIVE" or (Anti.VC.running and "WORKING..." or "Activate VC Bypass"),
+        TextColor3 = Color3.new(1, 1, 1),
+        BackgroundColor3 = Color3.fromRGB(61, 109, 207),
+        Font = Enum.Font.GothamBold,
+        TextSize = 15,
+    })
+
+    for _, b in ipairs({ close, status, button }) do
+        make("UICorner", b, { CornerRadius = UDim.new(0, 6) })
+    end
+
+    Anti.VC.statusLbl = status
+    Anti.VC.activateBtn = button
+
+    close.MouseButton1Click:Connect(function()
+        vcGui:Destroy()
+    end)
+
+    button.MouseButton1Click:Connect(function()
+        vcStart()
+    end)
+
+    vcNotify("GUI loaded")
 end
 
 _G.ActivateCocoAntiVC = vcStart
 _G.ActivateTeslaAntiVC = vcStart
-
-
--- ═══════════════════════════════════════════════════════════════════════════════
--- 🛡️ COCO ANTI-VC BYPASS SUITE V7 + COCO ANTI-VCB 2 DIAGNOSTIC + HIDE/MUTE VC
---    (Integrated from MortalHub Full VC Bypass & Rebranded as Coco Anti-VC Bypass)
---    • Fixed all boolean tokens (0 syntax errors), nil micParent re-scan, and
---      Unibar / ExperienceChat ImageLabel + IsPublishPaused() fallbacks
---    • Includes:
---      1. Coco Anti-VCB 2 Floating Diagnostic & 6-Step Bypass Window
---      2. Coco One-Click Auto VC Bypass (StateChanged 7+ Disabler + TopBar Clone)
---      3. Coco Anti-VC Bypass 4-Tab Suite (Coco VC Bypass | Coco Anti-VCB 2 | Hide & Mute VC | Anti-Stuffs)
--- ═══════════════════════════════════════════════════════════════════════════════
-local launchCocoAntiVCB2
-local runCocoOneClickVCBypass
-local launchCocoAntiVCBypassSuite
-
-;(function()
-    local _cloneref = (type(cloneref) == "function" and cloneref) or function(x) return x end
-    local _clonefunction = (type(clonefunction) == "function" and clonefunction) or function(fn) return fn end
-
-    local function safeService(name)
-        local ok, svc = pcall(function()
-            return _cloneref(game:GetService(name))
-        end)
-        if ok and svc then
-            return svc
-        end
-        local ok2, svc2 = pcall(function()
-            return game:GetService(name)
-        end)
-        return (ok2 and svc2) or nil
-    end
-
-    local vcPlayers = safeService("Players")
-    local vcRunService = safeService("RunService")
-    local vcTweenService = safeService("TweenService")
-    local vcCoreGui = safeService("CoreGui")
-    local vcStarterGui = safeService("StarterGui")
-    local vcWorkspace = safeService("Workspace") or workspace
-    local vcLighting = safeService("Lighting")
-    local vcVirtualUser = safeService("VirtualUser")
-    local vcRobloxReplicatedStorage = safeService("RobloxReplicatedStorage")
-
-    local vcLocalPlayer = vcPlayers and vcPlayers.LocalPlayer
-
-    local function getGuiParent()
-        if type(gethui) == "function" then
-            local ok, hui = pcall(gethui)
-            if ok and hui then return hui end
-        end
-        if vcCoreGui then return vcCoreGui end
-        if vcLocalPlayer then
-            return vcLocalPlayer:FindFirstChildOfClass("PlayerGui")
-        end
-        return nil
-    end
-
-    local vcTheme = {
-        bg = Color3.fromRGB(12, 12, 16),
-        bgCard = Color3.fromRGB(18, 18, 24),
-        surface = Color3.fromRGB(24, 24, 32),
-        surfaceHover = Color3.fromRGB(34, 34, 44),
-        input = Color3.fromRGB(20, 20, 28),
-        accent = Color3.fromRGB(140, 190, 255),
-        accentDim = Color3.fromRGB(70, 100, 160),
-        success = Color3.fromRGB(80, 220, 130),
-        warning = Color3.fromRGB(240, 190, 70),
-        danger = Color3.fromRGB(240, 85, 85),
-        dangerDim = Color3.fromRGB(140, 45, 45),
-        white = Color3.fromRGB(255, 255, 255),
-        black = Color3.fromRGB(0, 0, 0),
-        text = Color3.fromRGB(230, 230, 240),
-        textMuted = Color3.fromRGB(145, 145, 165),
-        textDim = Color3.fromRGB(95, 95, 115),
-        divider = Color3.fromRGB(42, 42, 54),
-    }
-
-    local function vcAddCorner(parent, radius)
-        local corner = Instance.new("UICorner")
-        corner.CornerRadius = UDim.new(0, radius or 8)
-        corner.Parent = parent
-        return corner
-    end
-
-    local function vcAddStroke(parent, color, thickness, transparency)
-        local st = Instance.new("UIStroke")
-        st.Color = color or vcTheme.accent
-        st.Thickness = thickness or 1
-        st.Transparency = transparency or 0.5
-        st.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-        st.Parent = parent
-        return st
-    end
-
-    local function vcTween(obj, props, duration)
-        if not obj or not obj.Parent or not vcTweenService then return end
-        local info = TweenInfo.new(duration or 0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-        local ok, tw = pcall(function()
-            return vcTweenService:Create(obj, info, props)
-        end)
-        if ok and tw then
-            tw:Play()
-            return tw
-        end
-    end
-
-    local function vcSendNotification(title, msgText, duration)
-        if notify then
-            pcall(notify, tostring(title or "Coco Anti-VC Bypass"), tostring(msgText or ""))
-        elseif vcStarterGui then
-            pcall(function()
-                vcStarterGui:SetCore("SendNotification", {
-                    Title = tostring(title or "Coco Anti-VC Bypass"),
-                    Text = tostring(msgText or ""),
-                    Duration = tonumber(duration) or 3,
-                })
-            end)
-        end
-    end
-
-    local function vcMakeDraggable(dragHandle, targetFrame)
-        local dragging = false
-        local dragStart = nil
-        local startPos = nil
-
-        dragHandle.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                dragging = true
-                dragStart = input.Position
-                startPos = targetFrame.Position
-                input.Changed:Connect(function()
-                    if input.UserInputState == Enum.UserInputState.End then
-                        dragging = false
-                    end
-                end)
-            end
-        end)
-
-        dragHandle.InputChanged:Connect(function(input)
-            if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-                local delta = input.Position - dragStart
-                targetFrame.Position = UDim2.new(
-                    startPos.X.Scale,
-                    startPos.X.Offset + delta.X,
-                    startPos.Y.Scale,
-                    startPos.Y.Offset + delta.Y
-                )
-            end
-        end)
-    end
-
-    local function vcFindMicButton(timeout)
-        local deadline = os.clock() + (timeout or 0)
-        repeat
-            local foundBtn, foundParent = findMicButtonAndParent(vcCoreGui, false)
-            if not foundBtn then
-                pcall(function()
-                    if vcCoreGui then
-                        for _, desc in ipairs(vcCoreGui:GetDescendants()) do
-                            if desc.Name == "toggle_mic_mute" or desc.Name == "toggle_mic_mute_new" then
-                                foundBtn = desc
-                                foundParent = desc.Parent
-                                break
-                            end
-                        end
-                    end
-                end)
-            end
-            if foundBtn then
-                return foundBtn, foundParent
-            end
-            if timeout and os.clock() < deadline then
-                task.wait(0.2)
-            end
-        until not timeout or os.clock() >= deadline
-        return nil, nil
-    end
-
-    local function vcGetMicIcon(btn)
-        if not btn then return nil end
-        local fastIcon = findMicIcon(btn)
-        if fastIcon then return fastIcon end
-        local icon = nil
-        pcall(function()
-            local f1 = btn:FindFirstChild("IntegrationIconFrame", true) or btn:WaitForChild("IntegrationIconFrame", 1.5)
-            if f1 then
-                local f2 = f1:FindFirstChild("IntegrationIcon", true) or f1:WaitForChild("IntegrationIcon", 1.5)
-                if f2 then
-                    icon = f2:FindFirstChild("1") or f2:FindFirstChildWhichIsA("ImageLabel", true)
-                end
-            end
-            if not icon then
-                icon = btn:FindFirstChildWhichIsA("ImageLabel", true)
-            end
-        end)
-        return icon
-    end
-
-    local function vcIsMicCurrentlyUnmuted(btn)
-        local _, vci = getVoiceServices()
-        if vci then
-            local ok, paused = pcall(function()
-                return vci:IsPublishPaused()
-            end)
-            if ok and paused == false then
-                return true
-            end
-        end
-        local icon = vcGetMicIcon(btn)
-        if icon and icon:IsA("ImageLabel") then
-            local img = tostring(icon.Image or "")
-            if img ~= "" and not isMicMutedIcon(img) then
-                return true
-            end
-        end
-        return false
-    end
-
-    -- [1] STANDALONE COCO ANTI-VCB 2 FLOATING DIAGNOSTIC & BYPASS GUI
-    launchCocoAntiVCB2 = function()
-        local vcs, vci = getVoiceServices()
-        local capabilities = {
-            cloneref = type(cloneref) == "function",
-            clonefunction = type(clonefunction) == "function",
-            getconnections = type(getconnections) == "function",
-            identifyexecutor = type(identifyexecutor) == "function",
-        }
-
-        local executorName = "Unknown"
-        if capabilities.identifyexecutor then
-            pcall(function()
-                executorName = tostring(identifyexecutor())
-            end)
-        end
-
-        local guiParent = getGuiParent()
-        if not guiParent then
-            warn("[Coco Anti-VC Bypass] Could not find CoreGui / PlayerGui.")
-            return
-        end
-
-        local existing = guiParent:FindFirstChild("CocoVCBypassTool") or guiParent:FindFirstChild("VCBypassTool")
-        if existing then
-            existing:Destroy()
-            return
-        end
-
-        local screenGui = Instance.new("ScreenGui")
-        screenGui.Name = "CocoVCBypassTool"
-        screenGui.ResetOnSpawn = false
-        screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-        screenGui.DisplayOrder = 1000003
-        pcall(function() screenGui.Parent = guiParent end)
-        if not screenGui.Parent and vcLocalPlayer then
-            pcall(function() screenGui.Parent = vcLocalPlayer:FindFirstChildOfClass("PlayerGui") end)
-        end
-
-        local logger = { lines = {}, callbacks = {} }
-        function logger.log(level, msg)
-            local entry = {
-                level = level,
-                msg = tostring(msg),
-                time = os.date("%H:%M:%S"),
-            }
-            table.insert(logger.lines, entry)
-            if #logger.lines > 200 then
-                table.remove(logger.lines, 1)
-            end
-            for _, cb in ipairs(logger.callbacks) do
-                pcall(cb, entry)
-            end
-            print(("[COCO VC][%s] %s"):format(level:upper(), entry.msg))
-        end
-        function logger.info(msg) logger.log("info", msg) end
-        function logger.ok(msg)   logger.log("ok", msg)   end
-        function logger.warn(msg) logger.log("warn", msg) end
-        function logger.err(msg)  logger.log("err", msg)  end
-
-        local mainFrame = Instance.new("Frame")
-        mainFrame.Name = "Main"
-        mainFrame.Size = UDim2.new(0, 480, 0, 540)
-        mainFrame.Position = UDim2.new(0.5, -240, 0.5, -270)
-        mainFrame.BackgroundColor3 = vcTheme.bg
-        mainFrame.BorderSizePixel = 0
-        mainFrame.Active = true
-        mainFrame.ClipsDescendants = true
-        mainFrame.Parent = screenGui
-        vcAddCorner(mainFrame, 14)
-        vcAddStroke(mainFrame, vcTheme.accent, 1.5, 0.4)
-
-        local header = Instance.new("Frame")
-        header.Size = UDim2.new(1, 0, 0, 44)
-        header.BackgroundColor3 = vcTheme.bgCard
-        header.BorderSizePixel = 0
-        header.Parent = mainFrame
-        vcAddCorner(header, 14)
-
-        local dot = Instance.new("Frame")
-        dot.Size = UDim2.new(0, 8, 0, 8)
-        dot.Position = UDim2.new(0, 16, 0.5, -4)
-        dot.BackgroundColor3 = vcTheme.accent
-        dot.BorderSizePixel = 0
-        dot.Parent = header
-        vcAddCorner(dot, 4)
-
-        local titleLabel = Instance.new("TextLabel")
-        titleLabel.Size = UDim2.new(1, -100, 1, 0)
-        titleLabel.Position = UDim2.new(0, 34, 0, 0)
-        titleLabel.BackgroundTransparency = 1
-        titleLabel.Text = "COCO ANTI-VC BYPASS — DIAGNOSTIC TOOL (ANTI-VCB 2)"
-        titleLabel.Font = Enum.Font.GothamBold
-        titleLabel.TextSize = 13
-        titleLabel.TextColor3 = vcTheme.text
-        titleLabel.TextXAlignment = Enum.TextXAlignment.Left
-        titleLabel.Parent = header
-
-        local closeBtn = Instance.new("TextButton")
-        closeBtn.Size = UDim2.new(0, 28, 0, 28)
-        closeBtn.Position = UDim2.new(1, -38, 0.5, -14)
-        closeBtn.BackgroundColor3 = vcTheme.surface
-        closeBtn.Text = "×"
-        closeBtn.Font = Enum.Font.GothamBold
-        closeBtn.TextSize = 16
-        closeBtn.TextColor3 = vcTheme.textMuted
-        closeBtn.BorderSizePixel = 0
-        closeBtn.AutoButtonColor = false
-        closeBtn.Parent = header
-        vcAddCorner(closeBtn, 6)
-        closeBtn.MouseEnter:Connect(function()
-            vcTween(closeBtn, { BackgroundColor3 = vcTheme.danger, TextColor3 = vcTheme.white }, 0.15)
-        end)
-        closeBtn.MouseLeave:Connect(function()
-            vcTween(closeBtn, { BackgroundColor3 = vcTheme.surface, TextColor3 = vcTheme.textMuted }, 0.15)
-        end)
-        closeBtn.MouseButton1Click:Connect(function()
-            screenGui:Destroy()
-        end)
-
-        vcMakeDraggable(header, mainFrame)
-
-        local capCard = Instance.new("Frame")
-        capCard.Size = UDim2.new(1, -20, 0, 100)
-        capCard.Position = UDim2.new(0, 10, 0, 54)
-        capCard.BackgroundColor3 = vcTheme.bgCard
-        capCard.BorderSizePixel = 0
-        capCard.Parent = mainFrame
-        vcAddCorner(capCard, 10)
-        vcAddStroke(capCard, vcTheme.surface, 1, 0.4)
-
-        local capHeader = Instance.new("TextLabel")
-        capHeader.Size = UDim2.new(1, -20, 0, 18)
-        capHeader.Position = UDim2.new(0, 12, 0, 6)
-        capHeader.BackgroundTransparency = 1
-        capHeader.Text = "CAPABILITY PROBE  •  " .. executorName
-        capHeader.Font = Enum.Font.GothamBold
-        capHeader.TextSize = 10
-        capHeader.TextColor3 = vcTheme.accent
-        capHeader.TextXAlignment = Enum.TextXAlignment.Left
-        capHeader.Parent = capCard
-
-        local function capRow(y, label, ok, note)
-            local row = Instance.new("Frame")
-            row.Size = UDim2.new(1, -20, 0, 16)
-            row.Position = UDim2.new(0, 12, 0, y)
-            row.BackgroundTransparency = 1
-            row.Parent = capCard
-
-            local ind = Instance.new("Frame")
-            ind.Size = UDim2.new(0, 7, 0, 7)
-            ind.Position = UDim2.new(0, 0, 0.5, -3.5)
-            ind.BackgroundColor3 = ok and vcTheme.success or vcTheme.danger
-            ind.BorderSizePixel = 0
-            ind.Parent = row
-            vcAddCorner(ind, 4)
-
-            local lbl = Instance.new("TextLabel")
-            lbl.Size = UDim2.new(1, -18, 1, 0)
-            lbl.Position = UDim2.new(0, 14, 0, 0)
-            lbl.BackgroundTransparency = 1
-            lbl.Text = label .. (note and ("  —  " .. note) or "")
-            lbl.Font = Enum.Font.Gotham
-            lbl.TextSize = 10
-            lbl.TextColor3 = ok and vcTheme.text or vcTheme.textMuted
-            lbl.TextXAlignment = Enum.TextXAlignment.Left
-            lbl.Parent = row
-        end
-
-        capRow(24, "cloneref", capabilities.cloneref, capabilities.cloneref and "available" or "using identity fallback")
-        capRow(40, "clonefunction", capabilities.clonefunction, capabilities.clonefunction and "available" or "using identity fallback")
-        capRow(56, "getconnections", capabilities.getconnections, capabilities.getconnections and "CRITICAL — required" or "MISSING — bypass cannot run")
-        capRow(72, "VoiceChatInternal", vci ~= nil, vci and "reached" or "not exposed by this executor")
-
-        local function makeButton(parent, y, btnText, color, callback)
-            local btn = Instance.new("TextButton")
-            btn.Size = UDim2.new(1, -20, 0, 34)
-            btn.Position = UDim2.new(0, 10, 0, y)
-            btn.BackgroundColor3 = color or vcTheme.surface
-            btn.BorderSizePixel = 0
-            btn.Text = btnText
-            btn.Font = Enum.Font.GothamBold
-            btn.TextSize = 11
-            btn.TextColor3 = vcTheme.text
-            btn.AutoButtonColor = false
-            btn.Parent = parent
-            vcAddCorner(btn, 8)
-            vcAddStroke(btn, vcTheme.surface, 1, 0.3)
-            btn.MouseEnter:Connect(function() vcTween(btn, { BackgroundColor3 = vcTheme.surfaceHover }, 0.12) end)
-            btn.MouseLeave:Connect(function() vcTween(btn, { BackgroundColor3 = color or vcTheme.surface }, 0.12) end)
-            btn.MouseButton1Click:Connect(function()
-                local origText = btnText
-                btn.Text = "Working…"
-                task.spawn(function()
-                    local ok, err = pcall(callback)
-                    if not ok then
-                        logger.err("Handler error: " .. tostring(err))
-                    end
-                    if btn and btn.Parent then
-                        btn.Text = origText
-                    end
-                end)
-            end)
-            return btn
-        end
-
-        local baseY = 164
-
-        makeButton(mainFrame, baseY + 0, "[1] DIAGNOSE  —  scan state", vcTheme.surface, function()
-            vcs, vci = getVoiceServices()
-            logger.info("Running Coco Anti-VC diagnostics...")
-            logger.info("Executor: " .. executorName)
-            logger.info("cloneref: " .. tostring(capabilities.cloneref))
-            logger.info("clonefunction: " .. tostring(capabilities.clonefunction))
-            logger.info("getconnections: " .. tostring(capabilities.getconnections))
-            if vci then
-                local ok, paused = pcall(function() return vci:IsPublishPaused() end)
-                logger.info("IsPublishPaused: " .. (ok and tostring(paused) or "error"))
-            else
-                logger.warn("VoiceChatInternal not available")
-            end
-            local micBtn = vcFindMicButton(0)
-            if micBtn then
-                logger.ok("Mic button found at: " .. micBtn:GetFullName())
-            else
-                logger.warn("Mic button NOT found. Click button [2] to force join voice first.")
-            end
-        end)
-
-        makeButton(mainFrame, baseY + 42, "[2] JOIN VOICE  —  spawn mic UI", vcTheme.surface, function()
-            vcs, vci = getVoiceServices()
-            if not vcs then return logger.err("VoiceChatService unavailable") end
-            logger.info("Calling joinVoice()...")
-            local ok, err = pcall(function() vcs:joinVoice() end)
-            if ok then
-                logger.ok("joinVoice() OK — waiting up to 5s for mic UI...")
-                local micBtn = vcFindMicButton(5)
-                if micBtn then
-                    logger.ok("Mic button now present: " .. micBtn:GetFullName())
-                else
-                    logger.warn("Mic button still not found. Try enabling VC in Roblox settings manually.")
-                end
-            else
-                logger.err("joinVoice() failed: " .. tostring(err))
-            end
-        end)
-
-        makeButton(mainFrame, baseY + 84, "[3] LIST CONNECTIONS  —  dry run (no disable)", vcTheme.surface, function()
-            vcs, vci = getVoiceServices()
-            if not capabilities.getconnections then return logger.err("getconnections not available") end
-            if not vci then return logger.err("VoiceChatInternal unavailable") end
-            logger.info("Reading StateChanged connections (DRY RUN)...")
-            local ok, conns = pcall(function() return getconnections(vci.StateChanged) end)
-            if not ok or type(conns) ~= "table" then
-                return logger.err("getconnections failed: " .. tostring(conns))
-            end
-            logger.ok(("Found %d connections total."):format(#conns))
-            for idx, conn in ipairs(conns) do
-                local fnStr = "?"
-                pcall(function()
-                    if conn.Function then
-                        fnStr = tostring(conn.Function)
-                        if #fnStr > 40 then fnStr = fnStr:sub(1, 40) .. "…" end
-                    end
-                end)
-                local enabled = "?"
-                pcall(function() enabled = tostring(conn.Enabled) end)
-                logger.info(("  #%d  enabled=%s  fn=%s"):format(idx, enabled, fnStr))
-            end
-        end)
-
-        makeButton(mainFrame, baseY + 126, "[4] APPLY COCO BYPASS  —  disable listeners 7+", vcTheme.accentDim, function()
-            vcs, vci = getVoiceServices()
-            if not capabilities.getconnections then return logger.err("Cannot run — getconnections missing") end
-            if not vci or not vcs then return logger.err("Voice services unavailable") end
-
-            logger.info("Step 1: leaveVoice()")
-            pcall(function() vcs:leaveVoice() end)
-            task.wait(1.2)
-
-            logger.info("Step 2: getconnections(StateChanged)")
-            local _getconns = _clonefunction(getconnections)
-            local ok, conns = pcall(function() return _getconns(vci.StateChanged) end)
-            if not ok or type(conns) ~= "table" then
-                return logger.err("getconnections failed: " .. tostring(conns))
-            end
-            logger.ok(("Connections: %d"):format(#conns))
-            if #conns < 7 then
-                logger.warn("Fewer than 7 connections (" .. #conns .. ") — disabling available non-core listeners...")
-            end
-
-            local startIdx = (#conns >= 7) and 7 or math.max(1, #conns)
-            logger.info("Step 3: disabling connections #" .. startIdx .. " onwards...")
-            local disabledCount, skipped = 0, 0
-            for idx = startIdx, #conns do
-                local conn = conns[idx]
-                if conn then
-                    local success = pcall(function()
-                        conn:Disable()
-                        table.insert(vcDisabledConns, conn)
-                    end)
-                    if success then
-                        disabledCount = disabledCount + 1
-                    else
-                        skipped = skipped + 1
-                    end
-                end
-            end
-            vcShieldedHookCount = vcShieldedHookCount + disabledCount
-            logger.ok(("Disabled: %d  |  Skipped: %d"):format(disabledCount, skipped))
-
-            logger.info("Step 4: rejoining voice...")
-            pcall(function() vcs:joinVoice() end)
-            task.wait(1.2)
-            disableVCStateChangedConns(vci)
-
-            logger.info("Step 5: installing Coco custom mic controller & click override...")
-            local mounted = mountCustomMicButton(vcCoreGui, vci)
-            local micBtn = vcFindMicButton(5)
-            if micBtn then
-                pcall(function()
-                    local hitArea = micBtn:FindFirstChild("IconHitArea_toggle_mic_mute", true)
-                    if hitArea then hitArea.Active = false end
-                end)
-                local existingOverride = micBtn:FindFirstChild("CocoVCBypassClickOverride") or micBtn:FindFirstChild("VCBypassClickOverride")
-                if existingOverride then existingOverride:Destroy() end
-
-                local overrideBtn = Instance.new("TextButton")
-                overrideBtn.Name = "CocoVCBypassClickOverride"
-                overrideBtn.Size = UDim2.new(1, 0, 1, 0)
-                overrideBtn.Position = UDim2.new(0, 0, 0, 0)
-                overrideBtn.BackgroundTransparency = 1
-                overrideBtn.Text = ""
-                overrideBtn.ZIndex = 100
-                overrideBtn.Parent = micBtn
-                overrideBtn.MouseButton1Click:Connect(function()
-                    local isLive = toggleCocoVCMic()
-                    logger.info("Mic toggled → paused=" .. tostring(not isLive))
-                end)
-                logger.ok("Coco click override installed on mic button (mounted=" .. tostring(mounted) .. ").")
-            else
-                logger.warn("Mic button not found — click [2] to join voice first, then retry.")
-            end
-            Anti.VC.enabled = true
-            Anti.VC.running = false
-            startVCWatchdog()
-            updateAntiVCVisuals("Status: Active (Coco Anti-VCB 2)", Color3.fromRGB(80, 220, 120), "COCO ANTI VC ACTIVE")
-            if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-            logger.ok("COCO ANTI-VC BYPASS COMPLETE. Test by speaking or toggling mic in-game.")
-        end)
-
-        makeButton(mainFrame, baseY + 168, "[5] KEEP-UNMUTED  —  anti-auto-mute loop", vcTheme.surface, function()
-            if _G._CocoVCKeepUnmuted then
-                _G._CocoVCKeepUnmuted = false
-                _G._VCKeepUnmuted = false
-                logger.info("Coco Keep-unmuted loop stopped.")
-                return
-            end
-            _G._CocoVCKeepUnmuted = true
-            _G._VCKeepUnmuted = true
-            logger.ok("Coco Keep-unmuted loop started (background).")
-            task.spawn(function()
-                while _G._CocoVCKeepUnmuted do
-                    task.wait(0.45)
-                    pcall(function()
-                        local _, curVci = getVoiceServices()
-                        if curVci and curVci:IsPublishPaused() then
-                            curVci:PublishPause(false)
-                        end
-                    end)
-                end
-            end)
-        end)
-
-        makeButton(mainFrame, baseY + 210, "[6] FORCE UNMUTE  —  one-shot", vcTheme.surface, function()
-            local _, curVci = getVoiceServices()
-            if not curVci then return logger.err("VoiceChatInternal unavailable") end
-            pcall(function() curVci:PublishPause(false) end)
-            updateAntiVCVisuals("Status: Active (Mic LIVE)", Color3.fromRGB(80, 220, 120), nil)
-            logger.ok("PublishPause(false) sent.")
-        end)
-
-        local logCard = Instance.new("Frame")
-        logCard.Size = UDim2.new(1, -20, 0, 100)
-        logCard.Position = UDim2.new(0, 10, 1, -110)
-        logCard.BackgroundColor3 = Color3.fromRGB(8, 8, 12)
-        logCard.BorderSizePixel = 0
-        logCard.Parent = mainFrame
-        vcAddCorner(logCard, 10)
-        vcAddStroke(logCard, vcTheme.surface, 1, 0.4)
-
-        local logHeader = Instance.new("TextLabel")
-        logHeader.Size = UDim2.new(1, -20, 0, 16)
-        logHeader.Position = UDim2.new(0, 10, 0, 4)
-        logHeader.BackgroundTransparency = 1
-        logHeader.Text = "COCO ANTI-VC LOG"
-        logHeader.Font = Enum.Font.GothamBold
-        logHeader.TextSize = 9
-        logHeader.TextColor3 = vcTheme.accent
-        logHeader.TextXAlignment = Enum.TextXAlignment.Left
-        logHeader.Parent = logCard
-
-        local logScroll = Instance.new("ScrollingFrame")
-        logScroll.Size = UDim2.new(1, -16, 1, -24)
-        logScroll.Position = UDim2.new(0, 8, 0, 20)
-        logScroll.BackgroundTransparency = 1
-        logScroll.BorderSizePixel = 0
-        logScroll.ScrollBarThickness = 3
-        logScroll.ScrollBarImageColor3 = vcTheme.accent
-        logScroll.ScrollBarImageTransparency = 0.5
-        logScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
-        logScroll.Parent = logCard
-
-        local listLayout = Instance.new("UIListLayout")
-        listLayout.SortOrder = Enum.SortOrder.LayoutOrder
-        listLayout.Padding = UDim.new(0, 2)
-        listLayout.Parent = logScroll
-        listLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-            logScroll.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y + 4)
-            logScroll.CanvasPosition = Vector2.new(0, math.max(0, listLayout.AbsoluteContentSize.Y - logScroll.AbsoluteWindowSize.Y + 8))
-        end)
-
-        table.insert(logger.callbacks, function(entry)
-            local color = vcTheme.textMuted
-            if entry.level == "ok" then color = vcTheme.success end
-            if entry.level == "warn" then color = vcTheme.warning end
-            if entry.level == "err" then color = vcTheme.danger end
-            if entry.level == "info" then color = vcTheme.text end
-
-            local line = Instance.new("TextLabel")
-            line.Size = UDim2.new(1, -4, 0, 14)
-            line.BackgroundTransparency = 1
-            line.Text = entry.time .. "  " .. entry.msg
-            line.Font = Enum.Font.Code
-            line.TextSize = 10
-            line.TextColor3 = color
-            line.TextXAlignment = Enum.TextXAlignment.Left
-            line.TextTruncate = Enum.TextTruncate.AtEnd
-            line.LayoutOrder = #logger.lines
-            line.Parent = logScroll
-        end)
-
-        logger.info("Coco Anti-VC Bypass V2 tool loaded. Executor: " .. executorName)
-        if not capabilities.getconnections then
-            logger.warn("getconnections missing — buttons [3] and [4] will fail.")
-        else
-            logger.ok("Capabilities OK. Start with [1] → [2] → [3] → [4].")
-        end
-    end
-
-    -- [2] FIXED ONE-CLICK AUTO COCO ANTI-VC BYPASS (V1 METHOD + ZERO-DELAY HOOKS)
-    runCocoOneClickVCBypass = function(onStatusChange, skipWait)
-        local function setStatus(statusText, color, btnText, isSuccess, isError)
-            updateAntiVCVisuals(statusText, color, btnText)
-            if onStatusChange then
-                pcall(onStatusChange, statusText, color, btnText, isSuccess, isError)
-            end
-        end
-
-        task.spawn(function()
-            setStatus("Status: Waiting for unmute...", vcTheme.warning, "WAITING...", false, false)
-
-            local ok, result = pcall(function()
-                if type(getconnections) ~= "function" then
-                    error("Your executor does not support getconnections()")
-                end
-                local vcs, vci = getVoiceServices()
-                if not vcs or not vci then
-                    error("VoiceChatService / VoiceChatInternal not available")
-                end
-
-                local getconns = _clonefunction(getconnections)
-                local hiddenHolder = (vcRobloxReplicatedStorage and vcRobloxReplicatedStorage:FindFirstChild("CocoVCHolder"))
-                    or (vcCoreGui and vcCoreGui:FindFirstChild("CocoVCBypassStore"))
-                if not hiddenHolder then
-                    hiddenHolder = Instance.new("Folder")
-                    hiddenHolder.Name = "CocoVCHolder"
-                    pcall(function()
-                        hiddenHolder.Parent = vcRobloxReplicatedStorage or vcCoreGui
-                    end)
-                end
-
-                local micButton, micParent = vcFindMicButton(0)
-                if not micButton then
-                    pcall(function() vcs:joinVoice() end)
-                    micButton, micParent = vcFindMicButton(10)
-                    if not micButton then
-                        error("Mic button not found after calling joinVoice()")
-                    end
-                end
-
-                if not skipWait and not vcIsMicCurrentlyUnmuted(micButton) then
-                    vcSendNotification("Coco Anti-VC Bypass", "Unmute your microphone (or click Force Now) to continue.", 5)
-                    local waitDeadline = os.clock() + 45
-                    repeat
-                        task.wait(0.15)
-                        if vcSkipWaitRequested then break end
-                    until vcIsMicCurrentlyUnmuted(micButton) or os.clock() >= waitDeadline
-                end
-
-                setStatus("Status: Leaving Voice...", vcTheme.accent, "STAGE 1/3...", false, false)
-                pcall(function() vcs:leaveVoice() end)
-                task.wait(1.25)
-
-                setStatus("Status: Shielding StateChanged...", vcTheme.accent, "STAGE 2/3...", false, false)
-                local conns = getconns(vci.StateChanged)
-                if type(conns) == "table" then
-                    local startIdx = (#conns >= 7) and 7 or math.max(1, #conns)
-                    for i = startIdx, #conns do
-                        if conns[i] then
-                            pcall(function()
-                                conns[i]:Disable()
-                                table.insert(vcDisabledConns, conns[i])
-                                vcShieldedHookCount = vcShieldedHookCount + 1
-                            end)
-                        end
-                    end
-                end
-
-                task.wait(1.1)
-                setStatus("Status: Rejoining Voice...", vcTheme.accent, "STAGE 3/3...", false, false)
-                pcall(function() vcs:joinVoice() end)
-                micButton, micParent = vcFindMicButton(10)
-                disableVCStateChangedConns(vci)
-
-                if micButton and micParent then
-                    mountCustomMicButton(vcCoreGui, vci)
-                end
-
-                Anti.VC.enabled = true
-                Anti.VC.running = false
-                vcSkipWaitRequested = false
-                startVCWatchdog()
-                if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-
-                setStatus("Status: Active (Coco Anti-VC Bypass)", vcTheme.success, "COCO ANTI VC ACTIVE", true, false)
-                vcSendNotification("Coco Anti-VC Bypass", "Coco Anti-VC Bypass activated!", 4)
-            end)
-
-            if not ok then
-                setStatus("Status: Failed (" .. tostring(result):sub(1, 28) .. ")", vcTheme.danger, "RETRY", false, true)
-                vcSendNotification("Coco Anti-VC Bypass", "Error: " .. tostring(result), 4)
-                warn("[Coco Anti-VC Bypass Error]:", result)
-            end
-        end)
-    end
-
-    -- [3] STANDALONE COCO ANTI-VC BYPASS, HIDE USERS & DEFENSE SUITE GUI (4 TABS)
-    launchCocoAntiVCBypassSuite = function()
-        local guiParent = getGuiParent()
-        if not guiParent then return end
-
-        local oldGui = guiParent:FindFirstChild("CocoAntiVCBypassSuite") or guiParent:FindFirstChild("MortalHubVCSuite")
-        if oldGui then
-            oldGui:Destroy()
-            return
-        end
-
-        local screenGui = Instance.new("ScreenGui")
-        screenGui.Name = "CocoAntiVCBypassSuite"
-        screenGui.ResetOnSpawn = false
-        screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-        screenGui.DisplayOrder = 1000002
-        pcall(function() screenGui.Parent = guiParent end)
-
-        local mainWin = Instance.new("Frame")
-        mainWin.Name = "MainWindow"
-        mainWin.Size = UDim2.new(0, 520, 0, 490)
-        mainWin.Position = UDim2.new(0.5, -260, 0.5, -245)
-        mainWin.BackgroundColor3 = vcTheme.bg
-        mainWin.BorderSizePixel = 0
-        mainWin.Active = true
-        mainWin.ClipsDescendants = true
-        mainWin.Parent = screenGui
-        vcAddCorner(mainWin, 14)
-        vcAddStroke(mainWin, vcTheme.accent, 1.5, 0.4)
-
-        local topBar = Instance.new("Frame")
-        topBar.Size = UDim2.new(1, 0, 0, 44)
-        topBar.BackgroundColor3 = vcTheme.bgCard
-        topBar.BorderSizePixel = 0
-        topBar.Parent = mainWin
-        vcAddCorner(topBar, 14)
-
-        local topTitle = Instance.new("TextLabel")
-        topTitle.Size = UDim2.new(1, -100, 1, 0)
-        topTitle.Position = UDim2.new(0, 18, 0, 0)
-        topTitle.BackgroundTransparency = 1
-        topTitle.Text = "COCO ANTI-VC BYPASS & VOICE DEFENSE SUITE V7"
-        topTitle.Font = Enum.Font.GothamBold
-        topTitle.TextSize = 13
-        topTitle.TextColor3 = vcTheme.white
-        topTitle.TextXAlignment = Enum.TextXAlignment.Left
-        topTitle.Parent = topBar
-
-        local closeBtn = Instance.new("TextButton")
-        closeBtn.Size = UDim2.new(0, 28, 0, 28)
-        closeBtn.Position = UDim2.new(1, -38, 0.5, -14)
-        closeBtn.BackgroundColor3 = vcTheme.surface
-        closeBtn.Text = "×"
-        closeBtn.Font = Enum.Font.GothamBold
-        closeBtn.TextSize = 16
-        closeBtn.TextColor3 = vcTheme.textMuted
-        closeBtn.BorderSizePixel = 0
-        closeBtn.AutoButtonColor = false
-        closeBtn.Parent = topBar
-        vcAddCorner(closeBtn, 6)
-        closeBtn.MouseButton1Click:Connect(function()
-            screenGui:Destroy()
-        end)
-
-        vcMakeDraggable(topBar, mainWin)
-
-        local tabBar = Instance.new("Frame")
-        tabBar.Size = UDim2.new(1, -20, 0, 34)
-        tabBar.Position = UDim2.new(0, 10, 0, 50)
-        tabBar.BackgroundColor3 = vcTheme.bgCard
-        tabBar.BorderSizePixel = 0
-        tabBar.Parent = mainWin
-        vcAddCorner(tabBar, 8)
-
-        local tabLayout = Instance.new("UIGridLayout")
-        tabLayout.CellSize = UDim2.new(0.25, -4, 1, -6)
-        tabLayout.CellPadding = UDim2.new(0, 4, 0, 0)
-        tabLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-        tabLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-        tabLayout.SortOrder = Enum.SortOrder.LayoutOrder
-        tabLayout.Parent = tabBar
-
-        local pagesFolder = Instance.new("Folder")
-        pagesFolder.Name = "Pages"
-        pagesFolder.Parent = mainWin
-
-        local tabs = {}
-        local function createTabPage(id, labelText, order)
-            local btn = Instance.new("TextButton")
-            btn.Name = id .. "_Btn"
-            btn.LayoutOrder = order
-            btn.BackgroundColor3 = (order == 1) and vcTheme.accent or vcTheme.surface
-            btn.TextColor3 = (order == 1) and vcTheme.black or vcTheme.textMuted
-            btn.Font = Enum.Font.GothamBold
-            btn.TextSize = 11
-            btn.Text = labelText
-            btn.BorderSizePixel = 0
-            btn.AutoButtonColor = false
-            btn.Parent = tabBar
-            vcAddCorner(btn, 6)
-
-            local page = Instance.new("ScrollingFrame")
-            page.Name = id .. "_Page"
-            page.Size = UDim2.new(1, -20, 1, -100)
-            page.Position = UDim2.new(0, 10, 0, 92)
-            page.BackgroundTransparency = 1
-            page.BorderSizePixel = 0
-            page.ScrollBarThickness = 3
-            page.ScrollBarImageColor3 = vcTheme.accent
-            page.Visible = (order == 1)
-            page.CanvasSize = UDim2.new(0, 0, 0, 0)
-            page.Parent = pagesFolder
-
-            local layout = Instance.new("UIListLayout")
-            layout.SortOrder = Enum.SortOrder.LayoutOrder
-            layout.Padding = UDim.new(0, 8)
-            layout.Parent = page
-            layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-                page.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 12)
-            end)
-
-            tabs[id] = { btn = btn, page = page }
-            btn.MouseButton1Click:Connect(function()
-                for k, v in pairs(tabs) do
-                    local active = (k == id)
-                    v.page.Visible = active
-                    vcTween(v.btn, {
-                        BackgroundColor3 = active and vcTheme.accent or vcTheme.surface,
-                        TextColor3 = active and vcTheme.black or vcTheme.textMuted,
-                    }, 0.15)
-                end
-            end)
-
-            return page
-        end
-
-        local function createSection(parent, title, order)
-            local lbl = Instance.new("TextLabel")
-            lbl.Size = UDim2.new(1, -8, 0, 22)
-            lbl.BackgroundTransparency = 1
-            lbl.Text = string.upper(title)
-            lbl.Font = Enum.Font.GothamBold
-            lbl.TextSize = 10
-            lbl.TextColor3 = vcTheme.accent
-            lbl.TextXAlignment = Enum.TextXAlignment.Left
-            lbl.LayoutOrder = order or 1
-            lbl.Parent = parent
-            return lbl
-        end
-
-        local function createActionButton(parent, title, subtitle, order, callback)
-            local card = Instance.new("Frame")
-            card.Size = UDim2.new(1, -8, 0, 48)
-            card.BackgroundColor3 = vcTheme.surface
-            card.BorderSizePixel = 0
-            card.LayoutOrder = order or 1
-            card.Parent = parent
-            vcAddCorner(card, 10)
-            vcAddStroke(card, vcTheme.divider, 1, 0.4)
-
-            local tLbl = Instance.new("TextLabel")
-            tLbl.Size = UDim2.new(1, -24, 0, 18)
-            tLbl.Position = UDim2.new(0, 12, 0, 7)
-            tLbl.BackgroundTransparency = 1
-            tLbl.Text = title
-            tLbl.Font = Enum.Font.GothamBold
-            tLbl.TextSize = 12
-            tLbl.TextColor3 = vcTheme.white
-            tLbl.TextXAlignment = Enum.TextXAlignment.Left
-            tLbl.Parent = card
-
-            local sLbl = Instance.new("TextLabel")
-            sLbl.Size = UDim2.new(1, -24, 0, 14)
-            sLbl.Position = UDim2.new(0, 12, 0, 26)
-            sLbl.BackgroundTransparency = 1
-            sLbl.Text = subtitle or ""
-            sLbl.Font = Enum.Font.Gotham
-            sLbl.TextSize = 10
-            sLbl.TextColor3 = vcTheme.textMuted
-            sLbl.TextXAlignment = Enum.TextXAlignment.Left
-            sLbl.Parent = card
-
-            local clickBtn = Instance.new("TextButton")
-            clickBtn.Size = UDim2.new(1, 0, 1, 0)
-            clickBtn.BackgroundTransparency = 1
-            clickBtn.Text = ""
-            clickBtn.Parent = card
-            clickBtn.MouseEnter:Connect(function() vcTween(card, { BackgroundColor3 = vcTheme.surfaceHover }, 0.15) end)
-            clickBtn.MouseLeave:Connect(function() vcTween(card, { BackgroundColor3 = vcTheme.surface }, 0.15) end)
-            clickBtn.MouseButton1Click:Connect(function()
-                if callback then task.spawn(callback) end
-            end)
-            return card
-        end
-
-        local function createToggle(parent, title, subtitle, order, callback)
-            local state = false
-            local card = Instance.new("Frame")
-            card.Size = UDim2.new(1, -8, 0, 48)
-            card.BackgroundColor3 = vcTheme.surface
-            card.BorderSizePixel = 0
-            card.LayoutOrder = order or 1
-            card.Parent = parent
-            vcAddCorner(card, 10)
-            vcAddStroke(card, vcTheme.divider, 1, 0.4)
-
-            local tLbl = Instance.new("TextLabel")
-            tLbl.Size = UDim2.new(1, -70, 0, 18)
-            tLbl.Position = UDim2.new(0, 12, 0, 7)
-            tLbl.BackgroundTransparency = 1
-            tLbl.Text = title
-            tLbl.Font = Enum.Font.GothamBold
-            tLbl.TextSize = 12
-            tLbl.TextColor3 = vcTheme.white
-            tLbl.TextXAlignment = Enum.TextXAlignment.Left
-            tLbl.Parent = card
-
-            local sLbl = Instance.new("TextLabel")
-            sLbl.Size = UDim2.new(1, -70, 0, 14)
-            sLbl.Position = UDim2.new(0, 12, 0, 26)
-            sLbl.BackgroundTransparency = 1
-            sLbl.Text = subtitle or ""
-            sLbl.Font = Enum.Font.Gotham
-            sLbl.TextSize = 10
-            sLbl.TextColor3 = vcTheme.textMuted
-            sLbl.TextXAlignment = Enum.TextXAlignment.Left
-            sLbl.Parent = card
-
-            local pill = Instance.new("Frame")
-            pill.Size = UDim2.new(0, 40, 0, 20)
-            pill.Position = UDim2.new(1, -52, 0.5, -10)
-            pill.BackgroundColor3 = vcTheme.input
-            pill.BorderSizePixel = 0
-            pill.Parent = card
-            vcAddCorner(pill, 10)
-
-            local knob = Instance.new("Frame")
-            knob.Size = UDim2.new(0, 16, 0, 16)
-            knob.Position = UDim2.new(0, 2, 0.5, -8)
-            knob.BackgroundColor3 = vcTheme.textMuted
-            knob.BorderSizePixel = 0
-            knob.Parent = pill
-            vcAddCorner(knob, 8)
-
-            local btn = Instance.new("TextButton")
-            btn.Size = UDim2.new(1, 0, 1, 0)
-            btn.BackgroundTransparency = 1
-            btn.Text = ""
-            btn.Parent = card
-
-            local function setToggle(val)
-                state = val
-                vcTween(pill, { BackgroundColor3 = state and vcTheme.accent or vcTheme.input }, 0.15)
-                vcTween(knob, {
-                    Position = state and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8),
-                    BackgroundColor3 = state and vcTheme.black or vcTheme.textMuted,
-                }, 0.15)
-                if callback then
-                    task.spawn(callback, state)
-                end
-            end
-
-            btn.MouseButton1Click:Connect(function()
-                setToggle(not state)
-            end)
-
-            return setToggle
-        end
-
-        local vcbypassPage = createTabPage("vcbypass", "Coco VC Bypass", 1)
-        local antivcb2Page = createTabPage("antivcb2", "Coco Anti-VCB 2", 2)
-        local hideUserPage = createTabPage("hideuser", "Hide & Mute VC", 3)
-        local defAntiPage  = createTabPage("antistuffs", "Anti-Stuffs", 4)
-
-        -- TAB 1: COCO ANTI-VC BYPASS
-        createSection(vcbypassPage, "Coco Anti-VC Bypass", 1)
-
-        local vcStatusCard = Instance.new("Frame")
-        vcStatusCard.Size = UDim2.new(1, -8, 0, 66)
-        vcStatusCard.BackgroundColor3 = vcTheme.surface
-        vcStatusCard.BorderSizePixel = 0
-        vcStatusCard.LayoutOrder = 2
-        vcStatusCard.Parent = vcbypassPage
-        vcAddCorner(vcStatusCard, 10)
-
-        local statusLbl = Instance.new("TextLabel")
-        statusLbl.Size = UDim2.new(1, -28, 0, 20)
-        statusLbl.Position = UDim2.new(0, 14, 0, 10)
-        statusLbl.Text = Anti.VC.enabled and "Status: Active" or (Anti.VC.statusText or "Status: Not Active")
-        statusLbl.Font = Enum.Font.GothamBold
-        statusLbl.TextSize = 12
-        statusLbl.TextColor3 = Anti.VC.enabled and vcTheme.success or vcTheme.textMuted
-        statusLbl.TextXAlignment = Enum.TextXAlignment.Left
-        statusLbl.BackgroundTransparency = 1
-        statusLbl.Parent = vcStatusCard
-
-        local vcSubDesc = Instance.new("TextLabel")
-        vcSubDesc.Size = UDim2.new(1, -28, 0, 26)
-        vcSubDesc.Position = UDim2.new(0, 14, 0, 32)
-        vcSubDesc.Text = "Bypass voice chat restrictions and suspensions to use VC in any game with Zero-Delay Hook Shield."
-        vcSubDesc.Font = Enum.Font.Gotham
-        vcSubDesc.TextSize = 10
-        vcSubDesc.TextColor3 = vcTheme.textMuted
-        vcSubDesc.TextXAlignment = Enum.TextXAlignment.Left
-        vcSubDesc.TextWrapped = true
-        vcSubDesc.BackgroundTransparency = 1
-        vcSubDesc.Parent = vcStatusCard
-
-        createSection(vcbypassPage, "Instructions", 3)
-
-        local instrCard = Instance.new("Frame")
-        instrCard.Size = UDim2.new(1, -8, 0, 82)
-        instrCard.BackgroundColor3 = vcTheme.surface
-        instrCard.BorderSizePixel = 0
-        instrCard.LayoutOrder = 4
-        instrCard.Parent = vcbypassPage
-        vcAddCorner(instrCard, 10)
-
-        local steps = {
-            { y = 10, text = "1.  Click 'Activate Coco Anti-VC Bypass' below" },
-            { y = 26, text = "2.  Unmute your microphone when prompted (or click Force Now)" },
-            { y = 42, text = "3.  Wait for the bypass handshake to complete (~3s)" },
-            { y = 58, text = "4.  Use the custom TopBar mic button normally after" },
-        }
-        for _, st in ipairs(steps) do
-            local lbl = Instance.new("TextLabel")
-            lbl.Size = UDim2.new(1, -28, 0, 14)
-            lbl.Position = UDim2.new(0, 14, 0, st.y)
-            lbl.Text = st.text
-            lbl.Font = Enum.Font.Gotham
-            lbl.TextSize = 10
-            lbl.TextColor3 = vcTheme.textMuted
-            lbl.TextXAlignment = Enum.TextXAlignment.Left
-            lbl.BackgroundTransparency = 1
-            lbl.Parent = instrCard
-        end
-
-        createSection(vcbypassPage, "Actions", 5)
-
-        local actFrame = Instance.new("Frame")
-        actFrame.Size = UDim2.new(1, -8, 0, 44)
-        actFrame.BackgroundColor3 = Anti.VC.enabled and vcTheme.success or vcTheme.accentDim
-        actFrame.BorderSizePixel = 0
-        actFrame.LayoutOrder = 6
-        actFrame.Parent = vcbypassPage
-        vcAddCorner(actFrame, 10)
-        vcAddStroke(actFrame, vcTheme.white, 1, 0.6)
-
-        local actBtn = Instance.new("TextButton")
-        actBtn.Size = UDim2.new(1, 0, 1, 0)
-        actBtn.Text = Anti.VC.enabled and "COCO ANTI-VC ACTIVE" or "Activate Coco Anti-VC Bypass"
-        actBtn.Font = Enum.Font.GothamBold
-        actBtn.TextSize = 13
-        actBtn.TextColor3 = vcTheme.white
-        actBtn.BackgroundTransparency = 1
-        actBtn.AutoButtonColor = false
-        actBtn.Parent = actFrame
-
-        actBtn.MouseButton1Click:Connect(function()
-            runCocoOneClickVCBypass(function(stText, color, btnText, isSuccess, isError)
-                if statusLbl and statusLbl.Parent then
-                    statusLbl.Text = stText
-                    statusLbl.TextColor3 = color
-                end
-                if actBtn and actBtn.Parent then
-                    actBtn.Text = btnText
-                end
-                if isSuccess then
-                    vcTween(actFrame, { BackgroundColor3 = vcTheme.success }, 0.3)
-                elseif isError then
-                    vcTween(actFrame, { BackgroundColor3 = vcTheme.dangerDim }, 0.3)
-                    task.delay(2, function()
-                        vcTween(actFrame, { BackgroundColor3 = vcTheme.accentDim }, 0.3)
-                    end)
-                end
-            end, false)
-        end)
-
-        createActionButton(
-            vcbypassPage,
-            "Force Immediate Bypass (Skip Unmute Wait)",
-            "Executes Coco Anti-VC Bypass immediately without waiting for mic unmute",
-            7,
-            function()
-                vcSkipWaitRequested = true
-                runCocoOneClickVCBypass(function(stText, color, btnText, isSuccess)
-                    if statusLbl and statusLbl.Parent then
-                        statusLbl.Text = stText
-                        statusLbl.TextColor3 = color
-                    end
-                    if actBtn and actBtn.Parent then
-                        actBtn.Text = btnText
-                    end
-                    if isSuccess then
-                        vcTween(actFrame, { BackgroundColor3 = vcTheme.success }, 0.3)
-                    end
-                end, true)
-            end
-        )
-
-        createActionButton(
-            vcbypassPage,
-            "Open Coco Anti-VCB 2 (Diagnostic GUI)",
-            "Launch the standalone Coco Anti-VCB 2 floating Diagnostic & Bypass window",
-            8,
-            function()
-                launchCocoAntiVCB2()
-            end
-        )
-
-        -- TAB 2: COCO ANTI-VCB 2
-        createSection(antivcb2Page, "Coco Anti-VCB 2 Diagnostic & Controls", 1)
-        createActionButton(
-            antivcb2Page,
-            "Launch Coco Anti-VCB 2 Diagnostic Window",
-            "Opens the 6-step interactive VC Bypass & Connection Inspector tool",
-            2,
-            function()
-                launchCocoAntiVCB2()
-            end
-        )
-        createActionButton(
-            antivcb2Page,
-            "Toggle Coco Custom Mic (Mute / Unmute)",
-            "Instantly toggles VoiceChatInternal:PublishPause state and TopBar icon",
-            3,
-            function()
-                toggleCocoVCMic()
-            end
-        )
-        createActionButton(
-            antivcb2Page,
-            "Force Rejoin Voice & Re-Lock Shield",
-            "Leaves VC, disables StateChanged listeners, and rejoins VC cleanly",
-            4,
-            function()
-                forceRejoinAndBypassVC()
-            end
-        )
-        createActionButton(
-            antivcb2Page,
-            "Open Classic V6 Omega Compact Card",
-            "Opens the compact Coco Anti-VC V6 mode switcher & strobe card",
-            5,
-            function()
-                if Anti.VC.openCompactPanelFn then
-                    Anti.VC.openCompactPanelFn()
-                end
-            end
-        )
-
-        -- TAB 3: HIDE PLAYERS & MUTE VC
-        local HiddenPlayers = {}
-        createSection(hideUserPage, "Hide Players (Client-Side & Mute VC)", 1)
-
-        local searchBoxFrame = Instance.new("Frame")
-        searchBoxFrame.Size = UDim2.new(1, -8, 0, 36)
-        searchBoxFrame.BackgroundColor3 = vcTheme.input
-        searchBoxFrame.BorderSizePixel = 0
-        searchBoxFrame.LayoutOrder = 2
-        searchBoxFrame.Parent = hideUserPage
-        vcAddCorner(searchBoxFrame, 8)
-        vcAddStroke(searchBoxFrame, vcTheme.divider, 1, 0.4)
-
-        local hideSearchBox = Instance.new("TextBox")
-        hideSearchBox.Size = UDim2.new(1, -24, 1, 0)
-        hideSearchBox.Position = UDim2.new(0, 12, 0, 0)
-        hideSearchBox.BackgroundTransparency = 1
-        hideSearchBox.PlaceholderText = "Search players to hide & mute..."
-        hideSearchBox.PlaceholderColor3 = vcTheme.textDim
-        hideSearchBox.Text = ""
-        hideSearchBox.Font = Enum.Font.Gotham
-        hideSearchBox.TextSize = 12
-        hideSearchBox.TextColor3 = vcTheme.text
-        hideSearchBox.TextXAlignment = Enum.TextXAlignment.Left
-        hideSearchBox.ClearTextOnFocus = false
-        hideSearchBox.Parent = searchBoxFrame
-
-        local playerListFrame = Instance.new("Frame")
-        playerListFrame.Size = UDim2.new(1, -8, 0, 0)
-        playerListFrame.AutomaticSize = Enum.AutomaticSize.Y
-        playerListFrame.BackgroundTransparency = 1
-        playerListFrame.LayoutOrder = 3
-        playerListFrame.Parent = hideUserPage
-
-        local playerListLayout = Instance.new("UIListLayout")
-        playerListLayout.Padding = UDim.new(0, 4)
-        playerListLayout.SortOrder = Enum.SortOrder.LayoutOrder
-        playerListLayout.Parent = playerListFrame
-
-        local function hide_buildList()
-            for _, child in ipairs(playerListFrame:GetChildren()) do
-                if not child:IsA("UIListLayout") then
-                    child:Destroy()
-                end
-            end
-            if not vcPlayers then return end
-            local query = hideSearchBox.Text:lower()
-            for _, plr in ipairs(vcPlayers:GetPlayers()) do
-                if plr ~= vcLocalPlayer then
-                    local dName = plr.DisplayName:lower()
-                    local uName = plr.Name:lower()
-                    if query == "" or dName:find(query, 1, true) or uName:find(query, 1, true) then
-                        local isHidden = HiddenPlayers[plr.UserId] == true
-                        local row = Instance.new("Frame")
-                        row.Size = UDim2.new(1, 0, 0, 42)
-                        row.BackgroundColor3 = isHidden and vcTheme.accent or vcTheme.surface
-                        row.BorderSizePixel = 0
-                        row.Parent = playerListFrame
-                        vcAddCorner(row, 6)
-
-                        local nameLbl = Instance.new("TextLabel")
-                        nameLbl.Size = UDim2.new(1, -24, 0, 18)
-                        nameLbl.Position = UDim2.new(0, 12, 0, 5)
-                        nameLbl.BackgroundTransparency = 1
-                        nameLbl.Text = plr.DisplayName .. (isHidden and "  [HIDDEN & MUTED]" or "")
-                        nameLbl.Font = Enum.Font.GothamBold
-                        nameLbl.TextSize = 12
-                        nameLbl.TextColor3 = isHidden and vcTheme.black or vcTheme.text
-                        nameLbl.TextXAlignment = Enum.TextXAlignment.Left
-                        nameLbl.Parent = row
-
-                        local userLbl = Instance.new("TextLabel")
-                        userLbl.Size = UDim2.new(1, -24, 0, 14)
-                        userLbl.Position = UDim2.new(0, 12, 0, 22)
-                        userLbl.BackgroundTransparency = 1
-                        userLbl.Text = "@" .. plr.Name
-                        userLbl.Font = Enum.Font.Gotham
-                        userLbl.TextSize = 10
-                        userLbl.TextColor3 = isHidden and Color3.fromRGB(40, 40, 40) or vcTheme.textMuted
-                        userLbl.TextXAlignment = Enum.TextXAlignment.Left
-                        userLbl.Parent = row
-
-                        local rowBtn = Instance.new("TextButton")
-                        rowBtn.Size = UDim2.new(1, 0, 1, 0)
-                        rowBtn.BackgroundTransparency = 1
-                        rowBtn.Text = ""
-                        rowBtn.Parent = row
-                        rowBtn.MouseButton1Click:Connect(function()
-                            local nextState = not HiddenPlayers[plr.UserId]
-                            HiddenPlayers[plr.UserId] = nextState or nil
-                            hide_buildList()
-                            if nextState then
-                                vcSendNotification("Coco Anti-VC", "Hidden " .. plr.DisplayName .. " locally.", 2)
-                            else
-                                if plr.Character and vcLighting and plr.Character.Parent == vcLighting then
-                                    pcall(function() plr.Character.Parent = vcWorkspace end)
-                                end
-                                vcSendNotification("Coco Anti-VC", "Unhidden " .. plr.DisplayName .. ".", 2)
-                            end
-                        end)
-                    end
-                end
-            end
-        end
-
-        hideSearchBox:GetPropertyChangedSignal("Text"):Connect(hide_buildList)
-        if vcPlayers then
-            vcPlayers.PlayerAdded:Connect(function() task.defer(hide_buildList) end)
-            vcPlayers.PlayerRemoving:Connect(function(plr)
-                HiddenPlayers[plr.UserId] = nil
-                task.defer(hide_buildList)
-            end)
-        end
-        hide_buildList()
-
-        if vcRunService and vcPlayers then
-            vcRunService.Heartbeat:Connect(function()
-                if not screenGui.Parent and next(HiddenPlayers) == nil then return end
-                for _, plr in ipairs(vcPlayers:GetPlayers()) do
-                    if plr ~= vcLocalPlayer then
-                        if HiddenPlayers[plr.UserId] then
-                            local char = plr.Character
-                            if char then
-                                if char:IsDescendantOf(vcWorkspace) and vcLighting then
-                                    pcall(function() char.Parent = vcLighting end)
-                                end
-                                local root = char.PrimaryPart or char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Head")
-                                if root then
-                                    pcall(function() root.CFrame = CFrame.new(0, 999999, 0) end)
-                                end
-                            end
-                        elseif plr.Character and vcLighting and plr.Character.Parent == vcLighting then
-                            pcall(function() plr.Character.Parent = vcWorkspace end)
-                        end
-                    end
-                end
-            end)
-        end
-
-        -- TAB 4: ANTI-STUFFS / DEFENSE
-        local defState = {
-            AntiKick = false,
-            OriginalKick = nil,
-            Headsit = false,
-            Facebang = false,
-            Kidnap = false,
-            KidnapConn = nil,
-            Void = false,
-            VoidPart = nil,
-            VoidHeight = OriginalFPDH or -500,
-            GodMode = false,
-            GodModeConnections = {},
-            AntiAFKConn = nil,
-        }
-
-        createSection(defAntiPage, "Protection & Anti-Moderation", 1)
-
-        createToggle(defAntiPage, "Anti Kick", "Intercepts and blocks client-side scripts from kicking you", 2, function(enabled)
-            defState.AntiKick = enabled
-            if enabled then
-                pcall(function()
-                    if type(hookfunction) == "function" and vcLocalPlayer and vcLocalPlayer.Kick then
-                        if not defState.OriginalKick then
-                            defState.OriginalKick = hookfunction(vcLocalPlayer.Kick, function(self, ...)
-                                if defState.AntiKick and self == vcLocalPlayer then
-                                    local reason = tostring(... or "No reason provided")
-                                    vcSendNotification("Coco Anti-Kick", "Blocked kick: " .. reason:sub(1, 35), 4)
-                                    return nil
-                                end
-                                return defState.OriginalKick(self, ...)
-                            end)
-                        end
-                        vcSendNotification("Coco Anti-VC", "Anti-Kick: Enabled", 2)
-                    else
-                        vcSendNotification("Coco Anti-VC", "Executor does not support hookfunction", 3)
-                    end
-                end)
-            else
-                vcSendNotification("Coco Anti-VC", "Anti-Kick: Disabled", 2)
-            end
-        end)
-
-        createToggle(defAntiPage, "Anti Sit / Anti Kidnap", "Prevents you from being seated or kidnapped", 3, function(enabled)
-            defState.Kidnap = enabled
-            if defState.KidnapConn then
-                defState.KidnapConn:Disconnect()
-                defState.KidnapConn = nil
-            end
-            if enabled and vcRunService then
-                defState.KidnapConn = vcRunService.Heartbeat:Connect(function()
-                    local char = vcLocalPlayer and vcLocalPlayer.Character
-                    local hum = char and char:FindFirstChildOfClass("Humanoid")
-                    if hum then
-                        if hum:GetStateEnabled(Enum.HumanoidStateType.Seated) then
-                            hum:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
-                        end
-                        if hum.Sit then hum.Sit = false end
-                        local hrp = char:FindFirstChild("HumanoidRootPart")
-                        local weld = hrp and hrp:FindFirstChild("SeatWeld")
-                        if weld then weld:Destroy() end
-                    end
-                end)
-            elseif vcLocalPlayer and vcLocalPlayer.Character then
-                local hum = vcLocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-                if hum then hum:SetStateEnabled(Enum.HumanoidStateType.Seated, true) end
-            end
-        end)
-
-        createToggle(defAntiPage, "Anti Head Sit & Facebang", "Dodges players attempting head-sit or facebang attaches", 4, function(enabled)
-            defState.Headsit = enabled
-            defState.Facebang = enabled
-        end)
-
-        if vcRunService and vcPlayers then
-            vcRunService.Stepped:Connect(function()
-                if not defState.Headsit and not defState.Facebang then return end
-                if CurrentWeld ~= nil or WeldSeekingTarget or FlingActive then return end
-                pcall(function()
-                    local char = vcLocalPlayer and vcLocalPlayer.Character
-                    local hrp = char and char:FindFirstChild("HumanoidRootPart")
-                    if not hrp then return end
-                    for _, plr in ipairs(vcPlayers:GetPlayers()) do
-                        if plr ~= vcLocalPlayer and plr.Character then
-                            local tHrp = plr.Character:FindFirstChild("HumanoidRootPart")
-                            if tHrp and (tHrp.Position - hrp.Position).Magnitude < 6 then
-                                for _, p in ipairs(plr.Character:GetChildren()) do
-                                    if p:IsA("BasePart") then
-                                        p.CanCollide = false
-                                        p.CanTouch = false
-                                        p.Massless = true
-                                    end
-                                end
-                            end
-                        end
-                    end
-                end)
-            end)
-        end
-
-        createToggle(defAntiPage, "Anti-AFK", "Prevents Roblox from kicking you for 20m idle", 5, function(enabled)
-            if defState.AntiAFKConn then
-                defState.AntiAFKConn:Disconnect()
-                defState.AntiAFKConn = nil
-            end
-            if enabled and vcLocalPlayer and vcVirtualUser then
-                defState.AntiAFKConn = vcLocalPlayer.Idled:Connect(function()
-                    vcVirtualUser:CaptureController()
-                    vcVirtualUser:ClickButton2(Vector2.new())
-                end)
-                vcSendNotification("Coco Anti-VC", "Anti-AFK: Enabled", 2)
-            end
-        end)
-
-        createToggle(defAntiPage, "Anti Void Platform", "Spawns an invisible safety platform at void height beneath you", 6, function(enabled)
-            defState.Void = enabled
-            if defState.VoidPart then
-                defState.VoidPart:Destroy()
-                defState.VoidPart = nil
-            end
-            if enabled then
-                local part = Instance.new("Part")
-                part.Name = "CocoAntiVoidPlatform"
-                part.Transparency = 1
-                part.Anchored = true
-                part.CanCollide = true
-                part.Size = Vector3.new(2048, 1, 2048)
-                part.Position = Vector3.new(0, defState.VoidHeight, 0)
-                part.Locked = true
-                part.Parent = vcWorkspace
-                defState.VoidPart = part
-                task.spawn(function()
-                    while defState.Void and defState.VoidPart and defState.VoidPart.Parent do
-                        pcall(function()
-                            local char = vcLocalPlayer and vcLocalPlayer.Character
-                            local hrp = char and char:FindFirstChild("HumanoidRootPart")
-                            if hrp then
-                                defState.VoidPart.Position = Vector3.new(hrp.Position.X, defState.VoidHeight, hrp.Position.Z)
-                            end
-                        end)
-                        task.wait(0.1)
-                    end
-                end)
-            end
-        end)
-
-        createToggle(defAntiPage, "Infinite Fall Void", "Sets FallenPartsDestroyHeight to NaN so falling never kills you", 7, function(enabled)
-            pcall(function()
-                if enabled then
-                    vcWorkspace.FallenPartsDestroyHeight = (0 / 0)
-                else
-                    vcWorkspace.FallenPartsDestroyHeight = defState.VoidHeight
-                end
-            end)
-        end)
-
-        createToggle(defAntiPage, "God Mode (Immortal Core)", "Undying health, Neck/Motor6D lock & zero KillBrick touch without movement lag", 8, function(enabled)
-            defState.GodMode = enabled
-            if enabled then
-                akStart(true)
-                avStart(true)
-                vcSendNotification("Coco Anti-VC", "Immortal God Mode: ON", 2)
-            else
-                akStop()
-                vcSendNotification("Coco Anti-VC", "Immortal God Mode: OFF", 2)
-            end
-        end)
-    end
-
-    _G.launchCocoAntiVCB2 = launchCocoAntiVCB2
-    _G.launchAntiVCB2 = launchCocoAntiVCB2
-    _G.runCocoOneClickVCBypass = runCocoOneClickVCBypass
-    _G.launchCocoAntiVCBypassSuite = launchCocoAntiVCBypassSuite
-    _G.launchMortalHubVCSuite = launchCocoAntiVCBypassSuite
-end)()
-
-Anti.VC.openCompactPanelFn = function()
-    local coreGui = CoreGui or game:GetService("CoreGui")
-    local pgui = LP and LP:FindFirstChildOfClass("PlayerGui")
-    local existing = (coreGui and (coreGui:FindFirstChild("CocoAntiVCPanel") or coreGui:FindFirstChild("TeslaAntiVCPanel")))
-        or (pgui and (pgui:FindFirstChild("CocoAntiVCPanel") or pgui:FindFirstChild("TeslaAntiVCPanel")))
-    if existing then
-        existing:Destroy()
-        return
-    end
-
-    local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "CocoAntiVCPanel"
-    screenGui.ResetOnSpawn = false
-    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    screenGui.DisplayOrder = 1000002
-
-    local parentOk = pcall(function()
-        screenGui.Parent = coreGui
-    end)
-    if not parentOk or not screenGui.Parent then
-        screenGui.Parent = pgui or LP:WaitForChild("PlayerGui")
-    end
-
-    local mainCard = Instance.new("Frame", screenGui)
-    mainCard.Name = "CocoAntiVCCard"
-    mainCard.Size = UDim2.new(0, 324, 0, 396)
-    mainCard.Position = UDim2.new(0.5, -162, 0.5, -198)
-    mainCard.BackgroundColor3 = Color3.fromRGB(16, 16, 24)
-    mainCard.BorderSizePixel = 0
-    mainCard.Active = true
-    pcall(function() mainCard.Draggable = true end)
-
-    local cardCorner = Instance.new("UICorner", mainCard)
-    cardCorner.CornerRadius = UDim.new(0, 12)
-
-    local cardStroke = Instance.new("UIStroke", mainCard)
-    cardStroke.Color = Color3.fromRGB(115, 55, 210)
-    cardStroke.Thickness = 1.6
-
-    local closeBtn = Instance.new("TextButton", mainCard)
-    closeBtn.Size = UDim2.new(0, 24, 0, 22)
-    closeBtn.Position = UDim2.new(1, -24, 0, 0)
-    closeBtn.BackgroundTransparency = 1
-    closeBtn.Text = "✕"
-    closeBtn.Font = Enum.Font.GothamBold
-    closeBtn.TextSize = 13
-    closeBtn.TextColor3 = Color3.fromRGB(170, 175, 195)
-    closeBtn.ZIndex = 5
-    closeBtn.MouseButton1Click:Connect(function()
-        sClick()
-        screenGui:Destroy()
-    end)
-
-    local cardPadding = Instance.new("UIPadding", mainCard)
-    cardPadding.PaddingTop = UDim.new(0, 12)
-    cardPadding.PaddingBottom = UDim.new(0, 12)
-    cardPadding.PaddingLeft = UDim.new(0, 14)
-    cardPadding.PaddingRight = UDim.new(0, 14)
-
-    local listLayout = Instance.new("UIListLayout", mainCard)
-    listLayout.FillDirection = Enum.FillDirection.Vertical
-    listLayout.Padding = UDim.new(0, 6)
-    listLayout.SortOrder = Enum.SortOrder.LayoutOrder
-
-    local headerLbl = Instance.new("TextLabel", mainCard)
-    headerLbl.LayoutOrder = 1
-    headerLbl.Size = UDim2.new(1, -26, 0, 20)
-    headerLbl.BackgroundTransparency = 1
-    headerLbl.Text = "⚡ COCO ANTI-VC / VC BYPASS V6 OMEGA"
-    headerLbl.Font = Enum.Font.GothamBold
-    headerLbl.TextSize = 13
-    headerLbl.TextColor3 = Color3.fromRGB(175, 115, 255)
-    headerLbl.TextXAlignment = Enum.TextXAlignment.Left
-
-    local stLbl = Instance.new("TextLabel", mainCard)
-    stLbl.LayoutOrder = 2
-    stLbl.Size = UDim2.new(1, 0, 0, 18)
-    stLbl.BackgroundTransparency = 1
-    stLbl.Text = Anti.VC.statusText or "Status: Idle"
-    stLbl.Font = Enum.Font.GothamMedium
-    stLbl.TextSize = 12
-    stLbl.TextColor3 = Anti.VC.enabled and Color3.fromRGB(80, 220, 120)
-        or (Anti.VC.running and Color3.fromRGB(255, 200, 80) or Color3.fromRGB(160, 165, 185))
-    stLbl.TextXAlignment = Enum.TextXAlignment.Left
-    Anti.VC.statusLbl = stLbl
-
-    local micLbl = Instance.new("TextLabel", mainCard)
-    micLbl.LayoutOrder = 3
-    micLbl.Size = UDim2.new(1, 0, 0, 18)
-    micLbl.BackgroundTransparency = 1
-    micLbl.Text = "Mic: Checking..."
-    micLbl.Font = Enum.Font.GothamMedium
-    micLbl.TextSize = 11
-    micLbl.TextColor3 = Color3.fromRGB(165, 170, 190)
-    micLbl.TextXAlignment = Enum.TextXAlignment.Left
-    Anti.VC.micStateLbl = micLbl
-
-    local infoLbl = Instance.new("TextLabel", mainCard)
-    infoLbl.LayoutOrder = 4
-    infoLbl.Size = UDim2.new(1, 0, 0, 72)
-    infoLbl.BackgroundColor3 = Color3.fromRGB(24, 24, 35)
-    infoLbl.BorderSizePixel = 0
-    infoLbl.Text = "• 3 Bypass Modes: Hybrid V5, Instant 0s & Deep Reset\n• Neutralizes StateChanged suspension hooks + Keep-Alive\n• Tap Activate (or Force Now to skip unmute wait)\n• Toggle Mic anytime from TopBar or button below"
-    infoLbl.Font = Enum.Font.Gotham
-    infoLbl.TextSize = 10.5
-    infoLbl.TextColor3 = Color3.fromRGB(185, 188, 210)
-    infoLbl.TextXAlignment = Enum.TextXAlignment.Left
-    infoLbl.TextYAlignment = Enum.TextYAlignment.Top
-    infoLbl.TextWrapped = true
-
-    local infoCorner = Instance.new("UICorner", infoLbl)
-    infoCorner.CornerRadius = UDim.new(0, 8)
-
-    local infoPad = Instance.new("UIPadding", infoLbl)
-    infoPad.PaddingTop = UDim.new(0, 6)
-    infoPad.PaddingLeft = UDim.new(0, 9)
-    infoPad.PaddingRight = UDim.new(0, 9)
-
-    local modeBtn = Instance.new("TextButton", mainCard)
-    modeBtn.LayoutOrder = 5
-    modeBtn.Size = UDim2.new(1, 0, 0, 30)
-    modeBtn.BackgroundColor3 = Color3.fromRGB(30, 28, 46)
-    modeBtn.BorderSizePixel = 0
-    modeBtn.Text = "🔀 Mode: " .. VC_BYPASS_MODES[vcBypassModeIdx].name
-    modeBtn.Font = Enum.Font.GothamBold
-    modeBtn.TextSize = 11
-    modeBtn.TextColor3 = Color3.fromRGB(210, 190, 255)
-    Instance.new("UICorner", modeBtn).CornerRadius = UDim.new(0, 7)
-    modeBtn.MouseButton1Click:Connect(function()
-        sClick()
-        vcBypassModeIdx = (vcBypassModeIdx % #VC_BYPASS_MODES) + 1
-        local m = VC_BYPASS_MODES[vcBypassModeIdx]
-        modeBtn.Text = "🔀 Mode: " .. m.name
-        updateAntiVCVisuals(nil, nil, nil)
-        notify("Coco Anti-VC V5", "Bypass Mode: " .. m.name .. " (" .. m.desc .. ")")
-    end)
-
-    local actBtn = Instance.new("TextButton", mainCard)
-    actBtn.LayoutOrder = 6
-    actBtn.Size = UDim2.new(1, 0, 0, 36)
-    actBtn.BackgroundColor3 = Color3.fromRGB(105, 45, 185)
-    actBtn.BorderSizePixel = 0
-    actBtn.Text = Anti.VC.enabled and "COCO ANTI VC V5 ACTIVE" or (Anti.VC.running and "FORCE BYPASS NOW ⚡" or "ACTIVATE COCO ANTI VC V5")
-    actBtn.Font = Enum.Font.GothamBold
-    actBtn.TextSize = 12
-    actBtn.TextColor3 = Color3.new(1, 1, 1)
-    actBtn.AutoButtonColor = true
-    Anti.VC.activateBtn = actBtn
-
-    local btnCorner = Instance.new("UICorner", actBtn)
-    btnCorner.CornerRadius = UDim.new(0, 8)
-
-    actBtn.MouseButton1Click:Connect(function()
-        sClick()
-        if Anti.VC.running then
-            vcStart(true)
-        else
-            vcStart(false)
-        end
-    end)
-
-    local rowFrame1 = Instance.new("Frame", mainCard)
-    rowFrame1.LayoutOrder = 7
-    rowFrame1.Size = UDim2.new(1, 0, 0, 32)
-    rowFrame1.BackgroundTransparency = 1
-
-    local micToggleBtn = Instance.new("TextButton", rowFrame1)
-    micToggleBtn.Size = UDim2.new(0.5, -3, 1, 0)
-    micToggleBtn.Position = UDim2.new(0, 0, 0, 0)
-    micToggleBtn.BackgroundColor3 = Color3.fromRGB(32, 34, 48)
-    micToggleBtn.BorderSizePixel = 0
-    micToggleBtn.Text = "🎙️ Toggle Mic"
-    micToggleBtn.Font = Enum.Font.GothamBold
-    micToggleBtn.TextSize = 11
-    micToggleBtn.TextColor3 = Color3.fromRGB(220, 225, 245)
-    Instance.new("UICorner", micToggleBtn).CornerRadius = UDim.new(0, 7)
-    micToggleBtn.MouseButton1Click:Connect(function()
-        sClick()
-        toggleCocoVCMic()
-    end)
-
-    local rejoinBtn = Instance.new("TextButton", rowFrame1)
-    rejoinBtn.Size = UDim2.new(0.5, -3, 1, 0)
-    rejoinBtn.Position = UDim2.new(0.5, 3, 0, 0)
-    rejoinBtn.BackgroundColor3 = Color3.fromRGB(32, 34, 48)
-    rejoinBtn.BorderSizePixel = 0
-    rejoinBtn.Text = "🔄 Force Rejoin VC"
-    rejoinBtn.Font = Enum.Font.GothamBold
-    rejoinBtn.TextSize = 11
-    rejoinBtn.TextColor3 = Color3.fromRGB(150, 210, 255)
-    Instance.new("UICorner", rejoinBtn).CornerRadius = UDim.new(0, 7)
-    rejoinBtn.MouseButton1Click:Connect(function()
-        sClick()
-        forceRejoinAndBypassVC()
-    end)
-
-    local rowFrame2 = Instance.new("Frame", mainCard)
-    rowFrame2.LayoutOrder = 8
-    rowFrame2.Size = UDim2.new(1, 0, 0, 32)
-    rowFrame2.BackgroundTransparency = 1
-
-    local guardBtn = Instance.new("TextButton", rowFrame2)
-    guardBtn.Size = UDim2.new(0.5, -3, 1, 0)
-    guardBtn.Position = UDim2.new(0, 0, 0, 0)
-    guardBtn.BackgroundColor3 = Color3.fromRGB(28, 44, 36)
-    guardBtn.BorderSizePixel = 0
-    guardBtn.Text = vcAutoGuardEnabled and "🛡️ Auto-Guard: ON" or "🛡️ Auto-Guard: OFF"
-    guardBtn.Font = Enum.Font.GothamBold
-    guardBtn.TextSize = 11
-    guardBtn.TextColor3 = vcAutoGuardEnabled and Color3.fromRGB(95, 235, 145) or Color3.fromRGB(165, 170, 190)
-    Instance.new("UICorner", guardBtn).CornerRadius = UDim.new(0, 7)
-    guardBtn.MouseButton1Click:Connect(function()
-        sClick()
-        vcAutoGuardEnabled = not vcAutoGuardEnabled
-        guardBtn.Text = vcAutoGuardEnabled and "🛡️ Auto-Guard: ON" or "🛡️ Auto-Guard: OFF"
-        guardBtn.TextColor3 = vcAutoGuardEnabled and Color3.fromRGB(95, 235, 145) or Color3.fromRGB(165, 170, 190)
-        guardBtn.BackgroundColor3 = vcAutoGuardEnabled and Color3.fromRGB(28, 44, 36) or Color3.fromRGB(32, 34, 48)
-    end)
-
-    local resetBtn = Instance.new("TextButton", rowFrame2)
-    resetBtn.Size = UDim2.new(0.5, -3, 1, 0)
-    resetBtn.Position = UDim2.new(0.5, 3, 0, 0)
-    resetBtn.BackgroundColor3 = Color3.fromRGB(48, 28, 34)
-    resetBtn.BorderSizePixel = 0
-    resetBtn.Text = "⏹ Reset / Stop VC"
-    resetBtn.Font = Enum.Font.GothamBold
-    resetBtn.TextSize = 11
-    resetBtn.TextColor3 = Color3.fromRGB(255, 120, 130)
-    Instance.new("UICorner", resetBtn).CornerRadius = UDim.new(0, 7)
-    resetBtn.MouseButton1Click:Connect(function()
-        sClick()
-        vcStop()
-    end)
-
-    local rowFrame3 = Instance.new("Frame", mainCard)
-    rowFrame3.LayoutOrder = 9
-    rowFrame3.Size = UDim2.new(1, 0, 0, 32)
-    rowFrame3.BackgroundTransparency = 1
-
-    local strobeBtn = Instance.new("TextButton", rowFrame3)
-    strobeBtn.Size = UDim2.new(0.5, -3, 1, 0)
-    strobeBtn.Position = UDim2.new(0, 0, 0, 0)
-    strobeBtn.BackgroundColor3 = vcStrobeEnabled and Color3.fromRGB(85, 38, 145) or Color3.fromRGB(32, 34, 48)
-    strobeBtn.BorderSizePixel = 0
-    strobeBtn.Text = vcStrobeEnabled and "⚡ Mic Strobe: ON" or "⚡ Mic Strobe: OFF"
-    strobeBtn.Font = Enum.Font.GothamBold
-    strobeBtn.TextSize = 11
-    strobeBtn.TextColor3 = vcStrobeEnabled and Color3.fromRGB(220, 180, 255) or Color3.fromRGB(175, 180, 200)
-    Instance.new("UICorner", strobeBtn).CornerRadius = UDim.new(0, 7)
-    strobeBtn.MouseButton1Click:Connect(function()
-        sClick()
-        vcStrobeEnabled = not vcStrobeEnabled
-        strobeBtn.Text = vcStrobeEnabled and "⚡ Mic Strobe: ON" or "⚡ Mic Strobe: OFF"
-        strobeBtn.TextColor3 = vcStrobeEnabled and Color3.fromRGB(220, 180, 255) or Color3.fromRGB(175, 180, 200)
-        strobeBtn.BackgroundColor3 = vcStrobeEnabled and Color3.fromRGB(85, 38, 145) or Color3.fromRGB(32, 34, 48)
-        notify("Coco Anti-VC V6", vcStrobeEnabled and "12Hz Chopper Mic Strobe ON!" or "Mic Strobe OFF")
-    end)
-
-    local diagBtn = Instance.new("TextButton", rowFrame3)
-    diagBtn.Size = UDim2.new(0.5, -3, 1, 0)
-    diagBtn.Position = UDim2.new(0.5, 3, 0, 0)
-    diagBtn.BackgroundColor3 = Color3.fromRGB(32, 34, 48)
-    diagBtn.BorderSizePixel = 0
-    diagBtn.Text = "🩺 VC Diagnostic"
-    diagBtn.Font = Enum.Font.GothamBold
-    diagBtn.TextSize = 11
-    diagBtn.TextColor3 = Color3.fromRGB(130, 230, 200)
-    Instance.new("UICorner", diagBtn).CornerRadius = UDim.new(0, 7)
-    diagBtn.MouseButton1Click:Connect(function()
-        sClick()
-        local vcs, vci = getVoiceServices()
-        local cBtn = findMicButtonAndParent(nil, true) or findMicButtonAndParent(nil, false)
-        local ic = findMicIcon(cBtn)
-        local paused = getVCMicPausedState(vci, ic)
-        notify(
-            "🩺 VC V6 DIAGNOSTIC",
-            string.format(
-                "VCS:%s | VCI:%s | Btn:%s | Mic:%s | Hooks:%d",
-                vcs and "OK" or "NO",
-                vci and "OK" or "NO",
-                cBtn and cBtn.Name or "None",
-                paused and "Muted" or "LIVE",
-                vcShieldedHookCount
-            )
-        )
-        sSuccess()
-    end)
-
-    updateAntiVCVisuals(nil, nil, nil)
-end
-Anti.VC.openPanelFn = launchCocoAntiVCBypassSuite
-Anti.VC.openVCB2Fn = launchCocoAntiVCB2
+_G.launchCocoAntiVCBypassSuite = openStandaloneOriginalVCGUI
+_G.launchCocoAntiVCB2 = openStandaloneOriginalVCGUI
+Anti.VC.openPanelFn = openStandaloneOriginalVCGUI
+Anti.VC.openVCB2Fn = openStandaloneOriginalVCGUI
+Anti.VC.openCompactPanelFn = openStandaloneOriginalVCGUI
 end)()
 ;(function() -- Sub-scope 2 for Anti (Ragdoll, Anchor, Attach, Blind, Bring, FlingShield, DefenceTroll)
 local contactTimers = {}
@@ -27369,32 +25297,20 @@ local function buildMainUI()
         registerAntiSwitch(bypassGrp, 2, "Redirect Attacker",      "Slingshots incoming attacker onto nearest bystander",           function() return Anti.Redirect.enabled end, redirectStart, redirectStop)
         registerAntiSwitch(bypassGrp, 3, "Anti-GameplayPaused",    "Prevents streaming pause & network freeze screens",             function() return Anti.GamePaused.enabled end, agpStart, agpStop)
         registerAntiSwitch(bypassGrp, 4, "Anti-AFK v2",            "Idled connection + VirtualUser anti-kick pulse",                function() return Anti.AFK.enabled end, afkStart, afkStop)
-        local vcSw = createSwitchRow(bypassGrp, 5, "Coco Anti-VC Bypass V7", "Status: Idle · Zero-Delay StateChanged Hook Shield + TopBar Clone", Anti.VC.enabled, function(st)
-            if st then vcStart(false) else vcStop() end
+        local vcSw = createSwitchRow(bypassGrp, 5, "VC Bypass (Original Logic)", "Status: Not active · Wait for unmute, disable StateChanged 7+ & clone mic", Anti.VC.enabled, function(st)
+            if st then vcStart() else vcStop() end
             syncAllAntiButtons()
         end)
         Anti.VC.rowSubLbl = vcSw.subLbl
         table.insert(antiToggleRegistry, { sw = vcSw, getState = function() return Anti.VC.enabled or Anti.VC.running end })
 
-        createActionRow(bypassGrp, 6, "Coco Anti-VC Bypass Suite (4-Tab Hub)", "Opens Coco VC Bypass, Anti-VCB 2, Hide & Mute VC, and Anti-Stuffs Suite", "Open Suite", function()
+        createActionRow(bypassGrp, 6, "Open Standalone VC Bypass GUI", "Opens the custom VC BYPASS panel (or click ⚡ to activate directly)", "Open GUI", function()
             if Anti.VC.openPanelFn then
                 Anti.VC.openPanelFn()
             end
-
-
         end, function()
-            vcStart(true)
+            vcStart()
         end, "⚡")
-
-        createActionRow(bypassGrp, 7, "Coco Anti-VCB 2 Diagnostic & Connection Tool", "Opens 6-step VC Capability Probe, Connection Inspector & Keep-Unmuted Loop", "Anti-VCB 2", function()
-            if Anti.VC.openVCB2Fn then
-                Anti.VC.openVCB2Fn()
-            end
-        end, function()
-            if Anti.VC.openCompactPanelFn then
-                Anti.VC.openCompactPanelFn()
-            end
-        end, "🩺")
 
         local antiCamLockOn = false
         local antiCamConn = nil
