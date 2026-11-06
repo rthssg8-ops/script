@@ -359,7 +359,7 @@ local OwnerAdminState = {
 }
 
 local isConfiguredScriptOwner, isConfiguredPremiumUser, isScriptOwner, isPremiumUser, hasAdminAccess, isProtectedFromLocalPlayer, getPlayerTargetCode, checkSavedBanState, saveBanStateToDisk, showOwnerScreenBanner, clearPersistentBanner
-do
+;(function()
 local BAN_FILE_NAME = "CocoPowder_ScriptBanLock.txt" 
 do
     local OWNER_UID_SET, OWNER_NAME_SET = {}, {}
@@ -605,7 +605,7 @@ clearPersistentBanner = function(persistentKey)
         if existing then existing:Destroy() end
     end)
 end
-end -- end Owner/Ban helper scope
+end)() -- end Owner/Ban helper scope
 
 -- Check whether a CFrame is inside safe playable map bounds for local recovery
 -- Supports distant custom realms/islands up to 250,000 studs while rejecting deep void & Y=85,000 Self-Vanish sky pocket
@@ -679,7 +679,7 @@ do
     end
 end
 
-local Anti, moveState, AnimCopySys, hookTargetRespawn, removeOverheadTagForUser, updateOverheadNameTags
+local Anti, moveState, AnimCopySys, RewindSys, CocaSkyDestroyer, hookTargetRespawn, removeOverheadTagForUser, updateOverheadNameTags
 local recoverCharacterState, safeReturnFromVoid, syncAllActiveIndicators
 
 local StateManager = {}
@@ -791,8 +791,8 @@ function StateManager:Cleanup(keepTarget, switchingWeld)
     if _G.CocaBangActive and type(_G.stopCocaBangLock) == "function" then
         pcall(_G.stopCocaBangLock)
     end
-    if RewindSys and RewindSys.rewinding and RewindSys.StopRewind then
-        pcall(function() RewindSys:StopRewind() end)
+    if RewindSys and RewindSys.rewinding and (RewindSys.Stop or RewindSys.StopRewind) then
+        pcall(function() (RewindSys.Stop or RewindSys.StopRewind)(RewindSys) end)
     end
     if moveState and (moveState.fly or moveState.flyLanding) and moveState.stopFlyImmediate then
         pcall(moveState.stopFlyImmediate)
@@ -849,24 +849,12 @@ do
         pcall(function() track.Looped = true end)
         pcall(function() track:AdjustSpeed(1) end)
         forcePhysicsState(hum)
-        local okPlay = pcall(function() track:Play(0.05, 1.0, 1.0) end)
+        local okPlay = pcall(function() track:Play(0, 1.0, 1.0) end)
         if not okPlay then
             pcall(function() track:Stop(0) end); pcall(function() track:Destroy() end)
             return nil, nil, false, nil
         end
-        local playing = false
-        pcall(function() playing = track.IsPlaying end)
-        if playing then
-            return track, anim, true, cleanDigits
-        end
-        local started = tick()
-        while tick() - started < ANIM_VERIFY_TIME do
-            pcall(function() playing = track.IsPlaying end)
-            if playing then return track, anim, true, cleanDigits end
-            RunService.Heartbeat:Wait()
-        end
-        pcall(function() track:Stop(0) end); pcall(function() track:Destroy() end)
-        return nil, nil, false, nil
+        return track, anim, true, cleanDigits
     end
 
     loadPlayableAnim = function(Animator, animId, fallbacks, hum, priority)
@@ -950,7 +938,7 @@ recoverCharacterState = function(char, safeCF)
         if isSafePlayableCF(safeCF) then
             targetCF = safeCF
         elseif isSafePlayableCF(root.CFrame) then
-            targetCF = root.CFrame + Vector3.new(0, 1.5, 0)
+            targetCF = root.CFrame
         else
             targetCF = findFallbackSafeCF()
         end
@@ -1009,16 +997,26 @@ recoverCharacterState = function(char, safeCF)
     AnimateWasDisabled = false
     stopDefaultTracks(char)
     if hum and hum.Health > 0 then
-        pcall(function() hum:SetStateEnabled(Enum.HumanoidStateType.Running, true) end)
-        pcall(function() hum:SetStateEnabled(Enum.HumanoidStateType.Jumping, true) end)
-        pcall(function() hum:SetStateEnabled(Enum.HumanoidStateType.Freefall, true) end)
-        pcall(function() hum:SetStateEnabled(Enum.HumanoidStateType.Landed, true) end)
-        pcall(function() hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true) end)
-        pcall(function() hum.PlatformStand = false end)
-        pcall(function() hum.Sit = false end)
-        pcall(function() hum.AutoRotate = true end)
-        pcall(function() hum:ChangeState(Enum.HumanoidStateType.GettingUp) end)
-        pcall(function() hum:ChangeState(Enum.HumanoidStateType.Running) end)
+        pcall(function()
+            if not hum:GetStateEnabled(Enum.HumanoidStateType.Running) then hum:SetStateEnabled(Enum.HumanoidStateType.Running, true) end
+            if not hum:GetStateEnabled(Enum.HumanoidStateType.Jumping) then hum:SetStateEnabled(Enum.HumanoidStateType.Jumping, true) end
+            if not hum:GetStateEnabled(Enum.HumanoidStateType.Freefall) then hum:SetStateEnabled(Enum.HumanoidStateType.Freefall, true) end
+            if not hum:GetStateEnabled(Enum.HumanoidStateType.Landed) then hum:SetStateEnabled(Enum.HumanoidStateType.Landed, true) end
+            if not hum:GetStateEnabled(Enum.HumanoidStateType.GettingUp) then hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true) end
+            if hum.PlatformStand then hum.PlatformStand = false end
+            if hum.Sit then hum.Sit = false end
+            if not hum.AutoRotate then hum.AutoRotate = true end
+            local curSt = hum:GetState()
+            if curSt == Enum.HumanoidStateType.PlatformStanding
+                or curSt == Enum.HumanoidStateType.Ragdoll
+                or curSt == Enum.HumanoidStateType.FallingDown
+                or curSt == Enum.HumanoidStateType.Seated
+                or curSt == Enum.HumanoidStateType.Physics
+                or curSt == Enum.HumanoidStateType.Dead then
+                hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+                hum:ChangeState(Enum.HumanoidStateType.Running)
+            end
+        end)
     end
     local currentCam = workspace.CurrentCamera
     if currentCam and hum and not SpectatingTarget and not FlingActive then
@@ -1038,11 +1036,13 @@ safeReturnFromVoid = function(char, preferredCF)
     if CurrentWeld ~= nil or WeldSeekingTarget or FlingActive then return end
     local root = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChildWhichIsA("BasePart")
     local hum  = char:FindFirstChildOfClass("Humanoid")
+    local wasInDeepVoid = (not root) or (not isSafePlayableCF(root.CFrame)) or (root.Position.Y <= math.min(OriginalFPDH + 45, -200))
     local resolvedCF = isSafePlayableCF(preferredCF) and preferredCF
         or ((root and isSafePlayableCF(root.CFrame)) and root.CFrame or findFallbackSafeCF())
     local pos = resolvedCF.Position
     local _, yYaw, _ = resolvedCF:ToEulerAnglesYXZ()
-    local cleanCF = CFrame.new(pos + Vector3.new(0, 1.2, 0)) * CFrame.Angles(0, yYaw, 0)
+    local yLift = wasInDeepVoid and 0.6 or 0
+    local cleanCF = CFrame.new(pos + Vector3.new(0, yLift, 0)) * CFrame.Angles(0, yYaw, 0)
 
     recoverCharacterState(char, cleanCF)
     if not root or not root.Parent then return end
@@ -1050,10 +1050,15 @@ safeReturnFromVoid = function(char, preferredCF)
     RescueGeneration = RescueGeneration + 1
     local myRescueGen = RescueGeneration
 
+    if not wasInDeepVoid then
+        root.Anchored = false
+        return
+    end
+
     task.spawn(function()
         pcall(function()
             root.Anchored = true
-            for _ = 1, 4 do
+            for _ = 1, 2 do
                 if not root.Parent or myRescueGen ~= RescueGeneration or CurrentWeld ~= nil or WeldSeekingTarget or FlingActive then
                     break
                 end
@@ -1072,11 +1077,9 @@ safeReturnFromVoid = function(char, preferredCF)
             end
             if myRescueGen == RescueGeneration and CurrentWeld == nil and not WeldSeekingTarget and not FlingActive then
                 if hum and hum.Parent and hum.Health > 0 then
-                    hum.PlatformStand = false
-                    hum.Sit = false
-                    hum.AutoRotate = true
-                    hum:ChangeState(Enum.HumanoidStateType.GettingUp)
-                    hum:ChangeState(Enum.HumanoidStateType.Running)
+                    if hum.PlatformStand then hum.PlatformStand = false end
+                    if hum.Sit then hum.Sit = false end
+                    if not hum.AutoRotate then hum.AutoRotate = true end
                 end
                 local currentCam = workspace.CurrentCamera
                 if currentCam and hum and not SpectatingTarget then
@@ -1136,7 +1139,8 @@ do
                 end
             end
             local vel = root.AssemblyLinearVelocity.Magnitude
-            if isSafePlayableCF(root.CFrame) and vel < 110 then
+            local isGrounded = (hum.FloorMaterial ~= Enum.Material.Air) or (LastKnownSafeCF == nil)
+            if isSafePlayableCF(root.CFrame) and vel < 95 and isGrounded then
                 local _, yYaw, _ = root.CFrame:ToEulerAnglesYXZ()
                 LastKnownSafeCF = CFrame.new(pos) * CFrame.Angles(0, yYaw, 0)
             end
@@ -1151,6 +1155,143 @@ local getFlatYawCFrame
 local getBestTargetCFrame
 local streamAndTeleportToTarget
 local markIntentionalTeleport
+
+-- ============================================================================
+-- 🛡️ REANIMATION & INVISIBILITY ROBUSTNESS HELPERS (0.00ms ZERO-DELAY AWARE)
+--   • Detects & filters desynced HumanoidRootParts (from FE Invisibility, Vanish,
+--     or fling reanimations where root is sent to sky Y=85000 or underground Y=-185)
+--   • Automatically resolves live reanimation clone rigs & netless physics bodies
+--     so the weld NEVER detaches or swings your character away into the void/sky!
+-- ============================================================================
+local isRefPartValid
+local isCharacterNetlessReanimated
+local findTargetReanimModel
+
+isRefPartValid = function(part, char)
+    if not (part and part.Parent and part:IsA("BasePart")) then return false end
+    if char and not part:IsDescendantOf(char) then return false end
+    local okCF, cf = pcall(function() return part.CFrame end)
+    if not okCF or not cf then return false end
+    local pos = cf.Position
+    -- NaN / Infinite coordinates rejection
+    if pos.X ~= pos.X or pos.Y ~= pos.Y or pos.Z ~= pos.Z then return false end
+    if pos.Magnitude > 100000 then return false end
+    -- Sky pocket rejection: FE Invisibility & Vanish place RootPart at Y=85000 or Y > 4000
+    if pos.Y > 4000 then return false end
+    -- Lethal void / underground bury pocket rejection
+    local hardFloor = (OriginalFPDH and (OriginalFPDH - 25)) or -600
+    if pos.Y <= math.min(hardFloor, -150) then return false end
+    -- Extreme spin / fling velocity rejection (fling reanimations)
+    local okV, vel = pcall(function() return part.AssemblyLinearVelocity end)
+    if okV and vel and vel.Magnitude > 1200 then return false end
+    -- Desynced RootPart rejection: If this is HumanoidRootPart, check distance to Torso/Head
+    if part.Name == "HumanoidRootPart" and char then
+        local torso = char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso") or char:FindFirstChild("Head")
+        if torso and torso:IsA("BasePart") then
+            local okTP, tPos = pcall(function() return torso.Position end)
+            if okTP and tPos and (pos - tPos).Magnitude > 14 then
+                return false -- Root is desynced for Invisibility / Fling Reanim!
+            end
+        end
+    end
+    return true
+end
+
+isCharacterNetlessReanimated = function(char)
+    if not (char and char.Parent) then return false end
+    local torso = char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso") or char:FindFirstChild("Head") or char.PrimaryPart
+    if not (torso and torso:IsA("BasePart")) then return false end
+    local okCF, cf = pcall(function() return torso.CFrame end)
+    if not okCF or not cf then return false end
+    local pos = cf.Position
+    if pos.X ~= pos.X or pos.Y ~= pos.Y or pos.Z ~= pos.Z or pos.Magnitude > 100000 then return false end
+    local hardFloor = (OriginalFPDH and (OriginalFPDH - 25)) or -600
+    if pos.Y <= math.min(hardFloor, -150) or pos.Y > 4000 then return false end
+    local okV, vel = pcall(function() return torso.AssemblyLinearVelocity end)
+    local tVel = (okV and vel) or Vector3.zero
+    if isLethalVoidCF and isLethalVoidCF(cf, tVel) then return false end
+    return true
+end
+
+findTargetReanimModel = function(targetPlr)
+    if not targetPlr then return nil end
+    -- Local player reanimation / ghost lookup
+    if targetPlr == LP then
+        local zApi = _G._AngoorZenApi
+        if zApi and type(zApi.is_reanimated) == "function" and zApi.is_reanimated() and type(zApi.get_clone) == "function" then
+            local okCl, cl = pcall(zApi.get_clone)
+            if okCl and cl and cl.Parent then return cl end
+        end
+        if moveState and moveState.Vanish and moveState.Vanish.selfActive and moveState.Vanish.ghostModel and moveState.Vanish.ghostModel.Parent then
+            return moveState.Vanish.ghostModel
+        end
+    end
+
+    local tName = targetPlr.Name
+    local candidates = {
+        tName .. "_Fake",
+        tName .. " Reanimation",
+        tName .. "_Reanim",
+        tName .. "Rig",
+        tName .. "_Clone",
+        tName .. " Dummy",
+        tName .. "_Ghost",
+        "CocoVanishGhost",
+        "CocaReanimation",
+        "AngoorReanimation",
+    }
+    for _, cName in ipairs(candidates) do
+        local m = workspace:FindFirstChild(cName) or (workspace.CurrentCamera and workspace.CurrentCamera:FindFirstChild(cName))
+        if m and m:IsA("Model") and m ~= LP.Character then
+            local ref = m:FindFirstChild("Torso") or m:FindFirstChild("UpperTorso") or m:FindFirstChild("HumanoidRootPart") or m:FindFirstChild("Head") or m.PrimaryPart
+            if ref and ref:IsA("BasePart") and isRefPartValid(ref, m) then
+                if cName == "CocaReanimation" or cName == "AngoorReanimation" or cName == "CocoVanishGhost" then
+                    local origChar = targetPlr.Character
+                    local origTorso = origChar and (origChar:FindFirstChild("Torso") or origChar:FindFirstChild("UpperTorso") or origChar:FindFirstChild("Head"))
+                    if origTorso and origTorso:IsA("BasePart") then
+                        if (ref.Position - origTorso.Position).Magnitude < 35 then
+                            return m
+                        end
+                    else
+                        local matchAcc = false
+                        if origChar then
+                            for _, acc in ipairs(origChar:GetChildren()) do
+                                if acc:IsA("Accessory") and m:FindFirstChild(acc.Name) then
+                                    matchAcc = true
+                                    break
+                                end
+                            end
+                        end
+                        if matchAcc then return m end
+                    end
+                else
+                    return m
+                end
+            end
+        end
+    end
+
+    local direct = workspace:FindFirstChild(tName)
+    if direct and direct:IsA("Model") and direct ~= LP.Character and direct ~= targetPlr.Character then
+        local ref = direct:FindFirstChild("Torso") or direct:FindFirstChild("UpperTorso") or direct:FindFirstChild("HumanoidRootPart") or direct:FindFirstChild("Head") or direct.PrimaryPart
+        if ref and ref:IsA("BasePart") and isRefPartValid(ref, direct) then
+            return direct
+        end
+    end
+
+    for _, fName in ipairs({ "Characters", "Players", "Entities", "Live", "Units", "Ingame", "Chars" }) do
+        local f = workspace:FindFirstChild(fName)
+        local found = f and f:FindFirstChild(tName)
+        if found and found:IsA("Model") and found ~= LP.Character and found ~= targetPlr.Character then
+            local ref = found:FindFirstChild("Torso") or found:FindFirstChild("UpperTorso") or found:FindFirstChild("HumanoidRootPart") or found:FindFirstChild("Head") or found.PrimaryPart
+            if ref and ref:IsA("BasePart") and isRefPartValid(ref, found) then
+                return found
+            end
+        end
+    end
+
+    return nil
+end
 
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- ⚡ ZERO-DELAY WELD & OMNIPRESENT TARGET CATCH-UP ENGINE (LINE-BY-LINE AUDITED)
@@ -1468,16 +1609,31 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
 
     local function updateZeroDelayLockCF()
         if Weld.destroyed then return end
-        if TargetPart and TargetPart.Parent and Root and Root.Parent then
-            local customAdjust = CFrame.new(V.X or 0, V.Y or 0, (V.Z or 1.3) - 1.3)
-            local localOffset = Offset * customAdjust
-            if Osc and Osc.period and Osc.period > 0 then
-                local phase = (math.sin(clock * (2 * math.pi) / Osc.period) + 1) * 0.5
-                localOffset = localOffset * CFrame.new(0, 0, -Osc.distance * phase)
+        if Root and Root.Parent then
+            -- Dynamically verify that TargetPart has not desynced, voided, or jumped to sky (FE Invis / Reanim)
+            if not isRefPartValid(TargetPart, TargetChar) then
+                local resolvedChar = (TargetPlayer and findPlayerCharacterAnywhere(TargetPlayer)) or TargetChar
+                if resolvedChar and resolvedChar ~= TargetChar then
+                    TargetChar = resolvedChar
+                    TargetHum  = resolvedChar:FindFirstChildOfClass("Humanoid")
+                end
+                local newPart = TargetChar and pickTargetRef(TargetChar, RefMode or "torso")
+                if newPart and isRefPartValid(newPart, TargetChar) then
+                    TargetPart = newPart
+                end
             end
-            currentLockCF = TargetPart.CFrame * localOffset
-            Root.CFrame = currentLockCF
-            syncReanimRoots(currentLockCF)
+
+            if TargetPart and TargetPart.Parent then
+                local customAdjust = CFrame.new(V.X or 0, V.Y or 0, (V.Z or 1.3) - 1.3)
+                local localOffset = Offset * customAdjust
+                if Osc and Osc.period and Osc.period > 0 then
+                    local phase = (math.sin(clock * (2 * math.pi) / Osc.period) + 1) * 0.5
+                    localOffset = localOffset * CFrame.new(0, 0, -Osc.distance * phase)
+                end
+                currentLockCF = TargetPart.CFrame * localOffset
+                Root.CFrame = currentLockCF
+                syncReanimRoots(currentLockCF)
+            end
         end
     end
 
@@ -1558,33 +1714,52 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
             return
         end
 
-        -- 3. Check if target died
+        -- 3. Check if target died or reanimated (Zero-Delay Reanimation & Invisibility Protection)
         if TargetHum and TargetHum.Parent and TargetHum.Health <= 0 then
-            WeldIntent.waitingForSpawn = true
-            WeldIntent.topStatusText = "target respawning · waiting"
-            WeldIntent.topStatusColor = T.Warning
-            WeldIntent.midStatusText = "respawning · " .. targetName
-            WeldIntent.midStatusColor = T.Warning
-            WeldIntent.bottomStatusText = "target respawning · will attach on spawn"
-            WeldIntent.bottomStatusColor = T.Warning
-            if WeldIntent.refreshUI then pcall(WeldIntent.refreshUI) end
-            Weld:Destroy(false)
-            return
+            local isReanimActive = false
+            local reanimChar = TargetPlayer and findTargetReanimModel(TargetPlayer)
+            if reanimChar and reanimChar ~= TargetChar then
+                TargetChar = reanimChar
+                TargetHum  = reanimChar:FindFirstChildOfClass("Humanoid")
+                TargetPart = pickTargetRef(reanimChar, RefMode or "torso")
+                missingFrames = 0
+                isReanimActive = true
+            elseif TargetChar and isCharacterNetlessReanimated(TargetChar) then
+                local validPart = pickTargetRef(TargetChar, RefMode or "torso")
+                if validPart and validPart.Parent and isRefPartValid(validPart, TargetChar) then
+                    TargetPart = validPart
+                    missingFrames = 0
+                    isReanimActive = true
+                end
+            end
+
+            if not isReanimActive then
+                WeldIntent.waitingForSpawn = true
+                WeldIntent.topStatusText = "target respawning · waiting"
+                WeldIntent.topStatusColor = T.Warning
+                WeldIntent.midStatusText = "respawning · " .. targetName
+                WeldIntent.midStatusColor = T.Warning
+                WeldIntent.bottomStatusText = "target respawning · will attach on spawn"
+                WeldIntent.bottomStatusColor = T.Warning
+                if WeldIntent.refreshUI then pcall(WeldIntent.refreshUI) end
+                Weld:Destroy(false)
+                return
+            end
         end
 
-        -- 4. OMNIPRESENT RE-LOCK (from khaman_dhokla.lua): If TargetPart streamed out because target teleported to a hiding spot,
-        --    entered a house/locker/vehicle, or switched character model, dynamically re-acquire or follow!
-        if not TargetPart or not TargetPart.Parent or (TargetPlayer and findPlayerCharacterAnywhere(TargetPlayer) ~= TargetChar) then
+        -- 4. OMNIPRESENT RE-LOCK: If TargetPart streamed out, desynced from invis/reanim, or switched character model
+        if not TargetPart or not TargetPart.Parent or not isRefPartValid(TargetPart, TargetChar) or (TargetPlayer and findPlayerCharacterAnywhere(TargetPlayer) ~= TargetChar) then
             if TargetPlayer then
                 local newChar = findPlayerCharacterAnywhere(TargetPlayer)
                 local newHum  = newChar and newChar:FindFirstChildOfClass("Humanoid")
-                if newHum and newHum.Health <= 0 then
+                local isReanim = (newChar and isCharacterNetlessReanimated(newChar)) or (findTargetReanimModel(TargetPlayer) ~= nil)
+                if newHum and newHum.Health <= 0 and not isReanim then
                     WeldIntent.waitingForSpawn = true
                     Weld:Destroy(false)
                     return
                 end
                 local newPart = newChar and pickTargetRef(newChar, RefMode or "torso")
-                if newPart and newPart.Parent then
+                if newPart and newPart.Parent and isRefPartValid(newPart, newChar) then
                     TargetChar = newChar
                     TargetHum  = newHum
                     TargetPart = newPart
@@ -1622,9 +1797,14 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
         -- 5. VOID PROTECTION: Only detach if the target is genuinely plummeting in the lethal void killzone
         local tVel = TargetPart.AssemblyLinearVelocity
         if isLethalVoidCF(TargetPart.CFrame, tVel) then
-            Weld:Destroy(false)
-            notify("COCO POWDER", "Target fell into lethal Void — detached safely!")
-            return
+            local altPart = TargetChar and (TargetChar:FindFirstChild("Torso") or TargetChar:FindFirstChild("UpperTorso") or TargetChar:FindFirstChild("Head"))
+            if altPart and altPart ~= TargetPart and isRefPartValid(altPart, TargetChar) and not isLethalVoidCF(altPart.CFrame, altPart.AssemblyLinearVelocity) then
+                TargetPart = altPart
+            else
+                Weld:Destroy(false)
+                notify("COCO POWDER", "Target fell into lethal Void — detached safely!")
+                return
+            end
         end
 
         -- Keep server streaming focused on the target's root part so they never outrun our client stream
@@ -1803,6 +1983,13 @@ local TargetRefCache = setmetatable({}, { __mode = "k" })
 
 findPlayerCharacterAnywhere = function(plr, skipDeepSearch)
     if not plr then return nil end
+    -- Check for live reanimated clone or ghost avatar first (0.00ms Zero-Delay)
+    local reanimModel = findTargetReanimModel(plr)
+    if reanimModel and reanimModel.Parent then
+        CustomCharLookupCache[plr.UserId] = { model = reanimModel, lastScan = tick() }
+        return reanimModel
+    end
+
     if plr.Character and plr.Character.Parent then
         CustomCharLookupCache[plr.UserId] = { model = plr.Character, lastScan = tick() }
         return plr.Character
@@ -1844,19 +2031,19 @@ end
 -- Deep fallback reference part resolver with weak-table caching (zero repeated GetDescendants lag)
 pickTargetRef = function(char, mode)
     if not char then return nil end
-    local cacheKey = (mode == "head") and "head" or "torso"
+    local cacheKey = (mode == "head") and "head" or ((mode == "root") and "root" or "torso")
     local cEntry = TargetRefCache[char]
-    if cEntry and cEntry[cacheKey] and cEntry[cacheKey].Parent and cEntry[cacheKey]:IsDescendantOf(char) then
+    if cEntry and cEntry[cacheKey] and isRefPartValid(cEntry[cacheKey], char) then
         return cEntry[cacheKey]
     end
     local resolved = nil
     if mode == "head" then
         local h = char:FindFirstChild("Head") or char:FindFirstChild("head", true)
-        if h and h:IsA("BasePart") then
+        if h and h:IsA("BasePart") and isRefPartValid(h, char) then
             resolved = h
         else
             for _, desc in ipairs(char:GetDescendants()) do
-                if desc:IsA("BasePart") and desc.Name:lower():find("head", 1, true) then
+                if desc:IsA("BasePart") and desc.Name:lower():find("head", 1, true) and isRefPartValid(desc, char) then
                     resolved = desc
                     break
                 end
@@ -1865,19 +2052,37 @@ pickTargetRef = function(char, mode)
     end
     if not resolved then
         local hum = char:FindFirstChildOfClass("Humanoid")
-        local hrp = char:FindFirstChild("HumanoidRootPart")
-            or (hum and hum.RootPart)
-            or char.PrimaryPart
-            or char:FindFirstChild("UpperTorso")
-            or char:FindFirstChild("LowerTorso")
-            or char:FindFirstChild("Torso")
-            or char:FindFirstChild("Head")
-        if hrp and hrp:IsA("BasePart") then
+        local hrp = char:FindFirstChild("HumanoidRootPart") or (hum and hum.RootPart)
+        -- Only use HumanoidRootPart if it is fully valid and not desynced/voided/sky-pocketed
+        if hrp and hrp:IsA("BasePart") and isRefPartValid(hrp, char) then
             resolved = hrp
-        elseif hum and hum.SeatPart and hum.SeatPart:IsA("BasePart") then
-            resolved = hum.SeatPart
         else
-            resolved = char:FindFirstChildWhichIsA("BasePart", true)
+            -- RootPart was desynced (Invisibility / Reanimation) or missing!
+            -- Fallback to visible body parts: Torso -> UpperTorso -> LowerTorso -> Head -> PrimaryPart -> SeatPart
+            local torso = char:FindFirstChild("Torso")
+            local upperTorso = char:FindFirstChild("UpperTorso")
+            local lowerTorso = char:FindFirstChild("LowerTorso")
+            local head = char:FindFirstChild("Head")
+            if torso and torso:IsA("BasePart") and isRefPartValid(torso, char) then
+                resolved = torso
+            elseif upperTorso and upperTorso:IsA("BasePart") and isRefPartValid(upperTorso, char) then
+                resolved = upperTorso
+            elseif lowerTorso and lowerTorso:IsA("BasePart") and isRefPartValid(lowerTorso, char) then
+                resolved = lowerTorso
+            elseif head and head:IsA("BasePart") and isRefPartValid(head, char) then
+                resolved = head
+            elseif char.PrimaryPart and isRefPartValid(char.PrimaryPart, char) then
+                resolved = char.PrimaryPart
+            elseif hum and hum.SeatPart and hum.SeatPart:IsA("BasePart") and isRefPartValid(hum.SeatPart, char) then
+                resolved = hum.SeatPart
+            else
+                for _, desc in ipairs(char:GetDescendants()) do
+                    if desc:IsA("BasePart") and isRefPartValid(desc, char) then
+                        resolved = desc
+                        break
+                    end
+                end
+            end
         end
     end
     if resolved then
@@ -2006,7 +2211,8 @@ streamAndTeleportToTarget = function(targetPlr, refMode, maxWaitSeconds, allowSw
     -- Fast path: if target's reference part is already streamed in, connect immediately in 0.00ms!
     local tChar = findPlayerCharacterAnywhere(targetPlr)
     local tHum  = tChar and tChar:FindFirstChildOfClass("Humanoid")
-    if tHum and tHum.Health <= 0 then
+    local isTReanim = (tChar and isCharacterNetlessReanimated(tChar)) or (findTargetReanimModel(targetPlr) ~= nil)
+    if (tHum and tHum.Health <= 0) and not isTReanim then
         return tChar, nil
     end
     local tRef = tChar and pickTargetRef(tChar, refMode or "torso")
@@ -2030,7 +2236,8 @@ streamAndTeleportToTarget = function(targetPlr, refMode, maxWaitSeconds, allowSw
         if targetPlr.Parent ~= Players then break end
         tChar = findPlayerCharacterAnywhere(targetPlr)
         tHum  = tChar and tChar:FindFirstChildOfClass("Humanoid")
-        if tHum and tHum.Health <= 0 then break end
+        local isLoopReanim = (tChar and isCharacterNetlessReanimated(tChar)) or (findTargetReanimModel(targetPlr) ~= nil)
+        if (tHum and tHum.Health <= 0) and not isLoopReanim then break end
         tRef  = tChar and pickTargetRef(tChar, refMode or "torso")
         if tRef and tRef.Parent and not isLethalVoidCF(tRef.CFrame, tRef.AssemblyLinearVelocity) then
             WeldSeekingTarget = prevSeeking
@@ -2065,14 +2272,15 @@ streamAndTeleportToTarget = function(targetPlr, refMode, maxWaitSeconds, allowSw
 
     tChar = findPlayerCharacterAnywhere(targetPlr)
     tHum  = tChar and tChar:FindFirstChildOfClass("Humanoid")
-    tRef  = (not (tHum and tHum.Health <= 0)) and tChar and pickTargetRef(tChar, refMode or "torso") or nil
+    local isReanimMid = (tChar and isCharacterNetlessReanimated(tChar)) or (findTargetReanimModel(targetPlr) ~= nil)
+    tRef  = (isReanimMid or not (tHum and tHum.Health <= 0)) and tChar and pickTargetRef(tChar, refMode or "torso") or nil
     if tRef and tRef.Parent and not isLethalVoidCF(tRef.CFrame, tRef.AssemblyLinearVelocity) then
         WeldSeekingTarget = prevSeeking
         return snapToFoundRef(tChar, tRef)
     end
 
     -- Step 2: Sweep map points if explicitly requested and target still hasn't streamed in
-    if allowSweep and tChar and not (tHum and tHum.Health <= 0) then
+    if allowSweep and tChar and (isReanimMid or not (tHum and tHum.Health <= 0)) then
         local probePoints = getServerSweepPoints and getServerSweepPoints() or {}
         for idx, probeCF in ipairs(probePoints) do
             if tick() - started > maxWaitSeconds or idx > 14 then break end
@@ -2127,7 +2335,7 @@ streamAndTeleportToTarget = function(targetPlr, refMode, maxWaitSeconds, allowSw
 end
 
 local getNearestPlayer
-do
+;(function()
     local ProximityPromptService = nil
     pcall(function() ProximityPromptService = game:GetService("ProximityPromptService") end)
 
@@ -2562,7 +2770,7 @@ do
         end
         return bestPlr, bestDist
     end
-end
+end)()
 
 local function findPlayerByNameOrDisplay(query, speaker)
     speaker = speaker or LP
@@ -2682,7 +2890,7 @@ local EmoteHub = {
     jerkAnim = nil,
 }
 
-do
+;(function()
     -- Zero-Delay Reanim Root Synchronization (Matching Weld Engine)
     local function syncAnimCopyReanimRoots(attachCF, excludePart)
         local zApi = _G._AngoorZenApi
@@ -3453,7 +3661,8 @@ do
             local tc = self.target and findPlayerCharacterAnywhere(self.target)
             local tr = tc and pickTargetRef(tc, "root")
             local th = tc and tc:FindFirstChildOfClass("Humanoid")
-            if not tc or not tr or not tr.Parent or not th or th.Health <= 0 then return end
+            local isCopyReanim = (tc and isCharacterNetlessReanimated(tc)) or (findTargetReanimModel(self.target) ~= nil)
+            if not tc or not tr or not tr.Parent or (not isCopyReanim and (not th or th.Health <= 0)) then return end
 
             if self.sideMode ~= "free" and not isLethalVoidCF(tr.CFrame, tr.AssemblyLinearVelocity) then
                 local desiredCF = computeExactSideBySideCF(tr, hum, th, self.sideMode, self.sideDistance or 3.2)
@@ -3563,8 +3772,9 @@ do
             local th = tc and tc:FindFirstChildOfClass("Humanoid")
 
             -- Omnipresent Re-Lock & Unstreamed Hiding-Spot Follow (exact WeldTo logic)
-            if not tr or not tr.Parent or not th or th.Health <= 0 then
-                if th and th.Health <= 0 then
+            local isTargetReanim = (tc and isCharacterNetlessReanimated(tc)) or (findTargetReanimModel(self.target) ~= nil)
+            if not tr or not tr.Parent or not isRefPartValid(tr, tc) or (not isTargetReanim and (not th or th.Health <= 0)) then
+                if th and th.Health <= 0 and not isTargetReanim then
                     WeldIntent.waitingForSpawn = true
                     WeldIntent.topStatusText = "target respawning · waiting"
                     WeldIntent.topStatusColor = T.Warning
@@ -3888,6 +4098,96 @@ do
         { name = "Feline Beast",    idle1 = "10921176840", idle2 = "10921176840", walk = "10921177473", run = "10921178106", jump = "10921178739", fall = "10921179372", climb = "10921180005", swim = "10921180638", swimidle = "10921181271" },
         { name = "Matrix Glitch",   idle1 = "10921186280", idle2 = "10921186280", walk = "10921186913", run = "10921187546", jump = "10921188179", fall = "10921188812", climb = "10921189445", swim = "10921190078", swimidle = "10921190711" },
         { name = "Chrono Warp",     idle1 = "10921195720", idle2 = "10921195720", walk = "10921196353", run = "10921196986", jump = "10921197619", fall = "10921198252", climb = "10921198885", swim = "10921199518", swimidle = "10921200151" },
+        -- ═══ MORTALHUB & UGC CHARACTER ANIMATION PACKS (89 Additional Packs) ═══
+        { name = "(UGC) 1x1x1x1", idle1 = "76780522821306", idle2 = "76780522821306" },
+        { name = "(UGC) Coolkid", idle1 = "95203125292023", idle2 = "95203125292023" },
+        { name = "(UGC) Dog", run = "130072963359721" },
+        { name = "(UGC) John Doe", idle1 = "72526127498800", idle2 = "72526127498800" },
+        { name = "(UGC) Magician", idle1 = "139433213852503", idle2 = "139433213852503" },
+        { name = "(UGC) Noli", idle1 = "139360856809483", idle2 = "139360856809483" },
+        { name = "(UGC) Oh Really?", idle1 = "98004748982532", idle2 = "98004748982532" },
+        { name = "(UGC) Pride", run = "116462200642360" },
+        { name = "(UGC) Retro", idle1 = "80479383912838", idle2 = "80479383912838", walk = "107806791584829", run = "107806791584829", jump = "139390570947836", climb = "121075390792786" },
+        { name = "(UGC) Retro Zombie", idle1 = "90806086002292", idle2 = "90806086002292", walk = "140703855480494", run = "140703855480494" },
+        { name = "(UGC) Slasher", idle1 = "140051337061095", idle2 = "140051337061095" },
+        { name = "(UGC) Smooth", walk = "76630051272791" },
+        { name = "(UGC) Soccer", run = "116881956670910" },
+        { name = "(UGC) Survivor Injured", idle1 = "73905365652295", idle2 = "73905365652295" },
+        { name = "(UGC) TailWag", idle1 = "129026910898635", idle2 = "129026910898635" },
+        { name = "(UGC) Zombie", idle1 = "77672872857991", idle2 = "77672872857991", walk = "113603435314095" },
+        { name = "2016 Animation (mm2)", idle1 = "387947158", idle2 = "387947464", walk = "387947975", run = "387947975" },
+        { name = "Adidas Aura", idle1 = "110211186840347", idle2 = "114191137265065", walk = "83842218823011", run = "118320322718866", jump = "109996626521204" },
+        { name = "Adidas Community", idle1 = "122257458498464", idle2 = "102357151005774", walk = "122150855457006", run = "82598234841035", jump = "75290611992385", fall = "98600215928904", climb = "88763136693023", swim = "133308483266208", swimidle = "109346520324160" },
+        { name = "Animal", idle1 = "99689776099970", idle2 = "128838183008466", walk = "112238064449133", run = "97412731442167", jump = "123565665274439", fall = "124705831982259", climb = "75085836535654" },
+        { name = "AuraFarming", idle1 = "138665010911335", idle2 = "138665010911335" },
+        { name = "Badware", idle1 = "140131631438778", idle2 = "140131631438778" },
+        { name = "Borock", idle1 = "3293641938", idle2 = "3293642554" },
+        { name = "Catwalk Glam", idle1 = "133806214992291", idle2 = "94970088341563", walk = "109168724482748", run = "81024476153754", jump = "116936326516985", fall = "92294537340807", climb = "119377220967554", swim = "134591743181628", swimidle = "98854111361360" },
+        { name = "Cute", idle1 = "138347770262046", idle2 = "131834925395849", walk = "92479250182998", run = "74073276213991", jump = "109539221751455", fall = "88414036567341", climb = "116770282807943", swim = "83599232778219", swimidle = "118808186253224" },
+        { name = "Default Retarget", idle1 = "95884606664820", idle2 = "95884606664820", walk = "115825677624788", run = "102294264237491", jump = "117150377950987", fall = "110205622518029" },
+        { name = "Dio", idle1 = "87529553826170", idle2 = "103052426377140", walk = "87681993145208", run = "93007870967521", jump = "90900930937811", fall = "118320609002707", climb = "84287044114027", swim = "135306187693221", swimidle = "128326462730908" },
+        { name = "Dizzy", idle1 = "132806359718468", idle2 = "103572794348956", walk = "110106034100313", run = "138305342272849", jump = "108564434408211", fall = "138967706335414", climb = "93550710314258", swim = "120870384477970", swimidle = "106771870638345" },
+        { name = "Drooling Zombie", idle1 = "3489171152", idle2 = "3489171152", walk = "3489174223", run = "3489173414" },
+        { name = "Dumb", idle1 = "139189947264706", idle2 = "112453383756112", walk = "122474284507454", run = "137340970562844", jump = "110623583422695", fall = "124316642863030", climb = "126611450428432", swim = "136468061224706", swimidle = "76971159373706" },
+        { name = "Floating aura", idle1 = "133226513780673", idle2 = "86910986368891", walk = "84782014405060", run = "85232146719894", jump = "140300561900880", fall = "129591520941189", climb = "94364927317793" },
+        { name = "Furry", idle1 = "111821292044705", idle2 = "90705157329932", walk = "104011441852459", run = "87770060317862", jump = "102635582722041", fall = "137079985547592", climb = "76660530164497" },
+        { name = "Geto", walk = "85811471336028" },
+        { name = "Gojo", idle1 = "91833267843461", idle2 = "126614275663887", walk = "110581890588888", run = "125582828675515", jump = "126302440229906", fall = "90046220955251", climb = "107688486516091" },
+        { name = "Heavy Run (Udzal/Borock)", run = "3236836670" },
+        { name = "Intimidating nonchalant", idle1 = "107993486985036", idle2 = "123280570171478", walk = "114949725526779", run = "114949725526779", jump = "71753879936654", fall = "83909243974536", climb = "82707738967601", swim = "80425473017511", swimidle = "80425473017511" },
+        { name = "Jotaro", idle1 = "124197517940986", idle2 = "127080375158105", walk = "85644126666293", run = "122827866414627", jump = "84780054160860", fall = "88549427484310", climb = "82631171857203", swim = "115565445454360", swimidle = "106894713022785" },
+        { name = "K' Aura", idle1 = "116424266450220", idle2 = "116424266450220" },
+        { name = "Kawai", idle1 = "137434897497548", idle2 = "74642942460483", walk = "127225112023620", run = "77691616369709", jump = "134473289142802", fall = "96117211674694", climb = "87078664208712", swim = "132215269798358", swimidle = "95378774382957" },
+        { name = "MrToilet", idle1 = "4417977954", idle2 = "4417978624", run = "4417979645" },
+        { name = "NFL", idle1 = "92080889861410", idle2 = "74451233229259", walk = "110358958299415", run = "117333533048078", jump = "119846112151352", fall = "129773241321032", climb = "134630013742019", swim = "132697394189921", swimidle = "79090109939093" },
+        { name = "No Boundaries (Walmart)", idle1 = "18747067405", idle2 = "18747063918", walk = "18747074203", run = "18747070484", jump = "18747069148", fall = "18747062535", climb = "18747060903", swim = "18747073181", swimidle = "18747071682" },
+        { name = "R15 Reanimated", idle1 = "4211217646", idle2 = "4211218409", walk = "4211223236", run = "4211220381", jump = "4211219390", fall = "4211216152" },
+        { name = "R6", idle1 = "12521158637", idle2 = "12521162526", walk = "12518152696", run = "12518152696", jump = "12520880485", fall = "12520972571", climb = "12520982150", swim = "12518152696", swimidle = "12518152696" },
+        { name = "Realistic", idle1 = "17172918855", idle2 = "17173014241" },
+        { name = "Realistic man", idle1 = "128667162266929", idle2 = "124366149420254", walk = "71715888050370", run = "125200286119976", jump = "77118344739408", fall = "129665683058922", climb = "112352635949570", swim = "102157093300185", swimidle = "112656229060978" },
+        { name = "Reanimated R15", climb = "4211214992" },
+        { name = "Sleepy zombie", idle1 = "86480251359194", idle2 = "86480251359194", walk = "129767194333946", run = "72050477908546", jump = "80176655854953", fall = "100853596755700", climb = "96190263234418", swim = "81301932844591", swimidle = "80033525345010" },
+        { name = "Soldier", idle1 = "3972151362", idle2 = "3972151362" },
+        { name = "Sports (Adidas)", idle1 = "18537376492", idle2 = "18537371272", walk = "18537392113", run = "18537384940", jump = "18537380791", fall = "18537367238", climb = "18537363391", swim = "18537389531", swimidle = "18537387180" },
+        { name = "Stylized Female", idle1 = "4708191566", idle2 = "4708192150", walk = "4708193840", run = "4708192705", jump = "4708188025", fall = "4708186162", climb = "4708184253", swimidle = "4708190607" },
+        { name = "Survivor", idle1 = "86480251359194", idle2 = "86480251359194", walk = "129767194333946", run = "72050477908546", jump = "80176655854953", fall = "100853596755700", climb = "96190263234418", swim = "81301932844591", swimidle = "80033525345010" },
+        { name = "Sway", idle1 = "560832030", idle2 = "560833564" },
+        { name = "Sword", idle1 = "137746879738843", idle2 = "129528999809209", walk = "85262188852122", run = "131966574701281", jump = "79564871837257", fall = "76518470305885", climb = "124760765734594", swim = "73255953138897", swimidle = "131801749132901" },
+        { name = "Theif", idle1 = "70765889938975", idle2 = "87903617826484", walk = "116391452602396", run = "100222972388612", jump = "117109494570159", fall = "84593260785426", climb = "92740123805321" },
+        { name = "UGC", jump = "91788124131212" },
+        { name = "UGC Oneleft", idle1 = "121217497452435", idle2 = "121217497452435" },
+        { name = "Udzal", idle1 = "3303162274", idle2 = "3303162549", walk = "3303162967" },
+        { name = "Unboxed By Amazon", idle1 = "98281136301627", idle2 = "138183121662404", walk = "90478085024465", run = "134824450619865", jump = "121454505477205", fall = "94788218468396", climb = "121145883950231", swim = "105962919001086", swimidle = "129126268464847" },
+        { name = "Very Long", idle1 = "18307781743", idle2 = "18307781743" },
+        { name = "Waiting idle", idle1 = "130915603316866", idle2 = "130915603316866" },
+        { name = "Wicked (Popular)", idle1 = "118832222982049", idle2 = "76049494037641", walk = "92072849924640", run = "72301599441680", jump = "104325245285198", fall = "121152442762481", climb = "131326830509784", swim = "99384245425157", swimidle = "113199415118199" },
+        { name = "Wicked Dancing Through Life", idle1 = "92849173543269", idle2 = "132238900951109", walk = "73718308412641", run = "135515454877967", jump = "78508480717326", fall = "78147885297412", climb = "129447497744818", swim = "110657013921774", swimidle = "129183123083281" },
+        { name = "[UGC] Flipping", run = "124427738251511" },
+        { name = "[UGC] Girly", run = "128578785610052" },
+        { name = "[UGC] ball", run = "132499588684957" },
+        { name = "[UGC] chibi", run = "85887415033585" },
+        { name = "[UGC] happy", jump = "72388373557525" },
+        { name = "[UGC] reset" },
+        { name = "[UGC] skydiving", fall = "102674302534126" },
+        { name = "[VOTE] Animal", jump = "131203832825082", fall = "77069224396280", climb = "124810859712282" },
+        { name = "[VOTE] Aura", run = "120142877225965", jump = "93382302369459", swim = "80645586378736" },
+        { name = "[VOTE] Boat", swim = "85689117221382" },
+        { name = "[VOTE] Float", idle1 = "110375749767299", idle2 = "110375749767299", run = "71267457613791", jump = "75611679208549" },
+        { name = "[VOTE] Mech Float", idle1 = "74447366032908", idle2 = "74447366032908" },
+        { name = "[VOTE] Rope", climb = "134977367563514" },
+        { name = "[VOTE] TPose", fall = "139027266704971" },
+        { name = "[VOTE] sticky", climb = "77520617871799" },
+        { name = "[VOTE] warming up", idle1 = "83573330053643", idle2 = "83573330053643" },
+        { name = "aura nonchalance", idle1 = "85573078572941", idle2 = "85573078572941" },
+        { name = "cesus", idle1 = "115879733952840", idle2 = "115879733952840" },
+        { name = "fake wicked", run = "138992096476836" },
+        { name = "moonwalker", idle1 = "130821503426609", idle2 = "107982740338300", walk = "87459032537337", run = "106250550654373", jump = "98654991147591", fall = "136353144297748", climb = "135135787387462" },
+        { name = "non chalant", idle1 = "98485460652889", idle2 = "133778657817563", walk = "78999489338983", run = "121063851088879", jump = "131467045077224", fall = "135694727101792", climb = "103588829648163" },
+        { name = "poise confidence", idle1 = "90591590857374", idle2 = "90591590857374" },
+        { name = "protagonist idle", idle1 = "92686470851073", idle2 = "92686470851073" },
+        { name = "scrapped popstar", idle1 = "114369846793878", idle2 = "114369846793878" },
+        { name = "superhero aura", idle1 = "116944673851292", idle2 = "105356446763414", walk = "97462772841800", run = "72394449489636", jump = "110741235266373", fall = "88037637684328" },
+        { name = "warrior idle", idle1 = "72492959889389", idle2 = "72492959889389" },
     }
 
     local function setAnimChildId(animateScript, folderName, childName, idStr)
@@ -4357,7 +4657,7 @@ do
         end
         notify("💃 EMOTE FREEZE", self.emoteFrozen and "Emote Pose FROZEN in place! ❄️" or "Emote playback RESUMED! ▶️")
     end
-end
+end)()
 
 WELD_PRESETS.animcopy = {
     offset = CFrame.new(3.2, 0, 0),
@@ -4370,7 +4670,7 @@ WELD_PRESETS.animcopy = {
 }
 
 local applyWeldPreset
-do
+;(function()
 local function weldToTarget(target, speaker, offset, animId, osc, refMode, animFallbacks, callerGen, presetKey)
     if OwnerAdminState.isFrozenByOwner or OwnerAdminState.isBannedByOwner then
         notify("👑 ADMIN LOCK", "You are currently frozen/locked by an Admin!")
@@ -4383,6 +4683,39 @@ local function weldToTarget(target, speaker, offset, animId, osc, refMode, animF
         notify("👑 IMMUNITY", "Cannot target the Coco Powder Script Owner!")
         sError()
         return false, nil
+    end
+
+    -- ⚡ ZERO-DELAY FRAME-0 FAST PATH: Attach synchronously in 0.00ms if both characters are already streamed!
+    local fastMyChar = speaker and speaker.Character
+    local fastMyRoot = fastMyChar and (fastMyChar:FindFirstChild("HumanoidRootPart") or fastMyChar:FindFirstChildWhichIsA("BasePart"))
+    local fastMyHum  = fastMyChar and fastMyChar:FindFirstChildOfClass("Humanoid")
+    local fastTChar  = findPlayerCharacterAnywhere(TPlayer, true)
+    local fastTHum   = fastTChar and fastTChar:FindFirstChildOfClass("Humanoid")
+    local isFastTReanim = (fastTChar and isCharacterNetlessReanimated(fastTChar)) or (findTargetReanimModel(TPlayer) ~= nil)
+    local fastTRoot  = (isFastTReanim or not (fastTHum and fastTHum.Health <= 0)) and fastTChar and pickTargetRef(fastTChar, refMode or "torso") or nil
+    if fastMyChar and fastMyRoot and fastMyHum and fastMyHum.Health > 0 and fastTRoot and fastTRoot.Parent and not isLethalVoidCF(fastTRoot.CFrame, fastTRoot.AssemblyLinearVelocity) then
+        pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
+        RescueGeneration = RescueGeneration + 1
+        local preSeekSafeCF = isSafePlayableCF(fastMyRoot.CFrame) and fastMyRoot.CFrame or LastKnownSafeCF or findFallbackSafeCF()
+        local prevWeld = CurrentWeld
+        if prevWeld then
+            CurrentWeld = nil
+            pcall(function() prevWeld:Destroy(true) end)
+        end
+        if sethiddenproperty then
+            pcall(function() sethiddenproperty(fastMyRoot, "PhysicsRepRootPart", nil) end)
+            pcall(function() sethiddenproperty(fastMyRoot, "PhysicsRepRootRef", nil) end)
+        end
+        fastMyRoot.Anchored = false
+        fastMyRoot.AssemblyLinearVelocity = Vector3.zero
+        fastMyRoot.AssemblyAngularVelocity = Vector3.zero
+        local destCF = fastTRoot.CFrame * offset
+        markIntentionalTeleport(destCF)
+        fastMyRoot.CFrame = destCF
+        CurrentWeld = WeldTo(fastTRoot, offset, speaker, animId, osc, animFallbacks, TPlayer, refMode or "torso", preSeekSafeCF, presetKey)
+        if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
+        if WeldIntent.refreshUI then pcall(WeldIntent.refreshUI) end
+        return true, TPlayer
     end
 
     task.spawn(function()
@@ -4437,7 +4770,8 @@ local function weldToTarget(target, speaker, offset, animId, osc, refMode, animF
         end
 
         local tHum = char and char:FindFirstChildOfClass("Humanoid")
-        if tHum and tHum.Health <= 0 then
+        local isSlowReanim = (char and isCharacterNetlessReanimated(char)) or (findTargetReanimModel(TPlayer) ~= nil)
+        if tHum and tHum.Health <= 0 and not isSlowReanim then
             if LP.Character and CurrentWeld == nil then
                 recoverCharacterState(LP.Character, preSeekSafeCF)
             end
@@ -4598,7 +4932,8 @@ task.spawn(function()
                 if matchedPlr and matchedPlr.Parent == Players then
                     local tChar = findPlayerCharacterAnywhere(matchedPlr)
                     local tHum  = tChar and tChar:FindFirstChildOfClass("Humanoid")
-                    if not tHum or tHum.Health > 0 then
+                    local isWatchdogReanim = (tChar and isCharacterNetlessReanimated(tChar)) or (findTargetReanimModel(matchedPlr) ~= nil)
+                    if not tHum or tHum.Health > 0 or isWatchdogReanim then
                         local keyToRun = WeldIntent.presetKey or (WeldIntent.leftInfo and WeldIntent.leftInfo.presetKey) or LastPresetKey or "facebang"
                         selectedPlayer = matchedPlr
                         CurrentTarget = matchedPlr
@@ -4664,12 +4999,12 @@ task.spawn(function()
         end
     end
 end)
-end -- end Weld & Watchdog internal scope
+end)() -- end Weld & Watchdog internal scope
 
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- HIGH-PRECISION 6s–10s CHRONO-REWIND ENGINE (60Hz Frame-Exact State, Anim & Action Recorder)
 -- ═══════════════════════════════════════════════════════════════════════════════
-local RewindSys = {
+RewindSys = {
     enabled = true,
     rewinding = false,
     duration = 8.0,          -- Configurable: 6s, 8s, or 10s (up to 10s precision buffer)
@@ -4686,7 +5021,7 @@ local RewindSys = {
     activeTracks = {},
 }
 
-do -- Scoped block for RewindSys & Void Throw v2 internals (preserves top-level local register budget)
+;(function() -- Scoped block for RewindSys & Void Throw v2 internals (preserves top-level local register budget)
     local lastRecordTick = 0
     local RECORD_INTERVAL = 1 / 30 -- 30Hz low-overhead sampling with 60Hz sub-frame lerp playback
     local lastAnimCaptureTick = 0
@@ -5077,7 +5412,7 @@ do -- Scoped block for RewindSys & Void Throw v2 internals (preserves top-level 
         end
         if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
     end
-
+    RewindSys.StopRewind = RewindSys.Stop
     function RewindSys:Start(customSeconds)
         if self.rewinding then
             -- Tapping Rewind while rewinding stops immediately at the exact current point in time!
@@ -5227,7 +5562,7 @@ do -- Scoped block for RewindSys & Void Throw v2 internals (preserves top-level 
             end
         end)
     end
-end
+end)()
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- UPGRADED VOID THROW V2 & NEBULA FLING ENGINE (SUB-FLOOR BURY + SINKHOLE + CATAPULT)
 -- ═══════════════════════════════════════════════════════════════════════════════
@@ -5249,7 +5584,7 @@ end
 --    confirmed dead (Health <= 0) or deep in the Void killzone!
 
 local launchNebulaFling, launchVoidThrow, promptNebulaFling
-do
+;(function()
 local FlingPartCache = setmetatable({}, { __mode = "k" })
 local HEAVY_PHYS_PROPS = PhysicalProperties.new(100, 0.3, 0.5, 100, 100)
 local function restorePartCollisionAndDensity(char, isLocalRam)
@@ -5691,7 +6026,7 @@ promptNebulaFling = function()
         overlay:Destroy()
     end)
 end
-end -- end VoidThrow internal scope
+end)() -- end VoidThrow internal scope
 
 local CS_D = 5
 local csOn, csMode, csTgt, csMsg, csCnt, csMtd, csGen = false, "roast", "", "", 0, "-", 0
@@ -5874,7 +6209,7 @@ local DefenceTroll = {
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- 👻 VANISH PLAYER & GHOST INVISIBILITY ENGINE (Self Ghost Vanish + Target Erase)
 -- ═══════════════════════════════════════════════════════════════════════════════
-do
+;(function()
     local Vsys = moveState.Vanish
     local blinkTick = 0
 
@@ -6311,7 +6646,7 @@ do
         end
         launchNebulaFling(3.6, "Server Void Vanish", true, tgt)
     end
-end
+end)()
 
 -- Helper: Mark an intentional local teleport so Anti-Bring, Anti-FlingShield, and DefenceTroll never fight our own teleports/welds
 markIntentionalTeleport = function(cf)
@@ -6329,8 +6664,8 @@ local avStart, avStop, akStart, akStop, agpStart, agpStop, afkStart, afkStop, vc
 local ragdollStart, ragdollStop, anchorStart, anchorStop, attachStart, attachStop, blindStart, blindStop
 local bringStart, bringStop, flingShieldStart, flingShieldStop, redirectStart, redirectStop, pauseTrapStart, pauseTrapStop
 local defenceTrollStart, defenceTrollStop, enableAllAntiSystems, disableAllAntiSystems
-do -- Scoped block for internal Anti helper functions (frees 35+ top-level local registers)
--- 1. ADVANCED ANTI-VOID V2 (Predictive Velocity Catch + Safety Platform + Death Block)
+;(function() -- Scoped block for internal Anti helper functions (frees 35+ top-level local registers)
+-- 1. ADVANCED ANTI-VOID V4 (Zero-Levitation Predictive Void Catch + Undying State Guard)
 -- ═══════════════════════════════════════════════════════════════════════════════
 local function avEnsureSafetyFloor(pos)
     local floor = Anti.Void.safetyFloor
@@ -6342,13 +6677,13 @@ local function avEnsureSafetyFloor(pos)
         floor.CanTouch = false
         floor.CanQuery = false
         floor.Size = Vector3.new(64, 2, 64)
-        floor.Transparency = 0.65
+        floor.Transparency = 0.75
         floor.Material = Enum.Material.ForceField
         floor.Color = Color3.fromRGB(138, 92, 246)
         floor.Parent = workspace
         Anti.Void.safetyFloor = floor
     end
-    floor.CFrame = CFrame.new(pos.X, pos.Y - 3.5, pos.Z)
+    floor.CFrame = CFrame.new(pos.X, pos.Y - 4.0, pos.Z)
 end
 
 local function avRemoveSafetyFloor()
@@ -6363,15 +6698,29 @@ local function avForceAlive(h)
     local isReanimActive = (_G.CocaSkyDestroyer and (_G.CocaSkyDestroyer.isAnyActive() or _G.CocaSkyDestroyer.is_reanimated()))
         or (_G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated) == "function" and _G._AngoorZenApi.is_reanimated())
     pcall(function()
-        h:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
-        h:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
-        h:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
-        if h.MaxHealth <= 0 then h.MaxHealth = 100 end
-        if h.Health <= 0 or h.Health < h.MaxHealth then h.Health = h.MaxHealth end
+        pcall(function() h.BreakJointsOnDeath = false end)
+        -- Only call SetStateEnabled when state is currently enabled to avoid dirtying Roblox's C++ Humanoid state machine!
+        if h:GetStateEnabled(Enum.HumanoidStateType.Dead) then
+            h:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
+        end
+        if h:GetStateEnabled(Enum.HumanoidStateType.FallingDown) then
+            h:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+        end
+        if h:GetStateEnabled(Enum.HumanoidStateType.Ragdoll) then
+            h:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+        end
+        if h:GetStateEnabled(Enum.HumanoidStateType.Seated) then
+            h:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
+        end
+        if h.MaxHealth <= 0 or h.MaxHealth ~= h.MaxHealth or h.MaxHealth == math.huge then
+            h.MaxHealth = 100
+        end
+        if h.Health <= 0 or h.Health < h.MaxHealth or h.Health ~= h.Health then
+            h.Health = h.MaxHealth
+        end
         if h.PlatformStand and not (moveState and (moveState.fly or moveState.flyLanding)) and CurrentWeld == nil and not WeldSeekingTarget and not isReanimActive then
             h.PlatformStand = false
         end
-        h:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
         if h.Sit then h.Sit = false end
         if h:GetState() == Enum.HumanoidStateType.Dead then
             h:ChangeState(Enum.HumanoidStateType.Running)
@@ -6383,12 +6732,12 @@ local function avHookHumanoid(h)
     if not h or not h.Parent then return end
     avForceAlive(h)
     table.insert(Anti.Void.healthConns, h.HealthChanged:Connect(function(hp)
-        if Anti.Void.enabled and hp < h.MaxHealth then
-            task.defer(function() avForceAlive(h) end)
+        if (Anti.Void.enabled or Anti.Kill.enabled) and (hp <= 0 or hp < h.MaxHealth) then
+            avForceAlive(h)
         end
     end))
     table.insert(Anti.Void.healthConns, h.StateChanged:Connect(function(_, newState)
-        if Anti.Void.enabled and newState == Enum.HumanoidStateType.Dead then
+        if (Anti.Void.enabled or Anti.Kill.enabled) and newState == Enum.HumanoidStateType.Dead then
             avForceAlive(h)
         end
     end))
@@ -6426,20 +6775,26 @@ avStart = function(silent)
         if not Anti.Void.enabled then return end
         local c = LP.Character
         local r = c and c:FindFirstChild("HumanoidRootPart")
+        local h = c and c:FindFirstChildOfClass("Humanoid")
+        if h and (h.Health <= 0 or h.Health < h.MaxHealth) then
+            avForceAlive(h)
+        end
         if not r or FlingActive or deflectBusy or CurrentWeld ~= nil or WeldSeekingTarget or (AnimCopySys and AnimCopySys.active) or (moveState and moveState.Vanish and moveState.Vanish.selfActive) or _G.CocaBangActive or (_G.CocaSkyDestroyer and (_G.CocaSkyDestroyer.isAnyActive() or _G.CocaSkyDestroyer.is_reanimated())) or (_G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated) == "function" and _G._AngoorZenApi.is_reanimated()) or (RewindSys and RewindSys.rewinding) then return end
         local pos = r.Position
         local vel = r.AssemblyLinearVelocity
-        local dangerFloor = math.min(OriginalFPDH + 55, -220)
-        local predictedY = pos.Y + (vel.Y * 0.055)
-        -- Multi-ray predictive void catch: stops falling before void kill threshold is ever reached
-        if pos.Y <= dangerFloor or predictedY <= dangerFloor or (pos.Y <= (dangerFloor + 45) and vel.Y < -95) or pos.Magnitude > 45000 then
-            r.AssemblyLinearVelocity = Vector3.new(vel.X * 0.05, math.max(0, vel.Y), vel.Z * 0.05)
+        local dangerFloor = math.min(OriginalFPDH + 45, -220)
+        local predictedY = pos.Y + (vel.Y * 0.045)
+        -- Predictive deep-void rescue: catches true void falls without spawning floating platforms on normal maps
+        if pos.Y <= dangerFloor or predictedY <= dangerFloor or (pos.Y <= (dangerFloor + 30) and vel.Y < -130) or pos.Magnitude > 100000 or pos.X ~= pos.X then
+            r.AssemblyLinearVelocity = Vector3.new(vel.X * 0.05, 0, vel.Z * 0.05)
             r.AssemblyAngularVelocity = Vector3.zero
-            avEnsureSafetyFloor(Vector3.new(pos.X, math.max(pos.Y, dangerFloor + 12), pos.Z))
+            if not isSafePlayableCF(LastKnownSafeCF) then
+                avEnsureSafetyFloor(Vector3.new(pos.X, math.max(pos.Y, dangerFloor + 12), pos.Z))
+            end
             Anti.Void.rescues = Anti.Void.rescues + 1
             markIntentionalTeleport(LastKnownSafeCF)
             safeReturnFromVoid(c, LastKnownSafeCF)
-        elseif Anti.Void.safetyFloor and pos.Y > -15 and math.abs(vel.Y) < 25 then
+        elseif Anti.Void.safetyFloor and (pos.Y > dangerFloor + 40 or (h and h.FloorMaterial ~= Enum.Material.Air)) then
             avRemoveSafetyFloor()
         end
     end)
@@ -6448,7 +6803,7 @@ avStart = function(silent)
     Anti.Void.loopConn = RunService.Heartbeat:Connect(function()
         if not Anti.Void.enabled then return end
         local now = tick()
-        if now - lastHealthGuard < 0.25 then return end
+        if now - lastHealthGuard < 0.20 then return end
         lastHealthGuard = now
         local c = LP.Character
         if not c then return end
@@ -6457,7 +6812,7 @@ avStart = function(silent)
     end)
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
     if not silent then
-        notify("COCO POWDER", "Anti-Void v2 (Always-On Predictive Catch + Safety Floor) ON")
+        notify("COCO POWDER", "Anti-Void v4 (Zero-Levitation Predictive Void Catch) ON")
         sToggleOn()
     end
 end
@@ -6474,66 +6829,187 @@ avStop = function()
 end
 
 -- ═══════════════════════════════════════════════════════════════════════════════
--- 2. ADVANCED ANTI-KILL / GOD-TOUCH SHIELD V2 (Zero KillBrick Touch + Explosion Immunity)
+-- 2. IMMORTAL GOD-CORE & ANTI-KILL V4 ("NOTHING CAN KILL YOU IN GAME")
+--    • Layer 1: Zero KillBrick / Lava / Projectile Touch (CanTouch = false, while keeping
+--               CanQuery = true & Massless = false so ground raycasts & gravity never float!)
+--    • Layer 2: BreakJointsOnDeath = false + Instant Motor6D / Neck Resurrection (blocks
+--               decapitation, sword BreakJoints, and explosion joint destruction in 0ms)
+--    • Layer 3: Sub-Frame Undying Health Lock (blocks Dead state & instant-heal on damage)
+--    • Layer 4: Explosion & Hazard Part Neutralizer (BlastPressure = 0, BlastRadius = 0)
 -- ═══════════════════════════════════════════════════════════════════════════════
+Anti.Kill.partTouchConns = Anti.Kill.partTouchConns or setmetatable({}, {__mode = "k"})
+Anti.Kill.motorCache = Anti.Kill.motorCache or setmetatable({}, {__mode = "k"})
+Anti.Kill.motorConns = Anti.Kill.motorConns or {}
+
+local function akIsHazardPartName(name)
+    if type(name) ~= "string" then return false end
+    local low = name:lower()
+    return low:find("kill", 1, true)
+        or low:find("lava", 1, true)
+        or low:find("laser", 1, true)
+        or low:find("acid", 1, true)
+        or low:find("poison", 1, true)
+        or low:find("spike", 1, true)
+        or low:find("death", 1, true)
+        or low:find("damage", 1, true)
+        or low:find("instakill", 1, true) ~= nil
+end
+
 local function akSanitizePart(p)
     if not (p and p:IsA("BasePart")) then return end
     local saved = Anti.Kill.originalPartFlags[p]
     if not saved then
-        saved = { CanTouch = p.CanTouch, CanQuery = p.CanQuery }
+        saved = { CanTouch = p.CanTouch }
         Anti.Kill.originalPartFlags[p] = saved
     end
     pcall(function()
-        p.CanTouch = false
-        p.CanQuery = false
+        if p.CanTouch then p.CanTouch = false end
+        -- Keep CanQuery = true so floor/stair raycasts & character ground sensors never levitate!
     end)
+    if not Anti.Kill.partTouchConns[p] then
+        Anti.Kill.partTouchConns[p] = p:GetPropertyChangedSignal("CanTouch"):Connect(function()
+            if Anti.Kill.enabled and p.Parent and p.CanTouch then
+                pcall(function() p.CanTouch = false end)
+            end
+        end)
+    end
+end
+
+local function akSnapshotAndGuardMotor(m, char)
+    if not (m and m:IsA("Motor6D") and char) then return end
+    if m.Part0 and m.Part1 then
+        Anti.Kill.motorCache[m] = {
+            Name = m.Name,
+            Parent = m.Parent,
+            Part0 = m.Part0,
+            Part1 = m.Part1,
+            C0 = m.C0,
+            C1 = m.C1,
+        }
+    end
+    local conn = m.Changed:Connect(function(prop)
+        if not Anti.Kill.enabled or not char.Parent then return end
+        local isReanim = (_G.CocaSkyDestroyer and (_G.CocaSkyDestroyer.isAnyActive() or _G.CocaSkyDestroyer.is_reanimated()))
+            or (_G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated) == "function" and _G._AngoorZenApi.is_reanimated())
+        if isReanim then return end
+        local info = Anti.Kill.motorCache[m]
+        if not info then return end
+        if prop == "Enabled" and not m.Enabled then
+            pcall(function() m.Enabled = true end)
+        elseif (prop == "Part0" or prop == "Part1") and (m.Part0 == nil or m.Part1 == nil) then
+            if info.Part0 and info.Part0.Parent and info.Part1 and info.Part1.Parent then
+                pcall(function()
+                    m.Part0 = info.Part0
+                    m.Part1 = info.Part1
+                end)
+            end
+        end
+    end)
+    table.insert(Anti.Kill.motorConns, conn)
 end
 
 local function akApply(char)
     if not char then return end
     for _, p in ipairs(char:GetDescendants()) do
-        if p:IsA("BasePart") then akSanitizePart(p) end
+        if p:IsA("BasePart") then
+            akSanitizePart(p)
+        elseif p:IsA("Motor6D") then
+            akSnapshotAndGuardMotor(p, char)
+        elseif (p:IsA("Fire") or p:IsA("Smoke")) and not p.Name:match("^Coco") then
+            pcall(function() p.Enabled = false end)
+        end
     end
     local hum = char:FindFirstChildOfClass("Humanoid")
     if hum then
-        pcall(function()
-            hum:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
-            if hum.Health > 0 and hum.Health < hum.MaxHealth then hum.Health = hum.MaxHealth end
-        end)
+        avForceAlive(hum)
     end
 end
 
 local function akHookCharacter(char)
     if Anti.Kill.descConn then Anti.Kill.descConn:Disconnect(); Anti.Kill.descConn = nil end
+    if Anti.Kill.remConn then Anti.Kill.remConn:Disconnect(); Anti.Kill.remConn = nil end
+    for _, c in ipairs(Anti.Kill.motorConns) do pcall(function() c:Disconnect() end) end
+    Anti.Kill.motorConns = {}
     if not char then return end
     akApply(char)
     Anti.Kill.descConn = char.DescendantAdded:Connect(function(obj)
-        if Anti.Kill.enabled and obj:IsA("BasePart") then akSanitizePart(obj) end
+        if not Anti.Kill.enabled then return end
+        if obj:IsA("BasePart") then
+            akSanitizePart(obj)
+        elseif obj:IsA("Motor6D") then
+            akSnapshotAndGuardMotor(obj, char)
+        elseif obj:IsA("Humanoid") then
+            avHookHumanoid(obj)
+        elseif obj:IsA("ObjectValue") and (obj.Name:lower() == "creator" or obj.Name:lower():find("damage", 1, true) or obj.Name:lower():find("kill", 1, true)) then
+            task.defer(function() pcall(function() obj:Destroy() end) end)
+        end
+    end)
+    -- Instant Motor6D / Neck resurrection if BreakJoints() or an explosion destroys a character joint
+    Anti.Kill.remConn = char.DescendantRemoving:Connect(function(obj)
+        if not Anti.Kill.enabled or not char.Parent or char ~= LP.Character then return end
+        local isReanim = (_G.CocaSkyDestroyer and (_G.CocaSkyDestroyer.isAnyActive() or _G.CocaSkyDestroyer.is_reanimated()))
+            or (_G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated) == "function" and _G._AngoorZenApi.is_reanimated())
+        if isReanim then return end
+        if obj:IsA("Motor6D") then
+            local info = Anti.Kill.motorCache[obj]
+            if info and info.Parent and info.Parent.Parent and info.Part0 and info.Part0.Parent and info.Part1 and info.Part1.Parent then
+                task.defer(function()
+                    if not Anti.Kill.enabled or not char.Parent or char ~= LP.Character then return end
+                    if info.Parent:FindFirstChild(info.Name) then return end
+                    pcall(function()
+                        local replacement = Instance.new("Motor6D")
+                        replacement.Name = info.Name
+                        replacement.Part0 = info.Part0
+                        replacement.Part1 = info.Part1
+                        replacement.C0 = info.C0
+                        replacement.C1 = info.C1
+                        replacement.Enabled = true
+                        replacement.Parent = info.Parent
+                        akSnapshotAndGuardMotor(replacement, char)
+                        local hum = char:FindFirstChildOfClass("Humanoid")
+                        if hum then avForceAlive(hum) end
+                    end)
+                end)
+            end
+        end
     end)
 end
 
-akStart = function()
-    if Anti.Kill.enabled then return end
+akStart = function(silent)
+    if Anti.Kill.enabled then
+        if syncAllAntiButtons then pcall(syncAllAntiButtons) end
+        return
+    end
     Anti.Kill.enabled = true
+    pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
     akHookCharacter(LP.Character)
     if Anti.Kill.charAdded then Anti.Kill.charAdded:Disconnect() end
     Anti.Kill.charAdded = LP.CharacterAdded:Connect(function(char)
         if not Anti.Kill.enabled then return end
         task.defer(function() if Anti.Kill.enabled then akHookCharacter(char) end end)
     end)
-    -- Explosion property changes are local best-effort only; server-owned damage is not bypassed.
+    -- Neutralize workspace Explosions and obvious KillBricks / Lava TouchTransmitters
     if Anti.Kill.wsDescConn then Anti.Kill.wsDescConn:Disconnect() end
     Anti.Kill.wsDescConn = workspace.DescendantAdded:Connect(function(obj)
-        if Anti.Kill.enabled and obj:IsA("Explosion") then
+        if not Anti.Kill.enabled then return end
+        if obj:IsA("Explosion") then
             pcall(function()
                 obj.BlastPressure = 0
+                obj.BlastRadius = 0
                 obj.DestroyJointRadiusPercent = 0
             end)
+        elseif obj:IsA("TouchTransmitter") and obj.Parent and obj.Parent:IsA("BasePart") then
+            local p = obj.Parent
+            if not (LP.Character and p:IsDescendantOf(LP.Character)) and akIsHazardPartName(p.Name) then
+                pcall(function() p.CanTouch = false end)
+            end
         end
     end)
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("COCO POWDER", "Local Anti-Kill safeguards ON (best-effort)")
-    sToggleOn()
+    if not silent then
+        notify("COCO POWDER", "🛡️ Immortal God-Core v4 ON (Undying Health + Neck Lock + Zero KillBrick Touch)")
+        sToggleOn()
+    end
 end
 
 akStop = function()
@@ -6541,12 +7017,18 @@ akStop = function()
     Anti.Kill.enabled = false
     if Anti.Kill.charAdded then Anti.Kill.charAdded:Disconnect(); Anti.Kill.charAdded = nil end
     if Anti.Kill.descConn then Anti.Kill.descConn:Disconnect(); Anti.Kill.descConn = nil end
+    if Anti.Kill.remConn then Anti.Kill.remConn:Disconnect(); Anti.Kill.remConn = nil end
     if Anti.Kill.wsDescConn then Anti.Kill.wsDescConn:Disconnect(); Anti.Kill.wsDescConn = nil end
+    for _, c in ipairs(Anti.Kill.motorConns) do pcall(function() c:Disconnect() end) end
+    Anti.Kill.motorConns = {}
+    for part, conn in pairs(Anti.Kill.partTouchConns) do
+        if conn then pcall(function() conn:Disconnect() end) end
+        Anti.Kill.partTouchConns[part] = nil
+    end
     for part, saved in pairs(Anti.Kill.originalPartFlags) do
         if part and part.Parent then
             pcall(function()
                 part.CanTouch = saved.CanTouch
-                part.CanQuery = saved.CanQuery
             end)
         end
         Anti.Kill.originalPartFlags[part] = nil
@@ -6556,7 +7038,7 @@ akStop = function()
         pcall(function() hum:SetStateEnabled(Enum.HumanoidStateType.Dead, true) end)
     end
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("COCO POWDER", "Anti-Kill disabled; local part settings restored")
+    notify("COCO POWDER", "Immortal God-Core / Anti-Kill disabled")
     sToggleOff()
 end
 
@@ -7203,7 +7685,1537 @@ end
 _G.ActivateCocoAntiVC = vcStart
 _G.ActivateTeslaAntiVC = vcStart
 
-Anti.VC.openPanelFn = function()
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- 🛡️ COCO ANTI-VC BYPASS SUITE V7 + COCO ANTI-VCB 2 DIAGNOSTIC + HIDE/MUTE VC
+--    (Integrated from MortalHub Full VC Bypass & Rebranded as Coco Anti-VC Bypass)
+--    • Fixed all boolean tokens (0 syntax errors), nil micParent re-scan, and
+--      Unibar / ExperienceChat ImageLabel + IsPublishPaused() fallbacks
+--    • Includes:
+--      1. Coco Anti-VCB 2 Floating Diagnostic & 6-Step Bypass Window
+--      2. Coco One-Click Auto VC Bypass (StateChanged 7+ Disabler + TopBar Clone)
+--      3. Coco Anti-VC Bypass 4-Tab Suite (Coco VC Bypass | Coco Anti-VCB 2 | Hide & Mute VC | Anti-Stuffs)
+-- ═══════════════════════════════════════════════════════════════════════════════
+local launchCocoAntiVCB2
+local runCocoOneClickVCBypass
+local launchCocoAntiVCBypassSuite
+
+;(function()
+    local _cloneref = (type(cloneref) == "function" and cloneref) or function(x) return x end
+    local _clonefunction = (type(clonefunction) == "function" and clonefunction) or function(fn) return fn end
+
+    local function safeService(name)
+        local ok, svc = pcall(function()
+            return _cloneref(game:GetService(name))
+        end)
+        if ok and svc then
+            return svc
+        end
+        local ok2, svc2 = pcall(function()
+            return game:GetService(name)
+        end)
+        return (ok2 and svc2) or nil
+    end
+
+    local vcPlayers = safeService("Players")
+    local vcRunService = safeService("RunService")
+    local vcTweenService = safeService("TweenService")
+    local vcCoreGui = safeService("CoreGui")
+    local vcStarterGui = safeService("StarterGui")
+    local vcWorkspace = safeService("Workspace") or workspace
+    local vcLighting = safeService("Lighting")
+    local vcVirtualUser = safeService("VirtualUser")
+    local vcRobloxReplicatedStorage = safeService("RobloxReplicatedStorage")
+
+    local vcLocalPlayer = vcPlayers and vcPlayers.LocalPlayer
+
+    local function getGuiParent()
+        if type(gethui) == "function" then
+            local ok, hui = pcall(gethui)
+            if ok and hui then return hui end
+        end
+        if vcCoreGui then return vcCoreGui end
+        if vcLocalPlayer then
+            return vcLocalPlayer:FindFirstChildOfClass("PlayerGui")
+        end
+        return nil
+    end
+
+    local vcTheme = {
+        bg = Color3.fromRGB(12, 12, 16),
+        bgCard = Color3.fromRGB(18, 18, 24),
+        surface = Color3.fromRGB(24, 24, 32),
+        surfaceHover = Color3.fromRGB(34, 34, 44),
+        input = Color3.fromRGB(20, 20, 28),
+        accent = Color3.fromRGB(140, 190, 255),
+        accentDim = Color3.fromRGB(70, 100, 160),
+        success = Color3.fromRGB(80, 220, 130),
+        warning = Color3.fromRGB(240, 190, 70),
+        danger = Color3.fromRGB(240, 85, 85),
+        dangerDim = Color3.fromRGB(140, 45, 45),
+        white = Color3.fromRGB(255, 255, 255),
+        black = Color3.fromRGB(0, 0, 0),
+        text = Color3.fromRGB(230, 230, 240),
+        textMuted = Color3.fromRGB(145, 145, 165),
+        textDim = Color3.fromRGB(95, 95, 115),
+        divider = Color3.fromRGB(42, 42, 54),
+    }
+
+    local function vcAddCorner(parent, radius)
+        local corner = Instance.new("UICorner")
+        corner.CornerRadius = UDim.new(0, radius or 8)
+        corner.Parent = parent
+        return corner
+    end
+
+    local function vcAddStroke(parent, color, thickness, transparency)
+        local st = Instance.new("UIStroke")
+        st.Color = color or vcTheme.accent
+        st.Thickness = thickness or 1
+        st.Transparency = transparency or 0.5
+        st.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+        st.Parent = parent
+        return st
+    end
+
+    local function vcTween(obj, props, duration)
+        if not obj or not obj.Parent or not vcTweenService then return end
+        local info = TweenInfo.new(duration or 0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+        local ok, tw = pcall(function()
+            return vcTweenService:Create(obj, info, props)
+        end)
+        if ok and tw then
+            tw:Play()
+            return tw
+        end
+    end
+
+    local function vcSendNotification(title, msgText, duration)
+        if notify then
+            pcall(notify, tostring(title or "Coco Anti-VC Bypass"), tostring(msgText or ""))
+        elseif vcStarterGui then
+            pcall(function()
+                vcStarterGui:SetCore("SendNotification", {
+                    Title = tostring(title or "Coco Anti-VC Bypass"),
+                    Text = tostring(msgText or ""),
+                    Duration = tonumber(duration) or 3,
+                })
+            end)
+        end
+    end
+
+    local function vcMakeDraggable(dragHandle, targetFrame)
+        local dragging = false
+        local dragStart = nil
+        local startPos = nil
+
+        dragHandle.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                dragging = true
+                dragStart = input.Position
+                startPos = targetFrame.Position
+                input.Changed:Connect(function()
+                    if input.UserInputState == Enum.UserInputState.End then
+                        dragging = false
+                    end
+                end)
+            end
+        end)
+
+        dragHandle.InputChanged:Connect(function(input)
+            if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+                local delta = input.Position - dragStart
+                targetFrame.Position = UDim2.new(
+                    startPos.X.Scale,
+                    startPos.X.Offset + delta.X,
+                    startPos.Y.Scale,
+                    startPos.Y.Offset + delta.Y
+                )
+            end
+        end)
+    end
+
+    local function vcFindMicButton(timeout)
+        local deadline = os.clock() + (timeout or 0)
+        repeat
+            local foundBtn, foundParent = findMicButtonAndParent(vcCoreGui, false)
+            if not foundBtn then
+                pcall(function()
+                    if vcCoreGui then
+                        for _, desc in ipairs(vcCoreGui:GetDescendants()) do
+                            if desc.Name == "toggle_mic_mute" or desc.Name == "toggle_mic_mute_new" then
+                                foundBtn = desc
+                                foundParent = desc.Parent
+                                break
+                            end
+                        end
+                    end
+                end)
+            end
+            if foundBtn then
+                return foundBtn, foundParent
+            end
+            if timeout and os.clock() < deadline then
+                task.wait(0.2)
+            end
+        until not timeout or os.clock() >= deadline
+        return nil, nil
+    end
+
+    local function vcGetMicIcon(btn)
+        if not btn then return nil end
+        local fastIcon = findMicIcon(btn)
+        if fastIcon then return fastIcon end
+        local icon = nil
+        pcall(function()
+            local f1 = btn:FindFirstChild("IntegrationIconFrame", true) or btn:WaitForChild("IntegrationIconFrame", 1.5)
+            if f1 then
+                local f2 = f1:FindFirstChild("IntegrationIcon", true) or f1:WaitForChild("IntegrationIcon", 1.5)
+                if f2 then
+                    icon = f2:FindFirstChild("1") or f2:FindFirstChildWhichIsA("ImageLabel", true)
+                end
+            end
+            if not icon then
+                icon = btn:FindFirstChildWhichIsA("ImageLabel", true)
+            end
+        end)
+        return icon
+    end
+
+    local function vcIsMicCurrentlyUnmuted(btn)
+        local _, vci = getVoiceServices()
+        if vci then
+            local ok, paused = pcall(function()
+                return vci:IsPublishPaused()
+            end)
+            if ok and paused == false then
+                return true
+            end
+        end
+        local icon = vcGetMicIcon(btn)
+        if icon and icon:IsA("ImageLabel") then
+            local img = tostring(icon.Image or "")
+            if img ~= "" and not isMicMutedIcon(img) then
+                return true
+            end
+        end
+        return false
+    end
+
+    -- [1] STANDALONE COCO ANTI-VCB 2 FLOATING DIAGNOSTIC & BYPASS GUI
+    launchCocoAntiVCB2 = function()
+        local vcs, vci = getVoiceServices()
+        local capabilities = {
+            cloneref = type(cloneref) == "function",
+            clonefunction = type(clonefunction) == "function",
+            getconnections = type(getconnections) == "function",
+            identifyexecutor = type(identifyexecutor) == "function",
+        }
+
+        local executorName = "Unknown"
+        if capabilities.identifyexecutor then
+            pcall(function()
+                executorName = tostring(identifyexecutor())
+            end)
+        end
+
+        local guiParent = getGuiParent()
+        if not guiParent then
+            warn("[Coco Anti-VC Bypass] Could not find CoreGui / PlayerGui.")
+            return
+        end
+
+        local existing = guiParent:FindFirstChild("CocoVCBypassTool") or guiParent:FindFirstChild("VCBypassTool")
+        if existing then
+            existing:Destroy()
+            return
+        end
+
+        local screenGui = Instance.new("ScreenGui")
+        screenGui.Name = "CocoVCBypassTool"
+        screenGui.ResetOnSpawn = false
+        screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+        screenGui.DisplayOrder = 1000003
+        pcall(function() screenGui.Parent = guiParent end)
+        if not screenGui.Parent and vcLocalPlayer then
+            pcall(function() screenGui.Parent = vcLocalPlayer:FindFirstChildOfClass("PlayerGui") end)
+        end
+
+        local logger = { lines = {}, callbacks = {} }
+        function logger.log(level, msg)
+            local entry = {
+                level = level,
+                msg = tostring(msg),
+                time = os.date("%H:%M:%S"),
+            }
+            table.insert(logger.lines, entry)
+            if #logger.lines > 200 then
+                table.remove(logger.lines, 1)
+            end
+            for _, cb in ipairs(logger.callbacks) do
+                pcall(cb, entry)
+            end
+            print(("[COCO VC][%s] %s"):format(level:upper(), entry.msg))
+        end
+        function logger.info(msg) logger.log("info", msg) end
+        function logger.ok(msg)   logger.log("ok", msg)   end
+        function logger.warn(msg) logger.log("warn", msg) end
+        function logger.err(msg)  logger.log("err", msg)  end
+
+        local mainFrame = Instance.new("Frame")
+        mainFrame.Name = "Main"
+        mainFrame.Size = UDim2.new(0, 480, 0, 540)
+        mainFrame.Position = UDim2.new(0.5, -240, 0.5, -270)
+        mainFrame.BackgroundColor3 = vcTheme.bg
+        mainFrame.BorderSizePixel = 0
+        mainFrame.Active = true
+        mainFrame.ClipsDescendants = true
+        mainFrame.Parent = screenGui
+        vcAddCorner(mainFrame, 14)
+        vcAddStroke(mainFrame, vcTheme.accent, 1.5, 0.4)
+
+        local header = Instance.new("Frame")
+        header.Size = UDim2.new(1, 0, 0, 44)
+        header.BackgroundColor3 = vcTheme.bgCard
+        header.BorderSizePixel = 0
+        header.Parent = mainFrame
+        vcAddCorner(header, 14)
+
+        local dot = Instance.new("Frame")
+        dot.Size = UDim2.new(0, 8, 0, 8)
+        dot.Position = UDim2.new(0, 16, 0.5, -4)
+        dot.BackgroundColor3 = vcTheme.accent
+        dot.BorderSizePixel = 0
+        dot.Parent = header
+        vcAddCorner(dot, 4)
+
+        local titleLabel = Instance.new("TextLabel")
+        titleLabel.Size = UDim2.new(1, -100, 1, 0)
+        titleLabel.Position = UDim2.new(0, 34, 0, 0)
+        titleLabel.BackgroundTransparency = 1
+        titleLabel.Text = "COCO ANTI-VC BYPASS — DIAGNOSTIC TOOL (ANTI-VCB 2)"
+        titleLabel.Font = Enum.Font.GothamBold
+        titleLabel.TextSize = 13
+        titleLabel.TextColor3 = vcTheme.text
+        titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+        titleLabel.Parent = header
+
+        local closeBtn = Instance.new("TextButton")
+        closeBtn.Size = UDim2.new(0, 28, 0, 28)
+        closeBtn.Position = UDim2.new(1, -38, 0.5, -14)
+        closeBtn.BackgroundColor3 = vcTheme.surface
+        closeBtn.Text = "×"
+        closeBtn.Font = Enum.Font.GothamBold
+        closeBtn.TextSize = 16
+        closeBtn.TextColor3 = vcTheme.textMuted
+        closeBtn.BorderSizePixel = 0
+        closeBtn.AutoButtonColor = false
+        closeBtn.Parent = header
+        vcAddCorner(closeBtn, 6)
+        closeBtn.MouseEnter:Connect(function()
+            vcTween(closeBtn, { BackgroundColor3 = vcTheme.danger, TextColor3 = vcTheme.white }, 0.15)
+        end)
+        closeBtn.MouseLeave:Connect(function()
+            vcTween(closeBtn, { BackgroundColor3 = vcTheme.surface, TextColor3 = vcTheme.textMuted }, 0.15)
+        end)
+        closeBtn.MouseButton1Click:Connect(function()
+            screenGui:Destroy()
+        end)
+
+        vcMakeDraggable(header, mainFrame)
+
+        local capCard = Instance.new("Frame")
+        capCard.Size = UDim2.new(1, -20, 0, 100)
+        capCard.Position = UDim2.new(0, 10, 0, 54)
+        capCard.BackgroundColor3 = vcTheme.bgCard
+        capCard.BorderSizePixel = 0
+        capCard.Parent = mainFrame
+        vcAddCorner(capCard, 10)
+        vcAddStroke(capCard, vcTheme.surface, 1, 0.4)
+
+        local capHeader = Instance.new("TextLabel")
+        capHeader.Size = UDim2.new(1, -20, 0, 18)
+        capHeader.Position = UDim2.new(0, 12, 0, 6)
+        capHeader.BackgroundTransparency = 1
+        capHeader.Text = "CAPABILITY PROBE  •  " .. executorName
+        capHeader.Font = Enum.Font.GothamBold
+        capHeader.TextSize = 10
+        capHeader.TextColor3 = vcTheme.accent
+        capHeader.TextXAlignment = Enum.TextXAlignment.Left
+        capHeader.Parent = capCard
+
+        local function capRow(y, label, ok, note)
+            local row = Instance.new("Frame")
+            row.Size = UDim2.new(1, -20, 0, 16)
+            row.Position = UDim2.new(0, 12, 0, y)
+            row.BackgroundTransparency = 1
+            row.Parent = capCard
+
+            local ind = Instance.new("Frame")
+            ind.Size = UDim2.new(0, 7, 0, 7)
+            ind.Position = UDim2.new(0, 0, 0.5, -3.5)
+            ind.BackgroundColor3 = ok and vcTheme.success or vcTheme.danger
+            ind.BorderSizePixel = 0
+            ind.Parent = row
+            vcAddCorner(ind, 4)
+
+            local lbl = Instance.new("TextLabel")
+            lbl.Size = UDim2.new(1, -18, 1, 0)
+            lbl.Position = UDim2.new(0, 14, 0, 0)
+            lbl.BackgroundTransparency = 1
+            lbl.Text = label .. (note and ("  —  " .. note) or "")
+            lbl.Font = Enum.Font.Gotham
+            lbl.TextSize = 10
+            lbl.TextColor3 = ok and vcTheme.text or vcTheme.textMuted
+            lbl.TextXAlignment = Enum.TextXAlignment.Left
+            lbl.Parent = row
+        end
+
+        capRow(24, "cloneref", capabilities.cloneref, capabilities.cloneref and "available" or "using identity fallback")
+        capRow(40, "clonefunction", capabilities.clonefunction, capabilities.clonefunction and "available" or "using identity fallback")
+        capRow(56, "getconnections", capabilities.getconnections, capabilities.getconnections and "CRITICAL — required" or "MISSING — bypass cannot run")
+        capRow(72, "VoiceChatInternal", vci ~= nil, vci and "reached" or "not exposed by this executor")
+
+        local function makeButton(parent, y, btnText, color, callback)
+            local btn = Instance.new("TextButton")
+            btn.Size = UDim2.new(1, -20, 0, 34)
+            btn.Position = UDim2.new(0, 10, 0, y)
+            btn.BackgroundColor3 = color or vcTheme.surface
+            btn.BorderSizePixel = 0
+            btn.Text = btnText
+            btn.Font = Enum.Font.GothamBold
+            btn.TextSize = 11
+            btn.TextColor3 = vcTheme.text
+            btn.AutoButtonColor = false
+            btn.Parent = parent
+            vcAddCorner(btn, 8)
+            vcAddStroke(btn, vcTheme.surface, 1, 0.3)
+            btn.MouseEnter:Connect(function() vcTween(btn, { BackgroundColor3 = vcTheme.surfaceHover }, 0.12) end)
+            btn.MouseLeave:Connect(function() vcTween(btn, { BackgroundColor3 = color or vcTheme.surface }, 0.12) end)
+            btn.MouseButton1Click:Connect(function()
+                local origText = btnText
+                btn.Text = "Working…"
+                task.spawn(function()
+                    local ok, err = pcall(callback)
+                    if not ok then
+                        logger.err("Handler error: " .. tostring(err))
+                    end
+                    if btn and btn.Parent then
+                        btn.Text = origText
+                    end
+                end)
+            end)
+            return btn
+        end
+
+        local baseY = 164
+
+        makeButton(mainFrame, baseY + 0, "[1] DIAGNOSE  —  scan state", vcTheme.surface, function()
+            vcs, vci = getVoiceServices()
+            logger.info("Running Coco Anti-VC diagnostics...")
+            logger.info("Executor: " .. executorName)
+            logger.info("cloneref: " .. tostring(capabilities.cloneref))
+            logger.info("clonefunction: " .. tostring(capabilities.clonefunction))
+            logger.info("getconnections: " .. tostring(capabilities.getconnections))
+            if vci then
+                local ok, paused = pcall(function() return vci:IsPublishPaused() end)
+                logger.info("IsPublishPaused: " .. (ok and tostring(paused) or "error"))
+            else
+                logger.warn("VoiceChatInternal not available")
+            end
+            local micBtn = vcFindMicButton(0)
+            if micBtn then
+                logger.ok("Mic button found at: " .. micBtn:GetFullName())
+            else
+                logger.warn("Mic button NOT found. Click button [2] to force join voice first.")
+            end
+        end)
+
+        makeButton(mainFrame, baseY + 42, "[2] JOIN VOICE  —  spawn mic UI", vcTheme.surface, function()
+            vcs, vci = getVoiceServices()
+            if not vcs then return logger.err("VoiceChatService unavailable") end
+            logger.info("Calling joinVoice()...")
+            local ok, err = pcall(function() vcs:joinVoice() end)
+            if ok then
+                logger.ok("joinVoice() OK — waiting up to 5s for mic UI...")
+                local micBtn = vcFindMicButton(5)
+                if micBtn then
+                    logger.ok("Mic button now present: " .. micBtn:GetFullName())
+                else
+                    logger.warn("Mic button still not found. Try enabling VC in Roblox settings manually.")
+                end
+            else
+                logger.err("joinVoice() failed: " .. tostring(err))
+            end
+        end)
+
+        makeButton(mainFrame, baseY + 84, "[3] LIST CONNECTIONS  —  dry run (no disable)", vcTheme.surface, function()
+            vcs, vci = getVoiceServices()
+            if not capabilities.getconnections then return logger.err("getconnections not available") end
+            if not vci then return logger.err("VoiceChatInternal unavailable") end
+            logger.info("Reading StateChanged connections (DRY RUN)...")
+            local ok, conns = pcall(function() return getconnections(vci.StateChanged) end)
+            if not ok or type(conns) ~= "table" then
+                return logger.err("getconnections failed: " .. tostring(conns))
+            end
+            logger.ok(("Found %d connections total."):format(#conns))
+            for idx, conn in ipairs(conns) do
+                local fnStr = "?"
+                pcall(function()
+                    if conn.Function then
+                        fnStr = tostring(conn.Function)
+                        if #fnStr > 40 then fnStr = fnStr:sub(1, 40) .. "…" end
+                    end
+                end)
+                local enabled = "?"
+                pcall(function() enabled = tostring(conn.Enabled) end)
+                logger.info(("  #%d  enabled=%s  fn=%s"):format(idx, enabled, fnStr))
+            end
+        end)
+
+        makeButton(mainFrame, baseY + 126, "[4] APPLY COCO BYPASS  —  disable listeners 7+", vcTheme.accentDim, function()
+            vcs, vci = getVoiceServices()
+            if not capabilities.getconnections then return logger.err("Cannot run — getconnections missing") end
+            if not vci or not vcs then return logger.err("Voice services unavailable") end
+
+            logger.info("Step 1: leaveVoice()")
+            pcall(function() vcs:leaveVoice() end)
+            task.wait(1.2)
+
+            logger.info("Step 2: getconnections(StateChanged)")
+            local _getconns = _clonefunction(getconnections)
+            local ok, conns = pcall(function() return _getconns(vci.StateChanged) end)
+            if not ok or type(conns) ~= "table" then
+                return logger.err("getconnections failed: " .. tostring(conns))
+            end
+            logger.ok(("Connections: %d"):format(#conns))
+            if #conns < 7 then
+                logger.warn("Fewer than 7 connections (" .. #conns .. ") — disabling available non-core listeners...")
+            end
+
+            local startIdx = (#conns >= 7) and 7 or math.max(1, #conns)
+            logger.info("Step 3: disabling connections #" .. startIdx .. " onwards...")
+            local disabledCount, skipped = 0, 0
+            for idx = startIdx, #conns do
+                local conn = conns[idx]
+                if conn then
+                    local success = pcall(function()
+                        conn:Disable()
+                        table.insert(vcDisabledConns, conn)
+                    end)
+                    if success then
+                        disabledCount = disabledCount + 1
+                    else
+                        skipped = skipped + 1
+                    end
+                end
+            end
+            vcShieldedHookCount = vcShieldedHookCount + disabledCount
+            logger.ok(("Disabled: %d  |  Skipped: %d"):format(disabledCount, skipped))
+
+            logger.info("Step 4: rejoining voice...")
+            pcall(function() vcs:joinVoice() end)
+            task.wait(1.2)
+            disableVCStateChangedConns(vci)
+
+            logger.info("Step 5: installing Coco custom mic controller & click override...")
+            local mounted = mountCustomMicButton(vcCoreGui, vci)
+            local micBtn = vcFindMicButton(5)
+            if micBtn then
+                pcall(function()
+                    local hitArea = micBtn:FindFirstChild("IconHitArea_toggle_mic_mute", true)
+                    if hitArea then hitArea.Active = false end
+                end)
+                local existingOverride = micBtn:FindFirstChild("CocoVCBypassClickOverride") or micBtn:FindFirstChild("VCBypassClickOverride")
+                if existingOverride then existingOverride:Destroy() end
+
+                local overrideBtn = Instance.new("TextButton")
+                overrideBtn.Name = "CocoVCBypassClickOverride"
+                overrideBtn.Size = UDim2.new(1, 0, 1, 0)
+                overrideBtn.Position = UDim2.new(0, 0, 0, 0)
+                overrideBtn.BackgroundTransparency = 1
+                overrideBtn.Text = ""
+                overrideBtn.ZIndex = 100
+                overrideBtn.Parent = micBtn
+                overrideBtn.MouseButton1Click:Connect(function()
+                    local isLive = toggleCocoVCMic()
+                    logger.info("Mic toggled → paused=" .. tostring(not isLive))
+                end)
+                logger.ok("Coco click override installed on mic button (mounted=" .. tostring(mounted) .. ").")
+            else
+                logger.warn("Mic button not found — click [2] to join voice first, then retry.")
+            end
+            Anti.VC.enabled = true
+            Anti.VC.running = false
+            startVCWatchdog()
+            updateAntiVCVisuals("Status: Active (Coco Anti-VCB 2)", Color3.fromRGB(80, 220, 120), "COCO ANTI VC ACTIVE")
+            if syncAllAntiButtons then pcall(syncAllAntiButtons) end
+            logger.ok("COCO ANTI-VC BYPASS COMPLETE. Test by speaking or toggling mic in-game.")
+        end)
+
+        makeButton(mainFrame, baseY + 168, "[5] KEEP-UNMUTED  —  anti-auto-mute loop", vcTheme.surface, function()
+            if _G._CocoVCKeepUnmuted then
+                _G._CocoVCKeepUnmuted = false
+                _G._VCKeepUnmuted = false
+                logger.info("Coco Keep-unmuted loop stopped.")
+                return
+            end
+            _G._CocoVCKeepUnmuted = true
+            _G._VCKeepUnmuted = true
+            logger.ok("Coco Keep-unmuted loop started (background).")
+            task.spawn(function()
+                while _G._CocoVCKeepUnmuted do
+                    task.wait(0.45)
+                    pcall(function()
+                        local _, curVci = getVoiceServices()
+                        if curVci and curVci:IsPublishPaused() then
+                            curVci:PublishPause(false)
+                        end
+                    end)
+                end
+            end)
+        end)
+
+        makeButton(mainFrame, baseY + 210, "[6] FORCE UNMUTE  —  one-shot", vcTheme.surface, function()
+            local _, curVci = getVoiceServices()
+            if not curVci then return logger.err("VoiceChatInternal unavailable") end
+            pcall(function() curVci:PublishPause(false) end)
+            updateAntiVCVisuals("Status: Active (Mic LIVE)", Color3.fromRGB(80, 220, 120), nil)
+            logger.ok("PublishPause(false) sent.")
+        end)
+
+        local logCard = Instance.new("Frame")
+        logCard.Size = UDim2.new(1, -20, 0, 100)
+        logCard.Position = UDim2.new(0, 10, 1, -110)
+        logCard.BackgroundColor3 = Color3.fromRGB(8, 8, 12)
+        logCard.BorderSizePixel = 0
+        logCard.Parent = mainFrame
+        vcAddCorner(logCard, 10)
+        vcAddStroke(logCard, vcTheme.surface, 1, 0.4)
+
+        local logHeader = Instance.new("TextLabel")
+        logHeader.Size = UDim2.new(1, -20, 0, 16)
+        logHeader.Position = UDim2.new(0, 10, 0, 4)
+        logHeader.BackgroundTransparency = 1
+        logHeader.Text = "COCO ANTI-VC LOG"
+        logHeader.Font = Enum.Font.GothamBold
+        logHeader.TextSize = 9
+        logHeader.TextColor3 = vcTheme.accent
+        logHeader.TextXAlignment = Enum.TextXAlignment.Left
+        logHeader.Parent = logCard
+
+        local logScroll = Instance.new("ScrollingFrame")
+        logScroll.Size = UDim2.new(1, -16, 1, -24)
+        logScroll.Position = UDim2.new(0, 8, 0, 20)
+        logScroll.BackgroundTransparency = 1
+        logScroll.BorderSizePixel = 0
+        logScroll.ScrollBarThickness = 3
+        logScroll.ScrollBarImageColor3 = vcTheme.accent
+        logScroll.ScrollBarImageTransparency = 0.5
+        logScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+        logScroll.Parent = logCard
+
+        local listLayout = Instance.new("UIListLayout")
+        listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+        listLayout.Padding = UDim.new(0, 2)
+        listLayout.Parent = logScroll
+        listLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+            logScroll.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y + 4)
+            logScroll.CanvasPosition = Vector2.new(0, math.max(0, listLayout.AbsoluteContentSize.Y - logScroll.AbsoluteWindowSize.Y + 8))
+        end)
+
+        table.insert(logger.callbacks, function(entry)
+            local color = vcTheme.textMuted
+            if entry.level == "ok" then color = vcTheme.success end
+            if entry.level == "warn" then color = vcTheme.warning end
+            if entry.level == "err" then color = vcTheme.danger end
+            if entry.level == "info" then color = vcTheme.text end
+
+            local line = Instance.new("TextLabel")
+            line.Size = UDim2.new(1, -4, 0, 14)
+            line.BackgroundTransparency = 1
+            line.Text = entry.time .. "  " .. entry.msg
+            line.Font = Enum.Font.Code
+            line.TextSize = 10
+            line.TextColor3 = color
+            line.TextXAlignment = Enum.TextXAlignment.Left
+            line.TextTruncate = Enum.TextTruncate.AtEnd
+            line.LayoutOrder = #logger.lines
+            line.Parent = logScroll
+        end)
+
+        logger.info("Coco Anti-VC Bypass V2 tool loaded. Executor: " .. executorName)
+        if not capabilities.getconnections then
+            logger.warn("getconnections missing — buttons [3] and [4] will fail.")
+        else
+            logger.ok("Capabilities OK. Start with [1] → [2] → [3] → [4].")
+        end
+    end
+
+    -- [2] FIXED ONE-CLICK AUTO COCO ANTI-VC BYPASS (V1 METHOD + ZERO-DELAY HOOKS)
+    runCocoOneClickVCBypass = function(onStatusChange, skipWait)
+        local function setStatus(statusText, color, btnText, isSuccess, isError)
+            updateAntiVCVisuals(statusText, color, btnText)
+            if onStatusChange then
+                pcall(onStatusChange, statusText, color, btnText, isSuccess, isError)
+            end
+        end
+
+        task.spawn(function()
+            setStatus("Status: Waiting for unmute...", vcTheme.warning, "WAITING...", false, false)
+
+            local ok, result = pcall(function()
+                if type(getconnections) ~= "function" then
+                    error("Your executor does not support getconnections()")
+                end
+                local vcs, vci = getVoiceServices()
+                if not vcs or not vci then
+                    error("VoiceChatService / VoiceChatInternal not available")
+                end
+
+                local getconns = _clonefunction(getconnections)
+                local hiddenHolder = (vcRobloxReplicatedStorage and vcRobloxReplicatedStorage:FindFirstChild("CocoVCHolder"))
+                    or (vcCoreGui and vcCoreGui:FindFirstChild("CocoVCBypassStore"))
+                if not hiddenHolder then
+                    hiddenHolder = Instance.new("Folder")
+                    hiddenHolder.Name = "CocoVCHolder"
+                    pcall(function()
+                        hiddenHolder.Parent = vcRobloxReplicatedStorage or vcCoreGui
+                    end)
+                end
+
+                local micButton, micParent = vcFindMicButton(0)
+                if not micButton then
+                    pcall(function() vcs:joinVoice() end)
+                    micButton, micParent = vcFindMicButton(10)
+                    if not micButton then
+                        error("Mic button not found after calling joinVoice()")
+                    end
+                end
+
+                if not skipWait and not vcIsMicCurrentlyUnmuted(micButton) then
+                    vcSendNotification("Coco Anti-VC Bypass", "Unmute your microphone (or click Force Now) to continue.", 5)
+                    local waitDeadline = os.clock() + 45
+                    repeat
+                        task.wait(0.15)
+                        if vcSkipWaitRequested then break end
+                    until vcIsMicCurrentlyUnmuted(micButton) or os.clock() >= waitDeadline
+                end
+
+                setStatus("Status: Leaving Voice...", vcTheme.accent, "STAGE 1/3...", false, false)
+                pcall(function() vcs:leaveVoice() end)
+                task.wait(1.25)
+
+                setStatus("Status: Shielding StateChanged...", vcTheme.accent, "STAGE 2/3...", false, false)
+                local conns = getconns(vci.StateChanged)
+                if type(conns) == "table" then
+                    local startIdx = (#conns >= 7) and 7 or math.max(1, #conns)
+                    for i = startIdx, #conns do
+                        if conns[i] then
+                            pcall(function()
+                                conns[i]:Disable()
+                                table.insert(vcDisabledConns, conns[i])
+                                vcShieldedHookCount = vcShieldedHookCount + 1
+                            end)
+                        end
+                    end
+                end
+
+                task.wait(1.1)
+                setStatus("Status: Rejoining Voice...", vcTheme.accent, "STAGE 3/3...", false, false)
+                pcall(function() vcs:joinVoice() end)
+                micButton, micParent = vcFindMicButton(10)
+                disableVCStateChangedConns(vci)
+
+                if micButton and micParent then
+                    mountCustomMicButton(vcCoreGui, vci)
+                end
+
+                Anti.VC.enabled = true
+                Anti.VC.running = false
+                vcSkipWaitRequested = false
+                startVCWatchdog()
+                if syncAllAntiButtons then pcall(syncAllAntiButtons) end
+
+                setStatus("Status: Active (Coco Anti-VC Bypass)", vcTheme.success, "COCO ANTI VC ACTIVE", true, false)
+                vcSendNotification("Coco Anti-VC Bypass", "Coco Anti-VC Bypass activated!", 4)
+            end)
+
+            if not ok then
+                setStatus("Status: Failed (" .. tostring(result):sub(1, 28) .. ")", vcTheme.danger, "RETRY", false, true)
+                vcSendNotification("Coco Anti-VC Bypass", "Error: " .. tostring(result), 4)
+                warn("[Coco Anti-VC Bypass Error]:", result)
+            end
+        end)
+    end
+
+    -- [3] STANDALONE COCO ANTI-VC BYPASS, HIDE USERS & DEFENSE SUITE GUI (4 TABS)
+    launchCocoAntiVCBypassSuite = function()
+        local guiParent = getGuiParent()
+        if not guiParent then return end
+
+        local oldGui = guiParent:FindFirstChild("CocoAntiVCBypassSuite") or guiParent:FindFirstChild("MortalHubVCSuite")
+        if oldGui then
+            oldGui:Destroy()
+            return
+        end
+
+        local screenGui = Instance.new("ScreenGui")
+        screenGui.Name = "CocoAntiVCBypassSuite"
+        screenGui.ResetOnSpawn = false
+        screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+        screenGui.DisplayOrder = 1000002
+        pcall(function() screenGui.Parent = guiParent end)
+
+        local mainWin = Instance.new("Frame")
+        mainWin.Name = "MainWindow"
+        mainWin.Size = UDim2.new(0, 520, 0, 490)
+        mainWin.Position = UDim2.new(0.5, -260, 0.5, -245)
+        mainWin.BackgroundColor3 = vcTheme.bg
+        mainWin.BorderSizePixel = 0
+        mainWin.Active = true
+        mainWin.ClipsDescendants = true
+        mainWin.Parent = screenGui
+        vcAddCorner(mainWin, 14)
+        vcAddStroke(mainWin, vcTheme.accent, 1.5, 0.4)
+
+        local topBar = Instance.new("Frame")
+        topBar.Size = UDim2.new(1, 0, 0, 44)
+        topBar.BackgroundColor3 = vcTheme.bgCard
+        topBar.BorderSizePixel = 0
+        topBar.Parent = mainWin
+        vcAddCorner(topBar, 14)
+
+        local topTitle = Instance.new("TextLabel")
+        topTitle.Size = UDim2.new(1, -100, 1, 0)
+        topTitle.Position = UDim2.new(0, 18, 0, 0)
+        topTitle.BackgroundTransparency = 1
+        topTitle.Text = "COCO ANTI-VC BYPASS & VOICE DEFENSE SUITE V7"
+        topTitle.Font = Enum.Font.GothamBold
+        topTitle.TextSize = 13
+        topTitle.TextColor3 = vcTheme.white
+        topTitle.TextXAlignment = Enum.TextXAlignment.Left
+        topTitle.Parent = topBar
+
+        local closeBtn = Instance.new("TextButton")
+        closeBtn.Size = UDim2.new(0, 28, 0, 28)
+        closeBtn.Position = UDim2.new(1, -38, 0.5, -14)
+        closeBtn.BackgroundColor3 = vcTheme.surface
+        closeBtn.Text = "×"
+        closeBtn.Font = Enum.Font.GothamBold
+        closeBtn.TextSize = 16
+        closeBtn.TextColor3 = vcTheme.textMuted
+        closeBtn.BorderSizePixel = 0
+        closeBtn.AutoButtonColor = false
+        closeBtn.Parent = topBar
+        vcAddCorner(closeBtn, 6)
+        closeBtn.MouseButton1Click:Connect(function()
+            screenGui:Destroy()
+        end)
+
+        vcMakeDraggable(topBar, mainWin)
+
+        local tabBar = Instance.new("Frame")
+        tabBar.Size = UDim2.new(1, -20, 0, 34)
+        tabBar.Position = UDim2.new(0, 10, 0, 50)
+        tabBar.BackgroundColor3 = vcTheme.bgCard
+        tabBar.BorderSizePixel = 0
+        tabBar.Parent = mainWin
+        vcAddCorner(tabBar, 8)
+
+        local tabLayout = Instance.new("UIGridLayout")
+        tabLayout.CellSize = UDim2.new(0.25, -4, 1, -6)
+        tabLayout.CellPadding = UDim2.new(0, 4, 0, 0)
+        tabLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+        tabLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+        tabLayout.SortOrder = Enum.SortOrder.LayoutOrder
+        tabLayout.Parent = tabBar
+
+        local pagesFolder = Instance.new("Folder")
+        pagesFolder.Name = "Pages"
+        pagesFolder.Parent = mainWin
+
+        local tabs = {}
+        local function createTabPage(id, labelText, order)
+            local btn = Instance.new("TextButton")
+            btn.Name = id .. "_Btn"
+            btn.LayoutOrder = order
+            btn.BackgroundColor3 = (order == 1) and vcTheme.accent or vcTheme.surface
+            btn.TextColor3 = (order == 1) and vcTheme.black or vcTheme.textMuted
+            btn.Font = Enum.Font.GothamBold
+            btn.TextSize = 11
+            btn.Text = labelText
+            btn.BorderSizePixel = 0
+            btn.AutoButtonColor = false
+            btn.Parent = tabBar
+            vcAddCorner(btn, 6)
+
+            local page = Instance.new("ScrollingFrame")
+            page.Name = id .. "_Page"
+            page.Size = UDim2.new(1, -20, 1, -100)
+            page.Position = UDim2.new(0, 10, 0, 92)
+            page.BackgroundTransparency = 1
+            page.BorderSizePixel = 0
+            page.ScrollBarThickness = 3
+            page.ScrollBarImageColor3 = vcTheme.accent
+            page.Visible = (order == 1)
+            page.CanvasSize = UDim2.new(0, 0, 0, 0)
+            page.Parent = pagesFolder
+
+            local layout = Instance.new("UIListLayout")
+            layout.SortOrder = Enum.SortOrder.LayoutOrder
+            layout.Padding = UDim.new(0, 8)
+            layout.Parent = page
+            layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+                page.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 12)
+            end)
+
+            tabs[id] = { btn = btn, page = page }
+            btn.MouseButton1Click:Connect(function()
+                for k, v in pairs(tabs) do
+                    local active = (k == id)
+                    v.page.Visible = active
+                    vcTween(v.btn, {
+                        BackgroundColor3 = active and vcTheme.accent or vcTheme.surface,
+                        TextColor3 = active and vcTheme.black or vcTheme.textMuted,
+                    }, 0.15)
+                end
+            end)
+
+            return page
+        end
+
+        local function createSection(parent, title, order)
+            local lbl = Instance.new("TextLabel")
+            lbl.Size = UDim2.new(1, -8, 0, 22)
+            lbl.BackgroundTransparency = 1
+            lbl.Text = string.upper(title)
+            lbl.Font = Enum.Font.GothamBold
+            lbl.TextSize = 10
+            lbl.TextColor3 = vcTheme.accent
+            lbl.TextXAlignment = Enum.TextXAlignment.Left
+            lbl.LayoutOrder = order or 1
+            lbl.Parent = parent
+            return lbl
+        end
+
+        local function createActionButton(parent, title, subtitle, order, callback)
+            local card = Instance.new("Frame")
+            card.Size = UDim2.new(1, -8, 0, 48)
+            card.BackgroundColor3 = vcTheme.surface
+            card.BorderSizePixel = 0
+            card.LayoutOrder = order or 1
+            card.Parent = parent
+            vcAddCorner(card, 10)
+            vcAddStroke(card, vcTheme.divider, 1, 0.4)
+
+            local tLbl = Instance.new("TextLabel")
+            tLbl.Size = UDim2.new(1, -24, 0, 18)
+            tLbl.Position = UDim2.new(0, 12, 0, 7)
+            tLbl.BackgroundTransparency = 1
+            tLbl.Text = title
+            tLbl.Font = Enum.Font.GothamBold
+            tLbl.TextSize = 12
+            tLbl.TextColor3 = vcTheme.white
+            tLbl.TextXAlignment = Enum.TextXAlignment.Left
+            tLbl.Parent = card
+
+            local sLbl = Instance.new("TextLabel")
+            sLbl.Size = UDim2.new(1, -24, 0, 14)
+            sLbl.Position = UDim2.new(0, 12, 0, 26)
+            sLbl.BackgroundTransparency = 1
+            sLbl.Text = subtitle or ""
+            sLbl.Font = Enum.Font.Gotham
+            sLbl.TextSize = 10
+            sLbl.TextColor3 = vcTheme.textMuted
+            sLbl.TextXAlignment = Enum.TextXAlignment.Left
+            sLbl.Parent = card
+
+            local clickBtn = Instance.new("TextButton")
+            clickBtn.Size = UDim2.new(1, 0, 1, 0)
+            clickBtn.BackgroundTransparency = 1
+            clickBtn.Text = ""
+            clickBtn.Parent = card
+            clickBtn.MouseEnter:Connect(function() vcTween(card, { BackgroundColor3 = vcTheme.surfaceHover }, 0.15) end)
+            clickBtn.MouseLeave:Connect(function() vcTween(card, { BackgroundColor3 = vcTheme.surface }, 0.15) end)
+            clickBtn.MouseButton1Click:Connect(function()
+                if callback then task.spawn(callback) end
+            end)
+            return card
+        end
+
+        local function createToggle(parent, title, subtitle, order, callback)
+            local state = false
+            local card = Instance.new("Frame")
+            card.Size = UDim2.new(1, -8, 0, 48)
+            card.BackgroundColor3 = vcTheme.surface
+            card.BorderSizePixel = 0
+            card.LayoutOrder = order or 1
+            card.Parent = parent
+            vcAddCorner(card, 10)
+            vcAddStroke(card, vcTheme.divider, 1, 0.4)
+
+            local tLbl = Instance.new("TextLabel")
+            tLbl.Size = UDim2.new(1, -70, 0, 18)
+            tLbl.Position = UDim2.new(0, 12, 0, 7)
+            tLbl.BackgroundTransparency = 1
+            tLbl.Text = title
+            tLbl.Font = Enum.Font.GothamBold
+            tLbl.TextSize = 12
+            tLbl.TextColor3 = vcTheme.white
+            tLbl.TextXAlignment = Enum.TextXAlignment.Left
+            tLbl.Parent = card
+
+            local sLbl = Instance.new("TextLabel")
+            sLbl.Size = UDim2.new(1, -70, 0, 14)
+            sLbl.Position = UDim2.new(0, 12, 0, 26)
+            sLbl.BackgroundTransparency = 1
+            sLbl.Text = subtitle or ""
+            sLbl.Font = Enum.Font.Gotham
+            sLbl.TextSize = 10
+            sLbl.TextColor3 = vcTheme.textMuted
+            sLbl.TextXAlignment = Enum.TextXAlignment.Left
+            sLbl.Parent = card
+
+            local pill = Instance.new("Frame")
+            pill.Size = UDim2.new(0, 40, 0, 20)
+            pill.Position = UDim2.new(1, -52, 0.5, -10)
+            pill.BackgroundColor3 = vcTheme.input
+            pill.BorderSizePixel = 0
+            pill.Parent = card
+            vcAddCorner(pill, 10)
+
+            local knob = Instance.new("Frame")
+            knob.Size = UDim2.new(0, 16, 0, 16)
+            knob.Position = UDim2.new(0, 2, 0.5, -8)
+            knob.BackgroundColor3 = vcTheme.textMuted
+            knob.BorderSizePixel = 0
+            knob.Parent = pill
+            vcAddCorner(knob, 8)
+
+            local btn = Instance.new("TextButton")
+            btn.Size = UDim2.new(1, 0, 1, 0)
+            btn.BackgroundTransparency = 1
+            btn.Text = ""
+            btn.Parent = card
+
+            local function setToggle(val)
+                state = val
+                vcTween(pill, { BackgroundColor3 = state and vcTheme.accent or vcTheme.input }, 0.15)
+                vcTween(knob, {
+                    Position = state and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8),
+                    BackgroundColor3 = state and vcTheme.black or vcTheme.textMuted,
+                }, 0.15)
+                if callback then
+                    task.spawn(callback, state)
+                end
+            end
+
+            btn.MouseButton1Click:Connect(function()
+                setToggle(not state)
+            end)
+
+            return setToggle
+        end
+
+        local vcbypassPage = createTabPage("vcbypass", "Coco VC Bypass", 1)
+        local antivcb2Page = createTabPage("antivcb2", "Coco Anti-VCB 2", 2)
+        local hideUserPage = createTabPage("hideuser", "Hide & Mute VC", 3)
+        local defAntiPage  = createTabPage("antistuffs", "Anti-Stuffs", 4)
+
+        -- TAB 1: COCO ANTI-VC BYPASS
+        createSection(vcbypassPage, "Coco Anti-VC Bypass", 1)
+
+        local vcStatusCard = Instance.new("Frame")
+        vcStatusCard.Size = UDim2.new(1, -8, 0, 66)
+        vcStatusCard.BackgroundColor3 = vcTheme.surface
+        vcStatusCard.BorderSizePixel = 0
+        vcStatusCard.LayoutOrder = 2
+        vcStatusCard.Parent = vcbypassPage
+        vcAddCorner(vcStatusCard, 10)
+
+        local statusLbl = Instance.new("TextLabel")
+        statusLbl.Size = UDim2.new(1, -28, 0, 20)
+        statusLbl.Position = UDim2.new(0, 14, 0, 10)
+        statusLbl.Text = Anti.VC.enabled and "Status: Active" or (Anti.VC.statusText or "Status: Not Active")
+        statusLbl.Font = Enum.Font.GothamBold
+        statusLbl.TextSize = 12
+        statusLbl.TextColor3 = Anti.VC.enabled and vcTheme.success or vcTheme.textMuted
+        statusLbl.TextXAlignment = Enum.TextXAlignment.Left
+        statusLbl.BackgroundTransparency = 1
+        statusLbl.Parent = vcStatusCard
+
+        local vcSubDesc = Instance.new("TextLabel")
+        vcSubDesc.Size = UDim2.new(1, -28, 0, 26)
+        vcSubDesc.Position = UDim2.new(0, 14, 0, 32)
+        vcSubDesc.Text = "Bypass voice chat restrictions and suspensions to use VC in any game with Zero-Delay Hook Shield."
+        vcSubDesc.Font = Enum.Font.Gotham
+        vcSubDesc.TextSize = 10
+        vcSubDesc.TextColor3 = vcTheme.textMuted
+        vcSubDesc.TextXAlignment = Enum.TextXAlignment.Left
+        vcSubDesc.TextWrapped = true
+        vcSubDesc.BackgroundTransparency = 1
+        vcSubDesc.Parent = vcStatusCard
+
+        createSection(vcbypassPage, "Instructions", 3)
+
+        local instrCard = Instance.new("Frame")
+        instrCard.Size = UDim2.new(1, -8, 0, 82)
+        instrCard.BackgroundColor3 = vcTheme.surface
+        instrCard.BorderSizePixel = 0
+        instrCard.LayoutOrder = 4
+        instrCard.Parent = vcbypassPage
+        vcAddCorner(instrCard, 10)
+
+        local steps = {
+            { y = 10, text = "1.  Click 'Activate Coco Anti-VC Bypass' below" },
+            { y = 26, text = "2.  Unmute your microphone when prompted (or click Force Now)" },
+            { y = 42, text = "3.  Wait for the bypass handshake to complete (~3s)" },
+            { y = 58, text = "4.  Use the custom TopBar mic button normally after" },
+        }
+        for _, st in ipairs(steps) do
+            local lbl = Instance.new("TextLabel")
+            lbl.Size = UDim2.new(1, -28, 0, 14)
+            lbl.Position = UDim2.new(0, 14, 0, st.y)
+            lbl.Text = st.text
+            lbl.Font = Enum.Font.Gotham
+            lbl.TextSize = 10
+            lbl.TextColor3 = vcTheme.textMuted
+            lbl.TextXAlignment = Enum.TextXAlignment.Left
+            lbl.BackgroundTransparency = 1
+            lbl.Parent = instrCard
+        end
+
+        createSection(vcbypassPage, "Actions", 5)
+
+        local actFrame = Instance.new("Frame")
+        actFrame.Size = UDim2.new(1, -8, 0, 44)
+        actFrame.BackgroundColor3 = Anti.VC.enabled and vcTheme.success or vcTheme.accentDim
+        actFrame.BorderSizePixel = 0
+        actFrame.LayoutOrder = 6
+        actFrame.Parent = vcbypassPage
+        vcAddCorner(actFrame, 10)
+        vcAddStroke(actFrame, vcTheme.white, 1, 0.6)
+
+        local actBtn = Instance.new("TextButton")
+        actBtn.Size = UDim2.new(1, 0, 1, 0)
+        actBtn.Text = Anti.VC.enabled and "COCO ANTI-VC ACTIVE" or "Activate Coco Anti-VC Bypass"
+        actBtn.Font = Enum.Font.GothamBold
+        actBtn.TextSize = 13
+        actBtn.TextColor3 = vcTheme.white
+        actBtn.BackgroundTransparency = 1
+        actBtn.AutoButtonColor = false
+        actBtn.Parent = actFrame
+
+        actBtn.MouseButton1Click:Connect(function()
+            runCocoOneClickVCBypass(function(stText, color, btnText, isSuccess, isError)
+                if statusLbl and statusLbl.Parent then
+                    statusLbl.Text = stText
+                    statusLbl.TextColor3 = color
+                end
+                if actBtn and actBtn.Parent then
+                    actBtn.Text = btnText
+                end
+                if isSuccess then
+                    vcTween(actFrame, { BackgroundColor3 = vcTheme.success }, 0.3)
+                elseif isError then
+                    vcTween(actFrame, { BackgroundColor3 = vcTheme.dangerDim }, 0.3)
+                    task.delay(2, function()
+                        vcTween(actFrame, { BackgroundColor3 = vcTheme.accentDim }, 0.3)
+                    end)
+                end
+            end, false)
+        end)
+
+        createActionButton(
+            vcbypassPage,
+            "Force Immediate Bypass (Skip Unmute Wait)",
+            "Executes Coco Anti-VC Bypass immediately without waiting for mic unmute",
+            7,
+            function()
+                vcSkipWaitRequested = true
+                runCocoOneClickVCBypass(function(stText, color, btnText, isSuccess)
+                    if statusLbl and statusLbl.Parent then
+                        statusLbl.Text = stText
+                        statusLbl.TextColor3 = color
+                    end
+                    if actBtn and actBtn.Parent then
+                        actBtn.Text = btnText
+                    end
+                    if isSuccess then
+                        vcTween(actFrame, { BackgroundColor3 = vcTheme.success }, 0.3)
+                    end
+                end, true)
+            end
+        )
+
+        createActionButton(
+            vcbypassPage,
+            "Open Coco Anti-VCB 2 (Diagnostic GUI)",
+            "Launch the standalone Coco Anti-VCB 2 floating Diagnostic & Bypass window",
+            8,
+            function()
+                launchCocoAntiVCB2()
+            end
+        )
+
+        -- TAB 2: COCO ANTI-VCB 2
+        createSection(antivcb2Page, "Coco Anti-VCB 2 Diagnostic & Controls", 1)
+        createActionButton(
+            antivcb2Page,
+            "Launch Coco Anti-VCB 2 Diagnostic Window",
+            "Opens the 6-step interactive VC Bypass & Connection Inspector tool",
+            2,
+            function()
+                launchCocoAntiVCB2()
+            end
+        )
+        createActionButton(
+            antivcb2Page,
+            "Toggle Coco Custom Mic (Mute / Unmute)",
+            "Instantly toggles VoiceChatInternal:PublishPause state and TopBar icon",
+            3,
+            function()
+                toggleCocoVCMic()
+            end
+        )
+        createActionButton(
+            antivcb2Page,
+            "Force Rejoin Voice & Re-Lock Shield",
+            "Leaves VC, disables StateChanged listeners, and rejoins VC cleanly",
+            4,
+            function()
+                forceRejoinAndBypassVC()
+            end
+        )
+        createActionButton(
+            antivcb2Page,
+            "Open Classic V6 Omega Compact Card",
+            "Opens the compact Coco Anti-VC V6 mode switcher & strobe card",
+            5,
+            function()
+                if Anti.VC.openCompactPanelFn then
+                    Anti.VC.openCompactPanelFn()
+                end
+            end
+        )
+
+        -- TAB 3: HIDE PLAYERS & MUTE VC
+        local HiddenPlayers = {}
+        createSection(hideUserPage, "Hide Players (Client-Side & Mute VC)", 1)
+
+        local searchBoxFrame = Instance.new("Frame")
+        searchBoxFrame.Size = UDim2.new(1, -8, 0, 36)
+        searchBoxFrame.BackgroundColor3 = vcTheme.input
+        searchBoxFrame.BorderSizePixel = 0
+        searchBoxFrame.LayoutOrder = 2
+        searchBoxFrame.Parent = hideUserPage
+        vcAddCorner(searchBoxFrame, 8)
+        vcAddStroke(searchBoxFrame, vcTheme.divider, 1, 0.4)
+
+        local hideSearchBox = Instance.new("TextBox")
+        hideSearchBox.Size = UDim2.new(1, -24, 1, 0)
+        hideSearchBox.Position = UDim2.new(0, 12, 0, 0)
+        hideSearchBox.BackgroundTransparency = 1
+        hideSearchBox.PlaceholderText = "Search players to hide & mute..."
+        hideSearchBox.PlaceholderColor3 = vcTheme.textDim
+        hideSearchBox.Text = ""
+        hideSearchBox.Font = Enum.Font.Gotham
+        hideSearchBox.TextSize = 12
+        hideSearchBox.TextColor3 = vcTheme.text
+        hideSearchBox.TextXAlignment = Enum.TextXAlignment.Left
+        hideSearchBox.ClearTextOnFocus = false
+        hideSearchBox.Parent = searchBoxFrame
+
+        local playerListFrame = Instance.new("Frame")
+        playerListFrame.Size = UDim2.new(1, -8, 0, 0)
+        playerListFrame.AutomaticSize = Enum.AutomaticSize.Y
+        playerListFrame.BackgroundTransparency = 1
+        playerListFrame.LayoutOrder = 3
+        playerListFrame.Parent = hideUserPage
+
+        local playerListLayout = Instance.new("UIListLayout")
+        playerListLayout.Padding = UDim.new(0, 4)
+        playerListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+        playerListLayout.Parent = playerListFrame
+
+        local function hide_buildList()
+            for _, child in ipairs(playerListFrame:GetChildren()) do
+                if not child:IsA("UIListLayout") then
+                    child:Destroy()
+                end
+            end
+            if not vcPlayers then return end
+            local query = hideSearchBox.Text:lower()
+            for _, plr in ipairs(vcPlayers:GetPlayers()) do
+                if plr ~= vcLocalPlayer then
+                    local dName = plr.DisplayName:lower()
+                    local uName = plr.Name:lower()
+                    if query == "" or dName:find(query, 1, true) or uName:find(query, 1, true) then
+                        local isHidden = HiddenPlayers[plr.UserId] == true
+                        local row = Instance.new("Frame")
+                        row.Size = UDim2.new(1, 0, 0, 42)
+                        row.BackgroundColor3 = isHidden and vcTheme.accent or vcTheme.surface
+                        row.BorderSizePixel = 0
+                        row.Parent = playerListFrame
+                        vcAddCorner(row, 6)
+
+                        local nameLbl = Instance.new("TextLabel")
+                        nameLbl.Size = UDim2.new(1, -24, 0, 18)
+                        nameLbl.Position = UDim2.new(0, 12, 0, 5)
+                        nameLbl.BackgroundTransparency = 1
+                        nameLbl.Text = plr.DisplayName .. (isHidden and "  [HIDDEN & MUTED]" or "")
+                        nameLbl.Font = Enum.Font.GothamBold
+                        nameLbl.TextSize = 12
+                        nameLbl.TextColor3 = isHidden and vcTheme.black or vcTheme.text
+                        nameLbl.TextXAlignment = Enum.TextXAlignment.Left
+                        nameLbl.Parent = row
+
+                        local userLbl = Instance.new("TextLabel")
+                        userLbl.Size = UDim2.new(1, -24, 0, 14)
+                        userLbl.Position = UDim2.new(0, 12, 0, 22)
+                        userLbl.BackgroundTransparency = 1
+                        userLbl.Text = "@" .. plr.Name
+                        userLbl.Font = Enum.Font.Gotham
+                        userLbl.TextSize = 10
+                        userLbl.TextColor3 = isHidden and Color3.fromRGB(40, 40, 40) or vcTheme.textMuted
+                        userLbl.TextXAlignment = Enum.TextXAlignment.Left
+                        userLbl.Parent = row
+
+                        local rowBtn = Instance.new("TextButton")
+                        rowBtn.Size = UDim2.new(1, 0, 1, 0)
+                        rowBtn.BackgroundTransparency = 1
+                        rowBtn.Text = ""
+                        rowBtn.Parent = row
+                        rowBtn.MouseButton1Click:Connect(function()
+                            local nextState = not HiddenPlayers[plr.UserId]
+                            HiddenPlayers[plr.UserId] = nextState or nil
+                            hide_buildList()
+                            if nextState then
+                                vcSendNotification("Coco Anti-VC", "Hidden " .. plr.DisplayName .. " locally.", 2)
+                            else
+                                if plr.Character and vcLighting and plr.Character.Parent == vcLighting then
+                                    pcall(function() plr.Character.Parent = vcWorkspace end)
+                                end
+                                vcSendNotification("Coco Anti-VC", "Unhidden " .. plr.DisplayName .. ".", 2)
+                            end
+                        end)
+                    end
+                end
+            end
+        end
+
+        hideSearchBox:GetPropertyChangedSignal("Text"):Connect(hide_buildList)
+        if vcPlayers then
+            vcPlayers.PlayerAdded:Connect(function() task.defer(hide_buildList) end)
+            vcPlayers.PlayerRemoving:Connect(function(plr)
+                HiddenPlayers[plr.UserId] = nil
+                task.defer(hide_buildList)
+            end)
+        end
+        hide_buildList()
+
+        if vcRunService and vcPlayers then
+            vcRunService.Heartbeat:Connect(function()
+                if not screenGui.Parent and next(HiddenPlayers) == nil then return end
+                for _, plr in ipairs(vcPlayers:GetPlayers()) do
+                    if plr ~= vcLocalPlayer then
+                        if HiddenPlayers[plr.UserId] then
+                            local char = plr.Character
+                            if char then
+                                if char:IsDescendantOf(vcWorkspace) and vcLighting then
+                                    pcall(function() char.Parent = vcLighting end)
+                                end
+                                local root = char.PrimaryPart or char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Head")
+                                if root then
+                                    pcall(function() root.CFrame = CFrame.new(0, 999999, 0) end)
+                                end
+                            end
+                        elseif plr.Character and vcLighting and plr.Character.Parent == vcLighting then
+                            pcall(function() plr.Character.Parent = vcWorkspace end)
+                        end
+                    end
+                end
+            end)
+        end
+
+        -- TAB 4: ANTI-STUFFS / DEFENSE
+        local defState = {
+            AntiKick = false,
+            OriginalKick = nil,
+            Headsit = false,
+            Facebang = false,
+            Kidnap = false,
+            KidnapConn = nil,
+            Void = false,
+            VoidPart = nil,
+            VoidHeight = OriginalFPDH or -500,
+            GodMode = false,
+            GodModeConnections = {},
+            AntiAFKConn = nil,
+        }
+
+        createSection(defAntiPage, "Protection & Anti-Moderation", 1)
+
+        createToggle(defAntiPage, "Anti Kick", "Intercepts and blocks client-side scripts from kicking you", 2, function(enabled)
+            defState.AntiKick = enabled
+            if enabled then
+                pcall(function()
+                    if type(hookfunction) == "function" and vcLocalPlayer and vcLocalPlayer.Kick then
+                        if not defState.OriginalKick then
+                            defState.OriginalKick = hookfunction(vcLocalPlayer.Kick, function(self, ...)
+                                if defState.AntiKick and self == vcLocalPlayer then
+                                    local reason = tostring(... or "No reason provided")
+                                    vcSendNotification("Coco Anti-Kick", "Blocked kick: " .. reason:sub(1, 35), 4)
+                                    return nil
+                                end
+                                return defState.OriginalKick(self, ...)
+                            end)
+                        end
+                        vcSendNotification("Coco Anti-VC", "Anti-Kick: Enabled", 2)
+                    else
+                        vcSendNotification("Coco Anti-VC", "Executor does not support hookfunction", 3)
+                    end
+                end)
+            else
+                vcSendNotification("Coco Anti-VC", "Anti-Kick: Disabled", 2)
+            end
+        end)
+
+        createToggle(defAntiPage, "Anti Sit / Anti Kidnap", "Prevents you from being seated or kidnapped", 3, function(enabled)
+            defState.Kidnap = enabled
+            if defState.KidnapConn then
+                defState.KidnapConn:Disconnect()
+                defState.KidnapConn = nil
+            end
+            if enabled and vcRunService then
+                defState.KidnapConn = vcRunService.Heartbeat:Connect(function()
+                    local char = vcLocalPlayer and vcLocalPlayer.Character
+                    local hum = char and char:FindFirstChildOfClass("Humanoid")
+                    if hum then
+                        if hum:GetStateEnabled(Enum.HumanoidStateType.Seated) then
+                            hum:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
+                        end
+                        if hum.Sit then hum.Sit = false end
+                        local hrp = char:FindFirstChild("HumanoidRootPart")
+                        local weld = hrp and hrp:FindFirstChild("SeatWeld")
+                        if weld then weld:Destroy() end
+                    end
+                end)
+            elseif vcLocalPlayer and vcLocalPlayer.Character then
+                local hum = vcLocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+                if hum then hum:SetStateEnabled(Enum.HumanoidStateType.Seated, true) end
+            end
+        end)
+
+        createToggle(defAntiPage, "Anti Head Sit & Facebang", "Dodges players attempting head-sit or facebang attaches", 4, function(enabled)
+            defState.Headsit = enabled
+            defState.Facebang = enabled
+        end)
+
+        if vcRunService and vcPlayers then
+            vcRunService.Stepped:Connect(function()
+                if not defState.Headsit and not defState.Facebang then return end
+                if CurrentWeld ~= nil or WeldSeekingTarget or FlingActive then return end
+                pcall(function()
+                    local char = vcLocalPlayer and vcLocalPlayer.Character
+                    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+                    if not hrp then return end
+                    for _, plr in ipairs(vcPlayers:GetPlayers()) do
+                        if plr ~= vcLocalPlayer and plr.Character then
+                            local tHrp = plr.Character:FindFirstChild("HumanoidRootPart")
+                            if tHrp and (tHrp.Position - hrp.Position).Magnitude < 6 then
+                                for _, p in ipairs(plr.Character:GetChildren()) do
+                                    if p:IsA("BasePart") then
+                                        p.CanCollide = false
+                                        p.CanTouch = false
+                                        p.Massless = true
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end)
+            end)
+        end
+
+        createToggle(defAntiPage, "Anti-AFK", "Prevents Roblox from kicking you for 20m idle", 5, function(enabled)
+            if defState.AntiAFKConn then
+                defState.AntiAFKConn:Disconnect()
+                defState.AntiAFKConn = nil
+            end
+            if enabled and vcLocalPlayer and vcVirtualUser then
+                defState.AntiAFKConn = vcLocalPlayer.Idled:Connect(function()
+                    vcVirtualUser:CaptureController()
+                    vcVirtualUser:ClickButton2(Vector2.new())
+                end)
+                vcSendNotification("Coco Anti-VC", "Anti-AFK: Enabled", 2)
+            end
+        end)
+
+        createToggle(defAntiPage, "Anti Void Platform", "Spawns an invisible safety platform at void height beneath you", 6, function(enabled)
+            defState.Void = enabled
+            if defState.VoidPart then
+                defState.VoidPart:Destroy()
+                defState.VoidPart = nil
+            end
+            if enabled then
+                local part = Instance.new("Part")
+                part.Name = "CocoAntiVoidPlatform"
+                part.Transparency = 1
+                part.Anchored = true
+                part.CanCollide = true
+                part.Size = Vector3.new(2048, 1, 2048)
+                part.Position = Vector3.new(0, defState.VoidHeight, 0)
+                part.Locked = true
+                part.Parent = vcWorkspace
+                defState.VoidPart = part
+                task.spawn(function()
+                    while defState.Void and defState.VoidPart and defState.VoidPart.Parent do
+                        pcall(function()
+                            local char = vcLocalPlayer and vcLocalPlayer.Character
+                            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+                            if hrp then
+                                defState.VoidPart.Position = Vector3.new(hrp.Position.X, defState.VoidHeight, hrp.Position.Z)
+                            end
+                        end)
+                        task.wait(0.1)
+                    end
+                end)
+            end
+        end)
+
+        createToggle(defAntiPage, "Infinite Fall Void", "Sets FallenPartsDestroyHeight to NaN so falling never kills you", 7, function(enabled)
+            pcall(function()
+                if enabled then
+                    vcWorkspace.FallenPartsDestroyHeight = (0 / 0)
+                else
+                    vcWorkspace.FallenPartsDestroyHeight = defState.VoidHeight
+                end
+            end)
+        end)
+
+        createToggle(defAntiPage, "God Mode (Immortal Core)", "Undying health, Neck/Motor6D lock & zero KillBrick touch without movement lag", 8, function(enabled)
+            defState.GodMode = enabled
+            if enabled then
+                akStart(true)
+                avStart(true)
+                vcSendNotification("Coco Anti-VC", "Immortal God Mode: ON", 2)
+            else
+                akStop()
+                vcSendNotification("Coco Anti-VC", "Immortal God Mode: OFF", 2)
+            end
+        end)
+    end
+
+    _G.launchCocoAntiVCB2 = launchCocoAntiVCB2
+    _G.launchAntiVCB2 = launchCocoAntiVCB2
+    _G.runCocoOneClickVCBypass = runCocoOneClickVCBypass
+    _G.launchCocoAntiVCBypassSuite = launchCocoAntiVCBypassSuite
+    _G.launchMortalHubVCSuite = launchCocoAntiVCBypassSuite
+end)()
+
+Anti.VC.openCompactPanelFn = function()
     local coreGui = CoreGui or game:GetService("CoreGui")
     local pgui = LP and LP:FindFirstChildOfClass("PlayerGui")
     local existing = (coreGui and (coreGui:FindFirstChild("CocoAntiVCPanel") or coreGui:FindFirstChild("TeslaAntiVCPanel")))
@@ -7493,8 +9505,10 @@ Anti.VC.openPanelFn = function()
 
     updateAntiVCVisuals(nil, nil, nil)
 end
-end
-do -- Sub-scope 2 for Anti (Ragdoll, Anchor, Attach, Blind, Bring, FlingShield, DefenceTroll)
+Anti.VC.openPanelFn = launchCocoAntiVCBypassSuite
+Anti.VC.openVCB2Fn = launchCocoAntiVCB2
+end)()
+;(function() -- Sub-scope 2 for Anti (Ragdoll, Anchor, Attach, Blind, Bring, FlingShield, DefenceTroll)
 local contactTimers = {}
 local deflectCooldowns = {}
 local attackerLastPos = {}
@@ -7515,12 +9529,12 @@ local function ragdollCleanseCharacter(c)
     local hum = c:FindFirstChildOfClass("Humanoid")
     if hum then
         pcall(function()
-            hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
-            hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
-            hum:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
-            hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
+            if hum:GetStateEnabled(Enum.HumanoidStateType.Ragdoll) then hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false) end
+            if hum:GetStateEnabled(Enum.HumanoidStateType.FallingDown) then hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false) end
+            if hum:GetStateEnabled(Enum.HumanoidStateType.Seated) then hum:SetStateEnabled(Enum.HumanoidStateType.Seated, false) end
+            if not hum:GetStateEnabled(Enum.HumanoidStateType.GettingUp) then hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true) end
             if CurrentWeld == nil and not WeldSeekingTarget and not (AnimCopySys and AnimCopySys.active) and not FlingActive and not (moveState and (moveState.fly or moveState.flyLanding)) then
-                hum:SetStateEnabled(Enum.HumanoidStateType.Physics, false)
+                if hum:GetStateEnabled(Enum.HumanoidStateType.Physics) then hum:SetStateEnabled(Enum.HumanoidStateType.Physics, false) end
                 if hum.PlatformStand then hum.PlatformStand = false end
                 if hum.Sit then hum.Sit = false end
                 if not hum.AutoRotate then hum.AutoRotate = true end
@@ -7534,8 +9548,8 @@ local function ragdollCleanseCharacter(c)
                     hum:ChangeState(Enum.HumanoidStateType.Running)
                     Anti.Ragdoll.recoveries = Anti.Ragdoll.recoveries + 1
                 end
-                -- Cure stun scripts that lock WalkSpeed to 0
-                if hum.WalkSpeed < 8 and not (moveState and moveState.speed) then
+                -- Only cure hard stun-locks that freeze WalkSpeed at 0
+                if hum.WalkSpeed <= 0.1 and not (moveState and moveState.speed) then
                     hum.WalkSpeed = 16
                 end
             end
@@ -7892,9 +9906,9 @@ blindStop = function()
 end
 
 -- ═══════════════════════════════════════════════════════════════════════════════
--- 10. ADVANCED ANTI-BRING / ANTI-TELEPORT / ANTI-TOOL-GRAB GUARD V2
---     • Detects involuntary CFrame snaps (>38 studs) AND FE Tool-Bring grips
---     • Destroys hostile tool welds and restores verified safe trajectory
+-- 10. ADVANCED ANTI-BRING / ANTI-TELEPORT / ANTI-TOOL-GRAB GUARD V4
+--     • Uses horizontal (XZ) snap detection + foreign joint check so jumping,
+--       falling under gravity, or high JumpPower NEVER freezes/levitates you in mid-air!
 -- ═══════════════════════════════════════════════════════════════════════════════
 bringStart = function()
     if Anti.Bring.enabled then return end
@@ -7906,34 +9920,38 @@ bringStart = function()
         Anti.Bring.lastSafeTime = tick()
     end
     if Anti.Bring.steppedConn then Anti.Bring.steppedConn:Disconnect() end
-    Anti.Bring.steppedConn = RunService.Stepped:Connect(function( _, dt )
+    Anti.Bring.steppedConn = RunService.Stepped:Connect(function(_, dt)
         if not Anti.Bring.enabled then return end
-        if WeldIntent.active or CurrentWeld ~= nil or (AnimCopySys and AnimCopySys.active) or _G.CocaBangActive or (_G.CocaSkyDestroyer and _G.CocaSkyDestroyer.isAnyActive()) or FlingActive or deflectBusy or (moveState and (moveState.fly or moveState.flyLanding)) or (RewindSys and RewindSys.rewinding) then
-            local ch = LP.Character
-            local r = ch and ch:FindFirstChild("HumanoidRootPart")
+        local ch = LP.Character
+        local r = ch and ch:FindFirstChild("HumanoidRootPart")
+        if WeldIntent.active or CurrentWeld ~= nil or WeldSeekingTarget or (AnimCopySys and AnimCopySys.active) or (moveState and moveState.Vanish and moveState.Vanish.selfActive) or _G.CocaBangActive or (_G.CocaSkyDestroyer and (_G.CocaSkyDestroyer.isAnyActive() or _G.CocaSkyDestroyer.is_reanimated())) or (_G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated) == "function" and _G._AngoorZenApi.is_reanimated()) or FlingActive or deflectBusy or (moveState and (moveState.fly or moveState.flyLanding or moveState.spiderWalk or moveState.airWalk)) or (RewindSys and RewindSys.rewinding) then
             if r and isSafePlayableCF(r.CFrame) then Anti.Bring.lastCF = r.CFrame end
             return
         end
-        if tick() - (moveState.lastTeleportTick or 0) < 0.75 then return end
+        if tick() - (moveState.lastTeleportTick or 0) < 0.85 then
+            if r and isSafePlayableCF(r.CFrame) then Anti.Bring.lastCF = r.CFrame end
+            return
+        end
 
-        local ch = LP.Character
-        local r = ch and ch:FindFirstChild("HumanoidRootPart")
         local hum = ch and ch:FindFirstChildOfClass("Humanoid")
         if not r or not hum or hum.Health <= 0 then return end
 
-        -- Hostile attachment checks are handled by the event-driven Anti-Attach monitor.
-
         if Anti.Bring.lastCF then
-            local dist = (r.Position - Anti.Bring.lastCF.Position).Magnitude
-            local maxAllowedStep = math.max(38, (hum.WalkSpeed or 16) * math.max(dt or 0.016, 0.016) * 4.5 + 22)
-            if dist > maxAllowedStep then
-                -- Hostile teleport / bring detected!
-                severAllHostileAttachments()
-                r.AssemblyLinearVelocity = Vector3.zero
+            local lastPos = Anti.Bring.lastCF.Position
+            local curPos = r.Position
+            local horizDist = Vector2.new(curPos.X - lastPos.X, curPos.Z - lastPos.Z).Magnitude
+            local totalDist = (curPos - lastPos).Magnitude
+            local maxAllowedHoriz = math.max(75, (hum.WalkSpeed or 16) * math.max(dt or 0.016, 0.016) * 7.5 + 52)
+            local severed = (totalDist > 14) and severAllHostileAttachments() or 0
+            if (severed > 0 and totalDist > 14) or horizDist > maxAllowedHoriz or not isSafePlayableCF(r.CFrame) then
+                if severed == 0 then severAllHostileAttachments() end
+                -- Preserve gentle downward gravity instead of freezing at Y=0 in mid-air
+                local preserveGravY = math.min(0, math.max(r.AssemblyLinearVelocity.Y, -35))
+                r.AssemblyLinearVelocity = Vector3.new(0, preserveGravY, 0)
                 r.AssemblyAngularVelocity = Vector3.zero
                 r.CFrame = Anti.Bring.lastCF
                 Anti.Bring.blockedBrings = Anti.Bring.blockedBrings + 1
-                notify("COCO POWDER", "Anti-Bring v2: Blocked hostile teleport/grab!")
+                notify("COCO POWDER", "Anti-Bring v4: Blocked hostile teleport/grab!")
             elseif isSafePlayableCF(r.CFrame) then
                 Anti.Bring.lastCF = r.CFrame
             end
@@ -7942,7 +9960,7 @@ bringStart = function()
         end
     end)
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("COCO POWDER", "Anti-Bring / Tool-Grab & Snap Guard v2 ON")
+    notify("COCO POWDER", "Anti-Bring / Tool-Grab & Snap Guard v4 ON")
     sToggleOn()
 end
 
@@ -7956,13 +9974,65 @@ bringStop = function()
 end
 
 -- ═══════════════════════════════════════════════════════════════════════════════
--- 11. ADVANCED ANTI-FLING & NO-CONTACT SHIELD V2
---     • Pre-Simulation (RunService.Stepped): Strips CanCollide, CanTouch & Massless on
---       ALL other players' characters, tools & accessories across the server so a
---       25,000-stud/s spinner can NEVER physically collide with you even in 1 frame!
---     • Post-Simulation (RunService.Heartbeat): Clamps any residual velocity/angular
---       impulse and snaps back to pre-step CFrame if an exploit spike occurs.
+-- 11. ADVANCED ANTI-FLING & NO-CONTACT SHIELD V4 (ZERO-LEVITATION & NATURAL GRAVITY)
+--     • Strips CanCollide/CanTouch on all other players' characters so spinners
+--       pass harmlessly through you without ever touching your physics assembly.
+--     • Distinguishes natural jumping/falling & Y-axis camera turning from 3-axis
+--       fling impulses so your character NEVER levitates or stutters in mid-air!
 -- ═══════════════════════════════════════════════════════════════════════════════
+local function dampHostileFlingImpulse(myChar, myRoot)
+    local myHum = myChar and myChar:FindFirstChildOfClass("Humanoid")
+    local isIntentionalFast = (moveState and (moveState.fly or moveState.flyLanding or moveState.speed or moveState.spiderWalk or moveState.airWalk))
+    local walkSpd = (myHum and myHum.WalkSpeed) or 16
+    local jumpPwr = (myHum and myHum.JumpPower) or 50
+
+    local vel = myRoot.AssemblyLinearVelocity
+    local angVel = myRoot.AssemblyAngularVelocity
+    local horizSpeed = Vector2.new(vel.X, vel.Z).Magnitude
+    local tiltSpin = Vector2.new(angVel.X, angVel.Z).Magnitude
+
+    local maxHorizAllowed = isIntentionalFast and math.max(580, walkSpd * 2.5) or math.max(175, walkSpd * 3.0)
+    local maxUpAllowed    = isIntentionalFast and 580 or math.max(380, jumpPwr * 1.6)
+    local maxDownAllowed  = -255
+    local maxTiltSpin     = isIntentionalFast and 68 or 44
+    local maxTotalSpin    = isIntentionalFast and 130 or 105
+
+    local isFlingSpike = (horizSpeed > maxHorizAllowed)
+        or (vel.Y > maxUpAllowed)
+        or (vel.Y < maxDownAllowed)
+        or (tiltSpin > maxTiltSpin)
+        or (angVel.Magnitude > maxTotalSpin)
+
+    if not isFlingSpike then
+        if isSafePlayableCF(myRoot.CFrame) then
+            Anti.FlingShield.preStepCF = myRoot.CFrame
+        end
+        return false
+    end
+
+    -- Clamp only the hostile impulse while preserving natural downward gravity so you never hover in mid-air!
+    local clampedY = math.clamp(vel.Y, -65, math.min(jumpPwr, 55))
+    if vel.Y > maxUpAllowed then clampedY = 0 end
+    myRoot.AssemblyLinearVelocity = Vector3.new(0, clampedY, 0)
+    myRoot.AssemblyAngularVelocity = Vector3.zero
+
+    if Anti.FlingShield.preStepCF and isSafePlayableCF(Anti.FlingShield.preStepCF) then
+        local prePos = Anti.FlingShield.preStepCF.Position
+        local curPos = myRoot.Position
+        local horizJump = Vector2.new(curPos.X - prePos.X, curPos.Z - prePos.Z).Magnitude
+        if horizJump > 18 or not isSafePlayableCF(myRoot.CFrame) then
+            local _, yYaw, _ = myRoot.CFrame:ToEulerAnglesYXZ()
+            myRoot.CFrame = CFrame.new(prePos.X, math.min(curPos.Y, prePos.Y + 0.5), prePos.Z) * CFrame.Angles(0, yYaw, 0)
+        end
+    end
+    if isSafePlayableCF(myRoot.CFrame) then
+        Anti.FlingShield.preStepCF = myRoot.CFrame
+    end
+    Anti.FlingShield.blockedFlings = Anti.FlingShield.blockedFlings + 1
+    if updateDefenceStatsUI then pcall(updateDefenceStatsUI) end
+    return true
+end
+
 flingShieldStart = function()
     if Anti.FlingShield.enabled then return end
     Anti.FlingShield.enabled = true
@@ -7971,46 +10041,31 @@ flingShieldStart = function()
         if not Anti.FlingShield.enabled and not DefenceTroll.enabled then return end
         local myChar = LP.Character
         local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
-        if WeldIntent.active or CurrentWeld ~= nil or (AnimCopySys and AnimCopySys.active) or _G.CocaBangActive or (_G.CocaSkyDestroyer and _G.CocaSkyDestroyer.isAnyActive()) or FlingActive or deflectBusy or (RewindSys and RewindSys.rewinding) then
-            if myRoot and isSafePlayableCF(myRoot.CFrame) then
+        if not myRoot then return end
+        if WeldIntent.active or CurrentWeld ~= nil or WeldSeekingTarget or (AnimCopySys and AnimCopySys.active) or (moveState and moveState.Vanish and moveState.Vanish.selfActive) or _G.CocaBangActive or (_G.CocaSkyDestroyer and (_G.CocaSkyDestroyer.isAnyActive() or _G.CocaSkyDestroyer.is_reanimated())) or (_G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated) == "function" and _G._AngoorZenApi.is_reanimated()) or FlingActive or deflectBusy or (RewindSys and RewindSys.rewinding) then
+            if isSafePlayableCF(myRoot.CFrame) then
                 Anti.FlingShield.preStepCF = myRoot.CFrame
             end
             return
         end
-        if myRoot and isSafePlayableCF(myRoot.CFrame) then
-            -- Zero-Delay High-Threshold Filter: Allows fast movement, sprint, spider-walk, air-walk & flight without false rubberbanding
-            local isIntentionalFast = (moveState and (moveState.fly or moveState.speed or moveState.spiderWalk or moveState.airWalk))
-            local maxVelAllowed = isIntentionalFast and 560 or 98
-            local maxAngAllowed = isIntentionalFast and 65 or 38
 
-            if myRoot.AssemblyLinearVelocity.Magnitude < maxVelAllowed and myRoot.AssemblyAngularVelocity.Magnitude < maxAngAllowed then
-                Anti.FlingShield.preStepCF = myRoot.CFrame
-            else
-                myRoot.AssemblyLinearVelocity = Vector3.zero
-                myRoot.AssemblyAngularVelocity = Vector3.zero
-                if Anti.FlingShield.preStepCF then
-                    myRoot.CFrame = Anti.FlingShield.preStepCF
-                end
-                Anti.FlingShield.blockedFlings = Anti.FlingShield.blockedFlings + 1
-                if updateDefenceStatsUI then pcall(updateDefenceStatsUI) end
-            end
+        dampHostileFlingImpulse(myChar, myRoot)
 
-            -- Throttled Proactive Fling Collision Nullifier (iterates direct character children instead of GetDescendants!)
-            local nowTick = os.clock()
-            if nowTick - (Anti.FlingShield.lastNullifyScan or 0) > 0.18 then
-                Anti.FlingShield.lastNullifyScan = nowTick
-                for _, otherPlr in ipairs(Players:GetPlayers()) do
-                    if otherPlr ~= LP and otherPlr.Character then
-                        local otherRoot = otherPlr.Character:FindFirstChild("HumanoidRootPart")
-                        if otherRoot and (otherRoot.Position - myRoot.Position).Magnitude < 34 then
-                            local isSpinning = (otherRoot.AssemblyLinearVelocity.Magnitude > 38 or otherRoot.AssemblyAngularVelocity.Magnitude > 28)
-                            for _, p in ipairs(otherPlr.Character:GetChildren()) do
-                                if p:IsA("BasePart") then
-                                    if p.CanCollide then p.CanCollide = false end
-                                    if isSpinning then
-                                        p.CanTouch = false
-                                        p.Massless = true
-                                    end
+        -- Proactive Fling Collision Nullifier: strips collisions on nearby players so spinners phase right through you
+        local nowTick = os.clock()
+        if nowTick - (Anti.FlingShield.lastNullifyScan or 0) > 0.12 then
+            Anti.FlingShield.lastNullifyScan = nowTick
+            for _, otherPlr in ipairs(Players:GetPlayers()) do
+                if otherPlr ~= LP and otherPlr.Character then
+                    local otherRoot = otherPlr.Character:FindFirstChild("HumanoidRootPart")
+                    if otherRoot and (otherRoot.Position - myRoot.Position).Magnitude < 45 then
+                        local isSpinning = (otherRoot.AssemblyLinearVelocity.Magnitude > 38 or otherRoot.AssemblyAngularVelocity.Magnitude > 28)
+                        for _, p in ipairs(otherPlr.Character:GetChildren()) do
+                            if p:IsA("BasePart") then
+                                if p.CanCollide then p.CanCollide = false end
+                                if isSpinning then
+                                    p.CanTouch = false
+                                    p.Massless = true
                                 end
                             end
                         end
@@ -8025,26 +10080,16 @@ flingShieldStart = function()
         local myChar = LP.Character
         local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
         if not myRoot then return end
-        if WeldIntent.active or CurrentWeld ~= nil or (AnimCopySys and AnimCopySys.active) or _G.CocaBangActive or (_G.CocaSkyDestroyer and _G.CocaSkyDestroyer.isAnyActive()) or FlingActive or deflectBusy or (RewindSys and RewindSys.rewinding) then
+        if WeldIntent.active or CurrentWeld ~= nil or WeldSeekingTarget or (AnimCopySys and AnimCopySys.active) or (moveState and moveState.Vanish and moveState.Vanish.selfActive) or _G.CocaBangActive or (_G.CocaSkyDestroyer and (_G.CocaSkyDestroyer.isAnyActive() or _G.CocaSkyDestroyer.is_reanimated())) or (_G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated) == "function" and _G._AngoorZenApi.is_reanimated()) or FlingActive or deflectBusy or (RewindSys and RewindSys.rewinding) then
             if isSafePlayableCF(myRoot.CFrame) then
                 Anti.FlingShield.preStepCF = myRoot.CFrame
             end
             return
         end
-        local isIntentionalFast = (moveState and (moveState.fly or moveState.speed))
-        local maxVelAllowed = isIntentionalFast and 550 or 95
-        local maxAngAllowed = isIntentionalFast and 60 or 35
-        if myRoot.AssemblyLinearVelocity.Magnitude > maxVelAllowed or myRoot.AssemblyAngularVelocity.Magnitude > maxAngAllowed then
-            myRoot.AssemblyLinearVelocity = Vector3.zero
-            myRoot.AssemblyAngularVelocity = Vector3.zero
-            if Anti.FlingShield.preStepCF and isSafePlayableCF(Anti.FlingShield.preStepCF) then
-                myRoot.CFrame = Anti.FlingShield.preStepCF
-            end
-            Anti.FlingShield.blockedFlings = Anti.FlingShield.blockedFlings + 1
-        end
+        dampHostileFlingImpulse(myChar, myRoot)
     end)
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("COCO POWDER", "Anti-Fling Shield v2 (Pre/Post-Physics Zero-Impulse) ON")
+    notify("COCO POWDER", "Anti-Fling Shield v4 (Zero-Impulse + Natural Gravity) ON")
     sToggleOn()
 end
 
@@ -8310,11 +10355,10 @@ RunService.Heartbeat:Connect(function(dt)
                 attackerLastPos[p.UserId] = tRoot.Position
                 local stepDelta = prevPos and (tRoot.Position - prevPos).Magnitude or 0
 
-                local isSpinnerThreat = (velMag > 85 or angMag > 45) and dist <= (baseRange * 2.2)
-                local isWeldTrollState = dist <= 4.6 and (
+                local isSpinnerThreat = (velMag > 135 or angMag > 58) and dist <= (baseRange * 1.8) and closingSpeed > 25
+                local isWeldTrollState = dist <= 3.6 and (
                     (tHum and (tHum.PlatformStand or tHum:GetState() == Enum.HumanoidStateType.Physics))
-                    or (dist < 3.8 and stepDelta > 1.25)
-                    or closingSpeed > 48
+                    and (closingSpeed > 18 or stepDelta > 2.2)
                 )
 
                 if isSpinnerThreat or isWeldTrollState then
@@ -8509,7 +10553,9 @@ Anti.SeatTrap.startFn = function(silent)
         local hum = ch and ch:FindFirstChildOfClass("Humanoid")
         if hum then
             pcall(function()
-                hum:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
+                if hum:GetStateEnabled(Enum.HumanoidStateType.Seated) then
+                    hum:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
+                end
                 if hum.Sit then
                     hum.Sit = false
                 end
@@ -8642,10 +10688,11 @@ disableAllAntiSystems = function()
     sToggleOff()
 end
 
--- Auto-enable Anti-Void and Anti-Sit (Anti.SeatTrap) permanently on startup
+-- Auto-enable Anti-Void, Immortal God-Core (Anti-Kill v4), and Anti-Sit (Anti.SeatTrap) on startup
 pcall(function() avStart(true) end)
+pcall(function() akStart(true) end)
 pcall(function() if Anti.SeatTrap.startFn then Anti.SeatTrap.startFn(true) end end)
-end -- end Anti internal scope
+end)() -- end Anti internal scope
 
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- V36.1 LOCAL DEFENSE + INSTANT NEBULA PATCH
@@ -8674,7 +10721,7 @@ end -- end Anti internal scope
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- 👑 OWNER FREEZE, SCRIPT BAN, OVERHEAD NAME TAGS & BEACON SYNC IMPLEMENTATION
 local broadcastOwnerAdminCommand, notifyOwnerJoinedServer
-do
+;(function()
 -- ═══════════════════════════════════════════════════════════════════════════════
 local function applyOwnerFreezeState(freezeOn, ownerName)
     if freezeOn and isConfiguredScriptOwner(LP) then return end -- Never freeze the Script Owner (shivyy73)
@@ -10416,7 +12463,7 @@ task.spawn(function()
     end
 end)
 
-end -- end Owner/Beacon internal scope
+end)() -- end Owner/Beacon internal scope
 
 -- Block startup if local player was previously Script-Banned by the Owner (while still listening for Owner Unban)
 if checkSavedBanState() and not isConfiguredScriptOwner(LP) then
@@ -10650,7 +12697,7 @@ end
 -- 🦴 COCA REANIM MODULE (Embedded Keyframe Player, Custom Scripts, States & Limbs)
 -- ═══════════════════════════════════════════════════════════════════════════════
 local buildCocaReanimTab
-do
+;(function()
 --[[
 ================================================================================
   CHUNK 5: COCA REANIM HUB, CUSTOM KEYFRAME PLAYER, STATE ANIMATIONS,
@@ -10820,6 +12867,8 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                 activeTrack = nil,
                 activeAnimObj = nil,
                 currentSpeed = 1.0,
+                flingEnabled = false,
+                flingAngle = 0,
                 playListeners = {},
                 stopListeners = {},
                 animCache = {},
@@ -10919,18 +12968,90 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                 return true
             end
 
+            local JOINT_ALIAS_TABLE = {
+                ["Left Arm"]      = { "LeftArm", "LeftUpperArm", "Left Lower Arm", "Left Hand" },
+                ["Right Arm"]     = { "RightArm", "RightUpperArm", "Right Lower Arm", "Right Hand" },
+                ["Left Leg"]      = { "LeftLeg", "LeftUpperLeg", "Left Lower Leg", "Left Foot" },
+                ["Right Leg"]     = { "RightLeg", "RightUpperLeg", "Right Lower Leg", "Right Foot" },
+                Torso             = { "UpperTorso", "LowerTorso", "HumanoidRootPart", "RootJoint" },
+                LeftUpperArm      = { "Left Arm", "LeftArm" },
+                RightUpperArm     = { "Right Arm", "RightArm" },
+                LeftUpperLeg      = { "Left Leg", "LeftLeg" },
+                RightUpperLeg     = { "Right Leg", "RightLeg" },
+                UpperTorso        = { "Torso" },
+                Head              = { "Head" },
+            }
+
+            local function detectPlaceRagdollRemote(enableFlag)
+                local pid = game.PlaceId
+                local rep = game:GetService("ReplicatedStorage")
+                if pid == 15546218972 or pid == 6884319169 then
+                    local ev = rep:FindFirstChild("event_rag")
+                    if ev then return ev, { "Ball" }, false end
+                elseif pid == 5991163185 then
+                    local rem = rep:FindFirstChild("Remotes")
+                    local phys = rem and rem:FindFirstChild("Physics")
+                    local rag = phys and phys:FindFirstChild("Ragdoll")
+                    if rag then return rag, {}, false end
+                elseif pid == 5683833663 then
+                    local ev = rep:FindFirstChild("LocalRagdollEvent")
+                    if ev then return ev, { enableFlag }, true end
+                end
+                return nil, nil, false
+            end
+
+            local function fireRagdollRemote(remoteInst, isLocalBindable, argsTbl)
+                if typeof(remoteInst) ~= "Instance" then return end
+                pcall(function()
+                    if isLocalBindable and remoteInst:IsA("BindableEvent") then
+                        remoteInst:Fire(unpack(argsTbl or {}))
+                    elseif remoteInst:IsA("RemoteEvent") then
+                        remoteInst:FireServer(unpack(argsTbl or {}))
+                    elseif remoteInst:IsA("RemoteFunction") then
+                        remoteInst:InvokeServer(unpack(argsTbl or {}))
+                    end
+                end)
+            end
+
             local function findCloneMotorsMap(cloneChar)
                 local byPart1 = {}
                 local byName = {}
                 if not cloneChar then return byPart1, byName end
+                local function regJoint(mapTbl, key, joint)
+                    if not key then return end
+                    if not mapTbl[key] then mapTbl[key] = joint end
+                    local noSpace = key:gsub("%s+", "")
+                    if not mapTbl[noSpace] then mapTbl[noSpace] = joint end
+                end
                 for _, d in ipairs(cloneChar:GetDescendants()) do
-                    if d:IsA("Motor6D") then
-                        if not nativeState.defaultC0[d] then
-                            nativeState.defaultC0[d] = d.C0
+                    if d:IsA("JointInstance") then
+                        if d:IsA("Motor6D") or d:IsA("Motor") or d:IsA("Weld") then
+                            if not nativeState.defaultC0[d] then
+                                nativeState.defaultC0[d] = d.C0
+                            end
                         end
-                        byName[d.Name] = d
+                        regJoint(byName, d.Name, d)
                         if d.Part1 then
-                            byPart1[d.Part1.Name] = d
+                            regJoint(byPart1, d.Part1.Name, d)
+                        end
+                    elseif d:IsA("Bone") or d:IsA("AnimationConstraint") then
+                        if not nativeState.defaultC0[d] then
+                            nativeState.defaultC0[d] = d.Transform
+                        end
+                        regJoint(byName, d.Name, d)
+                        if d:IsA("AnimationConstraint") and d.Part1 then
+                            regJoint(byPart1, d.Part1.Name, d)
+                        else
+                            regJoint(byPart1, d.Name, d)
+                        end
+                    end
+                end
+                for srcKey, aliasList in pairs(JOINT_ALIAS_TABLE) do
+                    local j = byPart1[srcKey] or byName[srcKey]
+                    if j then
+                        for _, alias in ipairs(aliasList) do
+                            regJoint(byPart1, alias, j)
+                            regJoint(byName, alias, j)
                         end
                     end
                 end
@@ -10938,19 +13059,35 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
             end
 
             local function playKeyframeTableOnClone(kfTable, cloneChar)
+                if type(kfTable) ~= "table" then return false end
                 local frames = {}
-                if type(kfTable.Keyframes) == "table" then
-                    for t, poses in pairs(kfTable.Keyframes) do
+                -- Unwrap MortalHub dictionary-wrapped keyframe tables: { ["AnimName"] = { {Time = ..., Data = ...}, ... } }
+                local sourceTbl = kfTable
+                if type(sourceTbl.Keyframes) ~= "table" then
+                    local firstKey, firstVal = next(sourceTbl)
+                    if type(firstKey) == "string" and type(firstVal) == "table" and next(sourceTbl, firstKey) == nil then
+                        sourceTbl = firstVal
+                    end
+                end
+
+                if type(sourceTbl.Keyframes) == "table" then
+                    for t, poses in pairs(sourceTbl.Keyframes) do
                         if type(t) == "number" and type(poses) == "table" then
                             table.insert(frames, { time = t, poses = poses })
+                        elseif type(poses) == "table" and type(poses.Time or poses.time) == "number" and type(poses.Data or poses.Poses or poses.poses) == "table" then
+                            table.insert(frames, { time = poses.Time or poses.time, poses = poses.Data or poses.Poses or poses.poses })
                         end
                     end
                 else
-                    for k, v in pairs(kfTable) do
-                        if type(k) == "number" and type(v) == "table" and not v.time then
-                            table.insert(frames, { time = k, poses = v })
-                        elseif type(v) == "table" and type(v.Time or v.time) == "number" and type(v.Poses or v.poses or v.Data) == "table" then
-                            table.insert(frames, { time = v.Time or v.time, poses = v.Poses or v.poses or v.Data })
+                    for k, v in pairs(sourceTbl) do
+                        if type(k) == "number" and type(v) == "table" then
+                            if type(v.Time or v.time) == "number" and type(v.Data or v.Poses or v.poses) == "table" then
+                                table.insert(frames, { time = v.Time or v.time, poses = v.Data or v.Poses or v.poses })
+                            elseif not v.time and not v.Time then
+                                table.insert(frames, { time = k, poses = v })
+                            end
+                        elseif type(v) == "table" and type(v.Time or v.time) == "number" and type(v.Data or v.Poses or v.poses) == "table" then
+                            table.insert(frames, { time = v.Time or v.time, poses = v.Data or v.Poses or v.poses })
                         end
                     end
                 end
@@ -10969,29 +13106,57 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                 end
 
                 local elapsed = 0
-                nativeState.animConn = RunService.RenderStepped:Connect(function(dt)
+                local cachedIdx = 1
+                local numFrames = #frames
+                nativeState.animConn = RunService.Heartbeat:Connect(function(dt)
                     if not cloneChar or not cloneChar.Parent then
                         stopNativeAnimationInternal(false)
                         return
                     end
                     elapsed = (elapsed + dt * (nativeState.currentSpeed or 1.0)) % totalDuration
-                    local f0, f1 = frames[1], frames[#frames]
-                    for i = 1, #frames - 1 do
-                        if elapsed >= frames[i].time and elapsed <= frames[i + 1].time then
-                            f0 = frames[i]
-                            f1 = frames[i + 1]
-                            break
+                    if cachedIdx > numFrames or cachedIdx < 1 then cachedIdx = 1 end
+
+                    local f0, f1
+                    if frames[cachedIdx].time <= elapsed and (cachedIdx == numFrames or elapsed < frames[cachedIdx + 1].time) then
+                        f0 = frames[cachedIdx]
+                        f1 = frames[(cachedIdx == numFrames) and 1 or (cachedIdx + 1)]
+                    elseif cachedIdx < numFrames and frames[cachedIdx + 1].time <= elapsed and (cachedIdx + 1 == numFrames or elapsed < frames[cachedIdx + 2].time) then
+                        cachedIdx = cachedIdx + 1
+                        f0 = frames[cachedIdx]
+                        f1 = frames[(cachedIdx == numFrames) and 1 or (cachedIdx + 1)]
+                    else
+                        -- Binary search O(log N) keyframe lookup (from MortalHub Chunk 3)
+                        local low, high, best = 1, numFrames, 1
+                        while low <= high do
+                            local mid = math.floor((low + high) * 0.5)
+                            if frames[mid].time <= elapsed then
+                                best = mid
+                                low = mid + 1
+                            else
+                                high = mid - 1
+                            end
                         end
+                        cachedIdx = best
+                        f0 = frames[cachedIdx]
+                        f1 = frames[(cachedIdx == numFrames) and 1 or (cachedIdx + 1)]
                     end
-                    local span = math.max(f1.time - f0.time, 0.0001)
-                    local alpha = math.clamp((elapsed - f0.time) / span, 0, 1)
+
+                    local span = f1.time - f0.time
+                    if span <= 0 then span = totalDuration end
+                    local alpha = (span > 0) and math.clamp((elapsed - f0.time) / span, 0, 1) or 0
+
                     for partName, cf0 in pairs(f0.poses) do
-                        local cf1 = (f1.poses and f1.poses[partName]) or cf0
-                        local motor = byPart1[partName] or byName[partName]
+                        local cleanName = partName:gsub("%s+", "")
+                        local motor = byPart1[partName] or byPart1[cleanName] or byName[partName] or byName[cleanName]
                         if motor and motor.Parent and typeof(cf0) == "CFrame" then
+                            local cf1 = (f1.poses and (f1.poses[partName] or f1.poses[cleanName])) or cf0
                             local targetCF = (typeof(cf1) == "CFrame") and cf0:Lerp(cf1, alpha) or cf0
-                            local baseC0 = nativeState.defaultC0[motor] or motor.C0
-                            motor.C0 = baseC0 * targetCF
+                            local baseC0 = nativeState.defaultC0[motor]
+                            if baseC0 and (motor:IsA("Motor6D") or motor:IsA("Motor") or motor:IsA("Weld")) then
+                                motor.C0 = baseC0 * targetCF
+                            else
+                                pcall(function() motor.Transform = targetCF end)
+                            end
                         end
                     end
                 end)
@@ -11011,21 +13176,38 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
 
                 local lower = tostring(presetName or ""):lower()
                 local t = 0
+                local smoothedOffsets = {}
                 nativeState.animConn = RunService.RenderStepped:Connect(function(dt)
                     if not cloneChar or not cloneChar.Parent then
                         stopNativeAnimationInternal(false)
                         return
                     end
-                    t = t + dt * (nativeState.currentSpeed or 1.0) * 6.0
+                    local spd = nativeState.currentSpeed or 1.0
+                    t = t + dt * spd * 6.0
+                    local blendAlpha = math.clamp(dt * 24 * math.max(spd, 0.5), 0.25, 1.0)
                     local function setPose(pName, cf)
                         local m = byPart1[pName] or byName[pName]
                         if m and m.Parent then
                             local baseC0 = nativeState.defaultC0[m] or m.C0
-                            m.C0 = baseC0 * cf
+                            local prev = smoothedOffsets[m]
+                            local nextCF = prev and prev:Lerp(cf, blendAlpha) or cf
+                            smoothedOffsets[m] = nextCF
+                            m.C0 = baseC0 * nextCF
                         end
                     end
 
-                    if lower:find("bang") or lower:find("backshot") or lower:find("thrust") then
+                    if lower:find("overdrive") or (lower:find("turbo") and lower:find("thrust")) then
+                        local thrust = math.sin(t * 4.2) * 0.85
+                        local pitch = math.sin(t * 4.2) * math.rad(32)
+                        setPose("UpperTorso", CFrame.new(0, 0, thrust * 0.45) * CFrame.Angles(pitch, 0, 0))
+                        setPose("LowerTorso", CFrame.new(0, 0, -thrust) * CFrame.Angles(-pitch * 0.8, 0, 0))
+                        setPose("Torso", CFrame.new(0, 0, -thrust) * CFrame.Angles(pitch, 0, 0))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(88) + pitch * 0.6, 0, math.rad(-18)))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(88) + pitch * 0.6, 0, math.rad(18)))
+                        setPose("Left Arm", CFrame.Angles(math.rad(88) + pitch * 0.6, 0, math.rad(-18)))
+                        setPose("Right Arm", CFrame.Angles(math.rad(88) + pitch * 0.6, 0, math.rad(18)))
+                        setPose("Head", CFrame.Angles(-pitch * 0.7, 0, 0))
+                    elseif lower:find("bang") or lower:find("backshot") or lower:find("thrust") then
                         local thrust = math.sin(t * 2.4) * 0.65
                         local pitch = math.sin(t * 2.4) * math.rad(22)
                         setPose("UpperTorso", CFrame.new(0, 0, thrust * 0.4) * CFrame.Angles(pitch, 0, 0))
@@ -11046,8 +13228,8 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                         setPose("RightUpperArm", CFrame.Angles(math.rad(c > 0 and -25 or 25), 0, math.rad(-s * 55)))
                         setPose("Left Arm", CFrame.Angles(math.rad(c > 0 and 25 or -25), 0, math.rad(-s * 55)))
                         setPose("Right Arm", CFrame.Angles(math.rad(c > 0 and -25 or 25), 0, math.rad(-s * 55)))
-                    elseif lower:find("helicopter") or lower:find("spin") then
-                        local ang = t * 4.0
+                    elseif lower:find("helicopter") or lower:find("beyblade") or lower:find("rotor") or lower:find("spin") then
+                        local ang = t * 4.2
                         setPose("LowerTorso", CFrame.new(0, 1.5 + math.sin(t) * 0.4, 0) * CFrame.Angles(math.rad(85), ang, 0))
                         setPose("Torso", CFrame.new(0, 1.5 + math.sin(t) * 0.4, 0) * CFrame.Angles(math.rad(85), ang, 0))
                         setPose("LeftUpperArm", CFrame.Angles(0, 0, math.rad(-90)))
@@ -11063,7 +13245,230 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                         setPose("RightUpperLeg", CFrame.Angles(math.rad(45), math.rad(-15), math.rad(18)))
                         setPose("Left Leg", CFrame.Angles(math.rad(35), 0, math.rad(-15)))
                         setPose("Right Leg", CFrame.Angles(math.rad(35), 0, math.rad(15)))
-                    elseif lower:find("levitat") or lower:find("float") or lower:find("ascend") then
+                    elseif lower:find("hollow purple") or lower:find("kamehameha") or lower:find("atomic") then
+                        local charge = math.sin(t * 1.4)
+                        local pulse = math.sin(t * 5.0) * 0.08
+                        setPose("LowerTorso", CFrame.new(0, 1.2 + pulse, 0) * CFrame.Angles(math.rad(-10), math.rad(charge * 20), 0))
+                        setPose("UpperTorso", CFrame.Angles(math.rad(8), math.rad(-charge * 25), 0))
+                        setPose("Torso", CFrame.new(0, 1.2 + pulse, 0) * CFrame.Angles(math.rad(-8), math.rad(charge * 20), 0))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(92 + pulse * 40), math.rad(22), math.rad(18)))
+                        setPose("LeftLowerArm", CFrame.Angles(math.rad(45), 0, 0))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(92 - pulse * 40), math.rad(-22), math.rad(-18)))
+                        setPose("RightLowerArm", CFrame.Angles(math.rad(45), 0, 0))
+                        setPose("Left Arm", CFrame.Angles(math.rad(92), math.rad(20), math.rad(15)))
+                        setPose("Right Arm", CFrame.Angles(math.rad(92), math.rad(-20), math.rad(-15)))
+                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(24), 0, math.rad(-16)))
+                        setPose("RightUpperLeg", CFrame.Angles(math.rad(-24), 0, math.rad(16)))
+                        setPose("Head", CFrame.Angles(math.rad(-8), math.rad(charge * 15), 0))
+                    elseif lower:find("ora") or lower:find("muda") or lower:find("flurry") or lower:find("barrage") then
+                        local pL = math.sin(t * 7.5)
+                        local pR = -pL
+                        setPose("LowerTorso", CFrame.new(0, -0.15, -0.25) * CFrame.Angles(math.rad(-12), math.rad(pL * 14), 0))
+                        setPose("UpperTorso", CFrame.Angles(math.rad(-14), math.rad(pR * 22), 0))
+                        setPose("Torso", CFrame.new(0, -0.15, -0.25) * CFrame.Angles(math.rad(-14), math.rad(pL * 18), 0))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(90 + pL * 35), math.rad(pL * 18), math.rad(-12)))
+                        setPose("LeftLowerArm", CFrame.Angles(math.rad(45 - pL * 45), 0, 0))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(90 + pR * 35), math.rad(pR * 18), math.rad(12)))
+                        setPose("RightLowerArm", CFrame.Angles(math.rad(45 - pR * 45), 0, 0))
+                        setPose("Left Arm", CFrame.Angles(math.rad(90 + pL * 40), 0, math.rad(-10)))
+                        setPose("Right Arm", CFrame.Angles(math.rad(90 + pR * 40), 0, math.rad(10)))
+                    elseif lower:find("dio") or lower:find("wry") or lower:find("backbend") then
+                        local s = math.sin(t * 1.6) * 0.15
+                        setPose("LowerTorso", CFrame.new(0, -0.35, 0.55) * CFrame.Angles(math.rad(52) + s, 0, 0))
+                        setPose("UpperTorso", CFrame.Angles(math.rad(38), 0, 0))
+                        setPose("Torso", CFrame.new(0, -0.35, 0.55) * CFrame.Angles(math.rad(68) + s, 0, 0))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(-35), 0, math.rad(-65 - s * 50)))
+                        setPose("LeftLowerArm", CFrame.Angles(math.rad(65), 0, 0))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(-35), 0, math.rad(65 + s * 50)))
+                        setPose("RightLowerArm", CFrame.Angles(math.rad(65), 0, 0))
+                        setPose("Left Arm", CFrame.Angles(math.rad(-35), 0, math.rad(-65)))
+                        setPose("Right Arm", CFrame.Angles(math.rad(-35), 0, math.rad(65)))
+                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(-42), 0, math.rad(-14)))
+                        setPose("RightUpperLeg", CFrame.Angles(math.rad(-42), 0, math.rad(14)))
+                        setPose("Head", CFrame.Angles(math.rad(35), 0, 0))
+                    elseif lower:find("joyboy") or lower:find("gear 5") or lower:find("luffy") then
+                        local b = math.abs(math.sin(t * 2.6))
+                        local s = math.sin(t * 2.6)
+                        setPose("LowerTorso", CFrame.new(0, 0.6 + b * 1.4, 0) * CFrame.Angles(math.rad(s * 24), math.rad(s * 18), math.rad(s * 15)))
+                        setPose("UpperTorso", CFrame.Angles(math.rad(22), 0, math.rad(-s * 18)))
+                        setPose("Torso", CFrame.new(0, 0.6 + b * 1.4, 0) * CFrame.Angles(math.rad(18 + s * 20), 0, math.rad(s * 15)))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(145), 0, math.rad(-35 - b * 25)))
+                        setPose("LeftLowerArm", CFrame.Angles(math.rad(55), 0, 0))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(145), 0, math.rad(35 + b * 25)))
+                        setPose("RightLowerArm", CFrame.Angles(math.rad(55), 0, 0))
+                        setPose("Left Arm", CFrame.Angles(math.rad(145), 0, math.rad(-40)))
+                        setPose("Right Arm", CFrame.Angles(math.rad(145), 0, math.rad(40)))
+                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(55 * b), 0, math.rad(-15)))
+                        setPose("LeftLowerLeg", CFrame.Angles(math.rad(-85 * b), 0, 0))
+                        setPose("RightUpperLeg", CFrame.Angles(math.rad(-35 * s), 0, math.rad(15)))
+                        setPose("RightLowerLeg", CFrame.Angles(math.rad(-65 * (1 - b)), 0, 0))
+                        setPose("Head", CFrame.Angles(math.rad(25), 0, math.rad(s * 15)))
+                    elseif lower:find("slickback") or lower:find("glide") then
+                        local s = math.sin(t * 2.4)
+                        local c = math.cos(t * 2.4)
+                        setPose("LowerTorso", CFrame.new(s * 0.85, 0.25 + math.abs(c) * 0.25, 0) * CFrame.Angles(math.rad(-10), math.rad(-s * 16), math.rad(s * 8)))
+                        setPose("UpperTorso", CFrame.Angles(math.rad(-8), math.rad(s * 22), 0))
+                        setPose("Torso", CFrame.new(s * 0.85, 0.25 + math.abs(c) * 0.25, 0) * CFrame.Angles(math.rad(-10), math.rad(-s * 16), 0))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(35 + c * 35), 0, math.rad(-22)))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(35 - c * 35), 0, math.rad(22)))
+                        setPose("Left Arm", CFrame.Angles(math.rad(35 + c * 35), 0, math.rad(-22)))
+                        setPose("Right Arm", CFrame.Angles(math.rad(35 - c * 35), 0, math.rad(22)))
+                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(s * 52), 0, math.rad(-8)))
+                        setPose("LeftLowerLeg", CFrame.Angles(math.rad(-65 - c * 35), 0, 0))
+                        setPose("RightUpperLeg", CFrame.Angles(math.rad(-s * 52), 0, math.rad(8)))
+                        setPose("RightLowerLeg", CFrame.Angles(math.rad(-65 + c * 35), 0, 0))
+                        setPose("Left Leg", CFrame.Angles(math.rad(s * 52), 0, 0))
+                        setPose("Right Leg", CFrame.Angles(math.rad(-s * 52), 0, 0))
+                    elseif lower:find("sturdy") or lower:find("orange justice") or lower:find("electro") then
+                        local s = math.sin(t * 3.0)
+                        local c = math.cos(t * 1.5)
+                        local drop = (c > 0) and -0.85 or -0.15
+                        setPose("LowerTorso", CFrame.new(s * 0.3, drop + math.abs(s) * 0.25, 0) * CFrame.Angles(0, math.rad(s * 24), 0))
+                        setPose("UpperTorso", CFrame.Angles(math.rad(-12), math.rad(-s * 28), math.rad(s * 12)))
+                        setPose("Torso", CFrame.new(s * 0.3, drop + math.abs(s) * 0.25, 0) * CFrame.Angles(0, math.rad(s * 24), 0))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(75 + s * 65), 0, math.rad(-32)))
+                        setPose("LeftLowerArm", CFrame.Angles(math.rad(85), 0, 0))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(75 - s * 65), 0, math.rad(32)))
+                        setPose("RightLowerArm", CFrame.Angles(math.rad(85), 0, 0))
+                        setPose("Left Arm", CFrame.Angles(math.rad(75 + s * 65), 0, math.rad(-32)))
+                        setPose("Right Arm", CFrame.Angles(math.rad(75 - s * 65), 0, math.rad(32)))
+                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(45 + s * 35), 0, math.rad(-14)))
+                        setPose("LeftLowerLeg", CFrame.Angles(math.rad(-75), 0, 0))
+                        setPose("RightUpperLeg", CFrame.Angles(math.rad(45 - s * 35), 0, math.rad(14)))
+                        setPose("RightLowerLeg", CFrame.Angles(math.rad(-75), 0, 0))
+                        setPose("Left Leg", CFrame.Angles(math.rad(35 + s * 35), 0, math.rad(-14)))
+                        setPose("Right Leg", CFrame.Angles(math.rad(35 - s * 35), 0, math.rad(14)))
+                    elseif lower:find("gigachad") or lower:find("zyzz") or lower:find("flex") or lower:find("bicep") or lower:find("arnold") then
+                        local pulse = math.sin(t * 1.4)
+                        setPose("LowerTorso", CFrame.new(0, 0.1, 0) * CFrame.Angles(0, math.rad(pulse * 18), 0))
+                        setPose("UpperTorso", CFrame.Angles(math.rad(12), math.rad(pulse * 12), 0))
+                        setPose("Torso", CFrame.Angles(math.rad(10), math.rad(pulse * 22), 0))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(15), 0, math.rad(-88)))
+                        setPose("LeftLowerArm", CFrame.Angles(math.rad(105 + math.abs(pulse) * 18), 0, 0))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(15), 0, math.rad(88)))
+                        setPose("RightLowerArm", CFrame.Angles(math.rad(105 + math.abs(pulse) * 18), 0, 0))
+                        setPose("Left Arm", CFrame.Angles(math.rad(85), 0, math.rad(-75)))
+                        setPose("Right Arm", CFrame.Angles(math.rad(85), 0, math.rad(75)))
+                        setPose("Head", CFrame.Angles(math.rad(-8), math.rad(-pulse * 14), 0))
+                    elseif lower:find("pushup") or lower:find("plank") then
+                        local p = (math.sin(t * 2.0) + 1) * 0.5
+                        setPose("LowerTorso", CFrame.new(0, -1.55 - p * 0.55, 0) * CFrame.Angles(math.rad(-82), 0, 0))
+                        setPose("UpperTorso", CFrame.Angles(math.rad(6), 0, 0))
+                        setPose("Torso", CFrame.new(0, -1.55 - p * 0.55, 0) * CFrame.Angles(math.rad(-82), 0, 0))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(85 - p * 35), 0, math.rad(-25)))
+                        setPose("LeftLowerArm", CFrame.Angles(math.rad(p * 85), 0, 0))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(85 - p * 35), 0, math.rad(25)))
+                        setPose("RightLowerArm", CFrame.Angles(math.rad(p * 85), 0, 0))
+                        setPose("Left Arm", CFrame.Angles(math.rad(85 - p * 35), 0, math.rad(-20)))
+                        setPose("Right Arm", CFrame.Angles(math.rad(85 - p * 35), 0, math.rad(20)))
+                    elseif lower:find("swim") or lower:find("freestyle") or lower:find("backstroke") then
+                        local s = math.sin(t * 2.2)
+                        local c = math.cos(t * 2.2)
+                        setPose("LowerTorso", CFrame.new(0, 1.4 + s * 0.25, 0) * CFrame.Angles(math.rad(-85), 0, math.rad(c * 14)))
+                        setPose("UpperTorso", CFrame.Angles(0, math.rad(s * 18), 0))
+                        setPose("Torso", CFrame.new(0, 1.4 + s * 0.25, 0) * CFrame.Angles(math.rad(-85), 0, math.rad(c * 14)))
+                        setPose("LeftUpperArm", CFrame.Angles(t * 2.2, 0, math.rad(-18)))
+                        setPose("RightUpperArm", CFrame.Angles(t * 2.2 + math.pi, 0, math.rad(18)))
+                        setPose("Left Arm", CFrame.Angles(t * 2.2, 0, math.rad(-18)))
+                        setPose("Right Arm", CFrame.Angles(t * 2.2 + math.pi, 0, math.rad(18)))
+                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(s * 28), 0, 0))
+                        setPose("RightUpperLeg", CFrame.Angles(math.rad(-s * 28), 0, 0))
+                        setPose("Left Leg", CFrame.Angles(math.rad(s * 28), 0, 0))
+                        setPose("Right Leg", CFrame.Angles(math.rad(-s * 28), 0, 0))
+                        setPose("Head", CFrame.Angles(math.rad(55), 0, 0))
+                    elseif lower:find("katana") or lower:find("sword") or lower:find("tanjiro") or lower:find("slash") or lower:find("scythe") then
+                        local s = math.sin(t * 2.8)
+                        local c = math.cos(t * 2.8)
+                        setPose("LowerTorso", CFrame.new(0, -0.25, 0) * CFrame.Angles(math.rad(-14), math.rad(s * 42), 0))
+                        setPose("UpperTorso", CFrame.Angles(math.rad(-10), math.rad(s * 48), math.rad(c * 15)))
+                        setPose("Torso", CFrame.new(0, -0.25, 0) * CFrame.Angles(math.rad(-14), math.rad(s * 55), 0))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(95 + c * 55), math.rad(-s * 45), math.rad(25)))
+                        setPose("RightLowerArm", CFrame.Angles(math.rad(45), 0, 0))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(75 + c * 40), math.rad(-s * 35), math.rad(-20)))
+                        setPose("Right Arm", CFrame.Angles(math.rad(95 + c * 55), 0, math.rad(25)))
+                        setPose("Left Arm", CFrame.Angles(math.rad(75 + c * 40), 0, math.rad(-20)))
+                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(32), 0, math.rad(-16)))
+                        setPose("RightUpperLeg", CFrame.Angles(math.rad(-28), 0, math.rad(16)))
+                    elseif lower:find("guitar") or lower:find("headbang") or lower:find("metal") or lower:find("rock") then
+                        local bang = math.sin(t * 3.6)
+                        local strum = math.sin(t * 7.2)
+                        setPose("LowerTorso", CFrame.new(0, -0.2, 0) * CFrame.Angles(math.rad(-10 + bang * 14), math.rad(-18), 0))
+                        setPose("UpperTorso", CFrame.Angles(math.rad(-15 + bang * 22), math.rad(-12), 0))
+                        setPose("Torso", CFrame.new(0, -0.2, 0) * CFrame.Angles(math.rad(-15 + bang * 22), math.rad(-18), 0))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(65), math.rad(25), math.rad(-35)))
+                        setPose("LeftLowerArm", CFrame.Angles(math.rad(75), 0, 0))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(45 + strum * 25), 0, math.rad(18)))
+                        setPose("RightLowerArm", CFrame.Angles(math.rad(85 + strum * 20), 0, 0))
+                        setPose("Left Arm", CFrame.Angles(math.rad(65), 0, math.rad(-35)))
+                        setPose("Right Arm", CFrame.Angles(math.rad(55 + strum * 25), 0, math.rad(18)))
+                        setPose("Head", CFrame.Angles(math.rad(bang * 38), 0, 0))
+                    elseif lower:find("kneel") or lower:find("beg") or lower:find("mercy") or lower:find("knight") or lower:find("propose") then
+                        local bob = math.sin(t * 1.8) * 0.1
+                        setPose("LowerTorso", CFrame.new(0, -1.25 + bob, 0) * CFrame.Angles(math.rad(-16), 0, 0))
+                        setPose("UpperTorso", CFrame.Angles(math.rad(-22 + bob * 45), 0, 0))
+                        setPose("Torso", CFrame.new(0, -1.25 + bob, 0) * CFrame.Angles(math.rad(-24), 0, 0))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(78 + bob * 60), math.rad(25), math.rad(15)))
+                        setPose("LeftLowerArm", CFrame.Angles(math.rad(85), 0, 0))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(78 + bob * 60), math.rad(-25), math.rad(-15)))
+                        setPose("RightLowerArm", CFrame.Angles(math.rad(85), 0, 0))
+                        setPose("Left Arm", CFrame.Angles(math.rad(85), math.rad(20), 0))
+                        setPose("Right Arm", CFrame.Angles(math.rad(85), math.rad(-20), 0))
+                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(85), 0, 0))
+                        setPose("LeftLowerLeg", CFrame.Angles(math.rad(-95), 0, 0))
+                        setPose("RightUpperLeg", CFrame.Angles(math.rad(-10), 0, 0))
+                        setPose("RightLowerLeg", CFrame.Angles(math.rad(-115), 0, 0))
+                        setPose("Left Leg", CFrame.Angles(math.rad(80), 0, 0))
+                        setPose("Right Leg", CFrame.Angles(math.rad(-75), 0, 0))
+                    elseif lower:find("salute") or lower:find("attention") then
+                        local breath = math.sin(t * 0.8) * 0.04
+                        setPose("LowerTorso", CFrame.new(0, breath, 0))
+                        setPose("UpperTorso", CFrame.Angles(math.rad(4), 0, 0))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(115), 0, math.rad(38)))
+                        setPose("RightLowerArm", CFrame.Angles(math.rad(118), 0, math.rad(-35)))
+                        setPose("Right Arm", CFrame.Angles(math.rad(135), 0, math.rad(22)))
+                        setPose("LeftUpperArm", CFrame.Angles(0, 0, math.rad(-6)))
+                        setPose("Left Arm", CFrame.Angles(0, 0, math.rad(-6)))
+                    elseif lower:find("drunk") or lower:find("stumble") or lower:find("sleepwalk") then
+                        local s = math.sin(t * 1.1)
+                        local c = math.cos(t * 0.7)
+                        setPose("LowerTorso", CFrame.new(s * 0.65, -0.15, c * 0.35) * CFrame.Angles(math.rad(c * 18), math.rad(s * 22), math.rad(-s * 20)))
+                        setPose("UpperTorso", CFrame.Angles(math.rad(s * 16), 0, math.rad(-c * 18)))
+                        setPose("Torso", CFrame.new(s * 0.65, -0.15, c * 0.35) * CFrame.Angles(math.rad(c * 18), math.rad(s * 22), math.rad(-s * 20)))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(35 + s * 25), 0, math.rad(-25 - math.abs(c) * 20)))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(35 - s * 25), 0, math.rad(25 + math.abs(c) * 20)))
+                        setPose("Left Arm", CFrame.Angles(math.rad(35 + s * 25), 0, math.rad(-25)))
+                        setPose("Right Arm", CFrame.Angles(math.rad(35 - s * 25), 0, math.rad(25)))
+                        setPose("Head", CFrame.Angles(math.rad(-18 + s * 14), 0, math.rad(c * 24)))
+                    elseif lower:find("caramell") or lower:find("bunny") or lower:find("cute") or lower:find("heart") then
+                        local s = math.sin(t * 2.8)
+                        setPose("LowerTorso", CFrame.new(s * 0.35, math.abs(s) * 0.32, 0) * CFrame.Angles(0, 0, math.rad(s * 16)))
+                        setPose("UpperTorso", CFrame.Angles(0, math.rad(s * 12), math.rad(-s * 10)))
+                        setPose("Torso", CFrame.new(s * 0.35, math.abs(s) * 0.32, 0) * CFrame.Angles(0, 0, math.rad(s * 16)))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(155), 0, math.rad(18 + s * 10)))
+                        setPose("LeftLowerArm", CFrame.Angles(math.rad(35), 0, 0))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(155), 0, math.rad(-18 + s * 10)))
+                        setPose("RightLowerArm", CFrame.Angles(math.rad(35), 0, 0))
+                        setPose("Left Arm", CFrame.Angles(math.rad(155), 0, math.rad(18 + s * 10)))
+                        setPose("Right Arm", CFrame.Angles(math.rad(155), 0, math.rad(-18 + s * 10)))
+                        setPose("Head", CFrame.Angles(0, 0, math.rad(s * 14)))
+                    elseif lower:find("throne") or lower:find("king") or lower:find("invisible car") or lower:find("toilet") or lower:find("sit") then
+                        local hover = math.sin(t * 0.9) * 0.25
+                        setPose("LowerTorso", CFrame.new(0, 0.4 + hover, 0) * CFrame.Angles(math.rad(8), 0, 0))
+                        setPose("UpperTorso", CFrame.Angles(math.rad(-6), 0, 0))
+                        setPose("Torso", CFrame.new(0, 0.4 + hover, 0) * CFrame.Angles(math.rad(6), 0, 0))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(45), 0, math.rad(-25)))
+                        setPose("LeftLowerArm", CFrame.Angles(math.rad(65), 0, 0))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(45), 0, math.rad(25)))
+                        setPose("RightLowerArm", CFrame.Angles(math.rad(65), 0, 0))
+                        setPose("Left Arm", CFrame.Angles(math.rad(55), 0, math.rad(-20)))
+                        setPose("Right Arm", CFrame.Angles(math.rad(55), 0, math.rad(20)))
+                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(88), 0, math.rad(-12)))
+                        setPose("LeftLowerLeg", CFrame.Angles(math.rad(-88), 0, 0))
+                        setPose("RightUpperLeg", CFrame.Angles(math.rad(88), 0, math.rad(12)))
+                        setPose("RightLowerLeg", CFrame.Angles(math.rad(-88), 0, 0))
+                        setPose("Left Leg", CFrame.Angles(math.rad(88), 0, math.rad(-12)))
+                        setPose("Right Leg", CFrame.Angles(math.rad(88), 0, math.rad(12)))
+                    elseif lower:find("levitat") or lower:find("float") or lower:find("ascend") or lower:find("alien") or lower:find("jesus") then
                         local h = 2.8 + math.sin(t * 0.6) * 0.8
                         setPose("LowerTorso", CFrame.new(0, h, 0) * CFrame.Angles(math.rad(-12), math.sin(t * 0.3) * 0.2, 0))
                         setPose("Torso", CFrame.new(0, h, 0) * CFrame.Angles(math.rad(-12), math.sin(t * 0.3) * 0.2, 0))
@@ -11072,7 +13477,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                         setPose("Left Arm", CFrame.Angles(math.rad(25), 0, math.rad(-55)))
                         setPose("Right Arm", CFrame.Angles(math.rad(25), 0, math.rad(55)))
                         setPose("Head", CFrame.Angles(math.rad(22), 0, 0))
-                    elseif lower:find("headspin") or lower:find("breakdance") then
+                    elseif lower:find("headspin") or lower:find("breakdance") or lower:find("airflare") then
                         local ang = t * 3.2
                         setPose("LowerTorso", CFrame.new(0, 0.8, 0) * CFrame.Angles(math.rad(175), ang, 0))
                         setPose("Torso", CFrame.new(0, 0.8, 0) * CFrame.Angles(math.rad(175), ang, 0))
@@ -11080,7 +13485,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                         setPose("RightUpperLeg", CFrame.Angles(math.rad(-25), 0, math.rad(35)))
                         setPose("Left Leg", CFrame.Angles(math.rad(25), 0, math.rad(-35)))
                         setPose("Right Leg", CFrame.Angles(math.rad(-25), 0, math.rad(35)))
-                    elseif lower:find("worm") or lower:find("crawl") then
+                    elseif lower:find("worm") or lower:find("crawl") or lower:find("anaconda") or lower:find("slither") then
                         local s1 = math.sin(t * 2.0)
                         local s2 = math.cos(t * 2.0)
                         setPose("LowerTorso", CFrame.new(0, -1.8 + math.abs(s1) * 0.5, 0) * CFrame.Angles(math.rad(-82 + s1 * 22), 0, 0))
@@ -11090,7 +13495,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                         setPose("RightUpperArm", CFrame.Angles(math.rad(140 - s1 * 30), 0, 0))
                         setPose("Left Arm", CFrame.Angles(math.rad(140 + s1 * 30), 0, 0))
                         setPose("Right Arm", CFrame.Angles(math.rad(140 - s1 * 30), 0, 0))
-                    elseif lower:find("glitch") or lower:find("spasm") or lower:find("seizure") then
+                    elseif lower:find("glitch") or lower:find("spasm") or lower:find("seizure") or lower:find("possessed") then
                         local gx = (math.random() - 0.5) * 1.4
                         local gy = (math.random() - 0.5) * 1.4
                         local gz = (math.random() - 0.5) * 1.4
@@ -11111,7 +13516,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                         setPose("RightUpperArm", CFrame.Angles(math.rad(45 + s * 120), 0, math.rad(25)))
                         setPose("Left Arm", CFrame.Angles(math.rad(45 - s * 120), 0, math.rad(-25)))
                         setPose("Right Arm", CFrame.Angles(math.rad(45 + s * 120), 0, math.rad(25)))
-                    elseif lower:find("handstand") or lower:find("invert") then
+                    elseif lower:find("handstand") or lower:find("invert") or lower:find("planche") then
                         local bal = math.sin(t * 1.4) * math.rad(10)
                         local walk = math.cos(t * 2.2) * math.rad(28)
                         setPose("LowerTorso", CFrame.new(0, 1.15, 0) * CFrame.Angles(math.rad(180) + bal, 0, 0))
@@ -11124,7 +13529,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                         setPose("RightUpperLeg", CFrame.Angles(-walk, 0, math.rad(14)))
                         setPose("LeftLowerLeg", CFrame.Angles(math.rad(-25), 0, 0))
                         setPose("RightLowerLeg", CFrame.Angles(math.rad(-25), 0, 0))
-                    elseif lower:find("gojo") or lower:find("infinity") or lower:find("susanoo") or lower:find("god") then
+                    elseif lower:find("gojo") or lower:find("infinity") or lower:find("susanoo") or lower:find("god") or lower:find("monarch") or lower:find("madara") then
                         local h = 3.4 + math.sin(t * 0.55) * 0.65
                         local sway = math.sin(t * 0.4) * math.rad(8)
                         setPose("LowerTorso", CFrame.new(0, h, 0) * CFrame.Angles(math.rad(-8), sway, 0))
@@ -11158,7 +13563,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                         setPose("RightLowerLeg", CFrame.Angles(math.rad(-110), 0, 0))
                         setPose("Left Leg", CFrame.Angles(math.rad(80), math.rad(35), math.rad(-30)))
                         setPose("Right Leg", CFrame.Angles(math.rad(80), math.rad(-35), math.rad(30)))
-                    elseif lower:find("hakari") or lower:find("jackpot") or lower:find("specialist") or lower:find("torture") then
+                    elseif lower:find("hakari") or lower:find("jackpot") or lower:find("specialist") or lower:find("torture") or lower:find("distraction") or lower:find("smug") then
                         local s = math.sin(t * 2.5)
                         local c = math.cos(t * 2.5)
                         setPose("LowerTorso", CFrame.new(s * 0.45, math.abs(c) * 0.4, 0) * CFrame.Angles(0, math.rad(s * 28), math.rad(-s * 14)))
@@ -11232,7 +13637,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                         setPose("Left Leg", CFrame.Angles(math.rad(s * 38), 0, 0))
                         setPose("Right Leg", CFrame.Angles(math.rad(-s * 38), 0, 0))
                         setPose("Head", CFrame.Angles(math.rad(-18), 0, 0))
-                    elseif lower:find("naruto") or lower:find("ninja") or lower:find("shinobi") then
+                    elseif lower:find("naruto") or lower:find("ninja") or lower:find("shinobi") or lower:find("toji") or lower:find("zenitsu") then
                         local s = math.sin(t * 3.2)
                         setPose("LowerTorso", CFrame.new(0, math.abs(s) * 0.25, 0) * CFrame.Angles(math.rad(-38), 0, 0))
                         setPose("UpperTorso", CFrame.Angles(math.rad(-22), 0, 0))
@@ -11262,11 +13667,13 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                         setPose("Left Leg", CFrame.Angles(math.rad(-65 - s * 35), 0, math.rad(-22)))
                         setPose("Right Leg", CFrame.Angles(math.rad(-65 + s * 35), 0, math.rad(22)))
                         setPose("Head", CFrame.Angles(math.rad(65), math.rad(s * 45), 0))
-                    elseif lower:find("backflip") or lower:find("acrobat") or lower:find("windmill") then
-                        local flip = t * 2.6
-                        local tuck = math.sin(flip) * 0.5 + 0.5
-                        setPose("LowerTorso", CFrame.new(0, 1.8 + math.sin(flip) * 1.4, 0) * CFrame.Angles(flip, 0, 0))
-                        setPose("Torso", CFrame.new(0, 1.8 + math.sin(flip) * 1.4, 0) * CFrame.Angles(flip, 0, 0))
+                    elseif lower:find("backflip") or lower:find("frontflip") or lower:find("acrobat") or lower:find("windmill") or lower:find("corkscrew") or lower:find("cartwheel") then
+                        local dir = lower:find("frontflip") and -1 or 1
+                        local flip = t * 2.6 * dir
+                        local tuck = math.sin(t * 2.6) * 0.5 + 0.5
+                        local yawSpin = lower:find("corkscrew") and (t * 2.6) or 0
+                        setPose("LowerTorso", CFrame.new(0, 1.8 + math.sin(t * 2.6) * 1.4, 0) * CFrame.Angles(flip, yawSpin, 0))
+                        setPose("Torso", CFrame.new(0, 1.8 + math.sin(t * 2.6) * 1.4, 0) * CFrame.Angles(flip, yawSpin, 0))
                         setPose("LeftUpperArm", CFrame.Angles(math.rad(110 * tuck), 0, math.rad(-25)))
                         setPose("RightUpperArm", CFrame.Angles(math.rad(110 * tuck), 0, math.rad(25)))
                         setPose("Left Arm", CFrame.Angles(math.rad(110 * tuck), 0, math.rad(-25)))
@@ -11287,7 +13694,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                         setPose("RightUpperArm", CFrame.Angles(math.rad(145), 0, math.rad(35 + pulse * 80)))
                         setPose("Left Arm", CFrame.Angles(math.rad(145), 0, math.rad(-35)))
                         setPose("Right Arm", CFrame.Angles(math.rad(145), 0, math.rad(35)))
-                    elseif lower:find("boxer") or lower:find("punch") or lower:find("saitama") or lower:find("fight") then
+                    elseif lower:find("boxer") or lower:find("punch") or lower:find("saitama") or lower:find("fight") or lower:find("muay") or lower:find("uppercut") then
                         local jabL = math.max(0, math.sin(t * 4.2))
                         local jabR = math.max(0, -math.sin(t * 4.2))
                         local weave = math.cos(t * 2.1)
@@ -11325,6 +13732,406 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                         setPose("Left Leg", CFrame.Angles(math.rad(s * 32), 0, 0))
                         setPose("Right Leg", CFrame.Angles(math.rad(-s * 32), 0, 0))
                         setPose("Head", CFrame.Angles(math.rad(-16), 0, math.rad(24)))
+                    elseif lower:find("unlimited void") or lower:find("infinite void") then
+                        local bob = math.sin(t * 1.5) * 0.35
+                        setPose("LowerTorso", CFrame.new(0, 1.4 + bob, 0) * CFrame.Angles(math.rad(-10), 0, 0))
+                        setPose("UpperTorso", CFrame.Angles(math.rad(14), 0, 0))
+                        setPose("Torso", CFrame.new(0, 1.4 + bob, 0) * CFrame.Angles(math.rad(6), 0, 0))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(78), math.rad(24), math.rad(-14)))
+                        setPose("LeftLowerArm", CFrame.Angles(math.rad(48), 0, 0))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(78), math.rad(-24), math.rad(14)))
+                        setPose("RightLowerArm", CFrame.Angles(math.rad(48), 0, 0))
+                        setPose("Left Arm", CFrame.Angles(math.rad(78), math.rad(24), math.rad(-14)))
+                        setPose("Right Arm", CFrame.Angles(math.rad(78), math.rad(-24), math.rad(14)))
+                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(42), math.rad(20), math.rad(-18)))
+                        setPose("RightUpperLeg", CFrame.Angles(math.rad(42), math.rad(-20), math.rad(18)))
+                        setPose("Head", CFrame.Angles(math.rad(-14), 0, 0))
+                    elseif lower:find("cleave") or lower:find("dismantle") or lower:find("slash storm") then
+                        local swL = math.sin(t * 8.0)
+                        local swR = math.cos(t * 8.0)
+                        setPose("LowerTorso", CFrame.new(0, -0.2, 0) * CFrame.Angles(math.rad(-8), math.rad(swL * 22), 0))
+                        setPose("UpperTorso", CFrame.Angles(math.rad(-12), math.rad(-swL * 28), 0))
+                        setPose("Torso", CFrame.new(0, -0.2, 0) * CFrame.Angles(math.rad(-10), math.rad(swL * 24), 0))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(85 + swL * 45), math.rad(swL * 35), math.rad(-30)))
+                        setPose("LeftLowerArm", CFrame.Angles(math.rad(35), 0, 0))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(85 + swR * 45), math.rad(swR * 35), math.rad(30)))
+                        setPose("RightLowerArm", CFrame.Angles(math.rad(35), 0, 0))
+                        setPose("Left Arm", CFrame.Angles(math.rad(85 + swL * 50), 0, math.rad(-25)))
+                        setPose("Right Arm", CFrame.Angles(math.rad(85 + swR * 50), 0, math.rad(25)))
+                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(28), 0, math.rad(-12)))
+                        setPose("RightUpperLeg", CFrame.Angles(math.rad(-18), 0, math.rad(12)))
+                    elseif lower:find("godspeed") or lower:find("killua") then
+                        local jit = math.sin(t * 32.0) * 0.04
+                        setPose("LowerTorso", CFrame.new(0, -0.45 + jit, -0.35) * CFrame.Angles(math.rad(42), 0, 0))
+                        setPose("UpperTorso", CFrame.Angles(math.rad(18), 0, 0))
+                        setPose("Torso", CFrame.new(0, -0.45 + jit, -0.35) * CFrame.Angles(math.rad(48), 0, 0))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(-68), 0, math.rad(-22)))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(-68), 0, math.rad(22)))
+                        setPose("Left Arm", CFrame.Angles(math.rad(-68), 0, math.rad(-22)))
+                        setPose("Right Arm", CFrame.Angles(math.rad(-68), 0, math.rad(22)))
+                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(-35), 0, math.rad(-10)))
+                        setPose("RightUpperLeg", CFrame.Angles(math.rad(45), 0, math.rad(10)))
+                        setPose("Head", CFrame.Angles(math.rad(-32), 0, 0))
+                    elseif lower:find("judgement cut") or lower:find("vergil") then
+                        local snap = (t * 2.0 % 2.0 > 1.7) and 1 or 0
+                        local trm = (snap == 1) and math.sin(t * 40.0) * 0.05 or 0
+                        setPose("LowerTorso", CFrame.new(0, -0.25, 0) * CFrame.Angles(0, math.rad(35), 0))
+                        setPose("UpperTorso", CFrame.Angles(math.rad(-8), math.rad(-30), 0))
+                        setPose("Torso", CFrame.new(0, -0.25, 0) * CFrame.Angles(math.rad(-8), math.rad(30), 0))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(35), math.rad(25), math.rad(-18)))
+                        setPose("LeftLowerArm", CFrame.Angles(math.rad(55), 0, 0))
+                        setPose("RightUpperArm", (snap == 1) and CFrame.Angles(math.rad(95), math.rad(-45), math.rad(45)) or CFrame.Angles(math.rad(42), math.rad(-28), math.rad(22)))
+                        setPose("RightLowerArm", (snap == 1) and CFrame.Angles(math.rad(15), 0, 0) or CFrame.Angles(math.rad(85), 0, 0))
+                        setPose("Left Arm", CFrame.Angles(math.rad(35), math.rad(20), math.rad(-15)))
+                        setPose("Right Arm", (snap == 1) and CFrame.Angles(math.rad(95), 0, math.rad(40)) or CFrame.Angles(math.rad(45), 0, math.rad(20)))
+                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(25), 0, math.rad(-18)))
+                        setPose("RightUpperLeg", CFrame.Angles(math.rad(-22), 0, math.rad(18)))
+                        setPose("Head", CFrame.Angles(math.rad(-10), math.rad(-15), 0))
+                    elseif lower:find("demon back") or lower:find("baki") then
+                        local pulse = math.sin(t * 2.0) * 0.08
+                        setPose("LowerTorso", CFrame.new(0, -0.15, 0.25) * CFrame.Angles(math.rad(-25), 0, 0))
+                        setPose("UpperTorso", CFrame.Angles(math.rad(-32), 0, 0))
+                        setPose("Torso", CFrame.new(0, -0.15, 0.25) * CFrame.Angles(math.rad(-28), 0, 0))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(-22), math.rad(35), math.rad(-75 - pulse * 30)))
+                        setPose("LeftLowerArm", CFrame.Angles(math.rad(95), 0, 0))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(-22), math.rad(-35), math.rad(75 + pulse * 30)))
+                        setPose("RightLowerArm", CFrame.Angles(math.rad(95), 0, 0))
+                        setPose("Left Arm", CFrame.Angles(math.rad(-22), 0, math.rad(-85)))
+                        setPose("Right Arm", CFrame.Angles(math.rad(-22), 0, math.rad(85)))
+                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(28), 0, math.rad(-22)))
+                        setPose("RightUpperLeg", CFrame.Angles(math.rad(28), 0, math.rad(22)))
+                        setPose("Head", CFrame.Angles(math.rad(28), 0, 0))
+                    elseif lower:find("rengoku") or lower:find("9th form") then
+                        local lunge = math.sin(t * 3.5) * 0.15
+                        setPose("LowerTorso", CFrame.new(0, -0.5, -0.6 + lunge) * CFrame.Angles(math.rad(35), math.rad(-18), 0))
+                        setPose("UpperTorso", CFrame.Angles(math.rad(22), math.rad(15), 0))
+                        setPose("Torso", CFrame.new(0, -0.5, -0.6 + lunge) * CFrame.Angles(math.rad(32), math.rad(-15), 0))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(115), math.rad(28), math.rad(-18)))
+                        setPose("LeftLowerArm", CFrame.Angles(math.rad(35), 0, 0))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(125), math.rad(-22), math.rad(18)))
+                        setPose("RightLowerArm", CFrame.Angles(math.rad(25), 0, 0))
+                        setPose("Left Arm", CFrame.Angles(math.rad(115), 0, math.rad(-15)))
+                        setPose("Right Arm", CFrame.Angles(math.rad(125), 0, math.rad(15)))
+                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(55), 0, math.rad(-12)))
+                        setPose("LeftLowerLeg", CFrame.Angles(math.rad(-55), 0, 0))
+                        setPose("RightUpperLeg", CFrame.Angles(math.rad(-42), 0, math.rad(12)))
+                        setPose("Head", CFrame.Angles(math.rad(-25), math.rad(10), 0))
+                    elseif lower:find("levi") or lower:find("ackerman") then
+                        local spinAng = t * 9.5
+                        setPose("LowerTorso", CFrame.new(0, 1.8 + math.sin(t * 3.0) * 0.5, 0) * CFrame.Angles(math.rad(75), spinAng, 0))
+                        setPose("UpperTorso", CFrame.Angles(math.rad(15), 0, 0))
+                        setPose("Torso", CFrame.new(0, 1.8 + math.sin(t * 3.0) * 0.5, 0) * CFrame.Angles(math.rad(75), spinAng, 0))
+                        setPose("LeftUpperArm", CFrame.Angles(0, 0, math.rad(-95)))
+                        setPose("RightUpperArm", CFrame.Angles(0, 0, math.rad(95)))
+                        setPose("Left Arm", CFrame.Angles(0, 0, math.rad(-95)))
+                        setPose("Right Arm", CFrame.Angles(0, 0, math.rad(95)))
+                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(25), 0, math.rad(-25)))
+                        setPose("RightUpperLeg", CFrame.Angles(math.rad(25), 0, math.rad(25)))
+                    elseif lower:find("sephiroth") or lower:find("one-winged") then
+                        local flt = math.sin(t * 1.4) * 0.45
+                        setPose("LowerTorso", CFrame.new(0, 2.2 + flt, 0) * CFrame.Angles(math.rad(12), 0, 0))
+                        setPose("UpperTorso", CFrame.Angles(math.rad(-8), 0, 0))
+                        setPose("Torso", CFrame.new(0, 2.2 + flt, 0) * CFrame.Angles(math.rad(10), 0, 0))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(-15), math.rad(25), math.rad(-65)))
+                        setPose("LeftLowerArm", CFrame.Angles(math.rad(45), 0, 0))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(95), math.rad(-18), math.rad(18)))
+                        setPose("RightLowerArm", CFrame.Angles(math.rad(15), 0, 0))
+                        setPose("Left Arm", CFrame.Angles(math.rad(-15), 0, math.rad(-65)))
+                        setPose("Right Arm", CFrame.Angles(math.rad(95), 0, math.rad(18)))
+                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(18), 0, math.rad(-14)))
+                        setPose("RightUpperLeg", CFrame.Angles(math.rad(32), 0, math.rad(14)))
+                        setPose("Head", CFrame.Angles(math.rad(12), 0, 0))
+                    elseif lower:find("gilgamesh") or lower:find("gate of babylon") then
+                        local bob = math.sin(t * 1.8) * 0.25
+                        setPose("LowerTorso", CFrame.new(0, 1.8 + bob, 0) * CFrame.Angles(math.rad(-8), 0, 0))
+                        setPose("UpperTorso", CFrame.Angles(math.rad(12), 0, 0))
+                        setPose("Torso", CFrame.new(0, 1.8 + bob, 0) * CFrame.Angles(math.rad(6), 0, 0))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(52), math.rad(38), math.rad(-42)))
+                        setPose("LeftLowerArm", CFrame.Angles(math.rad(75), 0, 0))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(52), math.rad(-38), math.rad(42)))
+                        setPose("RightLowerArm", CFrame.Angles(math.rad(75), 0, 0))
+                        setPose("Left Arm", CFrame.Angles(math.rad(52), 0, math.rad(-45)))
+                        setPose("Right Arm", CFrame.Angles(math.rad(52), 0, math.rad(45)))
+                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(18), 0, math.rad(-16)))
+                        setPose("RightUpperLeg", CFrame.Angles(math.rad(18), 0, math.rad(16)))
+                        setPose("Head", CFrame.Angles(math.rad(-18), 0, 0))
+                    elseif lower:find("aizen") or lower:find("kyoka suigetsu") then
+                        local s = math.sin(t * 2.2)
+                        setPose("LowerTorso", CFrame.new(0, 0.4 + math.abs(s) * 0.15, 0) * CFrame.Angles(0, math.rad(s * 8), 0))
+                        setPose("UpperTorso", CFrame.Angles(math.rad(-4), 0, 0))
+                        setPose("Torso", CFrame.new(0, 0.4 + math.abs(s) * 0.15, 0) * CFrame.Angles(0, math.rad(s * 8), 0))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(15 + s * 18), 0, math.rad(-15)))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(88), math.rad(-22), math.rad(18)))
+                        setPose("RightLowerArm", CFrame.Angles(math.rad(95), 0, 0))
+                        setPose("Left Arm", CFrame.Angles(math.rad(15 + s * 18), 0, math.rad(-15)))
+                        setPose("Right Arm", CFrame.Angles(math.rad(88), 0, math.rad(20)))
+                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(s * 32), 0, 0))
+                        setPose("RightUpperLeg", CFrame.Angles(math.rad(-s * 32), 0, 0))
+                        setPose("Head", CFrame.Angles(math.rad(-8), math.rad(s * 6), 0))
+                    elseif lower:find("california gurls") or lower:find("snoop") then
+                        local s = math.sin(t * 2.8)
+                        local c = math.cos(t * 2.8)
+                        setPose("LowerTorso", CFrame.new(s * 0.45, 0, 0) * CFrame.Angles(0, math.rad(s * 18), math.rad(-s * 10)))
+                        setPose("UpperTorso", CFrame.Angles(math.rad(-8), math.rad(-s * 22), math.rad(s * 12)))
+                        setPose("Torso", CFrame.new(s * 0.45, 0, 0) * CFrame.Angles(0, math.rad(s * 18), math.rad(-s * 10)))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(35 + c * 32), 0, math.rad(-28)))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(35 - c * 32), 0, math.rad(28)))
+                        setPose("Left Arm", CFrame.Angles(math.rad(35 + c * 32), 0, math.rad(-28)))
+                        setPose("Right Arm", CFrame.Angles(math.rad(35 - c * 32), 0, math.rad(28)))
+                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(s * 25), 0, math.rad(-12)))
+                        setPose("RightUpperLeg", CFrame.Angles(math.rad(-s * 25), 0, math.rad(12)))
+                        setPose("Head", CFrame.Angles(math.rad(-8), math.rad(s * 14), 0))
+                    elseif lower:find("chika") or lower:find("fujiwara") then
+                        local b = math.abs(math.sin(t * 3.5))
+                        local s = math.sin(t * 3.5)
+                        setPose("LowerTorso", CFrame.new(s * 0.35, b * 0.4, 0) * CFrame.Angles(0, math.rad(s * 20), math.rad(s * 8)))
+                        setPose("UpperTorso", CFrame.Angles(math.rad(6), math.rad(-s * 18), 0))
+                        setPose("Torso", CFrame.new(s * 0.35, b * 0.4, 0) * CFrame.Angles(math.rad(6), math.rad(s * 20), 0))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(75 + s * 25), 0, math.rad(-45)))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(95), math.rad(-25), math.rad(25)))
+                        setPose("RightLowerArm", CFrame.Angles(math.rad(85), 0, 0))
+                        setPose("Left Arm", CFrame.Angles(math.rad(75 + s * 25), 0, math.rad(-45)))
+                        setPose("Right Arm", CFrame.Angles(math.rad(95), 0, math.rad(25)))
+                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(b * 35), 0, math.rad(-10)))
+                        setPose("RightUpperLeg", CFrame.Angles(math.rad(-b * 35), 0, math.rad(10)))
+                        setPose("Head", CFrame.Angles(math.rad(10), math.rad(s * 18), math.rad(s * 10)))
+                    elseif lower:find("caramelldansen ultra") or lower:find("caramell ultra") then
+                        local b = math.abs(math.sin(t * 5.0))
+                        local s = math.sin(t * 5.0)
+                        setPose("LowerTorso", CFrame.new(s * 0.35, b * 0.3, 0) * CFrame.Angles(0, 0, math.rad(s * 15)))
+                        setPose("UpperTorso", CFrame.Angles(0, 0, math.rad(-s * 18)))
+                        setPose("Torso", CFrame.new(s * 0.35, b * 0.3, 0) * CFrame.Angles(0, 0, math.rad(s * 15)))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(135), 0, math.rad(-25)))
+                        setPose("LeftLowerArm", CFrame.Angles(math.rad(95), 0, 0))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(135), 0, math.rad(25)))
+                        setPose("RightLowerArm", CFrame.Angles(math.rad(95), 0, 0))
+                        setPose("Left Arm", CFrame.Angles(math.rad(135), 0, math.rad(-25)))
+                        setPose("Right Arm", CFrame.Angles(math.rad(135), 0, math.rad(25)))
+                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(b * 30), 0, math.rad(-10)))
+                        setPose("RightUpperLeg", CFrame.Angles(math.rad(-b * 30), 0, math.rad(10)))
+                        setPose("Head", CFrame.Angles(math.rad(8), 0, math.rad(-s * 12)))
+                    elseif lower:find("gallop") or (lower:find("gangnam") and lower:find("horse")) then
+                        local b = math.abs(math.sin(t * 4.2))
+                        local s = math.sin(t * 4.2)
+                        setPose("LowerTorso", CFrame.new(0, b * 0.55, 0) * CFrame.Angles(math.rad(-14), 0, 0))
+                        setPose("UpperTorso", CFrame.Angles(math.rad(12), 0, 0))
+                        setPose("Torso", CFrame.new(0, b * 0.55, 0) * CFrame.Angles(math.rad(-8), 0, 0))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(55), math.rad(35), math.rad(-25)))
+                        setPose("LeftLowerArm", CFrame.Angles(math.rad(75), 0, 0))
+                        setPose("RightUpperArm", (s > 0) and CFrame.Angles(math.rad(55), math.rad(-35), math.rad(25)) or CFrame.Angles(math.rad(155), 0, math.rad(35)))
+                        setPose("RightLowerArm", CFrame.Angles(math.rad(65), 0, 0))
+                        setPose("Left Arm", CFrame.Angles(math.rad(55), 0, math.rad(-25)))
+                        setPose("Right Arm", (s > 0) and CFrame.Angles(math.rad(55), 0, math.rad(25)) or CFrame.Angles(math.rad(155), 0, math.rad(35)))
+                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(s > 0 and 45 or -20), 0, math.rad(-12)))
+                        setPose("RightUpperLeg", CFrame.Angles(math.rad(s <= 0 and 45 or -20), 0, math.rad(12)))
+                    elseif lower:find("macarena 360") or (lower:find("macarena") and lower:find("turn")) then
+                        local phase = math.floor(t * 1.8 % 8)
+                        local rot = math.floor(t * 0.45 % 4) * math.rad(90)
+                        setPose("LowerTorso", CFrame.new(0, 0, 0) * CFrame.Angles(0, rot, 0))
+                        setPose("UpperTorso", CFrame.Angles(math.rad(-6), 0, 0))
+                        setPose("Torso", CFrame.new(0, 0, 0) * CFrame.Angles(0, rot, 0))
+                        if phase == 0 then
+                            setPose("RightUpperArm", CFrame.Angles(math.rad(90), 0, 0))
+                        elseif phase == 1 then
+                            setPose("RightUpperArm", CFrame.Angles(math.rad(90), 0, 0))
+                            setPose("LeftUpperArm", CFrame.Angles(math.rad(90), 0, 0))
+                        elseif phase == 2 then
+                            setPose("RightUpperArm", CFrame.Angles(math.rad(90), 0, math.rad(180)))
+                            setPose("LeftUpperArm", CFrame.Angles(math.rad(90), 0, 0))
+                        elseif phase == 3 then
+                            setPose("RightUpperArm", CFrame.Angles(math.rad(90), 0, math.rad(180)))
+                            setPose("LeftUpperArm", CFrame.Angles(math.rad(90), 0, math.rad(-180)))
+                        elseif phase == 4 then
+                            setPose("RightUpperArm", CFrame.Angles(math.rad(45), math.rad(-45), 0))
+                            setPose("LeftUpperArm", CFrame.Angles(math.rad(45), math.rad(45), 0))
+                        elseif phase == 5 then
+                            setPose("RightUpperArm", CFrame.Angles(math.rad(125), math.rad(-25), 0))
+                            setPose("LeftUpperArm", CFrame.Angles(math.rad(125), math.rad(25), 0))
+                        else
+                            setPose("RightUpperArm", CFrame.Angles(math.rad(25), 0, math.rad(25)))
+                            setPose("LeftUpperArm", CFrame.Angles(math.rad(25), 0, math.rad(-25)))
+                        end
+                    elseif lower:find("crab rave") or (lower:find("crab") and lower:find("celebration")) then
+                        local snap = math.sin(t * 6.5)
+                        setPose("LowerTorso", CFrame.new(0, -0.65, 0) * CFrame.Angles(0, math.rad(snap * 18), 0))
+                        setPose("UpperTorso", CFrame.Angles(math.rad(-12), 0, 0))
+                        setPose("Torso", CFrame.new(0, -0.65, 0) * CFrame.Angles(0, math.rad(snap * 18), 0))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(75), 0, math.rad(-65 - snap * 35)))
+                        setPose("LeftLowerArm", CFrame.Angles(math.rad(95), 0, 0))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(75), 0, math.rad(65 + snap * 35)))
+                        setPose("RightLowerArm", CFrame.Angles(math.rad(95), 0, 0))
+                        setPose("Left Arm", CFrame.Angles(math.rad(75), 0, math.rad(-65 - snap * 35)))
+                        setPose("Right Arm", CFrame.Angles(math.rad(75), 0, math.rad(65 + snap * 35)))
+                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(45), 0, math.rad(-35)))
+                        setPose("RightUpperLeg", CFrame.Angles(math.rad(45), 0, math.rad(35)))
+                    elseif lower:find("hotline bling") or lower:find("drake") then
+                        local s = math.sin(t * 2.2)
+                        setPose("LowerTorso", CFrame.new(0, math.abs(s) * -0.25, 0) * CFrame.Angles(0, math.rad(s * 15), 0))
+                        setPose("UpperTorso", CFrame.Angles(math.rad(-6), math.rad(-s * 18), 0))
+                        setPose("Torso", CFrame.new(0, math.abs(s) * -0.25, 0) * CFrame.Angles(0, math.rad(s * 15), 0))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(105), math.rad(-35), math.rad(25)))
+                        setPose("RightLowerArm", CFrame.Angles(math.rad(95), 0, 0))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(25 - s * 25), 0, math.rad(-22)))
+                        setPose("Left Arm", CFrame.Angles(math.rad(25 - s * 25), 0, math.rad(-22)))
+                        setPose("Right Arm", CFrame.Angles(math.rad(105), 0, math.rad(25)))
+                        setPose("Head", CFrame.Angles(math.rad(-10), math.rad(-20), 0))
+                    elseif lower:find("phut hon") or lower:find("2 phut hon") then
+                        local s = math.sin(t * 3.4)
+                        setPose("LowerTorso", CFrame.new(s * 0.75, 0, 0) * CFrame.Angles(0, 0, math.rad(-s * 28)))
+                        setPose("UpperTorso", CFrame.Angles(0, 0, math.rad(s * 32)))
+                        setPose("Torso", CFrame.new(s * 0.75, 0, 0) * CFrame.Angles(0, 0, math.rad(-s * 28)))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(-28), 0, math.rad(-15)))
+                        setPose("LeftLowerArm", CFrame.Angles(math.rad(45), 0, 0))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(-28), 0, math.rad(15)))
+                        setPose("RightLowerArm", CFrame.Angles(math.rad(45), 0, 0))
+                        setPose("Left Arm", CFrame.Angles(math.rad(-28), 0, math.rad(-15)))
+                        setPose("Right Arm", CFrame.Angles(math.rad(-28), 0, math.rad(15)))
+                        setPose("Head", CFrame.Angles(math.rad(-6), 0, math.rad(-s * 15)))
+                    elseif lower:find("hardbass") or lower:find("gopnik") then
+                        local k = math.sin(t * 4.5)
+                        setPose("LowerTorso", CFrame.new(0, -1.2, 0) * CFrame.Angles(math.rad(18), 0, 0))
+                        setPose("UpperTorso", CFrame.Angles(math.rad(-18), 0, 0))
+                        setPose("Torso", CFrame.new(0, -1.2, 0) * CFrame.Angles(math.rad(14), 0, 0))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(45 + k * 35), 0, math.rad(-25)))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(45 - k * 35), 0, math.rad(25)))
+                        setPose("Left Arm", CFrame.Angles(math.rad(45 + k * 35), 0, math.rad(-25)))
+                        setPose("Right Arm", CFrame.Angles(math.rad(45 - k * 35), 0, math.rad(25)))
+                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(85), 0, math.rad(-18)))
+                        setPose("LeftLowerLeg", CFrame.Angles(math.rad(k > 0 and -105 or -25), 0, 0))
+                        setPose("RightUpperLeg", CFrame.Angles(math.rad(85), 0, math.rad(18)))
+                        setPose("RightLowerLeg", CFrame.Angles(math.rad(k <= 0 and -105 or -25), 0, 0))
+                    elseif lower:find("smooth criminal") or (lower:find("gravity lean") and lower:find("60")) then
+                        setPose("LowerTorso", CFrame.new(0, -0.65, -0.95) * CFrame.Angles(math.rad(58), 0, 0))
+                        setPose("UpperTorso", CFrame.Angles(0, 0, 0))
+                        setPose("Torso", CFrame.new(0, -0.65, -0.95) * CFrame.Angles(math.rad(58), 0, 0))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(-18), 0, math.rad(-15)))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(95), math.rad(-25), math.rad(18)))
+                        setPose("RightLowerArm", CFrame.Angles(math.rad(95), 0, 0))
+                        setPose("Left Arm", CFrame.Angles(math.rad(-18), 0, math.rad(-15)))
+                        setPose("Right Arm", CFrame.Angles(math.rad(95), 0, math.rad(20)))
+                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(-58), 0, math.rad(-8)))
+                        setPose("RightUpperLeg", CFrame.Angles(math.rad(-58), 0, math.rad(8)))
+                        setPose("Head", CFrame.Angles(math.rad(-25), 0, 0))
+                    elseif lower:find("capoeira") or lower:find("gingado") then
+                        local s = math.sin(t * 2.5)
+                        setPose("LowerTorso", CFrame.new(s * 0.65, -0.45, 0) * CFrame.Angles(math.rad(14), math.rad(s * 25), math.rad(-s * 15)))
+                        setPose("UpperTorso", CFrame.Angles(math.rad(-8), math.rad(-s * 22), 0))
+                        setPose("Torso", CFrame.new(s * 0.65, -0.45, 0) * CFrame.Angles(math.rad(14), math.rad(s * 25), 0))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(75 + s * 35), math.rad(s * 25), math.rad(-25)))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(75 - s * 35), math.rad(-s * 25), math.rad(25)))
+                        setPose("Left Arm", CFrame.Angles(math.rad(75 + s * 35), 0, math.rad(-25)))
+                        setPose("Right Arm", CFrame.Angles(math.rad(75 - s * 35), 0, math.rad(25)))
+                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(35 + s * 30), 0, math.rad(-18)))
+                        setPose("RightUpperLeg", CFrame.Angles(math.rad(35 - s * 30), 0, math.rad(18)))
+                    elseif lower:find("monkey vault") or (lower:find("vault") and lower:find("roll")) then
+                        local roll = t * 4.5 % (math.pi * 2)
+                        setPose("LowerTorso", CFrame.new(0, 0.4 + math.sin(roll) * 0.8, -roll * 0.5) * CFrame.Angles(roll, 0, 0))
+                        setPose("UpperTorso", CFrame.Angles(math.rad(25), 0, 0))
+                        setPose("Torso", CFrame.new(0, 0.4 + math.sin(roll) * 0.8, -roll * 0.5) * CFrame.Angles(roll, 0, 0))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(115), 0, math.rad(-25)))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(115), 0, math.rad(25)))
+                        setPose("Left Arm", CFrame.Angles(math.rad(115), 0, math.rad(-25)))
+                        setPose("Right Arm", CFrame.Angles(math.rad(115), 0, math.rad(25)))
+                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(65), 0, 0))
+                        setPose("RightUpperLeg", CFrame.Angles(math.rad(65), 0, 0))
+                    elseif lower:find("sugar ray") or lower:find("bolo punch") then
+                        local spin = t * 6.5
+                        setPose("LowerTorso", CFrame.new(0, -0.2, 0) * CFrame.Angles(0, math.rad(-25), 0))
+                        setPose("UpperTorso", CFrame.Angles(math.rad(-10), math.rad(25), 0))
+                        setPose("Torso", CFrame.new(0, -0.2, 0) * CFrame.Angles(0, math.rad(-25), 0))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(85), 0, math.rad(-18)))
+                        setPose("LeftLowerArm", CFrame.Angles(math.rad(75), 0, 0))
+                        setPose("RightUpperArm", CFrame.Angles(spin, 0, math.rad(28)))
+                        setPose("Left Arm", CFrame.Angles(math.rad(85), 0, math.rad(-18)))
+                        setPose("Right Arm", CFrame.Angles(spin, 0, math.rad(28)))
+                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(25), 0, math.rad(-12)))
+                        setPose("RightUpperLeg", CFrame.Angles(math.rad(-25), 0, math.rad(12)))
+                    elseif lower:find("spacewalk") or lower:find("zero gravity") then
+                        local d = math.sin(t * 1.2) * 0.5
+                        setPose("LowerTorso", CFrame.new(0, 1.5 + d, 0) * CFrame.Angles(math.rad(18 + d * 15), math.rad(d * 20), math.rad(d * 12)))
+                        setPose("UpperTorso", CFrame.Angles(math.rad(-8), 0, 0))
+                        setPose("Torso", CFrame.new(0, 1.5 + d, 0) * CFrame.Angles(math.rad(18 + d * 15), math.rad(d * 20), math.rad(d * 12)))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(45 + d * 30), math.rad(25), math.rad(-35)))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(45 - d * 30), math.rad(-25), math.rad(35)))
+                        setPose("Left Arm", CFrame.Angles(math.rad(45 + d * 30), 0, math.rad(-35)))
+                        setPose("Right Arm", CFrame.Angles(math.rad(45 - d * 30), 0, math.rad(35)))
+                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(22 - d * 20), 0, math.rad(-14)))
+                        setPose("RightUpperLeg", CFrame.Angles(math.rad(22 + d * 20), 0, math.rad(14)))
+                    elseif lower:find("pharaoh") or lower:find("egyptian") then
+                        local s = math.sin(t * 2.0)
+                        setPose("LowerTorso", CFrame.new(0, 0, 0) * CFrame.Angles(0, math.rad(90), 0))
+                        setPose("UpperTorso", CFrame.Angles(0, math.rad(-90), 0))
+                        setPose("Torso", CFrame.new(0, 0, 0) * CFrame.Angles(0, math.rad(90), 0))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(90), 0, math.rad(-90)))
+                        setPose("LeftLowerArm", CFrame.Angles(math.rad(90), 0, 0))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(-90), 0, math.rad(90)))
+                        setPose("RightLowerArm", CFrame.Angles(math.rad(90), 0, 0))
+                        setPose("Left Arm", CFrame.Angles(math.rad(90), 0, math.rad(-90)))
+                        setPose("Right Arm", CFrame.Angles(math.rad(-90), 0, math.rad(90)))
+                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(s * 25), 0, 0))
+                        setPose("RightUpperLeg", CFrame.Angles(math.rad(-s * 25), 0, 0))
+                        setPose("Head", CFrame.Angles(0, math.rad(90), 0))
+                    elseif lower:find("shadow wizard") or lower:find("money gang") then
+                        local vib = math.sin(t * 18.0) * 0.04
+                        setPose("LowerTorso", CFrame.new(0, 0.4 + math.sin(t * 1.5) * 0.15, 0) * CFrame.Angles(math.rad(-10), 0, 0))
+                        setPose("UpperTorso", CFrame.Angles(math.rad(12), 0, 0))
+                        setPose("Torso", CFrame.new(0, 0.4 + math.sin(t * 1.5) * 0.15, 0) * CFrame.Angles(math.rad(12), 0, 0))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(155 + vib * 40), 0, math.rad(18)))
+                        setPose("RightLowerArm", CFrame.Angles(math.rad(25), 0, 0))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(65), math.rad(35), math.rad(-35)))
+                        setPose("LeftLowerArm", CFrame.Angles(math.rad(75), 0, 0))
+                        setPose("Left Arm", CFrame.Angles(math.rad(65), 0, math.rad(-35)))
+                        setPose("Right Arm", CFrame.Angles(math.rad(155 + vib * 40), 0, math.rad(18)))
+                        setPose("Head", CFrame.Angles(math.rad(-18), 0, 0))
+                    elseif lower:find("pelvic drill") or lower:find("thrust drill") then
+                        local fastThrust = math.sin(t * 16.0) * 0.85
+                        setPose("LowerTorso", CFrame.new(0, 0, -fastThrust) * CFrame.Angles(math.rad(-fastThrust * 28), 0, 0))
+                        setPose("UpperTorso", CFrame.Angles(math.rad(fastThrust * 22), 0, 0))
+                        setPose("Torso", CFrame.new(0, 0, -fastThrust) * CFrame.Angles(math.rad(fastThrust * 25), 0, 0))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(88), 0, math.rad(-22)))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(88), 0, math.rad(22)))
+                        setPose("Left Arm", CFrame.Angles(math.rad(88), 0, math.rad(-22)))
+                        setPose("Right Arm", CFrame.Angles(math.rad(88), 0, math.rad(22)))
+                        setPose("Head", CFrame.Angles(math.rad(-fastThrust * 18), 0, 0))
+                    elseif lower:find("kickflip") or lower:find("shuvit") then
+                        local jump = math.abs(math.sin(t * 2.8)) * 1.5
+                        local flick = math.sin(t * 5.6)
+                        setPose("LowerTorso", CFrame.new(0, jump, 0) * CFrame.Angles(math.rad(-12), 0, 0))
+                        setPose("UpperTorso", CFrame.Angles(math.rad(12), 0, 0))
+                        setPose("Torso", CFrame.new(0, jump, 0) * CFrame.Angles(0, 0, 0))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(65), 0, math.rad(-45)))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(65), 0, math.rad(45)))
+                        setPose("Left Arm", CFrame.Angles(math.rad(65), 0, math.rad(-45)))
+                        setPose("Right Arm", CFrame.Angles(math.rad(65), 0, math.rad(45)))
+                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(35 + flick * 35), math.rad(-25), 0))
+                        setPose("RightUpperLeg", CFrame.Angles(math.rad(35 - flick * 35), math.rad(25), 0))
+                    elseif lower:find("sonic dash") or lower:find("speed of sound") then
+                        local roll = t * 14.0
+                        setPose("LowerTorso", CFrame.new(0, -0.65, -0.8) * CFrame.Angles(math.rad(68), 0, 0))
+                        setPose("UpperTorso", CFrame.Angles(math.rad(18), 0, 0))
+                        setPose("Torso", CFrame.new(0, -0.65, -0.8) * CFrame.Angles(math.rad(68), 0, 0))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(-75), 0, math.rad(-15)))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(-75), 0, math.rad(15)))
+                        setPose("Left Arm", CFrame.Angles(math.rad(-75), 0, math.rad(-15)))
+                        setPose("Right Arm", CFrame.Angles(math.rad(-75), 0, math.rad(15)))
+                        setPose("LeftUpperLeg", CFrame.Angles(math.sin(roll) * math.rad(55), 0, 0))
+                        setPose("RightUpperLeg", CFrame.Angles(-math.sin(roll) * math.rad(55), 0, 0))
+                        setPose("Head", CFrame.Angles(math.rad(-45), 0, 0))
+                    elseif lower:find("marionette") or lower:find("jester puppet") then
+                        local j = math.sin(t * 3.8)
+                        local jerk = (math.abs(j) > 0.75) and 1 or 0
+                        setPose("LowerTorso", CFrame.new(0, 0.4 + j * 0.2, 0) * CFrame.Angles(math.rad(j * 15), 0, math.rad(j * 12)))
+                        setPose("UpperTorso", CFrame.Angles(math.rad(-18), 0, 0))
+                        setPose("Torso", CFrame.new(0, 0.4 + j * 0.2, 0) * CFrame.Angles(math.rad(j * 15), 0, math.rad(j * 12)))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(jerk * 95), 0, math.rad(-35)))
+                        setPose("LeftLowerArm", CFrame.Angles(math.rad(65), 0, 0))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad((1 - jerk) * 95), 0, math.rad(35)))
+                        setPose("RightLowerArm", CFrame.Angles(math.rad(65), 0, 0))
+                        setPose("Left Arm", CFrame.Angles(math.rad(jerk * 95), 0, math.rad(-35)))
+                        setPose("Right Arm", CFrame.Angles(math.rad((1 - jerk) * 95), 0, math.rad(35)))
+                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(j * 35), 0, math.rad(-15)))
+                        setPose("RightUpperLeg", CFrame.Angles(math.rad(-j * 35), 0, math.rad(15)))
+                        setPose("Head", CFrame.Angles(math.rad(28), math.rad(j * 25), math.rad(j * 20)))
                     else
                         -- Deterministic Hash Choreographer: every single named animation gets its own unique rhythm, arm/leg/torso/head angles & bounce!
                         local h = 0
@@ -11501,9 +14308,46 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                         if cloneAnim then cloneAnim.Disabled = false end
                         if cloneHum then pcall(function() cloneHum:ChangeState(Enum.HumanoidStateType.Running) end) end
 
-                        for _, desc in ipairs(realChar:GetDescendants()) do
-                            if desc:IsA("Motor6D") then
-                                pcall(function() desc.Enabled = false end)
+                        -- Place-specific Ragdoll remote or Motor6D disable + NoCollisionConstraints (MortalHub Chunk 3)
+                        local ragRemote, ragArgs, ragLocal = detectPlaceRagdollRemote(true)
+                        if ragRemote then
+                            task.spawn(function()
+                                fireRagdollRemote(ragRemote, ragLocal, ragArgs)
+                            end)
+                        else
+                            for _, desc in ipairs(realChar:GetDescendants()) do
+                                if desc:IsA("Motor6D") then
+                                    pcall(function() desc.Enabled = false end)
+                                end
+                            end
+                        end
+                        local zeroPhysProps = PhysicalProperties.new(0.001, 0, 0, 0, 0)
+                        for idxA = 1, #limbPairs do
+                            local rA, fA = limbPairs[idxA].real, limbPairs[idxA].fake
+                            if rA and fA then
+                                pcall(function()
+                                    rA.CustomPhysicalProperties = zeroPhysProps
+                                    local ncc = Instance.new("NoCollisionConstraint")
+                                    ncc.Name = "CocaNCC_Clone"
+                                    ncc.Part0 = rA
+                                    ncc.Part1 = fA
+                                    ncc.Parent = rA
+                                end)
+                            end
+                        end
+                        local maxNcc = math.min(#limbPairs, 25)
+                        for idxA = 1, maxNcc do
+                            for idxB = idxA + 1, maxNcc do
+                                local rA, rB = limbPairs[idxA].real, limbPairs[idxB].real
+                                if rA and rB then
+                                    pcall(function()
+                                        local ncc = Instance.new("NoCollisionConstraint")
+                                        ncc.Name = "CocaNCC_Real"
+                                        ncc.Part0 = rA
+                                        ncc.Part1 = rB
+                                        ncc.Parent = rA
+                                    end)
+                                end
                             end
                         end
                         local realAnim = realChar:FindFirstChild("Animate")
@@ -11514,46 +14358,181 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                             end
                         end
 
+                        pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
                         pcall(function()
                             settings().Physics.PhysicsEnvironmentalThrottle = Enum.EnviromentalPhysicsThrottle.Disabled
                             settings().Physics.AllowSleep = false
                             if sethiddenproperty then
-                                sethiddenproperty(LocalPlayer, "SimulationRadius", 1000)
-                                sethiddenproperty(LocalPlayer, "MaxSimulationRadius", 1000)
+                                sethiddenproperty(LocalPlayer, "SimulationRadius", math.huge)
+                                sethiddenproperty(LocalPlayer, "MaxSimulationRadius", math.huge)
                             end
                         end)
+
+                        local cloneHRP = cloneChar:FindFirstChild("HumanoidRootPart")
+                        if cloneHRP then pcall(function() LocalPlayer.ReplicationFocus = cloneHRP end) end
 
                         local hiddenPartsTbl = _G.hiddenBodyParts
                         local function syncRealLimbsToClone(isHeartbeat)
                             local tNow = os.clock()
-                            local netlessVel = isHeartbeat and (Vector3.new(0, 25.05, 0) + Vector3.new(math.sin(tNow * 30) * 0.02, 0, math.cos(tNow * 30) * 0.02)) or nil
+                            local netlessVel = Vector3.new(0, 25.05, 0) + Vector3.new(math.sin(tNow * 30) * 0.025, 0, math.cos(tNow * 30) * 0.025)
+                            local doFling = (nativeState.flingEnabled == true) and not _G.CocaBangActive and CurrentWeld == nil
+                            if doFling then
+                                nativeState.flingAngle = (nativeState.flingAngle or 0) + 0.95
+                            end
                             for i = 1, #limbPairs do
                                 local p = limbPairs[i]
                                 local r, f = p.real, p.fake
                                 if r and f and r.Parent and f.Parent then
-                                    if r.CanCollide then r.CanCollide = false end
+                                    if r.CanCollide and not (doFling and p.name == "HumanoidRootPart") then
+                                        r.CanCollide = false
+                                    end
                                     if r.LocalTransparencyModifier < 0.99 then r.LocalTransparencyModifier = 1 end
                                     local isHiddenLimb = hiddenPartsTbl and hiddenPartsTbl[p.name] == true
-                                    if isHiddenLimb and p.name ~= "HumanoidRootPart" then
-                                        r.CFrame = f.CFrame * CFrame.new(0, -450, 0)
+                                    if doFling and p.name == "HumanoidRootPart" then
+                                        local ang = nativeState.flingAngle
+                                        r.CanCollide = true
+                                        r.CFrame = f.CFrame * CFrame.new(math.cos(ang) * 1.35, 0, math.sin(ang) * 1.35) * CFrame.Angles(ang, ang * 1.7, -ang)
+                                        r.AssemblyLinearVelocity = Vector3.new(95000, 95000, 95000)
+                                        r.AssemblyAngularVelocity = Vector3.new(125000, 125000, 125000)
+                                    elseif isHiddenLimb and p.name ~= "HumanoidRootPart" then
+                                        r.CFrame = f.CFrame * CFrame.new(0, -350, 0)
+                                        if isHeartbeat then
+                                            r.Anchored = false
+                                            r.AssemblyLinearVelocity = netlessVel
+                                            r.AssemblyAngularVelocity = Vector3.zero
+                                        end
                                     else
                                         r.CFrame = f.CFrame
-                                    end
-                                    if isHeartbeat then
-                                        r.Anchored = false
-                                        r.AssemblyLinearVelocity = netlessVel
-                                        r.AssemblyAngularVelocity = Vector3.zero
-                                        if sethiddenproperty then
-                                            pcall(sethiddenproperty, r, "NetworkIsSleeping", false)
+                                        if isHeartbeat then
+                                            r.Anchored = false
+                                            r.AssemblyLinearVelocity = netlessVel
+                                            r.AssemblyAngularVelocity = Vector3.zero
                                         end
+                                    end
+                                    if isHeartbeat and sethiddenproperty then
+                                        pcall(sethiddenproperty, r, "NetworkIsSleeping", false)
                                     end
                                 end
                             end
                         end
 
+                        -- ⚡ ZERO-DELAY FRAME-0 SYNC + RENDERSTEP BINDING (0.00ms startup latency!)
+                        syncRealLimbsToClone(true)
+                        pcall(function()
+                            RunService:BindToRenderStep("CocaReanimZeroDelayPreCam", Enum.RenderPriority.Camera.Value - 1, function()
+                                if not (realChar.Parent and cloneChar.Parent) then return end
+                                syncRealLimbsToClone(false)
+                            end)
+                            RunService:BindToRenderStep("CocaReanimZeroDelay", Enum.RenderPriority.Character.Value + 1, function()
+                                if not (realChar.Parent and cloneChar.Parent) then return end
+                                syncRealLimbsToClone(false)
+                            end)
+                        end)
+
+                        local prevNeckRot = nil
+                        local prevWaistRot = nil
                         nativeState.connections.stepped = RunService.Stepped:Connect(function()
                             if not (realChar.Parent and cloneChar.Parent) then return end
                             if realHum.Parent then pcall(function() realHum:ChangeState(Enum.HumanoidStateType.Physics) end) end
+                            -- Real-time Coca Head & Limb Tracking + Torso/Leg/Arm Stretching (MortalHub Chunk 9)
+                            if _G._HaloHeadTrackerEnabled or _G._HaloLeftArmPointerEnabled or _G._HaloRightArmPointerEnabled or _G._HaloLimbsTorsoCamControl or _G._HaloTorsoStretcherEnabled or _G._HaloLegStretcherEnabled or _G._HaloLeftArmStretching or _G._HaloRightArmStretching then
+                                pcall(function()
+                                    local camNow = workspace.CurrentCamera
+                                    local mouse = LocalPlayer and LocalPlayer:GetMouse()
+                                    if _G._HaloHeadTrackerEnabled and camNow then
+                                        local neck = nil
+                                        for _, d in ipairs(cloneChar:GetDescendants()) do
+                                            if d:IsA("Motor6D") and (d.Name == "Neck" or (d.Part1 and d.Part1.Name == "Head")) then
+                                                neck = d; break
+                                            end
+                                        end
+                                        if neck and neck.Part0 then
+                                            local look = camNow.CFrame.LookVector
+                                            local rel = (neck.Part0.CFrame * neck.C0).Rotation:Inverse() * look
+                                            local yaw = math.clamp(math.atan2(rel.X, -rel.Z), -math.rad(75), math.rad(75))
+                                            local pitch = math.clamp(math.asin(math.clamp(rel.Y, -1, 1)), -math.rad(55), math.rad(55))
+                                            local dir = Vector3.new(math.sin(yaw) * math.cos(pitch), math.sin(pitch), -math.cos(yaw) * math.cos(pitch)).Unit
+                                            local fwd = Vector3.new(0, 0, -1)
+                                            local axis = fwd:Cross(dir)
+                                            local rotCF = (axis.Magnitude > 0.001) and CFrame.fromAxisAngle(axis.Unit, math.acos(math.clamp(fwd:Dot(dir), -1, 1))) or CFrame.identity
+                                            prevNeckRot = prevNeckRot and prevNeckRot:Lerp(rotCF, 0.18) or rotCF
+                                            neck.Transform = prevNeckRot
+                                        end
+                                    end
+                                    if (_G._HaloLeftArmPointerEnabled or _G._HaloRightArmPointerEnabled) and camNow and mouse then
+                                        local ray = camNow:ViewportPointToRay(mouse.X, mouse.Y)
+                                        local rp = RaycastParams.new()
+                                        rp.FilterType = Enum.RaycastFilterType.Exclude
+                                        rp.FilterDescendantsInstances = { cloneChar, realChar }
+                                        local hit = workspace:Raycast(ray.Origin, ray.Direction * 1000, rp)
+                                        local hitPos = (hit and hit.Position) or (ray.Origin + ray.Direction * 1000)
+                                        local function pointArm(shoulderName, elbowName, part1Name, stretchMult)
+                                            for _, d in ipairs(cloneChar:GetDescendants()) do
+                                                if d:IsA("Motor6D") and (d.Name == shoulderName or (d.Part1 and (d.Part1.Name == shoulderName or d.Part1.Name == part1Name))) and d.Part0 then
+                                                    local delta = hitPos - (d.Part0.CFrame * d.C0).Position
+                                                    if delta.Magnitude > 0.001 then
+                                                        local rel = (d.Part0.CFrame * d.C0).Rotation:Inverse() * delta.Unit
+                                                        local down = Vector3.new(0, -1, 0)
+                                                        local axis = down:Cross(rel)
+                                                        local rotCF = (axis.Magnitude > 0.001) and CFrame.fromAxisAngle(axis.Unit, math.acos(math.clamp(down:Dot(rel), -1, 1))) or CFrame.identity
+                                                        d.Transform = rotCF
+                                                        for _, e in ipairs(cloneChar:GetDescendants()) do
+                                                            if e:IsA("Motor6D") and (e.Name == elbowName or (e.Part1 and e.Part1.Name == elbowName)) then
+                                                                e.Transform = (stretchMult and stretchMult > 1) and CFrame.new(0, -(stretchMult - 1) * 1.2, 0) or CFrame.identity
+                                                                break
+                                                            end
+                                                        end
+                                                    end
+                                                    break
+                                                end
+                                            end
+                                        end
+                                        local armAmt = _G._HaloArmStretchAmount or 2.5
+                                        if _G._HaloRightArmPointerEnabled then
+                                            pointArm("RightShoulder", "RightElbow", "Right Arm", _G._HaloRightArmStretching and armAmt or 1)
+                                        end
+                                        if _G._HaloLeftArmPointerEnabled then
+                                            pointArm("LeftShoulder", "LeftElbow", "Left Arm", _G._HaloLeftArmStretching and armAmt or 1)
+                                        end
+                                    end
+                                    if _G._HaloTorsoStretcherEnabled or _G._HaloLimbsTorsoCamControl then
+                                        for _, d in ipairs(cloneChar:GetDescendants()) do
+                                            if d:IsA("Motor6D") and (d.Name == "Waist" or d.Name == "RootJoint") and d.Part0 then
+                                                local rotCF = CFrame.identity
+                                                if _G._HaloLimbsTorsoCamControl and camNow then
+                                                    local rel = (d.Part0.CFrame * d.C0).Rotation:Inverse() * camNow.CFrame.LookVector
+                                                    local yaw = math.atan2(rel.X, -rel.Z)
+                                                    local pitch = math.asin(math.clamp(rel.Y, -1, 1))
+                                                    local mode = _G._HaloLimbsTorsoCamMode
+                                                    local targetRot
+                                                    if mode == "Locked" then
+                                                        targetRot = CFrame.fromEulerAnglesYXZ(math.clamp(pitch, -math.rad(30), math.rad(30)), -math.clamp(yaw, -math.rad(45), math.rad(45)), 0)
+                                                    elseif mode == "Pitch Only" then
+                                                        targetRot = CFrame.fromEulerAnglesYXZ(pitch, 0, 0)
+                                                    else
+                                                        targetRot = CFrame.fromEulerAnglesYXZ(pitch * 2, -yaw, 0)
+                                                    end
+                                                    prevWaistRot = prevWaistRot and prevWaistRot:Lerp(targetRot, 0.2) or targetRot
+                                                    rotCF = prevWaistRot
+                                                end
+                                                local stretchY = _G._HaloTorsoStretcherEnabled and (((_G._HaloLimbsUpperTorsoHeight or 1) - 1) * 2.5) or 0
+                                                d.Transform = CFrame.new(0, stretchY, 0) * rotCF
+                                                break
+                                            end
+                                        end
+                                    end
+                                    if _G._HaloLegStretcherEnabled then
+                                        local legMult = math.clamp(_G._HaloLimbsLegHeight or 1, 0.4, 25)
+                                        local legCF = (legMult ~= 1) and CFrame.new(0, -(legMult - 1) * 1.5, 0) or CFrame.identity
+                                        for _, d in ipairs(cloneChar:GetDescendants()) do
+                                            if d:IsA("Motor6D") and (d.Name == "RightKnee" or d.Name == "LeftKnee" or (d.Part1 and (d.Part1.Name == "RightLowerLeg" or d.Part1.Name == "LeftLowerLeg" or d.Part1.Name == "Right Leg" or d.Part1.Name == "Left Leg"))) then
+                                                d.Transform = legCF
+                                            end
+                                        end
+                                        if cloneHum then cloneHum.HipHeight = 2 * legMult end
+                                    end
+                                end)
+                            end
                             syncRealLimbsToClone(false)
                         end)
 
@@ -11579,6 +14558,8 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                     else
                         if not nativeState.reanimated then return end
                         stopNativeAnimationInternal(true)
+                        pcall(function() RunService:UnbindFromRenderStep("CocaReanimZeroDelayPreCam") end)
+                        pcall(function() RunService:UnbindFromRenderStep("CocaReanimZeroDelay") end)
                         for k, conn in pairs(nativeState.connections) do
                             if conn then pcall(function() conn:Disconnect() end) end
                             nativeState.connections[k] = nil
@@ -11596,10 +14577,22 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                                 realHRP.AssemblyLinearVelocity = Vector3.zero
                                 realHRP.AssemblyAngularVelocity = Vector3.zero
                             end
+                            local ragRemoteOff, ragArgsOff, ragLocalOff = detectPlaceRagdollRemote(false)
+                            if ragRemoteOff then
+                                task.spawn(function()
+                                    for _ = 1, 3 do
+                                        fireRagdollRemote(ragRemoteOff, ragLocalOff, ragArgsOff)
+                                        task.wait(0.05)
+                                    end
+                                end)
+                            end
                             for _, desc in ipairs(realChar:GetDescendants()) do
-                                if desc:IsA("Motor6D") or desc:IsA("Weld") or desc:IsA("WeldConstraint") then
+                                if desc:IsA("NoCollisionConstraint") and (desc.Name == "CocaNCC_Clone" or desc.Name == "CocaNCC_Real") then
+                                    pcall(function() desc:Destroy() end)
+                                elseif desc:IsA("Motor6D") or desc:IsA("Weld") or desc:IsA("WeldConstraint") then
                                     pcall(function() desc.Enabled = true end)
                                 elseif desc:IsA("BasePart") then
+                                    pcall(function() desc.CustomPhysicalProperties = nil end)
                                     pcall(function()
                                         desc.Massless = false
                                         desc.CanTouch = true
@@ -11694,14 +14687,47 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                     end
                 end
 
-                -- 3. External URL or local cached file or Lua keyframe source string
+                -- 3. External URL or local cached file or Lua keyframe source string (MortalHub + Coca Cache)
                 local luaSource = nativeState.animCache[rawStr]
                 if not luaSource then
                     if rawStr:sub(1, 4) == "http" then
-                        local okHttp, res = pcall(function() return game:HttpGet(rawStr) end)
-                        if okHttp and type(res) == "string" and #res > 10 then
-                            luaSource = res
-                            nativeState.animCache[rawStr] = res
+                        local cachePath = nil
+                        if type(isfolder) == "function" and type(makefolder) == "function" and type(isfile) == "function" and type(readfile) == "function" then
+                            pcall(function()
+                                if not isfolder("CocaAnimCache") then makefolder("CocaAnimCache") end
+                            end)
+                            local rawFile = rawStr:match("([^/]+)$") or "anim.lua"
+                            local decodedFile = rawFile:gsub("%%20", " "):gsub("%%27", "'")
+                            local safeCacheName = rawFile:gsub("%%20", "_"):gsub("%%27", "")
+                            cachePath = "CocaAnimCache/" .. safeCacheName
+                            local pandaPath = "PandaAnimCache/" .. safeCacheName
+                            for _, candidate in ipairs({
+                                cachePath,
+                                pandaPath,
+                                "Animations-main/" .. decodedFile,
+                                "Unicorns File/" .. decodedFile,
+                                decodedFile,
+                            }) do
+                                local okE, ex = pcall(isfile, candidate)
+                                if okE and ex then
+                                    local okR, content = pcall(readfile, candidate)
+                                    if okR and type(content) == "string" and #content > 10 then
+                                        luaSource = content
+                                        nativeState.animCache[rawStr] = content
+                                        break
+                                    end
+                                end
+                            end
+                        end
+                        if not luaSource then
+                            local okHttp, res = pcall(function() return game:HttpGet(rawStr) end)
+                            if okHttp and type(res) == "string" and #res > 10 then
+                                luaSource = res
+                                nativeState.animCache[rawStr] = res
+                                if cachePath and type(writefile) == "function" then
+                                    pcall(writefile, cachePath, res)
+                                end
+                            end
                         end
                     elseif type(isfile) == "function" and type(readfile) == "function" then
                         local okF, ex = pcall(isfile, rawStr)
@@ -11718,6 +14744,30 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                 end
 
                 if type(luaSource) == "string" and #luaSource > 10 then
+                    -- Fast MortalHub regex parser for {Time = ..., Data = { ["Part"] = CFrame.new(...) }}
+                    if luaSource:match("{Time%s*=") then
+                        local parsedFrames = {}
+                        for tMatch, dMatch in luaSource:gmatch("{Time%s*=%s*([%d%.]+),%s*Data%s*=%s*{(.-)}}") do
+                            local tVal = tonumber(tMatch)
+                            local poseData = {}
+                            for partKey, cfArgs in dMatch:gmatch('%["([^"]+)"%]%s*=%s*CFrame%.new%(([^%)]+)%)') do
+                                local nums = {}
+                                for nStr in cfArgs:gmatch("([^,%s]+)") do
+                                    nums[#nums + 1] = tonumber(nStr)
+                                end
+                                if #nums == 12 then
+                                    poseData[partKey] = CFrame.new(nums[1], nums[2], nums[3], nums[4], nums[5], nums[6], nums[7], nums[8], nums[9], nums[10], nums[11], nums[12])
+                                end
+                            end
+                            if tVal then
+                                table.insert(parsedFrames, { Time = tVal, Data = poseData })
+                            end
+                        end
+                        if #parsedFrames > 0 and playKeyframeTableOnClone(parsedFrames, cloneChar) then
+                            for _, cb in ipairs(nativeState.playListeners) do pcall(cb, animPath) end
+                            return true
+                        end
+                    end
                     local fn = loadstring(luaSource)
                     if fn then
                         local okExec, result = pcall(fn)
@@ -11770,6 +14820,16 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                 if type(cb) == "function" then table.insert(nativeState.stopListeners, cb) end
             end
 
+            function nativeApi.set_fling(enable)
+                if enable == nil then enable = not nativeState.flingEnabled end
+                nativeState.flingEnabled = (enable == true)
+                return nativeState.flingEnabled
+            end
+
+            function nativeApi.is_fling_enabled()
+                return nativeState.flingEnabled == true
+            end
+
             return nativeApi
         end
 
@@ -11785,6 +14845,8 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
     if not zenApi then
         zenApi = loadReanimModule()
         _G._AngoorZenApi = zenApi
+        _G.__BUNDLED_Coca_API = zenApi
+        _G.__BUNDLED_Panda_API = zenApi
     end
 
     -- Animation Repository & Cache Configuration (root.73.124 @ PC 8295..8365)
@@ -11963,21 +15025,81 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
         print("[ANGOOR] loaded " .. tostring(#allAnimations) .. " animations from GitHub Animations repo")
     end
 
-    -- 88 Built-In Signature Reanimations (Anime, Viral Dances, Gymnastics, Freestyle & Troll Poses)
+    -- 185+ Built-In Signature Reanimations (Anime, Viral Dances, Gymnastics, Combat, Freestyle & Troll Poses)
     local BUILTIN_REANIM_NAMES = {
-        "⚡ Gojo Infinity Levitate", "🩸 Sukuna Malevolent Shrine", "🎰 Hakari Jackpot Fever Dance",
-        "☁️ Gear 5 Joyboy Bounce", "🔥 Super Saiyan Aura Charge", "🧛 Dio Wryyy Backbend",
-        "🌀 Naruto Shinobi Sprint", "👊 Saitama Serious Punch Rush", "👁️ Uchiha Susanoo Float",
+        -- Iconic Anime & Gaming Ultimate Reanimations
+        "🌌 Domain Expansion: Unlimited Void", "⚔️ Sukuna Cleave & Dismantle Storm",
+        "⚡ Killua Godspeed Lightning Dash", "🗡️ Vergil Judgement Cut End",
+        "🥋 Baki Demon Back Flex", "🔥 Rengoku 9th Form Rengoku Charge",
+        "🌪️ Levi Ackerman Beyblade Spin", "🪐 Sephiroth One-Winged Angel Descend",
+        "👑 Gilgamesh Gate of Babylon", "🌀 Aizen Kyoka Suigetsu Illusion",
+        -- Viral & Legendary Dance Reanimations
+        "🕺 California Gurls Snoop Dogg Groove", "💃 Chika Fujiwara Dance",
+        "🕺 Caramelldansen Ultra Speed", "🕺 Gangnam Style Horse Gallop",
+        "🕺 Macarena 360 Quarter-Turn", "🦀 Crab Rave Celebration",
+        "🕺 Hotline Bling Drake Sway", "💃 Phut Hon 2 Phut Hon Sway",
+        "🕺 Russian Hardbass Gopnik Squat", "🕺 Smooth Criminal Gravity Lean 60°",
+        -- Extreme Acrobatics & Martial Arts Reanimations
+        "🤸 Capoeira Gingado Flow", "🤸 Parkour Monkey Vault to Roll",
+        "🥊 Sugar Ray Leonard Bolo Punch", "🛸 Zero Gravity Spacewalk Float",
+        "👑 Ancient Egyptian Pharaoh Walk", "🧙 Shadow Wizard Money Gang Cast",
+        "🔞 Hyperspeed Pelvic Drill V3", "🛹 Kickflip to 360 Shuvit",
+        "⚡ Speed of Sound Sonic Dash", "🎭 Jester Puppet Marionette",
+        -- Anime & Domain Powers
+        "⚡ Gojo Infinity Levitate", "🟣 Gojo Hollow Purple Charge", "🩸 Sukuna Malevolent Shrine",
+        "🗡️ Sukuna World Cutting Slash", "🎰 Hakari Jackpot Fever Dance", "☁️ Gear 5 Joyboy Bounce",
+        "🦶 Gear 5 Giant Stomp", "🔥 Super Saiyan Aura Charge", "✨ Ultra Instinct Dodge Weave",
+        "🌊 Kamehameha Energy Beam", "🧛 Dio Wryyy Backbend", "👊 Jotaro Star Platinum Ora Rush",
+        "👊 Dio The World Muda Barrage", "🌀 Naruto Shinobi Sprint", "🔵 Rasengan Spin Dive",
+        "👊 Saitama Serious Punch Rush", "👁️ Uchiha Susanoo Float", "☄️ Madara Meteor Summon",
+        "🪚 Chainsaw Man Devil Rev", "🗡️ Tanjiro Hinokami Kagura Slash", "⚡ Zenitsu Thunderclap Flash",
+        "🗡️ Toji Heavenly Restriction Dash", "🌌 Cid Shadow Atomic Float", "👑 Sung Jin-Woo Monarch Arise",
+        "💚 Broly Legendary Rage", "🌸 Goku Black Scythe Pose", "⚔️ Zoro Three-Sword Slash",
+        -- Viral & TikTok Dances
         "🕺 Michael Jackson 45° Lean", "🕺 Moonwalk Glide Pro", "👟 Griddy Pro Footwork",
-        "🤸 B-Boy Windmill Flare", "🦵 Kazotsky Russian Squat Kick", "🦀 Exorcist Spider Crab Walk",
-        "🧟 Zombie Thriller March", "🥊 Boxer Mike Tyson Weave", "🤸 Backflip Acrobat Loop",
-        "🧘 Floating Lotus Meditation", "🤸 Full Gymnast Split Drop", "🤖 Cyber Glitch Overload",
-        "🕶️ Matrix Bullet Dodge Lean", "🤸 Inverted Handstand Walk", "🚁 Apache Helicopter Rotor V2",
-        "✝️ T-Pose Dominance Spin", "👑 Ascended God Halo Pose", "🎸 Heavy Metal Headbang",
-        "🏋️ Gigachad Flex Showcase", "🏊 Freestyle Air Swim", "🛹 Invisible Skateboard Flip",
-        "🧎 Begging Mercy Kneel", "🫡 Military Salute Attention", "🥴 Drunk Stumble Sway",
-        "🐍 Anaconda Floor Slither", "🛸 Alien Abduction Float", "💃 Hype Shoot Hop",
-        "🙌 Infinidab Turbo", "💃 California Girls Sway", "🕶️ Gangnam Horse Ride",
+        "🧊 Slickback Air Glide", "🗽 Sturdy NY Get Sturdy", "🔥 Billy Bounce Smooth",
+        "🍊 Orange Justice Turbo", "💃 Floss Dance Pro", "🤡 Take The L Troll",
+        "🕺 Default Dance Classic", "⚡ Electro Shuffle Pro", "🕺 Boogie Down Groove",
+        "🎤 Scenario K-Pop Idol", "🦵 Kazotsky Russian Squat Kick", "🕵️ Distraction Dance Henry",
+        "🎩 Smug Dance Hat Kid", "🕶️ Torture Dance JoJo", "🃏 Specialist Dance Persona",
+        "🕶️ Gangnam Horse Ride", "💃 Macarena Party", "🧟 Zombie Thriller March",
+        "🐰 CaramellDansen Hyper", "🚽 Skibidi Dop Dop Bounce", "👩‍🚀 Lethal Company Strut",
+        "🦸 Bye Bye Bye Deadpool", "💘 Cupid Shuffle Step", "🕺 Cha-Cha Slide Smooth",
+        "⚰️ Coffin Dance Carry", "💃 California Girls Sway", "💃 Hype Shoot Hop",
+        "🙌 Infinidab Turbo", "🕺 Saturday Night Disco", "💃 Belly Dance Wave",
+        "🍀 Irish Riverdance Tap", "🤠 Cotton Eye Joe Hoedown", "💃 Tango Passionate Step",
+        -- Acrobatics, B-Boy & Parkour Tricks
+        "🤸 B-Boy Windmill Flare", "🤸 Headspin Breakdance Pro", "🌪️ Airflare Tornado Spin",
+        "🤸 Backflip Acrobat Loop", "🤸 Frontflip Parkour Vault", "🌀 Corkscrew 720 Twist",
+        "🤸 Full Gymnast Split Drop", "🤸 Inverted Handstand Walk", "💪 One-Arm Planche Hold",
+        "🕶️ Matrix Bullet Dodge Lean", "🦋 Butterfly Kick Twist", "🤸 Cartwheel Combo Loop",
+        "🧱 Wallrun Air Stride", "🥋 Shaolin Hurricane Kick", "🇧🇷 Capoeira Meia Lua Sweep",
+        -- Troll, Freaky & Physics Poses
+        "🔞 Turbo Overdrive Thrust", "🔞 Bang Pro Loop", "🔞 Face Bang Rapid", "🔞 Backshots Heavy",
+        "🍑 Twerk Pro Bounce", "🚁 Apache Helicopter Rotor V2", "🌪️ Tornado Human Beyblade",
+        "🐛 Worm Crawl Floor", "🦀 Exorcist Spider Crab Walk", "🐍 Anaconda Floor Slither",
+        "🤖 Cyber Glitch Overload", "⚡ Seizure Spasm Glitch", "👻 Possessed Levitate Twitch",
+        "✝️ T-Pose Dominance Spin", "👑 Ascended God Halo Pose", "🛸 Alien Abduction Float",
+        "✨ Jesus Cross Hover", "🚗 Invisible Car Drive", "🚽 Invisible Toilet Sit",
+        "👑 King Throne Float Sit", "🧞 Magic Carpet Ride", "🧘 Floating Lotus Meditation",
+        "⚰️ Coffin Dead Lay", "🐧 Penguin Waddle Troll", "🐸 Frog Hop Bounce",
+        "🐔 Chicken Wing Flap", "🦖 T-Rex Dino Stomp", "🦍 Gorilla Chest Pound",
+        -- Combat, Martial Arts & Bodybuilding Flex
+        "🥊 Boxer Mike Tyson Weave", "🦵 Muay Thai Knee Clinch", "🥋 Karate Crane Kick",
+        "🦵 Dropkick Air Launch", "🥊 Uppercut Knockout Loop", "🗡️ Katana Quickdraw Iaijutsu",
+        "⚔️ Dual Blade Whirlwind", "🔱 Spear Thrust Flurry", "🏋️ Gigachad Flex Showcase",
+        "💪 Bodybuilder Double Biceps", "🦅 Lat Spread Pose", "🔱 Zyzz Aesthetic Pose",
+        "🏆 Arnold Classic Pose", "🏋️ Pushup Workout Grind", "🏋️ Plank Core Hold",
+        "🥊 Shadowboxing Speed Bag", "🏃 Jumping Jacks Cardio",
+        -- Instruments, Chill & Roleplay
+        "🎸 Heavy Metal Headbang", "🎸 Air Guitar Shred Solo", "🎧 DJ Turntable Drop",
+        "🎻 Violin Virtuoso Solo", "🎷 Saxophone Smooth Jazz", "🏊 Freestyle Air Swim",
+        "🏊 Backstroke Sky Swim", "🛹 Invisible Skateboard Flip", "🧎 Begging Mercy Kneel",
+        "🫡 Military Salute Attention", "🛡️ Royal Knight Kneel", "🥴 Drunk Stumble Sway",
+        "😴 Sleepwalk Zombie Drift", "🧱 Wall Lean Cool Pose", "😈 Cross-Armed Villain Laugh",
+        "💖 Heart Hands Cute Pose", "😭 Crying Sobbing Tantrum", "ベルト Victory Championship Belt",
+        "📸 Paparazzi Runway Strut",
+        -- Classic Short Names (Preserved for Saved Configs & Keybinds)
         "Bang", "Face Bang", "Backshots", "Hard Thrust", "Twerk", "Floss Dance",
         "Helicopter Spin", "Headspin Breakdance", "Levitating Ascend", "Worm Crawl",
         "Default Dance", "Orange Justice", "Take The L", "billy bounce", "Griddy",
@@ -11988,6 +15110,18 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
         "Breakneck", "Infinidab", "Dab", "T-Pose", "Assert Dominance", "Float Idle",
         "Zombie Walk", "Ninja Run", "Superhero Fly", "Sit Chill", "Lay Down", "Spinning Top", "Breakdance Pro"
     }
+
+    -- Complete MortalHub 2,551 Reanimation Catalog (1,851 Main + 700 Unicorns) Bundled Into Coca Reanim
+    local MORTAL_MAIN_BASE     = "https://raw.githubusercontent.com/hindstar5647/reanime/main/Animations-main/"
+    local MORTAL_UNICORNS_BASE = "https://raw.githubusercontent.com/hindstar5647/reanime/main/Unicorns%20File/"
+    local MORTAL_MAIN_PACK     = [=[100 saal hai|100% Pure Love|15 MINUTES|2 arm stroke|360|5x30_1|5x30_down|7 Rings Dance|8-Bit Shuffle|9mm Go Bang!|A Bar Song|A dice|A Loving Present|A Tear In Space (Airlock)|A Tear In Space|A Vlog|A Warrior Prepares|Abracadabra|Accolades|acro_twerk_2|Act Like A Robot|Active Step|Addendum|Advanced Math|Aerostep|AFK|Ain't It Fun|Ainâ€™t It Fun|Air Guitar|Air Shredder|Airbone|Airdancer|air_hump|Alibi V2|Alibi|Alive|All About That Bass|All About The Bass two|All About The Bass|All For You|All I Want For Christmas Is You|All I Want For Christmas|All Night|all red|AllowSleep's Vibe|Altima Shuffle|Amber Dance|Ambitious|Americano|anim2|ankle_break_death|Anthony Shuffle|anthony_thrust|Anxiety|Apple Apple|Apple Dance|Apple Pen|Apple V2|Apple|APT Dance|APT V2|APT|Arabadan AtladÄ±|Arachrobatics|Arm the Pumpkin!|Arm Wiggle|Around The Clock|Ask Me|Assumptions Redux|Assumptions Whisk|Assumptions|ass_slapped|Astro Slide|Astro's carti event|At 3AM|Attraction|Automata|Aw Snap!|aware_of_it_thrust|aware_of_it_thrust_2|Awesome Strut|a_thrust|a_thrust_2|Ba Ba Ba|Back On 74|Backflip|backflip_fail|Backshots|Backstroke|back_slide|Bad Boy|bad guy|Bad Romance|Balka Ki maa|Baller|Ballerina|Ballet Montage|Balletic|Ballsy|Banana Shake|Banjo Step|Bara Bere|Baseball Bill|Bass Down Low|Bawk Bawk|bb belt|BBoom BBoom (Part 1)|BBoom BBoom (Part 2)|Be Gone|Be Happy|Be My Lover|Bean Bag|Bear Hug|Beat It|Beating Combo|Beckon|Bed Chem II|Bed Chem|Been Away|Beep Boop|Bell Ringer|Belly Dance|Belly Dancin'|Belly Spin|bend_twerk_V2|Bet|Better Than|Bhangra Boogie|Big Dawgs|Big Dick 2|big swastika (Use Inf15Thin)|Bik Dance|Bill|Billy Bounce|Bim Bam Boom|Bim Bam Toi|Bimdoll|Bird Call|Bird Surf|Birds Of A Feather|Bizcochito|Blade|Blah Blah Blah|Blastin'|Blinding Lights|Bling Bang Born|Bling|Blood Pop 2|Blood Pop|Bloomin' Bouquet|Blox Friends|Bobbin'|Bodybuilder|Bold Stance|Bombastic|Boneless|Boney Bounce|Boo'd Up Groove|Boogie Bomb|Boogie Down|Boogie Woogie|Boom!|Boop!|Boosting Ki|Boots 'N' Cats|Boppin'|Boston Breakdance|Bounce Berry|Bounce Wit' It|Bounce|bounce_twerk|Bouncy Twirl|Bouncy|Boy's A Liar|Bracelets Of Hephaestus|Brain Eater|Brass Strut|Brass Wiggle|Bratty|Break Free|Breakdance Routine|Breakdown|Breakin'|Breakneck|Breezy|Bright Moves|Bring It Around|Brite Moves|Brodyquest|Brokenhearted|broken_lay_twerk|Brooklyn Pop|Brooklyn Uprock|Bubble Shuffle|Bubblegum|Bubbles!|Buckets|Buckle Up|Buffalo Ranch|Bugi-Vugi|Build Up|Bullet Ballet|Bullet Dodge Ballet|Bulletfetti|Bumblebee|Bunny Dance|Bunny Hop (Roblox)|Bunny Hop|Bunny Party|Burpee|Business Up Front|Bust a Move|Bye Bye Bye FN|Bye Bye Bye|C R A B V I B E|Caffeinated|Cairo|Calamity|California Gurls|California Love|Camel by Camel!|Cammy Flip|Can't Take My Eyes Off You|Can't Touch This|Cancun Dance|Cannon Spike|Cap Kick|Capoeira|Car Shearer Dance|Caramelldansen 2|Caramelldansen|Cardistry|Carefree|Carlton|Carolina Step|Cartwheelin'|Caves In|Celebrate Me|Chacha|Chainsaw Dance|Challenge|Champ's Clap|Champion's Struggle|Championâ€™s Celebration|Charging Blast|Charging Up|Charleston|Chase Me Down|Check|Cheer It Mello|Cheer On|Cheer Up|Cheerful Vibe|Cheers|Cheesecake|Chef's Special|Chicken Baby|Chicken Dance|Chicken Dinner Vibe|Chicken Egg|Chicken Mama|Chicken Papa|Chicken Shuffle|Chicken Stride|Chicken Wing It|Chicken|Chikiri Bai Bai|Chimichanga!|Chronoshift|circletwerk|Clap It Mello|Clap|Classic Justice|Classy Feeling|Classy Strut|Classy|Clean Groove|Clear Out!|Click Click Flash|Click|close to you|Cluck Strut|Cmere|Collaborative Dance|Committed|Company Jig|Confused|Conga|Controller Crew|Copines|corkscrew|corkscrew_2|Cotton Candy|Courtside Flow|cowgirl|Crabby|Crackdown|Cradle|Crank That|crawl|Crazy Crazy|Crazy Feet|Crazy Yoga BlowJob|Crazyboy|Creative|Criminals|Criss Cross|Crossbounce|Crossbow Dance|Crossed Out|crouch_bounce_twerk|crouch_twerk_V2|Crown|Crowning Achievement|Cruisin'|Crushing It|Cult Classic|Culture Festival Dance|Cupid's Arrow|Cupid|Cure For Me|Cut It|Cutely Dancing|Cyberdyne Salute|Da Whip|dababy_lessgoo|Dame Tu Cosita|DAME UN GRR|DANCE B|Dance Monkey|Dance Moves|Dance Off|Dance Potion|Dance Therapy|Dance2013|Dancery|Dancin' Domino|Dancin' Shuffle 2|Dancin' Shuffle 3|Dancin' Shuffle 4|Dancin' Shuffle|Dancing Cat|Dancing Dead|Dante Dance|dap_up|Dark Side|dashie_twerk_V2|Dawn|Daydream|Daywalker's Kata|DDU-DU DDU-DU|death|Deep Cuts|Deep Dab|Deep End|Deep Explorer|Denial|Denied|Deposits|Desirable|Desperado Jam|devious_cave_dive_1|devious_cave_dive_3|devious_hand_rub|devious_hand_rub_2|Devotion|Dexter Rampage!|Dia Delicia|dick_thrust|Dificil Contrar|Dill With It|Dimensional|Dinero|dior_lay_twerk|Dip|Dirtbike Challenge|Disco (Surf Curse)|Disco Dance|Disco Fever|Disco Fievre|Disco Night|Disco Pointer|Disco|Disrespectful Dance|Distraction Dance|Diva Fever|DIVA|dive_thrust_1|dive_transition|dive_transition_thrust|diving_in|DJ Caliber|Do That Thang|Do The 'Split|Do The Flop!|Do The Move|Dog Leg|doggy_thrust_F|doggy_thrust_M|Doktorspiele|Domino|DON'T HURT EM'!|Don't Mine At Night|Don't Start Now|dont_hide_come_here|dont_hide_thrust|dont_hide_thrust_2|dont_hide_thrust_3|dont_hide_twerk|Doodle|Dosido|Double Blaster|Double Hops|Double Step|Double Tap|Double Up|double_gyat_caress|double_gyat_slap|Dougie Fresh|Down The Drain|Downtown Funk|Downtown|down_thrust|down_twerk|down_twerk_2|Dragon Stance|Dragon's Rise|Dream Feet|Dream Stance|Dreamer|Dreamy Keys|dream_2|Drip|Drippin' Flavour|dti_pose_28|Dualies T|dual_twerk_1|dual_twerk_loop|Dubstep Jumps|Dubstep Wave|Dust Your Boots Off|dwerk_3|Dxrk Walk|Dynamic Shuffle|Dynamite|d_all_in_yo_stomach|earthquake|Electro Shuffle|Electro Swing|Elegant Bow|Elegant|Elite Agent|Empress Fan Dance|Empty Out Your Pockets|Empty Pockets|Energetic Vibe|Enigmatic Killer|Enlightened|Entertainer|Entranced|erm_hi|Espresso V2|Espresso|Eu Queria Mudar|Europapa|Evan's Vibe|Evasive Maneuvers|Everybody Dance Now|Everybody Loves Me|Evil Plan (Just Go!)|Evil Plan|exes|Expressionism|extended_jerk|Extraterrestrial|Exum Shuffle|Fabulous|Falling Deep|Fanciful|Fancy Feet|Fancy Flapping|Fancy Flourishes|Fancy Footwork FN|Fancy Footwork|Fandangle|Fantasy Showoff|fart|Fast Feet|Fast Slow Disco|fast_clap|Feel Good|Feel It|Feel The Flow|Feelin Jaunty|Feelin' Hype|Feelin' Right|Feelin' Royal|Feeling|field_trip|field_trip_intro|Fight|Fighter's Moves|Figure Skating Freestyle|Finally 18|Finesse|Finger Shot|Finger Wag|Firework|First Month|Fishin|Fishy Flourish|fish_thrust|Fist Bump|Fist Pump|Fitness Stomp|Flamenco|Flapper|Flashback Breakdown|Flashbang Dance|Flexible Moves|flip|Flippin' Amazing|Flippin' Awesome|Flippin' Incredible|flip_twerk_1|Floss|Flourish|Flux|Fly Dance|Fly High|Fly To Tokyo|fly_down|fly_in|fnaf_thrust|Folk Dance|Follow the Piper|footjob|Forget Me Not|fortnite_moves|Freaky Deaky|freaky_ahh_pose|freaky_blowjob|Free Cuts|Free Flow|Freed|Freedom Wheels|Freemix|Freestylin'|Freewheelin'|Fresh|Friday Idle|Friendly|Fright Funk|Frisbee Show|Frog Dance|Frolic|From The Hip|fuck_you_2|Full Tilt|Funk Do Bounce|Funky Jig|Funky|Gamma Overload|Gangnam Style|Garry's Dance|GEEK TIME|GEEK TIMÃ‹|Gentleman's Dab|Get butt f|Get Funky|Get Gone|Get Griddy|GET JIGGY|Get Loose|Get Out of Your Mind|Get Schwifty|Get Started|Get Sturdier|Get Sturdy 2|Get Sturdy|GGUM|ghetto_twerk|Ghost Samurai|Giddy Up|gif_thrust|gif_twerk|Give head (Goofy edition)|give_shots|Giving Head|Glitter|Glorified Fresh|Gloss|Glow Out|Glowsticks|Glyphic|Gnarly|gnarly_twerk|Go Ape|Go Away|Go Do It|Go Mufasa|Go With The Flow|Go! Go! Go!|Goated|Golden|gomen_nasai|gomen_nasai_breakdance|gomen_nasai_breakdance_2|Good Game, Well Played|Good Guy|Good Luck Babe|Good Luck, Girl!|goodbye_nishiyama|Goofy Hump|Goofy twerk|goofy_thrust|goofy_thrust_2|grab_waist|Gravy Dance|grind_V2|Gritty Grinder|Groove Destroyer|Groove Jam|Groove Snaps|Groovy Acrobatic|Groovy Point|Ground Pound|Guitar Walk|Gun Maracas|Gunslinger Smokeshow|Gwen-Step|gyat_slap_2|Gymnastics|Hack n' Slash|Halloween Tricks|Hamood Habibi|Han Solo|HANA|Hand Signals|Hand-Forged|Hands Off!|Hang Loose Celebration|Hang Loose|Hang On|Happy Days|Hard Whip|Harmony|Hatchback|Havana|Head Banger|Head Tricks|Headbanger|Headlock|headpat|headpat_V2|headslide|Headstock Spin|Heart Attack|Heart Ceremony|Heart of a King|Heart-rizon|Heart|Heartbreak Shuffle|Hearts For You V2|Hearts For You|Heavy Love|Heel Click Breakdown|Heel Toe Hop|Heeseung Walk|Hellfire Dance|Hello Friend|hello_2|Here Here|Here We Go|Hero's Beacon|Hey Mama|Hey Now! Solo|Hey Pookie|Hi There|High Five|High Kicks|High Noon|High Steps|Hip Hop Hero|Hip Shop|hip_sway_thrust|hip_sway_thrust_2|hip_sway_thrust_3|Hit Harder|Hit It|Hitchhiker|hitler_salute|Holiday|Honorable Warrior|Hood Vibin'|Hooray|Hootenanny|Hoppity|Hopscotch|Hot Marat|Hot Sauce|Hot To Go!|Hotline Bling|HOTTOGO!|Houdini|House Party|Hoverin|How Sweet|How You Like That|Howl|Hug Me More|hug|Hugo Hilaire 1|Hugo Hilaire 2|Hugo Hilaire 3|Hugo Hilaire|hug_intro|huh|Hula Hoopin' Fail 2|Hula Hoopin' Fail|Hula Hoopin'|Hula|HUMBLE.|Humble|Hunter Protocol|Hurricane Hustle|Hustla|Hustle and Bop|Hydout's Vibe|Hype Hop|Hype Medley|Hype|Hyped to Death|Hypnot-Eyes|I Aint Afraid|I Declare!|I Got Dominos|I Like To Move It|I Love It|I Love You So|I Wanna Runaway|I â¤ cofi|I'll Miss You|I'm A Mystery|I'm Diamond|I'm Out|Ice Ice Baby|ice_twerk_10|ice_twerk_11|ice_twerk_12|ice_twerk_13|ice_twerk_2|ice_twerk_3|ice_twerk_6|ice_twerk_8|ice_twerk_9|IDK|IDOL|Illusive|Im Only Human|Image|im_so_ATL_vibe|In Da Party|In Ha Mood|Independence|Industry Baby|Infectious|Inferno|Infinite Dab|Infinite Shuffle|Insert Laughter Here|Intensity|Intergalactic|Internet Angel|Interstellar Bass|Interworld|Introducing..|Invader|invis|Invisible Stairs|iron_man_pose|Island Vibes|It's A Go!|It's A Vibe|It's Complicated|It's Dynamite!|It's Go Time!|It's Good|It's Ok I'm Ok|It's True|Its ok I'm ok|Its True|its youuu|Jabba Switchway|Jake Dance|Jamboree|Janam deti h wo|Jasmin|Jaywalk|Jazz Hands|Jazz Skip|Jazzy Dance|Jerking Off|Jerking with style|jerk_off_2|jerk_you_off|Jet Signals|Jiggle Jiggle|jiggy_twerk_loop|jiggy_twerk_sequence|jiggy_twerk_squat|jiggy_twerk_thrust|Jitterbug|jitter_thrust_2|Joker Stairs Dance|Jon|Joshiraku Dance|JT Coming|Jubi Slide|Jugglin'|Jump Around|Jump In The Cadillac|Jump Jets|Jump Jump|Jumping Jacks|Jumpstyle|jump_twerk|Jung Justice|Junkrat Dance|Just Because|Just Do It|Just Know|Just Shuffle|Just Wanna Dance|Katana|Kawaii Desu Ne|Kawaii Sturdy|Kawaii!|Kazotsky Kicking|Keep Calm|Keep It Mello|Keep Me Satisfied|KEEP UP!|KEHLANI|Keyed Up|Kick Ups|Kickback|Kindness Funk|Kindness Punk|Kiss It|Kiss Kiss|kiss_twerk|Knee Slapper|Knife CT|Knife T|Knife Tricks|Koi Dance|Kotonai|kream_twerk_2|kream_twerk_3|krnl_emote_capture|Lack Of Common Sense|Lag-Train|Laid Back Shuffle|Lalka Shuffle|Lambal|Lanewyre|lap dance|Larger Than Life|Laser Focused|Laser Pointer|Last Forever|Laugh it Up|laugh|laugh_thrust|laugh_thrust_2|Lavish|lay down J2|laying_twerk|lay_ride_twerk|lay_twerking|lay_twerking_transition_flip|lay_twerk_4|lay_twerk_7|lay_twerk_7_5|lay_twerk_polish|lay_twerk_sequence|lay_twerk_V2|lay_twerk_V5|Lazer Blast|Lazy Shuffle|Lean On|lean_twerk|lean_twerk_2|Leapin|Leave The Door Open|Leg Swings|Legal Reasons|Leilt Elomr|Leprechaun Hunt|Let's Get It Started|Let's Groove|Let's Swing|Lethal Amounts|Lethal Dance|Letâ€™s Get It Started|Letâ€™s Go Back|Levitate|Lezginka Spectator|Lezginka|Lia Kim|Liar|Life Of A Noob|Lights Up|Like You|Lil Bounce|Lil Monster|Lil Mower|Lil nas x panini|Lil Octane|Lil Rover|Lil Saucer|Lil Warthog|Lil' Carpet Ride|Line Dance V2|Line Dance|Line Dancin'|Linear Sides|Little Buddy Was Sick|Lively Walkin|Living Large|Llama Bell|Llama Conga|Lo-fi Headbang|Lock It Up|Loco Shake|Lofi Headbang|Look At Me|Lookin' Good|Looking Good|look_at_that_body|look_at_that_body_2|Lorax Kid|Lose Control|Love It|Love Letter|Love Me Like I Love You|Love Potions|lovely_twerk|Lovesick Girls|Low Opacity|Low|Lucid Dreams|luigi_thrust_1|luigi_thrust_2|Luke|Lunar Party|Lyrics|Ma Ma Ma|Ma-Ya-Hi|Macarena|Made You Look|maelay|maelay_2|Magnetic FN|Make Some Waves|Malevolent Mime|Mamushi|Mannrobics!|Mansion Party|Mansion Shuffle|Mantra|Marsh Walk|Marshmellow|Martial Arts Master|Mashed Potato|Mask Off|Masked Psychic|Master Of Seas|Match My Freak|Matrix Dodging|Mawashi Geri|Maximum Bounce|Maya|Mayahi|meat_slap|Melodramatic|Members Only|Memories|Meow Dance|Metamorphosis Shuffle|me_|Mi Gente|MiB Dance|Midnight Moves|Miku Live|Miku Miku Beam|Million Dollar Baby|Millionaire|Mime Time|Mina Mintip|Mind Blown|Mine|Minny Park|Mio Honda Step|Misery|missionary|mita_shake|MJThriller|Moe's Assumptions|Momoland|Monkey Mosh|Monster Mash!|Monster Mash|MONTAGEM LADRAO|Moonbounce|Moongazer|Moonlit Mystery|Motion Shuffle|Motive|motorboat|Moulaga|Move It|Mozeâ€™s Shuffle|Mr. Blue Sky|Mr. Brightside|Muffin Dance|Murderous Chase|Mwahaha|My Honest Reaction|My Idol|My Main|My Spark|My World|Nana Nana|Napal Baji|Nasty Girl|Neighborly Hang|Neo's Bullet Time|Neo's Crazy Night|Neo|Neva Play|Never Gonna|New Jack Swingin'|New Woman|Newark Dance|Nic Shuffle|nicki_walk|Night Out|Night Time Shuffle|Ninja Style|Nishiyama|Nitro Fueled|No Cure|No Limit|No Sweat|No Tears|No Turn To Lose BG|No Turn To Lose|nod_3|nope|Northumbria Shuffle|Not My Problem|nova belly shake|Now Without You|no_guidance|Nuthin But A G Thang|NYA Dance|Odd Shuffle|OG_sex_sleep|Oh My Oh My|OH NOES|Oh Shhh|Oh shoot, a rat!|Oh Who Is You|Oki Doki|Old School|Old Town|OMG I LOVE IT|OMG|On The Floor|On The Hook|on the knees eating|On Your Marks...|Onda Onda|One Dance|One Time Victory|Only One|Oops I Did It Again|Orange Justice|Out Tha' Box|Out West|Outlaw|Overdrive|Overload|Pain|Paint The Town Red|Panuma|Party Hips|Party Rock|Partyboy|Passo Bem Solto|Paws & Claws|Pay Attention!|Pay It Off|Peace Out|Peanut|peep_this_lame_ahh_nigga|Peleâ€™s Air Punch|Penguins|Perfect Score|Peter Parker|Peter's Fall|Phew!|Phoenix|Phone It In|Phonky Town|Phonky Turn|Photograph|Phut Hon|Pick It Up|Picoâ€™s Celebration|Picture Perfect|Pina Colada|Pirouette|Planetary Vibe|Play No Games|Playing With Fire|Please Please Please|Plug Walk|Point And Strut|Poker Face|Poki|POKÃ‰DANCE|polished_ice_twerk_5|poodle_afk_animating|poodle_aggressive_slap|poodle_aggressive_twerk|poodle_ass_slap|poodle_blue_shirt_guy_dance|poodle_bounce_twerk|poodle_bounce_twerk_loop|poodle_come_on_dont_hide|poodle_crouch_twerk|poodle_devious_rub|poodle_dive_female_transition|poodle_dive_in|poodle_dive_slide_in|poodle_feel_up|poodle_female_rest|poodle_flip_to_twerk_thingy|poodle_gomen_nasai_break_dance|poodle_hanging_around|poodle_hip_twerk|poodle_ice_twerk|poodle_laying_twerk_3|poodle_me_|poodle_multi_twerk|poodle_needy_twerk|poodle_normal_slap|poodle_run_slide|poodle_self_ass_slap|poodle_sgo_thrust|poodle_slap_KO|poodle_split_twerk_sequence|poodle_stop_wait_a_min|poodle_there_goes_my_baby_fall|poodle_twerk_thingy|Poof!|poop|Pop Lock|Pop Muzik|Pop Star Step|Poppy Love|Popular Vibe|Potted Groot Dance|Pour It Up|Power Step|Powered Up|Praise The Tomato|praise|Prayer in C|Present Delivery|Pretty Girl Mantra|Pretty Scene Girl!|Pride Wave|Primo Moves|Prince of Egypt|Professional|pro_twerk|Pull Up!|Pull Up|Pump It Up|Pump Me Up|Pump Up The Jam|Pumpernickel|Punched Up|Punching Practice|Puppet Dance|Pure Salt|push_ups|put_a_finger_down|PWR Punch|Quagmire Dance|Questions|Quick Bite|Quick Step|Quirk|R U Mine|Rabbit Dance|Radical|Rage Quit|Rage|Rain Check|Rakuten Point|Ralsei Duo|Ralsei|Rambunctious|Rap Monster|Rat Dance|Ratatata|Rawr|Ready For Love|Real High|Real Slim Shady|Real Slim|Reality's Master|Reanimated|Reaper's Showtime|Rebellious|Reboot Shuffle|Reciprocate|Reckless|Red Hot Shooter|Red Light|Reggae|Remember The Time|Renegade|Resonance Shuffle|Respect|Restored|Revel|reverse_cowgirl|Revolving Geometry|Rhythm Dancing|Rhythm Of Chaos|Rhythm Rider|Rhythmical|Ric Flair Shuffle|Ric Flair|Ricardo|Riches|Ride It|Ride The Pony|Ride The Vibe|ride_it|ride_it_thrust|Right Round|Rim Shot|Rising Phoenix|Road Shuffle|Roar|Robotic Moves|Robotic Style|Robotic Wobble|Rock Out!|Rock That Body|Rock, Paper, Scissors!|Rock|Rocket Rodeo|Rocket Spinner|ROCKWAVE|Rocky Road|Rodeo|Rogue-quette|Roki|Roll 'N Rock|Roll Call|Roll It Up|Roll N' Rock|Roller Vibes|Rollie|Rolly Rider|Rootin' Tootin'|rotate_twerk|Rough Dancer|Roundabout|Rowdy Rudolph|Roy Purdy|Royals|RPG!|Rude Shuffle|Rumba|Run It Down|Run It|Runaway Twerk|runaway|Running Deadman|Running Man|Rushin' Around|Russian Dance|Russian Kick|Sackin'|Sad Claps|Sahara|Sail With Me|Salsa Groove|Salute|Samba Shuffle|Samba|Samsara|San Tan|Sand Walk|Sandstorm|Sasquatchin|Sassy Dancin'|Sassy Showoff|Sassy Walk|sassy_super_grind_transition|sassy_thrust|Saturday Night Fever|Saul|Savage|Saxophoned|Say Cheese!|Say So|scared|scared_run|Scenario|Schadenfreude|scissor|Scissoring|Scootin|Scout Regiment Salute|Screw Loose|Secret Identity|See TiÌ€nh 2|See TiÌ€nh|Segway Tour|Self Head|self_ass_slap|Servomechanical|Settings Shuffle|sexy_dance|sexy_thrust|sexy_thrust_down|sexy_wiggle|sgo_thrust|Shadow Dance|Shadow Spar|Shadowbox|Shake  Slash|Shake  Split|Shake It To The Max|Shake It Up|Shamone|Shaolin Sit-Up|Shape Of You|Shape Up|Shaq Shimmy|SHARP 11|SHARP 6|Sharp Shooter|Shell|Shhh.|Shiba|Shift|Shimmer|Shimmy Wiggle|shocked|shocked_death|Shoryuken|Shout!|Show 'Em Off|Show Ya|Show You Off|Showstopper|Showtime|shrug|Shuba Duck|Shuffle Combo|Shuffle|Shum Shuffle|shy_run_to_me|shy_thrust|Side Hustle|Side Shuffle|Side Step|Side Stride|Sideways Shift|side_fuck_M|side_grab_right|side_grind1|Sigma Boy|Sign Spinner|Signature Shuffle|simple_thrust|Sit 1|Sit 2|Sit 3|Ska-Stra-Terrestrial|Skele Dance|skeleton_death_reverse|Skibidi Dop Dop|Skip|Skull Breakdance|Skull Cracker|Slalom Style|Slap Happy|Slap It|Slick|Slickback V2|Slickback|Slide Stride|slow_flip_into_thrust|Small Swastika|SMASH!|Smeeze|Smile (2)|Smile|Smitten|Smooth Criminal|Smooth Moves|Smooth Operator|Smooth Slide|Smooth Winner|Smooth|smooth_dance|Smug Victory|Smuwug Dance|Snapshot Swagger|Snare Solo|Snoop's Walk|Snoops Walk|Snoozefest|So Am I|So Fly|So Low|So Much More|Soaked|Soar Above|Social Climber|Socks|Soda Pop|Solo Tu|Sonic Surfer|sorry|SOU|Soul|Sparkler|Sparrow Run|Specialist Seto|Speedy Macarena|Spicy Start|Spider Dance|Spidey Landing|Spike It|Spin Out 2|Spin Out|Spin Records|spine_break_death|Splash Damage|split jump|split_twerk_7|split_twerk_loop_V2|split_twerk_sequence|Spongebob Shuffle|Spongebob|Spread Your Wings|Spring-Loaded|Springy|Sprinkler|Spy Shuffle|Square Up|Squash & Stretch|Squat Kick|squat_thrust|stab|Standing Bow|stand_cowgirl_F|Star Power|Stare Don't Touch|Stargazing|Starlit|Start It Up|Starting Prance|Statuesque|Stay Afloat|Stay Dance|Stay|Steady|Steamed|Step It Up|Sticky|stiff_dwerk|Still Into You|Stock Shuffle 2|Stock Shuffle 3|Stock Shuffle|Stop!|stop|Stormy|Strategy|Streets|stretch_twerk|Stride|Stronger|Strut|STUCK IN MY HEAD|Stuck|Stutter Step|Stylish Moonwalk|Sucker|suck_it_thrust|Sugar Rush|Suiii|Summoning Jitsu|Sumo Salt Throw|Sundrop Dance|Sunny Stroll|super_corkscrew|super_corkscrew_twerk|super_corkscrew_twerk_2|super_sassy_grind_thrust|Surfin' Bird|Surfs Up|Surround|Survivorsault|Susie|Swag Shuffle|Swag Surfin'|Swag Up|Swagger Strut|Swaggin'|Sway Around|Sway Stomp|Sway Sway|Sway|sway_twerk|sway_twerk_2|Sweaty|Sweet Dreams|Sweet Like Bubblegum BG|Sweet Like Bubblegum|Sweet Shot|Sweet Victory|Sweethearts|Swing My Way|Swing Rik|Swing Victory|Swing|Swipe It|Swish Swish|Switchstep|Swole Cat|Symbol Of Peace|Synth Step|T-Pose|Taco Time|Tactical Moves|Tagger's Groove|TaiChi|Tails Dance|Take a 'Bow|Take A Seat|Take It Slow|Take On Me|Take The L|take_it_V2|take_shots_2|take_shots_4|take_shots_5|take_shots_6|take_shots_7|take_shots_8|Taste|Taxi|Team Ghost|Technique|Technoz|Telekinetic Power Breakfast|Tell Your Friend|Tem|Tempest Flight|Testimony|TF Demoman|TF Engineer|TF Kazotsky Kick|TF Scout|TF Sniper|Thank You!|thank_you_thrust|That's So True|The Airplane|The Crane Kicker|The Dip|The Dogg|The Falcon|The Fire|The Flow|The Funny|The Gangnam Style|The Jig|The King|The Look|The M.D.|The Macarena|The Magic Bomb|The Masta|The Middle|The Nizmo|The Pollo Dance|The Poser|The Pressure|The Quick Style|The Renegade|The Rick Dance|The Right Choice|The Seven Seas|The Shuffle|The Silencer|The Spark|The Squabble|The Worm|there_goes_my_baby_fail|there_goes_my_baby_V2|They See Me|Thick Of It|Things She Said|Think Mark Think|think_hmm|think_hmm_2|This Is How We Do It|Thread It|Three Wise Monkeys|Thriller Dance|Thriller|throw it in a circle|thrust_twerk_sequence|Tidy|Tii|Timeless|Tina Boo|Tiniest Violin|Tippy Tap|Tiramisu|To The Beat|To The Moon|Toca Toca 2|Toca Toca|Tocked Off|Tonight|Too Fast|Took The L|Toosie Slide|Tootsee|Top Rock|Tornado Spin|Torture Dance|Tossing Racks|Total Control|Touch|Touching The Sky|Tow Truck Surfer|Towny|Tra La La|Tracer Dance|Track Star|Tragedy|Training Moves|Transylvania Groove|Traveling In Time|Travis r15|Travis Stargrab|travis_idle|Treat Yourself|Trinity's Kick|triple_kill_rub|Trippy Feet|Triumph Step|Triumphant|True Contender|True Heart|tt_thrust|Tuff Vibe|Tunak Tunak Tun|Turn Me Up|Twerk On The Floor|Twerk|twerk_8|twerk_9|twerk_sequence|twerk_sequence2|twerk_sequence_2|twerk_sequence_loop|twerk_V2|Twist and Lock|Twist|Twisty|Tyler Shuffle|U Can't C Me|underground|Unification|United Chill Dance|United Sponge|Unlock It|Uproar|Uprock|Upside Down & Inside Out|up_thrust|up_thrust_3|up_thrust_4|ur the king|Valentinaâ€™s Verve|Valentines Surprise|Valentino|Vampire Bow|Vamps|Vegetable Juice|Verve|Very Good (222)|Very Sneaky|Vibe Only|Vibe Shuffle|Vibe|vibe_idle|Vibin'|vibing|Victorian|Victorious Breakdance|Victorious Cluck|Victorious Hype|Victorious Shuffle|Victorious Split|Victorious Swimmer|Victorious|Victory Break|Victory Display|Victory Feelin'|Victory Flip|Victory Lap|Victory Masked|Victory Swag|Victory Sway|Victory Turn|Vintage Moves|Violent|Violet Lover|Virtual Insanity|Vivacious|Vogue Drop|Volnova|Volnovify|Wacky Armed|Waddle Away|Wait No Come Back|Waitin'|Wake Up|Walk The|Walkin Pretty|Walkin' Pretty|wall_hump_measure|wall_hump_thrust|wall_twerk_4|wall_twerk_V2|wall_yap|Wanna Believe It|Wanna See Me|Warm-Up|Waterworks|Wavey Motion|Waving Flow|waving|Wavy T|We Like To Move It|We Nailed It|Wedding Party|Wednesday|Well Rounded|Were Flying|Western Boogie|Western Rodeo|What It Is|What's Up Sketch (Flap)|What's Up Sketch (Point)|Whatâ€™s Real|When She Walk|Where Are You|Where Is Matt|Where Ya Going|Whip It|Whiplash|Whirlwind|Whistle Dance|White & Nerdy|White Tiger|whos_over_there_|Wicked|Widowâ€™s Pirouette|Wiggle|Wigglin' Around|Wiggly|Wilbur Dance|Wind Up|Windmill Floss|Windmill Shake|Windmill Stomp|Winner's Breakdance|Winner's Dance|Winner's Shuffle|Wipe Me Down|Witch Way|With The Rhythm|Without You|Woke Up|Woof Woof|Work It|Worker|Wrap Me In Plastic|Wrestlerâ€™s Shuffle|Wrld Revolve|Wu-Tang Is Forever|xenie thrust.lua|XO (Only If You Say Yes)|XO|XOXO|xstep|Y.M.C.A.|Yarn Ball|Yay!|Yee Haw|Yo Bunny|You Are Out!|You Fool|you should see me in a crown|You Want Me|You're A Winner|You're Awesome|Youjin Kim|Your Favorite Martian|Your Idol|you_ladies_alright|YRN|Zany|Zaya Shuffle|ZeroTwo|zesty_run|Zom-Beam|Zombie Shambles|Zombified|Zrde]=]
+    local MORTAL_UNICORNS_PACK = [=[$R19XH17|$R4S8EIZ|$R69XTS7|$R6E4232|$RBCJ2HS|$RCEUVDJ|$RDNUBM4|$REJFF9Z|$RGH2QLK (1)|$RGH2QLK|$RLVCI2U|$RPCPA20|$RPG6KMK|$RQGUW7S|$RSTJN9R|$RY17JRU|102992378294634|103092638336145|121212|1212121212121212122|1999|22222222222222222222222222222222222222222222222|24kgold|48 Dip Split Shake|48 Micheal Jackson|acelerada|Agressive Split|Aguto Magiko 3|ALEJA 1|ALEJA 2|ALEJA 3|Alibi (1)|ALL THE TIME|ANITA 1|ANITA 2|ANITA 3|ANITA 4|ANITA BJ|ANITA COW|Ariana Grande|ariana|arianascaled|Arona|Around|Asap Rocky Event|ass backflip|Astro Hurt Walk|Astro Walk'|astrojack|astros cant breathe|astros juice wrld dance|Backflip into a split|Backflip|Ballin|bang (1) (1)|bang|Batchata|Beauty Pole Free|Belly Shake|Belly|berserker|Bieber Stomp|Big Dick 2 (1)|Big Dick 2|Big Dick 5|Big Dick 6|Big Dick 7|Big Dick|Big jerk|big panini|big rodeo|bio beauty pole|Bio face delight|Bio Pole 3|bio pole beauty pole|bios yogA|Birds for some reason|Bite Me|BM 1|BM 4|Booty Bounce|BOOTY TWERK 2|Bounce Dance|Bounce When She Walk|Bouncy Around|boxing fighting stance|BOY PART SEX DANCE|BRAZIL 1|BRAZIL 2|BRAZIL 3|BRAZIL 4|BRAZIL 5|BRAZIL 6|Breakneck|bruninho ja chegou agora e festa no brasil|buisness idle|bzJ866h|C5eSkw0|Cala Boca|Cant Hold Us|cartoon sword idle|Chair Dance 2|Chanel|Cintura|city of angels|Come Here|Conga|crackhead idle|creature Idle|Cute Sit Hug|D4DVKQc|dança do hakari|Deep Chest Shake Dance (1)|Deep Going insane Glitch|Dia Delicia|Dick Riding|diginv2|Digital Walk|Dih Shaking|DIVE & GRIND BY NIKO|Dive in 1|Dive in 2|Dive in 3|Dive in 4|Dive In Thrust|dive in|Do The Flop|Dog Idle|Dolphin Dive|donnie|Dont Hide 1|Dont Hide 2|Down Thrust|Drill|Drop Down Twerk|Dubstep Wave|DUCK TWERK|Earthquake|Eat My Ass|Egirl Dance|eminem full|eminem mech|eminem scaled|Entrada 1|Entrada 2|Entrada 3|extra tuff|Face Fuck|Face Grind|Face Ride|Fall Shocked|Fast Shake|fasyest humen alive|fdfddddddddddddd|feeling cute|Fent|First Class|flash running|Flip Into Thrust|Flip Into Thust|Flip To Floor Thrust|flip up face grind|Floating idle|floating|Floor Grind|Floor Spin|floor to up (1)|floorwork v2|Fly Over Head Niko|folting|Foot Fungus|fOT7mJ5|franchise event|FREAKY 1|FREAKY 2|FREAKY HUG|FREAKY INTRO|FREAKY PALMAS|freakydancepart1|freakydancepart2|free poledance|Frog Walk|Froggy Style|fuck air|Funky Jig|Get Hard|Get Started|ghostface|GIRL PART SEX DANCE|glitched idle fr|godzilla|Gojo flot|gojo walk|Goku Transformation|gome nasai flip thrust|Ground Shocked|Gun Walk|Head Tricks|helicopter event|High Five|Hip Sway|hits backflip|hits boo twerk|hits bootywork|hits dive in|hits dropdown|hits getting exicted v2|hits getting exicted|hits groundtwerk|hits horny sex|hits huge dick|hits mj twerk|hits outground|hits pants down|hits twerk circle|hits twerk in lay|hits twerk updown|hits unzipping|hits wide twerk|holiday sclaed|Holiday|Hoshimachi|How You Like That|HUNTER IDLE|i3dS2iz|I6vlHFY|ice spice full|idk|idle 2|Idle 3|IDLE PROVE 2|IDLE PROVE|IDLE ZURO|Idle|in my head|Iron Man|jason dwerk|Jay Walk|jerk leg|Jerk Off 2|jerkoffonface|jester pee idle|juice|juicescaled|JUMP 1|JUMP 2|Kawaii Sturdy|kimk|kirk master debate event|Kiss It|knight idle|knight on one legs|Left Hand Rub|Leg kicks|leonadro|Lets go|Liar|LIKE A RIVER 1|Long Dance Idk yet|long dih offside|looseurself|Magic Mike Show|Magician Hat Idle|Make It Rain|marlon aura|marsha|Marshmellow Event|Marshmellow|Meat Slap Slow|message (1) (1)|message (1) (2)|message (10) (1) (2)|message (10) (1)|message (10) 1|message (10)|message (11)|message (12) 1|message (12) 2|message (13) 1|message (13)|message (14) (1)|message (14) 1|message (14) 3|message (14)|message (15) 1|message (15) 3|message (15)|message (16) 1|message (16)|message (17) 1|message (17) 3|message (17)|message (18) 1|message (18) 2|message (18)|message (19) 1|message (19)|message (2) (1)|message (2) (2)|message (20) 1|message (20) 2|message (20)|message (21) 1|message (21) 2|message (21)|message (22) 3|message (22)|message (23) 1|message (23) 3|message (23)|message (24) (1)|message (24) 2|message (24)|message (25) 2|message (25)|message (26) 3|message (27) 2|message (27)|message (28) 2|message (28)|message (29) 2|message (29)|message (3) (1)|message (3) (1)2|message (3) (2)|message (30) 2|message (30)|message (31)|message (32)|message (33)|message (34)|message (35)|message (36)|message (37)|message (4) 1|message (4) 3|message (4) 5|message (4)|message (5) (1) (1) 3|message (5) (1) 3|message (5) 1|message (5) 4|message (5)|message (6) 1|message (6) 7|message (6)|message (7) 1|message (7) 3|message (7)|message (8) 1|message (8) 2|message (8)|message (9) (1)|message (9) 2|message (9)|message|messagee|Michael Mayers|michaelangelo|Middle Finger|mordecai|MRM Sword Idle|My Love|naiba (1)|Nasty|NB 1|NB 2|NB 3|NB 4|NB 5|NB 6|NB 7|Neva Play|New Text Document|New Thang|Nigger Pose|NIKO - FLY OVER II|NIKO DOLPHIN DIVE TWERK|No No|Nokia|Nova backflip and spread|Nova Face Grind 2|nova flip face grind 1|nova flip face grind 2|Nova flip to spread|Nova Floor Thrust Transition|Nova FloorWork v2 (2)|Nova Hips|nova pole dive dance|Nova Sexy Twerk|Nova slippery thrust|Nova Yoga Twerk|novas daddy pole dance|Nove Glitch Dance|Nove Ice Spice|Nove Ice|Nove Slide Flip|Nuthin But A G Thang|nUUpmCW|Offer Thrust 3|Oh Who Is You|Omni Pose|One Hand Shake|One Of The Girls|OSgjl5w|Overload|owe you a leg|Pababa Trend|panini scaled|Panini|PD 4|PD 5|playboi|Plug Walk|Point 2|Point 3|pole dance 1|pole dance 2 (1)|pole dance 2|pole dance 3|Pole Dance 4|pole dance priv|Pole|Poodle dive Slide In|Pretty young thing|Pro Twerk|pweQDuF|ralph|random shit|RATATA COMPLETO|RAW PASO|Reach (2)|Remy Boys|Ring Around The Rosie|Rise Down|rizz|robot|rodeo scaled|Rodeo|RudeBoy|Run Away|Runaway Full|Runaway Twerk|RunawayTwerk.lua (1)|Running Man|Runny Dance|Sassy|Say Wow|scoobydoo|Self Dick Suck|Self Facial|Self Head 2|Self head|selfsuck|semibot|SEX 4|SEX 5|Sgo Thrust 2|Sharp Big Hand Come|Sharp Big Hand No|Sharp Body Tea|sharp corkscrew 1|sharp corkscrew 2|Sharp Do Your Own Thing|Sharp Fall Shock|Sharp Gif Disappear|Sharp Healthy Shake|Sharp Hit It|Sharp Jump|Sharp let Him Cook|Sharp Make It Jump|Sharp No Big|Sharp NOOOOOO|Sharp nuh uh|Sharp One Dance|sharp one hand slit|Sharp one hand split|Sharp Rise|Sharp Run|Sharp Shape Of You|Sharp she will|Sharp Shocked Point|Sharp Slow Drop|Sharp Slow Grind|Sharp Slow Spread|Sharp Split Shake|Sharp Strut|Sharp Tap Tap|Sharp Throw It|Sharp Throw Shake|Sharp X Bailando|Sharp You Come Here|sharp you gon|Shocked Upside Down|SHOW 1|SHOW 2|SHOW 3|SHOW 4|shredder|Sit On it|Skull Breakdance|slamdown|Slide Stride|smth idk fuck u|snoopdogfull|snoopdogscaled|sombie ide|Special Handstand|Speed|spiderman swing|spiderman|spin fly up|Splash|Split 3|Split Low|split shake|SPOILER_xtc  rvxx special move (1)|Star Boy|Stare Walk|stMNGEZ|stressedoutevent|stressedouteventscaled|Strut Shake 1|SUAVECITO PARA ABAJO REMIX|sukuna popse|Super Rise|Superhero Fly|superman flying|supersonic2|supersonic3|supersonic4|supersonicall|supersonicfixed|SwagBack|Tacta|Tag Your It|Tail Wag Happy Idle|Take It|Tap Tap|TF2 Walk|TFbNLr7|THE MOST FREAKY DANCE 2|THE MOST FREAKY DANCE|This Is Halloween|Throw It|Tiktok dance|toe standing|toji idle|Toji walking|Transitional Twrky Demon - Niko|Travis Long|travis scaled|Travis Teleport|Travis|traviscott|Trip Out|Tunak Tunak Tun|Turn Heads|tuuffffffffff|Tve0m3C|TWERK 1|TWERK 2|twerk 3|TWERK 4|Twerk 8|twerk with lay|Twerk1|TWILIGHT 1|TWILIGHT 2|Twist On Shake Longer|Tyla|Undergroud Rise|Uni Arch|Uni Split|Uni Walk (1)|Uni's 67|Uni's Arch Twerk|Uni's Ass Fat|Uni's Back Rise Up|Uni's Bad Romance|Uni's Belong To The City|Uni's Big Dick|Uni's Confident|Uni's Crazy Frog|Uni's Dick Wiggle|Uni's Dive In Bounce|Uni's Dive In Fall Back|Uni's Dive In Spin|Uni's Dive Into It|Uni's Dive Remake|Uni's Diver|Uni's Dog Run|Uni's Drowning (2)|Uni's Drowning|Uni's Drunk Idle|Uni's Drunk Walk|Uni's Eyp|Uni's Face Ride|Uni's Face Riden|Uni's Fall|Uni's Fast Squats|Uni's Feel It|Uni's Flip Back|Uni's Flip Thrust|Uni's Flip Twerk|Uni's Float Slide|Uni's Float|Uni's Floor Slide|Uni's Foreplay|Uni's Get Sucky|Uni's Gimme More|Uni's Hoppin Dih|Uni's I Just Get So Nervy|Uni's Jump In|Uni's Lizard Dance|Uni's Long Legs 1|Uni's Long Legs 2|Uni's Lookin Sexy|Uni's Lookout Idle|Uni's Middle Finger|Uni's Moon Walk|Uni's Motion|Uni's Murder On My Mind|Uni's Patty Cake (1)|Uni's pole Dance 1 (1)|Uni's pole Dance 1|Uni's Rack City|Uni's Rise Up 3|Uni's Rise Up 5|Uni's Rise Up Spin|Uni's Rise Up V2|Uni's Rise Up|Uni's sgo thrust|Uni's Shocked|Uni's Sit Hard|Uni's Slide 2|Uni's Slide|Uni's Spider|Uni's Spinner|Uni's Sucky Time|Uni's Sucky|Uni's Take Shots 1|Uni's Take Shots 10|Uni's Take Shots 2|Uni's Take Shots 3|Uni's Take Shots 4|Uni's Take Shots 5|Uni's Take Shots 6|Uni's Take Shots 7|Uni's Take Shots 8|Uni's Take Shots 9|Uni's Take You Down|Uni's Thrust|Uni's Twerk Sequence|Uni's Walk And Dive|Uni's Wanna Be Me|Uni's We Dont Care|Uni's Weeknd|Uni's Wild Thoughts|Uni's WIthout Me|Uni's Wobble|Unicorn Happy Time 3|Unicorn Happy Time|Up Thrust Glitch|Up Thrust|Upside Down Shocked|Upsidedown Face Grind|Uptown Downtown|Verdant Twerk 2|Victorious Breakdance|Walk Rub Waist|Wally's Pose|wdiib1B|weird walk|Whos Calling|With A Smile|WONDER TWERK|Wrecking Ball|Xenie arch grind V1|xenie bend twerk 2|Xenie bent over Circle|Xenie bent teabg V1|Xenie bent twerk 2|Xenie Boy lay|Xenie bussin it open|Xenie dive in V2|Xenie head down shake|Xenie hips work V1|Xenie homer simpson hips|Xenie passionate thrust V1|xenie pickup twerk 1|Xenie polished twerk V2|Xenie random hips V2|Xenie random V1|XMiSlJQ|Yappa is here|Yn514Bo|Youjin Kim|YUPISOTE|ZDXCjiU]=]
+
+    local function encodeCocaUriComponent(s)
+        return (tostring(s or ""):gsub("([^%w%-_%.!~%*'%(%)])", function(ch)
+            return string.format("%%%02X", string.byte(ch))
+        end))
+    end
 
     local function ensureBuiltinReanimsMerged()
         local existing = {}
@@ -12002,6 +15136,26 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                     category = "Reanims",
                 })
                 existing[bName] = true
+            end
+        end
+        for mName in MORTAL_MAIN_PACK:gmatch("([^|]+)") do
+            if not existing[mName] then
+                table.insert(allAnimations, {
+                    name = mName,
+                    path = MORTAL_MAIN_BASE .. encodeCocaUriComponent(mName) .. ".lua",
+                    category = "Main",
+                })
+                existing[mName] = true
+            end
+        end
+        for uName in MORTAL_UNICORNS_PACK:gmatch("([^|]+)") do
+            if not existing[uName] then
+                table.insert(allAnimations, {
+                    name = uName,
+                    path = MORTAL_UNICORNS_BASE .. encodeCocaUriComponent(uName) .. ".lua",
+                    category = "Unicorns",
+                })
+                existing[uName] = true
             end
         end
         setSortedAnimations(allAnimations)
@@ -12191,9 +15345,31 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
         end)
     end)
 
+    local reanimFlingBtn = Instance.new("TextButton")
+    reanimFlingBtn.Size = UDim2.new(0, 74, 0, 26)
+    reanimFlingBtn.Position = UDim2.new(1, -198, 0.5, -13)
+    reanimFlingBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 24)
+    reanimFlingBtn.Text = "Fling: OFF"
+    reanimFlingBtn.TextColor3 = Theme.textMuted
+    reanimFlingBtn.Font = Enum.Font.GothamBold
+    reanimFlingBtn.TextSize = 9.5
+    reanimFlingBtn.ZIndex = 21
+    reanimFlingBtn.Parent = headerBar
+    addCorner(reanimFlingBtn, 100)
+    local reanimFlingStroke = addStroke(reanimFlingBtn, Theme.border, 1, 0.35)
+
+    reanimFlingBtn.MouseButton1Click:Connect(function()
+        if not zenApi or type(zenApi.set_fling) ~= "function" then return end
+        local fOn = zenApi.set_fling()
+        reanimFlingBtn.Text = fOn and "Fling: ON ⚡" or "Fling: OFF"
+        reanimFlingBtn.TextColor3 = fOn and Theme.green or Theme.textMuted
+        reanimFlingBtn.BackgroundColor3 = fOn and Color3.fromRGB(22, 38, 28) or Color3.fromRGB(20, 20, 24)
+        reanimFlingStroke.Color = fOn and Theme.green or Theme.border
+    end)
+
     local reanimToggleBtn = Instance.new("TextButton")
-    reanimToggleBtn.Size = UDim2.new(0, 118, 0, 26)
-    reanimToggleBtn.Position = UDim2.new(1, -128, 0.5, -13)
+    reanimToggleBtn.Size = UDim2.new(0, 108, 0, 26)
+    reanimToggleBtn.Position = UDim2.new(1, -118, 0.5, -13)
     reanimToggleBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 24)
     reanimToggleBtn.Text = "Enable Reanim"
     reanimToggleBtn.TextColor3 = Theme.text
@@ -12247,36 +15423,27 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
             currentlyReanimated = zenApi.is_reanimated()
         end)
         local targetState = not currentlyReanimated
-        reanimToggleBtn.Text = targetState and "Reanimating..." or "Disabling..."
-        reanimToggleBtn.TextColor3 = Theme.textMuted
-        task.spawn(function()
-            if not targetState and type(stopBang) == "function" then
+        if not targetState and type(stopBang) == "function" then
+            pcall(stopBang)
+        end
+        local okCall, errMsg = pcall(function()
+            return zenApi.reanimate(targetState)
+        end)
+        if not okCall then
+            warn("Coca Reanim crash:", errMsg)
+        elseif type(errMsg) == "string" and errMsg ~= "Already reanimated." and errMsg ~= "" then
+            warn("Coca Reanim:", errMsg)
+        end
+        updateReanimBtnVisual()
+        if not targetState then
+            isPlayingManual = false
+            if type(updateNowPlayingUI) == "function" then
+                pcall(updateNowPlayingUI, nil)
+            end
+            if type(stopBang) == "function" then
                 pcall(stopBang)
             end
-            local okCall, errMsg = pcall(function()
-                return zenApi.reanimate(targetState)
-            end)
-            if not okCall then
-                warn("Coca Reanim crash:", errMsg)
-                reanimToggleBtn.Text = "Reanim error"
-                task.wait(1.2)
-                updateReanimBtnVisual()
-                return
-            end
-            if type(errMsg) == "string" and errMsg ~= "Already reanimated." and errMsg ~= "" then
-                warn("Coca Reanim:", errMsg)
-            end
-            updateReanimBtnVisual()
-            if not targetState then
-                isPlayingManual = false
-                if type(updateNowPlayingUI) == "function" then
-                    pcall(updateNowPlayingUI, nil)
-                end
-                if type(stopBang) == "function" then
-                    pcall(stopBang)
-                end
-            end
-        end)
+        end
     end)
 
     -- Body Container
@@ -12326,7 +15493,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
     -- ========================================================================
     -- SUB-TAB BAR: Fun, Bang, Favs, Custom, Binds, States, Speed, Limbs
     -- ========================================================================
-    local SUB_TABS = { "Fun", "Bang", "Favs", "Custom", "Binds", "States", "Speed", "Limbs" }
+    local SUB_TABS = { "Fun", "Unicorns", "Bang", "Favs", "Custom", "Binds", "States", "Speed", "Copier", "Tracking", "Stretching", "Limbs", "Studio" }
     local subTabButtons = {}
     local switchSubTab
 
@@ -12659,6 +15826,11 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
 
     -- 3. SPEED PAGE
     local speedPage = Instance.new("ScrollingFrame")
+    local statesPage = Instance.new("ScrollingFrame")
+    local applyPlaybackSpeed
+    local pendingSpeedBindKey = nil
+    local speedBindButtons = {}
+    ;(function()
     speedPage.Size = UDim2.new(1, 0, 1, 0)
     speedPage.BackgroundTransparency = 1
     speedPage.BorderSizePixel = 0
@@ -12739,13 +15911,13 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
     addStroke(resetSpeedBtn, Theme.divider, 1, 0)
 
     -- Closure root.73.124.33: Apply playback speed
-    local function applyPlaybackSpeed(val)
+    applyPlaybackSpeed = function(val)
         local rounded = math.clamp(math.floor(val * 10) / 10, 0.1, 5)
         currentSpeed = rounded
         savedConfig.speed = currentSpeed
         saveConfig()
         speedValueLbl.Text = string.format("%.1fx", currentSpeed)
-        local alpha = math.clamp((currentSpeed - 0.1) / (3 - 0.1), 0, 1)
+        local alpha = math.clamp((currentSpeed - 0.1) / (5.0 - 0.1), 0, 1)
         sliderFill.Size = UDim2.new(alpha, 0, 1, 0)
         if zenApi and type(zenApi.set_animation_speed) == "function" then
             pcall(zenApi.set_animation_speed, currentSpeed)
@@ -12756,12 +15928,12 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
         applyPlaybackSpeed(1)
     end)
 
-    -- Closure root.73.124.35..38: Drag speed slider
+    -- Closure root.73.124.35..38: Drag speed slider (full 0.1x to 5.0x range)
     local draggingSpeedSlider = false
     local function updateSpeedFromInput(input)
         local w = math.max(sliderTrack.AbsoluteSize.X, 1)
         local relX = math.clamp(input.Position.X - sliderTrack.AbsolutePosition.X, 0, w)
-        applyPlaybackSpeed(0.1 + 2.9 * (relX / w))
+        applyPlaybackSpeed(0.1 + 4.9 * (relX / w))
     end
 
     speedSliderCard.InputBegan:Connect(function(input)
@@ -12813,15 +15985,14 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
     presetsSubLbl.TextXAlignment = Enum.TextXAlignment.Left
     presetsSubLbl.Parent = speedPresetsCard
 
-    local SPEED_PRESETS = { 0.5, 1, 1.5, 2, 3 }
+    local SPEED_PRESETS = { 0.2, 0.5, 1, 1.5, 2, 3, 5 }
     local presetsGrid = Instance.new("Frame")
     presetsGrid.Size = UDim2.new(1, -20, 0, 52)
     presetsGrid.Position = UDim2.new(0, 10, 0, 48)
     presetsGrid.BackgroundTransparency = 1
     presetsGrid.Parent = speedPresetsCard
 
-    local pendingSpeedBindKey = nil
-    local speedBindButtons    = {}
+
 
     for idx, spdVal in ipairs(SPEED_PRESETS) do
         local colScale = 1 / #SPEED_PRESETS
@@ -12873,7 +16044,6 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
     end
 
     -- 4. STATES PAGE (Idle, Walk, Run, Jump, Fall)
-    local statesPage = Instance.new("ScrollingFrame")
     statesPage.Size = UDim2.new(1, 0, 1, 0)
     statesPage.BackgroundTransparency = 1
     statesPage.BorderSizePixel = 0
@@ -13394,6 +16564,8 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
         print("[ANGOOR] custom anim saved:", finalName, (rawCode:sub(1, 4) == "http") and "(url)" or "(inline)", #rawCode, "chars")
     end)
 
+    end)() -- end speed, states & custom modal scope
+
     -- ========================================================================
     -- 5. LIMBS PAGE (Master Limbs Switch + 6 Individual Body Part Switches)
     -- ========================================================================
@@ -13410,7 +16582,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
     limbsPage.CanvasSize = UDim2.new(0, 0, 0, 420)
     limbsPage.Visible = false
     limbsPage.Parent = pagesHolder
-    do
+    ;(function()
     local limbsPad = Instance.new("UIPadding")
     limbsPad.PaddingLeft = UDim.new(0, 2)
     limbsPad.PaddingRight = UDim.new(0, 4)
@@ -13896,7 +17068,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
     end
 
     limbsPage.CanvasSize = UDim2.new(0, 0, 0, (#LIMB_GROUPS * 56) + 80)
-    end
+    end)()
 
     -- ========================================================================
     -- ANIMATION LIST POPULATOR & PLAYBACK ENGINE (root.73.124.68 .. 72)
@@ -13944,15 +17116,17 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
         isPlayingManual = true
         selectedAnimName = animEntry.name
         nowPlayingName = animEntry.name
+
+        local playPath = animEntry.path
+        -- ⚡ ZERO-DELAY FAST PATH: Play builtin:// and rbxassetid:// animations synchronously on Frame-0 (0.00ms delay!)
+        if type(playPath) == "string" and (playPath:sub(1, 10) == "builtin://" or playPath:match("^rbxassetid://%d+$") or playPath:match("^%d+$")) then
+            zenApi.play_animation(playPath, currentSpeed)
+            updateNowPlayingUI(animEntry.name)
+            return
+        end
+
         updateNowPlayingUI("Loading " .. tostring(animEntry.name) .. "...")
-
         task.spawn(function()
-            if zenApi and type(zenApi.stop_animation) == "function" then
-                pcall(zenApi.stop_animation)
-            end
-            task.wait()
-
-            local playPath = animEntry.path
             if type(playPath) == "string" and playPath:sub(1, 4) ~= "http" and #playPath > 800 and not playPath:find("angoorreanim_cache", 1, true) then
                 if type(writefile) == "function" then
                     pcall(function()
@@ -13977,7 +17151,6 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
             local res = zenApi.play_animation(playPath, currentSpeed)
             if type(res) == "string" then
                 warn("Coca Reanimations Error:", res)
-                task.wait(0.05)
                 local retryRes = zenApi.play_animation(playPath, currentSpeed)
                 if type(retryRes) == "string" then
                     warn("Coca Reanimations Error (retry):", retryRes)
@@ -13995,7 +17168,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
     end
 
     -- Closure root.73.124.69: Populate Fun / Favs / Custom animation list (generation-guarded so concurrent refreshes never stutter)
-    do
+    ;(function()
     local populateListGen = 0
     populateList = function()
         populateListGen = populateListGen + 1
@@ -14018,6 +17191,10 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                 end
             elseif activeSubTab == "Custom" then
                 if isCust and (query == "" or item.name:lower():find(query, 1, true)) then
+                    table.insert(filtered, item)
+                end
+            elseif activeSubTab == "Unicorns" then
+                if item.category == "Unicorns" and (query == "" or item.name:lower():find(query, 1, true)) then
                     table.insert(filtered, item)
                 end
             else
@@ -14049,7 +17226,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
 
         local showCount = math.min(listShowCount, #filtered)
         for i = 1, showCount do
-            if i % 20 == 0 then
+            if i % 150 == 0 then
                 task.wait()
                 if myPopGen ~= populateListGen then return end
             end
@@ -14106,6 +17283,10 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
             nameBtn.RichText = true
             if isCustomEntry then
                 nameBtn.Text = animEntry.name .. ' <font color="rgb(80,210,255)">[CUSTOM]</font>'
+            elseif animEntry.category == "Unicorns" then
+                nameBtn.Text = animEntry.name .. ' <font color="rgb(215,140,255)">[UNICORN]</font>'
+            elseif tostring(animEntry.path or ""):sub(1, 10) == "builtin://" then
+                nameBtn.Text = animEntry.name .. ' <font color="rgb(110,230,160)">[COCA]</font>'
             else
                 nameBtn.Text = animEntry.name
             end
@@ -14226,7 +17407,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
         local extraSpace = (showCount < #filtered and query == "") and 48 or 8
         animListScroll.CanvasSize = UDim2.new(0, 0, 0, math.max(showCount, 1) * (ROW_HEIGHT + 4) + extraSpace)
     end
-    end
+    end)()
 
     -- Closure root.73.124.70: Infinite scroll pagination on animListScroll
     local loadingMorePage = false
@@ -14246,17 +17427,10 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
         end
     end)
 
-    -- Closure root.73.124.71: Debounced search input handler
-    local searchGeneration = 0
+    -- Closure root.73.124.71: Zero-Delay Instant Search Input Handler (0.00ms filter)
     searchBox:GetPropertyChangedSignal("Text"):Connect(function()
-        searchGeneration = searchGeneration + 1
-        local myGen = searchGeneration
         listShowCount = 100
-        task.delay(0.18, function()
-            if searchGeneration == myGen then
-                pcall(populateList)
-            end
-        end)
+        pcall(populateList)
     end)
 
     -- Closure root.73.124.72: Refresh Binds Tab
@@ -14571,26 +17745,36 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
         bangLockMode = modeKey
         lastBangTargetName = targetPlr.Name
 
+        local modeLabels = {
+            face    = "Face Bang → ",
+            back    = "Backshots → ",
+            headsit = "Headsit → ",
+            lap     = "Lap Ride → ",
+            kiss    = "Front Kiss → ",
+            orbit   = "Orbit Dance → ",
+        }
         if bangStatus then
-            local prefix = (modeKey == "face") and "Face Bang → " or "Backshots → "
-            bangStatus.Text = prefix .. targetPlr.Name
+            bangStatus.Text = (modeLabels[modeKey] or "Locked → ") .. targetPlr.Name
         end
 
-        local offsetY = (modeKey == "face") and 1.2 or 0
-        local offsetZ = (modeKey == "face") and -1.5 or 1.5
-        local yawDeg  = (modeKey == "face") and 180 or 0
-
-        task.spawn(function()
-            pcall(function()
-                if not zenApi.is_reanimated() then
-                    zenApi.reanimate(true)
-                    if type(updateReanimBtnVisual) == "function" then
-                        updateReanimBtnVisual()
-                    end
+        -- ⚡ ZERO-DELAY FRAME-0 REANIM & ANIMATION START
+        pcall(function()
+            if not zenApi.is_reanimated() then
+                zenApi.reanimate(true)
+                if type(updateReanimBtnVisual) == "function" then
+                    updateReanimBtnVisual()
                 end
-                local bangPath = (selectedBangAnim and selectedBangAnim.path) or ((modeKey == "face") and "builtin://Face Bang" or "builtin://Backshots")
-                zenApi.play_animation(bangPath, currentSpeed)
-            end)
+            end
+            local defaultAnimMap = {
+                face    = "builtin://Face Bang",
+                back    = "builtin://Backshots",
+                headsit = "builtin://Sit Chill",
+                lap     = "builtin://Twerk Pro Bounce",
+                kiss    = "builtin://Heart Hands Cute Pose",
+                orbit   = "builtin://⚡ Gojo Infinity Levitate",
+            }
+            local bangPath = (selectedBangAnim and selectedBangAnim.path) or defaultAnimMap[modeKey] or "builtin://Backshots"
+            zenApi.play_animation(bangPath, currentSpeed)
         end)
 
         local function collectLocalRoots()
@@ -14652,6 +17836,17 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                 end
             elseif modeKey == "face" then
                 desiredCF = levelTargetRootCF * CFrame.new(0, 1.65, -0.55) * CFrame.Angles(0, math.rad(180), 0)
+            elseif modeKey == "headsit" then
+                desiredCF = (validHead and getFlatYawCFrame(targetHead.CFrame, targetHead.Position) or levelTargetRootCF) * CFrame.new(0, 1.35, 0)
+            elseif modeKey == "lap" then
+                local bounceY = math.abs(math.sin(tick() * 14)) * 0.65
+                desiredCF = levelTargetRootCF * CFrame.new(0, 0.35 + bounceY, -0.85)
+            elseif modeKey == "kiss" then
+                desiredCF = levelTargetRootCF * CFrame.new(0, 0, -1.15) * CFrame.Angles(0, math.rad(180), 0)
+            elseif modeKey == "orbit" then
+                local ang = tick() * 3.2
+                local orbitPos = targetRoot.Position + Vector3.new(math.cos(ang) * 3.4, 0.2, math.sin(ang) * 3.4)
+                desiredCF = CFrame.lookAt(orbitPos, Vector3.new(targetRoot.Position.X, orbitPos.Y, targetRoot.Position.Z), Vector3.yAxis)
             else
                 local dist = 0.5 + (((math.sin(tick() * 2 * 10) + 1) / 2) * 2.0)
                 desiredCF = levelTargetRootCF * CFrame.new(0, 0, dist)
@@ -14708,7 +17903,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
 
     -- Closure root.73.124.77: Paginated & Generation-Guarded Bang Animation selector list (eliminates 1000-button single-frame freeze!)
     local populateBangAnimList
-    do
+    ;(function()
         local bangListShowCount = 80
         local bangPopulateGen = 0
         local bangButtonsMap = {}
@@ -14789,46 +17984,20 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
             bangListShowCount = 80
             populateBangAnimList()
         end)
-    end
-
-    local faceBangBtn = Instance.new("TextButton")
-    faceBangBtn.Size = UDim2.new(0.48, -2, 0, 32)
-    faceBangBtn.Position = UDim2.new(0, 0, 1, -52)
-    faceBangBtn.BackgroundColor3 = Theme.surface
-    faceBangBtn.Text = "Face Bang"
-    faceBangBtn.TextColor3 = Theme.text
-    faceBangBtn.Font = Enum.Font.GothamBold
-    faceBangBtn.TextSize = 12
-    faceBangBtn.Parent = bangPage
-    addCorner(faceBangBtn, 10)
-
-    local backshotsBtn = Instance.new("TextButton")
-    backshotsBtn.Size = UDim2.new(0.48, -2, 0, 32)
-    backshotsBtn.Position = UDim2.new(0.52, 2, 1, -52)
-    backshotsBtn.BackgroundColor3 = Theme.surface
-    backshotsBtn.Text = "Backshots"
-    backshotsBtn.TextColor3 = Theme.text
-    backshotsBtn.Font = Enum.Font.GothamBold
-    backshotsBtn.TextSize = 12
-    backshotsBtn.Parent = bangPage
-    addCorner(backshotsBtn, 10)
+    end)()
 
     bangStatus = Instance.new("TextLabel")
     bangStatus.Size = UDim2.new(1, 0, 0, 14)
-    bangStatus.Position = UDim2.new(0, 0, 1, -16)
+    bangStatus.Position = UDim2.new(0, 0, 1, -14)
     bangStatus.BackgroundTransparency = 1
-    bangStatus.Text = "Idle — click same button to stop"
+    bangStatus.Text = "Idle — click any mode to lock (0ms) or click again to stop"
     bangStatus.TextColor3 = Theme.textMuted
     bangStatus.Font = Enum.Font.Gotham
-    bangStatus.TextSize = 10
+    bangStatus.TextSize = 9.5
     bangStatus.TextXAlignment = Enum.TextXAlignment.Left
     bangStatus.Parent = bangPage
 
-    local lastBangClickTick = 0
     local function onBangModeButton(modeKey)
-        local now = tick()
-        if (now - lastBangClickTick) < 0.2 then return end
-        lastBangClickTick = now
         if bangLockActive and bangLockMode == modeKey then
             stopBang()
             return
@@ -14836,8 +18005,1111 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
         startBangReanim(modeKey)
     end
 
-    faceBangBtn.MouseButton1Click:Connect(function() onBangModeButton("face") end)
-    backshotsBtn.MouseButton1Click:Connect(function() onBangModeButton("back") end)
+    local BANG_MODES_GRID = {
+        { key = "face",    label = "Face Bang",   col = 0, row = 0 },
+        { key = "back",    label = "Backshots",   col = 1, row = 0 },
+        { key = "headsit", label = "Headsit",     col = 2, row = 0 },
+        { key = "lap",     label = "Lap Ride",    col = 0, row = 1 },
+        { key = "kiss",    label = "Front Kiss",  col = 1, row = 1 },
+        { key = "orbit",   label = "Orbit Dance", col = 2, row = 1 },
+    }
+    for _, bm in ipairs(BANG_MODES_GRID) do
+        local mBtn = Instance.new("TextButton")
+        mBtn.Size = UDim2.new(0.32, -2, 0, 24)
+        mBtn.Position = UDim2.new(bm.col * 0.34, 0, 1, -68 + (bm.row * 27))
+        mBtn.BackgroundColor3 = Theme.surface
+        mBtn.Text = bm.label
+        mBtn.TextColor3 = Theme.text
+        mBtn.Font = Enum.Font.GothamBold
+        mBtn.TextSize = 10
+        mBtn.Parent = bangPage
+        addCorner(mBtn, 7)
+        addStroke(mBtn, Theme.divider, 1, 0.3)
+        mBtn.MouseButton1Click:Connect(function() onBangModeButton(bm.key) end)
+    end
+
+
+    -- ========================================================================
+    -- 7. COCA REANIM EXTRA PANELS (COPIER, TRACKING, STRETCHING, STUDIO & QUICK EMOTES)
+    --    (Integrated from MortalHub & Rebranded as Coca Reanim)
+    -- ========================================================================
+    local cocaExtraPanels = {
+        copierPage = nil,
+        trackingPage = nil,
+        stretchingPage = nil,
+        studioPage = nil,
+        pendingTrackBind = nil,
+        pendingStudioBind = false,
+        studioBindBtn = nil,
+        trackingCards = {},
+    }
+    savedConfig.trackingBinds = savedConfig.trackingBinds or {}
+    savedConfig.studioToggleKey = savedConfig.studioToggleKey or "K"
+
+    ;(function()
+        local function createCocaPillSwitch(parentFrame, xOffset, yOffset, initOn, onToggle)
+            local track = Instance.new("Frame")
+            track.Size = UDim2.new(0, 42, 0, 22)
+            track.Position = UDim2.new(1, xOffset or -54, 0.5, yOffset or -11)
+            track.BackgroundColor3 = initOn and Theme.accent or Color3.fromRGB(28, 28, 34)
+            track.BorderSizePixel = 0
+            track.Parent = parentFrame
+            addCorner(track, 100)
+            local st = addStroke(track, initOn and Theme.accent or Theme.border, 1, initOn and 0.1 or 0.5)
+
+            local knob = Instance.new("Frame")
+            knob.Size = UDim2.new(0, 16, 0, 16)
+            knob.Position = initOn and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8)
+            knob.BackgroundColor3 = initOn and Color3.fromRGB(10, 10, 12) or Theme.textMuted
+            knob.BorderSizePixel = 0
+            knob.Parent = track
+            addCorner(knob, 100)
+
+            local hit = Instance.new("TextButton")
+            hit.Size = UDim2.new(1, 0, 1, 0)
+            hit.BackgroundTransparency = 1
+            hit.Text = ""
+            hit.Parent = track
+
+            local isOn = (initOn == true)
+            local function setVisual(state, fireCb)
+                isOn = (state == true)
+                playTween(track, { BackgroundColor3 = isOn and Theme.accent or Color3.fromRGB(28, 28, 34) }, 0.16)
+                playTween(knob, {
+                    Position = isOn and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8),
+                    BackgroundColor3 = isOn and Color3.fromRGB(10, 10, 12) or Theme.textMuted,
+                }, 0.16)
+                st.Color = isOn and Theme.accent or Theme.border
+                st.Transparency = isOn and 0.1 or 0.5
+                if fireCb and onToggle then
+                    pcall(onToggle, isOn)
+                end
+            end
+
+            hit.MouseButton1Click:Connect(function()
+                setVisual(not isOn, true)
+            end)
+
+            return track, setVisual, function() return isOn end
+        end
+
+        -- [7A] COCA REANIM COPIER PANEL
+        ;(function()
+            local cp = Instance.new("ScrollingFrame")
+            cp.Size = UDim2.new(1, 0, 1, 0)
+            cp.BackgroundTransparency = 1
+            cp.BorderSizePixel = 0
+            cp.ScrollBarThickness = 3
+            cp.ScrollBarImageColor3 = Theme.accent
+            cp.ScrollBarImageTransparency = 0.6
+            cp.CanvasSize = UDim2.new(0, 0, 0, 590)
+            cp.Visible = false
+            cp.Parent = pagesHolder
+            cocaExtraPanels.copierPage = cp
+
+            local cpPad = Instance.new("UIPadding", cp)
+            cpPad.PaddingLeft = UDim.new(0, 2)
+            cpPad.PaddingRight = UDim.new(0, 4)
+            cpPad.PaddingTop = UDim.new(0, 2)
+            cpPad.PaddingBottom = UDim.new(0, 14)
+
+            local cpLayout = Instance.new("UIListLayout", cp)
+            cpLayout.Padding = UDim.new(0, 8)
+            cpLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+            local hdr = Instance.new("TextLabel", cp)
+            hdr.Size = UDim2.new(1, 0, 0, 16)
+            hdr.BackgroundTransparency = 1
+            hdr.Text = "COCA REANIMATION COPIER"
+            hdr.TextColor3 = Theme.textMuted
+            hdr.Font = Enum.Font.GothamBold
+            hdr.TextSize = 10
+            hdr.TextXAlignment = Enum.TextXAlignment.Left
+            hdr.LayoutOrder = 1
+
+            local copierActive = false
+            local freezeMode = false
+            local freeroamMode = false
+            local copierTarget = nil
+            local frozenPos = nil
+            local latDist = 2.0
+            local depthDist = 2.0
+            local latSide = "Left"
+            local depthSide = nil
+            local copierStepConn = nil
+            local savedCloneProps = {}
+            local setFreezeSw, setFreeroamSw
+
+            local mainCard = Instance.new("Frame", cp)
+            mainCard.Size = UDim2.new(1, 0, 0, 48)
+            mainCard.BackgroundColor3 = Theme.bgCard
+            mainCard.LayoutOrder = 2
+            addCorner(mainCard, 8)
+            addStroke(mainCard, Theme.divider, 1, 0)
+
+            local mTitle = Instance.new("TextLabel", mainCard)
+            mTitle.Size = UDim2.new(1, -70, 0, 18)
+            mTitle.Position = UDim2.new(0, 12, 0, 6)
+            mTitle.BackgroundTransparency = 1
+            mTitle.Text = "Coca Reanim Copier"
+            mTitle.TextColor3 = Theme.text
+            mTitle.Font = Enum.Font.GothamBold
+            mTitle.TextSize = 10.5
+            mTitle.TextXAlignment = Enum.TextXAlignment.Left
+
+            local mSub = Instance.new("TextLabel", mainCard)
+            mSub.Size = UDim2.new(1, -70, 0, 16)
+            mSub.Position = UDim2.new(0, 12, 0, 24)
+            mSub.BackgroundTransparency = 1
+            mSub.Text = "Mirror target player's exact pose & animations onto your Coca Reanim clone"
+            mSub.TextColor3 = Theme.textMuted
+            mSub.Font = Enum.Font.GothamMedium
+            mSub.TextSize = 9
+            mSub.TextXAlignment = Enum.TextXAlignment.Left
+
+            local targetCard = Instance.new("Frame", cp)
+            targetCard.Size = UDim2.new(1, 0, 0, 185)
+            targetCard.BackgroundColor3 = Theme.bgCard
+            targetCard.LayoutOrder = 3
+            addCorner(targetCard, 8)
+            addStroke(targetCard, Theme.divider, 1, 0)
+
+            local tHdr = Instance.new("TextLabel", targetCard)
+            tHdr.Size = UDim2.new(1, -20, 0, 16)
+            tHdr.Position = UDim2.new(0, 10, 0, 6)
+            tHdr.BackgroundTransparency = 1
+            tHdr.Text = "SELECT TARGET PLAYER"
+            tHdr.TextColor3 = Theme.accent
+            tHdr.Font = Enum.Font.GothamBold
+            tHdr.TextSize = 9.5
+            tHdr.TextXAlignment = Enum.TextXAlignment.Left
+
+            local tSearch = Instance.new("TextBox", targetCard)
+            tSearch.Size = UDim2.new(1, -20, 0, 26)
+            tSearch.Position = UDim2.new(0, 10, 0, 26)
+            tSearch.BackgroundColor3 = Theme.input
+            tSearch.PlaceholderText = "Search player by name..."
+            tSearch.PlaceholderColor3 = Theme.textMuted
+            tSearch.Text = ""
+            tSearch.TextColor3 = Theme.text
+            tSearch.Font = Enum.Font.GothamMedium
+            tSearch.TextSize = 10
+            tSearch.ClearTextOnFocus = false
+            addCorner(tSearch, 6)
+            addStroke(tSearch, Theme.divider, 1, 0.2)
+            Instance.new("UIPadding", tSearch).PaddingLeft = UDim.new(0, 8)
+
+            local tList = Instance.new("ScrollingFrame", targetCard)
+            tList.Size = UDim2.new(1, -20, 0, 120)
+            tList.Position = UDim2.new(0, 10, 0, 58)
+            tList.BackgroundColor3 = Theme.surface
+            tList.BackgroundTransparency = 0.5
+            tList.BorderSizePixel = 0
+            tList.ScrollBarThickness = 3
+            tList.ScrollBarImageColor3 = Theme.accent
+            addCorner(tList, 6)
+
+            local tListLayout = Instance.new("UIListLayout", tList)
+            tListLayout.Padding = UDim.new(0, 3)
+            tListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+            tListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+                tList.CanvasSize = UDim2.new(0, 0, 0, tListLayout.AbsoluteContentSize.Y + 6)
+            end)
+
+            local freezeCard = Instance.new("Frame", cp)
+            freezeCard.Size = UDim2.new(1, 0, 0, 44)
+            freezeCard.BackgroundColor3 = Theme.bgCard
+            freezeCard.LayoutOrder = 4
+            addCorner(freezeCard, 8)
+            addStroke(freezeCard, Theme.divider, 1, 0)
+
+            local fTitle = Instance.new("TextLabel", freezeCard)
+            fTitle.Size = UDim2.new(1, -70, 0, 16)
+            fTitle.Position = UDim2.new(0, 12, 0, 6)
+            fTitle.BackgroundTransparency = 1
+            fTitle.Text = "FREEZE MODE"
+            fTitle.TextColor3 = Theme.text
+            fTitle.Font = Enum.Font.GothamBold
+            fTitle.TextSize = 10
+            fTitle.TextXAlignment = Enum.TextXAlignment.Left
+
+            local fSub = Instance.new("TextLabel", freezeCard)
+            fSub.Size = UDim2.new(1, -70, 0, 14)
+            fSub.Position = UDim2.new(0, 12, 0, 22)
+            fSub.BackgroundTransparency = 1
+            fSub.Text = "Freeze in place; spins & poses on the spot"
+            fSub.TextColor3 = Theme.textMuted
+            fSub.Font = Enum.Font.GothamMedium
+            fSub.TextSize = 8.5
+            fSub.TextXAlignment = Enum.TextXAlignment.Left
+
+            local roamCard = Instance.new("Frame", cp)
+            roamCard.Size = UDim2.new(1, 0, 0, 44)
+            roamCard.BackgroundColor3 = Theme.bgCard
+            roamCard.LayoutOrder = 5
+            addCorner(roamCard, 8)
+            addStroke(roamCard, Theme.divider, 1, 0)
+
+            local rTitle = Instance.new("TextLabel", roamCard)
+            rTitle.Size = UDim2.new(1, -70, 0, 16)
+            rTitle.Position = UDim2.new(0, 12, 0, 6)
+            rTitle.BackgroundTransparency = 1
+            rTitle.Text = "FREEROAM MODE"
+            rTitle.TextColor3 = Theme.text
+            rTitle.Font = Enum.Font.GothamBold
+            rTitle.TextSize = 10
+            rTitle.TextXAlignment = Enum.TextXAlignment.Left
+
+            local rSub = Instance.new("TextLabel", roamCard)
+            rSub.Size = UDim2.new(1, -70, 0, 14)
+            rSub.Position = UDim2.new(0, 12, 0, 22)
+            rSub.BackgroundTransparency = 1
+            rSub.Text = "Move freely (WASD) while copying target's animation"
+            rSub.TextColor3 = Theme.textMuted
+            rSub.Font = Enum.Font.GothamMedium
+            rSub.TextSize = 8.5
+            rSub.TextXAlignment = Enum.TextXAlignment.Left
+
+            local latCard = Instance.new("Frame", cp)
+            latCard.Size = UDim2.new(1, 0, 0, 66)
+            latCard.BackgroundColor3 = Theme.bgCard
+            latCard.LayoutOrder = 6
+            addCorner(latCard, 8)
+            addStroke(latCard, Theme.divider, 1, 0)
+
+            local latLbl = Instance.new("TextLabel", latCard)
+            latLbl.Size = UDim2.new(0.5, 0, 0, 16)
+            latLbl.Position = UDim2.new(0, 10, 0, 5)
+            latLbl.BackgroundTransparency = 1
+            latLbl.Text = "LATERAL OFFSET"
+            latLbl.TextColor3 = Theme.textMuted
+            latLbl.Font = Enum.Font.GothamBold
+            latLbl.TextSize = 9
+            latLbl.TextXAlignment = Enum.TextXAlignment.Left
+
+            local latValLbl = Instance.new("TextLabel", latCard)
+            latValLbl.Size = UDim2.new(0, 70, 0, 16)
+            latValLbl.Position = UDim2.new(1, -80, 0, 5)
+            latValLbl.BackgroundColor3 = Theme.surface
+            latValLbl.Text = "2.0 studs"
+            latValLbl.TextColor3 = Theme.accent
+            latValLbl.Font = Enum.Font.GothamBold
+            latValLbl.TextSize = 8.5
+            addCorner(latValLbl, 4)
+
+            local leftBtn = Instance.new("TextButton", latCard)
+            leftBtn.Position = UDim2.new(0, 10, 0, 24)
+            leftBtn.Size = UDim2.new(0.5, -14, 0, 20)
+            leftBtn.BackgroundColor3 = Theme.accent
+            leftBtn.Text = "Left"
+            leftBtn.TextColor3 = Color3.fromRGB(8, 8, 10)
+            leftBtn.Font = Enum.Font.GothamBold
+            leftBtn.TextSize = 9
+            leftBtn.AutoButtonColor = false
+            addCorner(leftBtn, 4)
+
+            local rightBtn = Instance.new("TextButton", latCard)
+            rightBtn.Position = UDim2.new(0.5, 4, 0, 24)
+            rightBtn.Size = UDim2.new(0.5, -14, 0, 20)
+            rightBtn.BackgroundColor3 = Theme.surface
+            rightBtn.Text = "Right"
+            rightBtn.TextColor3 = Theme.textDim
+            rightBtn.Font = Enum.Font.GothamBold
+            rightBtn.TextSize = 9
+            rightBtn.AutoButtonColor = false
+            addCorner(rightBtn, 4)
+
+            local latTrack = Instance.new("Frame", latCard)
+            latTrack.Position = UDim2.new(0, 10, 0, 50)
+            latTrack.Size = UDim2.new(1, -20, 0, 6)
+            latTrack.BackgroundColor3 = Theme.surface
+            addCorner(latTrack, 3)
+
+            local latFill = Instance.new("Frame", latTrack)
+            latFill.Size = UDim2.new(0.04, 0, 1, 0)
+            latFill.BackgroundColor3 = Theme.accent
+            addCorner(latFill, 3)
+
+            local depthCard = Instance.new("Frame", cp)
+            depthCard.Size = UDim2.new(1, 0, 0, 66)
+            depthCard.BackgroundColor3 = Theme.bgCard
+            depthCard.LayoutOrder = 7
+            addCorner(depthCard, 8)
+            addStroke(depthCard, Theme.divider, 1, 0)
+
+            local depthLbl = Instance.new("TextLabel", depthCard)
+            depthLbl.Size = UDim2.new(0.5, 0, 0, 16)
+            depthLbl.Position = UDim2.new(0, 10, 0, 5)
+            depthLbl.BackgroundTransparency = 1
+            depthLbl.Text = "DEPTH OFFSET"
+            depthLbl.TextColor3 = Theme.textMuted
+            depthLbl.Font = Enum.Font.GothamBold
+            depthLbl.TextSize = 9
+            depthLbl.TextXAlignment = Enum.TextXAlignment.Left
+
+            local depthValLbl = Instance.new("TextLabel", depthCard)
+            depthValLbl.Size = UDim2.new(0, 70, 0, 16)
+            depthValLbl.Position = UDim2.new(1, -80, 0, 5)
+            depthValLbl.BackgroundColor3 = Theme.surface
+            depthValLbl.Text = "2.0 studs"
+            depthValLbl.TextColor3 = Theme.accent
+            depthValLbl.Font = Enum.Font.GothamBold
+            depthValLbl.TextSize = 8.5
+            addCorner(depthValLbl, 4)
+
+            local frontBtn = Instance.new("TextButton", depthCard)
+            frontBtn.Position = UDim2.new(0, 10, 0, 24)
+            frontBtn.Size = UDim2.new(0.5, -14, 0, 20)
+            frontBtn.BackgroundColor3 = Theme.surface
+            frontBtn.Text = "Front"
+            frontBtn.TextColor3 = Theme.textDim
+            frontBtn.Font = Enum.Font.GothamBold
+            frontBtn.TextSize = 9
+            frontBtn.AutoButtonColor = false
+            addCorner(frontBtn, 4)
+
+            local backBtn = Instance.new("TextButton", depthCard)
+            backBtn.Position = UDim2.new(0.5, 4, 0, 24)
+            backBtn.Size = UDim2.new(0.5, -14, 0, 20)
+            backBtn.BackgroundColor3 = Theme.surface
+            backBtn.Text = "Back"
+            backBtn.TextColor3 = Theme.textDim
+            backBtn.Font = Enum.Font.GothamBold
+            backBtn.TextSize = 9
+            backBtn.AutoButtonColor = false
+            addCorner(backBtn, 4)
+
+            local depthTrack = Instance.new("Frame", depthCard)
+            depthTrack.Position = UDim2.new(0, 10, 0, 50)
+            depthTrack.Size = UDim2.new(1, -20, 0, 6)
+            depthTrack.BackgroundColor3 = Theme.surface
+            addCorner(depthTrack, 3)
+
+            local depthFill = Instance.new("Frame", depthTrack)
+            depthFill.Size = UDim2.new(0.04, 0, 1, 0)
+            depthFill.BackgroundColor3 = Theme.accent
+            addCorner(depthFill, 3)
+
+            local statusCard = Instance.new("Frame", cp)
+            statusCard.Size = UDim2.new(1, 0, 0, 28)
+            statusCard.BackgroundColor3 = Theme.bgCard
+            statusCard.LayoutOrder = 8
+            addCorner(statusCard, 6)
+            addStroke(statusCard, Theme.divider, 1, 0)
+
+            local statusLbl = Instance.new("TextLabel", statusCard)
+            statusLbl.BackgroundTransparency = 1
+            statusLbl.Position = UDim2.new(0, 12, 0, 0)
+            statusLbl.Size = UDim2.new(1, -20, 1, 0)
+            statusLbl.Font = Enum.Font.GothamMedium
+            statusLbl.Text = "OFF - Select a player and toggle ON"
+            statusLbl.TextColor3 = Theme.textMuted
+            statusLbl.TextSize = 8.5
+            statusLbl.TextXAlignment = Enum.TextXAlignment.Left
+
+            local function updateCopierStatus()
+                if not copierTarget then
+                    statusLbl.Text = copierActive and "ON - Select a player from list above" or "OFF - Select a player and toggle ON"
+                    statusLbl.TextColor3 = copierActive and Theme.warning or Theme.textMuted
+                    return
+                end
+                local modeDesc = freezeMode and " [Frozen In-Place]"
+                    or (freeroamMode and " [FreeRoam]")
+                    or string.format(" (%s: %.1f%s)", latSide or "Left", latDist, depthSide and string.format(" | %s: %.1f", depthSide, depthDist) or "")
+                if copierActive then
+                    statusLbl.Text = "COPYING " .. copierTarget.Name .. modeDesc
+                    statusLbl.TextColor3 = Theme.green
+                else
+                    statusLbl.Text = "Selected: " .. copierTarget.Name .. modeDesc
+                    statusLbl.TextColor3 = Theme.accent
+                end
+            end
+
+            local function refreshSideBtns()
+                leftBtn.BackgroundColor3 = (latSide == "Left") and Theme.accent or Theme.surface
+                leftBtn.TextColor3 = (latSide == "Left") and Color3.fromRGB(8, 8, 10) or Theme.textDim
+                rightBtn.BackgroundColor3 = (latSide == "Right") and Theme.accent or Theme.surface
+                rightBtn.TextColor3 = (latSide == "Right") and Color3.fromRGB(8, 8, 10) or Theme.textDim
+                frontBtn.BackgroundColor3 = (depthSide == "Front") and Theme.accent or Theme.surface
+                frontBtn.TextColor3 = (depthSide == "Front") and Color3.fromRGB(8, 8, 10) or Theme.textDim
+                backBtn.BackgroundColor3 = (depthSide == "Back") and Theme.accent or Theme.surface
+                backBtn.TextColor3 = (depthSide == "Back") and Color3.fromRGB(8, 8, 10) or Theme.textDim
+            end
+
+            leftBtn.MouseButton1Click:Connect(function() latSide = "Left"; refreshSideBtns(); updateCopierStatus() end)
+            rightBtn.MouseButton1Click:Connect(function() latSide = "Right"; refreshSideBtns(); updateCopierStatus() end)
+            frontBtn.MouseButton1Click:Connect(function() depthSide = (depthSide == "Front") and nil or "Front"; refreshSideBtns(); updateCopierStatus() end)
+            backBtn.MouseButton1Click:Connect(function() depthSide = (depthSide == "Back") and nil or "Back"; refreshSideBtns(); updateCopierStatus() end)
+
+            local dragLat, dragDepth = false, false
+            latTrack.InputBegan:Connect(function(inp)
+                if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+                    dragLat = true
+                    local a = math.clamp((inp.Position.X - latTrack.AbsolutePosition.X) / math.max(latTrack.AbsoluteSize.X, 1), 0, 1)
+                    latDist = math.floor(a * 500 + 0.5) / 10
+                    latFill.Size = UDim2.new(a, 0, 1, 0)
+                    latValLbl.Text = string.format("%.1f studs", latDist)
+                    updateCopierStatus()
+                end
+            end)
+            depthTrack.InputBegan:Connect(function(inp)
+                if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+                    dragDepth = true
+                    local a = math.clamp((inp.Position.X - depthTrack.AbsolutePosition.X) / math.max(depthTrack.AbsoluteSize.X, 1), 0, 1)
+                    depthDist = math.floor(a * 500 + 0.5) / 10
+                    depthFill.Size = UDim2.new(a, 0, 1, 0)
+                    depthValLbl.Text = string.format("%.1f studs", depthDist)
+                    updateCopierStatus()
+                end
+            end)
+            UserInputService.InputEnded:Connect(function(inp)
+                if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+                    dragLat = false; dragDepth = false
+                end
+            end)
+            UserInputService.InputChanged:Connect(function(inp)
+                if inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch then
+                    if dragLat then
+                        local a = math.clamp((inp.Position.X - latTrack.AbsolutePosition.X) / math.max(latTrack.AbsoluteSize.X, 1), 0, 1)
+                        latDist = math.floor(a * 500 + 0.5) / 10
+                        latFill.Size = UDim2.new(a, 0, 1, 0)
+                        latValLbl.Text = string.format("%.1f studs", latDist)
+                        updateCopierStatus()
+                    elseif dragDepth then
+                        local a = math.clamp((inp.Position.X - depthTrack.AbsolutePosition.X) / math.max(depthTrack.AbsoluteSize.X, 1), 0, 1)
+                        depthDist = math.floor(a * 500 + 0.5) / 10
+                        depthFill.Size = UDim2.new(a, 0, 1, 0)
+                        depthValLbl.Text = string.format("%.1f studs", depthDist)
+                        updateCopierStatus()
+                    end
+                end
+            end)
+
+            local LIMB_FALLBACKS = {
+                Torso = { "UpperTorso", "LowerTorso" },
+                ["Right Arm"] = { "RightUpperArm", "RightLowerArm", "RightHand" },
+                ["Left Arm"] = { "LeftUpperArm", "LeftLowerArm", "LeftHand" },
+                ["Right Leg"] = { "RightUpperLeg", "RightLowerLeg", "RightFoot" },
+                ["Left Leg"] = { "LeftUpperLeg", "LeftLowerLeg", "LeftFoot" },
+                UpperTorso = { "Torso" },
+                LowerTorso = { "Torso" },
+                RightUpperArm = { "Right Arm" },
+                LeftUpperArm = { "Left Arm" },
+                RightUpperLeg = { "Right Leg" },
+                LeftUpperLeg = { "Left Leg" },
+            }
+
+            local function resolveTargetLimb(tChar, limbName)
+                if not tChar then return nil end
+                local p = tChar:FindFirstChild(limbName)
+                if p and p:IsA("BasePart") then return p end
+                local alts = LIMB_FALLBACKS[limbName]
+                if alts then
+                    for _, alt in ipairs(alts) do
+                        local ap = tChar:FindFirstChild(alt)
+                        if ap and ap:IsA("BasePart") then return ap end
+                    end
+                end
+                return nil
+            end
+
+            local function stopReanimCopier()
+                if copierStepConn then copierStepConn:Disconnect(); copierStepConn = nil end
+                local clone = zenApi and type(zenApi.get_clone) == "function" and zenApi.get_clone()
+                if clone then
+                    for inst, props in pairs(savedCloneProps) do
+                        if typeof(inst) == "Instance" and inst.Parent and inst:IsA("BasePart") then
+                            pcall(function()
+                                inst.Anchored = props.Anchored
+                                inst.CanCollide = props.CanCollide
+                            end)
+                        end
+                    end
+                    local hum = clone:FindFirstChildOfClass("Humanoid")
+                    if hum and savedCloneProps.Humanoid then
+                        pcall(function()
+                            hum.WalkSpeed = savedCloneProps.Humanoid.WalkSpeed
+                            hum.JumpPower = savedCloneProps.Humanoid.JumpPower
+                            hum.AutoRotate = savedCloneProps.Humanoid.AutoRotate
+                        end)
+                    end
+                end
+                table.clear(savedCloneProps)
+                frozenPos = nil
+                updateCopierStatus()
+            end
+
+            local function startReanimCopier()
+                stopReanimCopier()
+                if not zenApi then return end
+                if not zenApi.is_reanimated() then
+                    zenApi.reanimate(true)
+                    updateReanimBtnVisual()
+                end
+                local clone = zenApi.get_clone()
+                if not clone then return end
+                local cloneMap = {}
+                for _, d in ipairs(clone:GetDescendants()) do
+                    if d:IsA("BasePart") and not d:FindFirstAncestorOfClass("Accessory") then
+                        savedCloneProps[d] = { Anchored = d.Anchored, CanCollide = d.CanCollide }
+                        d.Anchored = not freeroamMode
+                        d.CanCollide = false
+                        cloneMap[d.Name] = d
+                    end
+                end
+                local hum = clone:FindFirstChildOfClass("Humanoid")
+                if hum then
+                    savedCloneProps.Humanoid = { WalkSpeed = hum.WalkSpeed, JumpPower = hum.JumpPower, AutoRotate = hum.AutoRotate }
+                    if not freeroamMode then
+                        hum.WalkSpeed = 0; hum.JumpPower = 0; hum.AutoRotate = false
+                    else
+                        hum.AutoRotate = true
+                        if hum.WalkSpeed <= 0 then hum.WalkSpeed = 16 end
+                    end
+                end
+                copierStepConn = RunService.Stepped:Connect(function()
+                    if not copierActive or not copierTarget then return end
+                    if not zenApi or not zenApi.is_reanimated() then return end
+                    local curClone = zenApi.get_clone()
+                    if not curClone then return end
+                    local tChar = findPlayerCharacterAnywhere and findPlayerCharacterAnywhere(copierTarget) or copierTarget.Character
+                    if not tChar then return end
+                    local tRoot = (pickTargetRef and pickTargetRef(tChar, "torso")) or tChar:FindFirstChild("HumanoidRootPart") or tChar:FindFirstChild("Torso") or tChar:FindFirstChild("UpperTorso")
+                    if not tRoot then return end
+                    if freeroamMode then
+                        for _, m in ipairs(curClone:GetDescendants()) do
+                            if m:IsA("Motor6D") and m.Part0 and m.Part1 then
+                                local tp0 = resolveTargetLimb(tChar, m.Part0.Name)
+                                local tp1 = resolveTargetLimb(tChar, m.Part1.Name)
+                                if tp0 and tp1 then
+                                    local rel = tp0.CFrame:Inverse() * tp1.CFrame
+                                    pcall(function() m.Transform = (m.C0:Inverse() * rel) * m.C1 end)
+                                end
+                            end
+                        end
+                    elseif freezeMode then
+                        if not frozenPos then
+                            local cRoot = curClone:FindFirstChild("HumanoidRootPart") or curClone:FindFirstChild("Torso")
+                            frozenPos = (cRoot and cRoot.Position) or tRoot.Position
+                        end
+                        local baseCF = CFrame.new(frozenPos) * tRoot.CFrame.Rotation
+                        for _, tp in ipairs(tChar:GetDescendants()) do
+                            if tp:IsA("BasePart") and not tp:FindFirstAncestorOfClass("Accessory") then
+                                local cpPart = cloneMap[tp.Name] or curClone:FindFirstChild(tp.Name)
+                                if cpPart and cpPart:IsA("BasePart") then
+                                    cpPart.CFrame = baseCF * (tRoot.CFrame:Inverse() * tp.CFrame)
+                                end
+                            end
+                        end
+                    else
+                        local rVec = tRoot.CFrame.RightVector
+                        local lVec = tRoot.CFrame.LookVector
+                        local latVec = (latSide == "Left" and (-rVec * latDist)) or (latSide == "Right" and (rVec * latDist)) or Vector3.zero
+                        local depVec = (depthSide == "Front" and (lVec * depthDist)) or (depthSide == "Back" and (-lVec * depthDist)) or Vector3.zero
+                        local baseCF = CFrame.new(tRoot.Position + latVec + depVec) * tRoot.CFrame.Rotation
+                        for _, tp in ipairs(tChar:GetDescendants()) do
+                            if tp:IsA("BasePart") and not tp:FindFirstAncestorOfClass("Accessory") then
+                                local cpPart = cloneMap[tp.Name] or curClone:FindFirstChild(tp.Name)
+                                if cpPart and cpPart:IsA("BasePart") then
+                                    cpPart.CFrame = baseCF * (tRoot.CFrame:Inverse() * tp.CFrame)
+                                end
+                            end
+                        end
+                    end
+                end)
+                updateCopierStatus()
+            end
+
+            local function populateCopierPlayers()
+                for _, ch in ipairs(tList:GetChildren()) do
+                    if ch:IsA("TextButton") then ch:Destroy() end
+                end
+                local q = tostring(tSearch.Text or ""):lower()
+                for _, plr in ipairs(Players:GetPlayers()) do
+                    if plr ~= LocalPlayer then
+                        local labelStr = plr.Name .. " (@" .. plr.DisplayName .. ")"
+                        if q == "" or labelStr:lower():find(q, 1, true) then
+                            local pBtn = Instance.new("TextButton", tList)
+                            local isSel = (copierTarget == plr)
+                            pBtn.Size = UDim2.new(1, -6, 0, 24)
+                            pBtn.BackgroundColor3 = isSel and Theme.accent or Theme.bgCard
+                            pBtn.BackgroundTransparency = isSel and 0.15 or 0.5
+                            pBtn.BorderSizePixel = 0
+                            pBtn.Text = "  " .. labelStr
+                            pBtn.TextColor3 = isSel and Color3.fromRGB(8, 8, 10) or Theme.text
+                            pBtn.Font = Enum.Font.GothamMedium
+                            pBtn.TextSize = 9.5
+                            pBtn.TextXAlignment = Enum.TextXAlignment.Left
+                            pBtn.AutoButtonColor = false
+                            addCorner(pBtn, 4)
+                            pBtn.MouseButton1Click:Connect(function()
+                                copierTarget = plr
+                                populateCopierPlayers()
+                                if copierActive then startReanimCopier() else updateCopierStatus() end
+                            end)
+                        end
+                    end
+                end
+            end
+
+            tSearch:GetPropertyChangedSignal("Text"):Connect(populateCopierPlayers)
+            Players.PlayerAdded:Connect(function() task.defer(populateCopierPlayers) end)
+            Players.PlayerRemoving:Connect(function(plr)
+                if copierTarget == plr then copierTarget = nil end
+                task.defer(populateCopierPlayers)
+            end)
+            populateCopierPlayers()
+
+            createCocaPillSwitch(mainCard, -54, -11, false, function(st)
+                copierActive = st
+                if st then startReanimCopier() else stopReanimCopier() end
+            end)
+            local _; _, setFreezeSw = createCocaPillSwitch(freezeCard, -54, -11, false, function(st)
+                freezeMode = st
+                if st and freeroamMode then freeroamMode = false; if setFreeroamSw then setFreeroamSw(false, false) end end
+                frozenPos = nil
+                if copierActive then startReanimCopier() else updateCopierStatus() end
+            end)
+            _, setFreeroamSw = createCocaPillSwitch(roamCard, -54, -11, false, function(st)
+                freeroamMode = st
+                if st and freezeMode then freezeMode = false; frozenPos = nil; if setFreezeSw then setFreezeSw(false, false) end end
+                if copierActive then startReanimCopier() else updateCopierStatus() end
+            end)
+        end)()
+
+        -- [7B] COCA HEAD & LIMB TRACKING PANEL
+        ;(function()
+            local tp = Instance.new("ScrollingFrame")
+            tp.Size = UDim2.new(1, 0, 1, 0)
+            tp.BackgroundTransparency = 1
+            tp.BorderSizePixel = 0
+            tp.ScrollBarThickness = 3
+            tp.ScrollBarImageColor3 = Theme.accent
+            tp.ScrollBarImageTransparency = 0.6
+            tp.CanvasSize = UDim2.new(0, 0, 0, 340)
+            tp.Visible = false
+            tp.Parent = pagesHolder
+            cocaExtraPanels.trackingPage = tp
+
+            local tpPad = Instance.new("UIPadding", tp)
+            tpPad.PaddingLeft = UDim.new(0, 2); tpPad.PaddingRight = UDim.new(0, 4); tpPad.PaddingTop = UDim.new(0, 2); tpPad.PaddingBottom = UDim.new(0, 14)
+
+            local tpLayout = Instance.new("UIListLayout", tp)
+            tpLayout.Padding = UDim.new(0, 8)
+            tpLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+            local hdr = Instance.new("TextLabel", tp)
+            hdr.Size = UDim2.new(1, 0, 0, 16)
+            hdr.BackgroundTransparency = 1
+            hdr.Text = "COCA HEAD & LIMB TRACKING"
+            hdr.TextColor3 = Theme.textMuted
+            hdr.Font = Enum.Font.GothamBold
+            hdr.TextSize = 10
+            hdr.TextXAlignment = Enum.TextXAlignment.Left
+            hdr.LayoutOrder = 1
+
+            _G._HaloHeadTrackerEnabled = _G._HaloHeadTrackerEnabled or false
+            _G._HaloLeftArmPointerEnabled = _G._HaloLeftArmPointerEnabled or false
+            _G._HaloRightArmPointerEnabled = _G._HaloRightArmPointerEnabled or false
+            _G._HaloLimbsTorsoCamControl = _G._HaloLimbsTorsoCamControl or false
+            _G._HaloLimbsTorsoCamMode = _G._HaloLimbsTorsoCamMode or "Follow Camera"
+
+            local torsoCard = Instance.new("Frame", tp)
+            torsoCard.Size = UDim2.new(1, 0, 0, 72)
+            torsoCard.BackgroundColor3 = Theme.bgCard
+            torsoCard.LayoutOrder = 2
+            addCorner(torsoCard, 8)
+            addStroke(torsoCard, Theme.divider, 1, 0)
+
+            local tcTitle = Instance.new("TextLabel", torsoCard)
+            tcTitle.Size = UDim2.new(1, -70, 0, 16)
+            tcTitle.Position = UDim2.new(0, 12, 0, 6)
+            tcTitle.BackgroundTransparency = 1
+            tcTitle.Text = "Torso Camera Control"
+            tcTitle.TextColor3 = Theme.text
+            tcTitle.Font = Enum.Font.GothamBold
+            tcTitle.TextSize = 10.5
+            tcTitle.TextXAlignment = Enum.TextXAlignment.Left
+
+            local tcSub = Instance.new("TextLabel", torsoCard)
+            tcSub.Size = UDim2.new(1, -70, 0, 14)
+            tcSub.Position = UDim2.new(0, 12, 0, 22)
+            tcSub.BackgroundTransparency = 1
+            tcSub.Text = "Lean and turn body with camera look direction"
+            tcSub.TextColor3 = Theme.textMuted
+            tcSub.Font = Enum.Font.GothamMedium
+            tcSub.TextSize = 8.5
+            tcSub.TextXAlignment = Enum.TextXAlignment.Left
+
+            createCocaPillSwitch(torsoCard, -54, -20, _G._HaloLimbsTorsoCamControl, function(st)
+                _G._HaloLimbsTorsoCamControl = st
+            end)
+
+            local modeRow = Instance.new("Frame", torsoCard)
+            modeRow.Position = UDim2.new(0, 10, 0, 42)
+            modeRow.Size = UDim2.new(1, -20, 0, 22)
+            modeRow.BackgroundTransparency = 1
+
+            local modeBtns = {}
+            for idx, mName in ipairs({ "Follow Camera", "Pitch Only", "Locked" }) do
+                local mb = Instance.new("TextButton", modeRow)
+                mb.Size = UDim2.new(0.315, 0, 1, 0)
+                mb.Position = UDim2.new((idx - 1) * 0.342, 0, 0, 0)
+                local active = (_G._HaloLimbsTorsoCamMode == mName)
+                mb.BackgroundColor3 = active and Theme.accent or Theme.surface
+                mb.Text = mName
+                mb.TextColor3 = active and Color3.fromRGB(8, 8, 10) or Theme.textDim
+                mb.Font = Enum.Font.GothamBold
+                mb.TextSize = 8.5
+                addCorner(mb, 4)
+                modeBtns[mName] = mb
+                mb.MouseButton1Click:Connect(function()
+                    _G._HaloLimbsTorsoCamMode = mName
+                    for k, b in pairs(modeBtns) do
+                        local isA = (k == mName)
+                        b.BackgroundColor3 = isA and Theme.accent or Theme.surface
+                        b.TextColor3 = isA and Color3.fromRGB(8, 8, 10) or Theme.textDim
+                    end
+                end)
+            end
+
+            local function buildTrackRow(title, desc, bindKey, order, onToggle)
+                local card = Instance.new("Frame", tp)
+                card.Size = UDim2.new(1, 0, 0, 46)
+                card.BackgroundColor3 = Theme.bgCard
+                card.LayoutOrder = order
+                addCorner(card, 8)
+                addStroke(card, Theme.divider, 1, 0)
+
+                local tl = Instance.new("TextLabel", card)
+                tl.Size = UDim2.new(1, -125, 0, 16)
+                tl.Position = UDim2.new(0, 12, 0, 6)
+                tl.BackgroundTransparency = 1
+                tl.Text = title
+                tl.TextColor3 = Theme.text
+                tl.Font = Enum.Font.GothamBold
+                tl.TextSize = 10.5
+                tl.TextXAlignment = Enum.TextXAlignment.Left
+
+                local sl = Instance.new("TextLabel", card)
+                sl.Size = UDim2.new(1, -125, 0, 14)
+                sl.Position = UDim2.new(0, 12, 0, 24)
+                sl.BackgroundTransparency = 1
+                sl.Text = desc
+                sl.TextColor3 = Theme.textMuted
+                sl.Font = Enum.Font.GothamMedium
+                sl.TextSize = 8.5
+                sl.TextXAlignment = Enum.TextXAlignment.Left
+
+                local curB = savedConfig.trackingBinds[bindKey]
+                local kbBtn = Instance.new("TextButton", card)
+                kbBtn.Size = UDim2.new(0, 48, 0, 22)
+                kbBtn.Position = UDim2.new(1, -112, 0.5, -11)
+                kbBtn.BackgroundColor3 = Theme.surface
+                kbBtn.Text = curB and ("[" .. curB .. "]") or "[None]"
+                kbBtn.TextColor3 = curB and Theme.accent or Theme.textMuted
+                kbBtn.Font = Enum.Font.GothamBold
+                kbBtn.TextSize = 8.5
+                addCorner(kbBtn, 6)
+                addStroke(kbBtn, Theme.border, 1, 0.3)
+
+                kbBtn.MouseButton1Click:Connect(function()
+                    if cocaExtraPanels.pendingTrackBind == bindKey then
+                        cocaExtraPanels.pendingTrackBind = nil
+                        local b = savedConfig.trackingBinds[bindKey]
+                        kbBtn.Text = b and ("[" .. b .. "]") or "[None]"
+                        kbBtn.TextColor3 = b and Theme.accent or Theme.textMuted
+                    else
+                        cocaExtraPanels.pendingTrackBind = bindKey
+                        kbBtn.Text = "[...]"
+                        kbBtn.TextColor3 = Color3.fromRGB(255, 200, 80)
+                    end
+                end)
+
+                local _, setSw, getSw = createCocaPillSwitch(card, -54, -11, false, onToggle)
+                cocaExtraPanels.trackingCards[bindKey] = {
+                    setToggled = function(v) setSw(v, true) end,
+                    getToggled = getSw,
+                    kbBtn = kbBtn,
+                }
+            end
+
+            buildTrackRow("Head Tracker", "Head turns realistically toward camera", "HeadTracker", 3, function(v) _G._HaloHeadTrackerEnabled = v end)
+            buildTrackRow("Left Arm Pointer", "Left arm aims straight at mouse cursor", "LeftArm", 4, function(v) _G._HaloLeftArmPointerEnabled = v end)
+            buildTrackRow("Right Arm Pointer", "Right arm aims straight at mouse cursor", "RightArm", 5, function(v) _G._HaloRightArmPointerEnabled = v end)
+        end)()
+
+        -- [7C] COCA LIMB & TORSO STRETCHING PANEL
+        ;(function()
+            local sp = Instance.new("ScrollingFrame")
+            sp.Size = UDim2.new(1, 0, 1, 0)
+            sp.BackgroundTransparency = 1
+            sp.BorderSizePixel = 0
+            sp.ScrollBarThickness = 3
+            sp.ScrollBarImageColor3 = Theme.accent
+            sp.ScrollBarImageTransparency = 0.6
+            sp.CanvasSize = UDim2.new(0, 0, 0, 310)
+            sp.Visible = false
+            sp.Parent = pagesHolder
+            cocaExtraPanels.stretchingPage = sp
+
+            local spPad = Instance.new("UIPadding", sp)
+            spPad.PaddingLeft = UDim.new(0, 2); spPad.PaddingRight = UDim.new(0, 4); spPad.PaddingTop = UDim.new(0, 2); spPad.PaddingBottom = UDim.new(0, 14)
+
+            local spLayout = Instance.new("UIListLayout", sp)
+            spLayout.Padding = UDim.new(0, 8)
+            spLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+            local hdr = Instance.new("TextLabel", sp)
+            hdr.Size = UDim2.new(1, 0, 0, 16)
+            hdr.BackgroundTransparency = 1
+            hdr.Text = "COCA LIMB & TORSO STRETCHING"
+            hdr.TextColor3 = Theme.textMuted
+            hdr.Font = Enum.Font.GothamBold
+            hdr.TextSize = 10
+            hdr.TextXAlignment = Enum.TextXAlignment.Left
+            hdr.LayoutOrder = 1
+
+            _G._HaloTorsoStretcherEnabled = _G._HaloTorsoStretcherEnabled or false
+            _G._HaloLegStretcherEnabled = _G._HaloLegStretcherEnabled or false
+            _G._HaloLeftArmStretching = _G._HaloLeftArmStretching or false
+            _G._HaloRightArmStretching = _G._HaloRightArmStretching or false
+            _G._HaloLimbsUpperTorsoHeight = _G._HaloLimbsUpperTorsoHeight or 1
+            _G._HaloLimbsLegHeight = _G._HaloLimbsLegHeight or 1
+            _G._HaloArmStretchAmount = _G._HaloArmStretchAmount or 2.5
+
+            local function buildStretchCard(title, desc, defVal, minVal, maxVal, unit, order, onToggle, onSlide)
+                local card = Instance.new("Frame", sp)
+                card.Size = UDim2.new(1, 0, 0, 72)
+                card.BackgroundColor3 = Theme.bgCard
+                card.LayoutOrder = order
+                addCorner(card, 8)
+                addStroke(card, Theme.divider, 1, 0)
+
+                local tl = Instance.new("TextLabel", card)
+                tl.Size = UDim2.new(1, -70, 0, 16)
+                tl.Position = UDim2.new(0, 12, 0, 6)
+                tl.BackgroundTransparency = 1
+                tl.Text = title
+                tl.TextColor3 = Theme.text
+                tl.Font = Enum.Font.GothamBold
+                tl.TextSize = 10.5
+                tl.TextXAlignment = Enum.TextXAlignment.Left
+
+                local sl = Instance.new("TextLabel", card)
+                sl.Size = UDim2.new(1, -70, 0, 14)
+                sl.Position = UDim2.new(0, 12, 0, 22)
+                sl.BackgroundTransparency = 1
+                sl.Text = desc
+                sl.TextColor3 = Theme.textMuted
+                sl.Font = Enum.Font.GothamMedium
+                sl.TextSize = 8.5
+                sl.TextXAlignment = Enum.TextXAlignment.Left
+
+                local valBadge = Instance.new("TextLabel", card)
+                valBadge.Size = UDim2.new(0, 64, 0, 16)
+                valBadge.Position = UDim2.new(1, -128, 0, 6)
+                valBadge.BackgroundColor3 = Theme.surface
+                valBadge.Text = string.format("%.1f%s", defVal, unit)
+                valBadge.TextColor3 = Theme.accent
+                valBadge.Font = Enum.Font.GothamBold
+                valBadge.TextSize = 8.5
+                addCorner(valBadge, 4)
+
+                createCocaPillSwitch(card, -54, -20, false, onToggle)
+
+                local sTrack = Instance.new("Frame", card)
+                sTrack.Position = UDim2.new(0, 12, 0, 48)
+                sTrack.Size = UDim2.new(1, -24, 0, 6)
+                sTrack.BackgroundColor3 = Theme.surface
+                addCorner(sTrack, 3)
+
+                local initAlpha = math.clamp((defVal - minVal) / (maxVal - minVal), 0, 1)
+                local sFill = Instance.new("Frame", sTrack)
+                sFill.Size = UDim2.new(initAlpha, 0, 1, 0)
+                sFill.BackgroundColor3 = Theme.accent
+                addCorner(sFill, 3)
+
+                local dragging = false
+                local function applyPct(pct)
+                    local v = math.floor((minVal + pct * (maxVal - minVal)) * 10 + 0.5) / 10
+                    local a = math.clamp((v - minVal) / (maxVal - minVal), 0, 1)
+                    sFill.Size = UDim2.new(a, 0, 1, 0)
+                    valBadge.Text = string.format("%.1f%s", v, unit)
+                    if onSlide then onSlide(v) end
+                end
+                sTrack.InputBegan:Connect(function(inp)
+                    if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+                        dragging = true
+                        applyPct(math.clamp((inp.Position.X - sTrack.AbsolutePosition.X) / math.max(sTrack.AbsoluteSize.X, 1), 0, 1))
+                    end
+                end)
+                UserInputService.InputEnded:Connect(function(inp)
+                    if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+                        dragging = false
+                    end
+                end)
+                UserInputService.InputChanged:Connect(function(inp)
+                    if dragging and (inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch) then
+                        applyPct(math.clamp((inp.Position.X - sTrack.AbsolutePosition.X) / math.max(sTrack.AbsoluteSize.X, 1), 0, 1))
+                    end
+                end)
+            end
+
+            buildStretchCard("Torso Stretcher", "Scales UpperTorso height along spine", 1.0, 0.4, 25.0, "x", 2,
+                function(st) _G._HaloTorsoStretcherEnabled = st end,
+                function(v) _G._HaloLimbsUpperTorsoHeight = v end
+            )
+            buildStretchCard("Leg Stretcher", "Scales leg length and adjusts HipHeight", 1.0, 0.4, 25.0, "x", 3,
+                function(st) _G._HaloLegStretcherEnabled = st end,
+                function(v) _G._HaloLimbsLegHeight = v end
+            )
+            buildStretchCard("Arm Stretch", "Scales arm bone length toward aim direction", 2.5, 0.5, 50.0, "x", 4,
+                function(st) _G._HaloLeftArmStretching = st; _G._HaloRightArmStretching = st end,
+                function(v) _G._HaloArmStretchAmount = v end
+            )
+        end)()
+
+        -- [7D] COCA STUDIO & 33 QUICK REANIM EMOTES PANEL
+        ;(function()
+            local stp = Instance.new("ScrollingFrame")
+            stp.Size = UDim2.new(1, 0, 1, 0)
+            stp.BackgroundTransparency = 1
+            stp.BorderSizePixel = 0
+            stp.ScrollBarThickness = 3
+            stp.ScrollBarImageColor3 = Theme.accent
+            stp.ScrollBarImageTransparency = 0.6
+            stp.CanvasSize = UDim2.new(0, 0, 0, 920)
+            stp.Visible = false
+            stp.Parent = pagesHolder
+            cocaExtraPanels.studioPage = stp
+
+            local stPad = Instance.new("UIPadding", stp)
+            stPad.PaddingLeft = UDim.new(0, 2); stPad.PaddingRight = UDim.new(0, 4); stPad.PaddingTop = UDim.new(0, 2); stPad.PaddingBottom = UDim.new(0, 14)
+
+            local stLayout = Instance.new("UIListLayout", stp)
+            stLayout.Padding = UDim.new(0, 8)
+            stLayout.SortOrder = Enum.SortOrder.LayoutOrder
+            stLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+                stp.CanvasSize = UDim2.new(0, 0, 0, stLayout.AbsoluteContentSize.Y + 20)
+            end)
+
+            local hdr = Instance.new("TextLabel", stp)
+            hdr.Size = UDim2.new(1, 0, 0, 16)
+            hdr.BackgroundTransparency = 1
+            hdr.Text = "COCA REANIM STUDIO & QUICK EMOTES"
+            hdr.TextColor3 = Theme.textMuted
+            hdr.Font = Enum.Font.GothamBold
+            hdr.TextSize = 10
+            hdr.TextXAlignment = Enum.TextXAlignment.Left
+            hdr.LayoutOrder = 1
+
+            local studioCard = Instance.new("Frame", stp)
+            studioCard.Size = UDim2.new(1, 0, 0, 92)
+            studioCard.BackgroundColor3 = Theme.bgCard
+            studioCard.LayoutOrder = 2
+            addCorner(studioCard, 8)
+            addStroke(studioCard, Theme.divider, 1, 0)
+
+            local sTitle = Instance.new("TextLabel", studioCard)
+            sTitle.Size = UDim2.new(1, -110, 0, 18)
+            sTitle.Position = UDim2.new(0, 12, 0, 8)
+            sTitle.BackgroundTransparency = 1
+            sTitle.Text = "Coca Studio Timeline Sequencer"
+            sTitle.TextColor3 = Theme.text
+            sTitle.Font = Enum.Font.GothamBold
+            sTitle.TextSize = 11
+            sTitle.TextXAlignment = Enum.TextXAlignment.Left
+
+            local sSub = Instance.new("TextLabel", studioCard)
+            sSub.Size = UDim2.new(1, -110, 0, 14)
+            sSub.Position = UDim2.new(0, 12, 0, 26)
+            sSub.BackgroundTransparency = 1
+            sSub.Text = "Multi-clip sequencing, avatar scrubbing & export suite"
+            sSub.TextColor3 = Theme.textMuted
+            sSub.Font = Enum.Font.GothamMedium
+            sSub.TextSize = 8.5
+            sSub.TextXAlignment = Enum.TextXAlignment.Left
+
+            local launchBtn = Instance.new("TextButton", studioCard)
+            launchBtn.Size = UDim2.new(0.48, -8, 0, 32)
+            launchBtn.Position = UDim2.new(0, 10, 0, 48)
+            launchBtn.BackgroundColor3 = Theme.accent
+            launchBtn.Text = "LAUNCH COCA STUDIO"
+            launchBtn.TextColor3 = Color3.fromRGB(8, 8, 10)
+            launchBtn.Font = Enum.Font.GothamBold
+            launchBtn.TextSize = 9
+            addCorner(launchBtn, 6)
+
+            local wheelBtn = Instance.new("TextButton", studioCard)
+            wheelBtn.Size = UDim2.new(0.48, -8, 0, 32)
+            wheelBtn.Position = UDim2.new(0.52, -2, 0, 48)
+            wheelBtn.BackgroundColor3 = Theme.surface
+            wheelBtn.Text = "LOAD EMOTE WHEEL"
+            wheelBtn.TextColor3 = Theme.text
+            wheelBtn.Font = Enum.Font.GothamBold
+            wheelBtn.TextSize = 9
+            addCorner(wheelBtn, 6)
+            addStroke(wheelBtn, Theme.border, 1, 0.3)
+
+            launchBtn.MouseButton1Click:Connect(function()
+                task.spawn(function()
+                    pcall(function()
+                        if type(isfile) == "function" and isfile("mortalStudio.lua") then
+                            loadstring(readfile("mortalStudio.lua"))()
+                        else
+                            loadstring(game:HttpGet("https://raw.githubusercontent.com/hindstar5647/reanime/main/mortalStudio.lua"))()
+                        end
+                    end)
+                end)
+            end)
+
+            wheelBtn.MouseButton1Click:Connect(function()
+                task.spawn(function()
+                    pcall(function()
+                        loadstring(game:HttpGet("https://raw.githubusercontent.com/Pandacodes/EmoteWheel/main/Pandaemotewheel.lua"))()
+                    end)
+                end)
+            end)
+
+            local qHdr = Instance.new("TextLabel", stp)
+            qHdr.Size = UDim2.new(1, 0, 0, 18)
+            qHdr.BackgroundTransparency = 1
+            qHdr.Text = "33 QUICK REANIM EMOTES (1-CLICK PLAY)"
+            qHdr.TextColor3 = Theme.accent
+            qHdr.Font = Enum.Font.GothamBold
+            qHdr.TextSize = 9.5
+            qHdr.TextXAlignment = Enum.TextXAlignment.Left
+            qHdr.LayoutOrder = 3
+
+            local QUICK_EMOTES = {
+                "7 Rings Dance", "8-Bit Shuffle", "9mm Go Bang!", "Belly Dance", "Belly Spin",
+                "Billy Bounce", "Boston Breakdance", "Breakdance Routine", "Bunny Dance",
+                "California Gurls", "California Love", "Car Shearer Dance", "Chainsaw Dance",
+                "Chicken Dance", "Crossbow Dance", "Culture Festival Dance", "Dame Tu Cosita",
+                "Deep Dab", "Distraction Dance", "Dubstep Wave", "Electro Shuffle", "Floss",
+                "Fresh", "Gangnam Style", "Hype", "Levitate", "Macarena", "Orange Justice",
+                "T-Pose", "Take The L", "Zombie Shambles", "dababy_lessgoo", "helicopter event",
+            }
+            for idx, qName in ipairs(QUICK_EMOTES) do
+                local qBtn = Instance.new("TextButton", stp)
+                qBtn.Size = UDim2.new(1, 0, 0, 32)
+                qBtn.BackgroundColor3 = Theme.surface
+                qBtn.Text = "  ▶  " .. qName
+                qBtn.TextColor3 = Theme.text
+                qBtn.Font = Enum.Font.GothamMedium
+                qBtn.TextSize = 10.5
+                qBtn.TextXAlignment = Enum.TextXAlignment.Left
+                qBtn.LayoutOrder = 10 + idx
+                addCorner(qBtn, 6)
+                addStroke(qBtn, Theme.divider, 1, 0.4)
+                qBtn.MouseButton1Click:Connect(function()
+                    local url = MORTAL_MAIN_BASE .. encodeCocaUriComponent(qName) .. ".lua"
+                    playOrToggleAnimation({ name = qName, path = url, category = "Main" })
+                end)
+            end
+        end)()
+    end)()
 
     -- ========================================================================
     -- SUB-TAB SWITCHER (root.73.124.81)
@@ -14859,19 +19131,27 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
             info.btn.Font = isCurrent and Enum.Font.GothamBold or Enum.Font.GothamMedium
         end
 
-        local isListTab = (tabName == "Fun" or tabName == "Favs" or tabName == "Custom")
+        local isListTab = (tabName == "Fun" or tabName == "Unicorns" or tabName == "Favs" or tabName == "Custom")
         bangPage.Visible   = (tabName == "Bang")
         listPage.Visible   = isListTab
         bindsPage.Visible  = (tabName == "Binds")
         speedPage.Visible  = (tabName == "Speed")
         statesPage.Visible = (tabName == "States")
         limbsPage.Visible  = (tabName == "Limbs")
+        if cocaExtraPanels.copierPage then cocaExtraPanels.copierPage.Visible = (tabName == "Copier") end
+        if cocaExtraPanels.trackingPage then cocaExtraPanels.trackingPage.Visible = (tabName == "Tracking") end
+        if cocaExtraPanels.stretchingPage then cocaExtraPanels.stretchingPage.Visible = (tabName == "Stretching") end
+        if cocaExtraPanels.studioPage then cocaExtraPanels.studioPage.Visible = (tabName == "Studio") end
 
         local activePage = (isListTab and listPage)
             or (tabName == "Binds" and bindsPage)
             or (tabName == "Speed" and speedPage)
             or (tabName == "States" and statesPage)
             or (tabName == "Limbs" and limbsPage)
+            or (tabName == "Copier" and cocaExtraPanels.copierPage)
+            or (tabName == "Tracking" and cocaExtraPanels.trackingPage)
+            or (tabName == "Stretching" and cocaExtraPanels.stretchingPage)
+            or (tabName == "Studio" and cocaExtraPanels.studioPage)
 
         if activePage then
             activePage.Position = UDim2.new(0, 0, 0, 6)
@@ -14889,9 +19169,15 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
             addCustomOpenBtn.Visible = true
             searchBox.Size = UDim2.new(1, -96, 0, 30)
             populateList()
+        elseif tabName == "Unicorns" then
+            listShowCount = 100
+            searchBox.PlaceholderText = "Search 700 Unicorns reanimations..."
+            addCustomOpenBtn.Visible = true
+            searchBox.Size = UDim2.new(1, -96, 0, 30)
+            populateList()
         elseif tabName == "Fun" then
             listShowCount = 100
-            searchBox.PlaceholderText = "Search animations..."
+            searchBox.PlaceholderText = "Search 2,770+ Coca & Mortal reanimations..."
             addCustomOpenBtn.Visible = true
             searchBox.Size = UDim2.new(1, -96, 0, 30)
             populateList()
@@ -14908,7 +19194,6 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
     -- STATE ANIMATIONS HEARTBEAT MONITOR (root.73.124.82)
     -- ========================================================================
     local currentAutoState = nil
-    local stateTickCounter = 0
 
     RunService.Heartbeat:Connect(function()
         if not zenApi or type(zenApi.is_reanimated) ~= "function" then return end
@@ -14917,9 +19202,6 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
         if not reanimated then return end
         if isPlayingManual or bangLockActive then return end
         if not savedConfig.states or next(savedConfig.states) == nil then return end
-
-        stateTickCounter = stateTickCounter + 1
-        if (stateTickCounter % 12) ~= 0 then return end
 
         local char = LocalPlayer and LocalPlayer.Character
         if not char then return end
@@ -14983,6 +19265,25 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
             return
         end
 
+        -- 1B. Assigning a Tracking keybind
+        if cocaExtraPanels.pendingTrackBind then
+            local tKey = cocaExtraPanels.pendingTrackBind
+            cocaExtraPanels.pendingTrackBind = nil
+            if keyName == "Backspace" or keyName == "Escape" then
+                savedConfig.trackingBinds[tKey] = nil
+            else
+                savedConfig.trackingBinds[tKey] = keyName
+            end
+            saveConfig()
+            local cardInfo = cocaExtraPanels.trackingCards[tKey]
+            if cardInfo and cardInfo.kbBtn then
+                local b = savedConfig.trackingBinds[tKey]
+                cardInfo.kbBtn.Text = b and ("[" .. b .. "]") or "[None]"
+                cardInfo.kbBtn.TextColor3 = b and Theme.accent or Theme.textMuted
+            end
+            return
+        end
+
         -- 2. Assigning a speed preset keybind
         if pendingSpeedBindKey then
             savedConfig.speedBinds[pendingSpeedBindKey] = keyName
@@ -14997,6 +19298,19 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
         end
 
         if gameProcessed then return end
+
+        -- 2B. Triggering a Tracking keybind
+        if savedConfig.trackingBinds then
+            for tKey, boundKey in pairs(savedConfig.trackingBinds) do
+                if boundKey == keyName then
+                    local cardInfo = cocaExtraPanels.trackingCards[tKey]
+                    if cardInfo and cardInfo.setToggled and cardInfo.getToggled then
+                        cardInfo.setToggled(not cardInfo.getToggled())
+                    end
+                    return
+                end
+            end
+        end
 
         -- 3. Triggering a speed preset keybind
         for spdStr, boundKey in pairs(savedConfig.speedBinds) do
@@ -15054,7 +19368,7 @@ _G.AngoorReanimLoaded = true
 _G.CocaReanimLoaded = true
 
     buildCocaReanimTab = buildAngoorReanimTab
-end
+end)()
 
 
 -- ═══════════════════════════════════════════════════════════════════════════════
@@ -15063,7 +19377,7 @@ end
 --   • Reanimates your character locally while stretching real character limbs to
 --     ±10,000,000 X and ±25,000,000 Z across Ground, Sky Dome, or 4-Tier Cube Matrix.
 -- ═══════════════════════════════════════════════════════════════════════════════
-local CocaSkyDestroyer = {}
+CocaSkyDestroyer = {}
 _G.CocaSkyDestroyer = CocaSkyDestroyer
 ;(function()
     _G._HaloCoverGroundActive     = false
@@ -15074,10 +19388,13 @@ _G.CocaSkyDestroyer = CocaSkyDestroyer
     _G._HaloCoverHaloRingActive   = false
     _G._HaloCoverHelixActive      = false
     _G._HaloCoverWallActive       = false
+    _G._HaloCoverTsunamiActive    = false
+    _G._HaloCoverPrisonBoxActive  = false
     _G._HaloCoverTargetCageActive = false
     _G._HaloCoverPulseActive      = false
     _G._HaloCoverFlashActive      = false
     _G._HaloCoverFlashPhase       = true
+    _G._HaloCoverNoDelay          = true  -- Zero-Delay Instant Frame-0 & RenderStep Replication
     _G._HaloCoverGroundHeight     = 1.5   -- studs above detected ground (-25 to 100)
     _G._HaloCoverSkyHeight        = 3.0   -- studs above player Y (-25 to 250)
     _G._HaloCoverCubeSpacing      = 0.5   -- vertical gap between cube tiers (0.1 to 150)
@@ -15307,6 +19624,26 @@ _G.CocaSkyDestroyer = CocaSkyDestroyer
             local wallY = groundY + (row * ((_G._HaloCoverCubeSpacing or 4.0) + 8.0))
             local wallZ = ((idx % 2 == 0) and 18000000 or -18000000) * scale
             return Vector3.new(spanX, wallY, wallZ)
+        elseif (_G._HaloCoverTsunamiActive == true) and (not flashActive or flashPhase) then
+            local waveX = ((idx - 8) * 3200000) * scale
+            local wavePhase = tNow * 4.5 + (idx * 0.45)
+            local waveY = groundY + 18 + math.sin(wavePhase) * (14 + (_G._HaloCoverSkyHeight or 15))
+            local waveZ = math.cos(wavePhase) * 22000000 * scale
+            return Vector3.new(waveX, waveY, waveZ)
+        elseif (_G._HaloCoverPrisonBoxActive == true) and (not flashActive or flashPhase) then
+            local boxR = 14000000 * scale
+            local side = idx % 4
+            local tier = math.floor((idx - 1) / 4)
+            local boxY = groundY + (tier * ((_G._HaloCoverCubeSpacing or 3.5) + 4.0))
+            if side == 0 then
+                return Vector3.new(boxR, boxY, -boxR)
+            elseif side == 1 then
+                return Vector3.new(-boxR, boxY, boxR)
+            elseif side == 2 then
+                return Vector3.new(boxR, boxY, boxR)
+            else
+                return Vector3.new(-boxR, boxY, -boxR)
+            end
         elseif (_G._HaloCoverVortexActive == true) and (not flashActive or flashPhase) then
             local ang = tNow * (_G._HaloCoverVortexSpeed or 2.2) + (idx * 0.42)
             local rad = 12000000 * scale
@@ -15339,22 +19676,18 @@ _G.CocaSkyDestroyer = CocaSkyDestroyer
     local skyRayParams = RaycastParams.new()
     skyRayParams.FilterType = Enum.RaycastFilterType.Exclude
 
-    local cachedEnvClock = 0
-    local cachedGroundY, cachedSkyY, cachedUseGround, cachedUseSky, cachedUseCubes = 3, 15, false, false, false
+    local cachedRayClock = 0
+    local cachedFloorY = nil
+    local cachedUseGround, cachedUseSky, cachedUseCubes = false, false, false
 
     local function sampleEnvironmentState(realChar, cloneChar)
         local now = os.clock()
-        if (now - cachedEnvClock) < 0.012 then
-            return cachedGroundY, cachedSkyY, cachedUseGround, cachedUseSky, cachedUseCubes
-        end
-        cachedEnvClock = now
-
         local flashActive = _G._HaloCoverFlashActive == true
         local flashPhase  = _G._HaloCoverFlashPhase ~= false
         local groundOn    = _G._HaloCoverGroundActive == true
         local skyOn       = _G._HaloCoverSkyActive == true
         local cubesOn     = _G._HaloCoverCubeMatrixActive == true
-        local specialOn   = _G._HaloCoverVortexActive or _G._HaloCoverBlackholeActive or _G._HaloCoverHaloRingActive or _G._HaloCoverHelixActive or _G._HaloCoverWallActive
+        local specialOn   = _G._HaloCoverVortexActive or _G._HaloCoverBlackholeActive or _G._HaloCoverHaloRingActive or _G._HaloCoverHelixActive or _G._HaloCoverWallActive or _G._HaloCoverTsunamiActive or _G._HaloCoverPrisonBoxActive
 
         if flashActive and not groundOn and not skyOn and not cubesOn and not specialOn then
             groundOn = true
@@ -15381,15 +19714,18 @@ _G.CocaSkyDestroyer = CocaSkyDestroyer
             if cloneHRP then refPos = cloneHRP.Position end
         end
         if refPos then
-            skyRayParams.FilterDescendantsInstances = { realChar, cloneChar }
-            local hit = workspace:Raycast(refPos + Vector3.new(0, 5, 0), Vector3.new(0, -100, 0), skyRayParams)
-            local floorY = (hit and hit.Position.Y) or (refPos.Y - 3)
+            if not cachedFloorY or (now - cachedRayClock) >= 0.004 or not _G._HaloCoverNoDelay then
+                cachedRayClock = now
+                skyRayParams.FilterDescendantsInstances = { realChar, cloneChar }
+                local hit = workspace:Raycast(refPos + Vector3.new(0, 5, 0), Vector3.new(0, -100, 0), skyRayParams)
+                cachedFloorY = (hit and hit.Position.Y) or (refPos.Y - 3)
+            end
+            local floorY = cachedFloorY or (refPos.Y - 3)
             local pulseWave = (_G._HaloCoverPulseActive == true) and (math.sin(now * 3.2) * 8.5) or 0
             groundY = floorY + (_G._HaloCoverGroundHeight or 1.5) + (pulseWave * 0.35)
             skyY    = refPos.Y + (_G._HaloCoverSkyHeight or 3) + pulseWave
         end
 
-        cachedGroundY, cachedSkyY = groundY, skyY
         return groundY, skyY, cachedUseGround, cachedUseSky, cachedUseCubes
     end
 
@@ -15540,14 +19876,17 @@ _G.CocaSkyDestroyer = CocaSkyDestroyer
                     end
                 end)
 
+                pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
                 pcall(function()
                     settings().Physics.PhysicsEnvironmentalThrottle = Enum.EnviromentalPhysicsThrottle.Disabled
                     settings().Physics.AllowSleep = false
                     if sethiddenproperty then
-                        sethiddenproperty(LP, "SimulationRadius", 1000)
-                        sethiddenproperty(LP, "MaxSimulationRadius", 1000)
+                        sethiddenproperty(LP, "SimulationRadius", math.huge)
+                        sethiddenproperty(LP, "MaxSimulationRadius", math.huge)
                     end
                 end)
+                local cloneHRPInit = cloneChar:FindFirstChild("HumanoidRootPart")
+                if cloneHRPInit then pcall(function() LP.ReplicationFocus = cloneHRPInit end) end
 
                 local realAnim = realChar:FindFirstChild("Animate")
                 if realAnim then pcall(function() realAnim.Disabled = true end) end
@@ -15557,39 +19896,14 @@ _G.CocaSkyDestroyer = CocaSkyDestroyer
                     end
                 end
 
-                ReanimState.connections.stepped = RunService.Stepped:Connect(function()
+                local function stepCocaSkyDestroyerLimbs(applyVelocity)
                     if not (realChar.Parent and cloneChar.Parent) then return end
-                    if realHum.Parent then
-                        pcall(function() realHum:ChangeState(Enum.HumanoidStateType.Physics) end)
-                    end
                     local groundY, skyY, useGround, useSky, useCubes = sampleEnvironmentState(realChar, cloneChar)
-                    for i = 1, #limbPairs do
-                        local pair = limbPairs[i]
-                        local real_, fake_ = pair.real, pair.fake
-                        if real_ and fake_ and real_.Parent and fake_.Parent then
-                            real_.CanCollide = false
-                            local targetVec = computeSkyDestroyerPosition(pair.name, groundY, skyY, useGround, useSky, useCubes)
-                            if targetVec then
-                                real_.CFrame = CFrame.new(targetVec)
-                            else
-                                real_.CFrame = fake_.CFrame
-                            end
-                        end
-                    end
-                end)
-
-                ReanimState.connections.hb = RunService.Heartbeat:Connect(function()
-                    if not (realChar.Parent and cloneChar.Parent) then
-                        CocaSkyDestroyer.reanimate(false)
-                        return
-                    end
                     local cloneHRP = cloneChar:FindFirstChild("HumanoidRootPart")
                     local linVel = (cloneHRP and cloneHRP.AssemblyLinearVelocity) or Vector3.zero
                     local angVel = (cloneHRP and cloneHRP.AssemblyAngularVelocity) or Vector3.zero
-                    local groundY, skyY, useGround, useSky, useCubes = sampleEnvironmentState(realChar, cloneChar)
                     local tNow = os.clock()
-                    local netlessVel = Vector3.new(0, 25.05, 0) + Vector3.new(math.sin(tNow * 30) * 0.02, 0, math.cos(tNow * 30) * 0.02)
-
+                    local netlessVel = Vector3.new(0, 25.05, 0) + Vector3.new(math.sin(tNow * 30) * 0.025, 0, math.cos(tNow * 30) * 0.025)
                     for i = 1, #limbPairs do
                         local pair = limbPairs[i]
                         local real_, fake_ = pair.real, pair.fake
@@ -15599,19 +19913,50 @@ _G.CocaSkyDestroyer = CocaSkyDestroyer
                             local targetVec = computeSkyDestroyerPosition(pair.name, groundY, skyY, useGround, useSky, useCubes)
                             if targetVec then
                                 real_.CFrame = CFrame.new(targetVec)
-                                real_.AssemblyLinearVelocity = netlessVel
-                                real_.AssemblyAngularVelocity = Vector3.zero
+                                if applyVelocity or _G._HaloCoverNoDelay then
+                                    real_.AssemblyLinearVelocity = netlessVel
+                                    real_.AssemblyAngularVelocity = Vector3.zero
+                                end
                             else
                                 real_.CFrame = fake_.CFrame
-                                local v = fake_.AssemblyLinearVelocity or linVel
-                                real_.AssemblyLinearVelocity = (v.Magnitude > 0.05 and (v + Vector3.new(0, 25.05, 0))) or netlessVel
-                                real_.AssemblyAngularVelocity = fake_.AssemblyAngularVelocity or angVel
+                                if applyVelocity or _G._HaloCoverNoDelay then
+                                    local v = fake_.AssemblyLinearVelocity or linVel
+                                    real_.AssemblyLinearVelocity = (v.Magnitude > 0.05 and (v + Vector3.new(0, 25.05, 0))) or netlessVel
+                                    real_.AssemblyAngularVelocity = fake_.AssemblyAngularVelocity or angVel
+                                end
                             end
-                            if sethiddenproperty then
+                            if applyVelocity and sethiddenproperty then
                                 pcall(sethiddenproperty, real_, "NetworkIsSleeping", false)
                             end
                         end
                     end
+                end
+
+                -- ⚡ ZERO-DELAY FRAME-0 EXECUTION + RENDERSTEP LOCK (0.00ms instant mesh deployment!)
+                stepCocaSkyDestroyerLimbs(true)
+                pcall(function()
+                    RunService:BindToRenderStep("CocoSkyDestroyerPreCam", Enum.RenderPriority.Camera.Value - 1, function()
+                        if _G._HaloCoverNoDelay then stepCocaSkyDestroyerLimbs(false) end
+                    end)
+                    RunService:BindToRenderStep("CocoSkyDestroyerZeroDelay", Enum.RenderPriority.Character.Value + 1, function()
+                        if _G._HaloCoverNoDelay then stepCocaSkyDestroyerLimbs(false) end
+                    end)
+                end)
+
+                ReanimState.connections.stepped = RunService.Stepped:Connect(function()
+                    if not (realChar.Parent and cloneChar.Parent) then return end
+                    if realHum.Parent then
+                        pcall(function() realHum:ChangeState(Enum.HumanoidStateType.Physics) end)
+                    end
+                    stepCocaSkyDestroyerLimbs(false)
+                end)
+
+                ReanimState.connections.hb = RunService.Heartbeat:Connect(function()
+                    if not (realChar.Parent and cloneChar.Parent) then
+                        CocaSkyDestroyer.reanimate(false)
+                        return
+                    end
+                    stepCocaSkyDestroyerLimbs(true)
                 end)
 
                 ReanimState.connections.render = RunService.RenderStepped:Connect(function()
@@ -15622,19 +19967,7 @@ _G.CocaSkyDestroyer = CocaSkyDestroyer
                         cloneHum.NameDisplayDistance = nameDist
                         cloneHum.HealthDisplayDistance = healthDist
                     end
-                    local groundY, skyY, useGround, useSky, useCubes = sampleEnvironmentState(realChar, cloneChar)
-                    for i = 1, #limbPairs do
-                        local pair = limbPairs[i]
-                        local real_, fake_ = pair.real, pair.fake
-                        if real_ and fake_ and real_.Parent and fake_.Parent then
-                            local targetVec = computeSkyDestroyerPosition(pair.name, groundY, skyY, useGround, useSky, useCubes)
-                            if targetVec then
-                                real_.CFrame = CFrame.new(targetVec)
-                            else
-                                real_.CFrame = fake_.CFrame
-                            end
-                        end
-                    end
+                    stepCocaSkyDestroyerLimbs(false)
                 end)
 
                 ReanimState.reanimated = true
@@ -15645,6 +19978,8 @@ _G.CocaSkyDestroyer = CocaSkyDestroyer
                 end
             else
                 if not ReanimState.reanimated then return end
+                pcall(function() RunService:UnbindFromRenderStep("CocoSkyDestroyerPreCam") end)
+                pcall(function() RunService:UnbindFromRenderStep("CocoSkyDestroyerZeroDelay") end)
                 for k, conn in pairs(ReanimState.connections) do
                     if conn then pcall(function() conn:Disconnect() end) end
                     ReanimState.connections[k] = nil
@@ -15741,11 +20076,9 @@ _G.CocaSkyDestroyer = CocaSkyDestroyer
     local isTransitioning = false
     local flashThread = nil
 
+    -- ⚡ ZERO-DELAY SYNCHRONOUS REANIMATION DISPATCHER (0.00ms Frame-0 Execution)
     local function ensureReanimated()
-        if isTransitioning then
-            while isTransitioning do task.wait(0.02) end
-            return
-        end
+        if isTransitioning then return end
         if not CocaSkyDestroyer.is_reanimated() then
             isTransitioning = true
             if _G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated) == "function" and _G._AngoorZenApi.is_reanimated() then
@@ -15761,7 +20094,6 @@ _G.CocaSkyDestroyer = CocaSkyDestroyer
     end
 
     local function checkAndStopReanimation()
-        task.wait(0.03)
         if not _G._HaloCoverGroundActive
             and not _G._HaloCoverSkyActive
             and not _G._HaloCoverCubeMatrixActive
@@ -15770,6 +20102,8 @@ _G.CocaSkyDestroyer = CocaSkyDestroyer
             and not _G._HaloCoverHaloRingActive
             and not _G._HaloCoverHelixActive
             and not _G._HaloCoverWallActive
+            and not _G._HaloCoverTsunamiActive
+            and not _G._HaloCoverPrisonBoxActive
             and not _G._HaloCoverFlashActive
             and CocaSkyDestroyer.is_reanimated()
             and not isTransitioning
@@ -15807,109 +20141,97 @@ _G.CocaSkyDestroyer = CocaSkyDestroyer
 
     function _G.SetCoverGround(enabled, elevation)
         if elevation ~= nil then _G._HaloCoverGroundHeight = elevation end
-        task.spawn(function()
-            if enabled then
-                _G._HaloCoverGroundActive = true
-                ensureReanimated()
-                notify("💥 COCA SKY DESTROYER", "Cover Ground ACTIVE! (Reanimated)")
-                sToggleOn()
-            else
-                _G._HaloCoverGroundActive = false
-                notify("💥 COCA SKY DESTROYER", "Cover Ground disabled")
-                sToggleOff()
-                checkAndStopReanimation()
-            end
-            if CocaSkyDestroyer.syncUIFn then pcall(CocaSkyDestroyer.syncUIFn) end
-            if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
-        end)
+        if enabled then
+            _G._HaloCoverGroundActive = true
+            ensureReanimated()
+            notify("💥 COCA SKY DESTROYER", "Cover Ground ACTIVE! (0ms Zero-Delay)")
+            sToggleOn()
+        else
+            _G._HaloCoverGroundActive = false
+            notify("💥 COCA SKY DESTROYER", "Cover Ground disabled")
+            sToggleOff()
+            checkAndStopReanimation()
+        end
+        if CocaSkyDestroyer.syncUIFn then pcall(CocaSkyDestroyer.syncUIFn) end
+        if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
     end
 
     function _G.SetCoverSky(enabled, elevation)
         if elevation ~= nil then _G._HaloCoverSkyHeight = elevation end
-        task.spawn(function()
-            if enabled then
-                _G._HaloCoverSkyActive = true
-                ensureReanimated()
-                notify("💥 COCA SKY DESTROYER", "Cover Sky Dome ACTIVE! (Reanimated)")
-                sToggleOn()
-            else
-                _G._HaloCoverSkyActive = false
-                notify("💥 COCA SKY DESTROYER", "Cover Sky disabled")
-                sToggleOff()
-                checkAndStopReanimation()
-            end
-            if CocaSkyDestroyer.syncUIFn then pcall(CocaSkyDestroyer.syncUIFn) end
-            if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
-        end)
+        if enabled then
+            _G._HaloCoverSkyActive = true
+            ensureReanimated()
+            notify("💥 COCA SKY DESTROYER", "Cover Sky Dome ACTIVE! (0ms Zero-Delay)")
+            sToggleOn()
+        else
+            _G._HaloCoverSkyActive = false
+            notify("💥 COCA SKY DESTROYER", "Cover Sky disabled")
+            sToggleOff()
+            checkAndStopReanimation()
+        end
+        if CocaSkyDestroyer.syncUIFn then pcall(CocaSkyDestroyer.syncUIFn) end
+        if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
     end
 
     function _G.SetCoverCubeMatrix(enabled, spacing)
         if spacing ~= nil then _G._HaloCoverCubeSpacing = spacing end
-        task.spawn(function()
-            if enabled then
-                _G._HaloCoverCubeMatrixActive = true
-                ensureReanimated()
-                notify("💥 COCA SKY DESTROYER", "4-Tier Cube / Box Matrix ACTIVE! (Reanimated)")
-                sToggleOn()
-            else
-                _G._HaloCoverCubeMatrixActive = false
-                notify("💥 COCA SKY DESTROYER", "Cube / Box Matrix disabled")
-                sToggleOff()
-                checkAndStopReanimation()
-            end
-            if CocaSkyDestroyer.syncUIFn then pcall(CocaSkyDestroyer.syncUIFn) end
-            if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
-        end)
+        if enabled then
+            _G._HaloCoverCubeMatrixActive = true
+            ensureReanimated()
+            notify("💥 COCA SKY DESTROYER", "4-Tier Cube / Box Matrix ACTIVE! (0ms Zero-Delay)")
+            sToggleOn()
+        else
+            _G._HaloCoverCubeMatrixActive = false
+            notify("💥 COCA SKY DESTROYER", "Cube / Box Matrix disabled")
+            sToggleOff()
+            checkAndStopReanimation()
+        end
+        if CocaSkyDestroyer.syncUIFn then pcall(CocaSkyDestroyer.syncUIFn) end
+        if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
     end
 
     function _G.SetCoverFlash(enabled, speed)
         if speed ~= nil then _G._HaloCoverFlashSpeed = speed end
-        task.spawn(function()
-            if enabled then
-                startFlashLoop()
-                ensureReanimated()
-                notify("💥 COCA SKY DESTROYER", "Cover Flash Strobe ACTIVE!")
-                sToggleOn()
-            else
-                stopFlashLoop()
-                notify("💥 COCA SKY DESTROYER", "Cover Flash Strobe disabled")
-                sToggleOff()
-                checkAndStopReanimation()
-            end
-            if CocaSkyDestroyer.syncUIFn then pcall(CocaSkyDestroyer.syncUIFn) end
-            if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
-        end)
+        if enabled then
+            startFlashLoop()
+            ensureReanimated()
+            notify("💥 COCA SKY DESTROYER", "Cover Flash Strobe ACTIVE!")
+            sToggleOn()
+        else
+            stopFlashLoop()
+            notify("💥 COCA SKY DESTROYER", "Cover Flash Strobe disabled")
+            sToggleOff()
+            checkAndStopReanimation()
+        end
+        if CocaSkyDestroyer.syncUIFn then pcall(CocaSkyDestroyer.syncUIFn) end
+        if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
     end
 
     function _G.startSkyDestroyer()
-        task.spawn(function()
-            _G._HaloCoverGroundActive = true
-            _G._HaloCoverSkyActive = true
-            ensureReanimated()
-            if CocaSkyDestroyer.syncUIFn then pcall(CocaSkyDestroyer.syncUIFn) end
-            if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
-            notify("💥 COCA SKY DESTROYER", "Sky + Ground Destroyer ACTIVE!")
-            sSuccess()
-        end)
+        _G._HaloCoverGroundActive = true
+        _G._HaloCoverSkyActive = true
+        ensureReanimated()
+        if CocaSkyDestroyer.syncUIFn then pcall(CocaSkyDestroyer.syncUIFn) end
+        if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
+        notify("💥 COCA SKY DESTROYER", "Sky + Ground Destroyer ACTIVE! (0ms Zero-Delay)")
+        sSuccess()
     end
 
     function _G.SetCoverVortex(enabled, speed)
         if speed ~= nil then _G._HaloCoverVortexSpeed = speed end
-        task.spawn(function()
-            if enabled then
-                _G._HaloCoverVortexActive = true
-                ensureReanimated()
-                notify("🌪️ VORTEX CYCLONE", "360° Vortex Cyclone Mesh Destroyer ACTIVE!")
-                sToggleOn()
-            else
-                _G._HaloCoverVortexActive = false
-                notify("🌪️ VORTEX CYCLONE", "Vortex Cyclone disabled")
-                sToggleOff()
-                checkAndStopReanimation()
-            end
-            if CocaSkyDestroyer.syncUIFn then pcall(CocaSkyDestroyer.syncUIFn) end
-            if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
-        end)
+        if enabled then
+            _G._HaloCoverVortexActive = true
+            ensureReanimated()
+            notify("🌪️ VORTEX CYCLONE", "360° Vortex Cyclone Mesh Destroyer ACTIVE!")
+            sToggleOn()
+        else
+            _G._HaloCoverVortexActive = false
+            notify("🌪️ VORTEX CYCLONE", "Vortex Cyclone disabled")
+            sToggleOff()
+            checkAndStopReanimation()
+        end
+        if CocaSkyDestroyer.syncUIFn then pcall(CocaSkyDestroyer.syncUIFn) end
+        if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
     end
 
     function _G.SetCoverTargetCage(enabled)
@@ -15927,75 +20249,99 @@ _G.CocaSkyDestroyer = CocaSkyDestroyer
     end
 
     function _G.SetCoverBlackhole(enabled)
-        task.spawn(function()
-            if enabled then
-                _G._HaloCoverBlackholeActive = true
-                ensureReanimated()
-                notify("🕳️ BLACKHOLE SINGULARITY", "Blackhole Singularity Funnel ACTIVE!")
-                sToggleOn()
-            else
-                _G._HaloCoverBlackholeActive = false
-                notify("🕳️ BLACKHOLE SINGULARITY", "Blackhole Funnel disabled")
-                sToggleOff()
-                checkAndStopReanimation()
-            end
-            if CocaSkyDestroyer.syncUIFn then pcall(CocaSkyDestroyer.syncUIFn) end
-            if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
-        end)
+        if enabled then
+            _G._HaloCoverBlackholeActive = true
+            ensureReanimated()
+            notify("🕳️ BLACKHOLE SINGULARITY", "Blackhole Singularity Funnel ACTIVE!")
+            sToggleOn()
+        else
+            _G._HaloCoverBlackholeActive = false
+            notify("🕳️ BLACKHOLE SINGULARITY", "Blackhole Funnel disabled")
+            sToggleOff()
+            checkAndStopReanimation()
+        end
+        if CocaSkyDestroyer.syncUIFn then pcall(CocaSkyDestroyer.syncUIFn) end
+        if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
     end
 
     function _G.SetCoverHaloRing(enabled)
-        task.spawn(function()
-            if enabled then
-                _G._HaloCoverHaloRingActive = true
-                ensureReanimated()
-                notify("🪐 ORBITAL HALO RING", "360° Orbital Halo Crown ACTIVE!")
-                sToggleOn()
-            else
-                _G._HaloCoverHaloRingActive = false
-                notify("🪐 ORBITAL HALO RING", "Orbital Halo Ring disabled")
-                sToggleOff()
-                checkAndStopReanimation()
-            end
-            if CocaSkyDestroyer.syncUIFn then pcall(CocaSkyDestroyer.syncUIFn) end
-            if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
-        end)
+        if enabled then
+            _G._HaloCoverHaloRingActive = true
+            ensureReanimated()
+            notify("🪐 ORBITAL HALO RING", "360° Orbital Halo Crown ACTIVE!")
+            sToggleOn()
+        else
+            _G._HaloCoverHaloRingActive = false
+            notify("🪐 ORBITAL HALO RING", "Orbital Halo Ring disabled")
+            sToggleOff()
+            checkAndStopReanimation()
+        end
+        if CocaSkyDestroyer.syncUIFn then pcall(CocaSkyDestroyer.syncUIFn) end
+        if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
     end
 
     function _G.SetCoverHelix(enabled)
-        task.spawn(function()
-            if enabled then
-                _G._HaloCoverHelixActive = true
-                ensureReanimated()
-                notify("🧬 DOUBLE-HELIX DNA", "Counter-Rotating DNA Spiral ACTIVE!")
-                sToggleOn()
-            else
-                _G._HaloCoverHelixActive = false
-                notify("🧬 DOUBLE-HELIX DNA", "Double-Helix Spiral disabled")
-                sToggleOff()
-                checkAndStopReanimation()
-            end
-            if CocaSkyDestroyer.syncUIFn then pcall(CocaSkyDestroyer.syncUIFn) end
-            if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
-        end)
+        if enabled then
+            _G._HaloCoverHelixActive = true
+            ensureReanimated()
+            notify("🧬 DOUBLE-HELIX DNA", "Counter-Rotating DNA Spiral ACTIVE!")
+            sToggleOn()
+        else
+            _G._HaloCoverHelixActive = false
+            notify("🧬 DOUBLE-HELIX DNA", "Double-Helix Spiral disabled")
+            sToggleOff()
+            checkAndStopReanimation()
+        end
+        if CocaSkyDestroyer.syncUIFn then pcall(CocaSkyDestroyer.syncUIFn) end
+        if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
     end
 
     function _G.SetCoverWall(enabled)
-        task.spawn(function()
-            if enabled then
-                _G._HaloCoverWallActive = true
-                ensureReanimated()
-                notify("🧱 VERTICAL SHIELD WALL", "Vertical Mesh Curtain Wall ACTIVE!")
-                sToggleOn()
-            else
-                _G._HaloCoverWallActive = false
-                notify("🧱 VERTICAL SHIELD WALL", "Vertical Shield Wall disabled")
-                sToggleOff()
-                checkAndStopReanimation()
-            end
-            if CocaSkyDestroyer.syncUIFn then pcall(CocaSkyDestroyer.syncUIFn) end
-            if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
-        end)
+        if enabled then
+            _G._HaloCoverWallActive = true
+            ensureReanimated()
+            notify("🧱 VERTICAL SHIELD WALL", "Vertical Mesh Curtain Wall ACTIVE!")
+            sToggleOn()
+        else
+            _G._HaloCoverWallActive = false
+            notify("🧱 VERTICAL SHIELD WALL", "Vertical Shield Wall disabled")
+            sToggleOff()
+            checkAndStopReanimation()
+        end
+        if CocaSkyDestroyer.syncUIFn then pcall(CocaSkyDestroyer.syncUIFn) end
+        if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
+    end
+
+    function _G.SetCoverTsunami(enabled)
+        if enabled then
+            _G._HaloCoverTsunamiActive = true
+            ensureReanimated()
+            notify("🌊 TSUNAMI MESH WAVE", "Rolling Tsunami Mesh Wave ACTIVE!")
+            sToggleOn()
+        else
+            _G._HaloCoverTsunamiActive = false
+            notify("🌊 TSUNAMI MESH WAVE", "Tsunami Mesh Wave disabled")
+            sToggleOff()
+            checkAndStopReanimation()
+        end
+        if CocaSkyDestroyer.syncUIFn then pcall(CocaSkyDestroyer.syncUIFn) end
+        if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
+    end
+
+    function _G.SetCoverPrisonBox(enabled)
+        if enabled then
+            _G._HaloCoverPrisonBoxActive = true
+            ensureReanimated()
+            notify("📦 3D PRISON CAGE", "4-Corner 3D Prison Box ACTIVE!")
+            sToggleOn()
+        else
+            _G._HaloCoverPrisonBoxActive = false
+            notify("📦 3D PRISON CAGE", "3D Prison Box disabled")
+            sToggleOff()
+            checkAndStopReanimation()
+        end
+        if CocaSkyDestroyer.syncUIFn then pcall(CocaSkyDestroyer.syncUIFn) end
+        if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
     end
 
     function _G.stopSkyDestroyer()
@@ -16007,24 +20353,27 @@ _G.CocaSkyDestroyer = CocaSkyDestroyer
         _G._HaloCoverHaloRingActive = false
         _G._HaloCoverHelixActive = false
         _G._HaloCoverWallActive = false
+        _G._HaloCoverTsunamiActive = false
+        _G._HaloCoverPrisonBoxActive = false
         _G._HaloCoverTargetCageActive = false
         _G._HaloCoverPulseActive = false
         stopFlashLoop()
-        task.spawn(function()
-            checkAndStopReanimation()
-            notify("💥 COCA SKY DESTROYER", "Sky Destroyer stopped & character restored")
-            sToggleOff()
-        end)
+        checkAndStopReanimation()
+        notify("💥 COCA SKY DESTROYER", "Sky Destroyer stopped & character restored (0ms)")
+        sToggleOff()
     end
 
     function CocaSkyDestroyer.isAnyActive()
         return _G._HaloCoverGroundActive or _G._HaloCoverSkyActive or _G._HaloCoverCubeMatrixActive
             or _G._HaloCoverVortexActive or _G._HaloCoverBlackholeActive or _G._HaloCoverHaloRingActive
-            or _G._HaloCoverHelixActive or _G._HaloCoverWallActive or _G._HaloCoverFlashActive
+            or _G._HaloCoverHelixActive or _G._HaloCoverWallActive or _G._HaloCoverTsunamiActive
+            or _G._HaloCoverPrisonBoxActive or _G._HaloCoverFlashActive
     end
 
     LP.CharacterAdded:Connect(function(newChar)
         if ReanimState.reanimated and newChar == ReanimState.clone_char then return end
+        pcall(function() RunService:UnbindFromRenderStep("CocoSkyDestroyerPreCam") end)
+        pcall(function() RunService:UnbindFromRenderStep("CocoSkyDestroyerZeroDelay") end)
         ReanimState.reanimated = false
         ReanimState.real_char = nil
         ReanimState.clone_char = nil
@@ -16033,10 +20382,13 @@ _G.CocaSkyDestroyer = CocaSkyDestroyer
             ReanimState.connections[k] = nil
         end
         if CocaSkyDestroyer.isAnyActive() then
-            task.wait(0.6)
-            if CocaSkyDestroyer.isAnyActive() then
-                task.spawn(ensureReanimated)
-            end
+            task.spawn(function()
+                newChar:WaitForChild("HumanoidRootPart", 2.5)
+                newChar:WaitForChild("Humanoid", 2.5)
+                if CocaSkyDestroyer.isAnyActive() then
+                    ensureReanimated()
+                end
+            end)
         end
     end)
 
@@ -16209,6 +20561,13 @@ _G.CocaSkyDestroyer = CocaSkyDestroyer
                     end
                 end
 
+                pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
+                applyEternityStep(true)
+                pcall(function()
+                    RunService:BindToRenderStep("EternitySkyZeroDelay", Enum.RenderPriority.Character.Value + 1, function()
+                        if _G._HaloCoverNoDelay then applyEternityStep(false) end
+                    end)
+                end)
                 EternityReanimState.connections.stepped = RunService.Stepped:Connect(function()
                     applyEternityStep(false)
                 end)
@@ -16231,6 +20590,7 @@ _G.CocaSkyDestroyer = CocaSkyDestroyer
                 end
             else
                 if not EternityReanimState.reanimated then return end
+                pcall(function() RunService:UnbindFromRenderStep("EternitySkyZeroDelay") end)
                 for _, conn in pairs(EternityReanimState.connections) do
                     pcall(function() conn:Disconnect() end)
                 end
@@ -17877,7 +22237,7 @@ local function buildMainUI()
     local isActionKeyActive, updatePinBadgeVisual, PILL_META
     local presetActionRows = {} -- key -> { pillBtn, pillStroke, circleBtn, circleStroke, defaultLabel }
     local ActivePills = {}
-    do
+    ;(function()
     local PILL_CATALOG = {
         { key = "animcopy",     pillLabel = "AnimCopy",   width = 112 },
         { key = "jerktroll",    pillLabel = "JerkTroll",  width = 108 },
@@ -18322,7 +22682,7 @@ local function buildMainUI()
             addFloatingPill(key)
         end
     end
-    end -- end Floating Quick Pills internal scope
+    end)() -- end Floating Quick Pills internal scope
 
     -- Synchronized Above Head Tags (Overhead Name Tags) ON / OFF Controller
     UI.setOverheadTagsEnabled = function(st, showToast)
@@ -19588,7 +23948,7 @@ local function buildMainUI()
     -- ═══════════════════════════════════════════════════════════════════════════
     -- DEDICATED CATEGORY: 💥 COCA SKY DESTROYER (Cover Sky, Ground, Cube Matrix & Flash)
     -- ═══════════════════════════════════════════════════════════════════════════
-    do
+    ;(function()
         local reqCard = Instance.new("Frame")
         reqCard.Name = "CocaSkyRequirementCard"
         reqCard.Size = UDim2.new(1, 0, 0, 62)
@@ -19786,6 +24146,41 @@ local function buildMainUI()
             _G._HaloCoverWallActive,
             function(st)
                 _G.SetCoverWall(st)
+            end
+        )
+
+        local swTsunami = createSwitchRow(
+            modesSkyGrp,
+            12,
+            "Rolling Tsunami Mesh Wave (V6 NEW)",
+            "Sweeps a massive sinusoidal 3D Layered Clothing tsunami wave across the server",
+            _G._HaloCoverTsunamiActive,
+            function(st)
+                _G.SetCoverTsunami(st)
+            end
+        )
+
+        local swPrisonBox = createSwitchRow(
+            modesSkyGrp,
+            13,
+            "4-Corner 3D Prison Box Cage (V6 NEW)",
+            "Encloses the map or Locked Target inside a 4-corner 3D Layered Clothing prison box",
+            _G._HaloCoverPrisonBoxActive,
+            function(st)
+                _G.SetCoverPrisonBox(st)
+            end
+        )
+
+        local swNoDelay = createSwitchRow(
+            modesSkyGrp,
+            14,
+            "Zero-Delay Instant Replication (No-Delay Mode)",
+            "Locks Frame-0 & RenderStep Pre-Camera/Post-Character limb sync with 0.00ms delay",
+            _G._HaloCoverNoDelay ~= false,
+            function(st)
+                _G._HaloCoverNoDelay = (st == true)
+                notify("⚡ SKY NO-DELAY", _G._HaloCoverNoDelay and "Zero-Delay Instant Sky Replication ON (0.00ms)!" or "Standard Stepped/Heartbeat Replication ON")
+                if _G._HaloCoverNoDelay then sToggleOn() else sToggleOff() end
             end
         )
 
@@ -20004,17 +24399,20 @@ local function buildMainUI()
             if swHaloRing then swHaloRing.setState(_G._HaloCoverHaloRingActive == true, false) end
             if swHelix then swHelix.setState(_G._HaloCoverHelixActive == true, false) end
             if swWall then swWall.setState(_G._HaloCoverWallActive == true, false) end
+            if swTsunami then swTsunami.setState(_G._HaloCoverTsunamiActive == true, false) end
+            if swPrisonBox then swPrisonBox.setState(_G._HaloCoverPrisonBoxActive == true, false) end
+            if swNoDelay then swNoDelay.setState(_G._HaloCoverNoDelay ~= false, false) end
             if eternityEngineRow and eternityEngineRow.pillBtn then
                 local v1Act = (_G.SkyDestroyerAPI and _G.SkyDestroyerAPI.is_reanimated()) == true
                 eternityEngineRow.pillBtn.Text = v1Act and "Active V1" or "Start V1"
             end
         end
-    end
+    end)()
 
     -- ═══════════════════════════════════════════════════════════════════════════
     -- DEDICATED CATEGORY: 🎭 ANIMATION COPY (live target animation mirroring)
     -- ═══════════════════════════════════════════════════════════════════════════
-    do
+    ;(function()
         createSectionTitle(animPage, 1, "Side-by-Side Animation & Emote Copy")
         local copyGrp = createGroupCard(animPage, 2)
 
@@ -20483,12 +24881,12 @@ local function buildMainUI()
         emotePage:GetPropertyChangedSignal("Visible"):Connect(function()
             if emotePage.Visible then refreshEmotesCatalogList() end
         end)
-    end
+    end)()
 
     -- ═══════════════════════════════════════════════════════════════════════════
     -- CATEGORY 3: TARGET SEEKER (Search Filter + Player Cards in Novoline Style)
     -- ═══════════════════════════════════════════════════════════════════════════
-    do
+    ;(function()
         local searchRow = Instance.new("Frame")
         searchRow.Size = UDim2.new(1, 0, 0, 34)
         searchRow.BackgroundTransparency = 1
@@ -20979,12 +25377,12 @@ local function buildMainUI()
             pcall(refreshList)
             if refreshCard then pcall(refreshCard) end
         end)
-    end
+    end)()
 
     -- ═══════════════════════════════════════════════════════════════════════════
     -- CATEGORY 4: PERFORMANCE & MOVE (Chrono-Rewind, WalkSpeed 500, Jump & Flight)
     -- ═══════════════════════════════════════════════════════════════════════════
-    do
+    ;(function()
         createSectionTitle(movePage, 1, "Chrono-Rewind System (60Hz Precision)")
         local rewGrp = createGroupCard(movePage, 2)
 
@@ -21030,7 +25428,7 @@ local function buildMainUI()
             if not ch then return nil, nil, nil end
             return ch, ch:FindFirstChildOfClass("Humanoid"), ch:FindFirstChild("HumanoidRootPart")
         end
-        do -- Sub-scope for WalkSpeed, Jump, Noclip, Spider-Walk, Air-Walk & Phase Dash
+        ;(function() -- Sub-scope for WalkSpeed, Jump, Noclip, Spider-Walk, Air-Walk & Phase Dash
         local defaultWalkSpeed, defaultJumpPower = 16, 50
         local MIN_SPEED, MAX_SPEED = 16, 500
         local MAX_JUMP, JUMP_STEP = 350, 25
@@ -21269,13 +25667,13 @@ local function buildMainUI()
             notify("⚡ PHASE DASH", "Dash distance: " .. tostring(nxt) .. " studs")
         end, tostring(moveState.dashDistance))
 
-        end -- end WalkSpeed & Physics sub-scope
+        end)() -- end WalkSpeed & Physics sub-scope
         createSectionTitle(movePage, 5, "Cinematic 4-Phase Flight")
         local flyGrp = createGroupCard(movePage, 6)
 
         local flyStatus
         local flySwitchRowRef
-        do
+        ;(function()
             local mobileFlyUp, mobileFlyDown = false, false
             local mobileFlyHUD = nil
             local mobilePhaseLbl = nil
@@ -22607,7 +27005,7 @@ local function buildMainUI()
                     cleanupFlyTrails()
                 end
             end)
-        end
+        end)()
 
         -- Section 7: Vanish Player & Ghost Invisibility Engine
         createSectionTitle(movePage, 7, "Vanish Player & Ghost Invisibility Engine")
@@ -22860,12 +27258,12 @@ local function buildMainUI()
                 end
             end)
         end)
-    end
+    end)()
 
     -- ═══════════════════════════════════════════════════════════════════════════
     -- CATEGORY 5: PRIVACY & ANTI (Defence Troll Matrix V3 + 16 Multi-Layer Shields)
     -- ═══════════════════════════════════════════════════════════════════════════
-    do
+    ;(function()
         local antiToggleRegistry = {}
         syncAllAntiButtons = function()
             for _, entry in ipairs(antiToggleRegistry) do
@@ -22956,7 +27354,7 @@ local function buildMainUI()
 
         registerAntiSwitch(shieldGrp, 1,  "Anti-Fling v3 (Zero-Impulse)",    "Pre/post-physics velocity clamp + spinner collision nullifier", function() return Anti.FlingShield.enabled end, flingShieldStart, flingShieldStop)
         registerAntiSwitch(shieldGrp, 2,  "Anti-Void v3 (Predictive Catch)", "Velocity trajectory catch + ForceField safety floor",          function() return Anti.Void.enabled end, avStart, avStop)
-        registerAntiSwitch(shieldGrp, 3,  "Anti-Kill v2 (God-Touch)",        "Strips killbrick CanTouch + neutralizes explosion pressure",   function() return Anti.Kill.enabled end, akStart, akStop)
+        registerAntiSwitch(shieldGrp, 3,  "Immortal God-Core v4 (Anti-Kill)", "Undying health + Neck/Motor6D resurrection + KillBrick & blast immunity", function() return Anti.Kill.enabled end, akStart, akStop)
         registerAntiSwitch(shieldGrp, 4,  "Anti-Seat & Couch-Kidnap",        "Disables Seats/VehicleSeats & blocks couch/cart void traps",   function() return Anti.SeatTrap.enabled end, function() Anti.SeatTrap.startFn() end, function() Anti.SeatTrap.stopFn() end)
         registerAntiSwitch(shieldGrp, 5,  "Anti-Tool & Carry Disarmer",      "Disarms Couch, Stretcher, Handcuffs & Grab tools near you",    function() return Anti.ToolGuard.enabled end, function() Anti.ToolGuard.startFn() end, function() Anti.ToolGuard.stopFn() end)
         registerAntiSwitch(shieldGrp, 6,  "Anti-Ragdoll, Stun & Trip",       "Prevents ragdoll, falling states, stun locks & joint breaks",  function() return Anti.Ragdoll.enabled end, ragdollStart, ragdollStop)
@@ -22971,24 +27369,36 @@ local function buildMainUI()
         registerAntiSwitch(bypassGrp, 2, "Redirect Attacker",      "Slingshots incoming attacker onto nearest bystander",           function() return Anti.Redirect.enabled end, redirectStart, redirectStop)
         registerAntiSwitch(bypassGrp, 3, "Anti-GameplayPaused",    "Prevents streaming pause & network freeze screens",             function() return Anti.GamePaused.enabled end, agpStart, agpStop)
         registerAntiSwitch(bypassGrp, 4, "Anti-AFK v2",            "Idled connection + VirtualUser anti-kick pulse",                function() return Anti.AFK.enabled end, afkStart, afkStop)
-        local vcSw = createSwitchRow(bypassGrp, 5, "Coco Anti-VC / VC Bypass V5 Ultra", "Status: Idle · 3 Bypass Modes + Hook Shield + Keep-Alive", Anti.VC.enabled, function(st)
+        local vcSw = createSwitchRow(bypassGrp, 5, "Coco Anti-VC Bypass V7", "Status: Idle · Zero-Delay StateChanged Hook Shield + TopBar Clone", Anti.VC.enabled, function(st)
             if st then vcStart(false) else vcStop() end
             syncAllAntiButtons()
         end)
         Anti.VC.rowSubLbl = vcSw.subLbl
         table.insert(antiToggleRegistry, { sw = vcSw, getState = function() return Anti.VC.enabled or Anti.VC.running end })
 
-        createActionRow(bypassGrp, 6, "Coco Anti-VC V5 Ultra Dashboard", "Opens V5 panel with Mode Selector, Mic Toggle, Force Rejoin & Auto-Guard", "Open V5", function()
+        createActionRow(bypassGrp, 6, "Coco Anti-VC Bypass Suite (4-Tab Hub)", "Opens Coco VC Bypass, Anti-VCB 2, Hide & Mute VC, and Anti-Stuffs Suite", "Open Suite", function()
             if Anti.VC.openPanelFn then
                 Anti.VC.openPanelFn()
             end
+
+
         end, function()
             vcStart(true)
         end, "⚡")
 
+        createActionRow(bypassGrp, 7, "Coco Anti-VCB 2 Diagnostic & Connection Tool", "Opens 6-step VC Capability Probe, Connection Inspector & Keep-Unmuted Loop", "Anti-VCB 2", function()
+            if Anti.VC.openVCB2Fn then
+                Anti.VC.openVCB2Fn()
+            end
+        end, function()
+            if Anti.VC.openCompactPanelFn then
+                Anti.VC.openCompactPanelFn()
+            end
+        end, "🩺")
+
         local antiCamLockOn = false
         local antiCamConn = nil
-        createSwitchRow(bypassGrp, 7, "Anti-Camera Lock, Shake & Forced Cutscene (NEW)", "Prevents scripts from locking CameraType to Scriptable or shaking your screen", false, function(st)
+        createSwitchRow(bypassGrp, 8, "Anti-Camera Lock, Shake & Forced Cutscene (NEW)", "Prevents scripts from locking CameraType to Scriptable or shaking your screen", false, function(st)
             antiCamLockOn = st
             if antiCamConn then antiCamConn:Disconnect(); antiCamConn = nil end
             if st then
@@ -23014,7 +27424,7 @@ local function buildMainUI()
         end)
 
         local mentionGuardOn = true
-        createSwitchRow(bypassGrp, 8, "Chat Mention & Whisper Radar Alert (NEW)", "Alerts you immediately when any player types your name or whispers in chat", mentionGuardOn, function(st)
+        createSwitchRow(bypassGrp, 9, "Chat Mention & Whisper Radar Alert (NEW)", "Alerts you immediately when any player types your name or whispers in chat", mentionGuardOn, function(st)
             mentionGuardOn = st
             notify("🔔 MENTION RADAR", st and "Chat Mention & Whisper Radar ON" or "Chat Mention & Whisper Radar OFF")
         end)
@@ -23041,12 +27451,12 @@ local function buildMainUI()
         end)
 
         updateDefenceStatsUI()
-    end
+    end)()
 
     -- ═══════════════════════════════════════════════════════════════════════════
     -- CATEGORY 6: LOGGING / CHAT & ROAST
     -- ═══════════════════════════════════════════════════════════════════════════
-    do
+    ;(function()
         createSectionTitle(chatPage, 1, "Target & Broadcast Configuration")
         local chatGrp = createGroupCard(chatPage, 2)
 
@@ -23191,12 +27601,12 @@ local function buildMainUI()
             cBtn.Text = string.format("%.0fs", CS_D)
             notify("💬 CHAT DELAY", string.format("Broadcast interval set to %.1fs", CS_D))
         end, "5s")
-    end
+    end)()
 
     -- ═══════════════════════════════════════════════════════════════════════════
     -- CATEGORY 7: APPEARANCE (Live Theme Accent Engine, Glass Mode & UI Controls)
     -- ═══════════════════════════════════════════════════════════════════════════
-    do
+    ;(function()
         createSectionTitle(appearPage, 1, "Novoline Theme Presets")
         local themeGrp = createGroupCard(appearPage, 2)
 
@@ -23280,12 +27690,12 @@ local function buildMainUI()
             UI.setSelfOverheadTagEnabled(st, true)
         end)
         table.insert(UI.selfOverheadTagSwitches, prefSelfTagSw.setState)
-    end
+    end)()
 
     -- ═══════════════════════════════════════════════════════════════════════════
     -- CATEGORY 9: 👑 OWNER & PREMIUM ADMIN PANEL (Restricted to shivyy73 & Premium Users)
     -- ═══════════════════════════════════════════════════════════════════════════
-    do
+    ;(function()
         local function syncAdminTabVisibility()
             local allowed = hasAdminAccess(LP)
             if UI.catRows["Admin Panel"] and UI.catRows["Admin Panel"].btn then
@@ -23833,7 +28243,7 @@ local function buildMainUI()
         -- ═══════════════════════════════════════════════════════════════════════
         -- NEW V36.8 ADMIN COMMAND DECKS (ALL 8 EXPANSION SYSTEMS)
         -- ═══════════════════════════════════════════════════════════════════════
-        do
+        ;(function()
             -- 1 & 2. PUPPETEER ARMY & COORDINATED SWARM FORMATIONS
             createSectionTitle(adminPage, 10, "Puppeteer Army, Swarm Formations & Remote Sky Destroyer")
             local squadGrp = createGroupCard(adminPage, 11)
@@ -24467,7 +28877,7 @@ local function buildMainUI()
                     task.wait(0.35)
                 end
             end)
-        end
+        end)()
 
         -- ═══════════════════════════════════════════════════════════════════════
         -- SECTION 9: 👑 SCRIPT USERS & PLAYERS (Freeze / Ban / Chat / Vanish)
@@ -24809,12 +29219,12 @@ local function buildMainUI()
             task.wait(0.15)
             pcall(refreshAdminPlayerList)
         end)
-    end
+    end)()
 
     -- ═══════════════════════════════════════════════════════════════════════════
     -- CATEGORY 8: KEYBINDS & TOOLS (Safe Click-TP & Customizable Troll Hotkeys)
     -- ═══════════════════════════════════════════════════════════════════════════
-    do
+    ;(function()
         createSectionTitle(toolsPage, 1, "Click TP & Teleport Tools")
         local tpGrp = createGroupCard(toolsPage, 2)
         createActionRow(tpGrp, 1, "Give 'Click TP' Backpack Tool", "Spawns equippable tool in inventory with void & skybox protection", "Get Tool", function()
@@ -24993,7 +29403,7 @@ local function buildMainUI()
                 if pillBtn and pillBtn.Parent then pillBtn.Text = "Copy Link" end
             end)
         end)
-    end
+    end)()
 
     -- ═══════════════════════════════════════════════════════════════════════════
     -- FOOTER UNWELD, MINIMIZE, SETTINGS DIALOG & KEYBINDS
