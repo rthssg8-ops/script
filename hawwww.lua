@@ -938,7 +938,7 @@ recoverCharacterState = function(char, safeCF)
         if isSafePlayableCF(safeCF) then
             targetCF = safeCF
         elseif isSafePlayableCF(root.CFrame) then
-            targetCF = root.CFrame + Vector3.new(0, 1.5, 0)
+            targetCF = root.CFrame
         else
             targetCF = findFallbackSafeCF()
         end
@@ -997,16 +997,26 @@ recoverCharacterState = function(char, safeCF)
     AnimateWasDisabled = false
     stopDefaultTracks(char)
     if hum and hum.Health > 0 then
-        pcall(function() hum:SetStateEnabled(Enum.HumanoidStateType.Running, true) end)
-        pcall(function() hum:SetStateEnabled(Enum.HumanoidStateType.Jumping, true) end)
-        pcall(function() hum:SetStateEnabled(Enum.HumanoidStateType.Freefall, true) end)
-        pcall(function() hum:SetStateEnabled(Enum.HumanoidStateType.Landed, true) end)
-        pcall(function() hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true) end)
-        pcall(function() hum.PlatformStand = false end)
-        pcall(function() hum.Sit = false end)
-        pcall(function() hum.AutoRotate = true end)
-        pcall(function() hum:ChangeState(Enum.HumanoidStateType.GettingUp) end)
-        pcall(function() hum:ChangeState(Enum.HumanoidStateType.Running) end)
+        pcall(function()
+            if not hum:GetStateEnabled(Enum.HumanoidStateType.Running) then hum:SetStateEnabled(Enum.HumanoidStateType.Running, true) end
+            if not hum:GetStateEnabled(Enum.HumanoidStateType.Jumping) then hum:SetStateEnabled(Enum.HumanoidStateType.Jumping, true) end
+            if not hum:GetStateEnabled(Enum.HumanoidStateType.Freefall) then hum:SetStateEnabled(Enum.HumanoidStateType.Freefall, true) end
+            if not hum:GetStateEnabled(Enum.HumanoidStateType.Landed) then hum:SetStateEnabled(Enum.HumanoidStateType.Landed, true) end
+            if not hum:GetStateEnabled(Enum.HumanoidStateType.GettingUp) then hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true) end
+            if hum.PlatformStand then hum.PlatformStand = false end
+            if hum.Sit then hum.Sit = false end
+            if not hum.AutoRotate then hum.AutoRotate = true end
+            local curSt = hum:GetState()
+            if curSt == Enum.HumanoidStateType.PlatformStanding
+                or curSt == Enum.HumanoidStateType.Ragdoll
+                or curSt == Enum.HumanoidStateType.FallingDown
+                or curSt == Enum.HumanoidStateType.Seated
+                or curSt == Enum.HumanoidStateType.Physics
+                or curSt == Enum.HumanoidStateType.Dead then
+                hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+                hum:ChangeState(Enum.HumanoidStateType.Running)
+            end
+        end)
     end
     local currentCam = workspace.CurrentCamera
     if currentCam and hum and not SpectatingTarget and not FlingActive then
@@ -1026,11 +1036,13 @@ safeReturnFromVoid = function(char, preferredCF)
     if CurrentWeld ~= nil or WeldSeekingTarget or FlingActive then return end
     local root = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChildWhichIsA("BasePart")
     local hum  = char:FindFirstChildOfClass("Humanoid")
+    local wasInDeepVoid = (not root) or (not isSafePlayableCF(root.CFrame)) or (root.Position.Y <= math.min(OriginalFPDH + 45, -200))
     local resolvedCF = isSafePlayableCF(preferredCF) and preferredCF
         or ((root and isSafePlayableCF(root.CFrame)) and root.CFrame or findFallbackSafeCF())
     local pos = resolvedCF.Position
     local _, yYaw, _ = resolvedCF:ToEulerAnglesYXZ()
-    local cleanCF = CFrame.new(pos + Vector3.new(0, 1.2, 0)) * CFrame.Angles(0, yYaw, 0)
+    local yLift = wasInDeepVoid and 0.6 or 0
+    local cleanCF = CFrame.new(pos + Vector3.new(0, yLift, 0)) * CFrame.Angles(0, yYaw, 0)
 
     recoverCharacterState(char, cleanCF)
     if not root or not root.Parent then return end
@@ -1038,10 +1050,15 @@ safeReturnFromVoid = function(char, preferredCF)
     RescueGeneration = RescueGeneration + 1
     local myRescueGen = RescueGeneration
 
+    if not wasInDeepVoid then
+        root.Anchored = false
+        return
+    end
+
     task.spawn(function()
         pcall(function()
             root.Anchored = true
-            for _ = 1, 4 do
+            for _ = 1, 2 do
                 if not root.Parent or myRescueGen ~= RescueGeneration or CurrentWeld ~= nil or WeldSeekingTarget or FlingActive then
                     break
                 end
@@ -1060,11 +1077,9 @@ safeReturnFromVoid = function(char, preferredCF)
             end
             if myRescueGen == RescueGeneration and CurrentWeld == nil and not WeldSeekingTarget and not FlingActive then
                 if hum and hum.Parent and hum.Health > 0 then
-                    hum.PlatformStand = false
-                    hum.Sit = false
-                    hum.AutoRotate = true
-                    hum:ChangeState(Enum.HumanoidStateType.GettingUp)
-                    hum:ChangeState(Enum.HumanoidStateType.Running)
+                    if hum.PlatformStand then hum.PlatformStand = false end
+                    if hum.Sit then hum.Sit = false end
+                    if not hum.AutoRotate then hum.AutoRotate = true end
                 end
                 local currentCam = workspace.CurrentCamera
                 if currentCam and hum and not SpectatingTarget then
@@ -1124,7 +1139,8 @@ do
                 end
             end
             local vel = root.AssemblyLinearVelocity.Magnitude
-            if isSafePlayableCF(root.CFrame) and vel < 110 then
+            local isGrounded = (hum.FloorMaterial ~= Enum.Material.Air) or (LastKnownSafeCF == nil)
+            if isSafePlayableCF(root.CFrame) and vel < 95 and isGrounded then
                 local _, yYaw, _ = root.CFrame:ToEulerAnglesYXZ()
                 LastKnownSafeCF = CFrame.new(pos) * CFrame.Angles(0, yYaw, 0)
             end
@@ -6649,7 +6665,7 @@ local ragdollStart, ragdollStop, anchorStart, anchorStop, attachStart, attachSto
 local bringStart, bringStop, flingShieldStart, flingShieldStop, redirectStart, redirectStop, pauseTrapStart, pauseTrapStop
 local defenceTrollStart, defenceTrollStop, enableAllAntiSystems, disableAllAntiSystems
 ;(function() -- Scoped block for internal Anti helper functions (frees 35+ top-level local registers)
--- 1. ADVANCED ANTI-VOID V2 (Predictive Velocity Catch + Safety Platform + Death Block)
+-- 1. ADVANCED ANTI-VOID V4 (Zero-Levitation Predictive Void Catch + Undying State Guard)
 -- ═══════════════════════════════════════════════════════════════════════════════
 local function avEnsureSafetyFloor(pos)
     local floor = Anti.Void.safetyFloor
@@ -6661,13 +6677,13 @@ local function avEnsureSafetyFloor(pos)
         floor.CanTouch = false
         floor.CanQuery = false
         floor.Size = Vector3.new(64, 2, 64)
-        floor.Transparency = 0.65
+        floor.Transparency = 0.75
         floor.Material = Enum.Material.ForceField
         floor.Color = Color3.fromRGB(138, 92, 246)
         floor.Parent = workspace
         Anti.Void.safetyFloor = floor
     end
-    floor.CFrame = CFrame.new(pos.X, pos.Y - 3.5, pos.Z)
+    floor.CFrame = CFrame.new(pos.X, pos.Y - 4.0, pos.Z)
 end
 
 local function avRemoveSafetyFloor()
@@ -6682,15 +6698,29 @@ local function avForceAlive(h)
     local isReanimActive = (_G.CocaSkyDestroyer and (_G.CocaSkyDestroyer.isAnyActive() or _G.CocaSkyDestroyer.is_reanimated()))
         or (_G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated) == "function" and _G._AngoorZenApi.is_reanimated())
     pcall(function()
-        h:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
-        h:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
-        h:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
-        if h.MaxHealth <= 0 then h.MaxHealth = 100 end
-        if h.Health <= 0 or h.Health < h.MaxHealth then h.Health = h.MaxHealth end
+        pcall(function() h.BreakJointsOnDeath = false end)
+        -- Only call SetStateEnabled when state is currently enabled to avoid dirtying Roblox's C++ Humanoid state machine!
+        if h:GetStateEnabled(Enum.HumanoidStateType.Dead) then
+            h:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
+        end
+        if h:GetStateEnabled(Enum.HumanoidStateType.FallingDown) then
+            h:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+        end
+        if h:GetStateEnabled(Enum.HumanoidStateType.Ragdoll) then
+            h:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+        end
+        if h:GetStateEnabled(Enum.HumanoidStateType.Seated) then
+            h:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
+        end
+        if h.MaxHealth <= 0 or h.MaxHealth ~= h.MaxHealth or h.MaxHealth == math.huge then
+            h.MaxHealth = 100
+        end
+        if h.Health <= 0 or h.Health < h.MaxHealth or h.Health ~= h.Health then
+            h.Health = h.MaxHealth
+        end
         if h.PlatformStand and not (moveState and (moveState.fly or moveState.flyLanding)) and CurrentWeld == nil and not WeldSeekingTarget and not isReanimActive then
             h.PlatformStand = false
         end
-        h:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
         if h.Sit then h.Sit = false end
         if h:GetState() == Enum.HumanoidStateType.Dead then
             h:ChangeState(Enum.HumanoidStateType.Running)
@@ -6702,12 +6732,12 @@ local function avHookHumanoid(h)
     if not h or not h.Parent then return end
     avForceAlive(h)
     table.insert(Anti.Void.healthConns, h.HealthChanged:Connect(function(hp)
-        if Anti.Void.enabled and hp < h.MaxHealth then
-            task.defer(function() avForceAlive(h) end)
+        if (Anti.Void.enabled or Anti.Kill.enabled) and (hp <= 0 or hp < h.MaxHealth) then
+            avForceAlive(h)
         end
     end))
     table.insert(Anti.Void.healthConns, h.StateChanged:Connect(function(_, newState)
-        if Anti.Void.enabled and newState == Enum.HumanoidStateType.Dead then
+        if (Anti.Void.enabled or Anti.Kill.enabled) and newState == Enum.HumanoidStateType.Dead then
             avForceAlive(h)
         end
     end))
@@ -6745,20 +6775,26 @@ avStart = function(silent)
         if not Anti.Void.enabled then return end
         local c = LP.Character
         local r = c and c:FindFirstChild("HumanoidRootPart")
+        local h = c and c:FindFirstChildOfClass("Humanoid")
+        if h and (h.Health <= 0 or h.Health < h.MaxHealth) then
+            avForceAlive(h)
+        end
         if not r or FlingActive or deflectBusy or CurrentWeld ~= nil or WeldSeekingTarget or (AnimCopySys and AnimCopySys.active) or (moveState and moveState.Vanish and moveState.Vanish.selfActive) or _G.CocaBangActive or (_G.CocaSkyDestroyer and (_G.CocaSkyDestroyer.isAnyActive() or _G.CocaSkyDestroyer.is_reanimated())) or (_G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated) == "function" and _G._AngoorZenApi.is_reanimated()) or (RewindSys and RewindSys.rewinding) then return end
         local pos = r.Position
         local vel = r.AssemblyLinearVelocity
-        local dangerFloor = math.min(OriginalFPDH + 55, -220)
-        local predictedY = pos.Y + (vel.Y * 0.055)
-        -- Multi-ray predictive void catch: stops falling before void kill threshold is ever reached
-        if pos.Y <= dangerFloor or predictedY <= dangerFloor or (pos.Y <= (dangerFloor + 45) and vel.Y < -95) or pos.Magnitude > 45000 then
-            r.AssemblyLinearVelocity = Vector3.new(vel.X * 0.05, math.max(0, vel.Y), vel.Z * 0.05)
+        local dangerFloor = math.min(OriginalFPDH + 45, -220)
+        local predictedY = pos.Y + (vel.Y * 0.045)
+        -- Predictive deep-void rescue: catches true void falls without spawning floating platforms on normal maps
+        if pos.Y <= dangerFloor or predictedY <= dangerFloor or (pos.Y <= (dangerFloor + 30) and vel.Y < -130) or pos.Magnitude > 100000 or pos.X ~= pos.X then
+            r.AssemblyLinearVelocity = Vector3.new(vel.X * 0.05, 0, vel.Z * 0.05)
             r.AssemblyAngularVelocity = Vector3.zero
-            avEnsureSafetyFloor(Vector3.new(pos.X, math.max(pos.Y, dangerFloor + 12), pos.Z))
+            if not isSafePlayableCF(LastKnownSafeCF) then
+                avEnsureSafetyFloor(Vector3.new(pos.X, math.max(pos.Y, dangerFloor + 12), pos.Z))
+            end
             Anti.Void.rescues = Anti.Void.rescues + 1
             markIntentionalTeleport(LastKnownSafeCF)
             safeReturnFromVoid(c, LastKnownSafeCF)
-        elseif Anti.Void.safetyFloor and pos.Y > -15 and math.abs(vel.Y) < 25 then
+        elseif Anti.Void.safetyFloor and (pos.Y > dangerFloor + 40 or (h and h.FloorMaterial ~= Enum.Material.Air)) then
             avRemoveSafetyFloor()
         end
     end)
@@ -6767,7 +6803,7 @@ avStart = function(silent)
     Anti.Void.loopConn = RunService.Heartbeat:Connect(function()
         if not Anti.Void.enabled then return end
         local now = tick()
-        if now - lastHealthGuard < 0.25 then return end
+        if now - lastHealthGuard < 0.20 then return end
         lastHealthGuard = now
         local c = LP.Character
         if not c then return end
@@ -6776,7 +6812,7 @@ avStart = function(silent)
     end)
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
     if not silent then
-        notify("COCO POWDER", "Anti-Void v2 (Always-On Predictive Catch + Safety Floor) ON")
+        notify("COCO POWDER", "Anti-Void v4 (Zero-Levitation Predictive Void Catch) ON")
         sToggleOn()
     end
 end
@@ -6793,66 +6829,187 @@ avStop = function()
 end
 
 -- ═══════════════════════════════════════════════════════════════════════════════
--- 2. ADVANCED ANTI-KILL / GOD-TOUCH SHIELD V2 (Zero KillBrick Touch + Explosion Immunity)
+-- 2. IMMORTAL GOD-CORE & ANTI-KILL V4 ("NOTHING CAN KILL YOU IN GAME")
+--    • Layer 1: Zero KillBrick / Lava / Projectile Touch (CanTouch = false, while keeping
+--               CanQuery = true & Massless = false so ground raycasts & gravity never float!)
+--    • Layer 2: BreakJointsOnDeath = false + Instant Motor6D / Neck Resurrection (blocks
+--               decapitation, sword BreakJoints, and explosion joint destruction in 0ms)
+--    • Layer 3: Sub-Frame Undying Health Lock (blocks Dead state & instant-heal on damage)
+--    • Layer 4: Explosion & Hazard Part Neutralizer (BlastPressure = 0, BlastRadius = 0)
 -- ═══════════════════════════════════════════════════════════════════════════════
+Anti.Kill.partTouchConns = Anti.Kill.partTouchConns or setmetatable({}, {__mode = "k"})
+Anti.Kill.motorCache = Anti.Kill.motorCache or setmetatable({}, {__mode = "k"})
+Anti.Kill.motorConns = Anti.Kill.motorConns or {}
+
+local function akIsHazardPartName(name)
+    if type(name) ~= "string" then return false end
+    local low = name:lower()
+    return low:find("kill", 1, true)
+        or low:find("lava", 1, true)
+        or low:find("laser", 1, true)
+        or low:find("acid", 1, true)
+        or low:find("poison", 1, true)
+        or low:find("spike", 1, true)
+        or low:find("death", 1, true)
+        or low:find("damage", 1, true)
+        or low:find("instakill", 1, true) ~= nil
+end
+
 local function akSanitizePart(p)
     if not (p and p:IsA("BasePart")) then return end
     local saved = Anti.Kill.originalPartFlags[p]
     if not saved then
-        saved = { CanTouch = p.CanTouch, CanQuery = p.CanQuery }
+        saved = { CanTouch = p.CanTouch }
         Anti.Kill.originalPartFlags[p] = saved
     end
     pcall(function()
-        p.CanTouch = false
-        p.CanQuery = false
+        if p.CanTouch then p.CanTouch = false end
+        -- Keep CanQuery = true so floor/stair raycasts & character ground sensors never levitate!
     end)
+    if not Anti.Kill.partTouchConns[p] then
+        Anti.Kill.partTouchConns[p] = p:GetPropertyChangedSignal("CanTouch"):Connect(function()
+            if Anti.Kill.enabled and p.Parent and p.CanTouch then
+                pcall(function() p.CanTouch = false end)
+            end
+        end)
+    end
+end
+
+local function akSnapshotAndGuardMotor(m, char)
+    if not (m and m:IsA("Motor6D") and char) then return end
+    if m.Part0 and m.Part1 then
+        Anti.Kill.motorCache[m] = {
+            Name = m.Name,
+            Parent = m.Parent,
+            Part0 = m.Part0,
+            Part1 = m.Part1,
+            C0 = m.C0,
+            C1 = m.C1,
+        }
+    end
+    local conn = m.Changed:Connect(function(prop)
+        if not Anti.Kill.enabled or not char.Parent then return end
+        local isReanim = (_G.CocaSkyDestroyer and (_G.CocaSkyDestroyer.isAnyActive() or _G.CocaSkyDestroyer.is_reanimated()))
+            or (_G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated) == "function" and _G._AngoorZenApi.is_reanimated())
+        if isReanim then return end
+        local info = Anti.Kill.motorCache[m]
+        if not info then return end
+        if prop == "Enabled" and not m.Enabled then
+            pcall(function() m.Enabled = true end)
+        elseif (prop == "Part0" or prop == "Part1") and (m.Part0 == nil or m.Part1 == nil) then
+            if info.Part0 and info.Part0.Parent and info.Part1 and info.Part1.Parent then
+                pcall(function()
+                    m.Part0 = info.Part0
+                    m.Part1 = info.Part1
+                end)
+            end
+        end
+    end)
+    table.insert(Anti.Kill.motorConns, conn)
 end
 
 local function akApply(char)
     if not char then return end
     for _, p in ipairs(char:GetDescendants()) do
-        if p:IsA("BasePart") then akSanitizePart(p) end
+        if p:IsA("BasePart") then
+            akSanitizePart(p)
+        elseif p:IsA("Motor6D") then
+            akSnapshotAndGuardMotor(p, char)
+        elseif (p:IsA("Fire") or p:IsA("Smoke")) and not p.Name:match("^Coco") then
+            pcall(function() p.Enabled = false end)
+        end
     end
     local hum = char:FindFirstChildOfClass("Humanoid")
     if hum then
-        pcall(function()
-            hum:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
-            if hum.Health > 0 and hum.Health < hum.MaxHealth then hum.Health = hum.MaxHealth end
-        end)
+        avForceAlive(hum)
     end
 end
 
 local function akHookCharacter(char)
     if Anti.Kill.descConn then Anti.Kill.descConn:Disconnect(); Anti.Kill.descConn = nil end
+    if Anti.Kill.remConn then Anti.Kill.remConn:Disconnect(); Anti.Kill.remConn = nil end
+    for _, c in ipairs(Anti.Kill.motorConns) do pcall(function() c:Disconnect() end) end
+    Anti.Kill.motorConns = {}
     if not char then return end
     akApply(char)
     Anti.Kill.descConn = char.DescendantAdded:Connect(function(obj)
-        if Anti.Kill.enabled and obj:IsA("BasePart") then akSanitizePart(obj) end
+        if not Anti.Kill.enabled then return end
+        if obj:IsA("BasePart") then
+            akSanitizePart(obj)
+        elseif obj:IsA("Motor6D") then
+            akSnapshotAndGuardMotor(obj, char)
+        elseif obj:IsA("Humanoid") then
+            avHookHumanoid(obj)
+        elseif obj:IsA("ObjectValue") and (obj.Name:lower() == "creator" or obj.Name:lower():find("damage", 1, true) or obj.Name:lower():find("kill", 1, true)) then
+            task.defer(function() pcall(function() obj:Destroy() end) end)
+        end
+    end)
+    -- Instant Motor6D / Neck resurrection if BreakJoints() or an explosion destroys a character joint
+    Anti.Kill.remConn = char.DescendantRemoving:Connect(function(obj)
+        if not Anti.Kill.enabled or not char.Parent or char ~= LP.Character then return end
+        local isReanim = (_G.CocaSkyDestroyer and (_G.CocaSkyDestroyer.isAnyActive() or _G.CocaSkyDestroyer.is_reanimated()))
+            or (_G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated) == "function" and _G._AngoorZenApi.is_reanimated())
+        if isReanim then return end
+        if obj:IsA("Motor6D") then
+            local info = Anti.Kill.motorCache[obj]
+            if info and info.Parent and info.Parent.Parent and info.Part0 and info.Part0.Parent and info.Part1 and info.Part1.Parent then
+                task.defer(function()
+                    if not Anti.Kill.enabled or not char.Parent or char ~= LP.Character then return end
+                    if info.Parent:FindFirstChild(info.Name) then return end
+                    pcall(function()
+                        local replacement = Instance.new("Motor6D")
+                        replacement.Name = info.Name
+                        replacement.Part0 = info.Part0
+                        replacement.Part1 = info.Part1
+                        replacement.C0 = info.C0
+                        replacement.C1 = info.C1
+                        replacement.Enabled = true
+                        replacement.Parent = info.Parent
+                        akSnapshotAndGuardMotor(replacement, char)
+                        local hum = char:FindFirstChildOfClass("Humanoid")
+                        if hum then avForceAlive(hum) end
+                    end)
+                end)
+            end
+        end
     end)
 end
 
-akStart = function()
-    if Anti.Kill.enabled then return end
+akStart = function(silent)
+    if Anti.Kill.enabled then
+        if syncAllAntiButtons then pcall(syncAllAntiButtons) end
+        return
+    end
     Anti.Kill.enabled = true
+    pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
     akHookCharacter(LP.Character)
     if Anti.Kill.charAdded then Anti.Kill.charAdded:Disconnect() end
     Anti.Kill.charAdded = LP.CharacterAdded:Connect(function(char)
         if not Anti.Kill.enabled then return end
         task.defer(function() if Anti.Kill.enabled then akHookCharacter(char) end end)
     end)
-    -- Explosion property changes are local best-effort only; server-owned damage is not bypassed.
+    -- Neutralize workspace Explosions and obvious KillBricks / Lava TouchTransmitters
     if Anti.Kill.wsDescConn then Anti.Kill.wsDescConn:Disconnect() end
     Anti.Kill.wsDescConn = workspace.DescendantAdded:Connect(function(obj)
-        if Anti.Kill.enabled and obj:IsA("Explosion") then
+        if not Anti.Kill.enabled then return end
+        if obj:IsA("Explosion") then
             pcall(function()
                 obj.BlastPressure = 0
+                obj.BlastRadius = 0
                 obj.DestroyJointRadiusPercent = 0
             end)
+        elseif obj:IsA("TouchTransmitter") and obj.Parent and obj.Parent:IsA("BasePart") then
+            local p = obj.Parent
+            if not (LP.Character and p:IsDescendantOf(LP.Character)) and akIsHazardPartName(p.Name) then
+                pcall(function() p.CanTouch = false end)
+            end
         end
     end)
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("COCO POWDER", "Local Anti-Kill safeguards ON (best-effort)")
-    sToggleOn()
+    if not silent then
+        notify("COCO POWDER", "🛡️ Immortal God-Core v4 ON (Undying Health + Neck Lock + Zero KillBrick Touch)")
+        sToggleOn()
+    end
 end
 
 akStop = function()
@@ -6860,12 +7017,18 @@ akStop = function()
     Anti.Kill.enabled = false
     if Anti.Kill.charAdded then Anti.Kill.charAdded:Disconnect(); Anti.Kill.charAdded = nil end
     if Anti.Kill.descConn then Anti.Kill.descConn:Disconnect(); Anti.Kill.descConn = nil end
+    if Anti.Kill.remConn then Anti.Kill.remConn:Disconnect(); Anti.Kill.remConn = nil end
     if Anti.Kill.wsDescConn then Anti.Kill.wsDescConn:Disconnect(); Anti.Kill.wsDescConn = nil end
+    for _, c in ipairs(Anti.Kill.motorConns) do pcall(function() c:Disconnect() end) end
+    Anti.Kill.motorConns = {}
+    for part, conn in pairs(Anti.Kill.partTouchConns) do
+        if conn then pcall(function() conn:Disconnect() end) end
+        Anti.Kill.partTouchConns[part] = nil
+    end
     for part, saved in pairs(Anti.Kill.originalPartFlags) do
         if part and part.Parent then
             pcall(function()
                 part.CanTouch = saved.CanTouch
-                part.CanQuery = saved.CanQuery
             end)
         end
         Anti.Kill.originalPartFlags[part] = nil
@@ -6875,7 +7038,7 @@ akStop = function()
         pcall(function() hum:SetStateEnabled(Enum.HumanoidStateType.Dead, true) end)
     end
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("COCO POWDER", "Anti-Kill disabled; local part settings restored")
+    notify("COCO POWDER", "Immortal God-Core / Anti-Kill disabled")
     sToggleOff()
 end
 
@@ -8958,19 +9121,16 @@ local launchCocoAntiVCBypassSuite
                     local char = vcLocalPlayer and vcLocalPlayer.Character
                     local hrp = char and char:FindFirstChild("HumanoidRootPart")
                     if not hrp then return end
-                    local origCF = hrp.CFrame
                     for _, plr in ipairs(vcPlayers:GetPlayers()) do
                         if plr ~= vcLocalPlayer and plr.Character then
                             local tHrp = plr.Character:FindFirstChild("HumanoidRootPart")
-                            if tHrp then
-                                local dx = math.abs(tHrp.Position.X - origCF.X)
-                                local dz = math.abs(tHrp.Position.Z - origCF.Z)
-                                local dy = tHrp.Position.Y - origCF.Y
-                                if (defState.Headsit and dx <= 2.5 and dz <= 2.5 and dy >= 1.25) then
-                                    hrp.CFrame = CFrame.new(0, -950, 0)
-                                    task.wait(0.25)
-                                    hrp.CFrame = origCF
-                                    break
+                            if tHrp and (tHrp.Position - hrp.Position).Magnitude < 6 then
+                                for _, p in ipairs(plr.Character:GetChildren()) do
+                                    if p:IsA("BasePart") then
+                                        p.CanCollide = false
+                                        p.CanTouch = false
+                                        p.Massless = true
+                                    end
                                 end
                             end
                         end
@@ -9035,59 +9195,15 @@ local launchCocoAntiVCBypassSuite
             end)
         end)
 
-        createToggle(defAntiPage, "God Mode", "Max health, ForceField, and disables CanTouch/CanQuery on body parts", 8, function(enabled)
+        createToggle(defAntiPage, "God Mode (Immortal Core)", "Undying health, Neck/Motor6D lock & zero KillBrick touch without movement lag", 8, function(enabled)
             defState.GodMode = enabled
-            for _, conn in ipairs(defState.GodModeConnections) do
-                pcall(function() conn:Disconnect() end)
-            end
-            table.clear(defState.GodModeConnections)
-
-            local char = vcLocalPlayer and vcLocalPlayer.Character
-            if enabled and char then
-                local hum = char:FindFirstChildOfClass("Humanoid")
-                if hum then
-                    pcall(function() hum:SetStateEnabled(Enum.HumanoidStateType.Dead, false) end)
-                    hum.MaxHealth = math.huge
-                    hum.Health = math.huge
-                    table.insert(defState.GodModeConnections, hum.HealthChanged:Connect(function(hp)
-                        if defState.GodMode and hp < math.huge then
-                            hum.MaxHealth = math.huge
-                            hum.Health = math.huge
-                        end
-                    end))
-                end
-                if not char:FindFirstChildOfClass("ForceField") then
-                    local ff = Instance.new("ForceField")
-                    ff.Visible = false
-                    ff.Parent = char
-                end
-                for _, part in ipairs(char:GetDescendants()) do
-                    if part:IsA("BasePart") then
-                        pcall(function()
-                            part.CanTouch = false
-                            part.CanQuery = false
-                        end)
-                    end
-                end
-                vcSendNotification("Coco Anti-VC", "God Mode: ON", 2)
-            elseif char then
-                local ff = char:FindFirstChildOfClass("ForceField")
-                if ff then ff:Destroy() end
-                local hum = char:FindFirstChildOfClass("Humanoid")
-                if hum then
-                    pcall(function() hum:SetStateEnabled(Enum.HumanoidStateType.Dead, true) end)
-                    hum.MaxHealth = 100
-                    hum.Health = 100
-                end
-                for _, part in ipairs(char:GetDescendants()) do
-                    if part:IsA("BasePart") then
-                        pcall(function()
-                            part.CanTouch = true
-                            part.CanQuery = true
-                        end)
-                    end
-                end
-                vcSendNotification("Coco Anti-VC", "God Mode: OFF", 2)
+            if enabled then
+                akStart(true)
+                avStart(true)
+                vcSendNotification("Coco Anti-VC", "Immortal God Mode: ON", 2)
+            else
+                akStop()
+                vcSendNotification("Coco Anti-VC", "Immortal God Mode: OFF", 2)
             end
         end)
     end
@@ -9413,12 +9529,12 @@ local function ragdollCleanseCharacter(c)
     local hum = c:FindFirstChildOfClass("Humanoid")
     if hum then
         pcall(function()
-            hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
-            hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
-            hum:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
-            hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
+            if hum:GetStateEnabled(Enum.HumanoidStateType.Ragdoll) then hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false) end
+            if hum:GetStateEnabled(Enum.HumanoidStateType.FallingDown) then hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false) end
+            if hum:GetStateEnabled(Enum.HumanoidStateType.Seated) then hum:SetStateEnabled(Enum.HumanoidStateType.Seated, false) end
+            if not hum:GetStateEnabled(Enum.HumanoidStateType.GettingUp) then hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true) end
             if CurrentWeld == nil and not WeldSeekingTarget and not (AnimCopySys and AnimCopySys.active) and not FlingActive and not (moveState and (moveState.fly or moveState.flyLanding)) then
-                hum:SetStateEnabled(Enum.HumanoidStateType.Physics, false)
+                if hum:GetStateEnabled(Enum.HumanoidStateType.Physics) then hum:SetStateEnabled(Enum.HumanoidStateType.Physics, false) end
                 if hum.PlatformStand then hum.PlatformStand = false end
                 if hum.Sit then hum.Sit = false end
                 if not hum.AutoRotate then hum.AutoRotate = true end
@@ -9432,8 +9548,8 @@ local function ragdollCleanseCharacter(c)
                     hum:ChangeState(Enum.HumanoidStateType.Running)
                     Anti.Ragdoll.recoveries = Anti.Ragdoll.recoveries + 1
                 end
-                -- Cure stun scripts that lock WalkSpeed to 0
-                if hum.WalkSpeed < 8 and not (moveState and moveState.speed) then
+                -- Only cure hard stun-locks that freeze WalkSpeed at 0
+                if hum.WalkSpeed <= 0.1 and not (moveState and moveState.speed) then
                     hum.WalkSpeed = 16
                 end
             end
@@ -9790,9 +9906,9 @@ blindStop = function()
 end
 
 -- ═══════════════════════════════════════════════════════════════════════════════
--- 10. ADVANCED ANTI-BRING / ANTI-TELEPORT / ANTI-TOOL-GRAB GUARD V2
---     • Detects involuntary CFrame snaps (>38 studs) AND FE Tool-Bring grips
---     • Destroys hostile tool welds and restores verified safe trajectory
+-- 10. ADVANCED ANTI-BRING / ANTI-TELEPORT / ANTI-TOOL-GRAB GUARD V4
+--     • Uses horizontal (XZ) snap detection + foreign joint check so jumping,
+--       falling under gravity, or high JumpPower NEVER freezes/levitates you in mid-air!
 -- ═══════════════════════════════════════════════════════════════════════════════
 bringStart = function()
     if Anti.Bring.enabled then return end
@@ -9804,34 +9920,38 @@ bringStart = function()
         Anti.Bring.lastSafeTime = tick()
     end
     if Anti.Bring.steppedConn then Anti.Bring.steppedConn:Disconnect() end
-    Anti.Bring.steppedConn = RunService.Stepped:Connect(function( _, dt )
+    Anti.Bring.steppedConn = RunService.Stepped:Connect(function(_, dt)
         if not Anti.Bring.enabled then return end
-        if WeldIntent.active or CurrentWeld ~= nil or (AnimCopySys and AnimCopySys.active) or _G.CocaBangActive or (_G.CocaSkyDestroyer and _G.CocaSkyDestroyer.isAnyActive()) or FlingActive or deflectBusy or (moveState and (moveState.fly or moveState.flyLanding)) or (RewindSys and RewindSys.rewinding) then
-            local ch = LP.Character
-            local r = ch and ch:FindFirstChild("HumanoidRootPart")
+        local ch = LP.Character
+        local r = ch and ch:FindFirstChild("HumanoidRootPart")
+        if WeldIntent.active or CurrentWeld ~= nil or WeldSeekingTarget or (AnimCopySys and AnimCopySys.active) or (moveState and moveState.Vanish and moveState.Vanish.selfActive) or _G.CocaBangActive or (_G.CocaSkyDestroyer and (_G.CocaSkyDestroyer.isAnyActive() or _G.CocaSkyDestroyer.is_reanimated())) or (_G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated) == "function" and _G._AngoorZenApi.is_reanimated()) or FlingActive or deflectBusy or (moveState and (moveState.fly or moveState.flyLanding or moveState.spiderWalk or moveState.airWalk)) or (RewindSys and RewindSys.rewinding) then
             if r and isSafePlayableCF(r.CFrame) then Anti.Bring.lastCF = r.CFrame end
             return
         end
-        if tick() - (moveState.lastTeleportTick or 0) < 0.75 then return end
+        if tick() - (moveState.lastTeleportTick or 0) < 0.85 then
+            if r and isSafePlayableCF(r.CFrame) then Anti.Bring.lastCF = r.CFrame end
+            return
+        end
 
-        local ch = LP.Character
-        local r = ch and ch:FindFirstChild("HumanoidRootPart")
         local hum = ch and ch:FindFirstChildOfClass("Humanoid")
         if not r or not hum or hum.Health <= 0 then return end
 
-        -- Hostile attachment checks are handled by the event-driven Anti-Attach monitor.
-
         if Anti.Bring.lastCF then
-            local dist = (r.Position - Anti.Bring.lastCF.Position).Magnitude
-            local maxAllowedStep = math.max(38, (hum.WalkSpeed or 16) * math.max(dt or 0.016, 0.016) * 4.5 + 22)
-            if dist > maxAllowedStep then
-                -- Hostile teleport / bring detected!
-                severAllHostileAttachments()
-                r.AssemblyLinearVelocity = Vector3.zero
+            local lastPos = Anti.Bring.lastCF.Position
+            local curPos = r.Position
+            local horizDist = Vector2.new(curPos.X - lastPos.X, curPos.Z - lastPos.Z).Magnitude
+            local totalDist = (curPos - lastPos).Magnitude
+            local maxAllowedHoriz = math.max(75, (hum.WalkSpeed or 16) * math.max(dt or 0.016, 0.016) * 7.5 + 52)
+            local severed = (totalDist > 14) and severAllHostileAttachments() or 0
+            if (severed > 0 and totalDist > 14) or horizDist > maxAllowedHoriz or not isSafePlayableCF(r.CFrame) then
+                if severed == 0 then severAllHostileAttachments() end
+                -- Preserve gentle downward gravity instead of freezing at Y=0 in mid-air
+                local preserveGravY = math.min(0, math.max(r.AssemblyLinearVelocity.Y, -35))
+                r.AssemblyLinearVelocity = Vector3.new(0, preserveGravY, 0)
                 r.AssemblyAngularVelocity = Vector3.zero
                 r.CFrame = Anti.Bring.lastCF
                 Anti.Bring.blockedBrings = Anti.Bring.blockedBrings + 1
-                notify("COCO POWDER", "Anti-Bring v2: Blocked hostile teleport/grab!")
+                notify("COCO POWDER", "Anti-Bring v4: Blocked hostile teleport/grab!")
             elseif isSafePlayableCF(r.CFrame) then
                 Anti.Bring.lastCF = r.CFrame
             end
@@ -9840,7 +9960,7 @@ bringStart = function()
         end
     end)
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("COCO POWDER", "Anti-Bring / Tool-Grab & Snap Guard v2 ON")
+    notify("COCO POWDER", "Anti-Bring / Tool-Grab & Snap Guard v4 ON")
     sToggleOn()
 end
 
@@ -9854,13 +9974,65 @@ bringStop = function()
 end
 
 -- ═══════════════════════════════════════════════════════════════════════════════
--- 11. ADVANCED ANTI-FLING & NO-CONTACT SHIELD V2
---     • Pre-Simulation (RunService.Stepped): Strips CanCollide, CanTouch & Massless on
---       ALL other players' characters, tools & accessories across the server so a
---       25,000-stud/s spinner can NEVER physically collide with you even in 1 frame!
---     • Post-Simulation (RunService.Heartbeat): Clamps any residual velocity/angular
---       impulse and snaps back to pre-step CFrame if an exploit spike occurs.
+-- 11. ADVANCED ANTI-FLING & NO-CONTACT SHIELD V4 (ZERO-LEVITATION & NATURAL GRAVITY)
+--     • Strips CanCollide/CanTouch on all other players' characters so spinners
+--       pass harmlessly through you without ever touching your physics assembly.
+--     • Distinguishes natural jumping/falling & Y-axis camera turning from 3-axis
+--       fling impulses so your character NEVER levitates or stutters in mid-air!
 -- ═══════════════════════════════════════════════════════════════════════════════
+local function dampHostileFlingImpulse(myChar, myRoot)
+    local myHum = myChar and myChar:FindFirstChildOfClass("Humanoid")
+    local isIntentionalFast = (moveState and (moveState.fly or moveState.flyLanding or moveState.speed or moveState.spiderWalk or moveState.airWalk))
+    local walkSpd = (myHum and myHum.WalkSpeed) or 16
+    local jumpPwr = (myHum and myHum.JumpPower) or 50
+
+    local vel = myRoot.AssemblyLinearVelocity
+    local angVel = myRoot.AssemblyAngularVelocity
+    local horizSpeed = Vector2.new(vel.X, vel.Z).Magnitude
+    local tiltSpin = Vector2.new(angVel.X, angVel.Z).Magnitude
+
+    local maxHorizAllowed = isIntentionalFast and math.max(580, walkSpd * 2.5) or math.max(175, walkSpd * 3.0)
+    local maxUpAllowed    = isIntentionalFast and 580 or math.max(380, jumpPwr * 1.6)
+    local maxDownAllowed  = -255
+    local maxTiltSpin     = isIntentionalFast and 68 or 44
+    local maxTotalSpin    = isIntentionalFast and 130 or 105
+
+    local isFlingSpike = (horizSpeed > maxHorizAllowed)
+        or (vel.Y > maxUpAllowed)
+        or (vel.Y < maxDownAllowed)
+        or (tiltSpin > maxTiltSpin)
+        or (angVel.Magnitude > maxTotalSpin)
+
+    if not isFlingSpike then
+        if isSafePlayableCF(myRoot.CFrame) then
+            Anti.FlingShield.preStepCF = myRoot.CFrame
+        end
+        return false
+    end
+
+    -- Clamp only the hostile impulse while preserving natural downward gravity so you never hover in mid-air!
+    local clampedY = math.clamp(vel.Y, -65, math.min(jumpPwr, 55))
+    if vel.Y > maxUpAllowed then clampedY = 0 end
+    myRoot.AssemblyLinearVelocity = Vector3.new(0, clampedY, 0)
+    myRoot.AssemblyAngularVelocity = Vector3.zero
+
+    if Anti.FlingShield.preStepCF and isSafePlayableCF(Anti.FlingShield.preStepCF) then
+        local prePos = Anti.FlingShield.preStepCF.Position
+        local curPos = myRoot.Position
+        local horizJump = Vector2.new(curPos.X - prePos.X, curPos.Z - prePos.Z).Magnitude
+        if horizJump > 18 or not isSafePlayableCF(myRoot.CFrame) then
+            local _, yYaw, _ = myRoot.CFrame:ToEulerAnglesYXZ()
+            myRoot.CFrame = CFrame.new(prePos.X, math.min(curPos.Y, prePos.Y + 0.5), prePos.Z) * CFrame.Angles(0, yYaw, 0)
+        end
+    end
+    if isSafePlayableCF(myRoot.CFrame) then
+        Anti.FlingShield.preStepCF = myRoot.CFrame
+    end
+    Anti.FlingShield.blockedFlings = Anti.FlingShield.blockedFlings + 1
+    if updateDefenceStatsUI then pcall(updateDefenceStatsUI) end
+    return true
+end
+
 flingShieldStart = function()
     if Anti.FlingShield.enabled then return end
     Anti.FlingShield.enabled = true
@@ -9869,46 +10041,31 @@ flingShieldStart = function()
         if not Anti.FlingShield.enabled and not DefenceTroll.enabled then return end
         local myChar = LP.Character
         local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
-        if WeldIntent.active or CurrentWeld ~= nil or (AnimCopySys and AnimCopySys.active) or _G.CocaBangActive or (_G.CocaSkyDestroyer and _G.CocaSkyDestroyer.isAnyActive()) or FlingActive or deflectBusy or (RewindSys and RewindSys.rewinding) then
-            if myRoot and isSafePlayableCF(myRoot.CFrame) then
+        if not myRoot then return end
+        if WeldIntent.active or CurrentWeld ~= nil or WeldSeekingTarget or (AnimCopySys and AnimCopySys.active) or (moveState and moveState.Vanish and moveState.Vanish.selfActive) or _G.CocaBangActive or (_G.CocaSkyDestroyer and (_G.CocaSkyDestroyer.isAnyActive() or _G.CocaSkyDestroyer.is_reanimated())) or (_G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated) == "function" and _G._AngoorZenApi.is_reanimated()) or FlingActive or deflectBusy or (RewindSys and RewindSys.rewinding) then
+            if isSafePlayableCF(myRoot.CFrame) then
                 Anti.FlingShield.preStepCF = myRoot.CFrame
             end
             return
         end
-        if myRoot and isSafePlayableCF(myRoot.CFrame) then
-            -- Zero-Delay High-Threshold Filter: Allows fast movement, sprint, spider-walk, air-walk & flight without false rubberbanding
-            local isIntentionalFast = (moveState and (moveState.fly or moveState.speed or moveState.spiderWalk or moveState.airWalk))
-            local maxVelAllowed = isIntentionalFast and 560 or 98
-            local maxAngAllowed = isIntentionalFast and 65 or 38
 
-            if myRoot.AssemblyLinearVelocity.Magnitude < maxVelAllowed and myRoot.AssemblyAngularVelocity.Magnitude < maxAngAllowed then
-                Anti.FlingShield.preStepCF = myRoot.CFrame
-            else
-                myRoot.AssemblyLinearVelocity = Vector3.zero
-                myRoot.AssemblyAngularVelocity = Vector3.zero
-                if Anti.FlingShield.preStepCF then
-                    myRoot.CFrame = Anti.FlingShield.preStepCF
-                end
-                Anti.FlingShield.blockedFlings = Anti.FlingShield.blockedFlings + 1
-                if updateDefenceStatsUI then pcall(updateDefenceStatsUI) end
-            end
+        dampHostileFlingImpulse(myChar, myRoot)
 
-            -- Throttled Proactive Fling Collision Nullifier (iterates direct character children instead of GetDescendants!)
-            local nowTick = os.clock()
-            if nowTick - (Anti.FlingShield.lastNullifyScan or 0) > 0.18 then
-                Anti.FlingShield.lastNullifyScan = nowTick
-                for _, otherPlr in ipairs(Players:GetPlayers()) do
-                    if otherPlr ~= LP and otherPlr.Character then
-                        local otherRoot = otherPlr.Character:FindFirstChild("HumanoidRootPart")
-                        if otherRoot and (otherRoot.Position - myRoot.Position).Magnitude < 34 then
-                            local isSpinning = (otherRoot.AssemblyLinearVelocity.Magnitude > 38 or otherRoot.AssemblyAngularVelocity.Magnitude > 28)
-                            for _, p in ipairs(otherPlr.Character:GetChildren()) do
-                                if p:IsA("BasePart") then
-                                    if p.CanCollide then p.CanCollide = false end
-                                    if isSpinning then
-                                        p.CanTouch = false
-                                        p.Massless = true
-                                    end
+        -- Proactive Fling Collision Nullifier: strips collisions on nearby players so spinners phase right through you
+        local nowTick = os.clock()
+        if nowTick - (Anti.FlingShield.lastNullifyScan or 0) > 0.12 then
+            Anti.FlingShield.lastNullifyScan = nowTick
+            for _, otherPlr in ipairs(Players:GetPlayers()) do
+                if otherPlr ~= LP and otherPlr.Character then
+                    local otherRoot = otherPlr.Character:FindFirstChild("HumanoidRootPart")
+                    if otherRoot and (otherRoot.Position - myRoot.Position).Magnitude < 45 then
+                        local isSpinning = (otherRoot.AssemblyLinearVelocity.Magnitude > 38 or otherRoot.AssemblyAngularVelocity.Magnitude > 28)
+                        for _, p in ipairs(otherPlr.Character:GetChildren()) do
+                            if p:IsA("BasePart") then
+                                if p.CanCollide then p.CanCollide = false end
+                                if isSpinning then
+                                    p.CanTouch = false
+                                    p.Massless = true
                                 end
                             end
                         end
@@ -9923,26 +10080,16 @@ flingShieldStart = function()
         local myChar = LP.Character
         local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
         if not myRoot then return end
-        if WeldIntent.active or CurrentWeld ~= nil or (AnimCopySys and AnimCopySys.active) or _G.CocaBangActive or (_G.CocaSkyDestroyer and _G.CocaSkyDestroyer.isAnyActive()) or FlingActive or deflectBusy or (RewindSys and RewindSys.rewinding) then
+        if WeldIntent.active or CurrentWeld ~= nil or WeldSeekingTarget or (AnimCopySys and AnimCopySys.active) or (moveState and moveState.Vanish and moveState.Vanish.selfActive) or _G.CocaBangActive or (_G.CocaSkyDestroyer and (_G.CocaSkyDestroyer.isAnyActive() or _G.CocaSkyDestroyer.is_reanimated())) or (_G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated) == "function" and _G._AngoorZenApi.is_reanimated()) or FlingActive or deflectBusy or (RewindSys and RewindSys.rewinding) then
             if isSafePlayableCF(myRoot.CFrame) then
                 Anti.FlingShield.preStepCF = myRoot.CFrame
             end
             return
         end
-        local isIntentionalFast = (moveState and (moveState.fly or moveState.speed))
-        local maxVelAllowed = isIntentionalFast and 550 or 95
-        local maxAngAllowed = isIntentionalFast and 60 or 35
-        if myRoot.AssemblyLinearVelocity.Magnitude > maxVelAllowed or myRoot.AssemblyAngularVelocity.Magnitude > maxAngAllowed then
-            myRoot.AssemblyLinearVelocity = Vector3.zero
-            myRoot.AssemblyAngularVelocity = Vector3.zero
-            if Anti.FlingShield.preStepCF and isSafePlayableCF(Anti.FlingShield.preStepCF) then
-                myRoot.CFrame = Anti.FlingShield.preStepCF
-            end
-            Anti.FlingShield.blockedFlings = Anti.FlingShield.blockedFlings + 1
-        end
+        dampHostileFlingImpulse(myChar, myRoot)
     end)
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    notify("COCO POWDER", "Anti-Fling Shield v2 (Pre/Post-Physics Zero-Impulse) ON")
+    notify("COCO POWDER", "Anti-Fling Shield v4 (Zero-Impulse + Natural Gravity) ON")
     sToggleOn()
 end
 
@@ -10208,11 +10355,10 @@ RunService.Heartbeat:Connect(function(dt)
                 attackerLastPos[p.UserId] = tRoot.Position
                 local stepDelta = prevPos and (tRoot.Position - prevPos).Magnitude or 0
 
-                local isSpinnerThreat = (velMag > 85 or angMag > 45) and dist <= (baseRange * 2.2)
-                local isWeldTrollState = dist <= 4.6 and (
+                local isSpinnerThreat = (velMag > 135 or angMag > 58) and dist <= (baseRange * 1.8) and closingSpeed > 25
+                local isWeldTrollState = dist <= 3.6 and (
                     (tHum and (tHum.PlatformStand or tHum:GetState() == Enum.HumanoidStateType.Physics))
-                    or (dist < 3.8 and stepDelta > 1.25)
-                    or closingSpeed > 48
+                    and (closingSpeed > 18 or stepDelta > 2.2)
                 )
 
                 if isSpinnerThreat or isWeldTrollState then
@@ -10407,7 +10553,9 @@ Anti.SeatTrap.startFn = function(silent)
         local hum = ch and ch:FindFirstChildOfClass("Humanoid")
         if hum then
             pcall(function()
-                hum:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
+                if hum:GetStateEnabled(Enum.HumanoidStateType.Seated) then
+                    hum:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
+                end
                 if hum.Sit then
                     hum.Sit = false
                 end
@@ -10540,8 +10688,9 @@ disableAllAntiSystems = function()
     sToggleOff()
 end
 
--- Auto-enable Anti-Void and Anti-Sit (Anti.SeatTrap) permanently on startup
+-- Auto-enable Anti-Void, Immortal God-Core (Anti-Kill v4), and Anti-Sit (Anti.SeatTrap) on startup
 pcall(function() avStart(true) end)
+pcall(function() akStart(true) end)
 pcall(function() if Anti.SeatTrap.startFn then Anti.SeatTrap.startFn(true) end end)
 end)() -- end Anti internal scope
 
@@ -27205,7 +27354,7 @@ local function buildMainUI()
 
         registerAntiSwitch(shieldGrp, 1,  "Anti-Fling v3 (Zero-Impulse)",    "Pre/post-physics velocity clamp + spinner collision nullifier", function() return Anti.FlingShield.enabled end, flingShieldStart, flingShieldStop)
         registerAntiSwitch(shieldGrp, 2,  "Anti-Void v3 (Predictive Catch)", "Velocity trajectory catch + ForceField safety floor",          function() return Anti.Void.enabled end, avStart, avStop)
-        registerAntiSwitch(shieldGrp, 3,  "Anti-Kill v2 (God-Touch)",        "Strips killbrick CanTouch + neutralizes explosion pressure",   function() return Anti.Kill.enabled end, akStart, akStop)
+        registerAntiSwitch(shieldGrp, 3,  "Immortal God-Core v4 (Anti-Kill)", "Undying health + Neck/Motor6D resurrection + KillBrick & blast immunity", function() return Anti.Kill.enabled end, akStart, akStop)
         registerAntiSwitch(shieldGrp, 4,  "Anti-Seat & Couch-Kidnap",        "Disables Seats/VehicleSeats & blocks couch/cart void traps",   function() return Anti.SeatTrap.enabled end, function() Anti.SeatTrap.startFn() end, function() Anti.SeatTrap.stopFn() end)
         registerAntiSwitch(shieldGrp, 5,  "Anti-Tool & Carry Disarmer",      "Disarms Couch, Stretcher, Handcuffs & Grab tools near you",    function() return Anti.ToolGuard.enabled end, function() Anti.ToolGuard.startFn() end, function() Anti.ToolGuard.stopFn() end)
         registerAntiSwitch(shieldGrp, 6,  "Anti-Ragdoll, Stun & Trip",       "Prevents ragdoll, falling states, stun locks & joint breaks",  function() return Anti.Ragdoll.enabled end, ragdollStart, ragdollStop)
