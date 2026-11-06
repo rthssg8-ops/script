@@ -359,7 +359,7 @@ local OwnerAdminState = {
 }
 
 local isConfiguredScriptOwner, isConfiguredPremiumUser, isScriptOwner, isPremiumUser, hasAdminAccess, isProtectedFromLocalPlayer, getPlayerTargetCode, checkSavedBanState, saveBanStateToDisk, showOwnerScreenBanner, clearPersistentBanner
-do
+;(function()
 local BAN_FILE_NAME = "CocoPowder_ScriptBanLock.txt" 
 do
     local OWNER_UID_SET, OWNER_NAME_SET = {}, {}
@@ -605,7 +605,7 @@ clearPersistentBanner = function(persistentKey)
         if existing then existing:Destroy() end
     end)
 end
-end -- end Owner/Ban helper scope
+end)() -- end Owner/Ban helper scope
 
 -- Check whether a CFrame is inside safe playable map bounds for local recovery
 -- Supports distant custom realms/islands up to 250,000 studs while rejecting deep void & Y=85,000 Self-Vanish sky pocket
@@ -679,7 +679,7 @@ do
     end
 end
 
-local Anti, moveState, AnimCopySys, hookTargetRespawn, removeOverheadTagForUser, updateOverheadNameTags
+local Anti, moveState, AnimCopySys, RewindSys, CocaSkyDestroyer, hookTargetRespawn, removeOverheadTagForUser, updateOverheadNameTags
 local recoverCharacterState, safeReturnFromVoid, syncAllActiveIndicators
 
 local StateManager = {}
@@ -791,8 +791,8 @@ function StateManager:Cleanup(keepTarget, switchingWeld)
     if _G.CocaBangActive and type(_G.stopCocaBangLock) == "function" then
         pcall(_G.stopCocaBangLock)
     end
-    if RewindSys and RewindSys.rewinding and RewindSys.StopRewind then
-        pcall(function() RewindSys:StopRewind() end)
+    if RewindSys and RewindSys.rewinding and (RewindSys.Stop or RewindSys.StopRewind) then
+        pcall(function() (RewindSys.Stop or RewindSys.StopRewind)(RewindSys) end)
     end
     if moveState and (moveState.fly or moveState.flyLanding) and moveState.stopFlyImmediate then
         pcall(moveState.stopFlyImmediate)
@@ -2319,7 +2319,7 @@ streamAndTeleportToTarget = function(targetPlr, refMode, maxWaitSeconds, allowSw
 end
 
 local getNearestPlayer
-do
+;(function()
     local ProximityPromptService = nil
     pcall(function() ProximityPromptService = game:GetService("ProximityPromptService") end)
 
@@ -2754,7 +2754,7 @@ do
         end
         return bestPlr, bestDist
     end
-end
+end)()
 
 local function findPlayerByNameOrDisplay(query, speaker)
     speaker = speaker or LP
@@ -2874,7 +2874,7 @@ local EmoteHub = {
     jerkAnim = nil,
 }
 
-do
+;(function()
     -- Zero-Delay Reanim Root Synchronization (Matching Weld Engine)
     local function syncAnimCopyReanimRoots(attachCF, excludePart)
         local zApi = _G._AngoorZenApi
@@ -4641,7 +4641,7 @@ do
         end
         notify("💃 EMOTE FREEZE", self.emoteFrozen and "Emote Pose FROZEN in place! ❄️" or "Emote playback RESUMED! ▶️")
     end
-end
+end)()
 
 WELD_PRESETS.animcopy = {
     offset = CFrame.new(3.2, 0, 0),
@@ -4654,7 +4654,7 @@ WELD_PRESETS.animcopy = {
 }
 
 local applyWeldPreset
-do
+;(function()
 local function weldToTarget(target, speaker, offset, animId, osc, refMode, animFallbacks, callerGen, presetKey)
     if OwnerAdminState.isFrozenByOwner or OwnerAdminState.isBannedByOwner then
         notify("👑 ADMIN LOCK", "You are currently frozen/locked by an Admin!")
@@ -4983,12 +4983,12 @@ task.spawn(function()
         end
     end
 end)
-end -- end Weld & Watchdog internal scope
+end)() -- end Weld & Watchdog internal scope
 
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- HIGH-PRECISION 6s–10s CHRONO-REWIND ENGINE (60Hz Frame-Exact State, Anim & Action Recorder)
 -- ═══════════════════════════════════════════════════════════════════════════════
-local RewindSys = {
+RewindSys = {
     enabled = true,
     rewinding = false,
     duration = 8.0,          -- Configurable: 6s, 8s, or 10s (up to 10s precision buffer)
@@ -5005,7 +5005,7 @@ local RewindSys = {
     activeTracks = {},
 }
 
-do -- Scoped block for RewindSys & Void Throw v2 internals (preserves top-level local register budget)
+;(function() -- Scoped block for RewindSys & Void Throw v2 internals (preserves top-level local register budget)
     local lastRecordTick = 0
     local RECORD_INTERVAL = 1 / 30 -- 30Hz low-overhead sampling with 60Hz sub-frame lerp playback
     local lastAnimCaptureTick = 0
@@ -5396,7 +5396,7 @@ do -- Scoped block for RewindSys & Void Throw v2 internals (preserves top-level 
         end
         if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
     end
-
+    RewindSys.StopRewind = RewindSys.Stop
     function RewindSys:Start(customSeconds)
         if self.rewinding then
             -- Tapping Rewind while rewinding stops immediately at the exact current point in time!
@@ -5546,7 +5546,7 @@ do -- Scoped block for RewindSys & Void Throw v2 internals (preserves top-level 
             end
         end)
     end
-end
+end)()
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- UPGRADED VOID THROW V2 & NEBULA FLING ENGINE (SUB-FLOOR BURY + SINKHOLE + CATAPULT)
 -- ═══════════════════════════════════════════════════════════════════════════════
@@ -5568,7 +5568,7 @@ end
 --    confirmed dead (Health <= 0) or deep in the Void killzone!
 
 local launchNebulaFling, launchVoidThrow, promptNebulaFling
-do
+;(function()
 local FlingPartCache = setmetatable({}, { __mode = "k" })
 local HEAVY_PHYS_PROPS = PhysicalProperties.new(100, 0.3, 0.5, 100, 100)
 local function restorePartCollisionAndDensity(char, isLocalRam)
@@ -6010,7 +6010,7 @@ promptNebulaFling = function()
         overlay:Destroy()
     end)
 end
-end -- end VoidThrow internal scope
+end)() -- end VoidThrow internal scope
 
 local CS_D = 5
 local csOn, csMode, csTgt, csMsg, csCnt, csMtd, csGen = false, "roast", "", "", 0, "-", 0
@@ -6193,7 +6193,7 @@ local DefenceTroll = {
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- 👻 VANISH PLAYER & GHOST INVISIBILITY ENGINE (Self Ghost Vanish + Target Erase)
 -- ═══════════════════════════════════════════════════════════════════════════════
-do
+;(function()
     local Vsys = moveState.Vanish
     local blinkTick = 0
 
@@ -6630,7 +6630,7 @@ do
         end
         launchNebulaFling(3.6, "Server Void Vanish", true, tgt)
     end
-end
+end)()
 
 -- Helper: Mark an intentional local teleport so Anti-Bring, Anti-FlingShield, and DefenceTroll never fight our own teleports/welds
 markIntentionalTeleport = function(cf)
@@ -6648,7 +6648,7 @@ local avStart, avStop, akStart, akStop, agpStart, agpStop, afkStart, afkStop, vc
 local ragdollStart, ragdollStop, anchorStart, anchorStop, attachStart, attachStop, blindStart, blindStop
 local bringStart, bringStop, flingShieldStart, flingShieldStop, redirectStart, redirectStop, pauseTrapStart, pauseTrapStop
 local defenceTrollStart, defenceTrollStop, enableAllAntiSystems, disableAllAntiSystems
-do -- Scoped block for internal Anti helper functions (frees 35+ top-level local registers)
+;(function() -- Scoped block for internal Anti helper functions (frees 35+ top-level local registers)
 -- 1. ADVANCED ANTI-VOID V2 (Predictive Velocity Catch + Safety Platform + Death Block)
 -- ═══════════════════════════════════════════════════════════════════════════════
 local function avEnsureSafetyFloor(pos)
@@ -7537,7 +7537,7 @@ local launchCocoAntiVCB2
 local runCocoOneClickVCBypass
 local launchCocoAntiVCBypassSuite
 
-do
+;(function()
     local _cloneref = (type(cloneref) == "function" and cloneref) or function(x) return x end
     local _clonefunction = (type(clonefunction) == "function" and clonefunction) or function(fn) return fn end
 
@@ -9097,7 +9097,7 @@ do
     _G.runCocoOneClickVCBypass = runCocoOneClickVCBypass
     _G.launchCocoAntiVCBypassSuite = launchCocoAntiVCBypassSuite
     _G.launchMortalHubVCSuite = launchCocoAntiVCBypassSuite
-end
+end)()
 
 Anti.VC.openCompactPanelFn = function()
     local coreGui = CoreGui or game:GetService("CoreGui")
@@ -9391,8 +9391,8 @@ Anti.VC.openCompactPanelFn = function()
 end
 Anti.VC.openPanelFn = launchCocoAntiVCBypassSuite
 Anti.VC.openVCB2Fn = launchCocoAntiVCB2
-end
-do -- Sub-scope 2 for Anti (Ragdoll, Anchor, Attach, Blind, Bring, FlingShield, DefenceTroll)
+end)()
+;(function() -- Sub-scope 2 for Anti (Ragdoll, Anchor, Attach, Blind, Bring, FlingShield, DefenceTroll)
 local contactTimers = {}
 local deflectCooldowns = {}
 local attackerLastPos = {}
@@ -10543,7 +10543,7 @@ end
 -- Auto-enable Anti-Void and Anti-Sit (Anti.SeatTrap) permanently on startup
 pcall(function() avStart(true) end)
 pcall(function() if Anti.SeatTrap.startFn then Anti.SeatTrap.startFn(true) end end)
-end -- end Anti internal scope
+end)() -- end Anti internal scope
 
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- V36.1 LOCAL DEFENSE + INSTANT NEBULA PATCH
@@ -10572,7 +10572,7 @@ end -- end Anti internal scope
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- 👑 OWNER FREEZE, SCRIPT BAN, OVERHEAD NAME TAGS & BEACON SYNC IMPLEMENTATION
 local broadcastOwnerAdminCommand, notifyOwnerJoinedServer
-do
+;(function()
 -- ═══════════════════════════════════════════════════════════════════════════════
 local function applyOwnerFreezeState(freezeOn, ownerName)
     if freezeOn and isConfiguredScriptOwner(LP) then return end -- Never freeze the Script Owner (shivyy73)
@@ -12314,7 +12314,7 @@ task.spawn(function()
     end
 end)
 
-end -- end Owner/Beacon internal scope
+end)() -- end Owner/Beacon internal scope
 
 -- Block startup if local player was previously Script-Banned by the Owner (while still listening for Owner Unban)
 if checkSavedBanState() and not isConfiguredScriptOwner(LP) then
@@ -12548,7 +12548,7 @@ end
 -- 🦴 COCA REANIM MODULE (Embedded Keyframe Player, Custom Scripts, States & Limbs)
 -- ═══════════════════════════════════════════════════════════════════════════════
 local buildCocaReanimTab
-do
+;(function()
 --[[
 ================================================================================
   CHUNK 5: COCA REANIM HUB, CUSTOM KEYFRAME PLAYER, STATE ANIMATIONS,
@@ -13583,38 +13583,6 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                         setPose("Left Leg", CFrame.Angles(math.rad(s * 32), 0, 0))
                         setPose("Right Leg", CFrame.Angles(math.rad(-s * 32), 0, 0))
                         setPose("Head", CFrame.Angles(math.rad(-16), 0, math.rad(24)))
-                    else
-                        -- Deterministic Hash Choreographer: every single named animation gets its own unique rhythm, arm/leg/torso/head angles & bounce!
-                        local h = 0
-                        for idx = 1, #lower do
-                            h = (h * 31 + string.byte(lower, idx)) % 10007
-                        end
-                        local freq = 1.4 + ((h % 19) * 0.08)
-                        local phase = (h % 13) * 0.45
-                        local s = math.sin(t * freq + phase)
-                        local c = math.cos(t * (freq * 0.5) + phase)
-                        local armBase = 45 + (h % 85)
-                        local armSpread = 18 + ((h * 3) % 52)
-                        local elbowBend = 25 + ((h * 7) % 65)
-                        local legSwing = 20 + ((h * 5) % 35)
-                        local hipSway = 0.18 + ((h % 7) * 0.05)
-                        local bounce = 0.2 + ((h % 5) * 0.07)
-                        setPose("LowerTorso", CFrame.new(c * hipSway, math.abs(s) * bounce, 0) * CFrame.Angles(0, math.rad(c * 22), math.rad(s * 10)))
-                        setPose("UpperTorso", CFrame.Angles(math.rad(s * 14), math.rad(-c * 26), math.rad(-s * 8)))
-                        setPose("Torso", CFrame.new(c * hipSway, math.abs(s) * bounce, 0) * CFrame.Angles(math.rad(s * 12), math.rad(c * 22), math.rad(s * 10)))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(armBase + s * 48), 0, math.rad(-armSpread - math.abs(c) * 24)))
-                        setPose("LeftLowerArm", CFrame.Angles(math.rad(elbowBend + c * 28), 0, 0))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(armBase - s * 48), 0, math.rad(armSpread + math.abs(c) * 24)))
-                        setPose("RightLowerArm", CFrame.Angles(math.rad(elbowBend - c * 28), 0, 0))
-                        setPose("Left Arm", CFrame.Angles(math.rad(armBase + s * 48), 0, math.rad(-armSpread)))
-                        setPose("Right Arm", CFrame.Angles(math.rad(armBase - s * 48), 0, math.rad(armSpread)))
-                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(-s * legSwing), 0, math.rad(-10)))
-                        setPose("LeftLowerLeg", CFrame.Angles(math.rad(-math.max(0, s) * 48), 0, 0))
-                        setPose("RightUpperLeg", CFrame.Angles(math.rad(s * legSwing), 0, math.rad(10)))
-                        setPose("RightLowerLeg", CFrame.Angles(math.rad(-math.max(0, -s) * 48), 0, 0))
-                        setPose("Left Leg", CFrame.Angles(math.rad(-s * legSwing), 0, math.rad(-10)))
-                        setPose("Right Leg", CFrame.Angles(math.rad(s * legSwing), 0, math.rad(10)))
-                        setPose("Head", CFrame.Angles(math.rad(-s * 12), math.rad(c * 18), math.rad(s * 6)))
                     elseif lower:find("unlimited void") or lower:find("infinite void") then
                         local bob = math.sin(t * 1.5) * 0.35
                         setPose("LowerTorso", CFrame.new(0, 1.4 + bob, 0) * CFrame.Angles(math.rad(-10), 0, 0))
@@ -14015,6 +13983,38 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                         setPose("LeftUpperLeg", CFrame.Angles(math.rad(j * 35), 0, math.rad(-15)))
                         setPose("RightUpperLeg", CFrame.Angles(math.rad(-j * 35), 0, math.rad(15)))
                         setPose("Head", CFrame.Angles(math.rad(28), math.rad(j * 25), math.rad(j * 20)))
+                    else
+                        -- Deterministic Hash Choreographer: every single named animation gets its own unique rhythm, arm/leg/torso/head angles & bounce!
+                        local h = 0
+                        for idx = 1, #lower do
+                            h = (h * 31 + string.byte(lower, idx)) % 10007
+                        end
+                        local freq = 1.4 + ((h % 19) * 0.08)
+                        local phase = (h % 13) * 0.45
+                        local s = math.sin(t * freq + phase)
+                        local c = math.cos(t * (freq * 0.5) + phase)
+                        local armBase = 45 + (h % 85)
+                        local armSpread = 18 + ((h * 3) % 52)
+                        local elbowBend = 25 + ((h * 7) % 65)
+                        local legSwing = 20 + ((h * 5) % 35)
+                        local hipSway = 0.18 + ((h % 7) * 0.05)
+                        local bounce = 0.2 + ((h % 5) * 0.07)
+                        setPose("LowerTorso", CFrame.new(c * hipSway, math.abs(s) * bounce, 0) * CFrame.Angles(0, math.rad(c * 22), math.rad(s * 10)))
+                        setPose("UpperTorso", CFrame.Angles(math.rad(s * 14), math.rad(-c * 26), math.rad(-s * 8)))
+                        setPose("Torso", CFrame.new(c * hipSway, math.abs(s) * bounce, 0) * CFrame.Angles(math.rad(s * 12), math.rad(c * 22), math.rad(s * 10)))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(armBase + s * 48), 0, math.rad(-armSpread - math.abs(c) * 24)))
+                        setPose("LeftLowerArm", CFrame.Angles(math.rad(elbowBend + c * 28), 0, 0))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(armBase - s * 48), 0, math.rad(armSpread + math.abs(c) * 24)))
+                        setPose("RightLowerArm", CFrame.Angles(math.rad(elbowBend - c * 28), 0, 0))
+                        setPose("Left Arm", CFrame.Angles(math.rad(armBase + s * 48), 0, math.rad(-armSpread)))
+                        setPose("Right Arm", CFrame.Angles(math.rad(armBase - s * 48), 0, math.rad(armSpread)))
+                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(-s * legSwing), 0, math.rad(-10)))
+                        setPose("LeftLowerLeg", CFrame.Angles(math.rad(-math.max(0, s) * 48), 0, 0))
+                        setPose("RightUpperLeg", CFrame.Angles(math.rad(s * legSwing), 0, math.rad(10)))
+                        setPose("RightLowerLeg", CFrame.Angles(math.rad(-math.max(0, -s) * 48), 0, 0))
+                        setPose("Left Leg", CFrame.Angles(math.rad(-s * legSwing), 0, math.rad(-10)))
+                        setPose("Right Leg", CFrame.Angles(math.rad(s * legSwing), 0, math.rad(10)))
+                        setPose("Head", CFrame.Angles(math.rad(-s * 12), math.rad(c * 18), math.rad(s * 6)))
                     end
                 end)
                 return true
@@ -15681,7 +15681,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
     local applyPlaybackSpeed
     local pendingSpeedBindKey = nil
     local speedBindButtons = {}
-    do
+    ;(function()
     speedPage.Size = UDim2.new(1, 0, 1, 0)
     speedPage.BackgroundTransparency = 1
     speedPage.BorderSizePixel = 0
@@ -16415,7 +16415,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
         print("[ANGOOR] custom anim saved:", finalName, (rawCode:sub(1, 4) == "http") and "(url)" or "(inline)", #rawCode, "chars")
     end)
 
-    end -- end speed, states & custom modal scope
+    end)() -- end speed, states & custom modal scope
 
     -- ========================================================================
     -- 5. LIMBS PAGE (Master Limbs Switch + 6 Individual Body Part Switches)
@@ -16433,7 +16433,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
     limbsPage.CanvasSize = UDim2.new(0, 0, 0, 420)
     limbsPage.Visible = false
     limbsPage.Parent = pagesHolder
-    do
+    ;(function()
     local limbsPad = Instance.new("UIPadding")
     limbsPad.PaddingLeft = UDim.new(0, 2)
     limbsPad.PaddingRight = UDim.new(0, 4)
@@ -16919,7 +16919,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
     end
 
     limbsPage.CanvasSize = UDim2.new(0, 0, 0, (#LIMB_GROUPS * 56) + 80)
-    end
+    end)()
 
     -- ========================================================================
     -- ANIMATION LIST POPULATOR & PLAYBACK ENGINE (root.73.124.68 .. 72)
@@ -17019,7 +17019,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
     end
 
     -- Closure root.73.124.69: Populate Fun / Favs / Custom animation list (generation-guarded so concurrent refreshes never stutter)
-    do
+    ;(function()
     local populateListGen = 0
     populateList = function()
         populateListGen = populateListGen + 1
@@ -17258,7 +17258,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
         local extraSpace = (showCount < #filtered and query == "") and 48 or 8
         animListScroll.CanvasSize = UDim2.new(0, 0, 0, math.max(showCount, 1) * (ROW_HEIGHT + 4) + extraSpace)
     end
-    end
+    end)()
 
     -- Closure root.73.124.70: Infinite scroll pagination on animListScroll
     local loadingMorePage = false
@@ -17754,7 +17754,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
 
     -- Closure root.73.124.77: Paginated & Generation-Guarded Bang Animation selector list (eliminates 1000-button single-frame freeze!)
     local populateBangAnimList
-    do
+    ;(function()
         local bangListShowCount = 80
         local bangPopulateGen = 0
         local bangButtonsMap = {}
@@ -17835,7 +17835,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
             bangListShowCount = 80
             populateBangAnimList()
         end)
-    end
+    end)()
 
     bangStatus = Instance.new("TextLabel")
     bangStatus.Size = UDim2.new(1, 0, 0, 14)
@@ -17897,7 +17897,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
     savedConfig.trackingBinds = savedConfig.trackingBinds or {}
     savedConfig.studioToggleKey = savedConfig.studioToggleKey or "K"
 
-    do
+    ;(function()
         local function createCocaPillSwitch(parentFrame, xOffset, yOffset, initOn, onToggle)
             local track = Instance.new("Frame")
             track.Size = UDim2.new(0, 42, 0, 22)
@@ -17945,7 +17945,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
         end
 
         -- [7A] COCA REANIM COPIER PANEL
-        do
+        ;(function()
             local cp = Instance.new("ScrollingFrame")
             cp.Size = UDim2.new(1, 0, 1, 0)
             cp.BackgroundTransparency = 1
@@ -18515,7 +18515,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                 copierActive = st
                 if st then startReanimCopier() else stopReanimCopier() end
             end)
-            _, setFreezeSw = createCocaPillSwitch(freezeCard, -54, -11, false, function(st)
+            local _; _, setFreezeSw = createCocaPillSwitch(freezeCard, -54, -11, false, function(st)
                 freezeMode = st
                 if st and freeroamMode then freeroamMode = false; if setFreeroamSw then setFreeroamSw(false, false) end end
                 frozenPos = nil
@@ -18526,10 +18526,10 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                 if st and freezeMode then freezeMode = false; frozenPos = nil; if setFreezeSw then setFreezeSw(false, false) end end
                 if copierActive then startReanimCopier() else updateCopierStatus() end
             end)
-        end
+        end)()
 
         -- [7B] COCA HEAD & LIMB TRACKING PANEL
-        do
+        ;(function()
             local tp = Instance.new("ScrollingFrame")
             tp.Size = UDim2.new(1, 0, 1, 0)
             tp.BackgroundTransparency = 1
@@ -18688,10 +18688,10 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
             buildTrackRow("Head Tracker", "Head turns realistically toward camera", "HeadTracker", 3, function(v) _G._HaloHeadTrackerEnabled = v end)
             buildTrackRow("Left Arm Pointer", "Left arm aims straight at mouse cursor", "LeftArm", 4, function(v) _G._HaloLeftArmPointerEnabled = v end)
             buildTrackRow("Right Arm Pointer", "Right arm aims straight at mouse cursor", "RightArm", 5, function(v) _G._HaloRightArmPointerEnabled = v end)
-        end
+        end)()
 
         -- [7C] COCA LIMB & TORSO STRETCHING PANEL
-        do
+        ;(function()
             local sp = Instance.new("ScrollingFrame")
             sp.Size = UDim2.new(1, 0, 1, 0)
             sp.BackgroundTransparency = 1
@@ -18819,10 +18819,10 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                 function(st) _G._HaloLeftArmStretching = st; _G._HaloRightArmStretching = st end,
                 function(v) _G._HaloArmStretchAmount = v end
             )
-        end
+        end)()
 
         -- [7D] COCA STUDIO & 33 QUICK REANIM EMOTES PANEL
-        do
+        ;(function()
             local stp = Instance.new("ScrollingFrame")
             stp.Size = UDim2.new(1, 0, 1, 0)
             stp.BackgroundTransparency = 1
@@ -18959,8 +18959,8 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                     playOrToggleAnimation({ name = qName, path = url, category = "Main" })
                 end)
             end
-        end
-    end
+        end)()
+    end)()
 
     -- ========================================================================
     -- SUB-TAB SWITCHER (root.73.124.81)
@@ -19219,7 +19219,7 @@ _G.AngoorReanimLoaded = true
 _G.CocaReanimLoaded = true
 
     buildCocaReanimTab = buildAngoorReanimTab
-end
+end)()
 
 
 -- ═══════════════════════════════════════════════════════════════════════════════
@@ -19228,7 +19228,7 @@ end
 --   • Reanimates your character locally while stretching real character limbs to
 --     ±10,000,000 X and ±25,000,000 Z across Ground, Sky Dome, or 4-Tier Cube Matrix.
 -- ═══════════════════════════════════════════════════════════════════════════════
-local CocaSkyDestroyer = {}
+CocaSkyDestroyer = {}
 _G.CocaSkyDestroyer = CocaSkyDestroyer
 ;(function()
     _G._HaloCoverGroundActive     = false
@@ -19529,6 +19529,7 @@ _G.CocaSkyDestroyer = CocaSkyDestroyer
 
     local cachedRayClock = 0
     local cachedFloorY = nil
+    local cachedUseGround, cachedUseSky, cachedUseCubes = false, false, false
 
     local function sampleEnvironmentState(realChar, cloneChar)
         local now = os.clock()
@@ -22087,7 +22088,7 @@ local function buildMainUI()
     local isActionKeyActive, updatePinBadgeVisual, PILL_META
     local presetActionRows = {} -- key -> { pillBtn, pillStroke, circleBtn, circleStroke, defaultLabel }
     local ActivePills = {}
-    do
+    ;(function()
     local PILL_CATALOG = {
         { key = "animcopy",     pillLabel = "AnimCopy",   width = 112 },
         { key = "jerktroll",    pillLabel = "JerkTroll",  width = 108 },
@@ -22532,7 +22533,7 @@ local function buildMainUI()
             addFloatingPill(key)
         end
     end
-    end -- end Floating Quick Pills internal scope
+    end)() -- end Floating Quick Pills internal scope
 
     -- Synchronized Above Head Tags (Overhead Name Tags) ON / OFF Controller
     UI.setOverheadTagsEnabled = function(st, showToast)
@@ -23798,7 +23799,7 @@ local function buildMainUI()
     -- ═══════════════════════════════════════════════════════════════════════════
     -- DEDICATED CATEGORY: 💥 COCA SKY DESTROYER (Cover Sky, Ground, Cube Matrix & Flash)
     -- ═══════════════════════════════════════════════════════════════════════════
-    do
+    ;(function()
         local reqCard = Instance.new("Frame")
         reqCard.Name = "CocaSkyRequirementCard"
         reqCard.Size = UDim2.new(1, 0, 0, 62)
@@ -24257,12 +24258,12 @@ local function buildMainUI()
                 eternityEngineRow.pillBtn.Text = v1Act and "Active V1" or "Start V1"
             end
         end
-    end
+    end)()
 
     -- ═══════════════════════════════════════════════════════════════════════════
     -- DEDICATED CATEGORY: 🎭 ANIMATION COPY (live target animation mirroring)
     -- ═══════════════════════════════════════════════════════════════════════════
-    do
+    ;(function()
         createSectionTitle(animPage, 1, "Side-by-Side Animation & Emote Copy")
         local copyGrp = createGroupCard(animPage, 2)
 
@@ -24731,12 +24732,12 @@ local function buildMainUI()
         emotePage:GetPropertyChangedSignal("Visible"):Connect(function()
             if emotePage.Visible then refreshEmotesCatalogList() end
         end)
-    end
+    end)()
 
     -- ═══════════════════════════════════════════════════════════════════════════
     -- CATEGORY 3: TARGET SEEKER (Search Filter + Player Cards in Novoline Style)
     -- ═══════════════════════════════════════════════════════════════════════════
-    do
+    ;(function()
         local searchRow = Instance.new("Frame")
         searchRow.Size = UDim2.new(1, 0, 0, 34)
         searchRow.BackgroundTransparency = 1
@@ -25227,12 +25228,12 @@ local function buildMainUI()
             pcall(refreshList)
             if refreshCard then pcall(refreshCard) end
         end)
-    end
+    end)()
 
     -- ═══════════════════════════════════════════════════════════════════════════
     -- CATEGORY 4: PERFORMANCE & MOVE (Chrono-Rewind, WalkSpeed 500, Jump & Flight)
     -- ═══════════════════════════════════════════════════════════════════════════
-    do
+    ;(function()
         createSectionTitle(movePage, 1, "Chrono-Rewind System (60Hz Precision)")
         local rewGrp = createGroupCard(movePage, 2)
 
@@ -25278,7 +25279,7 @@ local function buildMainUI()
             if not ch then return nil, nil, nil end
             return ch, ch:FindFirstChildOfClass("Humanoid"), ch:FindFirstChild("HumanoidRootPart")
         end
-        do -- Sub-scope for WalkSpeed, Jump, Noclip, Spider-Walk, Air-Walk & Phase Dash
+        ;(function() -- Sub-scope for WalkSpeed, Jump, Noclip, Spider-Walk, Air-Walk & Phase Dash
         local defaultWalkSpeed, defaultJumpPower = 16, 50
         local MIN_SPEED, MAX_SPEED = 16, 500
         local MAX_JUMP, JUMP_STEP = 350, 25
@@ -25517,13 +25518,13 @@ local function buildMainUI()
             notify("⚡ PHASE DASH", "Dash distance: " .. tostring(nxt) .. " studs")
         end, tostring(moveState.dashDistance))
 
-        end -- end WalkSpeed & Physics sub-scope
+        end)() -- end WalkSpeed & Physics sub-scope
         createSectionTitle(movePage, 5, "Cinematic 4-Phase Flight")
         local flyGrp = createGroupCard(movePage, 6)
 
         local flyStatus
         local flySwitchRowRef
-        do
+        ;(function()
             local mobileFlyUp, mobileFlyDown = false, false
             local mobileFlyHUD = nil
             local mobilePhaseLbl = nil
@@ -26855,7 +26856,7 @@ local function buildMainUI()
                     cleanupFlyTrails()
                 end
             end)
-        end
+        end)()
 
         -- Section 7: Vanish Player & Ghost Invisibility Engine
         createSectionTitle(movePage, 7, "Vanish Player & Ghost Invisibility Engine")
@@ -27108,12 +27109,12 @@ local function buildMainUI()
                 end
             end)
         end)
-    end
+    end)()
 
     -- ═══════════════════════════════════════════════════════════════════════════
     -- CATEGORY 5: PRIVACY & ANTI (Defence Troll Matrix V3 + 16 Multi-Layer Shields)
     -- ═══════════════════════════════════════════════════════════════════════════
-    do
+    ;(function()
         local antiToggleRegistry = {}
         syncAllAntiButtons = function()
             for _, entry in ipairs(antiToggleRegistry) do
@@ -27227,18 +27228,18 @@ local function buildMainUI()
         table.insert(antiToggleRegistry, { sw = vcSw, getState = function() return Anti.VC.enabled or Anti.VC.running end })
 
         createActionRow(bypassGrp, 6, "Coco Anti-VC Bypass Suite (4-Tab Hub)", "Opens Coco VC Bypass, Anti-VCB 2, Hide & Mute VC, and Anti-Stuffs Suite", "Open Suite", function()
-            if launchCocoAntiVCBypassSuite then
-                launchCocoAntiVCBypassSuite()
-            elseif Anti.VC.openPanelFn then
+            if Anti.VC.openPanelFn then
                 Anti.VC.openPanelFn()
             end
+
+
         end, function()
             vcStart(true)
         end, "⚡")
 
-        createActionRow(bypassGrp, 6, "Coco Anti-VCB 2 Diagnostic & Connection Tool", "Opens 6-step VC Capability Probe, Connection Inspector & Keep-Unmuted Loop", "Anti-VCB 2", function()
-            if launchCocoAntiVCB2 then
-                launchCocoAntiVCB2()
+        createActionRow(bypassGrp, 7, "Coco Anti-VCB 2 Diagnostic & Connection Tool", "Opens 6-step VC Capability Probe, Connection Inspector & Keep-Unmuted Loop", "Anti-VCB 2", function()
+            if Anti.VC.openVCB2Fn then
+                Anti.VC.openVCB2Fn()
             end
         end, function()
             if Anti.VC.openCompactPanelFn then
@@ -27248,7 +27249,7 @@ local function buildMainUI()
 
         local antiCamLockOn = false
         local antiCamConn = nil
-        createSwitchRow(bypassGrp, 7, "Anti-Camera Lock, Shake & Forced Cutscene (NEW)", "Prevents scripts from locking CameraType to Scriptable or shaking your screen", false, function(st)
+        createSwitchRow(bypassGrp, 8, "Anti-Camera Lock, Shake & Forced Cutscene (NEW)", "Prevents scripts from locking CameraType to Scriptable or shaking your screen", false, function(st)
             antiCamLockOn = st
             if antiCamConn then antiCamConn:Disconnect(); antiCamConn = nil end
             if st then
@@ -27274,7 +27275,7 @@ local function buildMainUI()
         end)
 
         local mentionGuardOn = true
-        createSwitchRow(bypassGrp, 8, "Chat Mention & Whisper Radar Alert (NEW)", "Alerts you immediately when any player types your name or whispers in chat", mentionGuardOn, function(st)
+        createSwitchRow(bypassGrp, 9, "Chat Mention & Whisper Radar Alert (NEW)", "Alerts you immediately when any player types your name or whispers in chat", mentionGuardOn, function(st)
             mentionGuardOn = st
             notify("🔔 MENTION RADAR", st and "Chat Mention & Whisper Radar ON" or "Chat Mention & Whisper Radar OFF")
         end)
@@ -27301,12 +27302,12 @@ local function buildMainUI()
         end)
 
         updateDefenceStatsUI()
-    end
+    end)()
 
     -- ═══════════════════════════════════════════════════════════════════════════
     -- CATEGORY 6: LOGGING / CHAT & ROAST
     -- ═══════════════════════════════════════════════════════════════════════════
-    do
+    ;(function()
         createSectionTitle(chatPage, 1, "Target & Broadcast Configuration")
         local chatGrp = createGroupCard(chatPage, 2)
 
@@ -27451,12 +27452,12 @@ local function buildMainUI()
             cBtn.Text = string.format("%.0fs", CS_D)
             notify("💬 CHAT DELAY", string.format("Broadcast interval set to %.1fs", CS_D))
         end, "5s")
-    end
+    end)()
 
     -- ═══════════════════════════════════════════════════════════════════════════
     -- CATEGORY 7: APPEARANCE (Live Theme Accent Engine, Glass Mode & UI Controls)
     -- ═══════════════════════════════════════════════════════════════════════════
-    do
+    ;(function()
         createSectionTitle(appearPage, 1, "Novoline Theme Presets")
         local themeGrp = createGroupCard(appearPage, 2)
 
@@ -27540,12 +27541,12 @@ local function buildMainUI()
             UI.setSelfOverheadTagEnabled(st, true)
         end)
         table.insert(UI.selfOverheadTagSwitches, prefSelfTagSw.setState)
-    end
+    end)()
 
     -- ═══════════════════════════════════════════════════════════════════════════
     -- CATEGORY 9: 👑 OWNER & PREMIUM ADMIN PANEL (Restricted to shivyy73 & Premium Users)
     -- ═══════════════════════════════════════════════════════════════════════════
-    do
+    ;(function()
         local function syncAdminTabVisibility()
             local allowed = hasAdminAccess(LP)
             if UI.catRows["Admin Panel"] and UI.catRows["Admin Panel"].btn then
@@ -28093,7 +28094,7 @@ local function buildMainUI()
         -- ═══════════════════════════════════════════════════════════════════════
         -- NEW V36.8 ADMIN COMMAND DECKS (ALL 8 EXPANSION SYSTEMS)
         -- ═══════════════════════════════════════════════════════════════════════
-        do
+        ;(function()
             -- 1 & 2. PUPPETEER ARMY & COORDINATED SWARM FORMATIONS
             createSectionTitle(adminPage, 10, "Puppeteer Army, Swarm Formations & Remote Sky Destroyer")
             local squadGrp = createGroupCard(adminPage, 11)
@@ -28727,7 +28728,7 @@ local function buildMainUI()
                     task.wait(0.35)
                 end
             end)
-        end
+        end)()
 
         -- ═══════════════════════════════════════════════════════════════════════
         -- SECTION 9: 👑 SCRIPT USERS & PLAYERS (Freeze / Ban / Chat / Vanish)
@@ -29069,12 +29070,12 @@ local function buildMainUI()
             task.wait(0.15)
             pcall(refreshAdminPlayerList)
         end)
-    end
+    end)()
 
     -- ═══════════════════════════════════════════════════════════════════════════
     -- CATEGORY 8: KEYBINDS & TOOLS (Safe Click-TP & Customizable Troll Hotkeys)
     -- ═══════════════════════════════════════════════════════════════════════════
-    do
+    ;(function()
         createSectionTitle(toolsPage, 1, "Click TP & Teleport Tools")
         local tpGrp = createGroupCard(toolsPage, 2)
         createActionRow(tpGrp, 1, "Give 'Click TP' Backpack Tool", "Spawns equippable tool in inventory with void & skybox protection", "Get Tool", function()
@@ -29253,7 +29254,7 @@ local function buildMainUI()
                 if pillBtn and pillBtn.Parent then pillBtn.Text = "Copy Link" end
             end)
         end)
-    end
+    end)()
 
     -- ═══════════════════════════════════════════════════════════════════════════
     -- FOOTER UNWELD, MINIMIZE, SETTINGS DIALOG & KEYBINDS
