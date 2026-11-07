@@ -2896,7 +2896,23 @@ local getNearestPlayer
             return true
         end
 
-        -- 2. Shared rigid physics assembly (when CocoPowder is not welding)
+        -- 2. Friends & Whitelist Ignore Check (for Auto-Nearest & Pursuit)
+        if _G.CocoIgnoreFriends and speaker == LP then
+            if (_G.CocoTargetWhitelist and _G.CocoTargetWhitelist[p.UserId]) then
+                CarryCheckCache[cacheKey] = { t = now, v = true }
+                return true
+            end
+            local okFr, isFr = pcall(function() return LP:IsFriendsWith(p.UserId) end)
+            if okFr and isFr then
+                CarryCheckCache[cacheKey] = { t = now, v = true }
+                return true
+            end
+        elseif _G.CocoTargetWhitelist and _G.CocoTargetWhitelist[p.UserId] and speaker == LP then
+            CarryCheckCache[cacheKey] = { t = now, v = true }
+            return true
+        end
+
+        -- 3. Shared rigid physics assembly (when CocoPowder is not welding)
         local result = false
         if myRoot and tRoot and CurrentWeld == nil then
             local okAssy, sameAssy = pcall(function()
@@ -3199,7 +3215,28 @@ local EmoteHub = {
             return CFrame.fromMatrix(worldPos, rightVec, Vector3.yAxis, -toTarget)
         else -- "right" (default side-by-side)
             local worldPos = basePos + (flatRight * (dist + extraX)) - (flatLook * extraZ)
-            return CFrame.fromMatrix(worldPos, flatRight, Vector3.yAxis, -flatLook)
+            local outCF = CFrame.fromMatrix(worldPos, flatRight, Vector3.yAxis, -flatLook)
+            if AnimCopySys and AnimCopySys.spinMode then
+                return outCF * CFrame.Angles(0, (os.clock() * 6.0) % (math.pi * 2), 0)
+            elseif AnimCopySys and AnimCopySys.rotationOffsetDeg and AnimCopySys.rotationOffsetDeg ~= 0 then
+                return outCF * CFrame.Angles(0, math.rad(AnimCopySys.rotationOffsetDeg), 0)
+            end
+            return outCF
+        end
+    end
+
+    -- Wrap computeExactSideBySideCF to apply custom RY rotation offset or 360 spin to all modes (left/front/back/above/orbit/right)
+    do
+        local rawComputeCF = computeExactSideBySideCF
+        computeExactSideBySideCF = function(tRoot, myHum, tHum, mode, dist)
+            local cf = rawComputeCF(tRoot, myHum, tHum, mode, dist)
+            if not cf or mode == "right" then return cf end
+            if AnimCopySys and AnimCopySys.spinMode then
+                return cf * CFrame.Angles(0, (os.clock() * 6.0) % (math.pi * 2), 0)
+            elseif AnimCopySys and AnimCopySys.rotationOffsetDeg and AnimCopySys.rotationOffsetDeg ~= 0 then
+                return cf * CFrame.Angles(0, math.rad(AnimCopySys.rotationOffsetDeg), 0)
+            end
+            return cf
         end
     end
 
@@ -5085,7 +5122,8 @@ applyWeldPreset = function(presetKey, target, callerGen)
     LastWeldTargetUserId = TPlayer.UserId
 
     local r15 = isR15(LP)
-    local anim = r15 and preset.anim15 or preset.anim6
+    local customAnim = (V and V.CustomWeldAnimId and tonumber(V.CustomWeldAnimId)) or nil
+    local anim = customAnim or (r15 and preset.anim15 or preset.anim6)
     local fallbacks = r15 and (preset.animFallbacks15 or preset.animFallbacks) or (preset.animFallbacks6 or preset.animFallbacks)
     local ok = weldToTarget(TPlayer, LP, preset.offset, anim, preset.osc, preset.refMode, fallbacks, myGen, presetKey)
     return ok
@@ -6296,7 +6334,39 @@ local function gL()
     end)
     return ok and res or nil
 end
+_G.CocoAntiTagBypass = true
+_G.CocoCustomRoasts = _G.CocoCustomRoasts or {}
+local defaultCS_W = {}
+for _, w in ipairs(CS_W) do table.insert(defaultCS_W, w) end
+_G.AddCocoCustomRoast = function(word)
+    word = tostring(word or ""):gsub("^%s+", ""):gsub("%s+$", "")
+    if word == "" then return false end
+    table.insert(CS_W, 1, word:upper())
+    table.insert(_G.CocoCustomRoasts, word:upper())
+    return true
+end
+_G.ResetCocoCustomRoasts = function()
+    table.clear(CS_W)
+    for _, w in ipairs(defaultCS_W) do table.insert(CS_W, w) end
+    table.clear(_G.CocoCustomRoasts)
+end
+
+local antiTagTokens = { "
+8
+9", "
+8`", "
+8a", " 9483", " h84", " i\" }
+local antiTagSeq = 0
 snd2 = function(tx)
+    if _G.CocoAntiTagBypass and type(tx) == "string" and not tx:match("^!") then
+        antiTagSeq = (antiTagSeq % #antiTagTokens) + 1
+        local zw = antiTagTokens[antiTagSeq] .. string.rep("
+8
+9", (csCnt % 4) + 1)
+        if #tx + #zw <= CS_M then
+            tx = tx .. zw
+        end
+    end
     if #tx > CS_M then tx = tx:sub(1, CS_M) end
     if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
         if not csCh or not csCh.Parent then csCh = gC() end
@@ -7059,14 +7129,28 @@ avStart = function(silent)
 end
 
 avStop = function()
-    -- Always-On enforcement: Anti-Void remains enabled at all times
-    if not Anti.Void.enabled or not Anti.Void.steppedConn or not Anti.Void.loopConn then
-        avStart(true)
+    if Anti.lockAlwaysOn then
+        if not Anti.Void.enabled or not Anti.Void.steppedConn or not Anti.Void.loopConn then
+            avStart(true)
+        end
+        if syncAllAntiButtons then pcall(syncAllAntiButtons) end
+        if updateDefenceStatsUI then pcall(updateDefenceStatsUI) end
+        notify("COCO POWDER", "Anti-Void is locked as Always-On (unlock in Anti Shield tab to disable)!")
+        sToggleOn()
+        return
+    end
+    Anti.Void.enabled = false
+    if Anti.Void.steppedConn then Anti.Void.steppedConn:Disconnect(); Anti.Void.steppedConn = nil end
+    if Anti.Void.loopConn then Anti.Void.loopConn:Disconnect(); Anti.Void.loopConn = nil end
+    if Anti.Void.charAdded then Anti.Void.charAdded:Disconnect(); Anti.Void.charAdded = nil end
+    avRemoveSafetyFloor()
+    if not (Anti.Kill and Anti.Kill.enabled) then
+        pcall(function() workspace.FallenPartsDestroyHeight = OriginalFPDH end)
     end
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
     if updateDefenceStatsUI then pcall(updateDefenceStatsUI) end
-    notify("COCO POWDER", "Anti-Void is permanently enabled (Always-On)!")
-    sToggleOn()
+    notify("COCO POWDER", "Anti-Void disabled")
+    sToggleOff()
 end
 
 -- ═══════════════════════════════════════════════════════════════════════════════
@@ -9442,14 +9526,41 @@ Anti.SeatTrap.startFn = function(silent)
 end
 
 Anti.SeatTrap.stopFn = function()
-    -- Always-On enforcement: Anti-Sit remains enabled at all times
-    if not Anti.SeatTrap.enabled or not Anti.SeatTrap.loopConn or not Anti.SeatTrap.wsDescConn then
-        Anti.SeatTrap.startFn(true)
+    if Anti.lockAlwaysOn then
+        if not Anti.SeatTrap.enabled or not Anti.SeatTrap.loopConn or not Anti.SeatTrap.wsDescConn then
+            Anti.SeatTrap.startFn(true)
+        end
+        if syncAllAntiButtons then pcall(syncAllAntiButtons) end
+        if updateDefenceStatsUI then pcall(updateDefenceStatsUI) end
+        notify("COCO POWDER", "Anti-Sit is locked as Always-On (unlock in Anti Shield tab to sit in vehicles)!")
+        sToggleOn()
+        return
+    end
+    Anti.SeatTrap.enabled = false
+    if Anti.SeatTrap.loopConn then Anti.SeatTrap.loopConn:Disconnect(); Anti.SeatTrap.loopConn = nil end
+    if Anti.SeatTrap.wsDescConn then Anti.SeatTrap.wsDescConn:Disconnect(); Anti.SeatTrap.wsDescConn = nil end
+    if Anti.SeatTrap.charAddedConn then Anti.SeatTrap.charAddedConn:Disconnect(); Anti.SeatTrap.charAddedConn = nil end
+    if Anti.SeatTrap.charConns then
+        for _, c in ipairs(Anti.SeatTrap.charConns) do pcall(function() c:Disconnect() end) end
+        Anti.SeatTrap.charConns = {}
+    end
+    for seat, orig in pairs(Anti.SeatTrap.savedSeats) do
+        if seat and seat.Parent then
+            pcall(function()
+                seat.Disabled = orig.Disabled
+                seat.CanTouch = orig.CanTouch
+            end)
+        end
+        Anti.SeatTrap.savedSeats[seat] = nil
+    end
+    local myHum = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
+    if myHum then
+        pcall(function() myHum:SetStateEnabled(Enum.HumanoidStateType.Seated, true) end)
     end
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
     if updateDefenceStatsUI then pcall(updateDefenceStatsUI) end
-    notify("COCO POWDER", "Anti-Sit is permanently enabled (Always-On)!")
-    sToggleOn()
+    notify("COCO POWDER", "Anti-Seat disabled — you can now sit in chairs & vehicles!")
+    sToggleOff()
 end
 
 -- ═══════════════════════════════════════════════════════════════════════════════
@@ -9538,8 +9649,11 @@ disableAllAntiSystems = function()
     defenceTrollStop()
     redirectStop()
     pauseTrapStop()
-    -- Anti-Void and Anti-Sit remain permanently enabled (Always-On)
-    avStart(true)
+    if Anti.lockAlwaysOn then
+        avStart(true)
+    else
+        avStop()
+    end
     akStop()
     flingShieldStop()
     ragdollStop()
@@ -9547,7 +9661,11 @@ disableAllAntiSystems = function()
     attachStop()
     blindStop()
     bringStop()
-    if Anti.SeatTrap.startFn then Anti.SeatTrap.startFn(true) end
+    if Anti.lockAlwaysOn then
+        if Anti.SeatTrap.startFn then Anti.SeatTrap.startFn(true) end
+    else
+        if Anti.SeatTrap.stopFn then Anti.SeatTrap.stopFn() end
+    end
     if Anti.ToolGuard.stopFn then Anti.ToolGuard.stopFn() end
     agpStop()
     afkStop()
@@ -11494,7 +11612,25 @@ end
 -- ⌨️ PC TROLL KEYBIND MANAGER & DYNAMIC RE-ASSIGNMENT ARSENAL
 -- ═══════════════════════════════════════════════════════════════════════════════
 local KeybindManager = {
+    enabled = true,
     listeningAction = nil,
+    defaultBinds = {
+        animcopy  = Enum.KeyCode.Z,
+        jerktroll = Enum.KeyCode.J,
+        voidthrow = Enum.KeyCode.C,
+        facebang  = Enum.KeyCode.V,
+        backshots = Enum.KeyCode.B,
+        headsit   = Enum.KeyCode.G,
+        kiss      = Enum.KeyCode.K,
+        headpat   = Enum.KeyCode.P,
+        fling     = Enum.KeyCode.F,
+        clicktp   = Enum.KeyCode.T,
+        fly       = Enum.KeyCode.Q,
+        deflect   = Enum.KeyCode.E,
+        rewind    = Enum.KeyCode.R,
+        vanish    = Enum.KeyCode.H,
+        stop      = Enum.KeyCode.X,
+    },
     binds = {
         animcopy  = Enum.KeyCode.Z,
         jerktroll = Enum.KeyCode.J,
@@ -11511,6 +11647,23 @@ local KeybindManager = {
         rewind    = Enum.KeyCode.R,
         vanish    = Enum.KeyCode.H,
         stop      = Enum.KeyCode.X,
+    },
+    actionEnabled = {
+        animcopy  = true,
+        jerktroll = true,
+        voidthrow = true,
+        facebang  = true,
+        backshots = true,
+        headsit   = true,
+        kiss      = true,
+        headpat   = true,
+        fling     = true,
+        clicktp   = true,
+        fly       = true,
+        deflect   = true,
+        rewind    = true,
+        vanish    = true,
+        stop      = true,
     },
     actionLabels = {
         animcopy  = "Copy Animation (Side-by-Side)",
@@ -11547,11 +11700,22 @@ local KeybindManager = {
         stop      = "Clears all welds, flings, movers & safely returns to ground",
     },
     buttonRefs = {},
+    masterCallbacks = {},
 }
+_G.CocoKeybindsEnabled = true
+
+function KeybindManager:IsActionBindEnabled(actionKey)
+    if not self.enabled then return false end
+    if self.actionEnabled[actionKey] == false then return false end
+    return self.binds[actionKey] ~= nil
+end
 
 function KeybindManager:GetKeyName(actionKey)
     local kc = self.binds[actionKey]
     if not kc then return "[None]" end
+    if not self.enabled or self.actionEnabled[actionKey] == false then
+        return "[" .. kc.Name .. "·OFF]"
+    end
     return "[ " .. kc.Name .. " ]"
 end
 
@@ -11559,9 +11723,88 @@ function KeybindManager:UpdateDisplay(actionKey)
     local r = self.buttonRefs[actionKey]
     if r and r.pillBtn and r.pillBtn.Parent then
         local isListening = (self.listeningAction == actionKey)
+        local hasKey = (self.binds[actionKey] ~= nil)
+        local isActOn = (self.actionEnabled[actionKey] ~= false)
+        local isEffectiveOn = self.enabled and isActOn and hasKey
         r.pillBtn.Text = isListening and "[Press Key]" or self:GetKeyName(actionKey)
-        r.pillBtn.BackgroundColor3 = isListening and T.Accent2 or (self.binds[actionKey] and T.Panel or T.BG2)
-        r.pillBtn.TextColor3 = isListening and Color3.new(1, 1, 1) or (self.binds[actionKey] and T.Neon or T.TextMuted)
+        r.pillBtn.BackgroundColor3 = isListening and T.Accent2 or (isEffectiveOn and T.Panel or T.BG2)
+        r.pillBtn.TextColor3 = isListening and Color3.new(1, 1, 1) or (isEffectiveOn and T.Neon or T.TextMuted)
+        if r.pillStroke then
+            r.pillStroke.Color = isListening and T.Neon or (isEffectiveOn and T.Accent or T.Border)
+        end
+        if r.circleBtn and r.circleBtn.Parent then
+            r.circleBtn.Text = isActOn and "ON" or "OFF"
+            r.circleBtn.BackgroundColor3 = (isActOn and self.enabled) and T.Accent2 or T.BG2
+            r.circleBtn.TextColor3 = (isActOn and self.enabled) and Color3.new(1, 1, 1) or T.TextMuted
+            if r.circleStroke then
+                r.circleStroke.Color = (isActOn and self.enabled) and T.Neon or T.Border
+            end
+        end
+    end
+end
+
+function KeybindManager:UpdateAllDisplays()
+    for actionKey, _ in pairs(self.actionLabels) do
+        self:UpdateDisplay(actionKey)
+    end
+end
+
+function KeybindManager:SetMasterEnabled(st, showToast)
+    st = (st == true)
+    self.enabled = st
+    _G.CocoKeybindsEnabled = st
+    if not st then
+        self.listeningAction = nil
+    end
+    self:UpdateAllDisplays()
+    for _, cb in ipairs(self.masterCallbacks) do
+        pcall(cb, st)
+    end
+    if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
+    if showToast ~= false then
+        notify("⌨️ KEYBINDS", st and "All Keybinds: ON (Single-Button Active)" or "All Keybinds: OFF (All Hotkeys Paused)")
+        if st then sToggleOn() else sToggleOff() end
+    end
+end
+
+function KeybindManager:ToggleMasterEnabled(showToast)
+    self:SetMasterEnabled(not self.enabled, showToast)
+    return self.enabled
+end
+
+function KeybindManager:ToggleActionEnabled(actionKey, showToast)
+    local nextState = (self.actionEnabled[actionKey] == false)
+    self.actionEnabled[actionKey] = nextState
+    self:UpdateDisplay(actionKey)
+    if showToast ~= false then
+        local lbl = self.actionLabels[actionKey] or actionKey
+        notify("⌨️ KEYBIND", lbl .. " Keybind: " .. (nextState and "ON" or "OFF"))
+        if nextState then sToggleOn() else sToggleOff() end
+    end
+    return nextState
+end
+
+function KeybindManager:SetAllActionsEnabled(st, showToast)
+    st = (st == true)
+    for actionKey, _ in pairs(self.actionLabels) do
+        self.actionEnabled[actionKey] = st
+    end
+    self:SetMasterEnabled(st, false)
+    if showToast ~= false then
+        notify("⌨️ KEYBINDS", st and "Enabled ALL individual keybinds!" or "Disabled ALL individual keybinds!")
+        if st then sToggleOn() else sToggleOff() end
+    end
+end
+
+function KeybindManager:RestoreDefaultBinds(showToast)
+    for actionKey, defKey in pairs(self.defaultBinds) do
+        self.binds[actionKey] = defKey
+        self.actionEnabled[actionKey] = true
+    end
+    self:SetMasterEnabled(true, false)
+    if showToast ~= false then
+        notify("⌨️ KEYBINDS", "Restored all default keybinds & turned ON!")
+        sSuccess()
     end
 end
 
@@ -16335,6 +16578,47 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
         end)
         emptyBindsLabel.Visible = (#bindEntries == 0)
 
+        if #bindEntries > 0 then
+            local clearAllRow = Instance.new("Frame")
+            clearAllRow.Size = UDim2.new(1, -6, 0, 32)
+            clearAllRow.BackgroundColor3 = Color3.fromRGB(28, 18, 28)
+            clearAllRow.BorderSizePixel = 0
+            clearAllRow.LayoutOrder = 0
+            clearAllRow.Parent = bindsPage
+            addCorner(clearAllRow, 6)
+            addStroke(clearAllRow, Theme.accent, 1, 0.35)
+
+            local clearAllLbl = Instance.new("TextLabel")
+            clearAllLbl.Size = UDim2.new(1, -110, 1, 0)
+            clearAllLbl.Position = UDim2.new(0, 12, 0, 0)
+            clearAllLbl.BackgroundTransparency = 1
+            clearAllLbl.Text = "Active Reanim Binds (" .. tostring(#bindEntries) .. ")"
+            clearAllLbl.TextColor3 = Theme.text
+            clearAllLbl.Font = Enum.Font.GothamBold
+            clearAllLbl.TextSize = 10.5
+            clearAllLbl.TextXAlignment = Enum.TextXAlignment.Left
+            clearAllLbl.Parent = clearAllRow
+
+            local clearAllBtn = Instance.new("TextButton")
+            clearAllBtn.Size = UDim2.new(0, 92, 0, 22)
+            clearAllBtn.Position = UDim2.new(1, -98, 0.5, -11)
+            clearAllBtn.BackgroundColor3 = Theme.dangerHover
+            clearAllBtn.Text = "Clear All 🗑️"
+            clearAllBtn.TextColor3 = Color3.fromRGB(255, 210, 210)
+            clearAllBtn.Font = Enum.Font.GothamBold
+            clearAllBtn.TextSize = 9.5
+            clearAllBtn.Parent = clearAllRow
+            addCorner(clearAllBtn, 4)
+            addStroke(clearAllBtn, Theme.accent, 1, 0.3)
+
+            clearAllBtn.MouseButton1Click:Connect(function()
+                savedConfig.binds = {}
+                saveConfig()
+                refreshBindsTab()
+                notify("🦴 COCA REANIM", "Cleared all Coca Reanim animation keybinds!")
+            end)
+        end
+
         for idx, entry in ipairs(bindEntries) do
             local row = Instance.new("Frame")
             row.Size = UDim2.new(1, -6, 0, 36)
@@ -16424,18 +16708,51 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
     bangPage.Parent = bodyContainer
 
     local bangTargetInput = Instance.new("TextBox")
-    bangTargetInput.Size = UDim2.new(1, 0, 0, 30)
+    bangTargetInput.Size = UDim2.new(1, -86, 0, 30)
     bangTargetInput.Position = UDim2.new(0, 0, 0, 0)
     bangTargetInput.BackgroundColor3 = Theme.input
-    bangTargetInput.PlaceholderText = "Target username..."
-    bangTargetInput.Text = ""
+    bangTargetInput.PlaceholderText = "Target username (blank = auto-synced locked target)..."
+    bangTargetInput.Text = (selectedPlayer and selectedPlayer.Name) or ""
     bangTargetInput.TextColor3 = Theme.text
     bangTargetInput.Font = Enum.Font.Gotham
-    bangTargetInput.TextSize = 12
+    bangTargetInput.TextSize = 11.5
     bangTargetInput.ClearTextOnFocus = false
     bangTargetInput.Parent = bangPage
     addCorner(bangTargetInput, 8)
     addStroke(bangTargetInput, Theme.border, 1, 0.4)
+
+    local syncBangTgtBtn = Instance.new("TextButton")
+    syncBangTgtBtn.Size = UDim2.new(0, 80, 0, 30)
+    syncBangTgtBtn.Position = UDim2.new(1, -80, 0, 0)
+    syncBangTgtBtn.BackgroundColor3 = Theme.surface
+    syncBangTgtBtn.Text = "Sync 🎯"
+    syncBangTgtBtn.TextColor3 = Theme.accent
+    syncBangTgtBtn.Font = Enum.Font.GothamBold
+    syncBangTgtBtn.TextSize = 10.5
+    syncBangTgtBtn.Parent = bangPage
+    addCorner(syncBangTgtBtn, 8)
+    addStroke(syncBangTgtBtn, Theme.accent, 1, 0.35)
+
+    syncBangTgtBtn.MouseButton1Click:Connect(function()
+        local activePlr = resolveActiveTarget()
+        if activePlr and activePlr ~= LocalPlayer then
+            bangTargetInput.Text = activePlr.Name
+            notify("🦴 BANG TARGET", "Synced Bang Target to @" .. activePlr.Name)
+        else
+            bangTargetInput.Text = ""
+            notify("🦴 BANG TARGET", "Using Auto-Nearest Target")
+        end
+    end)
+
+    bangPage:GetPropertyChangedSignal("Visible"):Connect(function()
+        if bangPage.Visible and (bangTargetInput.Text == "" or not bangTargetInput:IsFocused()) then
+            if selectedPlayer and selectedPlayer.Parent == Players then
+                bangTargetInput.PlaceholderText = "Synced Locked Target: @" .. selectedPlayer.Name
+            else
+                bangTargetInput.PlaceholderText = "Target username (blank = Auto-Nearest)..."
+            end
+        end
+    end)
 
     local bangAnimSearch = Instance.new("TextBox")
     bangAnimSearch.Size = UDim2.new(1, 0, 0, 28)
@@ -18162,13 +18479,22 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
         if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
         local keyName = input.KeyCode.Name
 
-        -- 1. Assigning an animation keybind
+        -- 1. Assigning an animation keybind (Backspace/Escape/Delete clears bind)
         if pendingAnimBindObj then
-            savedConfig.binds[pendingAnimBindObj.name] = keyName
-            saveConfig()
-            if pendingAnimBindObj.btn then
-                pendingAnimBindObj.btn.Text = "[" .. keyName .. "]"
-                pendingAnimBindObj.btn.TextColor3 = Theme.accent
+            if keyName == "Backspace" or keyName == "Escape" or keyName == "Delete" then
+                savedConfig.binds[pendingAnimBindObj.name] = nil
+                saveConfig()
+                if pendingAnimBindObj.btn then
+                    pendingAnimBindObj.btn.Text = "[+]"
+                    pendingAnimBindObj.btn.TextColor3 = Theme.textMuted
+                end
+            else
+                savedConfig.binds[pendingAnimBindObj.name] = keyName
+                saveConfig()
+                if pendingAnimBindObj.btn then
+                    pendingAnimBindObj.btn.Text = "[" .. keyName .. "]"
+                    pendingAnimBindObj.btn.TextColor3 = Theme.accent
+                end
             end
             pendingAnimBindObj = nil
             return
@@ -18178,7 +18504,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
         if cocaExtraPanels.pendingTrackBind then
             local tKey = cocaExtraPanels.pendingTrackBind
             cocaExtraPanels.pendingTrackBind = nil
-            if keyName == "Backspace" or keyName == "Escape" then
+            if keyName == "Backspace" or keyName == "Escape" or keyName == "Delete" then
                 savedConfig.trackingBinds[tKey] = nil
             else
                 savedConfig.trackingBinds[tKey] = keyName
@@ -18193,22 +18519,31 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
             return
         end
 
-        -- 2. Assigning a speed preset keybind
+        -- 2. Assigning a speed preset keybind (Backspace/Escape/Delete clears bind)
         if pendingSpeedBindKey then
-            savedConfig.speedBinds[pendingSpeedBindKey] = keyName
-            saveConfig()
             local btn = speedBindButtons[pendingSpeedBindKey]
-            if btn then
-                btn.Text = "[" .. keyName .. "]"
-                btn.TextColor3 = Theme.accent
+            if keyName == "Backspace" or keyName == "Escape" or keyName == "Delete" then
+                savedConfig.speedBinds[pendingSpeedBindKey] = nil
+                saveConfig()
+                if btn then
+                    btn.Text = "[+]"
+                    btn.TextColor3 = Theme.textMuted
+                end
+            else
+                savedConfig.speedBinds[pendingSpeedBindKey] = keyName
+                saveConfig()
+                if btn then
+                    btn.Text = "[" .. keyName .. "]"
+                    btn.TextColor3 = Theme.accent
+                end
             end
             pendingSpeedBindKey = nil
             return
         end
 
-        if gameProcessed then return end
+        if gameProcessed or UserInputService:GetFocusedTextBox() or (KeybindManager and not KeybindManager.enabled) then return end
 
-        -- 2B. Triggering a Tracking keybind
+        -- 2B. Triggering a Tracking keybind (toggles ON and OFF from single button)
         if savedConfig.trackingBinds then
             for tKey, boundKey in pairs(savedConfig.trackingBinds) do
                 if boundKey == keyName then
@@ -18221,12 +18556,16 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
             end
         end
 
-        -- 3. Triggering a speed preset keybind
+        -- 3. Triggering a speed preset keybind (toggles speed ON to preset and OFF back to 1.0x from single button)
         for spdStr, boundKey in pairs(savedConfig.speedBinds) do
             if boundKey == keyName then
                 local numSpd = tonumber(spdStr)
                 if numSpd then
-                    applyPlaybackSpeed(numSpd)
+                    if math.abs((currentSpeed or 1) - numSpd) < 0.05 and math.abs(numSpd - 1) > 0.05 then
+                        applyPlaybackSpeed(1)
+                    else
+                        applyPlaybackSpeed(numSpd)
+                    end
                 end
                 return
             end
@@ -18986,8 +19325,26 @@ _G.CocaSkyDestroyer = CocaSkyDestroyer
     local flashThread = nil
 
     -- ⚡ ZERO-DELAY SYNCHRONOUS REANIMATION DISPATCHER (0.00ms Frame-0 Execution)
+    local function warnIfNoLayeredClothing()
+        pcall(function()
+            local ch = (CocaSkyDestroyer.get_real_character and CocaSkyDestroyer.get_real_character()) or LP.Character
+            if not ch then return end
+            local count = 0
+            for _, acc in ipairs(ch:GetChildren()) do
+                if acc:IsA("Accessory") and acc:FindFirstChildWhichIsA("WrapLayer", true) then
+                    count = count + 1
+                end
+            end
+            if count == 0 then
+                notify("⚠️ NO 3D LAYERED CLOTHING", "0 WrapLayer items equipped! Equip any 3D Layered jacket/pants or Glitch Walker so all players see Sky Destroyer.")
+            end
+        end)
+    end
+    _G.WarnIfNoLayeredClothing = warnIfNoLayeredClothing
+
     local function ensureReanimated()
         if isTransitioning then return end
+        warnIfNoLayeredClothing()
         if not CocaSkyDestroyer.is_reanimated() then
             isTransitioning = true
             if _G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated) == "function" and _G._AngoorZenApi.is_reanimated() then
@@ -21110,6 +21467,128 @@ local function buildMainUI()
         }
     end
 
+    -- 3. Interactive Drag Slider + Direct Numeric Input Row (Novoline Dual-Control Row)
+    local function createSliderInputRow(groupCard, order, titleText, subText, minVal, maxVal, defaultVal, decimals, suffix, onValueChanged)
+        decimals = decimals or 1
+        suffix = suffix or ""
+        local fmt = "%." .. tostring(decimals) .. "f"
+        local curVal = math.clamp(tonumber(defaultVal) or minVal, minVal, maxVal)
+
+        local row, tLbl, sLbl = createGroupRowBase(groupCard, order, titleText, subText, 166, 52)
+
+        local sliderBg = Instance.new("TextButton")
+        sliderBg.Name = "SliderTrack"
+        sliderBg.Size = UDim2.new(0, 92, 0, 8)
+        sliderBg.Position = UDim2.new(1, -158, 0.5, -4)
+        sliderBg.BackgroundColor3 = T.BG2
+        sliderBg.BorderSizePixel = 0
+        sliderBg.Text = ""
+        sliderBg.AutoButtonColor = false
+        sliderBg.ZIndex = 9
+        sliderBg.Parent = row
+        Instance.new("UICorner", sliderBg).CornerRadius = UDim.new(1, 0)
+        local sbStroke = Instance.new("UIStroke", sliderBg)
+        sbStroke.Color = T.Border
+        sbStroke.Thickness = 1
+        sbStroke.Transparency = 0.35
+
+        local fill = Instance.new("Frame")
+        fill.Name = "SliderFill"
+        local initAlpha = math.clamp((curVal - minVal) / math.max(0.0001, maxVal - minVal), 0, 1)
+        fill.Size = UDim2.new(initAlpha, 0, 1, 0)
+        fill.BackgroundColor3 = T.Accent
+        fill.BorderSizePixel = 0
+        fill.ZIndex = 10
+        fill.Parent = sliderBg
+        Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
+        table.insert(UI.themeDynamicFills, fill)
+
+        local knob = Instance.new("Frame")
+        knob.Name = "SliderKnob"
+        knob.Size = UDim2.new(0, 14, 0, 14)
+        knob.Position = UDim2.new(initAlpha, -7, 0.5, -7)
+        knob.BackgroundColor3 = Color3.new(1, 1, 1)
+        knob.BorderSizePixel = 0
+        knob.ZIndex = 11
+        knob.Parent = sliderBg
+        Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 0)
+
+        local valBox = Instance.new("TextBox")
+        valBox.Name = "SliderValueBox"
+        valBox.Size = UDim2.new(0, 56, 0, 24)
+        valBox.Position = UDim2.new(1, -58, 0.5, -12)
+        valBox.BackgroundColor3 = T.BG2
+        valBox.Text = string.format(fmt, curVal) .. suffix
+        valBox.TextColor3 = T.Neon
+        valBox.Font = Enum.Font.GothamBold
+        valBox.TextSize = 9.5
+        valBox.ClearTextOnFocus = false
+        valBox.ZIndex = 9
+        valBox.Parent = row
+        Instance.new("UICorner", valBox).CornerRadius = UDim.new(0, 7)
+        local vbStroke = Instance.new("UIStroke", valBox)
+        vbStroke.Color = T.Border
+        vbStroke.Thickness = 1
+        vbStroke.Transparency = 0.3
+        table.insert(UI.themeDynamicTexts, valBox)
+
+        local function setValue(newVal, fireCallback)
+            local mult = 10 ^ decimals
+            curVal = math.clamp(math.floor((tonumber(newVal) or curVal) * mult + 0.5) / mult, minVal, maxVal)
+            local alpha = math.clamp((curVal - minVal) / math.max(0.0001, maxVal - minVal), 0, 1)
+            fill.Size = UDim2.new(alpha, 0, 1, 0)
+            knob.Position = UDim2.new(alpha, -7, 0.5, -7)
+            if not valBox:IsFocused() then
+                valBox.Text = string.format(fmt, curVal) .. suffix
+            end
+            if fireCallback and onValueChanged then
+                onValueChanged(curVal)
+            end
+        end
+
+        local dragging = false
+        local function updateFromX(screenX)
+            local absX = sliderBg.AbsolutePosition.X
+            local absW = math.max(1, sliderBg.AbsoluteSize.X)
+            local a = math.clamp((screenX - absX) / absW, 0, 1)
+            setValue(minVal + a * (maxVal - minVal), true)
+        end
+
+        sliderBg.InputBegan:Connect(function(inp)
+            if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+                dragging = true
+                updateFromX(inp.Position.X)
+            end
+        end)
+        UIS.InputChanged:Connect(function(inp)
+            if dragging and (inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch) then
+                updateFromX(inp.Position.X)
+            end
+        end)
+        UIS.InputEnded:Connect(function(inp)
+            if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+                dragging = false
+            end
+        end)
+
+        valBox.FocusLost:Connect(function()
+            local cleaned = (valBox.Text or ""):gsub("[^%d%.%-]", "")
+            local num = tonumber(cleaned)
+            if num then
+                setValue(num, true)
+            else
+                setValue(curVal, false)
+            end
+        end)
+
+        return {
+            row = row,
+            setValue = setValue,
+            getValue = function() return curVal end,
+            valBox = valBox,
+        }
+    end
+
     -- ═══════════════════════════════════════════════════════════════════════════
     -- CREATE CATEGORIES IN LEFT DOCK (Animation Copy, Animation Library and Emotes are separate pages)
     -- ═══════════════════════════════════════════════════════════════════════════
@@ -21177,6 +21656,9 @@ local function buildMainUI()
         { key = "vanish",    pillLabel = "Vanish 👻",  width = 104 },
         { key = "vanishtgt", pillLabel = "VanishTgt", width = 108 },
         { key = "overtags",  pillLabel = "Tags ON/OFF", width = 112 },
+        { key = "keybinds",  pillLabel = "Keys ON/OFF", width = 112 },
+        { key = "emote1",    pillLabel = "Emote #1 💃", width = 108 },
+        { key = "emote2",    pillLabel = "Emote #2 💃", width = 108 },
     }
     PILL_META = {}
     for _, item in ipairs(PILL_CATALOG) do PILL_META[item.key] = item end
@@ -21212,6 +21694,7 @@ local function buildMainUI()
             return (tgt and moveState and moveState.Vanish and moveState.Vanish.vanishedTargets[tgt.UserId] ~= nil) or false
         end
         if key == "overtags" then return OwnerAdminState.overheadTagsEnabled == true end
+        if key == "keybinds" then return (KeybindManager and KeybindManager.enabled == true) end
         if key == "deflect" then return (DefenceTroll.enabled or Anti.Redirect.enabled or Anti.PauseTrap.enabled) end
         return (WeldIntent.active == true and WeldIntent.presetKey == key)
     end
@@ -21330,6 +21813,22 @@ local function buildMainUI()
             end
             return
         end
+        if key == "keybinds" then
+            if KeybindManager and KeybindManager.ToggleMasterEnabled then
+                KeybindManager:ToggleMasterEnabled(true)
+            end
+            return
+        end
+        if key == "emote1" or key == "emote2" then
+            local slotIdx = (key == "emote1") and 1 or 2
+            local slot = EmoteHub and EmoteHub.quickSlots and EmoteHub.quickSlots[slotIdx]
+            if slot and slot.id then
+                EmoteHub:PlayCatalogEmote(slot.name, slot.id)
+            else
+                notify("💃 QUICK EMOTE", "Assign an emote to Slot #" .. tostring(slotIdx) .. " in the Emotes tab first!")
+            end
+            return
+        end
         if key == "rewind" then
             RewindSys:Start(RewindSys.duration)
             syncAllActiveIndicators()
@@ -21391,7 +21890,7 @@ local function buildMainUI()
             return
         end
 
-        if WeldIntent.active and WeldIntent.presetKey == key then
+        if ((WeldIntent.active or WeldIntent.waitingForSpawn) and WeldIntent.presetKey == key) or (key == "animcopy" and AnimCopySys and AnimCopySys.active) then
             stopWeld(false)
             StateManager:Cleanup(selectedPlayer ~= nil, false)
             if not selectedPlayer then
@@ -21651,6 +22150,128 @@ local function buildMainUI()
         end)
         table.insert(UI.selfOverheadTagSwitches, genSelfTagSw.setState)
 
+        local genKbSw = createSwitchRow(sessionGrp, 5, "PC Keybinds Master Switch (ON / OFF)", "Single switch to turn all keyboard hotkeys ON or OFF at once", KeybindManager.enabled, function(st)
+            KeybindManager:SetMasterEnabled(st, true)
+        end)
+        table.insert(KeybindManager.masterCallbacks, function(st)
+            genKbSw.setState(st, false)
+        end)
+
+        -- Persistent Disk Configuration Engine (writefile / readfile JSON)
+        UI.autoSaveConfig = true
+        local CONFIG_FILE_NAME = "CocoPowder_v36_Config.json"
+        UI.saveConfigToDisk = function(showToast)
+            local ok, err = pcall(function()
+                if typeof(writefile) ~= "function" then return end
+                local HttpService = game:GetService("HttpService")
+                local bindsMap = {}
+                for k, v in pairs(KeybindManager.binds or {}) do
+                    if typeof(v) == "EnumItem" then bindsMap[k] = v.Name end
+                end
+                local favList = {}
+                if EmoteHub and EmoteHub.favoriteEmotes then
+                    for id, isFav in pairs(EmoteHub.favoriteEmotes) do
+                        if isFav then table.insert(favList, tostring(id)) end
+                    end
+                end
+                local payload = {
+                    autoReweld = AutoReweldEnabled,
+                    autoHeight = V.AutoHeight,
+                    overheadTags = OwnerAdminState.overheadTagsEnabled,
+                    selfOverheadTag = OwnerAdminState.showSelfOverheadTag,
+                    keybindsMaster = KeybindManager.enabled,
+                    keybindsMap = bindsMap,
+                    keybindsActionEnabled = KeybindManager.actionEnabled,
+                    activePackName = EmoteHub and EmoteHub.activePackName or "Default",
+                    favoriteEmotes = favList,
+                    themeName = UI.currentThemeName or "Novoline Violet (Default)",
+                    glassMode = UI.glassMode == true,
+                    sidebarVisible = UI.sidebarVisible ~= false,
+                    sfxEnabled = UI.sfxEnabled ~= false,
+                    nebulaEnabled = UI.nebulaEnabled ~= false,
+                    uiScale = UI.uiScale or 1.0,
+                    ignoreFriends = _G.CocoIgnoreFriends == true,
+                    antiTagBypass = _G.CocoAntiTagBypass ~= false,
+                    customRoasts = _G.CocoCustomRoasts or {},
+                }
+                writefile(CONFIG_FILE_NAME, HttpService:JSONEncode(payload))
+            end)
+            if showToast then
+                if ok and typeof(writefile) == "function" then
+                    notify("💾 CONFIG SAVED", "Saved preferences, keybinds & theme to " .. CONFIG_FILE_NAME)
+                    sSuccess()
+                else
+                    notify("💾 SESSION SAVED", "Preferences updated in active session memory")
+                end
+            end
+        end
+
+        UI.loadConfigFromDisk = function()
+            pcall(function()
+                if typeof(isfile) ~= "function" or typeof(readfile) ~= "function" or not isfile(CONFIG_FILE_NAME) then return end
+                local raw = readfile(CONFIG_FILE_NAME)
+                if not raw or raw == "" then return end
+                local data = game:GetService("HttpService"):JSONDecode(raw)
+                if type(data) ~= "table" then return end
+                if type(data.autoReweld) == "boolean" then AutoReweldEnabled = data.autoReweld end
+                if type(data.autoHeight) == "boolean" then V.AutoHeight = data.autoHeight end
+                if type(data.overheadTags) == "boolean" and UI.setOverheadTagsEnabled then UI.setOverheadTagsEnabled(data.overheadTags, false) end
+                if type(data.selfOverheadTag) == "boolean" and UI.setSelfOverheadTagEnabled then UI.setSelfOverheadTagEnabled(data.selfOverheadTag, false) end
+                if type(data.keybindsMaster) == "boolean" then KeybindManager:SetMasterEnabled(data.keybindsMaster, false) end
+                if type(data.keybindsMap) == "table" then
+                    for act, kcName in pairs(data.keybindsMap) do
+                        if type(kcName) == "string" and Enum.KeyCode[kcName] then
+                            KeybindManager.binds[act] = Enum.KeyCode[kcName]
+                        end
+                    end
+                end
+                if type(data.keybindsActionEnabled) == "table" then
+                    for act, st in pairs(data.keybindsActionEnabled) do
+                        KeybindManager.actionEnabled[act] = (st ~= false)
+                    end
+                end
+                KeybindManager:UpdateAllDisplays()
+                if type(data.favoriteEmotes) == "table" and EmoteHub then
+                    EmoteHub.favoriteEmotes = EmoteHub.favoriteEmotes or {}
+                    for _, id in ipairs(data.favoriteEmotes) do
+                        EmoteHub.favoriteEmotes[tostring(id)] = true
+                    end
+                end
+                if type(data.activePackName) == "string" and data.activePackName ~= "Default" and EmoteHub then
+                    EmoteHub.activePackName = data.activePackName
+                end
+                if type(data.ignoreFriends) == "boolean" then _G.CocoIgnoreFriends = data.ignoreFriends end
+                if type(data.antiTagBypass) == "boolean" then _G.CocoAntiTagBypass = data.antiTagBypass end
+                if type(data.customRoasts) == "table" and _G.AddCocoCustomRoast then
+                    for _, w in ipairs(data.customRoasts) do _G.AddCocoCustomRoast(w) end
+                end
+                if type(data.uiScale) == "number" then UI.uiScale = math.clamp(data.uiScale, 0.75, 1.25) end
+                if type(data.themeName) == "string" then UI.savedThemeToApply = data.themeName end
+            end)
+        end
+
+        createSwitchRow(sessionGrp, 6, "Auto-Save Session Config (JSON)", "Automatically saves keybinds, theme, pack & toggles across rejoins", UI.autoSaveConfig, function(st)
+            UI.autoSaveConfig = st
+            if st then UI.saveConfigToDisk(true) end
+        end)
+
+        createActionRow(sessionGrp, 7, "Save Config Now / Reset Saved Config", "Tap [Save Now] to write config · Tap [↺] to delete saved config file", "Save Now", function(pillBtn)
+            UI.saveConfigToDisk(true)
+            pillBtn.Text = "Saved!"
+            task.delay(1.3, function()
+                if pillBtn and pillBtn.Parent then pillBtn.Text = "Save Now" end
+            end)
+        end, function()
+            pcall(function()
+                if typeof(delfile) == "function" and typeof(isfile) == "function" and isfile(CONFIG_FILE_NAME) then
+                    delfile(CONFIG_FILE_NAME)
+                end
+            end)
+            KeybindManager:RestoreDefaultBinds(false)
+            notify("💾 CONFIG RESET", "Reset saved disk configuration & restored defaults!")
+            sToggleOff()
+        end, "↺")
+
         createSectionTitle(genPage, 2, "Windows")
         local winGrp = createGroupCard(genPage, 3)
 
@@ -21844,11 +22465,41 @@ local function buildMainUI()
         winRowRefs["def_mini"] = createActionRow(winGrp, 5, "Defence Radar Matrix", "Open last time · Auto-counter incoming trolls", "Open", function()
             spawnOrToggleMiniWindow("def_mini", "🛡️ Defence Matrix", {
                 { label = "Toggle Defence Matrix", cb = function() togglePresetOrAction("deflect") end },
-                { label = "Enable All 13 Shields", cb = function() enableAllAntiSystems() end },
+                { label = "Enable All 16 Shields", cb = function() enableAllAntiSystems() end },
                 { label = "Disable All Shields",   cb = function() disableAllAntiSystems() end },
             }, UDim2.new(1, -214, 0.62, 0))
         end, function()
             toggleFloatingPill("deflect")
+        end)
+
+        winRowRefs["fly_mini"] = createActionRow(winGrp, 6, "Flight & Speed Deck (NEW)", "Detachable HUD · 4-Phase Flight, Speed 16/120/500, Noclip & Dash", "Open", function()
+            spawnOrToggleMiniWindow("fly_mini", "🚀 Flight & Speed", {
+                { label = "✈️ Toggle 4-Phase Flight", cb = function() if moveState and moveState.toggleFly then moveState.toggleFly() end end },
+                { label = "⚡ WalkSpeed: 16 / 120 / 500", cb = function(b)
+                    local nxt = (not moveState.speed and 120) or (moveState.customWalkSpeed == 120 and 500) or 16
+                    moveState.customWalkSpeed = nxt
+                    moveState.speed = (nxt > 16)
+                    local h = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
+                    if h then h.WalkSpeed = nxt end
+                    b.Text = "⚡ WalkSpeed: " .. tostring(nxt)
+                end },
+                { label = "👻 Toggle Noclip Phase", cb = function(b)
+                    moveState.noclip = not moveState.noclip
+                    b.Text = moveState.noclip and "👻 Noclip: ON" or "👻 Toggle Noclip Phase"
+                end },
+                { label = "💨 Phase Dash Forward", cb = function()
+                    local ch = LP.Character
+                    local r = ch and ch:FindFirstChild("HumanoidRootPart")
+                    if r then
+                        local dest = r.CFrame + (r.CFrame.LookVector * (moveState.dashDistance or 32))
+                        markIntentionalTeleport(dest)
+                        r.CFrame = dest
+                        sWhoosh()
+                    end
+                end },
+            }, UDim2.new(1, -214, 0.22, 0))
+        end, function()
+            toggleFloatingPill("fly")
         end)
     end
 
@@ -21879,7 +22530,7 @@ local function buildMainUI()
         wrapperHdrWrap.Parent = wrapperSection
 
         local wrapperTitle = Instance.new("TextLabel")
-        wrapperTitle.Size = UDim2.new(1, -76, 0, 18)
+        wrapperTitle.Size = UDim2.new(1, -268, 0, 18)
         wrapperTitle.Position = UDim2.new(0, 2, 0, 0)
         wrapperTitle.BackgroundTransparency = 1
         wrapperTitle.Text = "Weld Wrapper"
@@ -21887,12 +22538,13 @@ local function buildMainUI()
         wrapperTitle.Font = Enum.Font.GothamBold
         wrapperTitle.TextSize = 13
         wrapperTitle.TextXAlignment = Enum.TextXAlignment.Left
+        wrapperTitle.TextTruncate = Enum.TextTruncate.AtEnd
         wrapperTitle.ZIndex = 8
         wrapperTitle.Parent = wrapperHdrWrap
 
         local topStatusLbl = Instance.new("TextLabel")
         topStatusLbl.Name = "TopLeaveStatus"
-        topStatusLbl.Size = UDim2.new(1, -76, 0, 14)
+        topStatusLbl.Size = UDim2.new(1, -268, 0, 14)
         topStatusLbl.Position = UDim2.new(0, 2, 0, 19)
         topStatusLbl.BackgroundTransparency = 1
         topStatusLbl.Text = WeldIntent.topStatusText or "ready · select a target or preset"
@@ -21903,6 +22555,31 @@ local function buildMainUI()
         topStatusLbl.TextTruncate = Enum.TextTruncate.AtEnd
         topStatusLbl.ZIndex = 8
         topStatusLbl.Parent = wrapperHdrWrap
+
+        local keysHdrBtn = Instance.new("TextButton")
+        keysHdrBtn.Name = "MasterKeybindsToggleBtn"
+        keysHdrBtn.Size = UDim2.new(0, 60, 0, 24)
+        keysHdrBtn.Position = UDim2.new(1, -262, 0, 4)
+        keysHdrBtn.Text = KeybindManager.enabled and "Keys: ON" or "Keys: OFF"
+        keysHdrBtn.TextColor3 = Color3.new(1, 1, 1)
+        keysHdrBtn.Font = Enum.Font.GothamBold
+        keysHdrBtn.TextSize = 9
+        keysHdrBtn.ZIndex = 9
+        keysHdrBtn.Parent = wrapperHdrWrap
+        Instance.new("UICorner", keysHdrBtn).CornerRadius = UDim.new(1, 0)
+        styleBtn(keysHdrBtn, KeybindManager.enabled and T.Accent2 or T.PanelLt)
+        table.insert(KeybindManager.masterCallbacks, function(st)
+            if keysHdrBtn and keysHdrBtn.Parent then
+                keysHdrBtn.Text = st and "Keys: ON" or "Keys: OFF"
+                local col = st and T.Accent2 or T.PanelLt
+                BtnColors[keysHdrBtn] = col
+                keysHdrBtn.BackgroundColor3 = col
+            end
+        end)
+        keysHdrBtn.MouseButton1Click:Connect(function()
+            playClick()
+            KeybindManager:ToggleMasterEnabled(true)
+        end)
 
         local tagsHdrBtn = Instance.new("TextButton")
         tagsHdrBtn.Name = "AboveTagsToggleBtn"
@@ -22809,6 +23486,96 @@ local function buildMainUI()
         table.insert(UI.selfOverheadTagSwitches, weldSelfTagSw.setState)
 
         addPresetRow(tuneGrp, 9, "overtags", "Pin 'Tags ON/OFF' Floating Pill", "Tap [Open] to toggle Above Tags · Tap [⦿] to pin floating screen pill")
+
+        -- Precision Drag Sliders + Direct Number Inputs for Speed, Z, Y, X
+        local spdSlider = createSliderInputRow(tuneGrp, 10, "Precision Speed Slider & Input", "Drag bar or type exact oscillation speed (0.1x – 10.0x)", 0.1, 10.0, V.Speed or 1.0, 1, "x", function(val)
+            V.Speed = val
+        end)
+        local zSlider = createSliderInputRow(tuneGrp, 11, "Precision Distance (Z) Slider & Input", "Drag bar or type exact Z offset (-5.0 to +10.0 studs)", -5.0, 10.0, V.Z or 1.3, 2, "", function(val)
+            V.Z = val
+            if distRowRef and distRowRef.pillBtn then distRowRef.pillBtn.Text = string.format("Z: %.1f", V.Z) end
+        end)
+        local ySlider = createSliderInputRow(tuneGrp, 12, "Precision Height (Y) Slider & Input", "Drag bar or type exact Y height offset (-6.0 to +6.0 studs)", -6.0, 6.0, V.Y or 0.0, 2, "", function(val)
+            V.Y = val
+            if heightRowRef and heightRowRef.pillBtn then heightRowRef.pillBtn.Text = string.format("Y: %+.1f", V.Y) end
+        end)
+        local xSlider = createSliderInputRow(tuneGrp, 13, "Precision Sideways (X) Slider & Input", "Drag bar or type exact X sideways offset (-6.0 to +6.0 studs)", -6.0, 6.0, V.X or 0.0, 2, "", function(val)
+            V.X = val
+            if sideRowRef and sideRowRef.pillBtn then sideRowRef.pillBtn.Text = string.format("X: %+.1f", V.X) end
+        end)
+
+        -- Custom Weld Oscillation Animation ID Override Box
+        local customAnimRow, _, customAnimSub = createGroupRowBase(tuneGrp, 14, "Custom Weld Animation ID Override", "Type any rbxassetid number to use during welds (blank = preset default)", 170, 50)
+        local customAnimBox = Instance.new("TextBox")
+        customAnimBox.Size = UDim2.new(0, 96, 0, 26)
+        customAnimBox.Position = UDim2.new(1, -162, 0.5, -13)
+        customAnimBox.BackgroundColor3 = T.BG2
+        customAnimBox.PlaceholderText = "Anim ID..."
+        customAnimBox.Text = V.CustomWeldAnimId and tostring(V.CustomWeldAnimId) or ""
+        customAnimBox.TextColor3 = T.Text
+        customAnimBox.PlaceholderColor3 = T.Muted
+        customAnimBox.Font = Enum.Font.GothamMedium
+        customAnimBox.TextSize = 9.5
+        customAnimBox.ClearTextOnFocus = false
+        customAnimBox.ZIndex = 9
+        customAnimBox.Parent = customAnimRow
+        Instance.new("UICorner", customAnimBox).CornerRadius = UDim.new(0, 7)
+        local cabStroke = Instance.new("UIStroke", customAnimBox)
+        cabStroke.Color = T.Border
+        cabStroke.Thickness = 1
+        cabStroke.Transparency = 0.3
+
+        local applyAnimBtn = Instance.new("TextButton")
+        applyAnimBtn.Size = UDim2.new(0, 34, 0, 26)
+        applyAnimBtn.Position = UDim2.new(1, -62, 0.5, -13)
+        applyAnimBtn.BackgroundColor3 = T.Accent2
+        applyAnimBtn.Text = "Set"
+        applyAnimBtn.TextColor3 = Color3.new(1, 1, 1)
+        applyAnimBtn.Font = Enum.Font.GothamBold
+        applyAnimBtn.TextSize = 9.5
+        applyAnimBtn.ZIndex = 9
+        applyAnimBtn.Parent = customAnimRow
+        Instance.new("UICorner", applyAnimBtn).CornerRadius = UDim.new(1, 0)
+        styleBtn(applyAnimBtn, T.Accent2)
+
+        local clrAnimBtn = Instance.new("TextButton")
+        clrAnimBtn.Size = UDim2.new(0, 24, 0, 26)
+        clrAnimBtn.Position = UDim2.new(1, -24, 0.5, -13)
+        clrAnimBtn.BackgroundColor3 = T.BG2
+        clrAnimBtn.Text = "↺"
+        clrAnimBtn.TextColor3 = T.Text
+        clrAnimBtn.Font = Enum.Font.GothamBold
+        clrAnimBtn.TextSize = 10
+        clrAnimBtn.ZIndex = 9
+        clrAnimBtn.Parent = customAnimRow
+        Instance.new("UICorner", clrAnimBtn).CornerRadius = UDim.new(1, 0)
+        styleBtn(clrAnimBtn, T.BG2)
+
+        local function applyCustomWeldAnim()
+            local digits = (customAnimBox.Text or ""):gsub("%D", "")
+            if digits ~= "" and tonumber(digits) then
+                V.CustomWeldAnimId = tonumber(digits)
+                customAnimBox.Text = digits
+                if customAnimSub then customAnimSub.Text = "Active custom weld anim: rbxassetid://" .. digits end
+                notify("⚡ CUSTOM WELD ANIM", "Set custom weld animation ID to " .. digits)
+                sSuccess()
+                if WeldIntent.active and WeldIntent.presetKey and WeldIntent.target then
+                    applyWeldPreset(WeldIntent.presetKey, WeldIntent.target)
+                end
+            else
+                V.CustomWeldAnimId = nil
+                customAnimBox.Text = ""
+                if customAnimSub then customAnimSub.Text = "Using default preset animations" end
+                notify("⚡ CUSTOM WELD ANIM", "Restored default weld preset animations")
+            end
+        end
+        applyAnimBtn.MouseButton1Click:Connect(function() playClick(); applyCustomWeldAnim() end)
+        customAnimBox.FocusLost:Connect(function(enter) if enter then applyCustomWeldAnim() end end)
+        clrAnimBtn.MouseButton1Click:Connect(function()
+            playClick()
+            customAnimBox.Text = ""
+            applyCustomWeldAnim()
+        end)
     end
 
     -- Spawn the default floating quick pills (including AnimCopy!)
@@ -23300,6 +24067,20 @@ local function buildMainUI()
             end
         )
 
+        createSliderInputRow(tuneSkyGrp, 7, "Ground Elevation Slider (-25 to 100 st)", "Live drag or type exact Ground Blanket elevation", -25.0, 100.0, _G._HaloCoverGroundHeight or 1.5, 1, " st", function(val)
+            _G._HaloCoverGroundHeight = val
+            if groundElevRow and groundElevRow.pillBtn then groundElevRow.pillBtn.Text = string.format("%.1f st", val) end
+        end)
+
+        createSliderInputRow(tuneSkyGrp, 8, "Sky Dome Elevation Slider (-25 to 250 st)", "Live drag or type exact Sky Dome height above character", -25.0, 250.0, _G._HaloCoverSkyHeight or 3.0, 1, " st", function(val)
+            _G._HaloCoverSkyHeight = val
+            if skyElevRow and skyElevRow.pillBtn then skyElevRow.pillBtn.Text = string.format("%.1f st", val) end
+        end)
+
+        createSliderInputRow(tuneSkyGrp, 9, "Mesh Reach Scale Slider (0.01x to 3.0x)", "Live drag or type reach multiplier (1.0x = 25M studs)", 0.01, 3.0, _G._HaloCoverScaleMult or 1.0, 2, "x", function(val)
+            _G._HaloCoverScaleMult = val
+        end)
+
         CocaSkyDestroyer.syncUIFn = function()
             if swGround then swGround.setState(_G._HaloCoverGroundActive == true, false) end
             if swSky then swSky.setState(_G._HaloCoverSkyActive == true, false) end
@@ -23459,6 +24240,19 @@ local function buildMainUI()
                     return
                 end
                 pcall(function()
+                    -- Snapshot original outfit once per character before morphing so we can restore without resetting!
+                    if not AnimCopySys.savedOutfitChar or AnimCopySys.savedOutfitChar ~= myChar then
+                        AnimCopySys.savedOutfitChar = myChar
+                        AnimCopySys.savedOutfitItems = {}
+                        for _, v in ipairs(myChar:GetChildren()) do
+                            if v:IsA("Accessory") or v:IsA("Shirt") or v:IsA("Pants") or v:IsA("ShirtGraphic") or v:IsA("BodyColors") or v:IsA("CharacterMesh") then
+                                table.insert(AnimCopySys.savedOutfitItems, v:Clone())
+                            end
+                        end
+                        local mh = myChar:FindFirstChild("Head")
+                        local mf = mh and mh:FindFirstChildOfClass("Decal")
+                        AnimCopySys.savedFaceTexture = mf and mf.Texture or nil
+                    end
                     for _, v in ipairs(myChar:GetChildren()) do
                         if v:IsA("Accessory") or v:IsA("Shirt") or v:IsA("Pants") or v:IsA("ShirtGraphic") or v:IsA("BodyColors") or v:IsA("CharacterMesh") then
                             v:Destroy()
@@ -23493,6 +24287,76 @@ local function buildMainUI()
                     if pillBtn and pillBtn.Parent then pillBtn.Text = "Morph Twin" end
                 end)
             end
+        )
+
+        createActionRow(
+            copyGrp,
+            8,
+            "Restore Original Avatar Outfit (Undo Twin Morph) (NEW)",
+            "Restores your own clothes, accessories, body colors & face without resetting",
+            "Restore Me",
+            function(pillBtn)
+                local myChar = LP.Character
+                if not myChar or AnimCopySys.savedOutfitChar ~= myChar or not AnimCopySys.savedOutfitItems then
+                    notify("🎭 OUTFIT RESTORE", "Your original avatar outfit is already active!")
+                    return
+                end
+                pcall(function()
+                    for _, v in ipairs(myChar:GetChildren()) do
+                        if v:IsA("Accessory") or v:IsA("Shirt") or v:IsA("Pants") or v:IsA("ShirtGraphic") or v:IsA("BodyColors") or v:IsA("CharacterMesh") then
+                            v:Destroy()
+                        end
+                    end
+                    for _, savedItem in ipairs(AnimCopySys.savedOutfitItems) do
+                        if savedItem then
+                            savedItem:Clone().Parent = myChar
+                        end
+                    end
+                    local myHead = myChar:FindFirstChild("Head")
+                    local myFace = myHead and myHead:FindFirstChildOfClass("Decal")
+                    if myFace and AnimCopySys.savedFaceTexture then
+                        myFace.Texture = AnimCopySys.savedFaceTexture
+                    end
+                end)
+                pillBtn.Text = "Restored!"
+                notify("🎭 OUTFIT RESTORED", "Restored your original avatar outfit & accessories!")
+                sSuccess()
+                task.delay(1.4, function()
+                    if pillBtn and pillBtn.Parent then pillBtn.Text = "Restore Me" end
+                end)
+            end
+        )
+
+        local rotModes = {
+            { deg = 0,   spin = false, label = "0° (Match)" },
+            { deg = 180, spin = false, label = "180° (Face)" },
+            { deg = 90,  spin = false, label = "+90° (Right)" },
+            { deg = -90, spin = false, label = "-90° (Left)" },
+            { deg = 0,   spin = true,  label = "360° Spin" },
+        }
+        local rotIdx = 1
+        createActionRow(
+            copyGrp,
+            9,
+            "Target Facing & Rotation Angle Offset (RY) (NEW)",
+            "Cycle facing angle (0° Match, 180° Opposite, ±90° Sideways, or 360° Spin) · Tap [↺] for 0°",
+            "0° (Match)",
+            function(pillBtn)
+                rotIdx = (rotIdx % #rotModes) + 1
+                local rm = rotModes[rotIdx]
+                AnimCopySys.rotationOffsetDeg = rm.deg
+                AnimCopySys.spinMode = rm.spin
+                pillBtn.Text = rm.label
+                notify("🎭 ROTATION OFFSET", "Anim Copy Facing Mode: " .. rm.label)
+            end,
+            function(_, pillBtn)
+                rotIdx = 1
+                AnimCopySys.rotationOffsetDeg = 0
+                AnimCopySys.spinMode = false
+                if pillBtn then pillBtn.Text = "0° (Match)" end
+                notify("🎭 ROTATION OFFSET", "Reset facing rotation to 0° (Match Target)")
+            end,
+            "↺"
         )
 
         -- Section 2: Jerk Troll & Emote Playback Controls
@@ -23580,8 +24444,54 @@ local function buildMainUI()
             end
         )
 
-        -- Section 3: All 28 Official Roblox Catalog R15 Animation Packs
-        createSectionTitle(animationPage, 3, "Catalog Animation Packs")
+        -- Section 3: 125+ Official & UGC R15 Animation Packs with Instant Search & Filter
+        createSectionTitle(animationPage, 3, "Catalog & UGC Animation Packs (125+ Bundles)")
+
+        local packFilterWrap = Instance.new("Frame")
+        packFilterWrap.Size = UDim2.new(1, 0, 0, 68)
+        packFilterWrap.BackgroundTransparency = 1
+        packFilterWrap.LayoutOrder = 3
+        packFilterWrap.ZIndex = 7
+        packFilterWrap.Parent = animationPage
+
+        local packSearchBox = Instance.new("TextBox")
+        packSearchBox.Size = UDim2.new(1, 0, 0, 32)
+        packSearchBox.Position = UDim2.new(0, 0, 0, 0)
+        packSearchBox.BackgroundColor3 = T.Panel
+        packSearchBox.PlaceholderText = "Search 125+ animation packs (Vampire, Mage, Zombie, UGC, Retro, Shinobi...)..."
+        packSearchBox.Text = ""
+        packSearchBox.TextColor3 = T.Text
+        packSearchBox.PlaceholderColor3 = T.Muted
+        packSearchBox.Font = Enum.Font.Gotham
+        packSearchBox.TextSize = 10
+        packSearchBox.ClearTextOnFocus = false
+        packSearchBox.ZIndex = 8
+        packSearchBox.Parent = packFilterWrap
+        Instance.new("UICorner", packSearchBox).CornerRadius = UDim.new(1, 0)
+        local psStroke = Instance.new("UIStroke", packSearchBox)
+        psStroke.Color = T.Border
+        psStroke.Thickness = 1
+        psStroke.Transparency = 0.35
+        local psPad = Instance.new("UIPadding", packSearchBox)
+        psPad.PaddingLeft = UDim.new(0, 12)
+        psPad.PaddingRight = UDim.new(0, 12)
+
+        local packCatBar = Instance.new("Frame")
+        packCatBar.Size = UDim2.new(1, 0, 0, 28)
+        packCatBar.Position = UDim2.new(0, 0, 0, 36)
+        packCatBar.BackgroundTransparency = 1
+        packCatBar.ZIndex = 8
+        packCatBar.Parent = packFilterWrap
+        local packCatLayout = Instance.new("UIListLayout", packCatBar)
+        packCatLayout.FillDirection = Enum.FillDirection.Horizontal
+        packCatLayout.Padding = UDim.new(0, 6)
+        packCatLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+        local PACK_CATS = { "All (125)", "Official (36)", "UGC / Mortal (89)" }
+        local selectedPackCat = "All (125)"
+        local packCatBtns = {}
+        local packRowEntries = {}
+
         local packGrp = createGroupCard(animationPage, 4)
 
         createActionRow(
@@ -23592,22 +24502,65 @@ local function buildMainUI()
             "Restore",
             function()
                 EmoteHub:RestoreDefaultPack()
+                if UI.autoSaveConfig and UI.saveConfigToDisk then UI.saveConfigToDisk(false) end
             end
         )
+
+        local function filterCatalogPacksList()
+            local q = (packSearchBox.Text or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
+            for _, entry in ipairs(packRowEntries) do
+                local catOk = (selectedPackCat == "All (125)")
+                    or (selectedPackCat == "Official (36)" and not entry.isUGC)
+                    or (selectedPackCat == "UGC / Mortal (89)" and entry.isUGC)
+                local txtOk = (q == "") or entry.searchName:find(q, 1, true)
+                if entry.rInfo and entry.rInfo.row then
+                    entry.rInfo.row.Visible = (catOk and txtOk)
+                end
+            end
+        end
+
+        for idx, cName in ipairs(PACK_CATS) do
+            local b = Instance.new("TextButton")
+            b.Size = UDim2.new(0, 102, 0, 26)
+            b.Text = cName
+            b.TextColor3 = (cName == selectedPackCat) and Color3.new(1, 1, 1) or T.Text
+            b.Font = Enum.Font.GothamBold
+            b.TextSize = 9.5
+            b.LayoutOrder = idx
+            b.ZIndex = 9
+            b.Parent = packCatBar
+            Instance.new("UICorner", b).CornerRadius = UDim.new(1, 0)
+            styleBtn(b, (cName == selectedPackCat) and T.Accent2 or T.Panel)
+            packCatBtns[cName] = b
+            b.MouseButton1Click:Connect(function()
+                playClick()
+                selectedPackCat = cName
+                for k, btn in pairs(packCatBtns) do
+                    local isAct = (k == selectedPackCat)
+                    BtnColors[btn] = isAct and T.Accent2 or T.Panel
+                    btn.BackgroundColor3 = isAct and T.Accent2 or T.Panel
+                    btn.TextColor3 = isAct and Color3.new(1, 1, 1) or T.Text
+                end
+                filterCatalogPacksList()
+            end)
+        end
 
         local packsBuilt = false
         local function ensureCatalogPacksBuilt()
             if packsBuilt then return end
             packsBuilt = true
             for idx, pack in ipairs(EmoteHub.CatalogPacks) do
-                createActionRow(
+                local isUGC = (idx > 36) or (pack.name:find("^%(UGC%)") ~= nil)
+                local subDesc = isUGC and "MortalHub / UGC Character Animation Bundle" or "Official Catalog Bundle: Idle, Walk, Run, Jump, Fall, Climb & Swim"
+                local rInfo = createActionRow(
                     packGrp,
                     idx + 1,
                     pack.name .. " Animation Pack",
-                    "Full Catalog Bundle: Idle, Walk, Run, Jump, Fall, Climb & Swim",
+                    subDesc,
                     "Apply",
                     function(pillBtn)
                         if EmoteHub:ApplyCatalogPack(pack) then
+                            if UI.autoSaveConfig and UI.saveConfigToDisk then UI.saveConfigToDisk(false) end
                             pillBtn.Text = "Applied"
                             task.delay(1.4, function()
                                 if pillBtn and pillBtn.Parent then pillBtn.Text = "Apply" end
@@ -23615,8 +24568,19 @@ local function buildMainUI()
                         end
                     end
                 )
+                table.insert(packRowEntries, {
+                    rInfo = rInfo,
+                    pack = pack,
+                    isUGC = isUGC,
+                    searchName = pack.name:lower(),
+                })
             end
+            filterCatalogPacksList()
         end
+        packSearchBox:GetPropertyChangedSignal("Text"):Connect(function()
+            ensureCatalogPacksBuilt()
+            filterCatalogPacksList()
+        end)
         animationPage:GetPropertyChangedSignal("Visible"):Connect(function()
             if animationPage.Visible then ensureCatalogPacksBuilt() end
         end)
@@ -23692,9 +24656,61 @@ local function buildMainUI()
         catFilterLayout.SortOrder = Enum.SortOrder.LayoutOrder
         catFilterLayout.Parent = catFilterBar
 
-        local EMOTE_CATS = { "All", "Trending", "Dances", "Poses", "Actions", "R6" }
+        EmoteHub.favoriteEmotes = EmoteHub.favoriteEmotes or {}
+        EmoteHub.quickSlots = EmoteHub.quickSlots or {
+            [1] = { name = "Bang (Coco)", id = "116235062592344" },
+            [2] = { name = "Goon (Coco)", id = "136828069054505" },
+        }
+        EmoteHub.lastPlayedEmote = EmoteHub.quickSlots[1]
+
+        local EMOTE_CATS = { "All", "★ Favs", "Trending", "Dances", "Poses", "Actions", "R6" }
         local selectedEmoteCat = "All"
         local catFilterBtns = {}
+
+        local quickEmoteGrp = createGroupCard(emotePage, 2)
+        local slot1Row = createActionRow(
+            quickEmoteGrp,
+            1,
+            "Quick Emote Slot #1: " .. EmoteHub.quickSlots[1].name,
+            "Tap [Play #1] to play · Tap [⦿] to pin floating screen pill (binds last played emote on right-click)",
+            "Play #1",
+            function()
+                local s = EmoteHub.quickSlots[1]
+                if s and s.id then EmoteHub:PlayCatalogEmote(s.name, s.id) end
+            end,
+            function()
+                toggleFloatingPill("emote1")
+            end,
+            ActivePills["emote1"] and "✓" or "⦿"
+        )
+        presetActionRows["emote1"] = slot1Row
+
+        local slot2Row = createActionRow(
+            quickEmoteGrp,
+            2,
+            "Quick Emote Slot #2: " .. EmoteHub.quickSlots[2].name,
+            "Tap [Set Last] to bind your last-played emote into Slot #1/#2 · Tap [⦿] to pin Slot #2 pill",
+            "Set Last",
+            function()
+                local last = EmoteHub.lastPlayedEmote
+                if last and last.id then
+                    EmoteHub.quickSlots[1] = { name = last.name, id = last.id }
+                    slot1Row.titleLbl.Text = "Quick Emote Slot #1: " .. last.name
+                    notify("💃 QUICK SLOT #1", "Assigned '" .. last.name .. "' to Quick Emote Slot #1!")
+                    sSuccess()
+                end
+            end,
+            function()
+                local last = EmoteHub.lastPlayedEmote
+                if last and last.id then
+                    EmoteHub.quickSlots[2] = { name = last.name, id = last.id }
+                    slot2Row.titleLbl.Text = "Quick Emote Slot #2: " .. last.name
+                end
+                toggleFloatingPill("emote2")
+            end,
+            ActivePills["emote2"] and "✓" or "⦿"
+        )
+        presetActionRows["emote2"] = slot2Row
 
         local emoteListGrp = createGroupCard(emotePage, 3)
         local emoteRowPool = {}
@@ -23705,7 +24721,10 @@ local function buildMainUI()
             local q = (emoteSearchBox.Text or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
             local shown = 0
             for _, em in ipairs(EmoteHub.CatalogEmotes) do
-                local catMatch = (selectedEmoteCat == "All") or (em.cat == selectedEmoteCat)
+                local isFav = EmoteHub.favoriteEmotes[tostring(em.id)] == true
+                local catMatch = (selectedEmoteCat == "All")
+                    or (selectedEmoteCat == "★ Favs" and isFav)
+                    or (em.cat == selectedEmoteCat)
                 local txtMatch = (q == "") or em.name:lower():find(q, 1, true) or em.id:find(q, 1, true) or em.cat:lower():find(q, 1, true)
                 if catMatch and txtMatch then
                     shown = shown + 1
@@ -23721,14 +24740,30 @@ local function buildMainUI()
                             function(pillBtn)
                                 local cur = poolEntry and poolEntry.emote or boundEmote
                                 if cur then
+                                    EmoteHub.lastPlayedEmote = cur
                                     EmoteHub:PlayCatalogEmote(cur.name, cur.id)
                                     pillBtn.Text = "Playing"
                                     task.delay(1.5, function()
                                         if pillBtn and pillBtn.Parent then pillBtn.Text = "Play" end
                                     end)
                                 end
-                            end
+                            end,
+                            function(cBtn)
+                                local cur = poolEntry and poolEntry.emote or boundEmote
+                                if not cur then return end
+                                local idKey = tostring(cur.id)
+                                local nowFav = not EmoteHub.favoriteEmotes[idKey]
+                                EmoteHub.favoriteEmotes[idKey] = nowFav or nil
+                                cBtn.Text = nowFav and "★" or "☆"
+                                cBtn.TextColor3 = nowFav and Color3.fromRGB(255, 215, 70) or T.Text
+                                if UI.autoSaveConfig and UI.saveConfigToDisk then UI.saveConfigToDisk(false) end
+                                if selectedEmoteCat == "★ Favs" then refreshEmotesCatalogList() end
+                            end,
+                            isFav and "★" or "☆"
                         )
+                        if rInfo.circleBtn then
+                            rInfo.circleBtn.TextColor3 = isFav and Color3.fromRGB(255, 215, 70) or T.Text
+                        end
                         poolEntry = { rowInfo = rInfo, emote = em }
                         emoteRowPool[shown] = poolEntry
                     else
@@ -23737,6 +24772,10 @@ local function buildMainUI()
                         poolEntry.rowInfo.titleLbl.Text = em.name
                         if poolEntry.rowInfo.subLbl then
                             poolEntry.rowInfo.subLbl.Text = "[" .. em.cat .. "]  ·  rbxassetid://" .. em.id
+                        end
+                        if poolEntry.rowInfo.circleBtn then
+                            poolEntry.rowInfo.circleBtn.Text = isFav and "★" or "☆"
+                            poolEntry.rowInfo.circleBtn.TextColor3 = isFav and Color3.fromRGB(255, 215, 70) or T.Text
                         end
                     end
                 end
@@ -24019,6 +25058,48 @@ local function buildMainUI()
             end
         )
 
+        _G.CocoIgnoreFriends = _G.CocoIgnoreFriends or false
+        _G.CocoTargetWhitelist = _G.CocoTargetWhitelist or {}
+
+        createSwitchRow(
+            intelGrp,
+            4,
+            "Ignore Roblox Friends & Whitelisted Players (NEW)",
+            "Prevents Auto-Nearest, Pursuit & Void Fling from locking onto your friends",
+            _G.CocoIgnoreFriends,
+            function(st)
+                _G.CocoIgnoreFriends = st
+                if UI.autoSaveConfig and UI.saveConfigToDisk then UI.saveConfigToDisk(false) end
+                notify("🛡️ FRIEND GUARD", st and "Auto-Nearest will now ignore Roblox Friends & Whitelisted players!" or "Friend Ignore disabled")
+            end
+        )
+
+        createActionRow(
+            intelGrp,
+            5,
+            "Whitelist / Un-Whitelist Locked Target (NEW)",
+            "Tap [Whitelist] to protect/unprotect target · Tap [↺] to clear custom whitelist",
+            "Whitelist",
+            function(pillBtn)
+                local tgt = selectedPlayer or resolveActiveTarget()
+                if not tgt or tgt == LP then
+                    notify("🛡️ WHITELIST", "Select a player first!")
+                    return
+                end
+                local nowWl = not _G.CocoTargetWhitelist[tgt.UserId]
+                _G.CocoTargetWhitelist[tgt.UserId] = nowWl or nil
+                pillBtn.Text = nowWl and "Protected" or "Whitelist"
+                notify("🛡️ WHITELIST", (nowWl and "Added @" or "Removed @") .. tgt.Name .. (nowWl and " to Protected Whitelist!" or " from Whitelist"))
+                if refreshList then pcall(refreshList, true) end
+            end,
+            function()
+                _G.CocoTargetWhitelist = {}
+                notify("🛡️ WHITELIST", "Cleared custom target whitelist")
+                if refreshList then pcall(refreshList, true) end
+            end,
+            "↺"
+        )
+
         createSectionTitle(targetPage, 3, "Server Players")
         local plrGrp = createGroupCard(targetPage, 4)
         plrGrp:SetAttribute("DynamicList", true)
@@ -24068,11 +25149,17 @@ local function buildMainUI()
             for i, p in ipairs(plrs) do
                 local isSel = (selectedPlayer == p)
                 local distStr = "hidden / unstreamed"
+                local hpStr = "HP: —"
                 pcall(function()
                     local myR = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
                     local tCF = getBestTargetCFrame(p)
                     if myR and tCF then
-                        distStr = string.format("%d studs away", math.floor((tCF.Position - myR.Position).Magnitude))
+                        distStr = string.format("%d studs", math.floor((tCF.Position - myR.Position).Magnitude))
+                    end
+                    local tChar = findPlayerCharacterAnywhere(p, true)
+                    local tHum = tChar and tChar:FindFirstChildOfClass("Humanoid")
+                    if tHum and tHum.MaxHealth > 0 then
+                        hpStr = string.format("❤️ %d%%", math.clamp(math.floor((tHum.Health / tHum.MaxHealth) * 100 + 0.5), 0, 100))
                     end
                 end)
 
@@ -24085,11 +25172,14 @@ local function buildMainUI()
                 elseif detInfo and (tick() - (detInfo.lastSeen or 0)) < 25 then
                     cpTag = detInfo.isFrozen and "  [❄️ CP FROZEN]" or "  [⚡ CP USER]"
                 end
+                if _G.CocoTargetWhitelist and _G.CocoTargetWhitelist[p.UserId] then
+                    cpTag = cpTag .. "  [🛡️ VIP]"
+                end
                 local rowInfo = createActionRow(
                     plrGrp,
                     i,
                     p.DisplayName .. cpTag .. (isSel and "  [LOCKED]" or ""),
-                    "@" .. p.Name .. "  ·  " .. distStr,
+                    "@" .. p.Name .. "  ·  " .. hpStr .. "  ·  " .. distStr,
                     isSel and "Locked" or "Lock",
                     function()
                         if selectedPlayer == p or (WeldIntent.typedUsername ~= "" and WeldIntent.typedUsername:lower() == p.Name:lower()) then
@@ -24596,6 +25686,19 @@ local function buildMainUI()
             cBtn.Text = tostring(nxt)
             notify("⚡ PHASE DASH", "Dash distance: " .. tostring(nxt) .. " studs")
         end, tostring(moveState.dashDistance))
+
+        createSliderInputRow(spdGrp, 10, "WalkSpeed Precision Slider (16 – 500)", "Drag bar or type exact ground WalkSpeed", 16, 500, currentSpeed, 0, "", function(val)
+            applySpeedValue(val)
+        end)
+
+        createSliderInputRow(spdGrp, 11, "JumpPower Precision Slider (50 – 350)", "Drag bar or type exact JumpPower height", 50, 350, currentJump, 0, "", function(val)
+            currentJump = math.floor(val)
+            local _, hum = getMoveCharacter()
+            if hum then hum.UseJumpPower = true; if moveState.jump then hum.JumpPower = currentJump end end
+            if jumpSwitchRef and jumpSwitchRef.subLbl then
+                jumpSwitchRef.subLbl.Text = "Enhances jump height (" .. tostring(currentJump) .. " power)"
+            end
+        end)
 
         end)() -- end WalkSpeed & Physics sub-scope
         createSectionTitle(movePage, 5, "Cinematic 4-Phase Flight")
@@ -25754,7 +26857,7 @@ local function buildMainUI()
                     local styleCfg = FLY_STYLES[moveState.flyStyle] or FLY_STYLES[1]
                     local moving = dir.Magnitude > 0.05
                     local unitDir = moving and dir.Unit or Vector3.zero
-                    local flySpeed = math.max(28, currentSpeed)
+                    local flySpeed = (moveState.useCustomFlySpeed ~= false and moveState.flySpeed) or math.max(28, currentSpeed)
                     local speedNorm = math.clamp(flySpeed / 120, 0.35, 1.4)
 
                     -- Check solid ground proximity for dynamic Takeoff / Touchdown Landing transitions
@@ -25935,6 +27038,17 @@ local function buildMainUI()
                     cleanupFlyTrails()
                 end
             end)
+
+            moveState.flySpeed = moveState.flySpeed or 75
+            moveState.useCustomFlySpeed = true
+            createSliderInputRow(flyGrp, 4, "Independent Flight Speed Slider (20 – 500)", "Adjust supersonic flight speed separately from ground WalkSpeed", 20, 500, moveState.flySpeed, 0, " st/s", function(val)
+                moveState.flySpeed = math.floor(val)
+            end)
+
+            createSwitchRow(flyGrp, 5, "Use Independent Flight Speed", "ON: uses Flight Speed slider above · OFF: matches ground WalkSpeed", moveState.useCustomFlySpeed, function(st)
+                moveState.useCustomFlySpeed = st
+                notify("✈️ FLIGHT SPEED", st and ("Using Independent Flight Speed (" .. tostring(moveState.flySpeed) .. " st/s)") or "Flight Speed synced with WalkSpeed")
+            end)
         end)()
 
         -- Section 7: Vanish Player & Ghost Invisibility Engine
@@ -26088,31 +27202,27 @@ local function buildMainUI()
             end
         end)
 
-        local infJumpEnabled = false
-        local infJumpConn = nil
-        createSwitchRow(fpsGrp, 3, "Infinite Air-Jump (Multi-Jump in Mid-Air) (NEW)", "Press Space or Mobile Jump infinitely in mid-air without falling", false, function(st)
-            infJumpEnabled = st
-            if infJumpConn then infJumpConn:Disconnect(); infJumpConn = nil end
-            if st then
-                local lastJumpTick = 0
-                infJumpConn = UIS.JumpRequest:Connect(function()
-                    if not infJumpEnabled or FlingActive or CurrentWeld ~= nil then return end
-                    if tick() - lastJumpTick < 0.14 then return end
-                    lastJumpTick = tick()
-                    local ch = LP.Character
-                    local hum = ch and ch:FindFirstChildOfClass("Humanoid")
-                    local root = ch and ch:FindFirstChild("HumanoidRootPart")
-                    if hum and root and hum.Health > 0 then
-                        local v = root.AssemblyLinearVelocity
-                        local jp = (hum.UseJumpPower and hum.JumpPower or 50)
-                        root.AssemblyLinearVelocity = Vector3.new(v.X, math.max(jp, 54), v.Z)
-                        pcall(function() hum:ChangeState(Enum.HumanoidStateType.Jumping) end)
+        -- Replaced duplicate Infinite Air-Jump row with Anti-Fall-Damage & Zero-Slip Ice Physics Guard
+        local noSlipConn = nil
+        createSwitchRow(fpsGrp, 3, "Zero-Slip Ice & Steep Slope Grip (NEW)", "Prevents sliding on ice/oil & lets you climb steep terrain angles", false, function(st)
+            if noSlipConn then noSlipConn:Disconnect(); noSlipConn = nil end
+            local applyGrip = function(ch)
+                if not ch then return end
+                local hum = ch:FindFirstChildOfClass("Humanoid")
+                if hum then pcall(function() hum.MaxSlopeAngle = st and 89.9 or 89 end) end
+                for _, p in ipairs(ch:GetDescendants()) do
+                    if p:IsA("BasePart") then
+                        pcall(function() p.CustomPhysicalProperties = st and PhysicalProperties.new(0.7, 1.0, 0.0, 1.0, 1.0) or nil end)
                     end
-                end)
-                notify("🦘 INFINITE JUMP", "Infinite Mid-Air Jump ON!")
+                end
+            end
+            applyGrip(LP.Character)
+            if st then
+                noSlipConn = LP.CharacterAdded:Connect(function(c) task.wait(0.2); applyGrip(c) end)
+                notify("🥾 SURFACE GRIP", "Zero-Slip Ice & 89.9° Steep Slope Grip ON!")
                 sToggleOn()
             else
-                notify("🦘 INFINITE JUMP", "Infinite Mid-Air Jump OFF")
+                notify("🥾 SURFACE GRIP", "Default character friction restored")
                 sToggleOff()
             end
         end)
@@ -26211,6 +27321,17 @@ local function buildMainUI()
         end, function()
             disableAllAntiSystems()
         end, "✕")
+
+        Anti.lockAlwaysOn = false
+        createSwitchRow(masterGrp, 2, "Lock Anti-Void & Anti-Sit as Always-On", "Turn OFF (default) so you can disable Anti-Sit to sit in cars/chairs anytime", Anti.lockAlwaysOn, function(st)
+            Anti.lockAlwaysOn = st
+            if st then
+                avStart(true)
+                if Anti.SeatTrap.startFn then Anti.SeatTrap.startFn(true) end
+                syncAllAntiButtons()
+            end
+            notify("🛡️ SHIELD LOCK", st and "Anti-Void & Anti-Sit locked as Always-On" or "Anti-Void & Anti-Sit can now be freely toggled ON/OFF!")
+        end)
 
         createSectionTitle(antiPage, 2, "Defence Troll Matrix V3 (Active Counter-Radar)")
         local defGrp = createGroupCard(antiPage, 3)
@@ -26560,6 +27681,77 @@ local function buildMainUI()
             cBtn.Text = string.format("%.0fs", CS_D)
             notify("💬 CHAT DELAY", string.format("Broadcast interval set to %.1fs", CS_D))
         end, "5s")
+
+        createSwitchRow(chatGrp, 5, "Anti-Tag & Anti-Spam Rate-Limit Bypass (NEW)", "Appends invisible zero-width variation markers so repeated messages aren't blocked", _G.CocoAntiTagBypass ~= false, function(st)
+            _G.CocoAntiTagBypass = st
+            if UI.autoSaveConfig and UI.saveConfigToDisk then UI.saveConfigToDisk(false) end
+            notify("💬 ANTI-RATE-LIMIT", st and "Zero-Width Anti-Duplicate Chat Bypass ON!" or "Anti-Duplicate Chat Bypass OFF")
+        end)
+
+        local customRoastRow, _, customRoastSub = createGroupRowBase(chatGrp, 6, "Custom Roast Word / Line Editor (NEW)", "Add custom words to the Auto-Roast generator pool · Tap [↺] to reset", 170, 50)
+        local customRoastBox = Instance.new("TextBox")
+        customRoastBox.Size = UDim2.new(0, 96, 0, 26)
+        customRoastBox.Position = UDim2.new(1, -162, 0.5, -13)
+        customRoastBox.BackgroundColor3 = T.BG2
+        customRoastBox.PlaceholderText = "New roast word..."
+        customRoastBox.Text = ""
+        customRoastBox.TextColor3 = T.Text
+        customRoastBox.PlaceholderColor3 = T.Muted
+        customRoastBox.Font = Enum.Font.Gotham
+        customRoastBox.TextSize = 9.5
+        customRoastBox.ClearTextOnFocus = false
+        customRoastBox.ZIndex = 9
+        customRoastBox.Parent = customRoastRow
+        Instance.new("UICorner", customRoastBox).CornerRadius = UDim.new(0, 7)
+        local crStroke = Instance.new("UIStroke", customRoastBox)
+        crStroke.Color = T.Border
+        crStroke.Thickness = 1
+        crStroke.Transparency = 0.3
+
+        local addRoastBtn = Instance.new("TextButton")
+        addRoastBtn.Size = UDim2.new(0, 34, 0, 26)
+        addRoastBtn.Position = UDim2.new(1, -62, 0.5, -13)
+        addRoastBtn.BackgroundColor3 = T.Accent2
+        addRoastBtn.Text = "Add"
+        addRoastBtn.TextColor3 = Color3.new(1, 1, 1)
+        addRoastBtn.Font = Enum.Font.GothamBold
+        addRoastBtn.TextSize = 9.5
+        addRoastBtn.ZIndex = 9
+        addRoastBtn.Parent = customRoastRow
+        Instance.new("UICorner", addRoastBtn).CornerRadius = UDim.new(1, 0)
+        styleBtn(addRoastBtn, T.Accent2)
+
+        local rstRoastBtn = Instance.new("TextButton")
+        rstRoastBtn.Size = UDim2.new(0, 24, 0, 26)
+        rstRoastBtn.Position = UDim2.new(1, -24, 0.5, -13)
+        rstRoastBtn.BackgroundColor3 = T.BG2
+        rstRoastBtn.Text = "↺"
+        rstRoastBtn.TextColor3 = T.Text
+        rstRoastBtn.Font = Enum.Font.GothamBold
+        rstRoastBtn.TextSize = 10
+        rstRoastBtn.ZIndex = 9
+        rstRoastBtn.Parent = customRoastRow
+        Instance.new("UICorner", rstRoastBtn).CornerRadius = UDim.new(1, 0)
+        styleBtn(rstRoastBtn, T.BG2)
+
+        addRoastBtn.MouseButton1Click:Connect(function()
+            playClick()
+            if _G.AddCocoCustomRoast and _G.AddCocoCustomRoast(customRoastBox.Text) then
+                local added = customRoastBox.Text:upper()
+                customRoastBox.Text = ""
+                if customRoastSub then customRoastSub.Text = "Added '" .. added .. "' (" .. tostring(#(_G.CocoCustomRoasts or {})) .. " custom roasts active)" end
+                if UI.autoSaveConfig and UI.saveConfigToDisk then UI.saveConfigToDisk(false) end
+                notify("💬 ROAST ADDED", "Added '" .. added .. "' to Auto-Roast generator!")
+                sSuccess()
+            end
+        end)
+        rstRoastBtn.MouseButton1Click:Connect(function()
+            playClick()
+            if _G.ResetCocoCustomRoasts then _G.ResetCocoCustomRoasts() end
+            if customRoastSub then customRoastSub.Text = "Restored default roast vocabulary" end
+            if UI.autoSaveConfig and UI.saveConfigToDisk then UI.saveConfigToDisk(false) end
+            notify("💬 ROAST LIST", "Restored default roast vocabulary!")
+        end)
     end)()
 
     -- ═══════════════════════════════════════════════════════════════════════════
@@ -26649,6 +27841,30 @@ local function buildMainUI()
             UI.setSelfOverheadTagEnabled(st, true)
         end)
         table.insert(UI.selfOverheadTagSwitches, prefSelfTagSw.setState)
+
+        UI.uiScale = UI.uiScale or 1.0
+        local uiScaleSlider = createSliderInputRow(prefGrp, 7, "UI Window Scale (75% – 125%) (NEW)", "Resize the entire Dual-Card hub cleanly for PC or Mobile screens", 75, 125, math.floor((UI.uiScale or 1.0) * 100), 0, "%", function(pct)
+            UI.uiScale = math.clamp(pct / 100, 0.75, 1.25)
+            if UI.applyRootScaleFn then UI.applyRootScaleFn(UI.uiScale) end
+            if UI.autoSaveConfig and UI.saveConfigToDisk then UI.saveConfigToDisk(false) end
+        end)
+
+        createActionRow(prefGrp, 8, "Reset UI Window Scale to 100%", "Restores default 1.0x window size", "100% ↺", function()
+            UI.uiScale = 1.0
+            uiScaleSlider.setValue(100, true)
+            notify("🎨 UI SCALE", "Restored UI Window Scale to 100%")
+        end)
+
+        -- Expose theme lookup so saved config can auto-apply theme
+        UI.applyThemeByName = function(tName)
+            for _, th in ipairs(THEMES) do
+                if th.name == tName then
+                    UI.currentThemeName = th.name
+                    applyTheme(th)
+                    break
+                end
+            end
+        end
     end)()
 
     -- ═══════════════════════════════════════════════════════════════════════════
@@ -27842,12 +29058,54 @@ local function buildMainUI()
         -- SECTION 9: 👑 SCRIPT USERS & PLAYERS (Freeze / Ban / Chat / Vanish)
         -- ═══════════════════════════════════════════════════════════════════════
         createSectionTitle(adminPage, 18, "Script Users & Server Players (Freeze / Chat / Vanish / Prem / Ban)")
+
+        local adminSearchRow = Instance.new("Frame")
+        adminSearchRow.Size = UDim2.new(1, 0, 0, 34)
+        adminSearchRow.BackgroundTransparency = 1
+        adminSearchRow.LayoutOrder = 18
+        adminSearchRow.ZIndex = 7
+        adminSearchRow.Parent = adminPage
+
+        local adminSearchBox = Instance.new("TextBox")
+        adminSearchBox.Size = UDim2.new(1, -112, 1, 0)
+        adminSearchBox.BackgroundColor3 = T.Panel
+        adminSearchBox.PlaceholderText = "Search server players or filter ('user', 'frozen', 'banned')..."
+        adminSearchBox.Text = ""
+        adminSearchBox.TextColor3 = T.Text
+        adminSearchBox.PlaceholderColor3 = T.Muted
+        adminSearchBox.Font = Enum.Font.Gotham
+        adminSearchBox.TextSize = 10
+        adminSearchBox.ClearTextOnFocus = false
+        adminSearchBox.ZIndex = 8
+        adminSearchBox.Parent = adminSearchRow
+        Instance.new("UICorner", adminSearchBox).CornerRadius = UDim.new(1, 0)
+        local asbStroke = Instance.new("UIStroke", adminSearchBox)
+        asbStroke.Color = T.Border
+        asbStroke.Thickness = 1
+        asbStroke.Transparency = 0.35
+        local asbPad = Instance.new("UIPadding", adminSearchBox)
+        asbPad.PaddingLeft = UDim.new(0, 12)
+        asbPad.PaddingRight = UDim.new(0, 10)
+
+        local freezeNonFriendsBtn = Instance.new("TextButton")
+        freezeNonFriendsBtn.Size = UDim2.new(0, 106, 1, 0)
+        freezeNonFriendsBtn.Position = UDim2.new(1, -106, 0, 0)
+        freezeNonFriendsBtn.Text = "Freeze Non-Fr ❄️"
+        freezeNonFriendsBtn.TextColor3 = Color3.new(1, 1, 1)
+        freezeNonFriendsBtn.Font = Enum.Font.GothamBold
+        freezeNonFriendsBtn.TextSize = 9.5
+        freezeNonFriendsBtn.ZIndex = 8
+        freezeNonFriendsBtn.Parent = adminSearchRow
+        Instance.new("UICorner", freezeNonFriendsBtn).CornerRadius = UDim.new(1, 0)
+        styleBtn(freezeNonFriendsBtn, T.Accent2)
+
         local adminPlrGrp = createGroupCard(adminPage, 19)
         adminPlrGrp:SetAttribute("DynamicList", true)
         local adminListDirty = true
 
         local function refreshAdminPlayerList(forceRebuild)
             syncAdminTabVisibility()
+            local q = (adminSearchBox and adminSearchBox.Text or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
             local others = {}
             local scriptUserCount = 0
             for _, p in ipairs(Players:GetPlayers()) do
@@ -27855,7 +29113,17 @@ local function buildMainUI()
                     local det = DetectedScriptUsers[p.UserId]
                     local isUser = (det and det.isScriptUser and (tick() - (det.lastSeen or 0)) < 25.0) or isConfiguredScriptOwner(p) or isConfiguredPremiumUser(p)
                     if isUser then scriptUserCount = scriptUserCount + 1 end
-                    table.insert(others, { player = p, isUser = isUser, det = det })
+                    local isFrz = OwnerAdminState.ownerFrozenTargets[p.UserId] or (det and det.isFrozen) or false
+                    local isBan = OwnerAdminState.ownerBannedTargets[p.UserId] or false
+                    local matchQ = (q == "")
+                        or p.Name:lower():find(q, 1, true)
+                        or p.DisplayName:lower():find(q, 1, true)
+                        or (q == "user" and isUser)
+                        or (q == "frozen" and isFrz)
+                        or (q == "banned" and isBan)
+                    if matchQ then
+                        table.insert(others, { player = p, isUser = isUser, det = det })
+                    end
                 end
             end
 
@@ -28155,6 +29423,32 @@ local function buildMainUI()
             if refreshList then pcall(refreshList) end
         end
 
+        adminSearchBox:GetPropertyChangedSignal("Text"):Connect(function()
+            pcall(refreshAdminPlayerList, true)
+        end)
+        freezeNonFriendsBtn.MouseButton1Click:Connect(function()
+            playClick()
+            if not hasAdminAccess(LP) then
+                notify("🔒 ACCESS DENIED", "Only Owner & Premium Users can freeze script users!")
+                sError()
+                return
+            end
+            local count = 0
+            for _, p in ipairs(Players:GetPlayers()) do
+                if p ~= LP and not isProtectedFromLocalPlayer(p) then
+                    local okFr, isFr = pcall(function() return LP:IsFriendsWith(p.UserId) end)
+                    if not (okFr and isFr) and not (_G.CocoTargetWhitelist and _G.CocoTargetWhitelist[p.UserId]) then
+                        OwnerAdminState.ownerFrozenTargets[p.UserId] = true
+                        broadcastOwnerAdminCommand(12, p, "cpfreeze")
+                        count = count + 1
+                    end
+                end
+            end
+            pcall(updateOverheadNameTags)
+            pcall(refreshAdminPlayerList, true)
+            notify("❄️ FREEZE NON-FRIENDS", "Froze " .. tostring(count) .. " non-friend player(s) in server!")
+            sSuccess()
+        end)
         adminPage:GetPropertyChangedSignal("Visible"):Connect(function()
             if adminPage.Visible and adminListDirty then
                 pcall(refreshAdminPlayerList, true)
@@ -28208,7 +29502,64 @@ local function buildMainUI()
             defaultLabel = "Click TP",
         }
 
-        createSectionTitle(toolsPage, 3, "PC Troll Keybinds & Key Re-Assignment")
+        createSectionTitle(toolsPage, 3, "PC Troll Keybinds · Single-Button ON/OFF & Re-Assignment")
+        local masterKbGrp = createGroupCard(toolsPage, 3)
+
+        local masterKbRow = createActionRow(
+            masterKbGrp,
+            1,
+            "All Keybinds Master Button (1-Click ON / OFF)",
+            "Tap [Keys: ON/OFF] to toggle all hotkeys from 1 button · Tap [⦿] to pin floating pill",
+            KeybindManager.enabled and "Keys: ON" or "Keys: OFF",
+            function()
+                KeybindManager:ToggleMasterEnabled(true)
+            end,
+            function()
+                toggleFloatingPill("keybinds")
+            end,
+            ActivePills["keybinds"] and "✓" or "⦿"
+        )
+        masterKbRow.defaultLabel = "Keys: ON"
+        presetActionRows["keybinds"] = masterKbRow
+
+        local masterKbSw = createSwitchRow(
+            masterKbGrp,
+            2,
+            "Master Keybinds Active Switch (ON / OFF)",
+            "When OFF, pressing keyboard keys will never trigger troll actions or Coca Reanim binds",
+            KeybindManager.enabled,
+            function(st)
+                KeybindManager:SetMasterEnabled(st, true)
+            end
+        )
+
+        createActionRow(
+            masterKbGrp,
+            3,
+            "Batch Toggle All Individual Keybinds / Restore Defaults",
+            "Tap [All ON / OFF] to toggle every individual bind · Tap [↺] to restore default keys",
+            "All ON",
+            function(pillBtn)
+                local turnOn = not KeybindManager.enabled
+                KeybindManager:SetAllActionsEnabled(turnOn, true)
+                pillBtn.Text = turnOn and "All ON" or "All OFF"
+            end,
+            function()
+                KeybindManager:RestoreDefaultBinds(true)
+            end,
+            "↺"
+        )
+
+        table.insert(KeybindManager.masterCallbacks, function(st)
+            masterKbSw.setState(st, false)
+            if masterKbRow and masterKbRow.pillBtn and masterKbRow.pillBtn.Parent then
+                masterKbRow.pillBtn.Text = st and "Keys: ON" or "Keys: OFF"
+                local col = st and T.Accent2 or T.BG2
+                BtnColors[masterKbRow.pillBtn] = col
+                masterKbRow.pillBtn.BackgroundColor3 = col
+            end
+        end)
+
         local trollKbGrp = createGroupCard(toolsPage, 4)
 
         local trollActionOrder = {
@@ -28219,19 +29570,30 @@ local function buildMainUI()
 
         for idx, actKey in ipairs(trollActionOrder) do
             local label = KeybindManager.actionLabels[actKey] or actKey
-            local desc = KeybindManager.actionDescriptions[actKey] or "Customizable hotkey"
-            local rInfo = createActionRow(trollKbGrp, idx, label, desc, KeybindManager:GetKeyName(actKey), function(pillBtn)
-                if KeybindManager.listeningAction == actKey then
-                    KeybindManager.listeningAction = nil
-                    KeybindManager:UpdateDisplay(actKey)
-                    notify("⌨️ KEYBIND", "Cancelled assignment for " .. label)
-                else
-                    KeybindManager.listeningAction = actKey
-                    KeybindManager:UpdateDisplay(actKey)
-                    notify("⌨️ KEYBIND", "Press ANY key on your keyboard to bind " .. label .. "! (Backspace/Esc to clear)")
-                    sWhoosh()
-                end
-            end)
+            local desc = (KeybindManager.actionDescriptions[actKey] or "Customizable hotkey") .. " · Press key to toggle ON/OFF"
+            local rInfo = createActionRow(
+                trollKbGrp,
+                idx,
+                label,
+                desc,
+                KeybindManager:GetKeyName(actKey),
+                function()
+                    if KeybindManager.listeningAction == actKey then
+                        KeybindManager.listeningAction = nil
+                        KeybindManager:UpdateDisplay(actKey)
+                        notify("⌨️ KEYBIND", "Cancelled assignment for " .. label)
+                    else
+                        KeybindManager.listeningAction = actKey
+                        KeybindManager:UpdateDisplay(actKey)
+                        notify("⌨️ KEYBIND", "Press ANY key on your keyboard to bind " .. label .. "! (Backspace/Esc to clear)")
+                        sWhoosh()
+                    end
+                end,
+                function()
+                    KeybindManager:ToggleActionEnabled(actKey, true)
+                end,
+                KeybindManager.actionEnabled[actKey] ~= false and "ON" or "OFF"
+            )
             KeybindManager.buttonRefs[actKey] = rInfo
             KeybindManager:UpdateDisplay(actKey)
         end
@@ -28390,21 +29752,25 @@ local function buildMainUI()
     end)
 
     local rootScale = Instance.new("UIScale")
-    rootScale.Scale = 1
+    rootScale.Scale = UI.uiScale or 1
     rootScale.Parent = rootWrap
+    UI.applyRootScaleFn = function(sc)
+        rootScale.Scale = sc or 1
+    end
 
     setPanelOpen = function(isOpen)
         gui.Enabled = true
         UI.open = isOpen
         UI.minimized = not isOpen
         pcall(syncNebulaPlayback)
+        local targetSc = UI.uiScale or 1
         if isOpen then
             rootWrap.Visible = true
             catShadow.Visible = UI.sidebarVisible
             mainShadow.Visible = true
             mobToggle.Visible = false
-            rootScale.Scale = 0.90
-            TweenService:Create(rootScale, TI_SPRING, { Scale = 1 }):Play()
+            rootScale.Scale = targetSc * 0.90
+            TweenService:Create(rootScale, TI_SPRING, { Scale = targetSc }):Play()
         else
             catShadow.Visible = false
             mainShadow.Visible = false
@@ -28574,14 +29940,15 @@ local function buildMainUI()
             return
         end
 
-        -- Check registered troll & utility keybinds
-        if KeybindManager and KeybindManager.binds then
+        -- Check registered troll & utility keybinds (respects Master ON/OFF & Per-Keybind ON/OFF; each key toggles its action ON and OFF)
+        if KeybindManager and KeybindManager.enabled and KeybindManager.binds then
             local handled = false
             for actionKey, boundKey in pairs(KeybindManager.binds) do
-                if boundKey and inp.KeyCode == boundKey then
+                if boundKey and KeybindManager.actionEnabled[actionKey] ~= false and inp.KeyCode == boundKey then
                     handled = true
                     if actionKey == "rewind" then
                         RewindSys:Start(RewindSys.duration)
+                        syncAllActiveIndicators()
                     elseif actionKey == "clicktp" then
                         local mouse = LP:GetMouse()
                         if mouse and mouse.Hit then
@@ -28592,14 +29959,19 @@ local function buildMainUI()
                         end
                     elseif actionKey == "fly" then
                         if moveState and moveState.toggleFly then moveState.toggleFly() end
+                        syncAllActiveIndicators()
                     elseif actionKey == "stop" then
                         stopWeld()
+                        if EmoteHub then
+                            pcall(function() EmoteHub:StopEmote() end)
+                            pcall(function() EmoteHub:StopJerk() end)
+                        end
                         StateManager:Cleanup(false)
                         LastWeldTargetUserId = nil
                         LastPresetKey = nil
                         footerSub.Text = "stopped"
                         syncAllActiveIndicators()
-                        notify("COCO POWDER", "Emergency Unweld triggered via [" .. boundKey.Name .. "]")
+                        notify("COCO POWDER", "Emergency Stop / Unweld triggered via [" .. boundKey.Name .. "]")
                         sToggleOff()
                     else
                         togglePresetOrAction(actionKey)
@@ -28609,16 +29981,19 @@ local function buildMainUI()
             end
             if handled then return end
         end
-
-        -- Direct Zero-Delay Fallback Trigger for Chrono-Rewind (Keybind: R) if not rebound
-        if inp.KeyCode == Enum.KeyCode.R and not (KeybindManager and KeybindManager.listeningAction) then
-            RewindSys:Start(RewindSys.duration)
-            return
-        end
     end)
 
     -- Default to "General" or "Weld & Troll" — open "General" first to showcase the exact 2nd-image layout,
     -- or users can tap any category in the left dock!
+    if UI.loadConfigFromDisk then
+        pcall(UI.loadConfigFromDisk)
+        if UI.savedThemeToApply and UI.applyThemeByName then
+            pcall(UI.applyThemeByName, UI.savedThemeToApply)
+        end
+        if UI.applyRootScaleFn and UI.uiScale then
+            pcall(UI.applyRootScaleFn, UI.uiScale)
+        end
+    end
     showCategory("Weld & Troll")
 end
 
