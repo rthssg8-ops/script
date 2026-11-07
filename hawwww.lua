@@ -6351,18 +6351,19 @@ _G.ResetCocoCustomRoasts = function()
     table.clear(_G.CocoCustomRoasts)
 end
 
-local antiTagTokens = { "
-8
-9", "
-8`", "
-8a", " 9483", " h84", " i\" }
+local antiTagTokens = {
+    "\226\128\139",
+    "\226\128\140",
+    "\226\128\141",
+    "\226\129\160",
+    "\226\129\161",
+    "\226\129\162",
+}
 local antiTagSeq = 0
 snd2 = function(tx)
     if _G.CocoAntiTagBypass and type(tx) == "string" and not tx:match("^!") then
         antiTagSeq = (antiTagSeq % #antiTagTokens) + 1
-        local zw = antiTagTokens[antiTagSeq] .. string.rep("
-8
-9", (csCnt % 4) + 1)
+        local zw = antiTagTokens[antiTagSeq] .. string.rep("\226\128\139", (csCnt % 4) + 1)
         if #tx + #zw <= CS_M then
             tx = tx .. zw
         end
