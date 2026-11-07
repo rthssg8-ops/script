@@ -1166,31 +1166,97 @@ local markIntentionalTeleport
 local isRefPartValid
 local isCharacterNetlessReanimated
 local findTargetReanimModel
+local isLocalCharAliveOrReanimated
+local isValidTargetWorldCF
+
+local function isPartInSafeWorldBounds(p)
+    if not (p and p.Parent and p:IsA("BasePart")) then return false, nil end
+    local okCF, cf = pcall(function() return p.CFrame end)
+    if not okCF or not cf then return false, nil end
+    local pos = cf.Position
+    if pos.X ~= pos.X or pos.Y ~= pos.Y or pos.Z ~= pos.Z then return false, nil end
+    if pos.Magnitude > 45000 then return false, nil end
+    if pos.Y > 2200 or math.abs(pos.Y - 85000) < 8000 then return false, nil end
+    local hardFloor = (OriginalFPDH and (OriginalFPDH - 25)) or -600
+    if pos.Y <= math.min(hardFloor, -105) then return false, nil end
+    local okV, vel = pcall(function() return p.AssemblyLinearVelocity end)
+    if okV and vel and vel.Magnitude > 500 then return false, nil end
+    local okAV, avel = pcall(function() return p.AssemblyAngularVelocity end)
+    if okAV and avel and avel.Magnitude > 250 then return false, nil end
+    return true, pos
+end
+
+isValidTargetWorldCF = function(cf)
+    if not cf then return false end
+    local pos = cf.Position
+    if pos.X ~= pos.X or pos.Y ~= pos.Y or pos.Z ~= pos.Z then return false end
+    if pos.Magnitude < 0.5 or pos.Magnitude > 45000 then return false end
+    if pos.Y > 2200 or math.abs(pos.Y - 85000) < 8000 then return false end
+    local hardFloor = (OriginalFPDH and (OriginalFPDH - 25)) or -600
+    if pos.Y <= math.min(hardFloor, -105) then return false end
+    if isLethalVoidCF and isLethalVoidCF(cf) then return false end
+    return true
+end
+
+isLocalCharAliveOrReanimated = function(char, hum)
+    char = char or (LP and LP.Character)
+    if not (char and char.Parent) then return false end
+    hum = hum or char:FindFirstChildOfClass("Humanoid")
+    if hum and hum.Health > 0 then return true end
+    if (_G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated) == "function" and _G._AngoorZenApi.is_reanimated())
+        or (_G.CocaSkyDestroyer and (_G.CocaSkyDestroyer.isAnyActive() or _G.CocaSkyDestroyer.is_reanimated()))
+        or (moveState and moveState.Vanish and moveState.Vanish.selfActive) then
+        return true
+    end
+    if isCharacterNetlessReanimated and isCharacterNetlessReanimated(char) then
+        return true
+    end
+    return false
+end
 
 isRefPartValid = function(part, char)
-    if not (part and part.Parent and part:IsA("BasePart")) then return false end
+    local okBounds, pos = isPartInSafeWorldBounds(part)
+    if not okBounds or not pos then return false end
     if char and not part:IsDescendantOf(char) then return false end
-    local okCF, cf = pcall(function() return part.CFrame end)
-    if not okCF or not cf then return false end
-    local pos = cf.Position
-    -- NaN / Infinite coordinates rejection
-    if pos.X ~= pos.X or pos.Y ~= pos.Y or pos.Z ~= pos.Z then return false end
-    if pos.Magnitude > 100000 then return false end
-    -- Sky pocket rejection: FE Invisibility & Vanish place RootPart at Y=85000 or Y > 4000
-    if pos.Y > 4000 then return false end
-    -- Lethal void / underground bury pocket rejection
-    local hardFloor = (OriginalFPDH and (OriginalFPDH - 25)) or -600
-    if pos.Y <= math.min(hardFloor, -150) then return false end
-    -- Extreme spin / fling velocity rejection (fling reanimations)
-    local okV, vel = pcall(function() return part.AssemblyLinearVelocity end)
-    if okV and vel and vel.Magnitude > 1200 then return false end
-    -- Desynced RootPart rejection: If this is HumanoidRootPart, check distance to Torso/Head
-    if part.Name == "HumanoidRootPart" and char then
-        local torso = char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso") or char:FindFirstChild("Head")
-        if torso and torso:IsA("BasePart") then
-            local okTP, tPos = pcall(function() return torso.Position end)
-            if okTP and tPos and (pos - tPos).Magnitude > 14 then
-                return false -- Root is desynced for Invisibility / Fling Reanim!
+
+    if char then
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        local upper = char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso")
+        local head = char:FindFirstChild("Head")
+        local okUpper, upperPos = isPartInSafeWorldBounds(upper)
+        local okHead, headPos = isPartInSafeWorldBounds(head)
+
+        -- 1. Desynced HumanoidRootPart / LowerTorso rejection (FE Invisibility, Seat-Invis, Waist-Break & Netless Reanim)
+        if part.Name == "HumanoidRootPart" or part.Name == "LowerTorso" then
+            -- During Permanent Death Reanimation (Health <= 0), never trust HumanoidRootPart if Torso/UpperTorso/Head is valid!
+            if part.Name == "HumanoidRootPart" and hum and hum.Health <= 0 and (okUpper or okHead) then
+                return false
+            end
+            if okUpper and (pos - upperPos).Magnitude > 4.5 then
+                return false -- Root/LowerTorso is desynced from UpperTorso/Torso!
+            end
+            if okHead and (pos - headPos).Magnitude > 6.0 then
+                return false -- Root/LowerTorso is desynced from Head!
+            end
+            -- Check if RootJoint / Root Motor6D was broken or disabled by FE Invisibility
+            if part.Name == "HumanoidRootPart" and (okUpper or okHead) then
+                local refBodyPos = (okUpper and upperPos) or headPos
+                local rootJoint = part:FindFirstChild("RootJoint") or part:FindFirstChild("Root")
+                    or (upper and (upper:FindFirstChild("RootJoint") or upper:FindFirstChild("Root")))
+                if rootJoint and rootJoint:IsA("Motor6D") and not rootJoint.Enabled and (pos - refBodyPos).Magnitude > 1.8 then
+                    return false
+                end
+            end
+        end
+
+        -- 2. Fling-Torso rejection: some netless reanim scripts spin/fling Torso while Head remains at real position
+        if (part.Name == "Torso" or part.Name == "UpperTorso") and okHead then
+            if (pos - headPos).Magnitude > 7.0 then
+                local okAV, avel = pcall(function() return part.AssemblyAngularVelocity end)
+                local okV, vel = pcall(function() return part.AssemblyLinearVelocity end)
+                if part.Transparency >= 0.9 or (okAV and avel and avel.Magnitude > 80) or (okV and vel and vel.Magnitude > 160) then
+                    return false
+                end
             end
         end
     end
@@ -1199,18 +1265,19 @@ end
 
 isCharacterNetlessReanimated = function(char)
     if not (char and char.Parent) then return false end
-    local torso = char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso") or char:FindFirstChild("Head") or char.PrimaryPart
-    if not (torso and torso:IsA("BasePart")) then return false end
-    local okCF, cf = pcall(function() return torso.CFrame end)
-    if not okCF or not cf then return false end
-    local pos = cf.Position
-    if pos.X ~= pos.X or pos.Y ~= pos.Y or pos.Z ~= pos.Z or pos.Magnitude > 100000 then return false end
-    local hardFloor = (OriginalFPDH and (OriginalFPDH - 25)) or -600
-    if pos.Y <= math.min(hardFloor, -150) or pos.Y > 4000 then return false end
-    local okV, vel = pcall(function() return torso.AssemblyLinearVelocity end)
-    local tVel = (okV and vel) or Vector3.zero
-    if isLethalVoidCF and isLethalVoidCF(cf, tVel) then return false end
-    return true
+    local cands = {
+        char:FindFirstChild("UpperTorso"),
+        char:FindFirstChild("Torso"),
+        char:FindFirstChild("Head"),
+        char:FindFirstChild("LowerTorso"),
+        char.PrimaryPart,
+    }
+    for _, part in ipairs(cands) do
+        if part and part:IsA("BasePart") and isRefPartValid(part, char) then
+            return true
+        end
+    end
+    return false
 end
 
 findTargetReanimModel = function(targetPlr)
@@ -1228,6 +1295,7 @@ findTargetReanimModel = function(targetPlr)
     end
 
     local tName = targetPlr.Name
+    local tDisp = targetPlr.DisplayName or tName
     local candidates = {
         tName .. "_Fake",
         tName .. " Reanimation",
@@ -1236,33 +1304,43 @@ findTargetReanimModel = function(targetPlr)
         tName .. "_Clone",
         tName .. " Dummy",
         tName .. "_Ghost",
+        tDisp .. "_Fake",
+        tDisp .. "_Clone",
         "CocoVanishGhost",
         "CocaReanimation",
         "AngoorReanimation",
     }
+    local origChar = targetPlr.Character
+    local function matchesTargetIdentity(m, ref)
+        if not origChar then return true end
+        local origBody = origChar:FindFirstChild("UpperTorso") or origChar:FindFirstChild("Torso") or origChar:FindFirstChild("Head")
+        if origBody and origBody:IsA("BasePart") then
+            local okB, bPos = isPartInSafeWorldBounds(origBody)
+            if okB and bPos and (ref.Position - bPos).Magnitude < 40 then
+                return true
+            end
+        end
+        for _, acc in ipairs(origChar:GetChildren()) do
+            if acc:IsA("Accessory") and m:FindFirstChild(acc.Name) then
+                return true
+            end
+        end
+        local origShirt = origChar:FindFirstChildOfClass("Shirt")
+        local mShirt = m:FindFirstChildOfClass("Shirt")
+        if origShirt and mShirt and origShirt.ShirtTemplate ~= "" and origShirt.ShirtTemplate == mShirt.ShirtTemplate then
+            return true
+        end
+        return false
+    end
+
     for _, cName in ipairs(candidates) do
         local m = workspace:FindFirstChild(cName) or (workspace.CurrentCamera and workspace.CurrentCamera:FindFirstChild(cName))
         if m and m:IsA("Model") and m ~= LP.Character then
-            local ref = m:FindFirstChild("Torso") or m:FindFirstChild("UpperTorso") or m:FindFirstChild("HumanoidRootPart") or m:FindFirstChild("Head") or m.PrimaryPart
+            local ref = m:FindFirstChild("UpperTorso") or m:FindFirstChild("Torso") or m:FindFirstChild("Head") or m:FindFirstChild("HumanoidRootPart") or m.PrimaryPart
             if ref and ref:IsA("BasePart") and isRefPartValid(ref, m) then
                 if cName == "CocaReanimation" or cName == "AngoorReanimation" or cName == "CocoVanishGhost" then
-                    local origChar = targetPlr.Character
-                    local origTorso = origChar and (origChar:FindFirstChild("Torso") or origChar:FindFirstChild("UpperTorso") or origChar:FindFirstChild("Head"))
-                    if origTorso and origTorso:IsA("BasePart") then
-                        if (ref.Position - origTorso.Position).Magnitude < 35 then
-                            return m
-                        end
-                    else
-                        local matchAcc = false
-                        if origChar then
-                            for _, acc in ipairs(origChar:GetChildren()) do
-                                if acc:IsA("Accessory") and m:FindFirstChild(acc.Name) then
-                                    matchAcc = true
-                                    break
-                                end
-                            end
-                        end
-                        if matchAcc then return m end
+                    if matchesTargetIdentity(m, ref) then
+                        return m
                     end
                 else
                     return m
@@ -1273,7 +1351,7 @@ findTargetReanimModel = function(targetPlr)
 
     local direct = workspace:FindFirstChild(tName)
     if direct and direct:IsA("Model") and direct ~= LP.Character and direct ~= targetPlr.Character then
-        local ref = direct:FindFirstChild("Torso") or direct:FindFirstChild("UpperTorso") or direct:FindFirstChild("HumanoidRootPart") or direct:FindFirstChild("Head") or direct.PrimaryPart
+        local ref = direct:FindFirstChild("UpperTorso") or direct:FindFirstChild("Torso") or direct:FindFirstChild("Head") or direct:FindFirstChild("HumanoidRootPart") or direct.PrimaryPart
         if ref and ref:IsA("BasePart") and isRefPartValid(ref, direct) then
             return direct
         end
@@ -1283,9 +1361,31 @@ findTargetReanimModel = function(targetPlr)
         local f = workspace:FindFirstChild(fName)
         local found = f and f:FindFirstChild(tName)
         if found and found:IsA("Model") and found ~= LP.Character and found ~= targetPlr.Character then
-            local ref = found:FindFirstChild("Torso") or found:FindFirstChild("UpperTorso") or found:FindFirstChild("HumanoidRootPart") or found:FindFirstChild("Head") or found.PrimaryPart
+            local ref = found:FindFirstChild("UpperTorso") or found:FindFirstChild("Torso") or found:FindFirstChild("Head") or found:FindFirstChild("HumanoidRootPart") or found.PrimaryPart
             if ref and ref:IsA("BasePart") and isRefPartValid(ref, found) then
                 return found
+            end
+        end
+    end
+
+    -- Fallback scan inside workspace.CurrentCamera or workspace for custom-named reanim/invis clones matching accessories/clothing
+    if origChar then
+        local origHum = origChar:FindFirstChildOfClass("Humanoid")
+        local origHRP = origChar:FindFirstChild("HumanoidRootPart")
+        local needsCloneScan = (origHum and origHum.Health <= 0) or (not origHRP) or (not isRefPartValid(origHRP, origChar))
+        if needsCloneScan then
+            local containers = { workspace.CurrentCamera, workspace }
+            for _, cont in ipairs(containers) do
+                if cont then
+                    for _, child in ipairs(cont:GetChildren()) do
+                        if child:IsA("Model") and child ~= LP.Character and child ~= origChar and not Players:GetPlayerFromCharacter(child) then
+                            local ref = child:FindFirstChild("UpperTorso") or child:FindFirstChild("Torso") or child:FindFirstChild("Head")
+                            if ref and ref:IsA("BasePart") and isRefPartValid(ref, child) and matchesTargetIdentity(child, ref) then
+                                return child
+                            end
+                        end
+                    end
+                end
             end
         end
     end
@@ -1391,7 +1491,7 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
     if not Character then return nil end
     local Root = Character:FindFirstChild("HumanoidRootPart") or Character:FindFirstChildWhichIsA("BasePart")
     local Humanoid = Character:FindFirstChildWhichIsA("Humanoid")
-    if not Root or not Humanoid or Humanoid.Health <= 0 then return nil end
+    if not Root or not Humanoid or not isLocalCharAliveOrReanimated(Character, Humanoid) then return nil end
 
     -- Stop Coca Reanim's standalone Bang lock if active so the two loops never fight over Root.CFrame
     if type(_G.stopCocaBangLock) == "function" then
@@ -1607,23 +1707,79 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
         end
     end
 
+    local lastValidTargetPos = (TargetPart and isRefPartValid(TargetPart, TargetChar)) and TargetPart.Position or nil
+    local lastValidLockCF = nil
+
+    local function isSuspiciousInvisOrReanimJump(part, char, prevPos)
+        if not (part and part.Parent) then return true end
+        if not isRefPartValid(part, char) then return true end
+        local pos = part.Position
+        if prevPos then
+            local jumpDist = (pos - prevPos).Magnitude
+            if jumpDist > 165 then
+                -- Check if another body part (Torso/UpperTorso/Head) or reanim clone stayed near prevPos!
+                if char then
+                    for _, bName in ipairs({ "UpperTorso", "Torso", "Head" }) do
+                        local bp = char:FindFirstChild(bName)
+                        if bp and bp ~= part and bp:IsA("BasePart") and isRefPartValid(bp, char) then
+                            if (bp.Position - prevPos).Magnitude < 65 then
+                                return true -- Current part jumped away while real body stayed!
+                            end
+                        end
+                    end
+                end
+                local rModel = TargetPlayer and findTargetReanimModel(TargetPlayer)
+                if rModel and rModel ~= char then
+                    return true
+                end
+                -- Reject jumps into sky/underground/void pockets or invisible dump boxes
+                if pos.Y > 850 or pos.Y < -60 or pos.Magnitude > 14000 then
+                    return true
+                end
+                local head = char and char:FindFirstChild("Head")
+                local torso = char and (char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso"))
+                if (head and head:IsA("BasePart") and head.Transparency >= 0.95)
+                    and (torso and torso:IsA("BasePart") and torso.Transparency >= 0.95) then
+                    return true -- Target's real rig just turned invisible & teleported to a dump spot!
+                end
+            end
+        end
+        return false
+    end
+
     local function updateZeroDelayLockCF()
         if Weld.destroyed then return end
         if Root and Root.Parent then
-            -- Dynamically verify that TargetPart has not desynced, voided, or jumped to sky (FE Invis / Reanim)
-            if not isRefPartValid(TargetPart, TargetChar) then
+            -- Dynamically verify that TargetPart has not desynced, voided, or jumped to sky/invis dump (FE Invis / Reanim)
+            if isSuspiciousInvisOrReanimJump(TargetPart, TargetChar, lastValidTargetPos) then
                 local resolvedChar = (TargetPlayer and findPlayerCharacterAnywhere(TargetPlayer)) or TargetChar
                 if resolvedChar and resolvedChar ~= TargetChar then
                     TargetChar = resolvedChar
                     TargetHum  = resolvedChar:FindFirstChildOfClass("Humanoid")
                 end
                 local newPart = TargetChar and pickTargetRef(TargetChar, RefMode or "torso")
-                if newPart and isRefPartValid(newPart, TargetChar) then
+                if newPart and not isSuspiciousInvisOrReanimJump(newPart, TargetChar, lastValidTargetPos) then
                     TargetPart = newPart
+                else
+                    -- Target is mid-invisibility/reanim dump transition: clear ReplicationFocus/PhysicsRepRootPart and hold safe lock position!
+                    pcall(function() LP.ReplicationFocus = nil end)
+                    if sethiddenproperty then
+                        pcall(function() sethiddenproperty(Root, "PhysicsRepRootPart", nil) end)
+                        pcall(function() sethiddenproperty(Root, "PhysicsRepRootRef", nil) end)
+                    end
+                    if lastValidLockCF then
+                        currentLockCF = lastValidLockCF
+                        Root.CFrame = lastValidLockCF
+                        Root.AssemblyLinearVelocity = Vector3.zero
+                        Root.AssemblyAngularVelocity = Vector3.zero
+                        syncReanimRoots(lastValidLockCF)
+                    end
+                    return
                 end
             end
 
-            if TargetPart and TargetPart.Parent then
+            if TargetPart and TargetPart.Parent and isRefPartValid(TargetPart, TargetChar) then
+                lastValidTargetPos = TargetPart.Position
                 local customAdjust = CFrame.new(V.X or 0, V.Y or 0, (V.Z or 1.3) - 1.3)
                 local localOffset = Offset * customAdjust
                 if Osc and Osc.period and Osc.period > 0 then
@@ -1631,6 +1787,7 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
                     localOffset = localOffset * CFrame.new(0, 0, -Osc.distance * phase)
                 end
                 currentLockCF = TargetPart.CFrame * localOffset
+                lastValidLockCF = currentLockCF
                 Root.CFrame = currentLockCF
                 syncReanimRoots(currentLockCF)
             end
@@ -1638,8 +1795,9 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
     end
 
     -- Immediate Frame-0 Lock + Zero-Delay Network Replication Bind (0.00ms startup delay!)
-    if TargetPart and TargetPart.Parent and Root and Root.Parent then
-        local focusInit = (TargetChar and (TargetChar:FindFirstChild("HumanoidRootPart") or TargetPart)) or TargetPart
+    -- Always bind PhysicsRepRootPart & ReplicationFocus to the validated TargetPart (NEVER an unvalidated desynced HumanoidRootPart!)
+    if TargetPart and TargetPart.Parent and Root and Root.Parent and isRefPartValid(TargetPart, TargetChar) then
+        local focusInit = TargetPart
         pcall(function() LP.ReplicationFocus = focusInit end)
         if sethiddenproperty then
             pcall(function()
@@ -1673,7 +1831,7 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
 
     Conn = RunService.Heartbeat:Connect(function(dt)
         -- 1. Check if our own character died or respawned
-        if not Character.Parent or Character ~= LP.Character or not Root.Parent or not Humanoid.Parent or Humanoid.Health <= 0 then
+        if not Character.Parent or Character ~= LP.Character or not Root.Parent or not Humanoid.Parent or not isLocalCharAliveOrReanimated(Character, Humanoid) then
             Weld:Destroy(true)
             return
         end
@@ -1759,29 +1917,47 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
                     return
                 end
                 local newPart = newChar and pickTargetRef(newChar, RefMode or "torso")
-                if newPart and newPart.Parent and isRefPartValid(newPart, newChar) then
+                if newPart and newPart.Parent and not isSuspiciousInvisOrReanimJump(newPart, newChar, lastValidTargetPos) then
                     TargetChar = newChar
                     TargetHum  = newHum
                     TargetPart = newPart
                     missingFrames = 0
                 else
-                    -- Target is in an unstreamed hiding spot! Throttled stream request + CFrame follow
                     missingFrames = missingFrames + 1
-                    local hiddenCF = getBestTargetCFrame(TargetPlayer)
-                    if hiddenCF and not isLethalVoidCF(hiddenCF) then
-                        local now = tick()
-                        if now - lastStreamReq > 0.35 then
-                            lastStreamReq = now
-                            task.spawn(function()
-                                pcall(function() LP:RequestStreamAroundAsync(hiddenCF.Position, 1) end)
-                            end)
-                        end
-                        Root.CFrame = hiddenCF * Offset
-                        Root.AssemblyLinearVelocity = Vector3.zero
-                        Root.AssemblyAngularVelocity = Vector3.zero
-                        markIntentionalTeleport(Root.CFrame)
+                    pcall(function() LP.ReplicationFocus = nil end)
+                    if sethiddenproperty then
+                        pcall(function() sethiddenproperty(Root, "PhysicsRepRootPart", nil) end)
+                        pcall(function() sethiddenproperty(Root, "PhysicsRepRootRef", nil) end)
                     end
-                    if missingFrames > 120 then
+                    -- Distinguish truly unstreamed character (0 BaseParts in workspace) from FE Invisibility / Reanim dump (BaseParts exist but are in invalid sky/void/dump coords)!
+                    local hasStreamedParts = (newChar and newChar:FindFirstChildWhichIsA("BasePart", true) ~= nil)
+                    if hasStreamedParts then
+                        -- Target's character IS in workspace, just mid-invisibility or reanimation transition! Hold safe position in place so we NEVER teleport to another place!
+                        local holdCF = lastValidLockCF or currentLockCF or lastSafeCF
+                        if holdCF then
+                            Root.CFrame = holdCF
+                            Root.AssemblyLinearVelocity = Vector3.zero
+                            Root.AssemblyAngularVelocity = Vector3.zero
+                            syncReanimRoots(holdCF)
+                        end
+                    else
+                        -- Target is genuinely unstreamed; only follow if hiddenCF is a verified, non-dump world coordinate
+                        local hiddenCF = getBestTargetCFrame(TargetPlayer)
+                        if hiddenCF and isValidTargetWorldCF(hiddenCF) then
+                            local now = tick()
+                            if now - lastStreamReq > 0.35 then
+                                lastStreamReq = now
+                                task.spawn(function()
+                                    pcall(function() LP:RequestStreamAroundAsync(hiddenCF.Position, 1) end)
+                                end)
+                            end
+                            Root.CFrame = hiddenCF * Offset
+                            Root.AssemblyLinearVelocity = Vector3.zero
+                            Root.AssemblyAngularVelocity = Vector3.zero
+                            markIntentionalTeleport(Root.CFrame)
+                        end
+                    end
+                    if missingFrames > 180 then
                         Weld:Destroy(false)
                     end
                     return
@@ -1797,7 +1973,7 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
         -- 5. VOID PROTECTION: Only detach if the target is genuinely plummeting in the lethal void killzone
         local tVel = TargetPart.AssemblyLinearVelocity
         if isLethalVoidCF(TargetPart.CFrame, tVel) then
-            local altPart = TargetChar and (TargetChar:FindFirstChild("Torso") or TargetChar:FindFirstChild("UpperTorso") or TargetChar:FindFirstChild("Head"))
+            local altPart = TargetChar and (TargetChar:FindFirstChild("UpperTorso") or TargetChar:FindFirstChild("Torso") or TargetChar:FindFirstChild("Head"))
             if altPart and altPart ~= TargetPart and isRefPartValid(altPart, TargetChar) and not isLethalVoidCF(altPart.CFrame, altPart.AssemblyLinearVelocity) then
                 TargetPart = altPart
             else
@@ -1807,8 +1983,8 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
             end
         end
 
-        -- Keep server streaming focused on the target's root part so they never outrun our client stream
-        local focusPart = (TargetChar and (TargetChar:FindFirstChild("HumanoidRootPart") or TargetPart)) or TargetPart
+        -- Keep server streaming & PhysicsRepRootPart focused strictly on the validated TargetPart (NEVER an unvalidated desynced HumanoidRootPart!)
+        local focusPart = TargetPart
         pcall(function() LP.ReplicationFocus = focusPart end)
 
         -- Cache target location & update safe standing CFrame only when target is near stable ground
@@ -2028,13 +2204,20 @@ findPlayerCharacterAnywhere = function(plr, skipDeepSearch)
     return plr.Character
 end
 
--- Deep fallback reference part resolver with weak-table caching (zero repeated GetDescendants lag)
+-- Deep fallback reference part resolver with weak-table caching & instant FE Invis/Reanim root-desync immunity
 pickTargetRef = function(char, mode)
     if not char then return nil end
     local cacheKey = (mode == "head") and "head" or ((mode == "root") and "root" or "torso")
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    local isDeadOrReanim = (hum and hum.Health <= 0)
     local cEntry = TargetRefCache[char]
-    if cEntry and cEntry[cacheKey] and isRefPartValid(cEntry[cacheKey], char) then
-        return cEntry[cacheKey]
+    if cEntry and cEntry[cacheKey] then
+        local cachedPart = cEntry[cacheKey]
+        if isRefPartValid(cachedPart, char) and not (isDeadOrReanim and cachedPart.Name == "HumanoidRootPart") then
+            return cachedPart
+        else
+            cEntry[cacheKey] = nil
+        end
     end
     local resolved = nil
     if mode == "head" then
@@ -2051,36 +2234,38 @@ pickTargetRef = function(char, mode)
         end
     end
     if not resolved then
-        local hum = char:FindFirstChildOfClass("Humanoid")
         local hrp = char:FindFirstChild("HumanoidRootPart") or (hum and hum.RootPart)
-        -- Only use HumanoidRootPart if it is fully valid and not desynced/voided/sky-pocketed
-        if hrp and hrp:IsA("BasePart") and isRefPartValid(hrp, char) then
+        local torso = char:FindFirstChild("Torso")
+        local upperTorso = char:FindFirstChild("UpperTorso")
+        local lowerTorso = char:FindFirstChild("LowerTorso")
+        local head = char:FindFirstChild("Head")
+
+        local bodyAnchor = (torso and torso:IsA("BasePart") and isRefPartValid(torso, char) and torso)
+            or (upperTorso and upperTorso:IsA("BasePart") and isRefPartValid(upperTorso, char) and upperTorso)
+
+        -- Only use HumanoidRootPart if it is valid, character is not in 0-HP reanim state, and HRP is tightly aligned with Torso/UpperTorso
+        local hrpValid = (hrp and hrp:IsA("BasePart") and not isDeadOrReanim and isRefPartValid(hrp, char))
+        if hrpValid and bodyAnchor and (hrp.Position - bodyAnchor.Position).Magnitude > 3.2 then
+            hrpValid = false
+        end
+
+        if hrpValid then
             resolved = hrp
+        elseif bodyAnchor then
+            resolved = bodyAnchor
+        elseif head and head:IsA("BasePart") and isRefPartValid(head, char) then
+            resolved = head
+        elseif lowerTorso and lowerTorso:IsA("BasePart") and isRefPartValid(lowerTorso, char) then
+            resolved = lowerTorso
+        elseif char.PrimaryPart and char.PrimaryPart.Name ~= "HumanoidRootPart" and isRefPartValid(char.PrimaryPart, char) then
+            resolved = char.PrimaryPart
+        elseif hum and hum.SeatPart and hum.SeatPart:IsA("BasePart") and isRefPartValid(hum.SeatPart, char) then
+            resolved = hum.SeatPart
         else
-            -- RootPart was desynced (Invisibility / Reanimation) or missing!
-            -- Fallback to visible body parts: Torso -> UpperTorso -> LowerTorso -> Head -> PrimaryPart -> SeatPart
-            local torso = char:FindFirstChild("Torso")
-            local upperTorso = char:FindFirstChild("UpperTorso")
-            local lowerTorso = char:FindFirstChild("LowerTorso")
-            local head = char:FindFirstChild("Head")
-            if torso and torso:IsA("BasePart") and isRefPartValid(torso, char) then
-                resolved = torso
-            elseif upperTorso and upperTorso:IsA("BasePart") and isRefPartValid(upperTorso, char) then
-                resolved = upperTorso
-            elseif lowerTorso and lowerTorso:IsA("BasePart") and isRefPartValid(lowerTorso, char) then
-                resolved = lowerTorso
-            elseif head and head:IsA("BasePart") and isRefPartValid(head, char) then
-                resolved = head
-            elseif char.PrimaryPart and isRefPartValid(char.PrimaryPart, char) then
-                resolved = char.PrimaryPart
-            elseif hum and hum.SeatPart and hum.SeatPart:IsA("BasePart") and isRefPartValid(hum.SeatPart, char) then
-                resolved = hum.SeatPart
-            else
-                for _, desc in ipairs(char:GetDescendants()) do
-                    if desc:IsA("BasePart") and isRefPartValid(desc, char) then
-                        resolved = desc
-                        break
-                    end
+            for _, desc in ipairs(char:GetDescendants()) do
+                if desc:IsA("BasePart") and desc.Name ~= "HumanoidRootPart" and isRefPartValid(desc, char) then
+                    resolved = desc
+                    break
                 end
             end
         end
@@ -2101,9 +2286,9 @@ local function getVerifiedStreamedCFrame(plr)
     local char = findPlayerCharacterAnywhere(plr)
     if char and char.Parent then
         local part = pickTargetRef(char, "torso")
-        if part and part.Parent then
+        if part and part.Parent and isRefPartValid(part, char) then
             local cf = part.CFrame
-            if not isLethalVoidCF(cf, part.AssemblyLinearVelocity) then
+            if isValidTargetWorldCF(cf) then
                 PlayerLocationCache[plr.UserId] = { cf = cf, time = tick(), verified = true }
                 return cf
             end
@@ -2112,32 +2297,37 @@ local function getVerifiedStreamedCFrame(plr)
     return nil
 end
 
--- Resolve a player's CFrame even when their Character's BaseParts are 100% streamed out by StreamingEnabled! (from khaman_dhokla.lua)
+-- Resolve a player's CFrame even when their Character's BaseParts are 100% streamed out by StreamingEnabled!
+-- NEVER falls back to GetPivot()/WorldPivot when the character already has streamed BaseParts (prevents FE Invisibility / Reanim sky/void RootPart from poisoning cache!)
 getBestTargetCFrame = function(plr, skipDeepSearch)
     if not plr then return nil end
     local char = findPlayerCharacterAnywhere(plr, skipDeepSearch)
     if char then
         local part = pickTargetRef(char, "torso")
-        if part and part.Parent then
+        if part and part.Parent and isRefPartValid(part, char) then
             local cf = part.CFrame
-            if not isLethalVoidCF(cf, part.AssemblyLinearVelocity) then
+            if isValidTargetWorldCF(cf) then
                 PlayerLocationCache[plr.UserId] = { cf = cf, time = tick(), verified = true }
                 return cf
             end
         end
-        local okPivot, pivotCF = pcall(function() return char:GetPivot() end)
-        if okPivot and pivotCF and pivotCF.Position.Magnitude > 0.5 and not isLethalVoidCF(pivotCF) then
-            PlayerLocationCache[plr.UserId] = { cf = pivotCF, time = tick() }
-            return pivotCF
-        end
-        local okWP, wpCF = pcall(function() return char.WorldPivot end)
-        if okWP and wpCF and wpCF.Position.Magnitude > 0.5 and not isLethalVoidCF(wpCF) then
-            PlayerLocationCache[plr.UserId] = { cf = wpCF, time = tick() }
-            return wpCF
+        -- Only consult Model:GetPivot() / WorldPivot when StreamingEnabled has culled ALL BaseParts from char!
+        local hasAnyStreamedPart = (char:FindFirstChildWhichIsA("BasePart", true) ~= nil)
+        if not hasAnyStreamedPart then
+            local okPivot, pivotCF = pcall(function() return char:GetPivot() end)
+            if okPivot and pivotCF and isValidTargetWorldCF(pivotCF) then
+                PlayerLocationCache[plr.UserId] = { cf = pivotCF, time = tick() }
+                return pivotCF
+            end
+            local okWP, wpCF = pcall(function() return char.WorldPivot end)
+            if okWP and wpCF and isValidTargetWorldCF(wpCF) then
+                PlayerLocationCache[plr.UserId] = { cf = wpCF, time = tick() }
+                return wpCF
+            end
         end
     end
     local cached = PlayerLocationCache[plr.UserId]
-    if cached and cached.cf and not isLethalVoidCF(cached.cf) then
+    if cached and cached.cf and isValidTargetWorldCF(cached.cf) then
         return cached.cf
     end
     return nil
@@ -2279,22 +2469,27 @@ streamAndTeleportToTarget = function(targetPlr, refMode, maxWaitSeconds, allowSw
         return snapToFoundRef(tChar, tRef)
     end
 
-    -- Step 2: Sweep map points if explicitly requested and target still hasn't streamed in
-    if allowSweep and tChar and (isReanimMid or not (tHum and tHum.Health <= 0)) then
+    -- Step 2: Sweep map points ONLY if the target character has 0 streamed BaseParts in workspace (never sweep when target is reanimating or invisible in-place!)
+    local hasStreamedPartsNow = (tChar and tChar:FindFirstChildWhichIsA("BasePart", true) ~= nil)
+    if allowSweep and not hasStreamedPartsNow and not isReanimMid and (not tHum or tHum.Health > 0) then
         local probePoints = getServerSweepPoints and getServerSweepPoints() or {}
         for idx, probeCF in ipairs(probePoints) do
             if tick() - started > maxWaitSeconds or idx > 14 then break end
             if targetPlr.Parent ~= Players then break end
             tChar = findPlayerCharacterAnywhere(targetPlr)
             tHum  = tChar and tChar:FindFirstChildOfClass("Humanoid")
-            if tHum and tHum.Health <= 0 then break end
+            local isSweepReanim = (tChar and isCharacterNetlessReanimated(tChar)) or (findTargetReanimModel(targetPlr) ~= nil)
+            if (tHum and tHum.Health <= 0) and not isSweepReanim then break end
             tRef  = tChar and pickTargetRef(tChar, refMode or "torso")
             if tRef and tRef.Parent and not isLethalVoidCF(tRef.CFrame, tRef.AssemblyLinearVelocity) then
                 WeldSeekingTarget = prevSeeking
                 return snapToFoundRef(tChar, tRef)
             end
+            if tChar and tChar:FindFirstChildWhichIsA("BasePart", true) ~= nil then
+                break
+            end
             local knownCF = getBestTargetCFrame(targetPlr)
-            local hopCF = (knownCF and not isLethalVoidCF(knownCF)) and knownCF or probeCF
+            local hopCF = (knownCF and isValidTargetWorldCF(knownCF)) and knownCF or probeCF
             if hopCF and isSafePlayableCF(hopCF) then
                 local now = tick()
                 if now - lastStreamCall > 0.22 then
@@ -2323,7 +2518,8 @@ streamAndTeleportToTarget = function(targetPlr, refMode, maxWaitSeconds, allowSw
     WeldSeekingTarget = prevSeeking
     tChar = findPlayerCharacterAnywhere(targetPlr)
     tHum  = tChar and tChar:FindFirstChildOfClass("Humanoid")
-    tRef  = (not (tHum and tHum.Health <= 0)) and tChar and pickTargetRef(tChar, refMode or "torso") or nil
+    local isEndReanim = (tChar and isCharacterNetlessReanimated(tChar)) or (findTargetReanimModel(targetPlr) ~= nil)
+    tRef  = (isEndReanim or not (tHum and tHum.Health <= 0)) and tChar and pickTargetRef(tChar, refMode or "torso") or nil
     if tRef and tRef.Parent and not isLethalVoidCF(tRef.CFrame, tRef.AssemblyLinearVelocity) then
         return snapToFoundRef(tChar, tRef)
     end
@@ -2787,27 +2983,51 @@ local function findPlayerByNameOrDisplay(query, speaker)
             return p
         end
     end
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= speaker and (p.Name:lower():find(q, 1, true) or p.DisplayName:lower():find(q, 1, true)) then
+            return p
+        end
+    end
     return nil
 end
 
 local WeldUsernameBoxRef = nil
 
 local function resolveActiveTarget()
-    -- 1. Check live text inside WeldUsernameBox on the Weld tab first
+    -- 1. If WeldUsernameBox is currently focused and the user is actively typing a valid player name, check it first
+    if WeldUsernameBoxRef and WeldUsernameBoxRef.Parent and WeldUsernameBoxRef:IsFocused() then
+        local rawFocused = (WeldUsernameBoxRef.Text or ""):gsub("^%s*@+%s*", ""):gsub("^%s+", ""):gsub("%s+$", "")
+        if rawFocused ~= "" then
+            local byFocused = findPlayerByNameOrDisplay(rawFocused, LP)
+            if byFocused and byFocused.Parent == Players and byFocused ~= LP then
+                selectedPlayer = byFocused
+                CurrentTarget = byFocused
+                return byFocused, false
+            end
+        end
+    end
+    -- 2. Prioritize explicitly locked selectedPlayer from Target tab / Quick List (never blocked by stale textbox state!)
+    if selectedPlayer and selectedPlayer.Parent == Players and selectedPlayer ~= LP then
+        return selectedPlayer, false
+    end
+    -- 3. Check live text inside WeldUsernameBox on the Weld tab
     if WeldUsernameBoxRef and WeldUsernameBoxRef.Parent then
         local rawBox = (WeldUsernameBoxRef.Text or ""):gsub("^%s*@+%s*", ""):gsub("^%s+", ""):gsub("%s+$", "")
         if rawBox ~= "" then
             local byBox = findPlayerByNameOrDisplay(rawBox, LP)
             if byBox and byBox.Parent == Players and byBox ~= LP then
+                selectedPlayer = byBox
+                CurrentTarget = byBox
                 return byBox, false
             end
         end
     end
-    -- 2. Check explicitly locked selectedPlayer from Target tab (never skip an explicitly selected target!)
-    if selectedPlayer and selectedPlayer.Parent == Players and selectedPlayer ~= LP then
-        return selectedPlayer, false
+    -- 4. Check CurrentTarget / WeldIntent.target if still in server
+    if CurrentTarget and CurrentTarget.Parent == Players and CurrentTarget ~= LP and WeldIntent.typedUsername ~= "" then
+        selectedPlayer = CurrentTarget
+        return CurrentTarget, false
     end
-    -- 3. Check Chat tab target input if non-empty
+    -- 5. Check Chat tab target input if non-empty
     if chatTargetInput and chatTargetInput.Parent then
         local typed = (chatTargetInput.Text or ""):gsub("^%s*@+%s*", ""):gsub("^%s+", ""):gsub("%s+$", "")
         if typed ~= "" then
@@ -2817,7 +3037,7 @@ local function resolveActiveTarget()
             end
         end
     end
-    -- 4. Auto-Nearest Player fallback
+    -- 6. Auto-Nearest Player fallback
     local nearest = getNearestPlayer(LP)
     return nearest, true
 end
@@ -3494,7 +3714,7 @@ local EmoteHub = {
         local myChar = LP.Character
         local myRoot = myChar and (myChar:FindFirstChild("HumanoidRootPart") or myChar:FindFirstChildWhichIsA("BasePart"))
         local myHum  = myChar and myChar:FindFirstChildOfClass("Humanoid")
-        if not myChar or not myRoot or not myHum or myHum.Health <= 0 then
+        if not myChar or not myRoot or not myHum or not isLocalCharAliveOrReanimated(myChar, myHum) then
             notify("COCO POWDER", "Character not ready to copy animations!")
             sError()
             return false
@@ -3710,7 +3930,7 @@ local EmoteHub = {
             local c = LP.Character
             local root = c and (c:FindFirstChild("HumanoidRootPart") or c:FindFirstChildWhichIsA("BasePart"))
             local hum  = c and c:FindFirstChildOfClass("Humanoid")
-            if not c or not root or not hum or hum.Health <= 0 then
+            if not c or not root or not hum or not isLocalCharAliveOrReanimated(c, hum) then
                 local savedTgt = self.target
                 self:Stop(true)
                 if AutoReweldEnabled and savedTgt and savedTgt.Parent == Players then
@@ -3785,22 +4005,39 @@ local EmoteHub = {
                     if WeldIntent.refreshUI then pcall(WeldIntent.refreshUI) end
                 elseif self.sideMode ~= "free" then
                     self.missingFrames = (self.missingFrames or 0) + 1
-                    local hiddenCF = getBestTargetCFrame(self.target) or getTargetStreamHintCFrame(self.target)
-                    if hiddenCF and not isLethalVoidCF(hiddenCF) then
-                        local tNow = tick()
-                        if tNow - (self.lastStreamReq or 0) > 0.35 then
-                            self.lastStreamReq = tNow
-                            ensureStreamFocusAt(hiddenCF)
-                            task.spawn(function()
-                                pcall(function() LP:RequestStreamAroundAsync(hiddenCF.Position, 1.5) end)
-                            end)
+                    pcall(function() LP.ReplicationFocus = nil end)
+                    if sethiddenproperty then
+                        pcall(function() sethiddenproperty(root, "PhysicsRepRootPart", nil) end)
+                        pcall(function() sethiddenproperty(root, "PhysicsRepRootRef", nil) end)
+                    end
+                    local hasStreamedParts = (tc and tc:FindFirstChildWhichIsA("BasePart", true) ~= nil)
+                    if hasStreamedParts then
+                        -- Target is mid-invisibility or reanimation transition in workspace; hold current safe CFrame in place!
+                        local holdCF = self.currentLockCF or self.preCopySafeCF
+                        if holdCF then
+                            root.CFrame = holdCF
+                            root.AssemblyLinearVelocity = Vector3.zero
+                            root.AssemblyAngularVelocity = Vector3.zero
+                            syncAnimCopyReanimRoots(holdCF, root)
                         end
-                        local chaseCF = hiddenCF * CFrame.new(self.sideDistance or 3.2, 0, 0)
-                        self.currentLockCF = chaseCF
-                        root.CFrame = chaseCF
-                        root.AssemblyLinearVelocity = Vector3.zero
-                        root.AssemblyAngularVelocity = Vector3.zero
-                        markIntentionalTeleport(chaseCF)
+                    else
+                        local hiddenCF = getBestTargetCFrame(self.target) or getTargetStreamHintCFrame(self.target)
+                        if hiddenCF and isValidTargetWorldCF(hiddenCF) then
+                            local tNow = tick()
+                            if tNow - (self.lastStreamReq or 0) > 0.35 then
+                                self.lastStreamReq = tNow
+                                ensureStreamFocusAt(hiddenCF)
+                                task.spawn(function()
+                                    pcall(function() LP:RequestStreamAroundAsync(hiddenCF.Position, 1.5) end)
+                                end)
+                            end
+                            local chaseCF = hiddenCF * CFrame.new(self.sideDistance or 3.2, 0, 0)
+                            self.currentLockCF = chaseCF
+                            root.CFrame = chaseCF
+                            root.AssemblyLinearVelocity = Vector3.zero
+                            root.AssemblyAngularVelocity = Vector3.zero
+                            markIntentionalTeleport(chaseCF)
+                        end
                     end
                 end
                 if self.lastTargetAvailable > 0 and now - self.lastTargetAvailable > 1.25 then
@@ -3819,8 +4056,8 @@ local EmoteHub = {
                 return
             end
 
-            -- Keep server streaming focused on the target's root part
-            local focusPart = (tc and (tc:FindFirstChild("HumanoidRootPart") or tr)) or tr
+            -- Keep server streaming & PhysicsRepRootPart focused strictly on validated tr (never an unvalidated desynced HumanoidRootPart!)
+            local focusPart = tr
             pcall(function() LP.ReplicationFocus = focusPart end)
 
             -- Cache target location & update safe standing CFrame
@@ -4689,11 +4926,11 @@ local function weldToTarget(target, speaker, offset, animId, osc, refMode, animF
     local fastMyChar = speaker and speaker.Character
     local fastMyRoot = fastMyChar and (fastMyChar:FindFirstChild("HumanoidRootPart") or fastMyChar:FindFirstChildWhichIsA("BasePart"))
     local fastMyHum  = fastMyChar and fastMyChar:FindFirstChildOfClass("Humanoid")
-    local fastTChar  = findPlayerCharacterAnywhere(TPlayer, true)
+    local fastTChar  = findPlayerCharacterAnywhere(TPlayer, false)
     local fastTHum   = fastTChar and fastTChar:FindFirstChildOfClass("Humanoid")
     local isFastTReanim = (fastTChar and isCharacterNetlessReanimated(fastTChar)) or (findTargetReanimModel(TPlayer) ~= nil)
     local fastTRoot  = (isFastTReanim or not (fastTHum and fastTHum.Health <= 0)) and fastTChar and pickTargetRef(fastTChar, refMode or "torso") or nil
-    if fastMyChar and fastMyRoot and fastMyHum and fastMyHum.Health > 0 and fastTRoot and fastTRoot.Parent and not isLethalVoidCF(fastTRoot.CFrame, fastTRoot.AssemblyLinearVelocity) then
+    if fastMyChar and fastMyRoot and isLocalCharAliveOrReanimated(fastMyChar, fastMyHum) and fastTRoot and fastTRoot.Parent and not isLethalVoidCF(fastTRoot.CFrame, fastTRoot.AssemblyLinearVelocity) then
         pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
         RescueGeneration = RescueGeneration + 1
         local preSeekSafeCF = isSafePlayableCF(fastMyRoot.CFrame) and fastMyRoot.CFrame or LastKnownSafeCF or findFallbackSafeCF()
@@ -4974,17 +5211,19 @@ task.spawn(function()
                     local myChar = LP.Character
                     local myRoot = myChar and (myChar:FindFirstChild("HumanoidRootPart") or myChar:FindFirstChildWhichIsA("BasePart"))
                     local myHum  = myChar and myChar:FindFirstChildOfClass("Humanoid")
-                    if myRoot and myHum and myHum.Health > 0 then
+                    if myRoot and isLocalCharAliveOrReanimated(myChar, myHum) then
                         reweldWatchdogBusy = true
                         pcall(function()
                             local quickChar = findPlayerCharacterAnywhere(tgt)
                             local quickHum = quickChar and quickChar:FindFirstChildOfClass("Humanoid")
-                            if quickHum and quickHum.Health <= 0 then return end
+                            local isWatchReanim = (quickChar and isCharacterNetlessReanimated(quickChar)) or (findTargetReanimModel(tgt) ~= nil)
+                            if quickHum and quickHum.Health <= 0 and not isWatchReanim then return end
                             local preset = WELD_PRESETS[WeldIntent.presetKey]
                             local refMode = preset and preset.refMode or "torso"
                             local tChar, tRef = streamAndTeleportToTarget(tgt, refMode, 0.9, false)
                             local tHum = tChar and tChar:FindFirstChildOfClass("Humanoid")
-                            if WeldIntent.active and not CurrentWeld and tRef and tRef.Parent and (not tHum or tHum.Health > 0) then
+                            local isTReanimNow = (tChar and isCharacterNetlessReanimated(tChar)) or (findTargetReanimModel(tgt) ~= nil)
+                            if WeldIntent.active and not CurrentWeld and tRef and tRef.Parent and (isTReanimNow or not tHum or tHum.Health > 0) then
                                 if not isLethalVoidCF(tRef.CFrame, tRef.AssemblyLinearVelocity) then
                                     applyWeldPreset(WeldIntent.presetKey, tgt)
                                     if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
@@ -6169,7 +6408,9 @@ Anti = {
     Kill        = { enabled = false, charAdded = nil, descConn = nil, loopConn = nil, wsDescConn = nil, blockedTouches = 0, originalPartFlags = setmetatable({}, {__mode = "k"}) },
     GamePaused  = { enabled = false, childAdded = nil, propConn = nil, loopConn = nil },
     AFK         = { enabled = false, conn = nil, loopConn = nil },
-    VC          = { enabled = false, running = false, statusText = "Status: Idle", statusLbl = nil, activateBtn = nil, rowSubLbl = nil, openPanelFn = nil },
+    VC          = { enabled = false, running = false, statusText = "Status: Idle", statusLbl = nil, activateBtn = nil, rowSubLbl = nil, openPanelFn = nil, openNovolinePanelFn = nil, openVCB2Fn = nil },
+    VCV1        = { enabled = false, running = false, muted = true, statusText = "Status: Ready (V1)", rowSubLbl = nil, startFn = nil, stopFn = nil, toggleMuteFn = nil },
+    VCV2        = { enabled = false, running = false, muted = true, statusText = "Status: Ready (V2)", rowSubLbl = nil, startFn = nil, stopFn = nil, toggleMuteFn = nil },
     Redirect    = { enabled = false },
     PauseTrap   = { enabled = false },
     FlingShield = { enabled = false, steppedConn = nil, heartbeatConn = nil, preStepCF = nil, blockedFlings = 0 },
@@ -7430,11 +7671,713 @@ end
 
 _G.ActivateCocoAntiVC = vcStart
 _G.ActivateTeslaAntiVC = vcStart
-_G.launchCocoAntiVCBypassSuite = openStandaloneOriginalVCGUI
-_G.launchCocoAntiVCB2 = openStandaloneOriginalVCGUI
 Anti.VC.openPanelFn = openStandaloneOriginalVCGUI
-Anti.VC.openVCB2Fn = openStandaloneOriginalVCGUI
 Anti.VC.openCompactPanelFn = openStandaloneOriginalVCGUI
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- 5B. NOVOLINE V3 DUAL ANTI-VC BYPASSER SUITE (BOTH V1 & V2 MODES + GLASS UI)
+--     • Preserves Original VC Bypass above AND adds both Novoline V3 Anti-VC modes:
+--       - Bypass V1: leaveVoice -> disable all VoiceChatInternal.StateChanged conns
+--                    -> joinVoice -> PublishPause(true) + Floating Glass NV_MicToggleGUI
+--       - Bypass V2: Unmute wait -> leaveVoice -> disable StateChanged[7..#conns]
+--                    -> joinVoice -> TopBar CustomVoiceController + RedVoiceDot sync
+-- ═══════════════════════════════════════════════════════════════════════════════
+do
+    local nvCloneref = cloneref or function(x) return x end
+    local nvClonefunction = clonefunction or function(x) return x end
+    local nvGetconnections = (type(getconnections) == "function" and nvClonefunction(getconnections)) or nil
+
+    local nvV1DisabledConns = {}
+    local nvV2DisabledConns = {}
+    local nvV2RenderConn = nil
+    local nvV2StoredFolder = nil
+    local nvActivePanelStatusUpdater = nil
+
+    local function nvGetGuiParent()
+        if type(gethui) == "function" then
+            local ok, res = pcall(gethui)
+            if ok and typeof(res) == "Instance" then return res end
+        end
+        return CoreGui or (LP and LP:FindFirstChildOfClass("PlayerGui"))
+    end
+
+    local function nvUpdateStatus(modeTag, text, color)
+        if modeTag == "V1" then
+            Anti.VCV1.statusText = text
+            if Anti.VCV1.rowSubLbl and Anti.VCV1.rowSubLbl.Parent then
+                Anti.VCV1.rowSubLbl.Text = text
+            end
+        elseif modeTag == "V2" then
+            Anti.VCV2.statusText = text
+            if Anti.VCV2.rowSubLbl and Anti.VCV2.rowSubLbl.Parent then
+                Anti.VCV2.rowSubLbl.Text = text
+            end
+        end
+        if nvActivePanelStatusUpdater then
+            pcall(nvActivePanelStatusUpdater, text, color)
+        end
+        if syncAllAntiButtons then pcall(syncAllAntiButtons) end
+    end
+
+    local function nvMakeDraggable(frame, dragHandle)
+        local dragging, dragInput, dragStart, startPos
+        dragHandle = dragHandle or frame
+        dragHandle.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                dragging = true
+                dragStart = input.Position
+                startPos = frame.Position
+                input.Changed:Connect(function()
+                    if input.UserInputState == Enum.UserInputState.End then
+                        dragging = false
+                    end
+                end)
+            end
+        end)
+        dragHandle.InputChanged:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+                dragInput = input
+            end
+        end)
+        UIS.InputChanged:Connect(function(input)
+            if input == dragInput and dragging then
+                local delta = input.Position - dragStart
+                TweenService:Create(frame, TweenInfo.new(0.08, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
+                    Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+                }):Play()
+            end
+        end)
+    end
+
+    local function nvSpawnV1FloatingMicGUI(vci)
+        local parent = nvGetGuiParent()
+        if not parent then return end
+        local oldGui = parent:FindFirstChild("NV_MicToggleGUI")
+        if oldGui then oldGui:Destroy() end
+
+        local micGui = Instance.new("ScreenGui")
+        micGui.Name = "NV_MicToggleGUI"
+        micGui.ResetOnSpawn = false
+        micGui.DisplayOrder = 999999
+        pcall(function() if syn and syn.protect_gui then syn.protect_gui(micGui) end end)
+        micGui.Parent = parent
+
+        local container = Instance.new("Frame")
+        container.Size = UDim2.new(0, 75, 0, 75)
+        container.Position = UDim2.new(0.85, 0, 0.4, 0)
+        container.BackgroundColor3 = Color3.fromRGB(16, 12, 24)
+        container.BackgroundTransparency = 0.28
+        container.BorderSizePixel = 0
+        container.Active = true
+        container.Parent = micGui
+        Instance.new("UICorner", container).CornerRadius = UDim.new(0, 18)
+
+        local grad = Instance.new("UIGradient")
+        grad.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(200, 190, 230)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(130, 115, 160)),
+        })
+        grad.Rotation = 45
+        grad.Parent = container
+
+        local stroke = Instance.new("UIStroke")
+        stroke.Color = Color3.fromRGB(239, 68, 68)
+        stroke.Thickness = 2
+        stroke.Transparency = 0.2
+        stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+        stroke.Parent = container
+
+        local iconLbl = Instance.new("TextLabel")
+        iconLbl.Size = UDim2.new(1, 0, 0, 40)
+        iconLbl.Position = UDim2.new(0, 0, 0, 10)
+        iconLbl.BackgroundTransparency = 1
+        iconLbl.Text = "🔇"
+        iconLbl.TextSize = 26
+        iconLbl.Font = Enum.Font.GothamBold
+        iconLbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+        iconLbl.Parent = container
+
+        local stateLbl = Instance.new("TextLabel")
+        stateLbl.Size = UDim2.new(1, 0, 0, 15)
+        stateLbl.Position = UDim2.new(0, 0, 1, -20)
+        stateLbl.BackgroundTransparency = 1
+        stateLbl.Text = "MUTED"
+        stateLbl.TextSize = 10
+        stateLbl.Font = Enum.Font.GothamBold
+        stateLbl.TextColor3 = Color3.fromRGB(239, 68, 68)
+        stateLbl.Parent = container
+
+        local hitBtn = Instance.new("TextButton")
+        hitBtn.Size = UDim2.new(1, 0, 1, 0)
+        hitBtn.BackgroundTransparency = 1
+        hitBtn.Text = ""
+        hitBtn.Parent = container
+
+        nvMakeDraggable(container, hitBtn)
+
+        local function syncV1MicVisual(isMutedNow)
+            Anti.VCV1.muted = isMutedNow
+            if not isMutedNow then
+                iconLbl.Text = "🎙️"
+                stateLbl.Text = "UNMUTED"
+                stateLbl.TextColor3 = Color3.fromRGB(16, 185, 129)
+                TweenService:Create(stroke, TweenInfo.new(0.2), { Color = Color3.fromRGB(16, 185, 129) }):Play()
+                TweenService:Create(container, TweenInfo.new(0.2), { BackgroundColor3 = Color3.fromRGB(16, 45, 35) }):Play()
+            else
+                iconLbl.Text = "🔇"
+                stateLbl.Text = "MUTED"
+                stateLbl.TextColor3 = Color3.fromRGB(239, 68, 68)
+                TweenService:Create(stroke, TweenInfo.new(0.2), { Color = Color3.fromRGB(239, 68, 68) }):Play()
+                TweenService:Create(container, TweenInfo.new(0.2), { BackgroundColor3 = Color3.fromRGB(16, 12, 24) }):Play()
+            end
+        end
+
+        hitBtn.MouseButton1Click:Connect(function()
+            local okP, curPaused = pcall(function() return vci:IsPublishPaused() end)
+            local nextMuted = okP and (not curPaused) or (not Anti.VCV1.muted)
+            pcall(function() vci:PublishPause(nextMuted) end)
+            syncV1MicVisual(nextMuted)
+            nvUpdateStatus("V1", "Status: V1 Active (" .. (nextMuted and "Muted" or "Unmuted") .. ")", Color3.fromRGB(16, 185, 129))
+        end)
+    end
+
+    local function nvCleanupV1()
+        for i = #nvV1DisabledConns, 1, -1 do
+            local c = nvV1DisabledConns[i]
+            if c then pcall(function() c:Enable() end) end
+            nvV1DisabledConns[i] = nil
+        end
+        local parent = nvGetGuiParent()
+        if parent then
+            local g = parent:FindFirstChild("NV_MicToggleGUI")
+            if g then pcall(function() g:Destroy() end) end
+        end
+        Anti.VCV1.enabled = false
+        Anti.VCV1.running = false
+        nvUpdateStatus("V1", "Status: Idle (V1 Disabled)", Color3.fromRGB(165, 155, 185))
+    end
+
+    local function nvCleanupV2()
+        if nvV2RenderConn then
+            pcall(function() nvV2RenderConn:Disconnect() end)
+            nvV2RenderConn = nil
+        end
+        for i = #nvV2DisabledConns, 1, -1 do
+            local c = nvV2DisabledConns[i]
+            if c then pcall(function() c:Enable() end) end
+            nvV2DisabledConns[i] = nil
+        end
+        pcall(function()
+            local cg = nvCloneref(game:GetService("CoreGui"))
+            for _, d in ipairs(cg:GetDescendants()) do
+                if d.Name == "toggle_mic_mute" and d:IsA("GuiObject") then
+                    d.Visible = true
+                end
+            end
+            local parent = nvGetGuiParent()
+            if parent and parent:FindFirstChild("CustomVoiceController") then
+                parent.CustomVoiceController:Destroy()
+            end
+            if cg:FindFirstChild("CustomVoiceController") then
+                cg.CustomVoiceController:Destroy()
+            end
+            if nvV2StoredFolder and nvV2StoredFolder.Parent then
+                nvV2StoredFolder:Destroy()
+                nvV2StoredFolder = nil
+            end
+        end)
+        Anti.VCV2.enabled = false
+        Anti.VCV2.running = false
+        nvUpdateStatus("V2", "Status: Idle (V2 Disabled)", Color3.fromRGB(165, 155, 185))
+    end
+
+    local function nvStartV1()
+        if Anti.VCV1.running then return end
+        nvCleanupV1()
+        Anti.VCV1.running = true
+        nvUpdateStatus("V1", "Status: Starting V1 Bypass...", Color3.fromRGB(245, 158, 11))
+
+        task.spawn(function()
+            local ok, err = pcall(function()
+                local vcs = nvCloneref(game:GetService("VoiceChatService"))
+                local vci = nvCloneref(game:GetService("VoiceChatInternal"))
+                nvUpdateStatus("V1", "Status: Leaving Voice...", Color3.fromRGB(245, 158, 11))
+                vcs:leaveVoice()
+                task.wait(0.3)
+
+                nvUpdateStatus("V1", "Status: Disabling StateChanged Conns...", Color3.fromRGB(245, 158, 11))
+                if nvGetconnections then
+                    for _, conn in ipairs(nvGetconnections(vci.StateChanged)) do
+                        pcall(function()
+                            conn:Disable()
+                            table.insert(nvV1DisabledConns, conn)
+                        end)
+                    end
+                end
+                task.wait(0.2)
+
+                nvUpdateStatus("V1", "Status: Rejoining Voice...", Color3.fromRGB(245, 158, 11))
+                vcs:joinVoice()
+                task.wait(0.5)
+                pcall(function() vci:PublishPause(true) end)
+                Anti.VCV1.muted = true
+                nvSpawnV1FloatingMicGUI(vci)
+            end)
+            Anti.VCV1.running = false
+            if ok then
+                Anti.VCV1.enabled = true
+                nvUpdateStatus("V1", "Status: V1 Bypassed! Use Floating UI", Color3.fromRGB(16, 185, 129))
+                notify("NOVOLINE ANTI-VC V1", "V1 Bypass active! Use the floating glass mic button to mute/unmute.")
+                sToggleOn()
+            else
+                Anti.VCV1.enabled = false
+                nvUpdateStatus("V1", "Status: V1 Failed (" .. tostring(err):sub(1, 36) .. ")", Color3.fromRGB(239, 68, 68))
+                notify("NOVOLINE ANTI-VC V1", "V1 Error: " .. tostring(err))
+                sError()
+            end
+        end)
+    end
+
+    local function nvStartV2()
+        if Anti.VCV2.running then return end
+        nvCleanupV2()
+        Anti.VCV2.running = true
+        nvUpdateStatus("V2", "Status: Scanning CoreGui for Mic...", Color3.fromRGB(245, 158, 11))
+
+        task.spawn(function()
+            local ok, err = pcall(function()
+                if not nvGetconnections then
+                    error("Executor missing getconnections")
+                end
+                local vcs = nvCloneref(game:GetService("VoiceChatService"))
+                local vci = nvCloneref(game:GetService("VoiceChatInternal"))
+                local cg = nvCloneref(game:GetService("CoreGui"))
+                local rrs = nvCloneref(game:GetService("RobloxReplicatedStorage"))
+
+                local folder = Instance.new("Folder")
+                folder.Name = "NV_VCB2_Folder"
+                folder.Parent = rrs
+                nvV2StoredFolder = folder
+
+                local originalMic, originalParent
+                for _, d in ipairs(cg:GetDescendants()) do
+                    if d.Name == "toggle_mic_mute" then
+                        originalMic = d
+                        originalParent = d.Parent
+                        break
+                    end
+                end
+
+                local function getMicIcon(btn)
+                    local target = btn or originalMic
+                    if not target then return nil end
+                    local f1 = target:WaitForChild("IntegrationIconFrame", 5)
+                    if not f1 then return nil end
+                    local f2 = f1:WaitForChild("IntegrationIcon", 5)
+                    if not f2 then return nil end
+                    return f2:WaitForChild("1", 5)
+                end
+
+                if not originalMic then
+                    nvUpdateStatus("V2", "Status: Joining VC to find Mic...", Color3.fromRGB(245, 158, 11))
+                    pcall(function() vcs:joinVoice() end)
+                    local t0 = tick()
+                    repeat
+                        for _, d in ipairs(cg:GetDescendants()) do
+                            if d.Name == "toggle_mic_mute" then
+                                originalMic = d
+                                originalParent = d.Parent
+                                break
+                            end
+                        end
+                        task.wait(0.5)
+                    until originalMic or (tick() - t0 > 10)
+                    if not originalMic then
+                        error("Mic button not found in CoreGui")
+                    end
+                end
+
+                local micIcon = getMicIcon(originalMic)
+                if not micIcon then
+                    error("Mic icon structure unsupported")
+                end
+
+                nvUpdateStatus("V2", "Status: Unmute your Roblox Mic to continue!", Color3.fromRGB(59, 130, 246))
+                vcNotify("Unmute your mic inside Roblox to continue V2!")
+                repeat
+                    task.wait(0.5)
+                until not Anti.VCV2.running or micIcon.Image ~= "rbxasset://textures/ui/VoiceChat/MicLight/Muted.png"
+                if not Anti.VCV2.running then error("Cancelled") end
+
+                nvUpdateStatus("V2", "Status: Leaving Voice...", Color3.fromRGB(245, 158, 11))
+                vcs:leaveVoice()
+                task.wait(1.5)
+
+                nvUpdateStatus("V2", "Status: Disabling StateChanged[7+]...", Color3.fromRGB(245, 158, 11))
+                local conns = nvGetconnections(vci.StateChanged)
+                for i = 7, #conns do
+                    if conns[i] then
+                        pcall(function()
+                            conns[i]:Disable()
+                            table.insert(nvV2DisabledConns, conns[i])
+                        end)
+                    end
+                end
+                task.wait(1.5)
+
+                nvUpdateStatus("V2", "Status: Rejoining & Hooking TopBar...", Color3.fromRGB(245, 158, 11))
+                vcs:joinVoice()
+                if originalParent then
+                    originalMic = originalParent:WaitForChild("toggle_mic_mute", 10)
+                end
+                if originalMic and originalParent then
+                    local clonedMic = originalMic:Clone()
+                    clonedMic.Parent = folder
+                    originalMic.Visible = false
+
+                    local guiHost = nvGetGuiParent() or cg
+                    if guiHost:FindFirstChild("CustomVoiceController") then
+                        guiHost.CustomVoiceController:Destroy()
+                    end
+
+                    local customGui = Instance.new("ScreenGui")
+                    customGui.Name = "CustomVoiceController"
+                    customGui.DisplayOrder = 999999
+                    customGui.IgnoreGuiInset = true
+                    customGui.ResetOnSpawn = false
+                    pcall(function() if syn and syn.protect_gui then syn.protect_gui(customGui) end end)
+                    customGui.Parent = guiHost
+
+                    local fakeBtn = Instance.new("ImageButton")
+                    fakeBtn.Name = "FakeMicButton"
+                    fakeBtn.BackgroundTransparency = 1
+                    fakeBtn.Image = ""
+                    local absPos = originalMic.AbsolutePosition
+                    local absSize = originalMic.AbsoluteSize
+                    local topbarInset = game:GetService("GuiService"):GetGuiInset()
+                    fakeBtn.Position = UDim2.fromOffset(absPos.X, absPos.Y + topbarInset.Y)
+                    fakeBtn.Size = UDim2.fromOffset(absSize.X, absSize.Y)
+                    fakeBtn.Parent = customGui
+
+                    clonedMic.Visible = true
+                    clonedMic.Position = UDim2.fromOffset(0, 0)
+                    clonedMic.Size = UDim2.fromScale(1, 1)
+                    clonedMic.Parent = fakeBtn
+
+                    local clonedHit = clonedMic:FindFirstChild("IconHitArea_toggle_mic_mute", true)
+                    if clonedHit then clonedHit.Active = false end
+
+                    local clonedIcon = getMicIcon(clonedMic)
+                    local originalIcon = getMicIcon(originalMic)
+                    local redDot = clonedMic:FindFirstChild("RedVoiceDot", true)
+
+                    local v2IsMuted = true
+                    Anti.VCV2.muted = true
+                    pcall(function() vci:PublishPause(true) end)
+                    if clonedIcon then
+                        clonedIcon.Image = "rbxasset://textures/ui/VoiceChat/MicLight/Muted.png"
+                    end
+                    if redDot then
+                        redDot.Visible = false
+                    end
+
+                    fakeBtn.MouseButton1Click:Connect(function()
+                        v2IsMuted = not v2IsMuted
+                        Anti.VCV2.muted = v2IsMuted
+                        pcall(function() vci:PublishPause(v2IsMuted) end)
+                        if v2IsMuted and clonedIcon then
+                            clonedIcon.Image = "rbxasset://textures/ui/VoiceChat/MicLight/Muted.png"
+                        end
+                        nvUpdateStatus("V2", "Status: V2 Active (" .. (v2IsMuted and "Muted" or "Unmuted") .. ")", Color3.fromRGB(16, 185, 129))
+                    end)
+
+                    nvV2RenderConn = RunService.RenderStepped:Connect(function()
+                        if originalMic and originalMic.Parent then
+                            local pNow = originalMic.AbsolutePosition
+                            local insetNow = game:GetService("GuiService"):GetGuiInset()
+                            fakeBtn.Position = UDim2.fromOffset(pNow.X, pNow.Y + insetNow.Y)
+                        end
+                        if redDot then
+                            redDot.Visible = not v2IsMuted
+                        end
+                        if not v2IsMuted and clonedIcon and originalIcon then
+                            if originalIcon.Image == "rbxasset://textures/ui/VoiceChat/MicLight/Muted.png" then
+                                clonedIcon.Image = "rbxasset://textures/ui/VoiceChat/MicLight/Unmuted0.png"
+                            else
+                                clonedIcon.Image = originalIcon.Image
+                            end
+                        end
+                    end)
+                else
+                    error("Failed to re-hook TopBar mic after rejoin")
+                end
+            end)
+            Anti.VCV2.running = false
+            if ok then
+                Anti.VCV2.enabled = true
+                nvUpdateStatus("V2", "Status: V2 Bypassed! Topbar Ready", Color3.fromRGB(16, 185, 129))
+                vcNotify("Bypass V2 Complete! Use the normal Topbar Mic Icon.")
+                sToggleOn()
+            else
+                Anti.VCV2.enabled = false
+                if tostring(err):find("Cancelled") then
+                    nvUpdateStatus("V2", "Status: V2 Cancelled", Color3.fromRGB(165, 155, 185))
+                else
+                    nvUpdateStatus("V2", "Status: V2 Failed (" .. tostring(err):sub(1, 34) .. ")", Color3.fromRGB(239, 68, 68))
+                    vcNotify("V2 Error: " .. tostring(err))
+                    sError()
+                end
+            end
+        end)
+    end
+
+    local function nvToggleMuteAny()
+        local ok, newMuted = pcall(function()
+            local vci = nvCloneref(game:GetService("VoiceChatInternal"))
+            local nextState = not vci:IsPublishPaused()
+            vci:PublishPause(nextState)
+            return nextState
+        end)
+        if ok then
+            Anti.VCV1.muted = newMuted
+            Anti.VCV2.muted = newMuted
+            notify("🎙️ VC PUBLISH PAUSE", newMuted and "Microphone Muted (PublishPause = true)" or "Microphone Unmuted (PublishPause = false)")
+            return newMuted
+        end
+        return nil
+    end
+
+    local function launchNovolineVCBypasser(defaultMode)
+        local parent = nvGetGuiParent()
+        if not parent then return end
+
+        local existing = parent:FindFirstChild("NV_VCBypasser")
+        if existing then
+            existing:Destroy()
+            nvActivePanelStatusUpdater = nil
+            return
+        end
+
+        local selectedMode = (defaultMode == "V2") and "V2" or "V1"
+        local sg = Instance.new("ScreenGui")
+        sg.Name = "NV_VCBypasser"
+        sg.ResetOnSpawn = false
+        sg.DisplayOrder = 999999
+        pcall(function() if syn and syn.protect_gui then syn.protect_gui(sg) end end)
+        sg.Parent = parent
+
+        local mainFrame = Instance.new("Frame")
+        mainFrame.Size = UDim2.new(0, 280, 0, 165)
+        mainFrame.Position = UDim2.new(0.5, -140, 0.2, 0)
+        mainFrame.BackgroundColor3 = Color3.fromRGB(16, 12, 24)
+        mainFrame.BackgroundTransparency = 0.28
+        mainFrame.BorderSizePixel = 0
+        mainFrame.Active = true
+        mainFrame.Parent = sg
+        Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 12)
+
+        local mGrad = Instance.new("UIGradient")
+        mGrad.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(200, 190, 230)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(130, 115, 160)),
+        })
+        mGrad.Rotation = 45
+        mGrad.Parent = mainFrame
+
+        local mStroke = Instance.new("UIStroke")
+        mStroke.Color = Color3.fromRGB(135, 115, 175)
+        mStroke.Thickness = 1.2
+        mStroke.Transparency = 0.45
+        mStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+        mStroke.Parent = mainFrame
+
+        local topBar = Instance.new("Frame")
+        topBar.Size = UDim2.new(1, 0, 0, 32)
+        topBar.BackgroundColor3 = Color3.fromRGB(28, 22, 40)
+        topBar.BackgroundTransparency = 0.35
+        topBar.BorderSizePixel = 0
+        topBar.Parent = mainFrame
+        Instance.new("UICorner", topBar).CornerRadius = UDim.new(0, 12)
+        nvMakeDraggable(mainFrame, topBar)
+
+        local title = Instance.new("TextLabel")
+        title.Size = UDim2.new(1, -40, 1, 0)
+        title.Position = UDim2.new(0, 12, 0, 0)
+        title.BackgroundTransparency = 1
+        title.Text = "VC BYPASSER (V1 & V2)"
+        title.TextColor3 = Color3.fromRGB(245, 240, 255)
+        title.Font = Enum.Font.GothamBold
+        title.TextSize = 12
+        title.TextXAlignment = Enum.TextXAlignment.Left
+        title.Parent = topBar
+
+        local closeBtn = Instance.new("TextButton")
+        closeBtn.Size = UDim2.new(0, 24, 0, 24)
+        closeBtn.Position = UDim2.new(1, -28, 0.5, -12)
+        closeBtn.BackgroundColor3 = Color3.fromRGB(239, 68, 68)
+        closeBtn.BackgroundTransparency = 0.2
+        closeBtn.Text = "×"
+        closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        closeBtn.Font = Enum.Font.GothamBold
+        closeBtn.TextSize = 16
+        closeBtn.Parent = topBar
+        Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 6)
+
+        local modeContainer = Instance.new("Frame")
+        modeContainer.Size = UDim2.new(1, -24, 0, 28)
+        modeContainer.Position = UDim2.new(0, 12, 0, 40)
+        modeContainer.BackgroundColor3 = Color3.fromRGB(22, 16, 32)
+        modeContainer.BackgroundTransparency = 0.4
+        modeContainer.BorderSizePixel = 0
+        modeContainer.Parent = mainFrame
+        Instance.new("UICorner", modeContainer).CornerRadius = UDim.new(0, 8)
+
+        local v1Btn = Instance.new("TextButton")
+        v1Btn.Size = UDim2.new(0.5, -2, 1, -4)
+        v1Btn.Position = UDim2.new(0, 2, 0, 2)
+        v1Btn.BackgroundColor3 = Color3.fromRGB(168, 85, 247)
+        v1Btn.BackgroundTransparency = 0.2
+        v1Btn.Text = "Bypass V1"
+        v1Btn.TextColor3 = Color3.fromRGB(245, 240, 255)
+        v1Btn.Font = Enum.Font.GothamBold
+        v1Btn.TextSize = 11
+        v1Btn.Parent = modeContainer
+        Instance.new("UICorner", v1Btn).CornerRadius = UDim.new(0, 6)
+
+        local v2Btn = Instance.new("TextButton")
+        v2Btn.Size = UDim2.new(0.5, -2, 1, -4)
+        v2Btn.Position = UDim2.new(0.5, 0, 0, 2)
+        v2Btn.BackgroundColor3 = Color3.fromRGB(36, 28, 50)
+        v2Btn.BackgroundTransparency = 0.4
+        v2Btn.Text = "Bypass V2"
+        v2Btn.TextColor3 = Color3.fromRGB(165, 155, 185)
+        v2Btn.Font = Enum.Font.GothamBold
+        v2Btn.TextSize = 11
+        v2Btn.Parent = modeContainer
+        Instance.new("UICorner", v2Btn).CornerRadius = UDim.new(0, 6)
+
+        local statusLbl = Instance.new("TextLabel")
+        statusLbl.Size = UDim2.new(1, -24, 0, 28)
+        statusLbl.Position = UDim2.new(0, 12, 0, 74)
+        statusLbl.BackgroundTransparency = 1
+        statusLbl.Text = "Status: Ready (Select V1 or V2)"
+        statusLbl.TextColor3 = Color3.fromRGB(165, 155, 185)
+        statusLbl.Font = Enum.Font.GothamMedium
+        statusLbl.TextSize = 11
+        statusLbl.TextWrapped = true
+        statusLbl.Parent = mainFrame
+
+        local execBtn = Instance.new("TextButton")
+        execBtn.Size = UDim2.new(0.66, -14, 0, 38)
+        execBtn.Position = UDim2.new(0, 12, 1, -50)
+        execBtn.BackgroundColor3 = Color3.fromRGB(36, 28, 50)
+        execBtn.BackgroundTransparency = 0.2
+        execBtn.Text = "Execute Bypass"
+        execBtn.TextColor3 = Color3.fromRGB(245, 240, 255)
+        execBtn.Font = Enum.Font.GothamBold
+        execBtn.TextSize = 12
+        execBtn.Parent = mainFrame
+        Instance.new("UICorner", execBtn).CornerRadius = UDim.new(0, 8)
+        local execStroke = Instance.new("UIStroke")
+        execStroke.Color = Color3.fromRGB(168, 85, 247)
+        execStroke.Thickness = 1
+        execStroke.Transparency = 0.35
+        execStroke.Parent = execBtn
+
+        local muteBtn = Instance.new("TextButton")
+        muteBtn.Size = UDim2.new(0.34, -14, 0, 38)
+        muteBtn.Position = UDim2.new(0.66, 2, 1, -50)
+        muteBtn.BackgroundColor3 = Color3.fromRGB(28, 22, 42)
+        muteBtn.BackgroundTransparency = 0.2
+        muteBtn.Text = "🎙️ Mute"
+        muteBtn.TextColor3 = Color3.fromRGB(245, 240, 255)
+        muteBtn.Font = Enum.Font.GothamBold
+        muteBtn.TextSize = 11
+        muteBtn.Parent = mainFrame
+        Instance.new("UICorner", muteBtn).CornerRadius = UDim.new(0, 8)
+        local muteStroke = Instance.new("UIStroke")
+        muteStroke.Color = Color3.fromRGB(135, 115, 175)
+        muteStroke.Thickness = 1
+        muteStroke.Transparency = 0.45
+        muteStroke.Parent = muteBtn
+
+        nvActivePanelStatusUpdater = function(txt, col)
+            if statusLbl and statusLbl.Parent then
+                statusLbl.Text = tostring(txt or "")
+                if col then statusLbl.TextColor3 = col end
+            end
+        end
+
+        local function selectModeVisual(m)
+            selectedMode = m
+            if m == "V1" then
+                TweenService:Create(v1Btn, TweenInfo.new(0.2), { BackgroundColor3 = Color3.fromRGB(168, 85, 247), BackgroundTransparency = 0.2, TextColor3 = Color3.fromRGB(245, 240, 255) }):Play()
+                TweenService:Create(v2Btn, TweenInfo.new(0.2), { BackgroundColor3 = Color3.fromRGB(36, 28, 50), BackgroundTransparency = 0.4, TextColor3 = Color3.fromRGB(165, 155, 185) }):Play()
+                statusLbl.Text = Anti.VCV1.enabled and "Status: V1 Bypassed! Use Floating UI" or "Status: Ready (Bypass V1 Selected)"
+            else
+                TweenService:Create(v2Btn, TweenInfo.new(0.2), { BackgroundColor3 = Color3.fromRGB(168, 85, 247), BackgroundTransparency = 0.2, TextColor3 = Color3.fromRGB(245, 240, 255) }):Play()
+                TweenService:Create(v1Btn, TweenInfo.new(0.2), { BackgroundColor3 = Color3.fromRGB(36, 28, 50), BackgroundTransparency = 0.4, TextColor3 = Color3.fromRGB(165, 155, 185) }):Play()
+                statusLbl.Text = Anti.VCV2.enabled and "Status: V2 Bypassed! Topbar Ready" or "Status: Ready (Bypass V2 Selected)"
+            end
+        end
+        selectModeVisual(selectedMode)
+
+        v1Btn.MouseButton1Click:Connect(function()
+            if not Anti.VCV1.running and not Anti.VCV2.running then
+                selectModeVisual("V1")
+            end
+        end)
+        v2Btn.MouseButton1Click:Connect(function()
+            if not Anti.VCV1.running and not Anti.VCV2.running then
+                selectModeVisual("V2")
+            end
+        end)
+
+        execBtn.MouseButton1Click:Connect(function()
+            if selectedMode == "V1" then
+                nvStartV1()
+            else
+                nvStartV2()
+            end
+        end)
+
+        muteBtn.MouseButton1Click:Connect(function()
+            local mNow = nvToggleMuteAny()
+            if mNow ~= nil then
+                muteBtn.Text = mNow and "🔇 Muted" or "🎙️ Live"
+            end
+        end)
+
+        closeBtn.MouseButton1Click:Connect(function()
+            nvActivePanelStatusUpdater = nil
+            sg:Destroy()
+        end)
+    end
+
+    Anti.VCV1.startFn = nvStartV1
+    Anti.VCV1.stopFn = nvCleanupV1
+    Anti.VCV1.toggleMuteFn = nvToggleMuteAny
+    Anti.VCV2.startFn = nvStartV2
+    Anti.VCV2.stopFn = nvCleanupV2
+    Anti.VCV2.toggleMuteFn = nvToggleMuteAny
+    Anti.VC.openNovolinePanelFn = function() launchNovolineVCBypasser("V1") end
+    Anti.VC.openVCB2Fn = function() launchNovolineVCBypasser("V2") end
+
+    _G.launchCocoAntiVCBypassSuite = function() launchNovolineVCBypasser("V1") end
+    _G.launchCocoAntiVCB2 = function() launchNovolineVCBypasser("V2") end
+    _G.NovolineVCBypasser = {
+        LaunchUI = launchNovolineVCBypasser,
+        LaunchV1 = function() launchNovolineVCBypasser("V1") end,
+        LaunchV2 = function() launchNovolineVCBypasser("V2") end,
+        RunV1Direct = nvStartV1,
+        RunV2Direct = nvStartV2,
+        StopV1 = nvCleanupV1,
+        StopV2 = nvCleanupV2,
+        ToggleMute = nvToggleMuteAny,
+    }
+end
 end)()
 ;(function() -- Sub-scope 2 for Anti (Ragdoll, Anchor, Attach, Blind, Bring, FlingShield, DefenceTroll)
 local contactTimers = {}
@@ -8609,6 +9552,8 @@ disableAllAntiSystems = function()
     agpStop()
     afkStop()
     vcStop()
+    if Anti.VCV1 and Anti.VCV1.stopFn then pcall(Anti.VCV1.stopFn) end
+    if Anti.VCV2 and Anti.VCV2.stopFn then pcall(Anti.VCV2.stopFn) end
     if updateDefenceStatsUI then pcall(updateDefenceStatsUI) end
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
     if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
@@ -15648,9 +16593,18 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
     -- Closure root.73.124.76: Start Bang Reanimation Lock ("face" or "back")
     local function startBangReanim(modeKey)
         local typed = tostring(bangTargetInput.Text or ""):gsub("^%s+", ""):gsub("%s+$", "")
-        local queryToUse = (typed ~= "") and typed or lastBangTargetName
-        local targetPlr = findTargetPlayer(queryToUse)
-        if not targetPlr or not targetPlr.Character then
+        local targetPlr = nil
+        if typed ~= "" then
+            targetPlr = findTargetPlayer(typed)
+        end
+        if not targetPlr then
+            targetPlr = resolveActiveTarget()
+        end
+        if not targetPlr and lastBangTargetName ~= "" then
+            targetPlr = findTargetPlayer(lastBangTargetName)
+        end
+        local initTChar = targetPlr and findPlayerCharacterAnywhere(targetPlr)
+        if not targetPlr or not initTChar then
             if bangStatus then bangStatus.Text = "Invalid target" end
             return
         end
@@ -15734,15 +16688,41 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
             return list
         end
 
+        local lastBangValidPos = nil
+        local lastBangSafeDesiredCF = nil
         local function stepLock()
             if not bangLockActive then return end
-            local liveTarget = Players:FindFirstChild(lastBangTargetName) or targetPlr
-            if not liveTarget or not liveTarget.Character then return end
-            local targetRoot = liveTarget.Character:FindFirstChild("HumanoidRootPart")
-            if not targetRoot then return end
+            local liveTarget = (selectedPlayer and selectedPlayer.Parent == Players and selectedPlayer)
+                or Players:FindFirstChild(lastBangTargetName)
+                or targetPlr
+            if not liveTarget then return end
+            local liveChar = findPlayerCharacterAnywhere(liveTarget)
+            if not liveChar then return end
+            local targetRoot = pickTargetRef(liveChar, "torso")
+            if not targetRoot or not isRefPartValid(targetRoot, liveChar) then
+                pcall(function() LocalPlayer.ReplicationFocus = nil end)
+                if lastBangSafeDesiredCF then
+                    for _, entry in ipairs(collectLocalRoots()) do
+                        if typeof(sethiddenproperty) == "function" then
+                            pcall(sethiddenproperty, entry.root, "PhysicsRepRootPart", nil)
+                            pcall(sethiddenproperty, entry.root, "PhysicsRepRootRef", nil)
+                        end
+                        entry.root.CFrame = lastBangSafeDesiredCF
+                        entry.root.AssemblyLinearVelocity = Vector3.zero
+                        entry.root.AssemblyAngularVelocity = Vector3.zero
+                    end
+                end
+                return
+            end
+            if lastBangValidPos and (targetRoot.Position - lastBangValidPos).Magnitude > 165 then
+                if targetRoot.Position.Y > 850 or targetRoot.Position.Y < -60 or targetRoot.Position.Magnitude > 14000 or targetRoot.Transparency >= 0.95 then
+                    return
+                end
+            end
+            lastBangValidPos = targetRoot.Position
 
-            local targetHead = liveTarget.Character:FindFirstChild("Head")
-            local validHead = targetHead and targetHead:IsA("BasePart") and ((targetHead.Position - targetRoot.Position).Magnitude <= 10)
+            local targetHead = pickTargetRef(liveChar, "head") or liveChar:FindFirstChild("Head")
+            local validHead = targetHead and targetHead:IsA("BasePart") and isRefPartValid(targetHead, liveChar) and ((targetHead.Position - targetRoot.Position).Magnitude <= 10)
             local levelTargetRootCF = getFlatYawCFrame(targetRoot.CFrame, targetRoot.Position)
             local desiredCF
             if modeKey == "face" and validHead then
@@ -15780,6 +16760,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                 desiredCF = levelTargetRootCF * CFrame.new(0, 0, dist)
             end
 
+            lastBangSafeDesiredCF = desiredCF
             markIntentionalTeleport(desiredCF)
             pcall(function() LocalPlayer.ReplicationFocus = targetRoot end)
             local tVel = targetRoot.AssemblyLinearVelocity
@@ -21286,9 +22267,12 @@ local function buildMainUI()
         bottomStatusLbl.ZIndex = 9
         bottomStatusLbl.Parent = targetInputSection
 
+        local updatingUsernameBoxProgrammatically = false
         WeldIntent.setUsernameBoxText = function(txt)
-            if weldUsernameBox and weldUsernameBox.Parent and not weldUsernameBox:IsFocused() then
+            if weldUsernameBox and weldUsernameBox.Parent then
+                updatingUsernameBoxProgrammatically = true
                 weldUsernameBox.Text = tostring(txt or "")
+                updatingUsernameBoxProgrammatically = false
             end
         end
 
@@ -21365,7 +22349,7 @@ local function buildMainUI()
         end)
 
         weldUsernameBox:GetPropertyChangedSignal("Text"):Connect(function()
-            if not weldUsernameBox:IsFocused() then return end
+            if updatingUsernameBoxProgrammatically or not weldUsernameBox:IsFocused() then return end
             local raw = (weldUsernameBox.Text or ""):gsub("^%s*@+%s*", ""):gsub("^%s+", ""):gsub("%s+$", "")
             WeldIntent.typedUsername = raw
             if raw == "" then
@@ -21561,10 +22545,11 @@ local function buildMainUI()
             local char = findPlayerCharacterAnywhere(tgt)
             local hum = char and char:FindFirstChildOfClass("Humanoid")
             local ref = char and pickTargetRef(char, "torso")
+            local isCardReanim = (char and isCharacterNetlessReanimated(char)) or (findTargetReanimModel(tgt) ~= nil)
             local activeKey = WeldIntent.active and WeldIntent.presetKey or ((AnimCopySys and AnimCopySys.active) and "animcopy" or nil)
             local activePresetLbl = activeKey and WELD_PRESETS[activeKey] and WELD_PRESETS[activeKey].label or activeKey
 
-            if hum and hum.Health <= 0 then
+            if hum and hum.Health <= 0 and not isCardReanim then
                 topStatusLbl.Text = activePresetLbl and ("respawning · " .. activePresetLbl .. " queued") or "target respawning"
                 topStatusLbl.TextColor3 = T.Warning
                 midStatusLbl.Text = "target respawning · " .. tgt.Name
@@ -23127,6 +24112,7 @@ local function buildMainUI()
                             selectedPlayer = p
                             CurrentTarget = p
                             LastWeldTargetUserId = p.UserId
+                            WeldIntent.target = p
                             WeldIntent.typedUsername = p.Name
                             WeldIntent.leftInfo = nil
                             WeldIntent.waitingForSpawn = false
@@ -23134,18 +24120,34 @@ local function buildMainUI()
                             footerLabel.Text = "Target: " .. p.Name
                             footerSub.Text = "locked (tap again to disconnect)"
                             syncChatTarget(p)
-                            -- If a weld is currently active on someone else, seamlessly switch it to the newly locked player!
-                            if WeldIntent.active and WeldIntent.presetKey then
-                                applyWeldPreset(WeldIntent.presetKey, p)
+                            hookTargetRespawn(p)
+                            -- Immediately connect to the newly selected target if a weld/copy/preset is active, waiting, or previously armed!
+                            local presetToConnect = (WeldIntent.active and WeldIntent.presetKey)
+                                or ((AnimCopySys and AnimCopySys.active) and "animcopy")
+                                or (CurrentWeld and (WeldIntent.presetKey or LastPresetKey))
+                                or (WeldIntent.waitingForSpawn and (WeldIntent.presetKey or LastPresetKey))
+                                or WeldIntent.presetKey
+                                or LastPresetKey
+                            if presetToConnect and WELD_PRESETS[presetToConnect] then
+                                applyWeldPreset(presetToConnect, p)
                                 syncAllActiveIndicators()
+                                notify("COCO POWDER", "Locked & connected (" .. (WELD_PRESETS[presetToConnect].label or presetToConnect) .. ") -> @" .. p.Name)
+                            else
+                                notify("COCO POWDER", "Locked onto @" .. p.Name .. " (tap any weld preset to attach)")
                             end
-                            notify("COCO POWDER", "Locked onto @" .. p.Name)
                         end
                         refreshList()
                         if refreshCard then pcall(refreshCard) end
                     end,
                     function()
                         selectedPlayer = p
+                        CurrentTarget = p
+                        LastWeldTargetUserId = p.UserId
+                        WeldIntent.target = p
+                        WeldIntent.typedUsername = p.Name
+                        WeldIntent.leftInfo = nil
+                        WeldIntent.waitingForSpawn = false
+                        if WeldIntent.setUsernameBoxText then pcall(WeldIntent.setUsernameBoxText, p.Name) end
                         syncChatTarget(p)
                         task.spawn(function()
                             local _, tRef = streamAndTeleportToTarget(p, "root", 1.8, CFrame.new(3.2, 0, 0))
@@ -25312,9 +26314,50 @@ local function buildMainUI()
             vcStart()
         end, "⚡")
 
+        local vcV1Sw = createSwitchRow(bypassGrp, 7, "Novoline Anti-VC Bypass V1 (Floating Mic UI)", "Status: Ready (V1) · Disables all StateChanged conns + spawns draggable NV_MicToggleGUI", Anti.VCV1.enabled, function(st)
+            if st then
+                if Anti.VCV1.startFn then Anti.VCV1.startFn() end
+            else
+                if Anti.VCV1.stopFn then Anti.VCV1.stopFn() end
+            end
+            syncAllAntiButtons()
+        end)
+        Anti.VCV1.rowSubLbl = vcV1Sw.subLbl
+        table.insert(antiToggleRegistry, { sw = vcV1Sw, getState = function() return Anti.VCV1.enabled or Anti.VCV1.running end })
+
+        local vcV2Sw = createSwitchRow(bypassGrp, 8, "Novoline Anti-VC Bypass V2 (TopBar + RedDot)", "Status: Ready (V2) · Unmute wait + disables StateChanged[7+] + CustomVoiceController", Anti.VCV2.enabled, function(st)
+            if st then
+                if Anti.VCV2.startFn then Anti.VCV2.startFn() end
+            else
+                if Anti.VCV2.stopFn then Anti.VCV2.stopFn() end
+            end
+            syncAllAntiButtons()
+        end)
+        Anti.VCV2.rowSubLbl = vcV2Sw.subLbl
+        table.insert(antiToggleRegistry, { sw = vcV2Sw, getState = function() return Anti.VCV2.enabled or Anti.VCV2.running end })
+
+        createActionRow(bypassGrp, 9, "Open Novoline VC Bypasser Panel (V1 & V2 Glass GUI)", "Tap [Open V1/V2] for Novoline V1/V2 switcher GUI · Tap [V2] to open in V2 mode", "Open V1/V2", function()
+            if Anti.VC.openNovolinePanelFn then
+                Anti.VC.openNovolinePanelFn()
+            end
+        end, function()
+            if Anti.VC.openVCB2Fn then
+                Anti.VC.openVCB2Fn()
+            end
+        end, "V2")
+
+        createActionRow(bypassGrp, 10, "VC Quick Mute / Unmute (PublishPause)", "Instantly toggles VoiceChatInternal:PublishPause without VC suspension risk", "Mute / Unmute", function(pillBtn)
+            if Anti.VCV1.toggleMuteFn then
+                local mNow = Anti.VCV1.toggleMuteFn()
+                if mNow ~= nil and pillBtn then
+                    pillBtn.Text = mNow and "🔇 Muted" or "🎙️ Unmuted"
+                end
+            end
+        end)
+
         local antiCamLockOn = false
         local antiCamConn = nil
-        createSwitchRow(bypassGrp, 8, "Anti-Camera Lock, Shake & Forced Cutscene (NEW)", "Prevents scripts from locking CameraType to Scriptable or shaking your screen", false, function(st)
+        createSwitchRow(bypassGrp, 11, "Anti-Camera Lock, Shake & Forced Cutscene (NEW)", "Prevents scripts from locking CameraType to Scriptable or shaking your screen", false, function(st)
             antiCamLockOn = st
             if antiCamConn then antiCamConn:Disconnect(); antiCamConn = nil end
             if st then
@@ -25340,7 +26383,7 @@ local function buildMainUI()
         end)
 
         local mentionGuardOn = true
-        createSwitchRow(bypassGrp, 9, "Chat Mention & Whisper Radar Alert (NEW)", "Alerts you immediately when any player types your name or whispers in chat", mentionGuardOn, function(st)
+        createSwitchRow(bypassGrp, 12, "Chat Mention & Whisper Radar Alert (NEW)", "Alerts you immediately when any player types your name or whispers in chat", mentionGuardOn, function(st)
             mentionGuardOn = st
             notify("🔔 MENTION RADAR", st and "Chat Mention & Whisper Radar ON" or "Chat Mention & Whisper Radar OFF")
         end)
