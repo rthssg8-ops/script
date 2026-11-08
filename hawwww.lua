@@ -20409,7 +20409,7 @@ local function buildMainUI()
         sidebarVisible = true,
         sfxEnabled = true,
         glassMode = false,
-        nebulaEnabled = false,
+        nebulaEnabled = true, -- Enabled by default to match Novoline video moving liquid-plasma background
         saveWindows = true,
         autoNearestFallback = true,
         activeCategory = "General",
@@ -20819,27 +20819,86 @@ local function buildMainUI()
     mainCard.Parent = rootWrap
     Instance.new("UICorner", mainCard).CornerRadius = UDim.new(0, 20)
 
-    -- Zero-Lag On-Demand Nebula Backdrop (only builds & plays tweens when explicitly enabled and UI is open!)
+    -- Novoline Video Moving Liquid-Plasma Image Background (Magenta / Deep Purple / Crimson Swirl + Diagonal Prism)
     local nebulaLayer = Instance.new("Frame")
     nebulaLayer.Name = "CocoNebulaBackdrop"
     nebulaLayer.Size = UDim2.fromScale(1, 1)
-    nebulaLayer.BackgroundTransparency = 1
+    nebulaLayer.BackgroundColor3 = Color3.fromRGB(14, 5, 22)
+    nebulaLayer.BackgroundTransparency = 0.18
     nebulaLayer.BorderSizePixel = 0
     nebulaLayer.ClipsDescendants = true
     nebulaLayer.Visible = false
     nebulaLayer.ZIndex = 6
     nebulaLayer.Parent = mainCard
+    Instance.new("UICorner", nebulaLayer).CornerRadius = UDim.new(0, 20)
+
+    local catNebulaLayer = Instance.new("Frame")
+    catNebulaLayer.Name = "CocoCatNebulaBackdrop"
+    catNebulaLayer.Size = UDim2.fromScale(1, 1)
+    catNebulaLayer.BackgroundColor3 = Color3.fromRGB(14, 5, 22)
+    catNebulaLayer.BackgroundTransparency = 0.22
+    catNebulaLayer.BorderSizePixel = 0
+    catNebulaLayer.ClipsDescendants = true
+    catNebulaLayer.Visible = false
+    catNebulaLayer.ZIndex = 6
+    catNebulaLayer.Parent = catCard
+    Instance.new("UICorner", catNebulaLayer).CornerRadius = UDim.new(0, 20)
 
     local nebulaBuilt = false
     local nebulaTweens = {}
-    local function ensureNebulaBuilt()
-        if nebulaBuilt then return end
-        nebulaBuilt = true
+    local function populateLiquidPlasmaLayer(targetLayer, isCompact)
+        -- Base liquid-marble gradient
+        local baseGrad = Instance.new("UIGradient")
+        baseGrad.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(28, 7, 38)),
+            ColorSequenceKeypoint.new(0.35, Color3.fromRGB(118, 16, 88)),
+            ColorSequenceKeypoint.new(0.7, Color3.fromRGB(68, 12, 96)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(14, 5, 22)),
+        })
+        baseGrad.Rotation = 35
+        baseGrad.Parent = targetLayer
+        nebulaTweens[#nebulaTweens + 1] = TweenService:Create(baseGrad, TweenInfo.new(11, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {
+            Rotation = 145,
+        })
+
+        -- Moving Image Texture Layers (panning cloud/plasma noise textures matching the video's moving background)
+        local texAssets = {
+            { id = "rbxassetid://241685484",  col = Color3.fromRGB(215, 32, 125), trans = 0.62, sz = UDim2.fromScale(2.2, 2.2), p0 = UDim2.fromScale(-0.55, -0.45), p1 = UDim2.fromScale(-0.05, -0.10), dur = 9.5 },
+            { id = "rbxassetid://1084991215", col = Color3.fromRGB(138, 24, 175), trans = 0.66, sz = UDim2.fromScale(2.4, 2.4), p0 = UDim2.fromScale(-0.10, -0.55), p1 = UDim2.fromScale(-0.60, -0.08), dur = 12.0 },
+            { id = "rbxassetid://5028857084", col = Color3.fromRGB(235, 38, 78),  trans = 0.74, sz = UDim2.fromScale(1.9, 1.9), p0 = UDim2.fromScale(-0.40, -0.15), p1 = UDim2.fromScale(-0.12, -0.48), dur = 8.0 },
+        }
+        for idx, td in ipairs(texAssets) do
+            local img = Instance.new("ImageLabel")
+            img.Name = "LiquidPlasmaTex" .. idx
+            img.BackgroundTransparency = 1
+            img.Image = td.id
+            img.ImageColor3 = td.col
+            img.ImageTransparency = td.trans
+            img.ScaleType = Enum.ScaleType.Tile
+            img.TileSize = UDim2.fromScale(0.65, 0.65)
+            img.Size = td.sz
+            img.Position = td.p0
+            img.ZIndex = 6
+            img.Parent = targetLayer
+            local ig = Instance.new("UIGradient")
+            ig.Color = ColorSequence.new({
+                ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 75, 165)),
+                ColorSequenceKeypoint.new(0.5, td.col),
+                ColorSequenceKeypoint.new(1, Color3.fromRGB(24, 8, 38)),
+            })
+            ig.Rotation = (idx * 55) % 360
+            ig.Parent = img
+            nebulaTweens[#nebulaTweens + 1] = TweenService:Create(img, TweenInfo.new(td.dur, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {
+                Position = td.p1,
+            })
+        end
+
+        -- Fluid glowing plasma ribbons
         local nebulaPalette = {
-            {Color3.fromRGB(105, 48, 190), UDim2.new(-0.18, 0, 0.02, 0), UDim2.new(0, 240, 0, 190)},
-            {Color3.fromRGB(61, 42, 158), UDim2.new(0.42, 0, 0.30, 0), UDim2.new(0, 270, 0, 210)},
-            {Color3.fromRGB(133, 55, 176), UDim2.new(0.63, 0, -0.10, 0), UDim2.new(0, 220, 0, 180)},
-            {Color3.fromRGB(47, 76, 164), UDim2.new(0.10, 0, 0.68, 0), UDim2.new(0, 250, 0, 180)},
+            {Color3.fromRGB(205, 28, 118), UDim2.new(-0.12, 0, 0.08, 0), UDim2.new(0, isCompact and 170 or 260, 0, isCompact and 140 or 200)},
+            {Color3.fromRGB(122, 22, 158), UDim2.new(0.48, 0, 0.34, 0),  UDim2.new(0, isCompact and 190 or 290, 0, isCompact and 150 or 220)},
+            {Color3.fromRGB(230, 35, 65),  UDim2.new(0.66, 0, -0.06, 0), UDim2.new(0, isCompact and 160 or 230, 0, isCompact and 130 or 185)},
+            {Color3.fromRGB(162, 28, 134), UDim2.new(0.14, 0, 0.72, 0),  UDim2.new(0, isCompact and 180 or 265, 0, isCompact and 140 or 195)},
         }
         for i, data in ipairs(nebulaPalette) do
             local blob = Instance.new("Frame")
@@ -20848,53 +20907,78 @@ local function buildMainUI()
             blob.Position = data[2]
             blob.Size = data[3]
             blob.BackgroundColor3 = data[1]
-            blob.BackgroundTransparency = 0.62
+            blob.BackgroundTransparency = 0.52
             blob.BorderSizePixel = 0
             blob.ZIndex = 6
-            blob.Parent = nebulaLayer
+            blob.Parent = targetLayer
             Instance.new("UICorner", blob).CornerRadius = UDim.new(1, 0)
             local grad = Instance.new("UIGradient")
             grad.Color = ColorSequence.new({
-                ColorSequenceKeypoint.new(0, data[1]:Lerp(Color3.fromRGB(18, 12, 38), 0.38)),
+                ColorSequenceKeypoint.new(0, data[1]:Lerp(Color3.fromRGB(255, 90, 175), 0.35)),
                 ColorSequenceKeypoint.new(0.5, data[1]),
-                ColorSequenceKeypoint.new(1, Color3.fromRGB(14, 10, 28)),
+                ColorSequenceKeypoint.new(1, Color3.fromRGB(16, 6, 26)),
             })
             grad.Transparency = NumberSequence.new({
-                NumberSequenceKeypoint.new(0, 0.48),
-                NumberSequenceKeypoint.new(0.5, 0.12),
-                NumberSequenceKeypoint.new(1, 0.58),
+                NumberSequenceKeypoint.new(0, 0.42),
+                NumberSequenceKeypoint.new(0.5, 0.08),
+                NumberSequenceKeypoint.new(1, 0.62),
             })
-            grad.Rotation = (i * 37) % 360
+            grad.Rotation = (i * 43) % 360
             grad.Parent = blob
-            local drift = UDim2.new(data[2].X.Scale + (i % 2 == 0 and -0.10 or 0.10), 0,
-                data[2].Y.Scale + (i % 2 == 0 and 0.08 or -0.08), 0)
-            -- No Rotation tweening inside ClipsDescendants (prevents per-frame UI geometry re-tessellation lag!)
-            nebulaTweens[#nebulaTweens + 1] = TweenService:Create(blob, TweenInfo.new(8 + i * 2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {
+            local drift = UDim2.new(data[2].X.Scale + (i % 2 == 0 and -0.14 or 0.14), 0,
+                data[2].Y.Scale + (i % 2 == 0 and 0.11 or -0.11), 0)
+            nebulaTweens[#nebulaTweens + 1] = TweenService:Create(blob, TweenInfo.new(6.5 + i * 1.6, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {
                 Position = drift,
             })
         end
-        for i = 1, 8 do
-            local dot = Instance.new("Frame")
-            dot.Name = "NebulaDust" .. i
-            dot.AnchorPoint = Vector2.new(0.5, 0.5)
-            dot.Position = UDim2.fromScale(((i * 37) % 97) / 100, ((i * 61) % 91) / 100)
-            local d = (i % 3) + 1
-            dot.Size = UDim2.fromOffset(d, d)
-            dot.BackgroundColor3 = (i % 2 == 0) and Color3.fromRGB(210, 174, 255) or Color3.fromRGB(143, 125, 255)
-            dot.BackgroundTransparency = 0.25
-            dot.BorderSizePixel = 0
-            dot.ZIndex = 6
-            dot.Parent = nebulaLayer
-            Instance.new("UICorner", dot).CornerRadius = UDim.new(1, 0)
-            nebulaTweens[#nebulaTweens + 1] = TweenService:Create(dot, TweenInfo.new(2.5 + (i % 5), Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {
-                BackgroundTransparency = 0.82,
-            })
-        end
+
+        -- Diagonal Chromatic Prism Overlay (exact subtle diagonal glass prism seen in the video background)
+        local prism = Instance.new("Frame")
+        prism.Name = "NovolinePrismShard"
+        prism.AnchorPoint = Vector2.new(0.5, 0.5)
+        prism.Size = UDim2.fromScale(1.4, 0.42)
+        prism.Position = UDim2.fromScale(0.38, 0.62)
+        prism.Rotation = -26
+        prism.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+        prism.BackgroundTransparency = 0.86
+        prism.BorderSizePixel = 0
+        prism.ZIndex = 6
+        prism.Parent = targetLayer
+        local pStroke = Instance.new("UIStroke")
+        pStroke.Color = Color3.fromRGB(235, 120, 210)
+        pStroke.Thickness = 1.2
+        pStroke.Transparency = 0.68
+        pStroke.Parent = prism
+        local pGrad = Instance.new("UIGradient")
+        pGrad.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 90, 120)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(190, 90, 255)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(80, 210, 255)),
+        })
+        pGrad.Transparency = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 0.35),
+            NumberSequenceKeypoint.new(0.5, 0.78),
+            NumberSequenceKeypoint.new(1, 0.95),
+        })
+        pGrad.Parent = prism
+        nebulaTweens[#nebulaTweens + 1] = TweenService:Create(prism, TweenInfo.new(9.0, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {
+            Position = UDim2.fromScale(0.52, 0.48),
+        })
     end
+
+    local function ensureNebulaBuilt()
+        if nebulaBuilt then return end
+        nebulaBuilt = true
+        populateLiquidPlasmaLayer(nebulaLayer, false)
+        populateLiquidPlasmaLayer(catNebulaLayer, true)
+    end
+    UI.populateLiquidPlasmaLayer = populateLiquidPlasmaLayer
 
     local function syncNebulaPlayback()
         local shouldPlay = UI.nebulaEnabled and UI.open
         nebulaLayer.Visible = shouldPlay
+        catNebulaLayer.Visible = shouldPlay and UI.sidebarVisible
+        if UI.syncIslandNebulaFn then pcall(UI.syncIslandNebulaFn, UI.nebulaEnabled) end
         if shouldPlay then
             ensureNebulaBuilt()
             for i = 1, #nebulaTweens do nebulaTweens[i]:Play() end
@@ -28209,6 +28293,7 @@ local function buildMainUI()
         local themeGrp = createGroupCard(appearPage, 2)
 
         local THEMES = {
+            { name = "Novoline Crimson Island (Video)", accent = Color3.fromRGB(235, 38, 60), accent2 = Color3.fromRGB(190, 24, 48), neon = Color3.fromRGB(255, 130, 148) },
             { name = "Novoline Violet (Default)", accent = Color3.fromRGB(184, 118, 255), accent2 = Color3.fromRGB(132, 76, 222), neon = Color3.fromRGB(226, 200, 255) },
             { name = "Jamun Emerald (Teal)",      accent = Color3.fromRGB(20, 214, 172),  accent2 = Color3.fromRGB(13, 168, 136), neon = Color3.fromRGB(167, 248, 228) },
             { name = "Crimson Rose",              accent = Color3.fromRGB(251, 113, 133), accent2 = Color3.fromRGB(225, 29, 72),  neon = Color3.fromRGB(254, 205, 211) },
@@ -30441,6 +30526,2441 @@ local function buildMainUI()
             pcall(UI.applyRootScaleFn, UI.uiScale)
         end
     end
+
+    -- ═══════════════════════════════════════════════════════════════════════════
+    -- NOVOLINE DYNAMIC ISLAND UPDATE + MOVING LIQUID-PLASMA BACKGROUND +
+    -- SPOTIFY / YOUTUBE MUSIC / CLOUD MP3 STREAMER (EXACT VIDEO REPLICA)
+    -- ═══════════════════════════════════════════════════════════════════════════
+    ;(function()
+        local HttpService = game:GetService("HttpService")
+        local SoundService = game:GetService("SoundService")
+        local StatsService = nil
+        pcall(function() StatsService = game:GetService("Stats") end)
+
+        -- Executor capability detection for Spotify / YouTube Music / Cloud Audio & Custom Assets
+        local httpReq = (typeof(request) == "function" and request)
+            or (typeof(http_request) == "function" and http_request)
+            or (typeof(syn) == "table" and typeof(syn.request) == "function" and syn.request)
+            or (typeof(fluxus) == "table" and typeof(fluxus.request) == "function" and fluxus.request)
+            or nil
+        local getAsset = (typeof(getcustomasset) == "function" and getcustomasset)
+            or (typeof(getsynasset) == "function" and getsynasset)
+            or nil
+        local hasWriteFile = (typeof(writefile) == "function")
+        local hasReadFile  = (typeof(readfile) == "function")
+        local hasIsFile    = (typeof(isfile) == "function")
+        local hasMakeFolder = (typeof(makefolder) == "function")
+        local hasListFiles = (typeof(listfiles) == "function")
+
+        if hasMakeFolder then
+            pcall(function()
+                if typeof(isfolder) == "function" then
+                    if not isfolder("CocoMusic") then makefolder("CocoMusic") end
+                    if not isfolder("CocoMusic/cache") then makefolder("CocoMusic/cache") end
+                else
+                    makefolder("CocoMusic")
+                    makefolder("CocoMusic/cache")
+                end
+            end)
+        end
+
+        -- Palette matching novoline-island-update-only-u.mp4
+        local C_ISLAND_BG     = Color3.fromRGB(8, 7, 11)
+        local C_ISLAND_CARD   = Color3.fromRGB(15, 13, 20)
+        local C_ISLAND_CARD2  = Color3.fromRGB(22, 19, 29)
+        local C_CRIMSON       = Color3.fromRGB(232, 36, 58)
+        local C_CRIMSON_GLOW  = Color3.fromRGB(255, 72, 92)
+        local C_CRIMSON_DARK  = Color3.fromRGB(46, 14, 22)
+        local C_SHUFFLE_BG    = Color3.fromRGB(18, 38, 48)
+        local C_SHUFFLE_TXT   = Color3.fromRGB(96, 195, 255)
+        local C_LIBRARY_BG    = Color3.fromRGB(34, 24, 52)
+        local C_LIBRARY_TXT   = Color3.fromRGB(184, 142, 255)
+        local C_TEXT_WHITE    = Color3.fromRGB(246, 244, 252)
+        local C_TEXT_MUTED    = Color3.fromRGB(148, 142, 164)
+        local C_GREEN_DOT     = Color3.fromRGB(46, 228, 118)
+
+        -- Optional Full-Screen Moving Video Background Layer (behind Dynamic Island & Hub, toggleable)
+        local fullScreenBg = Instance.new("Frame")
+        fullScreenBg.Name = "CocoNovolineMovingVideoBackground"
+        fullScreenBg.Size = UDim2.fromScale(1, 1)
+        fullScreenBg.Position = UDim2.fromScale(0, 0)
+        fullScreenBg.BackgroundColor3 = Color3.fromRGB(14, 4, 22)
+        fullScreenBg.BackgroundTransparency = 0.28
+        fullScreenBg.BorderSizePixel = 0
+        fullScreenBg.ClipsDescendants = true
+        fullScreenBg.Visible = false
+        fullScreenBg.Active = false
+        fullScreenBg.ZIndex = 1
+        fullScreenBg.Parent = gui
+
+        local fsBuilt = false
+        local function setFullScreenPlasmaVisible(vis)
+            fullScreenBg.Visible = vis and true or false
+            if vis and not fsBuilt then
+                fsBuilt = true
+                if UI.populateLiquidPlasmaLayer then
+                    pcall(UI.populateLiquidPlasmaLayer, fullScreenBg, false)
+                end
+            end
+        end
+        _G.SetCocoFullScreenMovingBg = setFullScreenPlasmaVisible
+
+        -- ═══════════════════════════════════════════════════════════════════════
+        -- INTEGRATED MUSIC ENGINE (SPOTIFY API + YT MUSIC DESKTOP + CLOUD STREAM)
+        -- ═══════════════════════════════════════════════════════════════════════
+        local MusicEngine = {
+            playing = true,
+            shuffle = false,
+            volume = 0.85,
+            currentIndex = 1,
+            timePosition = 47,
+            timeLength = 131,
+            sourceMode = "Cloud & Local", -- "Spotify", "YouTube Music", "Cloud & Local"
+            spotifyToken = "",
+            ytmHost = "http://127.0.0.1:9863",
+            lastRemotePoll = 0,
+            remoteConnected = false,
+            remoteCoverCache = {},
+            tracks = {
+                {
+                    artist = "che",
+                    title = "Million Dollar Mansion",
+                    searchQuery = "che Million Dollar Mansion",
+                    duration = 131,
+                    coverAsset = "rbxassetid://14952365661",
+                    soundId = "rbxassetid://1837879082",
+                    isDefaultVideoTrack = true,
+                },
+                {
+                    artist = "Playboi Carti",
+                    title = "2024",
+                    searchQuery = "Playboi Carti 2024",
+                    duration = 148,
+                    coverAsset = "rbxassetid://14952365661",
+                    soundId = "rbxassetid://1848354536",
+                },
+                {
+                    artist = "Ken Carson",
+                    title = "overseas",
+                    searchQuery = "Ken Carson overseas",
+                    duration = 141,
+                    coverAsset = "rbxassetid://14952365661",
+                    soundId = "rbxassetid://1838626744",
+                },
+                {
+                    artist = "Yeat",
+                    title = "If We Being Rëal",
+                    searchQuery = "Yeat If We Being Real",
+                    duration = 172,
+                    coverAsset = "rbxassetid://14952365661",
+                    soundId = "rbxassetid://9043887091",
+                },
+                {
+                    artist = "Destroy Lonely",
+                    title = "if looks could kill",
+                    searchQuery = "Destroy Lonely if looks could kill",
+                    duration = 194,
+                    coverAsset = "rbxassetid://14952365661",
+                    soundId = "rbxassetid://9048375035",
+                },
+                {
+                    artist = "Travis Scott",
+                    title = "FE!N",
+                    searchQuery = "Travis Scott FEIN",
+                    duration = 191,
+                    coverAsset = "rbxassetid://14952365661",
+                    soundId = "rbxassetid://1843404009",
+                },
+            },
+        }
+        _G.CocoNovolineMusic = MusicEngine
+
+        -- Persistent Sound Instance in SoundService
+        local musicSound = SoundService:FindFirstChild("CocoNovolineIslandSound")
+        if not musicSound then
+            musicSound = Instance.new("Sound")
+            musicSound.Name = "CocoNovolineIslandSound"
+            musicSound.Volume = MusicEngine.volume
+            musicSound.Looped = false
+            musicSound.SoundId = MusicEngine.tracks[1].soundId
+            musicSound.Parent = SoundService
+        end
+        MusicEngine.sound = musicSound
+
+        -- Scan local CocoMusic/ folder for user .mp3 / .ogg / .wav / .m4a files
+        local function scanLocalMusicFolder()
+            if not hasListFiles or not getAsset then return end
+            pcall(function()
+                local files = listfiles("CocoMusic")
+                if type(files) ~= "table" then return end
+                for _, fpath in ipairs(files) do
+                    local lower = tostring(fpath):lower()
+                    if lower:match("%.mp3$") or lower:match("%.ogg$") or lower:match("%.wav$") or lower:match("%.m4a$") then
+                        local fname = tostring(fpath):match("([^/\\]+)$") or tostring(fpath)
+                        local clean = fname:gsub("%.%w+$", "")
+                        local artist, title = clean:match("^(.-)%s*%-+%s*(.+)$")
+                        if not artist or not title then
+                            artist = "Local File"
+                            title = clean
+                        end
+                        local okA, customId = pcall(getAsset, fpath)
+                        if okA and customId then
+                            table.insert(MusicEngine.tracks, {
+                                artist = artist,
+                                title = title,
+                                duration = 150,
+                                coverAsset = "rbxassetid://14952365661",
+                                soundId = customId,
+                                isLocalFile = true,
+                            })
+                        end
+                    end
+                end
+            end)
+        end
+        scanLocalMusicFolder()
+
+        -- Helper: Download image URL -> custom asset for real Spotify / YT Music album art
+        local function fetchCoverAssetFromUrl(imgUrl, cacheKey)
+            if not imgUrl or imgUrl == "" or not httpReq or not hasWriteFile or not getAsset then
+                return nil
+            end
+            if MusicEngine.remoteCoverCache[imgUrl] then
+                return MusicEngine.remoteCoverCache[imgUrl]
+            end
+            local safeKey = tostring(cacheKey or imgUrl):gsub("[^%w]", "_"):sub(-32)
+            local filePath = "CocoMusic/cache/cover_" .. safeKey .. ".jpg"
+            local ok, res = pcall(function()
+                if hasIsFile and isfile(filePath) then
+                    return getAsset(filePath)
+                end
+                local resp = httpReq({ Url = imgUrl, Method = "GET" })
+                if resp and resp.StatusCode == 200 and resp.Body and #resp.Body > 128 then
+                    writefile(filePath, resp.Body)
+                    return getAsset(filePath)
+                end
+                return nil
+            end)
+            if ok and res then
+                MusicEngine.remoteCoverCache[imgUrl] = res
+                return res
+            end
+            return nil
+        end
+
+        -- Helper: Cloud Search & Direct Audio Streamer (iTunes / Deezer / Piped API -> writefile -> getcustomasset)
+        local updateMusicUI = nil
+        local function fetchCloudTrackAndPlay(queryStr, trackSlot)
+            if not httpReq then
+                notify("🎵 MUSIC PLAYER", "Your executor does not expose `request` for cloud downloads; playing built-in audio stream.")
+                return
+            end
+            task.spawn(function()
+                local encoded = ""
+                pcall(function() encoded = HttpService:UrlEncode(queryStr) end)
+                if encoded == "" then encoded = queryStr:gsub("%s+", "+") end
+
+                -- 1) Query Deezer / iTunes public search API for real track metadata, cover art & stream preview
+                local foundTitle, foundArtist, previewUrl, coverUrl, durationSec = nil, nil, nil, nil, nil
+                pcall(function()
+                    local resp = httpReq({
+                        Url = "https://api.deezer.com/search?q=" .. encoded .. "&limit=1",
+                        Method = "GET",
+                    })
+                    if resp and resp.StatusCode == 200 and resp.Body then
+                        local data = HttpService:JSONDecode(resp.Body)
+                        local item = data and data.data and data.data[1]
+                        if item then
+                            foundTitle = item.title
+                            foundArtist = item.artist and item.artist.name
+                            previewUrl = item.preview
+                            coverUrl = (item.album and (item.album.cover_medium or item.album.cover)) or nil
+                            durationSec = tonumber(item.duration) or 131
+                        end
+                    end
+                end)
+
+                if not previewUrl then
+                    pcall(function()
+                        local resp = httpReq({
+                            Url = "https://itunes.apple.com/search?term=" .. encoded .. "&media=music&entity=song&limit=1",
+                            Method = "GET",
+                        })
+                        if resp and resp.StatusCode == 200 and resp.Body then
+                            local data = HttpService:JSONDecode(resp.Body)
+                            local item = data and data.results and data.results[1]
+                            if item then
+                                foundTitle = item.trackName
+                                foundArtist = item.artistName
+                                previewUrl = item.previewUrl
+                                coverUrl = item.artworkUrl100
+                                durationSec = item.trackTimeMillis and math.floor(item.trackTimeMillis / 1000) or 131
+                            end
+                        end
+                    end)
+                end
+
+                local targetTrack = trackSlot
+                if not targetTrack then
+                    targetTrack = {
+                        artist = foundArtist or "Cloud Stream",
+                        title = foundTitle or queryStr,
+                        searchQuery = queryStr,
+                        duration = durationSec or 135,
+                        coverAsset = "rbxassetid://14952365661",
+                        soundId = "rbxassetid://1837879082",
+                    }
+                    table.insert(MusicEngine.tracks, 1, targetTrack)
+                    MusicEngine.currentIndex = 1
+                else
+                    if foundArtist then targetTrack.artist = foundArtist end
+                    if foundTitle then targetTrack.title = foundTitle end
+                    if durationSec then targetTrack.duration = durationSec end
+                end
+
+                if coverUrl then
+                    local cAsset = fetchCoverAssetFromUrl(coverUrl, queryStr)
+                    if cAsset then targetTrack.coverAsset = cAsset end
+                end
+
+                if previewUrl and hasWriteFile and getAsset then
+                    pcall(function()
+                        local ext = previewUrl:lower():find("%.m4a") and ".m4a" or ".mp3"
+                        local safeName = queryStr:gsub("[^%w]", "_"):sub(1, 28)
+                        local audioPath = "CocoMusic/cache/track_" .. safeName .. ext
+                        if not (hasIsFile and isfile(audioPath)) then
+                            local aResp = httpReq({ Url = previewUrl, Method = "GET" })
+                            if aResp and aResp.StatusCode == 200 and aResp.Body and #aResp.Body > 512 then
+                                writefile(audioPath, aResp.Body)
+                            end
+                        end
+                        if hasIsFile and isfile(audioPath) then
+                            local customAudioId = getAsset(audioPath)
+                            if customAudioId then
+                                targetTrack.soundId = customAudioId
+                            end
+                        end
+                    end)
+                end
+
+                if MusicEngine.tracks[MusicEngine.currentIndex] == targetTrack then
+                    pcall(function()
+                        musicSound.SoundId = targetTrack.soundId
+                        musicSound.TimePosition = 0
+                        if MusicEngine.playing then
+                            musicSound:Play()
+                        end
+                    end)
+                end
+                if updateMusicUI then pcall(updateMusicUI) end
+            end)
+        end
+
+        -- Spotify Web API & YouTube Music Desktop App Live Sync + Transport Control
+        local function sendRemoteTransportCommand(cmd, seekMs)
+            if not httpReq then return false end
+            if MusicEngine.sourceMode == "Spotify" and MusicEngine.spotifyToken ~= "" then
+                task.spawn(function()
+                    pcall(function()
+                        local base = "https://api.spotify.com/v1/me/player"
+                        local headers = {
+                            ["Authorization"] = "Bearer " .. MusicEngine.spotifyToken,
+                            ["Content-Type"] = "application/json",
+                        }
+                        if cmd == "play" then
+                            httpReq({ Url = base .. "/play", Method = "PUT", Headers = headers })
+                        elseif cmd == "pause" then
+                            httpReq({ Url = base .. "/pause", Method = "PUT", Headers = headers })
+                        elseif cmd == "next" then
+                            httpReq({ Url = base .. "/next", Method = "POST", Headers = headers })
+                        elseif cmd == "previous" then
+                            httpReq({ Url = base .. "/previous", Method = "POST", Headers = headers })
+                        elseif cmd == "shuffle" then
+                            httpReq({ Url = base .. "/shuffle?state=" .. tostring(MusicEngine.shuffle), Method = "PUT", Headers = headers })
+                        elseif cmd == "seek" and seekMs then
+                            httpReq({ Url = base .. "/seek?position_ms=" .. tostring(math.floor(seekMs)), Method = "PUT", Headers = headers })
+                        end
+                    end)
+                end)
+                return true
+            elseif MusicEngine.sourceMode == "YouTube Music" then
+                task.spawn(function()
+                    pcall(function()
+                        local host = MusicEngine.ytmHost or "http://127.0.0.1:9863"
+                        local mapCmd = (cmd == "play" or cmd == "pause") and "track-play-pause"
+                            or (cmd == "next" and "track-next")
+                            or (cmd == "previous" and "track-previous")
+                            or nil
+                        if mapCmd then
+                            httpReq({
+                                Url = host .. "/query",
+                                Method = "POST",
+                                Headers = { ["Content-Type"] = "application/json" },
+                                Body = HttpService:JSONEncode({ command = mapCmd }),
+                            })
+                        end
+                    end)
+                end)
+                return true
+            end
+            return false
+        end
+
+        local function pollExternalMusicServices()
+            if not httpReq then return end
+            if MusicEngine.sourceMode == "Spotify" and MusicEngine.spotifyToken ~= "" then
+                pcall(function()
+                    local resp = httpReq({
+                        Url = "https://api.spotify.com/v1/me/player/currently-playing",
+                        Method = "GET",
+                        Headers = { ["Authorization"] = "Bearer " .. MusicEngine.spotifyToken },
+                    })
+                    if resp and resp.StatusCode == 200 and resp.Body and #resp.Body > 10 then
+                        local data = HttpService:JSONDecode(resp.Body)
+                        if data and data.item then
+                            MusicEngine.remoteConnected = true
+                            MusicEngine.playing = (data.is_playing == true)
+                            MusicEngine.timePosition = math.floor((tonumber(data.progress_ms) or 0) / 1000)
+                            MusicEngine.timeLength = math.max(1, math.floor((tonumber(data.item.duration_ms) or 131000) / 1000))
+                            local tr = MusicEngine.tracks[MusicEngine.currentIndex] or MusicEngine.tracks[1]
+                            tr.title = tostring(data.item.name or tr.title)
+                            if data.item.artists and data.item.artists[1] then
+                                tr.artist = tostring(data.item.artists[1].name or tr.artist)
+                            end
+                            local imgUrl = data.item.album and data.item.album.images and data.item.album.images[1] and data.item.album.images[1].url
+                            if imgUrl then
+                                local cAsset = fetchCoverAssetFromUrl(imgUrl, tr.artist .. "_" .. tr.title)
+                                if cAsset then tr.coverAsset = cAsset end
+                            end
+                            if updateMusicUI then pcall(updateMusicUI) end
+                        end
+                    end
+                end)
+            elseif MusicEngine.sourceMode == "YouTube Music" then
+                pcall(function()
+                    local host = MusicEngine.ytmHost or "http://127.0.0.1:9863"
+                    local resp = httpReq({ Url = host .. "/query", Method = "GET" })
+                    if resp and resp.StatusCode == 200 and resp.Body and #resp.Body > 10 then
+                        local data = HttpService:JSONDecode(resp.Body)
+                        if data and data.track then
+                            MusicEngine.remoteConnected = true
+                            MusicEngine.playing = not (data.player and data.player.isPaused)
+                            MusicEngine.timePosition = math.floor(tonumber(data.player and data.player.seekbarCurrentPosition) or 0)
+                            MusicEngine.timeLength = math.max(1, math.floor(tonumber(data.track.duration) or 131))
+                            local tr = MusicEngine.tracks[MusicEngine.currentIndex] or MusicEngine.tracks[1]
+                            tr.title = tostring(data.track.title or tr.title)
+                            tr.artist = tostring(data.track.author or tr.artist)
+                            if data.track.cover then
+                                local cAsset = fetchCoverAssetFromUrl(data.track.cover, tr.artist .. "_" .. tr.title)
+                                if cAsset then tr.coverAsset = cAsset end
+                            end
+                            if updateMusicUI then pcall(updateMusicUI) end
+                        end
+                    end
+                end)
+            end
+        end
+
+        -- Format seconds -> "M:SS"
+        local function fmtTime(sec)
+            sec = math.max(0, math.floor(tonumber(sec) or 0))
+            local m = math.floor(sec / 60)
+            local s = sec % 60
+            return string.format("%d:%02d", m, s)
+        end
+
+        -- ═══════════════════════════════════════════════════════════════════════
+        -- NOVOLINE DYNAMIC ISLAND CONTAINER & MORPH ENGINE
+        -- ═══════════════════════════════════════════════════════════════════════
+        local islandState = "collapsed" -- "collapsed", "music", "pods", "autoexec", "values", "keybinds", "search", "library", "toast"
+        local sessionStartTick = tick()
+
+        -- Top-center Dynamic Island Host Frame
+        local islandHost = Instance.new("Frame")
+        islandHost.Name = "CocoNovolineDynamicIsland"
+        islandHost.AnchorPoint = Vector2.new(0.5, 0)
+        islandHost.Position = UDim2.new(0.5, 0, 0, 12)
+        islandHost.Size = UDim2.new(0, 214, 0, 40)
+        islandHost.BackgroundColor3 = C_ISLAND_BG
+        islandHost.BackgroundTransparency = 0.02
+        islandHost.BorderSizePixel = 0
+        islandHost.ClipsDescendants = true
+        islandHost.Active = true
+        islandHost.ZIndex = 850
+        islandHost.Parent = gui
+
+        local islandCorner = Instance.new("UICorner")
+        islandCorner.CornerRadius = UDim.new(0, 20)
+        islandCorner.Parent = islandHost
+
+        local islandStroke = Instance.new("UIStroke")
+        islandStroke.Color = C_CRIMSON
+        islandStroke.Thickness = 1.35
+        islandStroke.Transparency = 0.28
+        islandStroke.Parent = islandHost
+
+        -- Moving Liquid-Plasma Image Backdrop inside the Dynamic Island itself!
+        local islandPlasma = Instance.new("Frame")
+        islandPlasma.Name = "IslandLiquidPlasma"
+        islandPlasma.Size = UDim2.fromScale(1, 1)
+        islandPlasma.BackgroundColor3 = Color3.fromRGB(16, 5, 24)
+        islandPlasma.BackgroundTransparency = 0.25
+        islandPlasma.BorderSizePixel = 0
+        islandPlasma.ClipsDescendants = true
+        islandPlasma.ZIndex = 850
+        islandPlasma.Parent = islandHost
+        Instance.new("UICorner", islandPlasma).CornerRadius = UDim.new(0, 20)
+        if UI.populateLiquidPlasmaLayer then
+            pcall(UI.populateLiquidPlasmaLayer, islandPlasma, true)
+        end
+        UI.syncIslandNebulaFn = function(en)
+            islandPlasma.Visible = (en ~= false)
+        end
+
+        -- Subtle dark glass veil so text & controls stay razor-sharp over the moving plasma
+        local islandVeil = Instance.new("Frame")
+        islandVeil.Size = UDim2.fromScale(1, 1)
+        islandVeil.BackgroundColor3 = C_ISLAND_BG
+        islandVeil.BackgroundTransparency = 0.26
+        islandVeil.BorderSizePixel = 0
+        islandVeil.ZIndex = 851
+        islandVeil.Parent = islandHost
+        Instance.new("UICorner", islandVeil).CornerRadius = UDim.new(0, 20)
+
+        -- Allow dragging the Dynamic Island if desired, or double-clicking to re-center at top
+        do
+            local iDrag, iStart, iPos, iMoved = false, nil, nil, false
+            islandHost.InputBegan:Connect(function(inp)
+                if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+                    iDrag = true
+                    iStart = inp.Position
+                    iPos = islandHost.Position
+                    iMoved = false
+                end
+            end)
+            UIS.InputChanged:Connect(function(inp)
+                if iDrag and (inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch) then
+                    local d = inp.Position - iStart
+                    if math.abs(d.X) > 10 or math.abs(d.Y) > 10 then iMoved = true end
+                    if iMoved and islandState ~= "values" then
+                        islandHost.Position = UDim2.new(iPos.X.Scale, iPos.X.Offset + d.X, iPos.Y.Scale, math.max(6, iPos.Y.Offset + d.Y))
+                    end
+                end
+            end)
+            UIS.InputEnded:Connect(function(inp)
+                if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+                    iDrag = false
+                end
+            end)
+        end
+
+        -- Forward declaration for state switcher
+        local setIslandState
+
+        -- ═══════════════════════════════════════════════════════════════════════
+        -- VIEW 1: COLLAPSED PILL (00:03–00:04 & 00:11 in video)
+        -- Circular/Rounded Album Art on Left + Track Ticker + 5 Red Equalizer Bars on Right
+        -- ═══════════════════════════════════════════════════════════════════════
+        local collapsedView = Instance.new("TextButton")
+        collapsedView.Name = "CollapsedPillView"
+        collapsedView.Size = UDim2.fromScale(1, 1)
+        collapsedView.BackgroundTransparency = 1
+        collapsedView.Text = ""
+        collapsedView.AutoButtonColor = false
+        collapsedView.ZIndex = 855
+        collapsedView.Parent = islandHost
+
+        local pillArtWrap = Instance.new("Frame")
+        pillArtWrap.Size = UDim2.new(0, 26, 0, 26)
+        pillArtWrap.Position = UDim2.new(0, 8, 0.5, -13)
+        pillArtWrap.BackgroundColor3 = Color3.fromRGB(28, 18, 36)
+        pillArtWrap.BorderSizePixel = 0
+        pillArtWrap.ZIndex = 856
+        pillArtWrap.Parent = collapsedView
+        Instance.new("UICorner", pillArtWrap).CornerRadius = UDim.new(0, 8)
+        local pillArtStroke = Instance.new("UIStroke", pillArtWrap)
+        pillArtStroke.Color = C_CRIMSON
+        pillArtStroke.Thickness = 1
+        pillArtStroke.Transparency = 0.25
+
+        local pillArtImg = Instance.new("ImageLabel")
+        pillArtImg.Size = UDim2.fromScale(1, 1)
+        pillArtImg.BackgroundTransparency = 1
+        pillArtImg.Image = MusicEngine.tracks[1].coverAsset
+        pillArtImg.ScaleType = Enum.ScaleType.Crop
+        pillArtImg.ZIndex = 857
+        pillArtImg.Parent = pillArtWrap
+        Instance.new("UICorner", pillArtImg).CornerRadius = UDim.new(0, 8)
+
+        local pillTrackLbl = Instance.new("TextLabel")
+        pillTrackLbl.Size = UDim2.new(1, -86, 0, 14)
+        pillTrackLbl.Position = UDim2.new(0, 40, 0, 7)
+        pillTrackLbl.BackgroundTransparency = 1
+        pillTrackLbl.Text = "Million Dollar Mansion"
+        pillTrackLbl.TextColor3 = C_TEXT_WHITE
+        pillTrackLbl.Font = Enum.Font.GothamBold
+        pillTrackLbl.TextSize = 10
+        pillTrackLbl.TextXAlignment = Enum.TextXAlignment.Left
+        pillTrackLbl.TextTruncate = Enum.TextTruncate.AtEnd
+        pillTrackLbl.ZIndex = 856
+        pillTrackLbl.Parent = collapsedView
+
+        local pillArtistLbl = Instance.new("TextLabel")
+        pillArtistLbl.Size = UDim2.new(1, -86, 0, 11)
+        pillArtistLbl.Position = UDim2.new(0, 40, 0, 20)
+        pillArtistLbl.BackgroundTransparency = 1
+        pillArtistLbl.Text = "che · Novoline Island"
+        pillArtistLbl.TextColor3 = C_TEXT_MUTED
+        pillArtistLbl.Font = Enum.Font.GothamMedium
+        pillArtistLbl.TextSize = 8.5
+        pillArtistLbl.TextXAlignment = Enum.TextXAlignment.Left
+        pillArtistLbl.TextTruncate = Enum.TextTruncate.AtEnd
+        pillArtistLbl.ZIndex = 856
+        pillArtistLbl.Parent = collapsedView
+
+        -- 5 Animated Red Waveform Bars on the right of the collapsed pill
+        local pillWaveWrap = Instance.new("Frame")
+        pillWaveWrap.Size = UDim2.new(0, 28, 0, 20)
+        pillWaveWrap.Position = UDim2.new(1, -36, 0.5, -10)
+        pillWaveWrap.BackgroundTransparency = 1
+        pillWaveWrap.ZIndex = 856
+        pillWaveWrap.Parent = collapsedView
+
+        local pillWaveBars = {}
+        for b = 1, 5 do
+            local bar = Instance.new("Frame")
+            bar.Size = UDim2.new(0, 3, 0, 8 + (b % 3) * 4)
+            bar.AnchorPoint = Vector2.new(0, 0.5)
+            bar.Position = UDim2.new(0, (b - 1) * 5, 0.5, 0)
+            bar.BackgroundColor3 = C_CRIMSON
+            bar.BorderSizePixel = 0
+            bar.ZIndex = 857
+            bar.Parent = pillWaveWrap
+            Instance.new("UICorner", bar).CornerRadius = UDim.new(1, 0)
+            pillWaveBars[b] = bar
+        end
+
+        collapsedView.MouseButton1Click:Connect(function()
+            playClick()
+            setIslandState("music")
+        end)
+        collapsedView.MouseButton2Click:Connect(function()
+            playClick()
+            setIslandState("pods")
+        end)
+
+        -- ═══════════════════════════════════════════════════════════════════════
+        -- VIEW 2: EXPANDED MUSIC PLAYER (00:05–00:10 in video)
+        -- 460 x 215 Card with Top Nav, Telemetry, Track Sub-Card, Shuffle & Library
+        -- Buttons, Interactive Scrubber Bar, and Transport Controls
+        -- ═══════════════════════════════════════════════════════════════════════
+        local musicView = Instance.new("Frame")
+        musicView.Name = "ExpandedMusicView"
+        musicView.Size = UDim2.fromScale(1, 1)
+        musicView.BackgroundTransparency = 1
+        musicView.Visible = false
+        musicView.ZIndex = 855
+        musicView.Parent = islandHost
+
+        -- Top Bar inside Expanded Music Card
+        local topBar = Instance.new("Frame")
+        topBar.Size = UDim2.new(1, -28, 0, 28)
+        topBar.Position = UDim2.new(0, 14, 0, 10)
+        topBar.BackgroundTransparency = 1
+        topBar.ZIndex = 856
+        topBar.Parent = musicView
+
+        local function makeIslandNavTab(xOff, w, labelTxt, targetState, isRedAccent)
+            local btn = Instance.new("TextButton")
+            btn.Size = UDim2.new(0, w, 0, 24)
+            btn.Position = UDim2.new(0, xOff, 0, 2)
+            btn.BackgroundColor3 = isRedAccent and C_CRIMSON_DARK or C_ISLAND_CARD2
+            btn.BackgroundTransparency = 0.12
+            btn.Text = labelTxt
+            btn.TextColor3 = isRedAccent and C_CRIMSON_GLOW or C_TEXT_WHITE
+            btn.Font = Enum.Font.GothamBold
+            btn.TextSize = 10
+            btn.AutoButtonColor = false
+            btn.ZIndex = 857
+            btn.Parent = topBar
+            Instance.new("UICorner", btn).CornerRadius = UDim.new(1, 0)
+            local st = Instance.new("UIStroke", btn)
+            st.Color = isRedAccent and C_CRIMSON or Color3.fromRGB(48, 42, 62)
+            st.Thickness = 1
+            st.Transparency = 0.35
+            styleBtn(btn, btn.BackgroundColor3, 0.14)
+            btn.MouseButton1Click:Connect(function()
+                playClick()
+                if type(targetState) == "function" then
+                    targetState()
+                else
+                    setIslandState(targetState)
+                end
+            end)
+            return btn
+        end
+
+        -- Exact video top-left tabs: [♫] [|||] [Library] + [🔍 Search] [🌌 Bg] [⊞ Hub] [—]
+        makeIslandNavTab(0,   28, "♫",       "music",   true)
+        makeIslandNavTab(32,  30, "|||",     "pods",    false)
+        makeIslandNavTab(66,  56, "Library", "library", false)
+        makeIslandNavTab(126, 52, "Search",  "search",  false)
+        makeIslandNavTab(182, 48, "</> Cmd", "autoexec",false)
+        local bgToggleBtn = makeIslandNavTab(234, 42, "🌌 Bg", function()
+            local nextFs = not fullScreenBg.Visible
+            setFullScreenPlasmaVisible(nextFs)
+            if not UI.nebulaEnabled then setNebulaEnabled(true) end
+            notify("🌌 MOVING BACKGROUND", nextFs and "Full-Screen Moving Liquid-Plasma Background ON!" or "Card & Island Moving Background active (Full-Screen overlay OFF)")
+        end, false)
+        makeIslandNavTab(280, 48, "⊞ Hub", function()
+            setPanelOpen(not UI.open)
+        end, false)
+
+        -- Right Telemetry Pill: "⚡ 143 ms  ● 1m" + Collapse button
+        local telemetryLbl = Instance.new("TextLabel")
+        telemetryLbl.Size = UDim2.new(0, 96, 0, 24)
+        telemetryLbl.Position = UDim2.new(1, -124, 0, 2)
+        telemetryLbl.BackgroundTransparency = 1
+        telemetryLbl.Text = "⚡ 143 ms   ● 1m"
+        telemetryLbl.TextColor3 = C_TEXT_MUTED
+        telemetryLbl.Font = Enum.Font.GothamBold
+        telemetryLbl.TextSize = 9.5
+        telemetryLbl.TextXAlignment = Enum.TextXAlignment.Right
+        telemetryLbl.ZIndex = 857
+        telemetryLbl.Parent = topBar
+
+        local collapseIslandBtn = Instance.new("TextButton")
+        collapseIslandBtn.Size = UDim2.new(0, 24, 0, 24)
+        collapseIslandBtn.Position = UDim2.new(1, -24, 0, 2)
+        collapseIslandBtn.BackgroundColor3 = C_ISLAND_CARD2
+        collapseIslandBtn.Text = "▲"
+        collapseIslandBtn.TextColor3 = C_TEXT_MUTED
+        collapseIslandBtn.Font = Enum.Font.GothamBold
+        collapseIslandBtn.TextSize = 9
+        collapseIslandBtn.AutoButtonColor = false
+        collapseIslandBtn.ZIndex = 857
+        collapseIslandBtn.Parent = topBar
+        Instance.new("UICorner", collapseIslandBtn).CornerRadius = UDim.new(1, 0)
+        styleBtn(collapseIslandBtn, C_ISLAND_CARD2, 0.14)
+        collapseIslandBtn.MouseButton1Click:Connect(function()
+            playClick()
+            setIslandState("collapsed")
+        end)
+
+        -- Middle Left Track Sub-Card (Album Art + Artist + Title + Playing status)
+        local trackCard = Instance.new("Frame")
+        trackCard.Size = UDim2.new(0, 262, 0, 98)
+        trackCard.Position = UDim2.new(0, 14, 0, 46)
+        trackCard.BackgroundColor3 = C_ISLAND_CARD
+        trackCard.BackgroundTransparency = 0.08
+        trackCard.BorderSizePixel = 0
+        trackCard.ZIndex = 856
+        trackCard.Parent = musicView
+        Instance.new("UICorner", trackCard).CornerRadius = UDim.new(0, 16)
+        local tcStroke = Instance.new("UIStroke", trackCard)
+        tcStroke.Color = Color3.fromRGB(42, 36, 56)
+        tcStroke.Thickness = 1
+        tcStroke.Transparency = 0.35
+
+        local albumArtWrap = Instance.new("Frame")
+        albumArtWrap.Size = UDim2.new(0, 74, 0, 74)
+        albumArtWrap.Position = UDim2.new(0, 12, 0.5, -37)
+        albumArtWrap.BackgroundColor3 = Color3.fromRGB(26, 18, 36)
+        albumArtWrap.BorderSizePixel = 0
+        albumArtWrap.ZIndex = 857
+        albumArtWrap.Parent = trackCard
+        Instance.new("UICorner", albumArtWrap).CornerRadius = UDim.new(0, 12)
+        local aaStroke = Instance.new("UIStroke", albumArtWrap)
+        aaStroke.Color = C_CRIMSON
+        aaStroke.Thickness = 1.2
+        aaStroke.Transparency = 0.35
+
+        local albumArtImg = Instance.new("ImageLabel")
+        albumArtImg.Size = UDim2.fromScale(1, 1)
+        albumArtImg.BackgroundTransparency = 1
+        albumArtImg.Image = MusicEngine.tracks[1].coverAsset
+        albumArtImg.ScaleType = Enum.ScaleType.Crop
+        albumArtImg.ZIndex = 858
+        albumArtImg.Parent = albumArtWrap
+        Instance.new("UICorner", albumArtImg).CornerRadius = UDim.new(0, 12)
+
+        local artistLbl = Instance.new("TextLabel")
+        artistLbl.Size = UDim2.new(1, -100, 0, 16)
+        artistLbl.Position = UDim2.new(0, 96, 0, 16)
+        artistLbl.BackgroundTransparency = 1
+        artistLbl.Text = "che"
+        artistLbl.TextColor3 = C_TEXT_MUTED
+        artistLbl.Font = Enum.Font.GothamMedium
+        artistLbl.TextSize = 11
+        artistLbl.TextXAlignment = Enum.TextXAlignment.Left
+        artistLbl.TextTruncate = Enum.TextTruncate.AtEnd
+        artistLbl.ZIndex = 857
+        artistLbl.Parent = trackCard
+
+        local titleLbl = Instance.new("TextLabel")
+        titleLbl.Size = UDim2.new(1, -100, 0, 22)
+        titleLbl.Position = UDim2.new(0, 96, 0, 34)
+        titleLbl.BackgroundTransparency = 1
+        titleLbl.Text = "Million Dollar Mansion"
+        titleLbl.TextColor3 = C_TEXT_WHITE
+        titleLbl.Font = Enum.Font.GothamBold
+        titleLbl.TextSize = 13
+        titleLbl.TextXAlignment = Enum.TextXAlignment.Left
+        titleLbl.TextTruncate = Enum.TextTruncate.AtEnd
+        titleLbl.ZIndex = 857
+        titleLbl.Parent = trackCard
+
+        local statusLbl = Instance.new("TextLabel")
+        statusLbl.Size = UDim2.new(1, -100, 0, 16)
+        statusLbl.Position = UDim2.new(0, 96, 0, 62)
+        statusLbl.BackgroundTransparency = 1
+        statusLbl.Text = "Playing · Spotify / YT"
+        statusLbl.TextColor3 = C_TEXT_MUTED
+        statusLbl.Font = Enum.Font.GothamMedium
+        statusLbl.TextSize = 10
+        statusLbl.TextXAlignment = Enum.TextXAlignment.Left
+        statusLbl.ZIndex = 857
+        statusLbl.Parent = trackCard
+
+        -- Middle Right Stacked Buttons: [🔀 Shuffle] (Teal/Cyan) & [📚 Library] (Purple/Lavender)
+        local shuffleBtn = Instance.new("TextButton")
+        shuffleBtn.Name = "ShuffleBtn"
+        shuffleBtn.Size = UDim2.new(0, 160, 0, 45)
+        shuffleBtn.Position = UDim2.new(1, -174, 0, 46)
+        shuffleBtn.BackgroundColor3 = C_SHUFFLE_BG
+        shuffleBtn.Text = "🔀   Shuffle"
+        shuffleBtn.TextColor3 = C_SHUFFLE_TXT
+        shuffleBtn.Font = Enum.Font.GothamBold
+        shuffleBtn.TextSize = 12
+        shuffleBtn.AutoButtonColor = false
+        shuffleBtn.ZIndex = 856
+        shuffleBtn.Parent = musicView
+        Instance.new("UICorner", shuffleBtn).CornerRadius = UDim.new(0, 14)
+        local shufStroke = Instance.new("UIStroke", shuffleBtn)
+        shufStroke.Color = C_SHUFFLE_TXT
+        shufStroke.Thickness = 1
+        shufStroke.Transparency = 0.65
+        styleBtn(shuffleBtn, C_SHUFFLE_BG, 0.14)
+
+        local libraryBtn = Instance.new("TextButton")
+        libraryBtn.Name = "LibraryBtn"
+        libraryBtn.Size = UDim2.new(0, 160, 0, 45)
+        libraryBtn.Position = UDim2.new(1, -174, 0, 99)
+        libraryBtn.BackgroundColor3 = C_LIBRARY_BG
+        libraryBtn.Text = "📚   Library"
+        libraryBtn.TextColor3 = C_LIBRARY_TXT
+        libraryBtn.Font = Enum.Font.GothamBold
+        libraryBtn.TextSize = 12
+        libraryBtn.AutoButtonColor = false
+        libraryBtn.ZIndex = 856
+        libraryBtn.Parent = musicView
+        Instance.new("UICorner", libraryBtn).CornerRadius = UDim.new(0, 14)
+        local libStroke = Instance.new("UIStroke", libraryBtn)
+        libStroke.Color = C_LIBRARY_TXT
+        libStroke.Thickness = 1
+        libStroke.Transparency = 0.65
+        styleBtn(libraryBtn, C_LIBRARY_BG, 0.14)
+
+        -- Bottom Row: Scrubber Bar (0:47 ────●─── -1:24) on Left + 3 Circular Transport Buttons on Right
+        local elapsedLbl = Instance.new("TextLabel")
+        elapsedLbl.Size = UDim2.new(0, 34, 0, 16)
+        elapsedLbl.Position = UDim2.new(0, 16, 1, -38)
+        elapsedLbl.BackgroundTransparency = 1
+        elapsedLbl.Text = "0:47"
+        elapsedLbl.TextColor3 = C_TEXT_MUTED
+        elapsedLbl.Font = Enum.Font.GothamMedium
+        elapsedLbl.TextSize = 10
+        elapsedLbl.TextXAlignment = Enum.TextXAlignment.Left
+        elapsedLbl.ZIndex = 856
+        elapsedLbl.Parent = musicView
+
+        local scrubBarBg = Instance.new("TextButton")
+        scrubBarBg.Name = "ScrubBarBg"
+        scrubBarBg.Size = UDim2.new(0, 174, 0, 6)
+        scrubBarBg.Position = UDim2.new(0, 52, 1, -33)
+        scrubBarBg.BackgroundColor3 = Color3.fromRGB(45, 40, 58)
+        scrubBarBg.Text = ""
+        scrubBarBg.AutoButtonColor = false
+        scrubBarBg.ZIndex = 856
+        scrubBarBg.Parent = musicView
+        Instance.new("UICorner", scrubBarBg).CornerRadius = UDim.new(1, 0)
+
+        local scrubFill = Instance.new("Frame")
+        scrubFill.Size = UDim2.new(0.36, 0, 1, 0)
+        scrubFill.BackgroundColor3 = C_TEXT_WHITE
+        scrubFill.BorderSizePixel = 0
+        scrubFill.ZIndex = 857
+        scrubFill.Parent = scrubBarBg
+        Instance.new("UICorner", scrubFill).CornerRadius = UDim.new(1, 0)
+
+        local scrubKnob = Instance.new("Frame")
+        scrubKnob.Size = UDim2.new(0, 10, 0, 10)
+        scrubKnob.AnchorPoint = Vector2.new(0.5, 0.5)
+        scrubKnob.Position = UDim2.new(1, 0, 0.5, 0)
+        scrubKnob.BackgroundColor3 = C_TEXT_WHITE
+        scrubKnob.BorderSizePixel = 0
+        scrubKnob.ZIndex = 858
+        scrubKnob.Parent = scrubFill
+        Instance.new("UICorner", scrubKnob).CornerRadius = UDim.new(1, 0)
+
+        local remainLbl = Instance.new("TextLabel")
+        remainLbl.Size = UDim2.new(0, 38, 0, 16)
+        remainLbl.Position = UDim2.new(0, 232, 1, -38)
+        remainLbl.BackgroundTransparency = 1
+        remainLbl.Text = "-1:24"
+        remainLbl.TextColor3 = C_TEXT_MUTED
+        remainLbl.Font = Enum.Font.GothamMedium
+        remainLbl.TextSize = 10
+        remainLbl.TextXAlignment = Enum.TextXAlignment.Left
+        remainLbl.ZIndex = 856
+        remainLbl.Parent = musicView
+
+        -- Transport Buttons: [|◁] [|| / ▶] [▷|]
+        local function makeTransportCircle(rightOff, iconTxt)
+            local b = Instance.new("TextButton")
+            b.Size = UDim2.new(0, 38, 0, 38)
+            b.Position = UDim2.new(1, rightOff, 1, -49)
+            b.BackgroundColor3 = C_ISLAND_CARD2
+            b.Text = iconTxt
+            b.TextColor3 = C_TEXT_WHITE
+            b.Font = Enum.Font.GothamBold
+            b.TextSize = 13
+            b.AutoButtonColor = false
+            b.ZIndex = 857
+            b.Parent = musicView
+            Instance.new("UICorner", b).CornerRadius = UDim.new(1, 0)
+            local st = Instance.new("UIStroke", b)
+            st.Color = Color3.fromRGB(52, 46, 68)
+            st.Thickness = 1
+            st.Transparency = 0.35
+            styleBtn(b, C_ISLAND_CARD2, 0.16)
+            return b
+        end
+
+        local btnPrev  = makeTransportCircle(-142, "|◁")
+        local btnPause = makeTransportCircle(-98,  "||")
+        local btnNext  = makeTransportCircle(-54,  "▷|")
+
+        -- ═══════════════════════════════════════════════════════════════════════
+        -- VIEW 3: LIVE ACTIVITIES 5-POD BAR (00:12–00:18 in video)
+        -- [Toggles]  [Target]  [ ||||| Music (Cover) ]  [Animation]  [Voice]
+        -- ═══════════════════════════════════════════════════════════════════════
+        local podsView = Instance.new("Frame")
+        podsView.Name = "LiveActivitiesPodsView"
+        podsView.Size = UDim2.fromScale(1, 1)
+        podsView.BackgroundTransparency = 1
+        podsView.Visible = false
+        podsView.ZIndex = 855
+        podsView.Parent = islandHost
+
+        local function createActivityPod(xPos, width, iconStr, captionStr, onClick)
+            local wrap = Instance.new("Frame")
+            wrap.Size = UDim2.new(0, width, 0, 62)
+            wrap.Position = UDim2.new(0, xPos, 0, 8)
+            wrap.BackgroundTransparency = 1
+            wrap.ZIndex = 856
+            wrap.Parent = podsView
+
+            local podBtn = Instance.new("TextButton")
+            podBtn.Size = UDim2.new(1, 0, 0, 42)
+            podBtn.BackgroundColor3 = C_ISLAND_CARD
+            podBtn.Text = iconStr
+            podBtn.TextColor3 = C_CRIMSON
+            podBtn.Font = Enum.Font.GothamBold
+            podBtn.TextSize = 16
+            podBtn.AutoButtonColor = false
+            podBtn.ZIndex = 857
+            podBtn.Parent = wrap
+            Instance.new("UICorner", podBtn).CornerRadius = UDim.new(1, 0)
+            local pst = Instance.new("UIStroke", podBtn)
+            pst.Color = C_CRIMSON
+            pst.Thickness = 1.1
+            pst.Transparency = 0.45
+            styleBtn(podBtn, C_ISLAND_CARD, 0.15)
+
+            local cap = Instance.new("TextLabel")
+            cap.Size = UDim2.new(1, 0, 0, 14)
+            cap.Position = UDim2.new(0, 0, 0, 45)
+            cap.BackgroundTransparency = 1
+            cap.Text = captionStr
+            cap.TextColor3 = C_TEXT_MUTED
+            cap.Font = Enum.Font.GothamMedium
+            cap.TextSize = 9.5
+            cap.ZIndex = 857
+            cap.Parent = wrap
+
+            podBtn.MouseButton1Click:Connect(function()
+                playClick()
+                if onClick then onClick(podBtn, cap) end
+            end)
+            return podBtn, cap
+        end
+
+        createActivityPod(12, 72, "🎛️", "Toggles", function()
+            setIslandState("search")
+        end)
+
+        createActivityPod(92, 72, "🎯", "Target", function(_, cap)
+            local pList = Players:GetPlayers()
+            local candidates = {}
+            for _, p in ipairs(pList) do
+                if p ~= LP then table.insert(candidates, p) end
+            end
+            if #candidates > 0 then
+                local nextIdx = 1
+                for i, p in ipairs(candidates) do
+                    if p == selectedPlayer then
+                        nextIdx = (i % #candidates) + 1
+                        break
+                    end
+                end
+                selectedPlayer = candidates[nextIdx]
+                CurrentTarget = selectedPlayer
+                cap.Text = "@" .. selectedPlayer.Name:sub(1, 8)
+                notify("🎯 ISLAND TARGET", "Locked target: " .. selectedPlayer.DisplayName .. " (@" .. selectedPlayer.Name .. ")")
+                if refreshCard then pcall(refreshCard) end
+            else
+                cap.Text = "No Plrs"
+                notify("🎯 ISLAND TARGET", "No other players in server")
+            end
+        end)
+
+        -- Center Music Pill inside 5-Pod Bar (Red waveform bars on left + cover art on right)
+        local centerMusicPodWrap = Instance.new("Frame")
+        centerMusicPodWrap.Size = UDim2.new(0, 172, 0, 62)
+        centerMusicPodWrap.Position = UDim2.new(0, 172, 0, 8)
+        centerMusicPodWrap.BackgroundTransparency = 1
+        centerMusicPodWrap.ZIndex = 856
+        centerMusicPodWrap.Parent = podsView
+
+        local centerMusicBtn = Instance.new("TextButton")
+        centerMusicBtn.Size = UDim2.new(1, 0, 0, 42)
+        centerMusicBtn.BackgroundColor3 = C_ISLAND_CARD
+        centerMusicBtn.Text = ""
+        centerMusicBtn.AutoButtonColor = false
+        centerMusicBtn.ZIndex = 857
+        centerMusicBtn.Parent = centerMusicPodWrap
+        Instance.new("UICorner", centerMusicBtn).CornerRadius = UDim.new(1, 0)
+        local cmStroke = Instance.new("UIStroke", centerMusicBtn)
+        cmStroke.Color = C_CRIMSON
+        cmStroke.Thickness = 1.2
+        cmStroke.Transparency = 0.3
+        styleBtn(centerMusicBtn, C_ISLAND_CARD, 0.14)
+
+        local podWaveWrap = Instance.new("Frame")
+        podWaveWrap.Size = UDim2.new(0, 28, 0, 20)
+        podWaveWrap.Position = UDim2.new(0, 14, 0.5, -10)
+        podWaveWrap.BackgroundTransparency = 1
+        podWaveWrap.ZIndex = 858
+        podWaveWrap.Parent = centerMusicBtn
+
+        local podWaveBars = {}
+        for b = 1, 5 do
+            local bar = Instance.new("Frame")
+            bar.Size = UDim2.new(0, 3, 0, 8 + (b % 3) * 4)
+            bar.AnchorPoint = Vector2.new(0, 0.5)
+            bar.Position = UDim2.new(0, (b - 1) * 5, 0.5, 0)
+            bar.BackgroundColor3 = C_CRIMSON
+            bar.BorderSizePixel = 0
+            bar.ZIndex = 859
+            bar.Parent = podWaveWrap
+            Instance.new("UICorner", bar).CornerRadius = UDim.new(1, 0)
+            podWaveBars[b] = bar
+        end
+
+        local podMidTitle = Instance.new("TextLabel")
+        podMidTitle.Size = UDim2.new(1, -86, 1, 0)
+        podMidTitle.Position = UDim2.new(0, 46, 0, 0)
+        podMidTitle.BackgroundTransparency = 1
+        podMidTitle.Text = "che"
+        podMidTitle.TextColor3 = C_TEXT_WHITE
+        podMidTitle.Font = Enum.Font.GothamBold
+        podMidTitle.TextSize = 10
+        podMidTitle.TextTruncate = Enum.TextTruncate.AtEnd
+        podMidTitle.ZIndex = 858
+        podMidTitle.Parent = centerMusicBtn
+
+        local podCoverImg = Instance.new("ImageLabel")
+        podCoverImg.Size = UDim2.new(0, 28, 0, 28)
+        podCoverImg.Position = UDim2.new(1, -36, 0.5, -14)
+        podCoverImg.BackgroundTransparency = 1
+        podCoverImg.Image = MusicEngine.tracks[1].coverAsset
+        podCoverImg.ScaleType = Enum.ScaleType.Crop
+        podCoverImg.ZIndex = 858
+        podCoverImg.Parent = centerMusicBtn
+        Instance.new("UICorner", podCoverImg).CornerRadius = UDim.new(1, 0)
+
+        local centerMusicCap = Instance.new("TextLabel")
+        centerMusicCap.Size = UDim2.new(1, 0, 0, 14)
+        centerMusicCap.Position = UDim2.new(0, 0, 0, 45)
+        centerMusicCap.BackgroundTransparency = 1
+        centerMusicCap.Text = "Music"
+        centerMusicCap.TextColor3 = C_TEXT_WHITE
+        centerMusicCap.Font = Enum.Font.GothamBold
+        centerMusicCap.TextSize = 9.5
+        centerMusicCap.ZIndex = 857
+        centerMusicCap.Parent = centerMusicPodWrap
+
+        centerMusicBtn.MouseButton1Click:Connect(function()
+            playClick()
+            setIslandState("music")
+        end)
+
+        createActivityPod(352, 72, "🏃", "Animation", function()
+            togglePresetOrAction("animcopy")
+        end)
+
+        createActivityPod(432, 72, "🎙️", "Voice", function()
+            setPanelOpen(true)
+            showCategory("General")
+            notify("🎙️ VOICE & AUDIO", "Opened Voice & Audio controls")
+        end)
+
+        -- ═══════════════════════════════════════════════════════════════════════
+        -- VIEW 4: AUTOEXEC COMMANDS VIEW (00:19–00:25 in video)
+        -- "</> Autoexecuted" + "3 commands" + command rows with green checkmarks
+        -- ═══════════════════════════════════════════════════════════════════════
+        local autoexecView = Instance.new("Frame")
+        autoexecView.Name = "AutoexecIslandView"
+        autoexecView.Size = UDim2.fromScale(1, 1)
+        autoexecView.BackgroundTransparency = 1
+        autoexecView.Visible = false
+        autoexecView.ZIndex = 855
+        autoexecView.Parent = islandHost
+
+        local aeHeader = Instance.new("Frame")
+        aeHeader.Size = UDim2.new(1, -28, 0, 26)
+        aeHeader.Position = UDim2.new(0, 14, 0, 10)
+        aeHeader.BackgroundTransparency = 1
+        aeHeader.ZIndex = 856
+        aeHeader.Parent = autoexecView
+
+        local aeTitle = Instance.new("TextLabel")
+        aeTitle.Size = UDim2.new(0.6, 0, 1, 0)
+        aeTitle.BackgroundTransparency = 1
+        aeTitle.Text = "</>   Autoexecuted"
+        aeTitle.TextColor3 = C_CRIMSON_GLOW
+        aeTitle.Font = Enum.Font.GothamBold
+        aeTitle.TextSize = 12
+        aeTitle.TextXAlignment = Enum.TextXAlignment.Left
+        aeTitle.ZIndex = 857
+        aeTitle.Parent = aeHeader
+
+        local aeCountLbl = Instance.new("TextLabel")
+        aeCountLbl.Size = UDim2.new(0.35, -28, 1, 0)
+        aeCountLbl.Position = UDim2.new(0.6, 0, 0, 0)
+        aeCountLbl.BackgroundTransparency = 1
+        aeCountLbl.Text = "3 commands"
+        aeCountLbl.TextColor3 = C_TEXT_MUTED
+        aeCountLbl.Font = Enum.Font.GothamMedium
+        aeCountLbl.TextSize = 10
+        aeCountLbl.TextXAlignment = Enum.TextXAlignment.Right
+        aeCountLbl.ZIndex = 857
+        aeCountLbl.Parent = aeHeader
+
+        local aeBackBtn = Instance.new("TextButton")
+        aeBackBtn.Size = UDim2.new(0, 24, 0, 24)
+        aeBackBtn.Position = UDim2.new(1, -24, 0, 1)
+        aeBackBtn.BackgroundColor3 = C_ISLAND_CARD2
+        aeBackBtn.Text = "✕"
+        aeBackBtn.TextColor3 = C_TEXT_MUTED
+        aeBackBtn.Font = Enum.Font.GothamBold
+        aeBackBtn.TextSize = 10
+        aeBackBtn.AutoButtonColor = false
+        aeBackBtn.ZIndex = 857
+        aeBackBtn.Parent = aeHeader
+        Instance.new("UICorner", aeBackBtn).CornerRadius = UDim.new(1, 0)
+        aeBackBtn.MouseButton1Click:Connect(function()
+            playClick()
+            setIslandState("music")
+        end)
+
+        local aeList = Instance.new("ScrollingFrame")
+        aeList.Size = UDim2.new(1, -28, 0, 114)
+        aeList.Position = UDim2.new(0, 14, 0, 40)
+        aeList.BackgroundTransparency = 1
+        aeList.BorderSizePixel = 0
+        aeList.ScrollBarThickness = 2
+        aeList.ScrollBarImageColor3 = C_CRIMSON
+        aeList.AutomaticCanvasSize = Enum.AutomaticSize.Y
+        aeList.CanvasSize = UDim2.new(0, 0, 0, 0)
+        aeList.ZIndex = 856
+        aeList.Parent = autoexecView
+
+        local aeLayout = Instance.new("UIListLayout", aeList)
+        aeLayout.Padding = UDim.new(0, 5)
+        aeLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+        local autoexecCommands = {
+            "flyspeed 16",
+            "fov 95",
+            "flyspeed 11",
+        }
+
+        local executeSpotlightCommand -- forward ref
+
+        local function rebuildAutoexecRows()
+            for _, ch in ipairs(aeList:GetChildren()) do
+                if ch:IsA("Frame") then ch:Destroy() end
+            end
+            aeCountLbl.Text = tostring(#autoexecCommands) .. " commands"
+            for idx, cmdStr in ipairs(autoexecCommands) do
+                local r = Instance.new("Frame")
+                r.Size = UDim2.new(1, -4, 0, 32)
+                r.BackgroundColor3 = C_ISLAND_CARD
+                r.BorderSizePixel = 0
+                r.LayoutOrder = idx
+                r.ZIndex = 857
+                r.Parent = aeList
+                Instance.new("UICorner", r).CornerRadius = UDim.new(0, 9)
+
+                local cLbl = Instance.new("TextLabel")
+                cLbl.Size = UDim2.new(1, -60, 1, 0)
+                cLbl.Position = UDim2.new(0, 12, 0, 0)
+                cLbl.BackgroundTransparency = 1
+                cLbl.Text = "</>   " .. cmdStr
+                cLbl.TextColor3 = C_TEXT_WHITE
+                cLbl.Font = Enum.Font.GothamBold
+                cLbl.TextSize = 11
+                cLbl.TextXAlignment = Enum.TextXAlignment.Left
+                cLbl.ZIndex = 858
+                cLbl.Parent = r
+
+                local chk = Instance.new("TextButton")
+                chk.Size = UDim2.new(0, 24, 0, 24)
+                chk.Position = UDim2.new(1, -30, 0.5, -12)
+                chk.BackgroundTransparency = 1
+                chk.Text = "✓"
+                chk.TextColor3 = C_GREEN_DOT
+                chk.Font = Enum.Font.GothamBold
+                chk.TextSize = 13
+                chk.ZIndex = 858
+                chk.Parent = r
+                chk.MouseButton1Click:Connect(function()
+                    playClick()
+                    if executeSpotlightCommand then executeSpotlightCommand(cmdStr) end
+                end)
+            end
+        end
+        rebuildAutoexecRows()
+
+        local aeInputBox = Instance.new("TextBox")
+        aeInputBox.Size = UDim2.new(1, -96, 0, 28)
+        aeInputBox.Position = UDim2.new(0, 14, 1, -36)
+        aeInputBox.BackgroundColor3 = C_ISLAND_CARD
+        aeInputBox.PlaceholderText = "Add autoexec command (e.g. flyspeed 80, fov 105, fly)..."
+        aeInputBox.Text = ""
+        aeInputBox.TextColor3 = C_TEXT_WHITE
+        aeInputBox.PlaceholderColor3 = C_TEXT_MUTED
+        aeInputBox.Font = Enum.Font.GothamMedium
+        aeInputBox.TextSize = 10
+        aeInputBox.ClearTextOnFocus = false
+        aeInputBox.ZIndex = 857
+        aeInputBox.Parent = autoexecView
+        Instance.new("UICorner", aeInputBox).CornerRadius = UDim.new(0, 8)
+        local aePad = Instance.new("UIPadding", aeInputBox)
+        aePad.PaddingLeft = UDim.new(0, 10)
+
+        local aeAddBtn = Instance.new("TextButton")
+        aeAddBtn.Size = UDim2.new(0, 62, 0, 28)
+        aeAddBtn.Position = UDim2.new(1, -76, 1, -36)
+        aeAddBtn.BackgroundColor3 = C_CRIMSON
+        aeAddBtn.Text = "+ Run"
+        aeAddBtn.TextColor3 = C_TEXT_WHITE
+        aeAddBtn.Font = Enum.Font.GothamBold
+        aeAddBtn.TextSize = 10
+        aeAddBtn.AutoButtonColor = false
+        aeAddBtn.ZIndex = 857
+        aeAddBtn.Parent = autoexecView
+        Instance.new("UICorner", aeAddBtn).CornerRadius = UDim.new(0, 8)
+        aeAddBtn.MouseButton1Click:Connect(function()
+            playClick()
+            local txt = (aeInputBox.Text or ""):gsub("^%s+", ""):gsub("%s+$", "")
+            if txt ~= "" then
+                table.insert(autoexecCommands, txt)
+                aeInputBox.Text = ""
+                rebuildAutoexecRows()
+                if executeSpotlightCommand then executeSpotlightCommand(txt) end
+            end
+        end)
+
+        -- ═══════════════════════════════════════════════════════════════════════
+        -- VIEW 5: VALUES SCROLL / DRAG PILL (00:30–00:32 in video)
+        -- "⚡ Fly Speed — Scroll to adjust" + Numeric Value "16" + Bottom Red Progress Bar
+        -- ═══════════════════════════════════════════════════════════════════════
+        local valuesView = Instance.new("Frame")
+        valuesView.Name = "ValuesScrollPillView"
+        valuesView.Size = UDim2.fromScale(1, 1)
+        valuesView.BackgroundTransparency = 1
+        valuesView.Visible = false
+        valuesView.ZIndex = 855
+        valuesView.Parent = islandHost
+
+        local activeValueTarget = {
+            title = "Fly Speed",
+            min = 16,
+            max = 300,
+            step = 4,
+            getValue = function() return (moveState and moveState.flySpeed) or 75 end,
+            setValue = function(v)
+                if moveState then moveState.flySpeed = math.clamp(math.floor(v), 16, 500) end
+            end,
+        }
+
+        local valIcon = Instance.new("TextLabel")
+        valIcon.Size = UDim2.new(0, 28, 0, 28)
+        valIcon.Position = UDim2.new(0, 12, 0.5, -16)
+        valIcon.BackgroundColor3 = C_CRIMSON_DARK
+        valIcon.Text = "⚡"
+        valIcon.TextColor3 = C_CRIMSON_GLOW
+        valIcon.Font = Enum.Font.GothamBold
+        valIcon.TextSize = 13
+        valIcon.ZIndex = 856
+        valIcon.Parent = valuesView
+        Instance.new("UICorner", valIcon).CornerRadius = UDim.new(1, 0)
+
+        local valTitleLbl = Instance.new("TextLabel")
+        valTitleLbl.Size = UDim2.new(1, -110, 0, 16)
+        valTitleLbl.Position = UDim2.new(0, 48, 0, 10)
+        valTitleLbl.BackgroundTransparency = 1
+        valTitleLbl.Text = "Fly Speed"
+        valTitleLbl.TextColor3 = C_TEXT_WHITE
+        valTitleLbl.Font = Enum.Font.GothamBold
+        valTitleLbl.TextSize = 12
+        valTitleLbl.TextXAlignment = Enum.TextXAlignment.Left
+        valTitleLbl.ZIndex = 856
+        valTitleLbl.Parent = valuesView
+
+        local valSubLbl = Instance.new("TextLabel")
+        valSubLbl.Size = UDim2.new(1, -110, 0, 13)
+        valSubLbl.Position = UDim2.new(0, 48, 0, 25)
+        valSubLbl.BackgroundTransparency = 1
+        valSubLbl.Text = "Scroll or drag to adjust · Right-click to exit"
+        valSubLbl.TextColor3 = C_TEXT_MUTED
+        valSubLbl.Font = Enum.Font.GothamMedium
+        valSubLbl.TextSize = 9
+        valSubLbl.TextXAlignment = Enum.TextXAlignment.Left
+        valSubLbl.ZIndex = 856
+        valSubLbl.Parent = valuesView
+
+        local valNumberLbl = Instance.new("TextButton")
+        valNumberLbl.Size = UDim2.new(0, 56, 0, 28)
+        valNumberLbl.Position = UDim2.new(1, -66, 0.5, -16)
+        valNumberLbl.BackgroundTransparency = 1
+        valNumberLbl.Text = "16"
+        valNumberLbl.TextColor3 = C_TEXT_WHITE
+        valNumberLbl.Font = Enum.Font.GothamBlack
+        valNumberLbl.TextSize = 18
+        valNumberLbl.TextXAlignment = Enum.TextXAlignment.Right
+        valNumberLbl.ZIndex = 857
+        valNumberLbl.Parent = valuesView
+        valNumberLbl.MouseButton1Click:Connect(function()
+            playClick()
+            setIslandState("music")
+        end)
+
+        local valProgBg = Instance.new("Frame")
+        valProgBg.Size = UDim2.new(1, -24, 0, 4)
+        valProgBg.Position = UDim2.new(0, 12, 1, -8)
+        valProgBg.BackgroundColor3 = Color3.fromRGB(40, 32, 48)
+        valProgBg.BorderSizePixel = 0
+        valProgBg.ZIndex = 856
+        valProgBg.Parent = valuesView
+        Instance.new("UICorner", valProgBg).CornerRadius = UDim.new(1, 0)
+
+        local valProgFill = Instance.new("Frame")
+        valProgFill.Size = UDim2.new(0.25, 0, 1, 0)
+        valProgFill.BackgroundColor3 = C_CRIMSON
+        valProgFill.BorderSizePixel = 0
+        valProgFill.ZIndex = 857
+        valProgFill.Parent = valProgBg
+        Instance.new("UICorner", valProgFill).CornerRadius = UDim.new(1, 0)
+
+        local function refreshValuePillUI()
+            local v = activeValueTarget.getValue()
+            valTitleLbl.Text = activeValueTarget.title
+            valNumberLbl.Text = tostring(math.floor(v))
+            local pct = math.clamp((v - activeValueTarget.min) / math.max(1, activeValueTarget.max - activeValueTarget.min), 0, 1)
+            TweenService:Create(valProgFill, TI_FAST, { Size = UDim2.new(pct, 0, 1, 0) }):Play()
+        end
+
+        valuesView.InputChanged:Connect(function(inp)
+            if islandState ~= "values" then return end
+            if inp.UserInputType == Enum.UserInputType.MouseWheel then
+                local cur = activeValueTarget.getValue()
+                local nextVal = math.clamp(cur + (inp.Position.Z > 0 and activeValueTarget.step or -activeValueTarget.step), activeValueTarget.min, activeValueTarget.max)
+                activeValueTarget.setValue(nextVal)
+                refreshValuePillUI()
+            elseif inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch then
+                if UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
+                    local absX = valuesView.AbsolutePosition.X
+                    local absW = math.max(1, valuesView.AbsoluteSize.X)
+                    local pct = math.clamp((inp.Position.X - absX) / absW, 0, 1)
+                    local nextVal = math.floor(activeValueTarget.min + pct * (activeValueTarget.max - activeValueTarget.min))
+                    activeValueTarget.setValue(nextVal)
+                    refreshValuePillUI()
+                end
+            end
+        end)
+
+        -- ═══════════════════════════════════════════════════════════════════════
+        -- VIEW 6: KEYBINDS ISLAND CARD (00:33–00:35 in video)
+        -- "Bind fly" ("Esc to cancel") + [ G ] One key  &  [ ⌘ ] + [ L ] Two keys
+        -- ═══════════════════════════════════════════════════════════════════════
+        local keybindsView = Instance.new("Frame")
+        keybindsView.Name = "KeybindsIslandView"
+        keybindsView.Size = UDim2.fromScale(1, 1)
+        keybindsView.BackgroundTransparency = 1
+        keybindsView.Visible = false
+        keybindsView.ZIndex = 855
+        keybindsView.Parent = islandHost
+
+        local kbTargetAction = "fly"
+        local kbListening = false
+
+        local kbHeaderLbl = Instance.new("TextLabel")
+        kbHeaderLbl.Size = UDim2.new(0.6, 0, 0, 22)
+        kbHeaderLbl.Position = UDim2.new(0, 16, 0, 12)
+        kbHeaderLbl.BackgroundTransparency = 1
+        kbHeaderLbl.Text = "⌨️  Bind fly"
+        kbHeaderLbl.TextColor3 = C_TEXT_WHITE
+        kbHeaderLbl.Font = Enum.Font.GothamBold
+        kbHeaderLbl.TextSize = 13
+        kbHeaderLbl.TextXAlignment = Enum.TextXAlignment.Left
+        kbHeaderLbl.ZIndex = 856
+        kbHeaderLbl.Parent = keybindsView
+
+        local kbEscBtn = Instance.new("TextButton")
+        kbEscBtn.Size = UDim2.new(0, 90, 0, 22)
+        kbEscBtn.Position = UDim2.new(1, -104, 0, 12)
+        kbEscBtn.BackgroundTransparency = 1
+        kbEscBtn.Text = "Esc to cancel"
+        kbEscBtn.TextColor3 = C_TEXT_MUTED
+        kbEscBtn.Font = Enum.Font.GothamMedium
+        kbEscBtn.TextSize = 10
+        kbEscBtn.TextXAlignment = Enum.TextXAlignment.Right
+        kbEscBtn.ZIndex = 856
+        kbEscBtn.Parent = keybindsView
+        kbEscBtn.MouseButton1Click:Connect(function()
+            kbListening = false
+            setIslandState("search")
+        end)
+
+        local kbOneCard = Instance.new("TextButton")
+        kbOneCard.Size = UDim2.new(0.46, 0, 0, 88)
+        kbOneCard.Position = UDim2.new(0, 14, 0, 42)
+        kbOneCard.BackgroundColor3 = C_ISLAND_CARD
+        kbOneCard.Text = ""
+        kbOneCard.AutoButtonColor = false
+        kbOneCard.ZIndex = 856
+        kbOneCard.Parent = keybindsView
+        Instance.new("UICorner", kbOneCard).CornerRadius = UDim.new(0, 14)
+        local kbOneStroke = Instance.new("UIStroke", kbOneCard)
+        kbOneStroke.Color = C_CRIMSON
+        kbOneStroke.Thickness = 1.2
+        kbOneStroke.Transparency = 0.25
+
+        local kbKeyCap = Instance.new("TextLabel")
+        kbKeyCap.Size = UDim2.new(0, 38, 0, 36)
+        kbKeyCap.AnchorPoint = Vector2.new(0.5, 0)
+        kbKeyCap.Position = UDim2.new(0.5, 0, 0, 12)
+        kbKeyCap.BackgroundColor3 = C_CRIMSON_DARK
+        kbKeyCap.Text = "G"
+        kbKeyCap.TextColor3 = C_CRIMSON_GLOW
+        kbKeyCap.Font = Enum.Font.GothamBlack
+        kbKeyCap.TextSize = 15
+        kbKeyCap.ZIndex = 857
+        kbKeyCap.Parent = kbOneCard
+        Instance.new("UICorner", kbKeyCap).CornerRadius = UDim.new(0, 8)
+
+        local kbOneSub = Instance.new("TextLabel")
+        kbOneSub.Size = UDim2.new(1, 0, 0, 16)
+        kbOneSub.Position = UDim2.new(0, 0, 1, -24)
+        kbOneSub.BackgroundTransparency = 1
+        kbOneSub.Text = "One key (Click & press key)"
+        kbOneSub.TextColor3 = C_TEXT_MUTED
+        kbOneSub.Font = Enum.Font.GothamMedium
+        kbOneSub.TextSize = 9.5
+        kbOneSub.ZIndex = 857
+        kbOneSub.Parent = kbOneCard
+
+        local kbTwoCard = Instance.new("TextButton")
+        kbTwoCard.Size = UDim2.new(0.46, 0, 0, 88)
+        kbTwoCard.Position = UDim2.new(0.54, -14, 0, 42)
+        kbTwoCard.BackgroundColor3 = C_ISLAND_CARD
+        kbTwoCard.Text = ""
+        kbTwoCard.AutoButtonColor = false
+        kbTwoCard.ZIndex = 856
+        kbTwoCard.Parent = keybindsView
+        Instance.new("UICorner", kbTwoCard).CornerRadius = UDim.new(0, 14)
+        local kbTwoStroke = Instance.new("UIStroke", kbTwoCard)
+        kbTwoStroke.Color = Color3.fromRGB(52, 46, 68)
+        kbTwoStroke.Thickness = 1
+        kbTwoStroke.Transparency = 0.35
+
+        local kbTwoCap = Instance.new("TextLabel")
+        kbTwoCap.Size = UDim2.new(0, 96, 0, 36)
+        kbTwoCap.AnchorPoint = Vector2.new(0.5, 0)
+        kbTwoCap.Position = UDim2.new(0.5, 0, 0, 12)
+        kbTwoCap.BackgroundColor3 = C_ISLAND_CARD2
+        kbTwoCap.Text = "⌘  +  L"
+        kbTwoCap.TextColor3 = C_TEXT_WHITE
+        kbTwoCap.Font = Enum.Font.GothamBlack
+        kbTwoCap.TextSize = 13
+        kbTwoCap.ZIndex = 857
+        kbTwoCap.Parent = kbTwoCard
+        Instance.new("UICorner", kbTwoCap).CornerRadius = UDim.new(0, 8)
+
+        local kbTwoSub = Instance.new("TextLabel")
+        kbTwoSub.Size = UDim2.new(1, 0, 0, 16)
+        kbTwoSub.Position = UDim2.new(0, 0, 1, -24)
+        kbTwoSub.BackgroundTransparency = 1
+        kbTwoSub.Text = "Two keys"
+        kbTwoSub.TextColor3 = C_TEXT_MUTED
+        kbTwoSub.Font = Enum.Font.GothamMedium
+        kbTwoSub.TextSize = 9.5
+        kbTwoSub.ZIndex = 857
+        kbTwoSub.Parent = kbTwoCard
+
+        local function openKeybindIslandFor(actKey)
+            kbTargetAction = actKey or "fly"
+            kbHeaderLbl.Text = "⌨️  Bind " .. tostring(kbTargetAction)
+            local curKey = (KeybindManager and KeybindManager:GetKeyName(kbTargetAction)) or "G"
+            kbKeyCap.Text = curKey
+            kbListening = true
+            setIslandState("keybinds")
+        end
+
+        kbOneCard.MouseButton1Click:Connect(function()
+            playClick()
+            kbListening = true
+            kbKeyCap.Text = "..."
+        end)
+
+        UIS.InputBegan:Connect(function(inp, gp)
+            if gp or not kbListening or islandState ~= "keybinds" then return end
+            if inp.UserInputType == Enum.UserInputType.Keyboard then
+                kbListening = false
+                if inp.KeyCode == Enum.KeyCode.Escape then
+                    setIslandState("search")
+                    return
+                end
+                if KeybindManager and KeybindManager.binds then
+                    KeybindManager.binds[kbTargetAction] = inp.KeyCode
+                    pcall(function() KeybindManager:UpdateDisplay(kbTargetAction) end)
+                end
+                kbKeyCap.Text = inp.KeyCode.Name
+                notify("⌨️ NOVOLINE KEYBIND", "Bound [" .. inp.KeyCode.Name .. "] to " .. tostring(kbTargetAction))
+                task.delay(0.45, function()
+                    if islandState == "keybinds" then setIslandState("search") end
+                end)
+            end
+        end)
+
+        -- ═══════════════════════════════════════════════════════════════════════
+        -- VIEW 7: MUSIC LIBRARY + SPOTIFY / YOUTUBE MUSIC / CLOUD SEARCH DRAWER
+        -- ═══════════════════════════════════════════════════════════════════════
+        local libraryView = Instance.new("Frame")
+        libraryView.Name = "MusicLibraryIslandView"
+        libraryView.Size = UDim2.fromScale(1, 1)
+        libraryView.BackgroundTransparency = 1
+        libraryView.Visible = false
+        libraryView.ZIndex = 855
+        libraryView.Parent = islandHost
+
+        local libTop = Instance.new("Frame")
+        libTop.Size = UDim2.new(1, -28, 0, 28)
+        libTop.Position = UDim2.new(0, 14, 0, 10)
+        libTop.BackgroundTransparency = 1
+        libTop.ZIndex = 856
+        libTop.Parent = libraryView
+
+        local libTitle = Instance.new("TextLabel")
+        libTitle.Size = UDim2.new(0, 165, 1, 0)
+        libTitle.BackgroundTransparency = 1
+        libTitle.Text = "📚  Spotify · YT Music · Cloud"
+        libTitle.TextColor3 = C_LIBRARY_TXT
+        libTitle.Font = Enum.Font.GothamBold
+        libTitle.TextSize = 11.5
+        libTitle.TextXAlignment = Enum.TextXAlignment.Left
+        libTitle.ZIndex = 857
+        libTitle.Parent = libTop
+
+        -- Source Mode Pills: [Cloud/Local] [Spotify API] [YT Music App]
+        local sourceModes = { "Cloud & Local", "Spotify", "YouTube Music" }
+        local sourceModeBtn = Instance.new("TextButton")
+        sourceModeBtn.Size = UDim2.new(0, 118, 0, 22)
+        sourceModeBtn.Position = UDim2.new(1, -150, 0, 3)
+        sourceModeBtn.BackgroundColor3 = C_LIBRARY_BG
+        sourceModeBtn.Text = "Mode: Cloud & Local"
+        sourceModeBtn.TextColor3 = C_LIBRARY_TXT
+        sourceModeBtn.Font = Enum.Font.GothamBold
+        sourceModeBtn.TextSize = 9.5
+        sourceModeBtn.AutoButtonColor = false
+        sourceModeBtn.ZIndex = 857
+        sourceModeBtn.Parent = libTop
+        Instance.new("UICorner", sourceModeBtn).CornerRadius = UDim.new(1, 0)
+
+        local libBackBtn = Instance.new("TextButton")
+        libBackBtn.Size = UDim2.new(0, 24, 0, 24)
+        libBackBtn.Position = UDim2.new(1, -24, 0, 2)
+        libBackBtn.BackgroundColor3 = C_ISLAND_CARD2
+        libBackBtn.Text = "✕"
+        libBackBtn.TextColor3 = C_TEXT_MUTED
+        libBackBtn.Font = Enum.Font.GothamBold
+        libBackBtn.TextSize = 10
+        libBackBtn.AutoButtonColor = false
+        libBackBtn.ZIndex = 857
+        libBackBtn.Parent = libTop
+        Instance.new("UICorner", libBackBtn).CornerRadius = UDim.new(1, 0)
+        libBackBtn.MouseButton1Click:Connect(function()
+            playClick()
+            setIslandState("music")
+        end)
+
+        -- Search / Spotify Token / Song URL Input Bar
+        local songSearchBox = Instance.new("TextBox")
+        songSearchBox.Size = UDim2.new(1, -108, 0, 28)
+        songSearchBox.Position = UDim2.new(0, 14, 0, 42)
+        songSearchBox.BackgroundColor3 = C_ISLAND_CARD
+        songSearchBox.PlaceholderText = "Search any song (e.g. 'che Million Dollar Mansion') or paste Spotify Token / rbxassetid..."
+        songSearchBox.Text = ""
+        songSearchBox.TextColor3 = C_TEXT_WHITE
+        songSearchBox.PlaceholderColor3 = C_TEXT_MUTED
+        songSearchBox.Font = Enum.Font.GothamMedium
+        songSearchBox.TextSize = 9.5
+        songSearchBox.ClearTextOnFocus = false
+        songSearchBox.ZIndex = 857
+        songSearchBox.Parent = libraryView
+        Instance.new("UICorner", songSearchBox).CornerRadius = UDim.new(0, 8)
+        local ssPad = Instance.new("UIPadding", songSearchBox)
+        ssPad.PaddingLeft = UDim.new(0, 10)
+        ssPad.PaddingRight = UDim.new(0, 8)
+
+        local songPlaySearchBtn = Instance.new("TextButton")
+        songPlaySearchBtn.Size = UDim2.new(0, 74, 0, 28)
+        songPlaySearchBtn.Position = UDim2.new(1, -88, 0, 42)
+        songPlaySearchBtn.BackgroundColor3 = C_CRIMSON
+        songPlaySearchBtn.Text = "Stream ▶"
+        songPlaySearchBtn.TextColor3 = C_TEXT_WHITE
+        songPlaySearchBtn.Font = Enum.Font.GothamBold
+        songPlaySearchBtn.TextSize = 10
+        songPlaySearchBtn.AutoButtonColor = false
+        songPlaySearchBtn.ZIndex = 857
+        songPlaySearchBtn.Parent = libraryView
+        Instance.new("UICorner", songPlaySearchBtn).CornerRadius = UDim.new(0, 8)
+
+        local trackListScroll = Instance.new("ScrollingFrame")
+        trackListScroll.Size = UDim2.new(1, -28, 1, -84)
+        trackListScroll.Position = UDim2.new(0, 14, 0, 76)
+        trackListScroll.BackgroundTransparency = 1
+        trackListScroll.BorderSizePixel = 0
+        trackListScroll.ScrollBarThickness = 2
+        trackListScroll.ScrollBarImageColor3 = C_CRIMSON
+        trackListScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+        trackListScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+        trackListScroll.ZIndex = 856
+        trackListScroll.Parent = libraryView
+
+        local tlLayout = Instance.new("UIListLayout", trackListScroll)
+        tlLayout.Padding = UDim.new(0, 4)
+        tlLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+        local selectAndPlayTrack -- forward ref
+
+        local function rebuildLibraryTrackList()
+            for _, ch in ipairs(trackListScroll:GetChildren()) do
+                if ch:IsA("TextButton") then ch:Destroy() end
+            end
+            for idx, tr in ipairs(MusicEngine.tracks) do
+                local isCur = (idx == MusicEngine.currentIndex)
+                local rowBtn = Instance.new("TextButton")
+                rowBtn.Size = UDim2.new(1, -4, 0, 32)
+                rowBtn.BackgroundColor3 = isCur and C_CRIMSON_DARK or C_ISLAND_CARD
+                rowBtn.Text = ""
+                rowBtn.AutoButtonColor = false
+                rowBtn.LayoutOrder = idx
+                rowBtn.ZIndex = 857
+                rowBtn.Parent = trackListScroll
+                Instance.new("UICorner", rowBtn).CornerRadius = UDim.new(0, 8)
+
+                local rLbl = Instance.new("TextLabel")
+                rLbl.Size = UDim2.new(1, -76, 1, 0)
+                rLbl.Position = UDim2.new(0, 10, 0, 0)
+                rLbl.BackgroundTransparency = 1
+                rLbl.Text = (isCur and "♫  " or "") .. tostring(tr.artist) .. " — " .. tostring(tr.title)
+                rLbl.TextColor3 = isCur and C_CRIMSON_GLOW or C_TEXT_WHITE
+                rLbl.Font = Enum.Font.GothamBold
+                rLbl.TextSize = 10.5
+                rLbl.TextXAlignment = Enum.TextXAlignment.Left
+                rLbl.TextTruncate = Enum.TextTruncate.AtEnd
+                rLbl.ZIndex = 858
+                rLbl.Parent = rowBtn
+
+                local durLbl = Instance.new("TextLabel")
+                durLbl.Size = UDim2.new(0, 56, 1, 0)
+                durLbl.Position = UDim2.new(1, -64, 0, 0)
+                durLbl.BackgroundTransparency = 1
+                durLbl.Text = fmtTime(tr.duration or 131)
+                durLbl.TextColor3 = C_TEXT_MUTED
+                durLbl.Font = Enum.Font.GothamMedium
+                durLbl.TextSize = 9.5
+                durLbl.TextXAlignment = Enum.TextXAlignment.Right
+                durLbl.ZIndex = 858
+                durLbl.Parent = rowBtn
+
+                rowBtn.MouseButton1Click:Connect(function()
+                    playClick()
+                    if selectAndPlayTrack then selectAndPlayTrack(idx) end
+                    setIslandState("music")
+                end)
+            end
+        end
+
+        sourceModeBtn.MouseButton1Click:Connect(function()
+            playClick()
+            local curIdx = 1
+            for i, m in ipairs(sourceModes) do
+                if m == MusicEngine.sourceMode then curIdx = i; break end
+            end
+            MusicEngine.sourceMode = sourceModes[(curIdx % #sourceModes) + 1]
+            sourceModeBtn.Text = "Mode: " .. MusicEngine.sourceMode
+            if MusicEngine.sourceMode == "Spotify" then
+                notify("🟢 SPOTIFY CONNECT", "Spotify Web API mode active! Paste Bearer token in box or use local bridge.")
+            elseif MusicEngine.sourceMode == "YouTube Music" then
+                notify("🔴 YOUTUBE MUSIC", "Syncing with YouTube Music Desktop App (127.0.0.1:9863) + Cloud Streamer!")
+                pollExternalMusicServices()
+            else
+                notify("🎵 CLOUD & LOCAL", "Streaming direct audio into Roblox via Cloud Search & CocoMusic/ folder!")
+            end
+            if updateMusicUI then pcall(updateMusicUI) end
+        end)
+
+        songPlaySearchBtn.MouseButton1Click:Connect(function()
+            playClick()
+            local q = (songSearchBox.Text or ""):gsub("^%s+", ""):gsub("%s+$", "")
+            if q == "" then return end
+            songSearchBox.Text = ""
+            if q:match("^BQ[A-Za-z0-9_%-]+") and #q > 40 then
+                MusicEngine.spotifyToken = q
+                MusicEngine.sourceMode = "Spotify"
+                sourceModeBtn.Text = "Mode: Spotify"
+                notify("🟢 SPOTIFY LINKED", "Spotify OAuth Bearer Token saved! Syncing live player...")
+                pollExternalMusicServices()
+                return
+            elseif q:match("^rbxassetid://%d+") or q:match("^%d+$") then
+                local idStr = q:match("^%d+$") and ("rbxassetid://" .. q) or q
+                table.insert(MusicEngine.tracks, 1, {
+                    artist = "Roblox Audio",
+                    title = "Track " .. idStr:gsub("rbxassetid://", ""),
+                    duration = 140,
+                    coverAsset = "rbxassetid://14952365661",
+                    soundId = idStr,
+                })
+                selectAndPlayTrack(1)
+                setIslandState("music")
+                return
+            end
+            notify("🎵 STREAMING SONG", "Searching & streaming '" .. q .. "'...")
+            fetchCloudTrackAndPlay(q, nil)
+            task.delay(0.4, function()
+                rebuildLibraryTrackList()
+                setIslandState("music")
+            end)
+        end)
+
+        -- ═══════════════════════════════════════════════════════════════════════
+        -- VIEW 8: SPOTLIGHT "SEARCH OR ASK" + 3-COLUMN COMMAND GRID (00:36–00:46)
+        -- ═══════════════════════════════════════════════════════════════════════
+        local spotlightWrap = Instance.new("Frame")
+        spotlightWrap.Name = "CocoNovolineSpotlight"
+        spotlightWrap.AnchorPoint = Vector2.new(0.5, 0)
+        spotlightWrap.Position = UDim2.new(0.5, 0, 0, 62)
+        spotlightWrap.Size = UDim2.new(0, 440, 0, 232)
+        spotlightWrap.BackgroundColor3 = C_ISLAND_BG
+        spotlightWrap.BackgroundTransparency = 0.03
+        spotlightWrap.BorderSizePixel = 0
+        spotlightWrap.ClipsDescendants = true
+        spotlightWrap.Visible = false
+        spotlightWrap.ZIndex = 860
+        spotlightWrap.Parent = gui
+        Instance.new("UICorner", spotlightWrap).CornerRadius = UDim.new(0, 22)
+
+        local spStroke = Instance.new("UIStroke", spotlightWrap)
+        spStroke.Color = C_CRIMSON
+        spStroke.Thickness = 1.25
+        spStroke.Transparency = 0.3
+
+        local spPlasma = Instance.new("Frame")
+        spPlasma.Size = UDim2.fromScale(1, 1)
+        spPlasma.BackgroundColor3 = Color3.fromRGB(16, 5, 24)
+        spPlasma.BackgroundTransparency = 0.25
+        spPlasma.BorderSizePixel = 0
+        spPlasma.ClipsDescendants = true
+        spPlasma.ZIndex = 860
+        spPlasma.Parent = spotlightWrap
+        Instance.new("UICorner", spPlasma).CornerRadius = UDim.new(0, 22)
+        if UI.populateLiquidPlasmaLayer then
+            pcall(UI.populateLiquidPlasmaLayer, spPlasma, false)
+        end
+
+        local spVeil = Instance.new("Frame")
+        spVeil.Size = UDim2.fromScale(1, 1)
+        spVeil.BackgroundColor3 = C_ISLAND_BG
+        spVeil.BackgroundTransparency = 0.24
+        spVeil.BorderSizePixel = 0
+        spVeil.ZIndex = 861
+        spVeil.Parent = spotlightWrap
+        Instance.new("UICorner", spVeil).CornerRadius = UDim.new(0, 22)
+
+        -- Top Search Input inside islandHost when state == "search"
+        local searchTopView = Instance.new("Frame")
+        searchTopView.Name = "SearchTopPillView"
+        searchTopView.Size = UDim2.fromScale(1, 1)
+        searchTopView.BackgroundTransparency = 1
+        searchTopView.Visible = false
+        searchTopView.ZIndex = 855
+        searchTopView.Parent = islandHost
+
+        local spSearchIcon = Instance.new("TextLabel")
+        spSearchIcon.Size = UDim2.new(0, 24, 0, 24)
+        spSearchIcon.Position = UDim2.new(0, 12, 0.5, -12)
+        spSearchIcon.BackgroundTransparency = 1
+        spSearchIcon.Text = "🔍"
+        spSearchIcon.TextColor3 = C_CRIMSON_GLOW
+        spSearchIcon.Font = Enum.Font.GothamBold
+        spSearchIcon.TextSize = 12
+        spSearchIcon.ZIndex = 856
+        spSearchIcon.Parent = searchTopView
+
+        local spSearchBox = Instance.new("TextBox")
+        spSearchBox.Size = UDim2.new(1, -76, 1, -8)
+        spSearchBox.Position = UDim2.new(0, 38, 0, 4)
+        spSearchBox.BackgroundTransparency = 1
+        spSearchBox.PlaceholderText = "Search or Ask"
+        spSearchBox.Text = ""
+        spSearchBox.TextColor3 = C_TEXT_WHITE
+        spSearchBox.PlaceholderColor3 = C_TEXT_MUTED
+        spSearchBox.Font = Enum.Font.GothamBold
+        spSearchBox.TextSize = 12
+        spSearchBox.TextXAlignment = Enum.TextXAlignment.Left
+        spSearchBox.ClearTextOnFocus = false
+        spSearchBox.ZIndex = 856
+        spSearchBox.Parent = searchTopView
+
+        local spCloseBtn = Instance.new("TextButton")
+        spCloseBtn.Size = UDim2.new(0, 26, 0, 26)
+        spCloseBtn.Position = UDim2.new(1, -34, 0.5, -13)
+        spCloseBtn.BackgroundColor3 = C_ISLAND_CARD2
+        spCloseBtn.Text = "✕"
+        spCloseBtn.TextColor3 = C_TEXT_MUTED
+        spCloseBtn.Font = Enum.Font.GothamBold
+        spCloseBtn.TextSize = 10
+        spCloseBtn.AutoButtonColor = false
+        spCloseBtn.ZIndex = 856
+        spCloseBtn.Parent = searchTopView
+        Instance.new("UICorner", spCloseBtn).CornerRadius = UDim.new(1, 0)
+        spCloseBtn.MouseButton1Click:Connect(function()
+            playClick()
+            setIslandState("music")
+        end)
+
+        -- Header inside Spotlight Bottom Card: "Favorite Commands" / "Top matches"
+        local spHeaderLeft = Instance.new("TextLabel")
+        spHeaderLeft.Size = UDim2.new(0.6, 0, 0, 20)
+        spHeaderLeft.Position = UDim2.new(0, 18, 0, 12)
+        spHeaderLeft.BackgroundTransparency = 1
+        spHeaderLeft.Text = "Favorite Commands"
+        spHeaderLeft.TextColor3 = C_TEXT_WHITE
+        spHeaderLeft.Font = Enum.Font.GothamBold
+        spHeaderLeft.TextSize = 11.5
+        spHeaderLeft.TextXAlignment = Enum.TextXAlignment.Left
+        spHeaderLeft.ZIndex = 862
+        spHeaderLeft.Parent = spotlightWrap
+
+        local spHeaderRight = Instance.new("TextLabel")
+        spHeaderRight.Size = UDim2.new(0.35, 0, 0, 20)
+        spHeaderRight.Position = UDim2.new(0.65, -18, 0, 12)
+        spHeaderRight.BackgroundTransparency = 1
+        spHeaderRight.Text = "18 commands"
+        spHeaderRight.TextColor3 = C_TEXT_MUTED
+        spHeaderRight.Font = Enum.Font.GothamMedium
+        spHeaderRight.TextSize = 10
+        spHeaderRight.TextXAlignment = Enum.TextXAlignment.Right
+        spHeaderRight.ZIndex = 862
+        spHeaderRight.Parent = spotlightWrap
+
+        local spGridScroll = Instance.new("ScrollingFrame")
+        spGridScroll.Size = UDim2.new(1, -28, 1, -44)
+        spGridScroll.Position = UDim2.new(0, 14, 0, 36)
+        spGridScroll.BackgroundTransparency = 1
+        spGridScroll.BorderSizePixel = 0
+        spGridScroll.ScrollBarThickness = 2
+        spGridScroll.ScrollBarImageColor3 = C_CRIMSON
+        spGridScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+        spGridScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+        spGridScroll.ZIndex = 862
+        spGridScroll.Parent = spotlightWrap
+
+        local spGrid = Instance.new("UIGridLayout", spGridScroll)
+        spGrid.CellSize = UDim2.new(0.318, 0, 0, 38)
+        spGrid.CellPadding = UDim2.new(0.02, 0, 0, 8)
+        spGrid.SortOrder = Enum.SortOrder.LayoutOrder
+
+        -- Command catalog matching the exact tiles in novoline-island-update-only-u.mp4 (00:36–00:46)
+        local SPOTLIGHT_COMMANDS = {
+            { name = "Esp",       icon = "👁️", bindKey = nil, action = function()
+                if UI.setOverheadTagsEnabled then UI.setOverheadTagsEnabled(not OwnerAdminState.overheadTagsEnabled, true) end
+            end },
+            { name = "Fly",       icon = "✈️", bindKey = "fly", action = function()
+                if moveState and moveState.toggleFly then moveState.toggleFly() end
+            end },
+            { name = "Freecam",   icon = "🎥", bindKey = nil, action = function()
+                setPanelOpen(true); showCategory("General")
+            end },
+            { name = "Infjump",   icon = "🚀", bindKey = nil, action = function()
+                if moveState then
+                    moveState.infiniteJump = not moveState.infiniteJump
+                    notify("🚀 INFJUMP", moveState.infiniteJump and "Infinite Jump ON" or "Infinite Jump OFF")
+                end
+            end },
+            { name = "Noclip",    icon = "👻", bindKey = nil, action = function()
+                if moveState then
+                    moveState.noclip = not moveState.noclip
+                    notify("👻 NOCLIP", moveState.noclip and "Noclip Phase ON" or "Noclip Phase OFF")
+                end
+            end },
+            { name = "Speed",     icon = "⚡", bindKey = nil, action = function()
+                activeValueTarget = {
+                    title = "WalkSpeed",
+                    min = 16,
+                    max = 500,
+                    step = 8,
+                    getValue = function()
+                        local ch = LP.Character
+                        local h = ch and ch:FindFirstChildOfClass("Humanoid")
+                        return (h and h.WalkSpeed) or 32
+                    end,
+                    setValue = function(v)
+                        if moveState then moveState.speed = true end
+                        local ch = LP.Character
+                        local h = ch and ch:FindFirstChildOfClass("Humanoid")
+                        if h then h.WalkSpeed = math.clamp(math.floor(v), 16, 500) end
+                    end,
+                }
+                refreshValuePillUI()
+                setIslandState("values")
+            end },
+            { name = "Fling",     icon = "🌪️", bindKey = "fling", action = function()
+                togglePresetOrAction("fling")
+            end },
+            { name = "Flyspeed",  icon = "💨", bindKey = "fly", action = function()
+                activeValueTarget = {
+                    title = "Fly Speed",
+                    min = 16,
+                    max = 350,
+                    step = 5,
+                    getValue = function() return (moveState and moveState.flySpeed) or 75 end,
+                    setValue = function(v)
+                        if moveState then moveState.flySpeed = math.clamp(math.floor(v), 16, 500) end
+                    end,
+                }
+                refreshValuePillUI()
+                setIslandState("values")
+            end },
+            { name = "Facebang",  icon = "🔥", bindKey = "facebang", action = function()
+                togglePresetOrAction("facebang")
+            end },
+            { name = "Backshots", icon = "💥", bindKey = "backshots", action = function()
+                togglePresetOrAction("backshots")
+            end },
+            { name = "VoidThrow", icon = "🕳️", bindKey = "voidthrow", action = function()
+                togglePresetOrAction("voidthrow")
+            end },
+            { name = "Rewind",    icon = "⏪", bindKey = "rewind", action = function()
+                if RewindSys then RewindSys:Start(RewindSys.duration) end
+            end },
+            { name = "Vanish",    icon = "🌫️", bindKey = "vanish", action = function()
+                togglePresetOrAction("vanish")
+            end },
+            { name = "Headsit",   icon = "👑", bindKey = "headsit", action = function()
+                togglePresetOrAction("headsit")
+            end },
+            { name = "ClickTP",   icon = "📍", bindKey = "clicktp", action = function()
+                local mouse = LP:GetMouse()
+                if mouse and mouse.Hit then executeSafeClickTP(mouse.Hit.Position, mouse.Target) end
+            end },
+            { name = "AnimCopy",  icon = "🎭", bindKey = "animcopy", action = function()
+                togglePresetOrAction("animcopy")
+            end },
+            { name = "Fov",       icon = "🔭", bindKey = nil, action = function()
+                activeValueTarget = {
+                    title = "Camera FOV",
+                    min = 45,
+                    max = 120,
+                    step = 2,
+                    getValue = function()
+                        return (workspace.CurrentCamera and workspace.CurrentCamera.FieldOfView) or 70
+                    end,
+                    setValue = function(v)
+                        if workspace.CurrentCamera then workspace.CurrentCamera.FieldOfView = math.clamp(v, 45, 120) end
+                    end,
+                }
+                refreshValuePillUI()
+                setIslandState("values")
+            end },
+            { name = "Unweld",    icon = "⏹️", bindKey = "stop", action = function()
+                stopWeld(false)
+                StateManager:Cleanup(false)
+                syncAllActiveIndicators()
+            end },
+        }
+
+        executeSpotlightCommand = function(rawCmd)
+            local clean = (rawCmd or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
+            local cmdWord, numArg = clean:match("^(%S+)%s*(%d*)$")
+            local nVal = tonumber(numArg)
+            if cmdWord == "flyspeed" and nVal then
+                if moveState then moveState.flySpeed = math.clamp(nVal, 16, 500) end
+                notify("✈️ FLYSPEED", "Set Fly Speed to " .. tostring(nVal))
+                return
+            elseif cmdWord == "fov" and nVal then
+                if workspace.CurrentCamera then workspace.CurrentCamera.FieldOfView = math.clamp(nVal, 40, 120) end
+                notify("🔭 FOV", "Set Camera FOV to " .. tostring(nVal))
+                return
+            elseif cmdWord == "speed" and nVal then
+                local ch = LP.Character
+                local h = ch and ch:FindFirstChildOfClass("Humanoid")
+                if h then h.WalkSpeed = math.clamp(nVal, 16, 500) end
+                notify("⚡ SPEED", "Set WalkSpeed to " .. tostring(nVal))
+                return
+            end
+            for _, item in ipairs(SPOTLIGHT_COMMANDS) do
+                if item.name:lower() == cmdWord or item.name:lower():find(clean, 1, true) then
+                    item.action()
+                    return
+                end
+            end
+        end
+
+        local function rebuildSpotlightGrid(filterText)
+            for _, ch in ipairs(spGridScroll:GetChildren()) do
+                if ch:IsA("TextButton") then ch:Destroy() end
+            end
+            local q = (filterText or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
+            local shown = 0
+            for idx, item in ipairs(SPOTLIGHT_COMMANDS) do
+                if q == "" or item.name:lower():find(q, 1, true) then
+                    shown = shown + 1
+                    local tile = Instance.new("TextButton")
+                    tile.BackgroundColor3 = C_ISLAND_CARD
+                    tile.Text = ""
+                    tile.AutoButtonColor = false
+                    tile.LayoutOrder = idx
+                    tile.ZIndex = 863
+                    tile.Parent = spGridScroll
+                    Instance.new("UICorner", tile).CornerRadius = UDim.new(0, 11)
+                    local tst = Instance.new("UIStroke", tile)
+                    tst.Color = C_CRIMSON
+                    tst.Thickness = 1
+                    tst.Transparency = 0.55
+                    styleBtn(tile, C_ISLAND_CARD, 0.16)
+
+                    local ic = Instance.new("TextLabel")
+                    ic.Size = UDim2.new(0, 22, 0, 22)
+                    ic.Position = UDim2.new(0, 8, 0.5, -11)
+                    ic.BackgroundColor3 = C_CRIMSON_DARK
+                    ic.Text = item.icon
+                    ic.TextColor3 = C_CRIMSON_GLOW
+                    ic.Font = Enum.Font.GothamBold
+                    ic.TextSize = 11
+                    ic.ZIndex = 864
+                    ic.Parent = tile
+                    Instance.new("UICorner", ic).CornerRadius = UDim.new(0, 6)
+
+                    local nm = Instance.new("TextLabel")
+                    nm.Size = UDim2.new(1, -36, 1, 0)
+                    nm.Position = UDim2.new(0, 34, 0, 0)
+                    nm.BackgroundTransparency = 1
+                    nm.Text = item.name
+                    nm.TextColor3 = C_TEXT_WHITE
+                    nm.Font = Enum.Font.GothamBold
+                    nm.TextSize = 11
+                    nm.TextXAlignment = Enum.TextXAlignment.Left
+                    nm.TextTruncate = Enum.TextTruncate.AtEnd
+                    nm.ZIndex = 864
+                    nm.Parent = tile
+
+                    tile.MouseButton1Click:Connect(function()
+                        playClick()
+                        item.action()
+                    end)
+                    tile.MouseButton2Click:Connect(function()
+                        playClick()
+                        openKeybindIslandFor(item.bindKey or item.name:lower())
+                    end)
+                end
+            end
+            if q == "" then
+                spHeaderLeft.Text = "Favorite Commands"
+                spHeaderRight.Text = tostring(shown) .. " commands"
+            else
+                spHeaderLeft.Text = "Top matches"
+                spHeaderRight.Text = tostring(shown) .. " found"
+            end
+        end
+        rebuildSpotlightGrid("")
+
+        spSearchBox:GetPropertyChangedSignal("Text"):Connect(function()
+            rebuildSpotlightGrid(spSearchBox.Text)
+        end)
+
+        -- ═══════════════════════════════════════════════════════════════════════
+        -- VIEW 9: FRIEND JOINED & SECURITY ALERT ISLAND TOAST (00:26–00:29 in video)
+        -- ═══════════════════════════════════════════════════════════════════════
+        local toastView = Instance.new("Frame")
+        toastView.Name = "ToastIslandView"
+        toastView.Size = UDim2.fromScale(1, 1)
+        toastView.BackgroundTransparency = 1
+        toastView.Visible = false
+        toastView.ZIndex = 855
+        toastView.Parent = islandHost
+
+        local toastAvatar = Instance.new("ImageLabel")
+        toastAvatar.Size = UDim2.new(0, 30, 0, 30)
+        toastAvatar.Position = UDim2.new(0, 10, 0.5, -15)
+        toastAvatar.BackgroundColor3 = C_CRIMSON_DARK
+        toastAvatar.Image = "rbxassetid://14952365661"
+        toastAvatar.ZIndex = 856
+        toastAvatar.Parent = toastView
+        Instance.new("UICorner", toastAvatar).CornerRadius = UDim.new(1, 0)
+
+        local toastTitleLbl = Instance.new("TextLabel")
+        toastTitleLbl.Size = UDim2.new(1, -54, 0, 16)
+        toastTitleLbl.Position = UDim2.new(0, 48, 0, 7)
+        toastTitleLbl.BackgroundTransparency = 1
+        toastTitleLbl.Text = "Friend verified"
+        toastTitleLbl.TextColor3 = C_TEXT_WHITE
+        toastTitleLbl.Font = Enum.Font.GothamBold
+        toastTitleLbl.TextSize = 11
+        toastTitleLbl.TextXAlignment = Enum.TextXAlignment.Left
+        toastTitleLbl.ZIndex = 856
+        toastTitleLbl.Parent = toastView
+
+        local toastSubLbl = Instance.new("TextLabel")
+        toastSubLbl.Size = UDim2.new(1, -54, 0, 14)
+        toastSubLbl.Position = UDim2.new(0, 48, 0, 23)
+        toastSubLbl.BackgroundTransparency = 1
+        toastSubLbl.Text = "Joined your server"
+        toastSubLbl.TextColor3 = C_TEXT_MUTED
+        toastSubLbl.Font = Enum.Font.GothamMedium
+        toastSubLbl.TextSize = 9.5
+        toastSubLbl.TextXAlignment = Enum.TextXAlignment.Left
+        toastSubLbl.ZIndex = 856
+        toastSubLbl.Parent = toastView
+
+        local function showIslandToast(titleTxt, subTxt, userIdForThumb)
+            if islandState ~= "collapsed" then return end
+            toastTitleLbl.Text = titleTxt
+            toastSubLbl.Text = subTxt
+            if userIdForThumb then
+                task.spawn(function()
+                    pcall(function()
+                        local content = Players:GetUserThumbnailAsync(userIdForThumb, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size100x100)
+                        if content then toastAvatar.Image = content end
+                    end)
+                end)
+            end
+            setIslandState("toast")
+            task.delay(3.2, function()
+                if islandState == "toast" then
+                    setIslandState("collapsed")
+                end
+            end)
+        end
+
+        Players.PlayerAdded:Connect(function(plr)
+            task.wait(0.5)
+            local okF, isF = pcall(function() return LP:IsFriendsWith(plr.UserId) end)
+            if okF and isF then
+                showIslandToast("Friend " .. plr.DisplayName, "Joined your server", plr.UserId)
+            end
+        end)
+
+        -- ═══════════════════════════════════════════════════════════════════════
+        -- DYNAMIC ISLAND STATE MORPH CONTROLLER
+        -- ═══════════════════════════════════════════════════════════════════════
+        setIslandState = function(newState)
+            islandState = newState
+            collapsedView.Visible = (newState == "collapsed")
+            musicView.Visible     = (newState == "music")
+            podsView.Visible      = (newState == "pods")
+            autoexecView.Visible  = (newState == "autoexec")
+            valuesView.Visible    = (newState == "values")
+            keybindsView.Visible  = (newState == "keybinds")
+            libraryView.Visible   = (newState == "library")
+            searchTopView.Visible = (newState == "search")
+            toastView.Visible     = (newState == "toast")
+            spotlightWrap.Visible = (newState == "search")
+
+            local targetSize = UDim2.new(0, 214, 0, 40)
+            local targetRadius = UDim.new(0, 20)
+
+            if newState == "collapsed" then
+                targetSize = UDim2.new(0, 214, 0, 40)
+                targetRadius = UDim.new(0, 20)
+            elseif newState == "music" then
+                targetSize = UDim2.new(0, 464, 0, 216)
+                targetRadius = UDim.new(0, 24)
+            elseif newState == "pods" then
+                targetSize = UDim2.new(0, 516, 0, 76)
+                targetRadius = UDim.new(0, 24)
+            elseif newState == "autoexec" then
+                targetSize = UDim2.new(0, 340, 0, 198)
+                targetRadius = UDim.new(0, 22)
+            elseif newState == "values" then
+                targetSize = UDim2.new(0, 286, 0, 54)
+                targetRadius = UDim.new(0, 20)
+            elseif newState == "keybinds" then
+                targetSize = UDim2.new(0, 340, 0, 146)
+                targetRadius = UDim.new(0, 22)
+            elseif newState == "library" then
+                targetSize = UDim2.new(0, 464, 0, 236)
+                targetRadius = UDim.new(0, 24)
+                rebuildLibraryTrackList()
+            elseif newState == "search" then
+                targetSize = UDim2.new(0, 280, 0, 42)
+                targetRadius = UDim.new(0, 21)
+                task.defer(function() pcall(function() spSearchBox:CaptureFocus() end) end)
+            elseif newState == "toast" then
+                targetSize = UDim2.new(0, 268, 0, 46)
+                targetRadius = UDim.new(0, 22)
+            end
+
+            islandCorner.CornerRadius = targetRadius
+            TweenService:Create(islandHost, TI_SPRING, { Size = targetSize }):Play()
+        end
+
+        -- ═══════════════════════════════════════════════════════════════════════
+        -- MUSIC TRANSPORT & SCRUBBER WIRING
+        -- ═══════════════════════════════════════════════════════════════════════
+        updateMusicUI = function()
+            local tr = MusicEngine.tracks[MusicEngine.currentIndex] or MusicEngine.tracks[1]
+            if not tr then return end
+            artistLbl.Text = tostring(tr.artist or "che")
+            titleLbl.Text = tostring(tr.title or "Million Dollar Mansion")
+            pillTrackLbl.Text = tostring(tr.title or "Million Dollar Mansion")
+            pillArtistLbl.Text = tostring(tr.artist or "che") .. " · " .. tostring(MusicEngine.sourceMode)
+            podMidTitle.Text = tostring(tr.artist or "che")
+            statusLbl.Text = (MusicEngine.playing and "Playing" or "Paused") .. " · " .. tostring(MusicEngine.sourceMode)
+            btnPause.Text = MusicEngine.playing and "||" or "▶"
+
+            local cov = tr.coverAsset or "rbxassetid://14952365661"
+            albumArtImg.Image = cov
+            pillArtImg.Image = cov
+            podCoverImg.Image = cov
+
+            local dur = math.max(1, tonumber(tr.duration) or tonumber(MusicEngine.timeLength) or 131)
+            local pos = math.clamp(tonumber(MusicEngine.timePosition) or 0, 0, dur)
+            elapsedLbl.Text = fmtTime(pos)
+            remainLbl.Text = "-" .. fmtTime(math.max(0, dur - pos))
+            local pct = math.clamp(pos / dur, 0, 1)
+            scrubFill.Size = UDim2.new(pct, 0, 1, 0)
+        end
+
+        selectAndPlayTrack = function(idx)
+            if #MusicEngine.tracks == 0 then return end
+            MusicEngine.currentIndex = ((idx - 1) % #MusicEngine.tracks) + 1
+            local tr = MusicEngine.tracks[MusicEngine.currentIndex]
+            MusicEngine.timePosition = 0
+            MusicEngine.timeLength = tonumber(tr.duration) or 131
+            MusicEngine.playing = true
+            pcall(function()
+                musicSound.SoundId = tr.soundId
+                musicSound.TimePosition = 0
+                musicSound.Volume = MusicEngine.volume
+                musicSound:Play()
+            end)
+            if tr.searchQuery and not tr.fetchedCloud then
+                tr.fetchedCloud = true
+                fetchCloudTrackAndPlay(tr.searchQuery, tr)
+            end
+            updateMusicUI()
+        end
+
+        btnPause.MouseButton1Click:Connect(function()
+            playClick()
+            MusicEngine.playing = not MusicEngine.playing
+            if not sendRemoteTransportCommand(MusicEngine.playing and "play" or "pause") then
+                pcall(function()
+                    if MusicEngine.playing then
+                        musicSound:Resume()
+                        if not musicSound.IsPlaying then musicSound:Play() end
+                    else
+                        musicSound:Pause()
+                    end
+                end)
+            end
+            updateMusicUI()
+        end)
+
+        btnNext.MouseButton1Click:Connect(function()
+            playClick()
+            if not sendRemoteTransportCommand("next") then
+                local nxt = MusicEngine.shuffle and math.random(1, #MusicEngine.tracks) or (MusicEngine.currentIndex + 1)
+                selectAndPlayTrack(nxt)
+            end
+        end)
+
+        btnPrev.MouseButton1Click:Connect(function()
+            playClick()
+            if not sendRemoteTransportCommand("previous") then
+                if MusicEngine.timePosition > 5 then
+                    MusicEngine.timePosition = 0
+                    pcall(function() musicSound.TimePosition = 0 end)
+                    updateMusicUI()
+                else
+                    selectAndPlayTrack(MusicEngine.currentIndex - 1)
+                end
+            end
+        end)
+
+        shuffleBtn.MouseButton1Click:Connect(function()
+            playClick()
+            MusicEngine.shuffle = not MusicEngine.shuffle
+            shuffleBtn.Text = MusicEngine.shuffle and "🔀   Shuffle: ON" or "🔀   Shuffle"
+            shufStroke.Transparency = MusicEngine.shuffle and 0.15 or 0.65
+            sendRemoteTransportCommand("shuffle")
+            if MusicEngine.shuffle and #MusicEngine.tracks > 1 then
+                selectAndPlayTrack(math.random(1, #MusicEngine.tracks))
+            end
+        end)
+
+        libraryBtn.MouseButton1Click:Connect(function()
+            playClick()
+            setIslandState("library")
+        end)
+
+        -- Interactive Scrubber Bar seeking
+        local scrubbing = false
+        local function seekFromInput(inp)
+            local absX = scrubBarBg.AbsolutePosition.X
+            local absW = math.max(1, scrubBarBg.AbsoluteSize.X)
+            local pct = math.clamp((inp.Position.X - absX) / absW, 0, 1)
+            local tr = MusicEngine.tracks[MusicEngine.currentIndex] or MusicEngine.tracks[1]
+            local dur = math.max(1, tonumber(tr and tr.duration) or tonumber(MusicEngine.timeLength) or 131)
+            local newSec = math.floor(pct * dur)
+            MusicEngine.timePosition = newSec
+            pcall(function()
+                if musicSound.TimeLength > 0 then
+                    musicSound.TimePosition = math.clamp(pct * musicSound.TimeLength, 0, musicSound.TimeLength)
+                end
+            end)
+            sendRemoteTransportCommand("seek", newSec * 1000)
+            updateMusicUI()
+        end
+
+        scrubBarBg.InputBegan:Connect(function(inp)
+            if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+                scrubbing = true
+                seekFromInput(inp)
+            end
+        end)
+        UIS.InputChanged:Connect(function(inp)
+            if scrubbing and (inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch) then
+                seekFromInput(inp)
+            end
+        end)
+        UIS.InputEnded:Connect(function(inp)
+            if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+                scrubbing = false
+            end
+        end)
+
+        -- Real-time Equalizer Waveform Animation + Progress Ticker + Live Telemetry ("⚡ 143 ms  ● 1m")
+        local wavePhase = 0
+        local lastUiTick = 0
+        RunService.RenderStepped:Connect(function(dt)
+            wavePhase = wavePhase + dt * (MusicEngine.playing and 9.5 or 1.8)
+            local loudnessBoost = 0
+            pcall(function()
+                if musicSound and musicSound.IsPlaying then
+                    loudnessBoost = math.clamp((musicSound.PlaybackLoudness or 0) / 320, 0, 1)
+                end
+            end)
+
+            for b = 1, 5 do
+                local amp = MusicEngine.playing
+                    and (0.35 + 0.65 * math.abs(math.sin(wavePhase + b * 0.85)) + loudnessBoost * 0.35)
+                    or 0.22
+                local hPx = math.clamp(math.floor(4 + amp * 15), 4, 20)
+                if pillWaveBars[b] then
+                    pillWaveBars[b].Size = UDim2.new(0, 3, 0, hPx)
+                end
+                if podWaveBars[b] then
+                    podWaveBars[b].Size = UDim2.new(0, 3, 0, hPx)
+                end
+            end
+
+            local now = tick()
+            if now - lastUiTick >= 0.25 then
+                local elapsedStep = now - lastUiTick
+                lastUiTick = now
+
+                if MusicEngine.playing and not scrubbing then
+                    local tr = MusicEngine.tracks[MusicEngine.currentIndex] or MusicEngine.tracks[1]
+                    local dur = math.max(1, tonumber(tr and tr.duration) or 131)
+                    if musicSound and musicSound.IsPlaying and musicSound.TimeLength > 5 then
+                        MusicEngine.timePosition = musicSound.TimePosition
+                        tr.duration = math.floor(musicSound.TimeLength)
+                    else
+                        MusicEngine.timePosition = (MusicEngine.timePosition or 0) + elapsedStep
+                        if MusicEngine.timePosition >= dur then
+                            MusicEngine.timePosition = 0
+                            selectAndPlayTrack(MusicEngine.currentIndex + 1)
+                        end
+                    end
+                    updateMusicUI()
+                end
+
+                -- Update Live Ping & Session Timer in Island Header ("⚡ 143 ms  ● 1m")
+                local pingMs = 143
+                pcall(function()
+                    if StatsService and StatsService.Network and StatsService.Network.ServerStatsItem and StatsService.Network.ServerStatsItem["Data Ping"] then
+                        pingMs = math.floor(StatsService.Network.ServerStatsItem["Data Ping"]:GetValue())
+                    else
+                        pingMs = math.floor(LP:GetNetworkPing() * 1000)
+                    end
+                end)
+                if pingMs <= 0 then pingMs = 143 end
+                local mins = math.max(1, math.floor((now - sessionStartTick) / 60) + 1)
+                telemetryLbl.Text = string.format("⚡ %d ms   ● %dm", pingMs, mins)
+            end
+
+            if now - MusicEngine.lastRemotePoll >= 3.0 then
+                MusicEngine.lastRemotePoll = now
+                if MusicEngine.sourceMode ~= "Cloud & Local" then
+                    task.spawn(pollExternalMusicServices)
+                end
+            end
+        end)
+
+        -- Initialize default track ("che — Million Dollar Mansion" at 0:47 like the video, and stream real audio!)
+        updateMusicUI()
+        pcall(function()
+            musicSound.Volume = MusicEngine.volume
+            musicSound:Play()
+        end)
+        if MusicEngine.tracks[1] and MusicEngine.tracks[1].searchQuery then
+            MusicEngine.tracks[1].fetchedCloud = true
+            fetchCloudTrackAndPlay(MusicEngine.tracks[1].searchQuery, MusicEngine.tracks[1])
+        end
+
+        -- Start expanded on the Music Player for 0.1s or let user interact right away!
+        setIslandState("music")
+    end)()
+
+    if UI.applyThemeByName then pcall(UI.applyThemeByName, "Novoline Crimson Island (Video)") end
     showCategory("Weld & Troll")
 end
 
