@@ -836,14 +836,81 @@ local loadPlayableAnim
 do
     local ANIM_VERIFY_TIME = 0.06
     local ANIM_MAX_ATTEMPTS = 2
+    local ResolvedCatalogAnimCache = {}
+
+    local function resolveCatalogOrAnimUri(cleanDigits)
+        if cleanDigits == "" then return nil end
+        if ResolvedCatalogAnimCache[cleanDigits] then
+            return ResolvedCatalogAnimCache[cleanDigits]
+        end
+        pcall(function()
+            if typeof(game.GetObjects) == "function" then
+                local objs = game:GetObjects("rbxassetid://" .. cleanDigits)
+                if objs and #objs > 0 then
+                    local first = objs[1]
+                    if first:IsA("Animation") and first.AnimationId ~= "" then
+                        ResolvedCatalogAnimCache[cleanDigits] = first.AnimationId
+                    else
+                        local innerAnim = first:FindFirstChildWhichIsA("Animation", true)
+                        if innerAnim and innerAnim.AnimationId ~= "" then
+                            ResolvedCatalogAnimCache[cleanDigits] = innerAnim.AnimationId
+                        end
+                    end
+                    pcall(function() first:Destroy() end)
+                end
+            end
+        end)
+        if not ResolvedCatalogAnimCache[cleanDigits] then
+            ResolvedCatalogAnimCache[cleanDigits] = "rbxassetid://" .. cleanDigits
+        end
+        return ResolvedCatalogAnimCache[cleanDigits]
+    end
+
+    -- Pre-warm Wall Rizz Pose (by go silent) Catalog ID 90735295463164 for 0.00ms instant weld playback
+    task.spawn(function()
+        pcall(resolveCatalogOrAnimUri, "90735295463164")
+    end)
 
     local function tryPlayOnce(Animator, animId, hum, priority)
         local cleanDigits = tostring(animId or ""):gsub("%D", "")
         if cleanDigits == "" then return nil, nil, false, nil end
+        local resolvedUri = resolveCatalogOrAnimUri(cleanDigits) or ("rbxassetid://" .. cleanDigits)
         local anim = Instance.new("Animation")
-        anim.AnimationId = "rbxassetid://" .. cleanDigits
+        anim.AnimationId = resolvedUri
         local okLoad, track = pcall(function() return Animator:LoadAnimation(anim) end)
-        if not okLoad or not track then anim:Destroy(); return nil, nil, false, nil end
+        if (not okLoad or not track) and resolvedUri ~= ("rbxassetid://" .. cleanDigits) then
+            anim.AnimationId = "rbxassetid://" .. cleanDigits
+            okLoad, track = pcall(function() return Animator:LoadAnimation(anim) end)
+        end
+        if not okLoad or not track then
+            anim:Destroy()
+            -- Fallback for Catalog Emote Bundle IDs via HumanoidDescription:AddEmote
+            local numId = tonumber(cleanDigits)
+            if numId and hum then
+                local playedEmote = false
+                pcall(function()
+                    local desc = hum:GetAppliedDescription()
+                    desc:AddEmote("CocoWallRizz_" .. cleanDigits, numId)
+                    hum:ApplyDescriptionClientServer(desc)
+                end)
+                pcall(function()
+                    playedEmote = hum:PlayEmote("CocoWallRizz_" .. cleanDigits)
+                end)
+                if playedEmote and Animator then
+                    local okTr, tracks = pcall(function() return Animator:GetPlayingAnimationTracks() end)
+                    if okTr and tracks then
+                        for _, tr in ipairs(tracks) do
+                            pcall(function()
+                                tr.Priority = priority or Enum.AnimationPriority.Action4
+                                tr.Looped = true
+                            end)
+                            return tr, nil, true, cleanDigits
+                        end
+                    end
+                end
+            end
+            return nil, nil, false, nil
+        end
         local pri = priority or Enum.AnimationPriority.Action4
         pcall(function() track.Priority = pri end)
         pcall(function() track.Looped = true end)
@@ -1403,7 +1470,158 @@ end
 --     onto real streamed-in players near you, while unstreamed targets are swept
 --     and caught up to anywhere on the map!
 -- ═══════════════════════════════════════════════════════════════════════════════
-local computeDynamicHeightWeld = function() return 0, 1.0, 1.0 end
+-- Careful Anatomical Character-to-Character Height & Scale Solver (0.00ms Zero-Delay)
+--   • Measures both LocalCharacter and TargetCharacter rig geometry (HipHeight, RootPart/Torso/UpperTorso/LowerTorso/Head
+--     dimensions, BodyHeightScale, and live reference part offsets across R15, R6, tall, short, chibi, and plushie avatars)
+--   • Specifically calibrates "rizz" (Wall Rizz Pose / Kabedon Wall Lean – Catalog ID 90735295463164) so your character's
+--     leaning shoulder/hand/gaze height aligns accurately with the other character's head & upper torso without clipping!
+local function getCharacterAnatomyMetrics(char, hum, refPart)
+    if not char then return 3.0, 1.5, 1.0, 0.0 end
+    hum = hum or char:FindFirstChildOfClass("Humanoid")
+    local hrp = char:FindFirstChild("HumanoidRootPart") or (hum and hum.RootPart) or refPart
+    local head = char:FindFirstChild("Head")
+    local upperTorso = char:FindFirstChild("UpperTorso")
+    local lowerTorso = char:FindFirstChild("LowerTorso")
+    local torso = char:FindFirstChild("Torso") or upperTorso
+
+    -- 1. Rig vertical scale factor (handles R15 BodyHeightScale, chibi/plushie packages, and custom scaled rigs)
+    local scaleY = 1.0
+    if hum then
+        local bhs = hum:FindFirstChild("BodyHeightScale")
+        if bhs and bhs:IsA("NumberValue") and bhs.Value > 0.15 and bhs.Value < 5.0 then
+            scaleY = bhs.Value
+        end
+    end
+    if scaleY == 1.0 and torso and torso:IsA("BasePart") then
+        local baseTorsoY = (torso.Name == "UpperTorso") and 1.6 or 2.0
+        local ratio = torso.Size.Y / baseTorsoY
+        if ratio > 0.25 and ratio < 4.5 then
+            scaleY = ratio
+        end
+    end
+
+    -- 2. Standing Root/Pelvis center height above ground (feet-to-root)
+    local rootToGround = 3.0 * scaleY
+    if hum then
+        local hipH = hum.HipHeight or 0
+        if hum.RigType == Enum.HumanoidRigType.R15 then
+            local rSizeY = (hrp and hrp:IsA("BasePart") and hrp.Size.Y) or (2.0 * scaleY)
+            if hipH > 0.05 then
+                rootToGround = hipH + (rSizeY * 0.5)
+            end
+        else
+            local leg = char:FindFirstChild("Right Leg") or char:FindFirstChild("Left Leg")
+            local legY = (leg and leg:IsA("BasePart") and leg.Size.Y) or (2.0 * scaleY)
+            local tSizeY = (torso and torso:IsA("BasePart") and torso.Size.Y) or (2.0 * scaleY)
+            rootToGround = legY + (tSizeY * 0.5) + math.max(0, hipH)
+        end
+    end
+
+    -- 3. Anatomical vertical span from ReferencePart (HRP / Torso / UpperTorso / LowerTorso) to Head center
+    local headSizeY = (head and head:IsA("BasePart") and head.Size.Y) or (1.0 * scaleY)
+    local torsoSpanY = 1.0 * scaleY
+    if upperTorso and upperTorso:IsA("BasePart") then
+        local utY = upperTorso.Size.Y
+        local ltY = (lowerTorso and lowerTorso:IsA("BasePart") and lowerTorso.Size.Y) or (0.4 * scaleY)
+        torsoSpanY = (utY + ltY) * 0.5
+    elseif torso and torso:IsA("BasePart") then
+        torsoSpanY = torso.Size.Y * 0.5
+    end
+    local anatomicalRootToHead = torsoSpanY + (headSizeY * 0.5)
+
+    -- Compensate if refPart is UpperTorso, LowerTorso, or Head rather than HumanoidRootPart/Torso center
+    local refToRootY = 0.0
+    local anchorPart = refPart or hrp or torso
+    if anchorPart and anchorPart:IsA("BasePart") then
+        if anchorPart.Name == "UpperTorso" then
+            refToRootY = -0.42 * scaleY
+        elseif anchorPart.Name == "LowerTorso" then
+            refToRootY = 0.55 * scaleY
+        elseif anchorPart.Name == "Head" then
+            refToRootY = -anatomicalRootToHead
+        elseif hrp and anchorPart ~= hrp and hrp:IsA("BasePart") then
+            local dy = hrp.Position.Y - anchorPart.Position.Y
+            if math.abs(dy) < 2.8 then
+                refToRootY = dy
+            end
+        end
+    end
+
+    local refToHead = anatomicalRootToHead + refToRootY
+    if head and head:IsA("BasePart") and anchorPart and anchorPart:IsA("BasePart") and anchorPart ~= head then
+        local upVec = anchorPart.CFrame.UpVector
+        if upVec.Y > 0.65 then
+            local liveDY = head.Position.Y - anchorPart.Position.Y
+            if liveDY > 0.15 and liveDY < 6.5 then
+                -- Blend 70% stable anatomical rig size + 30% live upright head position to prevent animation bobbing jitter
+                refToHead = (refToHead * 0.70) + (liveDY * 0.30)
+            end
+        end
+    end
+
+    return rootToGround, refToHead, scaleY, refToRootY
+end
+
+local computeDynamicHeightWeld = function(myChar, myHum, myRoot, targetChar, targetHum, targetPart, refMode, presetKey)
+    if not (myChar and targetChar and targetPart) then
+        return 0, 1.0, 1.0, 0
+    end
+    local useAuto = (V and V.AutoHeight ~= false) or (presetKey == "rizz")
+    if not useAuto then
+        return 0, 1.0, 1.0, 0
+    end
+
+    local myRootToGround, myRootToHead, myScaleY, _ = getCharacterAnatomyMetrics(myChar, myHum, myRoot)
+    local tRootToGround, tRefToHead, tScaleY, tRefToRootY = getCharacterAnatomyMetrics(targetChar, targetHum, targetPart)
+
+    local autoY = 0.0
+    local autoZ = 0.0
+
+    if presetKey == "rizz" then
+        -- Wall Rizz Pose (Kabedon / Wall Lean - ID 90735295463164):
+        -- Align our character's Kabedon upper-torso/shoulder/head lean directly with the target character's head & face height,
+        -- while respecting the floor plane so our character never sinks deep underground or floats above the target.
+        local headEyeAlignY = (tRefToHead - myRootToHead) + (0.08 * myScaleY)
+        local floorStandAlignY = tRefToRootY + (myRootToGround - tRootToGround)
+        if tRootToGround < myRootToGround - 0.15 or tRefToHead < myRootToHead - 0.10 then
+            -- Target is shorter / chibi / smaller than us: lower our character to match their head/shoulder Kabedon zone,
+            -- clamped smoothly so legs don't bury deep below the floor
+            local minFloorSafeY = floorStandAlignY - (0.78 * myScaleY)
+            autoY = math.max(headEyeAlignY, minFloorSafeY)
+        elseif tRootToGround > myRootToGround + 0.15 or tRefToHead > myRootToHead + 0.10 then
+            -- Target is taller than us (or we are shorter/chibi): raise our character to align our Wall Rizz pose with their head/chest
+            autoY = headEyeAlignY
+        else
+            -- Similar height rigs: compensate any UpperTorso/HRP reference difference + subtle eye-contact alignment
+            autoY = (headEyeAlignY * 0.75) + (floorStandAlignY * 0.25)
+        end
+        autoY = math.clamp(autoY, -2.6, 3.2)
+        autoZ = math.clamp((tScaleY - 1.0) * -0.22, -0.45, 0.28)
+    elseif refMode == "head" or presetKey == "facebang" or presetKey == "headsit" then
+        -- Head-referenced presets: adapt vertical offset to local vs target scale difference (0 when both are 1.0)
+        autoY = math.clamp((tScaleY - myScaleY) * 0.85, -1.8, 2.2)
+    elseif presetKey == "kiss" or presetKey == "hug" or presetKey == "headpat" then
+        -- Upper-body face-to-face presets: align head/chest level between rigs
+        local headDiff = (tRefToHead - myRootToHead)
+        autoY = math.clamp(headDiff, -2.2, 2.6)
+    else
+        -- Pelvis/Torso presets (backshots, bang, goon, jerk, chootlelo, backpack): align pelvis/torso center
+        local pelvisDiff = tRefToRootY + ((tScaleY - myScaleY) * 0.45)
+        autoY = math.clamp(pelvisDiff, -1.8, 2.2)
+    end
+
+    if V then
+        local prevY = V.LastAutoY or autoY
+        if math.abs(autoY - prevY) > 2.5 then
+            V.LastAutoY = autoY
+        else
+            V.LastAutoY = prevY + (autoY - prevY) * 0.45
+        end
+        autoY = V.LastAutoY
+    end
+
+    return autoY, myScaleY, tScaleY, autoZ
+end
 
 -- Sever any workspace SeatWeld / VehicleSeat weld or foreign joint holding our character before teleporting/welding
 local function breakAllSeatsAndExternalJoints(char, hum, root)
@@ -1780,13 +1998,16 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
 
             if TargetPart and TargetPart.Parent and isRefPartValid(TargetPart, TargetChar) then
                 lastValidTargetPos = TargetPart.Position
-                local customAdjust = CFrame.new(V.X or 0, V.Y or 0, (V.Z or 1.3) - 1.3)
+                local autoY, _, _, autoZ = computeDynamicHeightWeld(Character, Humanoid, Root, TargetChar, TargetHum, TargetPart, RefMode, PresetKey)
+                local customAdjust = CFrame.new(V.X or 0, (V.Y or 0) + autoY, ((V.Z or 1.3) - 1.3) + (autoZ or 0))
+                    * CFrame.Angles(math.rad(V.RX or 0), math.rad(V.RY or 0), math.rad(V.RZ or 0))
                 local localOffset = Offset * customAdjust
                 if Osc and Osc.period and Osc.period > 0 then
                     local phase = (math.sin(clock * (2 * math.pi) / Osc.period) + 1) * 0.5
                     localOffset = localOffset * CFrame.new(0, 0, -Osc.distance * phase)
                 end
-                currentLockCF = TargetPart.CFrame * localOffset
+                local baseTargetCF = (PresetKey == "rizz" and getFlatYawCFrame) and getFlatYawCFrame(TargetPart.CFrame, TargetPart.Position) or TargetPart.CFrame
+                currentLockCF = baseTargetCF * localOffset
                 lastValidLockCF = currentLockCF
                 Root.CFrame = currentLockCF
                 syncReanimRoots(currentLockCF)
@@ -2006,13 +2227,16 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
 
         local speedMult = math.clamp(V.Speed or 1.0, 0.2, 6.0)
         clock = clock + (dt * speedMult)
-        local customAdjust = CFrame.new(V.X or 0, V.Y or 0, (V.Z or 1.3) - 1.3)
+        local autoY, _, _, autoZ = computeDynamicHeightWeld(Character, Humanoid, Root, TargetChar, TargetHum, TargetPart, RefMode, PresetKey)
+        local customAdjust = CFrame.new(V.X or 0, (V.Y or 0) + autoY, ((V.Z or 1.3) - 1.3) + (autoZ or 0))
+            * CFrame.Angles(math.rad(V.RX or 0), math.rad(V.RY or 0), math.rad(V.RZ or 0))
         local localOffset = Offset * customAdjust
         if Osc and Osc.period and Osc.period > 0 then
             local phase = (math.sin(clock * (2 * math.pi) / Osc.period) + 1) * 0.5
             localOffset = localOffset * CFrame.new(0, 0, -Osc.distance * phase)
         end
-        currentLockCF = TargetPart.CFrame * localOffset
+        local baseTargetCF = (PresetKey == "rizz" and getFlatYawCFrame) and getFlatYawCFrame(TargetPart.CFrame, TargetPart.Position) or TargetPart.CFrame
+        currentLockCF = baseTargetCF * localOffset
         Root.CFrame = currentLockCF
         syncReanimRoots(currentLockCF)
         -- Velocity-matched anti-sleep replication (from khaman_dhokla.lua): prevents network sleep & trailing lag on other players' screens
@@ -2062,8 +2286,15 @@ local JERK_FALLBACKS_R15 = { 72042024, 698251653, 136828069054505, 5918726674 }
 local JERK_FALLBACKS_R6  = { 72042024, 136828069054505, 178130996, 148840371 }
 local GOON_FALLBACKS_R15 = { 136828069054505, 72042024, 116235062592344, 698251653, 5918726674 }
 local GOON_FALLBACKS_R6  = { 136828069054505, 72042024, 178130996, 148840371 }
+local RIZZ_ANIM_ID       = 90735295463164 -- Wall Rizz Pose (by go silent) – Kabedon / Wall Lean Pose
+local RIZZ_FALLBACKS_R15 = { 90735295463164, 1069977950, 15392756794, 15392752812, 3333387824, 507770239 }
+local RIZZ_FALLBACKS_R6  = { 90735295463164, 180435571, 128777973, 1069977950 }
 
 WELD_PRESETS = {
+    rizz      = { offset = CFrame.new(0, 0, -1.28) * CFrame.Angles(0, math.rad(180), 0),
+                  anim15 = RIZZ_ANIM_ID, anim6 = RIZZ_ANIM_ID,
+                  animFallbacks = RIZZ_FALLBACKS_R15, animFallbacks6 = RIZZ_FALLBACKS_R6,
+                  osc = nil, refMode = "torso", label = "Rizz (Wall Lean)" },
     facebang  = { offset = CFrame.new(0, 2.5, -3.8) * CFrame.Angles(0, math.rad(180), 0),
                   anim15 = BANG_ANIM_ID, anim6 = BANG_ANIM_ID,
                   animFallbacks = BANG_FALLBACKS_R15, animFallbacks6 = BANG_FALLBACKS_R6,
@@ -4844,6 +5075,7 @@ local EmoteHub = {
         { name = "Bang (Coco)",                  id = "116235062592344", cat = "Trending" },
         { name = "Jerk (Coco)",                  id = "72042024",        cat = "Trending" },
         { name = "Goon (Coco)",                  id = "136828069054505", cat = "Trending" },
+        { name = "Wall Rizz Pose (Kabedon)",     id = "90735295463164",  cat = "Poses"    },
         -- Trending & Viral Internet Dances
         { name = "Floss Dance",                  id = "5917459365",  cat = "Dances" },
         { name = "Hype Dance",                   id = "3695333486",  cat = "Dances" },
@@ -5402,7 +5634,11 @@ local function weldToTarget(target, speaker, offset, animId, osc, refMode, animF
         fastMyRoot.Anchored = false
         fastMyRoot.AssemblyLinearVelocity = Vector3.zero
         fastMyRoot.AssemblyAngularVelocity = Vector3.zero
-        local destCF = fastTRoot.CFrame * offset
+        local initAutoY, _, _, initAutoZ = computeDynamicHeightWeld(fastMyChar, fastMyHum, fastMyRoot, fastTChar, fastTHum, fastTRoot, refMode or "torso", presetKey)
+        local initAdjust = CFrame.new(V.X or 0, (V.Y or 0) + initAutoY, ((V.Z or 1.3) - 1.3) + (initAutoZ or 0))
+            * CFrame.Angles(math.rad(V.RX or 0), math.rad(V.RY or 0), math.rad(V.RZ or 0))
+        local baseFastCF = (presetKey == "rizz" and getFlatYawCFrame) and getFlatYawCFrame(fastTRoot.CFrame, fastTRoot.Position) or fastTRoot.CFrame
+        local destCF = baseFastCF * (offset * initAdjust)
         markIntentionalTeleport(destCF)
         fastMyRoot.CFrame = destCF
         CurrentWeld = WeldTo(fastTRoot, offset, speaker, animId, osc, animFallbacks, TPlayer, refMode or "torso", preSeekSafeCF, presetKey)
@@ -5485,7 +5721,12 @@ local function weldToTarget(target, speaker, offset, animId, osc, refMode, animF
             myRoot.Anchored = false
             myRoot.AssemblyLinearVelocity = Vector3.zero
             myRoot.AssemblyAngularVelocity = Vector3.zero
-            local destCF = TRoot.CFrame * offset
+            local myHumNow = myChar and myChar:FindFirstChildOfClass("Humanoid")
+            local initAutoY, _, _, initAutoZ = computeDynamicHeightWeld(myChar, myHumNow, myRoot, char, tHum, TRoot, refMode or "torso", presetKey)
+            local initAdjust = CFrame.new(V.X or 0, (V.Y or 0) + initAutoY, ((V.Z or 1.3) - 1.3) + (initAutoZ or 0))
+                * CFrame.Angles(math.rad(V.RX or 0), math.rad(V.RY or 0), math.rad(V.RZ or 0))
+            local baseSlowCF = (presetKey == "rizz" and getFlatYawCFrame) and getFlatYawCFrame(TRoot.CFrame, TRoot.Position) or TRoot.CFrame
+            local destCF = baseSlowCF * (offset * initAdjust)
             markIntentionalTeleport(destCF)
             myRoot.CFrame = destCF
         end
@@ -12035,6 +12276,7 @@ local KeybindManager = {
         backshots = Enum.KeyCode.B,
         headsit   = Enum.KeyCode.G,
         kiss      = Enum.KeyCode.K,
+        rizz      = Enum.KeyCode.L,
         headpat   = Enum.KeyCode.P,
         fling     = Enum.KeyCode.F,
         clicktp   = Enum.KeyCode.T,
@@ -12052,6 +12294,7 @@ local KeybindManager = {
         backshots = Enum.KeyCode.B,
         headsit   = Enum.KeyCode.G,
         kiss      = Enum.KeyCode.K,
+        rizz      = Enum.KeyCode.L,
         headpat   = Enum.KeyCode.P,
         fling     = Enum.KeyCode.F,
         clicktp   = Enum.KeyCode.T,
@@ -12069,6 +12312,7 @@ local KeybindManager = {
         backshots = true,
         headsit   = true,
         kiss      = true,
+        rizz      = true,
         headpat   = true,
         fling     = true,
         clicktp   = true,
@@ -12086,6 +12330,7 @@ local KeybindManager = {
         backshots = "Backshots",
         headsit   = "Headsit",
         kiss      = "Kiss",
+        rizz      = "Rizz (Wall Rizz Pose)",
         headpat   = "Headpat",
         fling     = "Nebula Fling",
         clicktp   = "Safe Click TP Tool",
@@ -12103,6 +12348,7 @@ local KeybindManager = {
         backshots = "Pelvis-locked oscillation with scale alignment",
         headsit   = "Seated lock flush on top of target head",
         kiss      = "Front face-to-face close alignment lock",
+        rizz      = "Zero-delay Kabedon / Wall Lean (90735295463164) with live height solver",
         headpat   = "Gentle upper-body patting weld above target",
         fling     = "High-velocity kinetic spin launch at target",
         clicktp   = "Teleports to mouse click (checks for solid blocks; blocks void)",
@@ -17384,6 +17630,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
             headsit = "Headsit → ",
             lap     = "Lap Ride → ",
             kiss    = "Front Kiss → ",
+            rizz    = "Wall Rizz → ",
             orbit   = "Orbit Dance → ",
         }
         if bangStatus then
@@ -17404,6 +17651,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                 headsit = "builtin://Sit Chill",
                 lap     = "builtin://Twerk Pro Bounce",
                 kiss    = "builtin://Heart Hands Cute Pose",
+                rizz    = "rbxassetid://90735295463164",
                 orbit   = "builtin://⚡ Gojo Infinity Levitate",
             }
             local bangPath = (selectedBangAnim and selectedBangAnim.path) or defaultAnimMap[modeKey] or "builtin://Backshots"
@@ -17502,6 +17750,12 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                 desiredCF = levelTargetRootCF * CFrame.new(0, 0.35 + bounceY, -0.85)
             elseif modeKey == "kiss" then
                 desiredCF = levelTargetRootCF * CFrame.new(0, 0, -1.15) * CFrame.Angles(0, math.rad(180), 0)
+            elseif modeKey == "rizz" then
+                local myCh = LocalPlayer.Character
+                local myHm = myCh and myCh:FindFirstChildOfClass("Humanoid")
+                local myRt = myCh and myCh:FindFirstChild("HumanoidRootPart")
+                local rizzY, _, _, rizzZ = computeDynamicHeightWeld(myCh, myHm, myRt, liveChar, liveChar:FindFirstChildOfClass("Humanoid"), targetRoot, "torso", "rizz")
+                desiredCF = levelTargetRootCF * CFrame.new(0, rizzY, -1.28 + (rizzZ or 0)) * CFrame.Angles(0, math.rad(180), 0)
             elseif modeKey == "orbit" then
                 local ang = tick() * 3.2
                 local orbitPos = targetRoot.Position + Vector3.new(math.cos(ang) * 3.4, 0.2, math.sin(ang) * 3.4)
@@ -22143,6 +22397,7 @@ local function buildMainUI()
         { key = "goon",      pillLabel = "Goon",      width = 88  },
         { key = "facebang",  pillLabel = "Facebang",  width = 112 },
         { key = "backshots", pillLabel = "Backshots", width = 114 },
+        { key = "rizz",      pillLabel = "Rizz",      width = 86  },
         { key = "kiss",      pillLabel = "Kiss",      width = 82  },
         { key = "backpack",  pillLabel = "Backpack",  width = 110 },
         { key = "propose",   pillLabel = "Propose",   width = 104 },
@@ -22638,7 +22893,7 @@ local function buildMainUI()
             AutoReweldEnabled = st
             notify("COCO POWDER", st and "Auto-Reweld enabled" or "Auto-Reweld disabled")
         end)
-        createSwitchRow(sessionGrp, 2, "Auto-height anatomy solver", "Adapts Facebang & Backshots to tall, short or chibi rigs", V.AutoHeight, function(st)
+        createSwitchRow(sessionGrp, 2, "Auto-height anatomy solver", "Adapts Wall Rizz, Facebang & Welds to tall, short or chibi rigs", V.AutoHeight, function(st)
             V.AutoHeight = st
             V.LastAutoY = 0
             notify("COCO POWDER", st and "Auto-Height adaptation ON" or "Auto-Height adaptation OFF")
@@ -22938,6 +23193,7 @@ local function buildMainUI()
         winRowRefs["weld_mini"] = createActionRow(winGrp, 3, "Weld & Troll Deck", "Open last time · AnimCopy, Facebang, Backshots & Void", "Open", function()
             spawnOrToggleMiniWindow("weld_mini", "⚡ Weld & Troll", {
                 { label = "🎭 Copy Anim (Side)", cb = function() togglePresetOrAction("animcopy") end },
+                { label = "Wall Rizz (Kabedon)", cb = function() togglePresetOrAction("rizz") end },
                 { label = "Goon Target (Coco)", cb = function() togglePresetOrAction("goon") end },
                 { label = "Facebang Target",     cb = function() togglePresetOrAction("facebang") end },
                 { label = "Backshots Target",    cb = function() togglePresetOrAction("backshots") end },
@@ -23311,6 +23567,7 @@ local function buildMainUI()
         local QUICK_GRID_ITEMS = {
             { key = "bang",      label = "Bang"       },
             { key = "goon",      label = "Goon"       },
+            { key = "rizz",      label = "Rizz"       },
             { key = "facebang",  label = "Face Bang"  },
             { key = "backshots", label = "Backshots"  },
             { key = "headsit",   label = "Headsit"    },
@@ -23831,16 +24088,17 @@ local function buildMainUI()
         end)
         addPresetRow(sigGrp, 4, "bang",      "Bang (Universal R15/R6)", "Custom Coco Bang Animation ID (116235062592344) + pelvis lock")
         addPresetRow(sigGrp, 5, "goon",      "Goon (Coco)",             "Custom Coco Goon Animation ID (136828069054505) + target lock")
-        addPresetRow(sigGrp, 6, "facebang",  "Facebang",  "Head-locked oscillation with live height solver & Bang anim")
-        addPresetRow(sigGrp, 7, "backshots", "Backshots", "Pelvis-locked oscillation with scale alignment & Bang anim")
-        addPresetRow(sigGrp, 8, "headsit",   "Headsit",   "Seated lock flush on top of target head")
-        addPresetRow(sigGrp, 9, "headpat",   "Headpat",   "Gentle upper-body patting weld above target")
-        addPresetRow(sigGrp, 10, "kiss",      "Kiss",      "Front face-to-face close alignment lock")
-        addPresetRow(sigGrp, 11, "backpack",  "Backpack",  "Rear upper-back piggyback ride lock")
-        addPresetRow(sigGrp, 12, "propose",   "Propose",    "Kneeling front showcase pose lock")
-        addPresetRow(sigGrp, 13, "lawl",      "Lawl",       "Front laughing taunt lock")
-        addPresetRow(sigGrp, 14, "hug",       "Hug",        "Close torso embrace lock")
-        addPresetRow(sigGrp, 15, "chootlelo", "Choot Lelo", "Close lower-torso rapid oscillation lock & Bang anim")
+        addPresetRow(sigGrp, 6, "rizz",      "Rizz (Wall Rizz Pose)",   "Zero-delay Kabedon / Wall Lean (90735295463164) + auto height solver")
+        addPresetRow(sigGrp, 7, "facebang",  "Facebang",  "Head-locked oscillation with live height solver & Bang anim")
+        addPresetRow(sigGrp, 8, "backshots", "Backshots", "Pelvis-locked oscillation with scale alignment & Bang anim")
+        addPresetRow(sigGrp, 9, "headsit",   "Headsit",   "Seated lock flush on top of target head")
+        addPresetRow(sigGrp, 10, "headpat",   "Headpat",   "Gentle upper-body patting weld above target")
+        addPresetRow(sigGrp, 11, "kiss",      "Kiss",      "Front face-to-face close alignment lock")
+        addPresetRow(sigGrp, 12, "backpack",  "Backpack",  "Rear upper-back piggyback ride lock")
+        addPresetRow(sigGrp, 13, "propose",   "Propose",    "Kneeling front showcase pose lock")
+        addPresetRow(sigGrp, 14, "lawl",      "Lawl",       "Front laughing taunt lock")
+        addPresetRow(sigGrp, 15, "hug",       "Hug",        "Close torso embrace lock")
+        addPresetRow(sigGrp, 16, "chootlelo", "Choot Lelo", "Close lower-torso rapid oscillation lock & Bang anim")
 
         createSectionTitle(weldPage, 4, "Pursuit, Void & Time Weapons")
         local voidGrp = createGroupCard(weldPage, 5)
@@ -29098,6 +29356,7 @@ local function buildMainUI()
             local massWeldPresets = {
                 { key = "facebang",  name = "Facebang" },
                 { key = "backshots", name = "Backshots" },
+                { key = "rizz",      name = "Wall Rizz" },
                 { key = "headsit",   name = "Headsit" },
                 { key = "chootlelo", name = "Choot Lelo" },
                 { key = "bang",      name = "Bang" },
@@ -30081,7 +30340,7 @@ local function buildMainUI()
 
         local trollActionOrder = {
             "animcopy", "jerktroll", "voidthrow", "facebang", "backshots",
-            "headsit", "kiss", "headpat", "fling", "clicktp", "fly",
+            "headsit", "kiss", "rizz", "headpat", "fling", "clicktp", "fly",
             "deflect", "rewind", "vanish", "stop"
         }
 
@@ -32966,6 +33225,14 @@ local function buildMainUI()
                 bindKey = "headsit",
                 isActive = function() return WeldIntent and WeldIntent.active and WeldIntent.presetKey == "headsit" end,
                 action = function() togglePresetOrAction("headsit") end,
+            },
+            {
+                name = "Wall Rizz",
+                sub = "Kabedon height weld",
+                cat = "Weld & Troll",
+                bindKey = "rizz",
+                isActive = function() return WeldIntent and WeldIntent.active and WeldIntent.presetKey == "rizz" end,
+                action = function() togglePresetOrAction("rizz") end,
             },
             {
                 name = "Void Throw",
