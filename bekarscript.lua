@@ -67,8 +67,8 @@ local PREMIUM_USERS = {
         "kaun_bhai",
         "retreee_yawrrr",
         "Armaan_lulla",
-        "BUNDBAAZz_COCACOLA",
-        "cocacola",
+        "shivyy7711",
+        "apkadeewana",
     },
 }
 
@@ -1166,31 +1166,97 @@ local markIntentionalTeleport
 local isRefPartValid
 local isCharacterNetlessReanimated
 local findTargetReanimModel
+local isLocalCharAliveOrReanimated
+local isValidTargetWorldCF
+
+local function isPartInSafeWorldBounds(p)
+    if not (p and p.Parent and p:IsA("BasePart")) then return false, nil end
+    local okCF, cf = pcall(function() return p.CFrame end)
+    if not okCF or not cf then return false, nil end
+    local pos = cf.Position
+    if pos.X ~= pos.X or pos.Y ~= pos.Y or pos.Z ~= pos.Z then return false, nil end
+    if pos.Magnitude > 45000 then return false, nil end
+    if pos.Y > 2200 or math.abs(pos.Y - 85000) < 8000 then return false, nil end
+    local hardFloor = (OriginalFPDH and (OriginalFPDH - 25)) or -600
+    if pos.Y <= math.min(hardFloor, -105) then return false, nil end
+    local okV, vel = pcall(function() return p.AssemblyLinearVelocity end)
+    if okV and vel and vel.Magnitude > 500 then return false, nil end
+    local okAV, avel = pcall(function() return p.AssemblyAngularVelocity end)
+    if okAV and avel and avel.Magnitude > 250 then return false, nil end
+    return true, pos
+end
+
+isValidTargetWorldCF = function(cf)
+    if not cf then return false end
+    local pos = cf.Position
+    if pos.X ~= pos.X or pos.Y ~= pos.Y or pos.Z ~= pos.Z then return false end
+    if pos.Magnitude < 0.5 or pos.Magnitude > 45000 then return false end
+    if pos.Y > 2200 or math.abs(pos.Y - 85000) < 8000 then return false end
+    local hardFloor = (OriginalFPDH and (OriginalFPDH - 25)) or -600
+    if pos.Y <= math.min(hardFloor, -105) then return false end
+    if isLethalVoidCF and isLethalVoidCF(cf) then return false end
+    return true
+end
+
+isLocalCharAliveOrReanimated = function(char, hum)
+    char = char or (LP and LP.Character)
+    if not (char and char.Parent) then return false end
+    hum = hum or char:FindFirstChildOfClass("Humanoid")
+    if hum and hum.Health > 0 then return true end
+    if (_G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated) == "function" and _G._AngoorZenApi.is_reanimated())
+        or (_G.CocaSkyDestroyer and (_G.CocaSkyDestroyer.isAnyActive() or _G.CocaSkyDestroyer.is_reanimated()))
+        or (moveState and moveState.Vanish and moveState.Vanish.selfActive) then
+        return true
+    end
+    if isCharacterNetlessReanimated and isCharacterNetlessReanimated(char) then
+        return true
+    end
+    return false
+end
 
 isRefPartValid = function(part, char)
-    if not (part and part.Parent and part:IsA("BasePart")) then return false end
+    local okBounds, pos = isPartInSafeWorldBounds(part)
+    if not okBounds or not pos then return false end
     if char and not part:IsDescendantOf(char) then return false end
-    local okCF, cf = pcall(function() return part.CFrame end)
-    if not okCF or not cf then return false end
-    local pos = cf.Position
-    -- NaN / Infinite coordinates rejection
-    if pos.X ~= pos.X or pos.Y ~= pos.Y or pos.Z ~= pos.Z then return false end
-    if pos.Magnitude > 100000 then return false end
-    -- Sky pocket rejection: FE Invisibility & Vanish place RootPart at Y=85000 or Y > 4000
-    if pos.Y > 4000 then return false end
-    -- Lethal void / underground bury pocket rejection
-    local hardFloor = (OriginalFPDH and (OriginalFPDH - 25)) or -600
-    if pos.Y <= math.min(hardFloor, -150) then return false end
-    -- Extreme spin / fling velocity rejection (fling reanimations)
-    local okV, vel = pcall(function() return part.AssemblyLinearVelocity end)
-    if okV and vel and vel.Magnitude > 1200 then return false end
-    -- Desynced RootPart rejection: If this is HumanoidRootPart, check distance to Torso/Head
-    if part.Name == "HumanoidRootPart" and char then
-        local torso = char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso") or char:FindFirstChild("Head")
-        if torso and torso:IsA("BasePart") then
-            local okTP, tPos = pcall(function() return torso.Position end)
-            if okTP and tPos and (pos - tPos).Magnitude > 14 then
-                return false -- Root is desynced for Invisibility / Fling Reanim!
+
+    if char then
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        local upper = char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso")
+        local head = char:FindFirstChild("Head")
+        local okUpper, upperPos = isPartInSafeWorldBounds(upper)
+        local okHead, headPos = isPartInSafeWorldBounds(head)
+
+        -- 1. Desynced HumanoidRootPart / LowerTorso rejection (FE Invisibility, Seat-Invis, Waist-Break & Netless Reanim)
+        if part.Name == "HumanoidRootPart" or part.Name == "LowerTorso" then
+            -- During Permanent Death Reanimation (Health <= 0), never trust HumanoidRootPart if Torso/UpperTorso/Head is valid!
+            if part.Name == "HumanoidRootPart" and hum and hum.Health <= 0 and (okUpper or okHead) then
+                return false
+            end
+            if okUpper and (pos - upperPos).Magnitude > 4.5 then
+                return false -- Root/LowerTorso is desynced from UpperTorso/Torso!
+            end
+            if okHead and (pos - headPos).Magnitude > 6.0 then
+                return false -- Root/LowerTorso is desynced from Head!
+            end
+            -- Check if RootJoint / Root Motor6D was broken or disabled by FE Invisibility
+            if part.Name == "HumanoidRootPart" and (okUpper or okHead) then
+                local refBodyPos = (okUpper and upperPos) or headPos
+                local rootJoint = part:FindFirstChild("RootJoint") or part:FindFirstChild("Root")
+                    or (upper and (upper:FindFirstChild("RootJoint") or upper:FindFirstChild("Root")))
+                if rootJoint and rootJoint:IsA("Motor6D") and not rootJoint.Enabled and (pos - refBodyPos).Magnitude > 1.8 then
+                    return false
+                end
+            end
+        end
+
+        -- 2. Fling-Torso rejection: some netless reanim scripts spin/fling Torso while Head remains at real position
+        if (part.Name == "Torso" or part.Name == "UpperTorso") and okHead then
+            if (pos - headPos).Magnitude > 7.0 then
+                local okAV, avel = pcall(function() return part.AssemblyAngularVelocity end)
+                local okV, vel = pcall(function() return part.AssemblyLinearVelocity end)
+                if part.Transparency >= 0.9 or (okAV and avel and avel.Magnitude > 80) or (okV and vel and vel.Magnitude > 160) then
+                    return false
+                end
             end
         end
     end
@@ -1199,18 +1265,19 @@ end
 
 isCharacterNetlessReanimated = function(char)
     if not (char and char.Parent) then return false end
-    local torso = char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso") or char:FindFirstChild("Head") or char.PrimaryPart
-    if not (torso and torso:IsA("BasePart")) then return false end
-    local okCF, cf = pcall(function() return torso.CFrame end)
-    if not okCF or not cf then return false end
-    local pos = cf.Position
-    if pos.X ~= pos.X or pos.Y ~= pos.Y or pos.Z ~= pos.Z or pos.Magnitude > 100000 then return false end
-    local hardFloor = (OriginalFPDH and (OriginalFPDH - 25)) or -600
-    if pos.Y <= math.min(hardFloor, -150) or pos.Y > 4000 then return false end
-    local okV, vel = pcall(function() return torso.AssemblyLinearVelocity end)
-    local tVel = (okV and vel) or Vector3.zero
-    if isLethalVoidCF and isLethalVoidCF(cf, tVel) then return false end
-    return true
+    local cands = {
+        char:FindFirstChild("UpperTorso"),
+        char:FindFirstChild("Torso"),
+        char:FindFirstChild("Head"),
+        char:FindFirstChild("LowerTorso"),
+        char.PrimaryPart,
+    }
+    for _, part in ipairs(cands) do
+        if part and part:IsA("BasePart") and isRefPartValid(part, char) then
+            return true
+        end
+    end
+    return false
 end
 
 findTargetReanimModel = function(targetPlr)
@@ -1228,6 +1295,7 @@ findTargetReanimModel = function(targetPlr)
     end
 
     local tName = targetPlr.Name
+    local tDisp = targetPlr.DisplayName or tName
     local candidates = {
         tName .. "_Fake",
         tName .. " Reanimation",
@@ -1236,33 +1304,43 @@ findTargetReanimModel = function(targetPlr)
         tName .. "_Clone",
         tName .. " Dummy",
         tName .. "_Ghost",
+        tDisp .. "_Fake",
+        tDisp .. "_Clone",
         "CocoVanishGhost",
         "CocaReanimation",
         "AngoorReanimation",
     }
+    local origChar = targetPlr.Character
+    local function matchesTargetIdentity(m, ref)
+        if not origChar then return true end
+        local origBody = origChar:FindFirstChild("UpperTorso") or origChar:FindFirstChild("Torso") or origChar:FindFirstChild("Head")
+        if origBody and origBody:IsA("BasePart") then
+            local okB, bPos = isPartInSafeWorldBounds(origBody)
+            if okB and bPos and (ref.Position - bPos).Magnitude < 40 then
+                return true
+            end
+        end
+        for _, acc in ipairs(origChar:GetChildren()) do
+            if acc:IsA("Accessory") and m:FindFirstChild(acc.Name) then
+                return true
+            end
+        end
+        local origShirt = origChar:FindFirstChildOfClass("Shirt")
+        local mShirt = m:FindFirstChildOfClass("Shirt")
+        if origShirt and mShirt and origShirt.ShirtTemplate ~= "" and origShirt.ShirtTemplate == mShirt.ShirtTemplate then
+            return true
+        end
+        return false
+    end
+
     for _, cName in ipairs(candidates) do
         local m = workspace:FindFirstChild(cName) or (workspace.CurrentCamera and workspace.CurrentCamera:FindFirstChild(cName))
         if m and m:IsA("Model") and m ~= LP.Character then
-            local ref = m:FindFirstChild("Torso") or m:FindFirstChild("UpperTorso") or m:FindFirstChild("HumanoidRootPart") or m:FindFirstChild("Head") or m.PrimaryPart
+            local ref = m:FindFirstChild("UpperTorso") or m:FindFirstChild("Torso") or m:FindFirstChild("Head") or m:FindFirstChild("HumanoidRootPart") or m.PrimaryPart
             if ref and ref:IsA("BasePart") and isRefPartValid(ref, m) then
                 if cName == "CocaReanimation" or cName == "AngoorReanimation" or cName == "CocoVanishGhost" then
-                    local origChar = targetPlr.Character
-                    local origTorso = origChar and (origChar:FindFirstChild("Torso") or origChar:FindFirstChild("UpperTorso") or origChar:FindFirstChild("Head"))
-                    if origTorso and origTorso:IsA("BasePart") then
-                        if (ref.Position - origTorso.Position).Magnitude < 35 then
-                            return m
-                        end
-                    else
-                        local matchAcc = false
-                        if origChar then
-                            for _, acc in ipairs(origChar:GetChildren()) do
-                                if acc:IsA("Accessory") and m:FindFirstChild(acc.Name) then
-                                    matchAcc = true
-                                    break
-                                end
-                            end
-                        end
-                        if matchAcc then return m end
+                    if matchesTargetIdentity(m, ref) then
+                        return m
                     end
                 else
                     return m
@@ -1273,7 +1351,7 @@ findTargetReanimModel = function(targetPlr)
 
     local direct = workspace:FindFirstChild(tName)
     if direct and direct:IsA("Model") and direct ~= LP.Character and direct ~= targetPlr.Character then
-        local ref = direct:FindFirstChild("Torso") or direct:FindFirstChild("UpperTorso") or direct:FindFirstChild("HumanoidRootPart") or direct:FindFirstChild("Head") or direct.PrimaryPart
+        local ref = direct:FindFirstChild("UpperTorso") or direct:FindFirstChild("Torso") or direct:FindFirstChild("Head") or direct:FindFirstChild("HumanoidRootPart") or direct.PrimaryPart
         if ref and ref:IsA("BasePart") and isRefPartValid(ref, direct) then
             return direct
         end
@@ -1283,9 +1361,31 @@ findTargetReanimModel = function(targetPlr)
         local f = workspace:FindFirstChild(fName)
         local found = f and f:FindFirstChild(tName)
         if found and found:IsA("Model") and found ~= LP.Character and found ~= targetPlr.Character then
-            local ref = found:FindFirstChild("Torso") or found:FindFirstChild("UpperTorso") or found:FindFirstChild("HumanoidRootPart") or found:FindFirstChild("Head") or found.PrimaryPart
+            local ref = found:FindFirstChild("UpperTorso") or found:FindFirstChild("Torso") or found:FindFirstChild("Head") or found:FindFirstChild("HumanoidRootPart") or found.PrimaryPart
             if ref and ref:IsA("BasePart") and isRefPartValid(ref, found) then
                 return found
+            end
+        end
+    end
+
+    -- Fallback scan inside workspace.CurrentCamera or workspace for custom-named reanim/invis clones matching accessories/clothing
+    if origChar then
+        local origHum = origChar:FindFirstChildOfClass("Humanoid")
+        local origHRP = origChar:FindFirstChild("HumanoidRootPart")
+        local needsCloneScan = (origHum and origHum.Health <= 0) or (not origHRP) or (not isRefPartValid(origHRP, origChar))
+        if needsCloneScan then
+            local containers = { workspace.CurrentCamera, workspace }
+            for _, cont in ipairs(containers) do
+                if cont then
+                    for _, child in ipairs(cont:GetChildren()) do
+                        if child:IsA("Model") and child ~= LP.Character and child ~= origChar and not Players:GetPlayerFromCharacter(child) then
+                            local ref = child:FindFirstChild("UpperTorso") or child:FindFirstChild("Torso") or child:FindFirstChild("Head")
+                            if ref and ref:IsA("BasePart") and isRefPartValid(ref, child) and matchesTargetIdentity(child, ref) then
+                                return child
+                            end
+                        end
+                    end
+                end
             end
         end
     end
@@ -1391,7 +1491,7 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
     if not Character then return nil end
     local Root = Character:FindFirstChild("HumanoidRootPart") or Character:FindFirstChildWhichIsA("BasePart")
     local Humanoid = Character:FindFirstChildWhichIsA("Humanoid")
-    if not Root or not Humanoid or Humanoid.Health <= 0 then return nil end
+    if not Root or not Humanoid or not isLocalCharAliveOrReanimated(Character, Humanoid) then return nil end
 
     -- Stop Coca Reanim's standalone Bang lock if active so the two loops never fight over Root.CFrame
     if type(_G.stopCocaBangLock) == "function" then
@@ -1607,23 +1707,79 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
         end
     end
 
+    local lastValidTargetPos = (TargetPart and isRefPartValid(TargetPart, TargetChar)) and TargetPart.Position or nil
+    local lastValidLockCF = nil
+
+    local function isSuspiciousInvisOrReanimJump(part, char, prevPos)
+        if not (part and part.Parent) then return true end
+        if not isRefPartValid(part, char) then return true end
+        local pos = part.Position
+        if prevPos then
+            local jumpDist = (pos - prevPos).Magnitude
+            if jumpDist > 165 then
+                -- Check if another body part (Torso/UpperTorso/Head) or reanim clone stayed near prevPos!
+                if char then
+                    for _, bName in ipairs({ "UpperTorso", "Torso", "Head" }) do
+                        local bp = char:FindFirstChild(bName)
+                        if bp and bp ~= part and bp:IsA("BasePart") and isRefPartValid(bp, char) then
+                            if (bp.Position - prevPos).Magnitude < 65 then
+                                return true -- Current part jumped away while real body stayed!
+                            end
+                        end
+                    end
+                end
+                local rModel = TargetPlayer and findTargetReanimModel(TargetPlayer)
+                if rModel and rModel ~= char then
+                    return true
+                end
+                -- Reject jumps into sky/underground/void pockets or invisible dump boxes
+                if pos.Y > 850 or pos.Y < -60 or pos.Magnitude > 14000 then
+                    return true
+                end
+                local head = char and char:FindFirstChild("Head")
+                local torso = char and (char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso"))
+                if (head and head:IsA("BasePart") and head.Transparency >= 0.95)
+                    and (torso and torso:IsA("BasePart") and torso.Transparency >= 0.95) then
+                    return true -- Target's real rig just turned invisible & teleported to a dump spot!
+                end
+            end
+        end
+        return false
+    end
+
     local function updateZeroDelayLockCF()
         if Weld.destroyed then return end
         if Root and Root.Parent then
-            -- Dynamically verify that TargetPart has not desynced, voided, or jumped to sky (FE Invis / Reanim)
-            if not isRefPartValid(TargetPart, TargetChar) then
+            -- Dynamically verify that TargetPart has not desynced, voided, or jumped to sky/invis dump (FE Invis / Reanim)
+            if isSuspiciousInvisOrReanimJump(TargetPart, TargetChar, lastValidTargetPos) then
                 local resolvedChar = (TargetPlayer and findPlayerCharacterAnywhere(TargetPlayer)) or TargetChar
                 if resolvedChar and resolvedChar ~= TargetChar then
                     TargetChar = resolvedChar
                     TargetHum  = resolvedChar:FindFirstChildOfClass("Humanoid")
                 end
                 local newPart = TargetChar and pickTargetRef(TargetChar, RefMode or "torso")
-                if newPart and isRefPartValid(newPart, TargetChar) then
+                if newPart and not isSuspiciousInvisOrReanimJump(newPart, TargetChar, lastValidTargetPos) then
                     TargetPart = newPart
+                else
+                    -- Target is mid-invisibility/reanim dump transition: clear ReplicationFocus/PhysicsRepRootPart and hold safe lock position!
+                    pcall(function() LP.ReplicationFocus = nil end)
+                    if sethiddenproperty then
+                        pcall(function() sethiddenproperty(Root, "PhysicsRepRootPart", nil) end)
+                        pcall(function() sethiddenproperty(Root, "PhysicsRepRootRef", nil) end)
+                    end
+                    if lastValidLockCF then
+                        currentLockCF = lastValidLockCF
+                        Root.CFrame = lastValidLockCF
+                        Root.AssemblyLinearVelocity = Vector3.zero
+                        Root.AssemblyAngularVelocity = Vector3.zero
+                        syncReanimRoots(lastValidLockCF)
+                    end
+                    return
                 end
             end
 
-            if TargetPart and TargetPart.Parent then
+            if TargetPart and TargetPart.Parent and isRefPartValid(TargetPart, TargetChar) then
+                lastValidTargetPos = TargetPart.Position
                 local customAdjust = CFrame.new(V.X or 0, V.Y or 0, (V.Z or 1.3) - 1.3)
                 local localOffset = Offset * customAdjust
                 if Osc and Osc.period and Osc.period > 0 then
@@ -1631,6 +1787,7 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
                     localOffset = localOffset * CFrame.new(0, 0, -Osc.distance * phase)
                 end
                 currentLockCF = TargetPart.CFrame * localOffset
+                lastValidLockCF = currentLockCF
                 Root.CFrame = currentLockCF
                 syncReanimRoots(currentLockCF)
             end
@@ -1638,8 +1795,9 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
     end
 
     -- Immediate Frame-0 Lock + Zero-Delay Network Replication Bind (0.00ms startup delay!)
-    if TargetPart and TargetPart.Parent and Root and Root.Parent then
-        local focusInit = (TargetChar and (TargetChar:FindFirstChild("HumanoidRootPart") or TargetPart)) or TargetPart
+    -- Always bind PhysicsRepRootPart & ReplicationFocus to the validated TargetPart (NEVER an unvalidated desynced HumanoidRootPart!)
+    if TargetPart and TargetPart.Parent and Root and Root.Parent and isRefPartValid(TargetPart, TargetChar) then
+        local focusInit = TargetPart
         pcall(function() LP.ReplicationFocus = focusInit end)
         if sethiddenproperty then
             pcall(function()
@@ -1673,7 +1831,7 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
 
     Conn = RunService.Heartbeat:Connect(function(dt)
         -- 1. Check if our own character died or respawned
-        if not Character.Parent or Character ~= LP.Character or not Root.Parent or not Humanoid.Parent or Humanoid.Health <= 0 then
+        if not Character.Parent or Character ~= LP.Character or not Root.Parent or not Humanoid.Parent or not isLocalCharAliveOrReanimated(Character, Humanoid) then
             Weld:Destroy(true)
             return
         end
@@ -1759,29 +1917,47 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
                     return
                 end
                 local newPart = newChar and pickTargetRef(newChar, RefMode or "torso")
-                if newPart and newPart.Parent and isRefPartValid(newPart, newChar) then
+                if newPart and newPart.Parent and not isSuspiciousInvisOrReanimJump(newPart, newChar, lastValidTargetPos) then
                     TargetChar = newChar
                     TargetHum  = newHum
                     TargetPart = newPart
                     missingFrames = 0
                 else
-                    -- Target is in an unstreamed hiding spot! Throttled stream request + CFrame follow
                     missingFrames = missingFrames + 1
-                    local hiddenCF = getBestTargetCFrame(TargetPlayer)
-                    if hiddenCF and not isLethalVoidCF(hiddenCF) then
-                        local now = tick()
-                        if now - lastStreamReq > 0.35 then
-                            lastStreamReq = now
-                            task.spawn(function()
-                                pcall(function() LP:RequestStreamAroundAsync(hiddenCF.Position, 1) end)
-                            end)
-                        end
-                        Root.CFrame = hiddenCF * Offset
-                        Root.AssemblyLinearVelocity = Vector3.zero
-                        Root.AssemblyAngularVelocity = Vector3.zero
-                        markIntentionalTeleport(Root.CFrame)
+                    pcall(function() LP.ReplicationFocus = nil end)
+                    if sethiddenproperty then
+                        pcall(function() sethiddenproperty(Root, "PhysicsRepRootPart", nil) end)
+                        pcall(function() sethiddenproperty(Root, "PhysicsRepRootRef", nil) end)
                     end
-                    if missingFrames > 120 then
+                    -- Distinguish truly unstreamed character (0 BaseParts in workspace) from FE Invisibility / Reanim dump (BaseParts exist but are in invalid sky/void/dump coords)!
+                    local hasStreamedParts = (newChar and newChar:FindFirstChildWhichIsA("BasePart", true) ~= nil)
+                    if hasStreamedParts then
+                        -- Target's character IS in workspace, just mid-invisibility or reanimation transition! Hold safe position in place so we NEVER teleport to another place!
+                        local holdCF = lastValidLockCF or currentLockCF or lastSafeCF
+                        if holdCF then
+                            Root.CFrame = holdCF
+                            Root.AssemblyLinearVelocity = Vector3.zero
+                            Root.AssemblyAngularVelocity = Vector3.zero
+                            syncReanimRoots(holdCF)
+                        end
+                    else
+                        -- Target is genuinely unstreamed; only follow if hiddenCF is a verified, non-dump world coordinate
+                        local hiddenCF = getBestTargetCFrame(TargetPlayer)
+                        if hiddenCF and isValidTargetWorldCF(hiddenCF) then
+                            local now = tick()
+                            if now - lastStreamReq > 0.35 then
+                                lastStreamReq = now
+                                task.spawn(function()
+                                    pcall(function() LP:RequestStreamAroundAsync(hiddenCF.Position, 1) end)
+                                end)
+                            end
+                            Root.CFrame = hiddenCF * Offset
+                            Root.AssemblyLinearVelocity = Vector3.zero
+                            Root.AssemblyAngularVelocity = Vector3.zero
+                            markIntentionalTeleport(Root.CFrame)
+                        end
+                    end
+                    if missingFrames > 180 then
                         Weld:Destroy(false)
                     end
                     return
@@ -1797,7 +1973,7 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
         -- 5. VOID PROTECTION: Only detach if the target is genuinely plummeting in the lethal void killzone
         local tVel = TargetPart.AssemblyLinearVelocity
         if isLethalVoidCF(TargetPart.CFrame, tVel) then
-            local altPart = TargetChar and (TargetChar:FindFirstChild("Torso") or TargetChar:FindFirstChild("UpperTorso") or TargetChar:FindFirstChild("Head"))
+            local altPart = TargetChar and (TargetChar:FindFirstChild("UpperTorso") or TargetChar:FindFirstChild("Torso") or TargetChar:FindFirstChild("Head"))
             if altPart and altPart ~= TargetPart and isRefPartValid(altPart, TargetChar) and not isLethalVoidCF(altPart.CFrame, altPart.AssemblyLinearVelocity) then
                 TargetPart = altPart
             else
@@ -1807,8 +1983,8 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
             end
         end
 
-        -- Keep server streaming focused on the target's root part so they never outrun our client stream
-        local focusPart = (TargetChar and (TargetChar:FindFirstChild("HumanoidRootPart") or TargetPart)) or TargetPart
+        -- Keep server streaming & PhysicsRepRootPart focused strictly on the validated TargetPart (NEVER an unvalidated desynced HumanoidRootPart!)
+        local focusPart = TargetPart
         pcall(function() LP.ReplicationFocus = focusPart end)
 
         -- Cache target location & update safe standing CFrame only when target is near stable ground
@@ -2028,13 +2204,20 @@ findPlayerCharacterAnywhere = function(plr, skipDeepSearch)
     return plr.Character
 end
 
--- Deep fallback reference part resolver with weak-table caching (zero repeated GetDescendants lag)
+-- Deep fallback reference part resolver with weak-table caching & instant FE Invis/Reanim root-desync immunity
 pickTargetRef = function(char, mode)
     if not char then return nil end
     local cacheKey = (mode == "head") and "head" or ((mode == "root") and "root" or "torso")
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    local isDeadOrReanim = (hum and hum.Health <= 0)
     local cEntry = TargetRefCache[char]
-    if cEntry and cEntry[cacheKey] and isRefPartValid(cEntry[cacheKey], char) then
-        return cEntry[cacheKey]
+    if cEntry and cEntry[cacheKey] then
+        local cachedPart = cEntry[cacheKey]
+        if isRefPartValid(cachedPart, char) and not (isDeadOrReanim and cachedPart.Name == "HumanoidRootPart") then
+            return cachedPart
+        else
+            cEntry[cacheKey] = nil
+        end
     end
     local resolved = nil
     if mode == "head" then
@@ -2051,36 +2234,38 @@ pickTargetRef = function(char, mode)
         end
     end
     if not resolved then
-        local hum = char:FindFirstChildOfClass("Humanoid")
         local hrp = char:FindFirstChild("HumanoidRootPart") or (hum and hum.RootPart)
-        -- Only use HumanoidRootPart if it is fully valid and not desynced/voided/sky-pocketed
-        if hrp and hrp:IsA("BasePart") and isRefPartValid(hrp, char) then
+        local torso = char:FindFirstChild("Torso")
+        local upperTorso = char:FindFirstChild("UpperTorso")
+        local lowerTorso = char:FindFirstChild("LowerTorso")
+        local head = char:FindFirstChild("Head")
+
+        local bodyAnchor = (torso and torso:IsA("BasePart") and isRefPartValid(torso, char) and torso)
+            or (upperTorso and upperTorso:IsA("BasePart") and isRefPartValid(upperTorso, char) and upperTorso)
+
+        -- Only use HumanoidRootPart if it is valid, character is not in 0-HP reanim state, and HRP is tightly aligned with Torso/UpperTorso
+        local hrpValid = (hrp and hrp:IsA("BasePart") and not isDeadOrReanim and isRefPartValid(hrp, char))
+        if hrpValid and bodyAnchor and (hrp.Position - bodyAnchor.Position).Magnitude > 3.2 then
+            hrpValid = false
+        end
+
+        if hrpValid then
             resolved = hrp
+        elseif bodyAnchor then
+            resolved = bodyAnchor
+        elseif head and head:IsA("BasePart") and isRefPartValid(head, char) then
+            resolved = head
+        elseif lowerTorso and lowerTorso:IsA("BasePart") and isRefPartValid(lowerTorso, char) then
+            resolved = lowerTorso
+        elseif char.PrimaryPart and char.PrimaryPart.Name ~= "HumanoidRootPart" and isRefPartValid(char.PrimaryPart, char) then
+            resolved = char.PrimaryPart
+        elseif hum and hum.SeatPart and hum.SeatPart:IsA("BasePart") and isRefPartValid(hum.SeatPart, char) then
+            resolved = hum.SeatPart
         else
-            -- RootPart was desynced (Invisibility / Reanimation) or missing!
-            -- Fallback to visible body parts: Torso -> UpperTorso -> LowerTorso -> Head -> PrimaryPart -> SeatPart
-            local torso = char:FindFirstChild("Torso")
-            local upperTorso = char:FindFirstChild("UpperTorso")
-            local lowerTorso = char:FindFirstChild("LowerTorso")
-            local head = char:FindFirstChild("Head")
-            if torso and torso:IsA("BasePart") and isRefPartValid(torso, char) then
-                resolved = torso
-            elseif upperTorso and upperTorso:IsA("BasePart") and isRefPartValid(upperTorso, char) then
-                resolved = upperTorso
-            elseif lowerTorso and lowerTorso:IsA("BasePart") and isRefPartValid(lowerTorso, char) then
-                resolved = lowerTorso
-            elseif head and head:IsA("BasePart") and isRefPartValid(head, char) then
-                resolved = head
-            elseif char.PrimaryPart and isRefPartValid(char.PrimaryPart, char) then
-                resolved = char.PrimaryPart
-            elseif hum and hum.SeatPart and hum.SeatPart:IsA("BasePart") and isRefPartValid(hum.SeatPart, char) then
-                resolved = hum.SeatPart
-            else
-                for _, desc in ipairs(char:GetDescendants()) do
-                    if desc:IsA("BasePart") and isRefPartValid(desc, char) then
-                        resolved = desc
-                        break
-                    end
+            for _, desc in ipairs(char:GetDescendants()) do
+                if desc:IsA("BasePart") and desc.Name ~= "HumanoidRootPart" and isRefPartValid(desc, char) then
+                    resolved = desc
+                    break
                 end
             end
         end
@@ -2101,9 +2286,9 @@ local function getVerifiedStreamedCFrame(plr)
     local char = findPlayerCharacterAnywhere(plr)
     if char and char.Parent then
         local part = pickTargetRef(char, "torso")
-        if part and part.Parent then
+        if part and part.Parent and isRefPartValid(part, char) then
             local cf = part.CFrame
-            if not isLethalVoidCF(cf, part.AssemblyLinearVelocity) then
+            if isValidTargetWorldCF(cf) then
                 PlayerLocationCache[plr.UserId] = { cf = cf, time = tick(), verified = true }
                 return cf
             end
@@ -2112,32 +2297,37 @@ local function getVerifiedStreamedCFrame(plr)
     return nil
 end
 
--- Resolve a player's CFrame even when their Character's BaseParts are 100% streamed out by StreamingEnabled! (from khaman_dhokla.lua)
+-- Resolve a player's CFrame even when their Character's BaseParts are 100% streamed out by StreamingEnabled!
+-- NEVER falls back to GetPivot()/WorldPivot when the character already has streamed BaseParts (prevents FE Invisibility / Reanim sky/void RootPart from poisoning cache!)
 getBestTargetCFrame = function(plr, skipDeepSearch)
     if not plr then return nil end
     local char = findPlayerCharacterAnywhere(plr, skipDeepSearch)
     if char then
         local part = pickTargetRef(char, "torso")
-        if part and part.Parent then
+        if part and part.Parent and isRefPartValid(part, char) then
             local cf = part.CFrame
-            if not isLethalVoidCF(cf, part.AssemblyLinearVelocity) then
+            if isValidTargetWorldCF(cf) then
                 PlayerLocationCache[plr.UserId] = { cf = cf, time = tick(), verified = true }
                 return cf
             end
         end
-        local okPivot, pivotCF = pcall(function() return char:GetPivot() end)
-        if okPivot and pivotCF and pivotCF.Position.Magnitude > 0.5 and not isLethalVoidCF(pivotCF) then
-            PlayerLocationCache[plr.UserId] = { cf = pivotCF, time = tick() }
-            return pivotCF
-        end
-        local okWP, wpCF = pcall(function() return char.WorldPivot end)
-        if okWP and wpCF and wpCF.Position.Magnitude > 0.5 and not isLethalVoidCF(wpCF) then
-            PlayerLocationCache[plr.UserId] = { cf = wpCF, time = tick() }
-            return wpCF
+        -- Only consult Model:GetPivot() / WorldPivot when StreamingEnabled has culled ALL BaseParts from char!
+        local hasAnyStreamedPart = (char:FindFirstChildWhichIsA("BasePart", true) ~= nil)
+        if not hasAnyStreamedPart then
+            local okPivot, pivotCF = pcall(function() return char:GetPivot() end)
+            if okPivot and pivotCF and isValidTargetWorldCF(pivotCF) then
+                PlayerLocationCache[plr.UserId] = { cf = pivotCF, time = tick() }
+                return pivotCF
+            end
+            local okWP, wpCF = pcall(function() return char.WorldPivot end)
+            if okWP and wpCF and isValidTargetWorldCF(wpCF) then
+                PlayerLocationCache[plr.UserId] = { cf = wpCF, time = tick() }
+                return wpCF
+            end
         end
     end
     local cached = PlayerLocationCache[plr.UserId]
-    if cached and cached.cf and not isLethalVoidCF(cached.cf) then
+    if cached and cached.cf and isValidTargetWorldCF(cached.cf) then
         return cached.cf
     end
     return nil
@@ -2279,22 +2469,27 @@ streamAndTeleportToTarget = function(targetPlr, refMode, maxWaitSeconds, allowSw
         return snapToFoundRef(tChar, tRef)
     end
 
-    -- Step 2: Sweep map points if explicitly requested and target still hasn't streamed in
-    if allowSweep and tChar and (isReanimMid or not (tHum and tHum.Health <= 0)) then
+    -- Step 2: Sweep map points ONLY if the target character has 0 streamed BaseParts in workspace (never sweep when target is reanimating or invisible in-place!)
+    local hasStreamedPartsNow = (tChar and tChar:FindFirstChildWhichIsA("BasePart", true) ~= nil)
+    if allowSweep and not hasStreamedPartsNow and not isReanimMid and (not tHum or tHum.Health > 0) then
         local probePoints = getServerSweepPoints and getServerSweepPoints() or {}
         for idx, probeCF in ipairs(probePoints) do
             if tick() - started > maxWaitSeconds or idx > 14 then break end
             if targetPlr.Parent ~= Players then break end
             tChar = findPlayerCharacterAnywhere(targetPlr)
             tHum  = tChar and tChar:FindFirstChildOfClass("Humanoid")
-            if tHum and tHum.Health <= 0 then break end
+            local isSweepReanim = (tChar and isCharacterNetlessReanimated(tChar)) or (findTargetReanimModel(targetPlr) ~= nil)
+            if (tHum and tHum.Health <= 0) and not isSweepReanim then break end
             tRef  = tChar and pickTargetRef(tChar, refMode or "torso")
             if tRef and tRef.Parent and not isLethalVoidCF(tRef.CFrame, tRef.AssemblyLinearVelocity) then
                 WeldSeekingTarget = prevSeeking
                 return snapToFoundRef(tChar, tRef)
             end
+            if tChar and tChar:FindFirstChildWhichIsA("BasePart", true) ~= nil then
+                break
+            end
             local knownCF = getBestTargetCFrame(targetPlr)
-            local hopCF = (knownCF and not isLethalVoidCF(knownCF)) and knownCF or probeCF
+            local hopCF = (knownCF and isValidTargetWorldCF(knownCF)) and knownCF or probeCF
             if hopCF and isSafePlayableCF(hopCF) then
                 local now = tick()
                 if now - lastStreamCall > 0.22 then
@@ -2323,7 +2518,8 @@ streamAndTeleportToTarget = function(targetPlr, refMode, maxWaitSeconds, allowSw
     WeldSeekingTarget = prevSeeking
     tChar = findPlayerCharacterAnywhere(targetPlr)
     tHum  = tChar and tChar:FindFirstChildOfClass("Humanoid")
-    tRef  = (not (tHum and tHum.Health <= 0)) and tChar and pickTargetRef(tChar, refMode or "torso") or nil
+    local isEndReanim = (tChar and isCharacterNetlessReanimated(tChar)) or (findTargetReanimModel(targetPlr) ~= nil)
+    tRef  = (isEndReanim or not (tHum and tHum.Health <= 0)) and tChar and pickTargetRef(tChar, refMode or "torso") or nil
     if tRef and tRef.Parent and not isLethalVoidCF(tRef.CFrame, tRef.AssemblyLinearVelocity) then
         return snapToFoundRef(tChar, tRef)
     end
@@ -2700,7 +2896,23 @@ local getNearestPlayer
             return true
         end
 
-        -- 2. Shared rigid physics assembly (when CocoPowder is not welding)
+        -- 2. Friends & Whitelist Ignore Check (for Auto-Nearest & Pursuit)
+        if _G.CocoIgnoreFriends and speaker == LP then
+            if (_G.CocoTargetWhitelist and _G.CocoTargetWhitelist[p.UserId]) then
+                CarryCheckCache[cacheKey] = { t = now, v = true }
+                return true
+            end
+            local okFr, isFr = pcall(function() return LP:IsFriendsWith(p.UserId) end)
+            if okFr and isFr then
+                CarryCheckCache[cacheKey] = { t = now, v = true }
+                return true
+            end
+        elseif _G.CocoTargetWhitelist and _G.CocoTargetWhitelist[p.UserId] and speaker == LP then
+            CarryCheckCache[cacheKey] = { t = now, v = true }
+            return true
+        end
+
+        -- 3. Shared rigid physics assembly (when CocoPowder is not welding)
         local result = false
         if myRoot and tRoot and CurrentWeld == nil then
             local okAssy, sameAssy = pcall(function()
@@ -2787,27 +2999,51 @@ local function findPlayerByNameOrDisplay(query, speaker)
             return p
         end
     end
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= speaker and (p.Name:lower():find(q, 1, true) or p.DisplayName:lower():find(q, 1, true)) then
+            return p
+        end
+    end
     return nil
 end
 
 local WeldUsernameBoxRef = nil
 
 local function resolveActiveTarget()
-    -- 1. Check live text inside WeldUsernameBox on the Weld tab first
+    -- 1. If WeldUsernameBox is currently focused and the user is actively typing a valid player name, check it first
+    if WeldUsernameBoxRef and WeldUsernameBoxRef.Parent and WeldUsernameBoxRef:IsFocused() then
+        local rawFocused = (WeldUsernameBoxRef.Text or ""):gsub("^%s*@+%s*", ""):gsub("^%s+", ""):gsub("%s+$", "")
+        if rawFocused ~= "" then
+            local byFocused = findPlayerByNameOrDisplay(rawFocused, LP)
+            if byFocused and byFocused.Parent == Players and byFocused ~= LP then
+                selectedPlayer = byFocused
+                CurrentTarget = byFocused
+                return byFocused, false
+            end
+        end
+    end
+    -- 2. Prioritize explicitly locked selectedPlayer from Target tab / Quick List (never blocked by stale textbox state!)
+    if selectedPlayer and selectedPlayer.Parent == Players and selectedPlayer ~= LP then
+        return selectedPlayer, false
+    end
+    -- 3. Check live text inside WeldUsernameBox on the Weld tab
     if WeldUsernameBoxRef and WeldUsernameBoxRef.Parent then
         local rawBox = (WeldUsernameBoxRef.Text or ""):gsub("^%s*@+%s*", ""):gsub("^%s+", ""):gsub("%s+$", "")
         if rawBox ~= "" then
             local byBox = findPlayerByNameOrDisplay(rawBox, LP)
             if byBox and byBox.Parent == Players and byBox ~= LP then
+                selectedPlayer = byBox
+                CurrentTarget = byBox
                 return byBox, false
             end
         end
     end
-    -- 2. Check explicitly locked selectedPlayer from Target tab (never skip an explicitly selected target!)
-    if selectedPlayer and selectedPlayer.Parent == Players and selectedPlayer ~= LP then
-        return selectedPlayer, false
+    -- 4. Check CurrentTarget / WeldIntent.target if still in server
+    if CurrentTarget and CurrentTarget.Parent == Players and CurrentTarget ~= LP and WeldIntent.typedUsername ~= "" then
+        selectedPlayer = CurrentTarget
+        return CurrentTarget, false
     end
-    -- 3. Check Chat tab target input if non-empty
+    -- 5. Check Chat tab target input if non-empty
     if chatTargetInput and chatTargetInput.Parent then
         local typed = (chatTargetInput.Text or ""):gsub("^%s*@+%s*", ""):gsub("^%s+", ""):gsub("%s+$", "")
         if typed ~= "" then
@@ -2817,7 +3053,7 @@ local function resolveActiveTarget()
             end
         end
     end
-    -- 4. Auto-Nearest Player fallback
+    -- 6. Auto-Nearest Player fallback
     local nearest = getNearestPlayer(LP)
     return nearest, true
 end
@@ -2979,7 +3215,28 @@ local EmoteHub = {
             return CFrame.fromMatrix(worldPos, rightVec, Vector3.yAxis, -toTarget)
         else -- "right" (default side-by-side)
             local worldPos = basePos + (flatRight * (dist + extraX)) - (flatLook * extraZ)
-            return CFrame.fromMatrix(worldPos, flatRight, Vector3.yAxis, -flatLook)
+            local outCF = CFrame.fromMatrix(worldPos, flatRight, Vector3.yAxis, -flatLook)
+            if AnimCopySys and AnimCopySys.spinMode then
+                return outCF * CFrame.Angles(0, (os.clock() * 6.0) % (math.pi * 2), 0)
+            elseif AnimCopySys and AnimCopySys.rotationOffsetDeg and AnimCopySys.rotationOffsetDeg ~= 0 then
+                return outCF * CFrame.Angles(0, math.rad(AnimCopySys.rotationOffsetDeg), 0)
+            end
+            return outCF
+        end
+    end
+
+    -- Wrap computeExactSideBySideCF to apply custom RY rotation offset or 360 spin to all modes (left/front/back/above/orbit/right)
+    do
+        local rawComputeCF = computeExactSideBySideCF
+        computeExactSideBySideCF = function(tRoot, myHum, tHum, mode, dist)
+            local cf = rawComputeCF(tRoot, myHum, tHum, mode, dist)
+            if not cf or mode == "right" then return cf end
+            if AnimCopySys and AnimCopySys.spinMode then
+                return cf * CFrame.Angles(0, (os.clock() * 6.0) % (math.pi * 2), 0)
+            elseif AnimCopySys and AnimCopySys.rotationOffsetDeg and AnimCopySys.rotationOffsetDeg ~= 0 then
+                return cf * CFrame.Angles(0, math.rad(AnimCopySys.rotationOffsetDeg), 0)
+            end
+            return cf
         end
     end
 
@@ -3494,7 +3751,7 @@ local EmoteHub = {
         local myChar = LP.Character
         local myRoot = myChar and (myChar:FindFirstChild("HumanoidRootPart") or myChar:FindFirstChildWhichIsA("BasePart"))
         local myHum  = myChar and myChar:FindFirstChildOfClass("Humanoid")
-        if not myChar or not myRoot or not myHum or myHum.Health <= 0 then
+        if not myChar or not myRoot or not myHum or not isLocalCharAliveOrReanimated(myChar, myHum) then
             notify("COCO POWDER", "Character not ready to copy animations!")
             sError()
             return false
@@ -3710,7 +3967,7 @@ local EmoteHub = {
             local c = LP.Character
             local root = c and (c:FindFirstChild("HumanoidRootPart") or c:FindFirstChildWhichIsA("BasePart"))
             local hum  = c and c:FindFirstChildOfClass("Humanoid")
-            if not c or not root or not hum or hum.Health <= 0 then
+            if not c or not root or not hum or not isLocalCharAliveOrReanimated(c, hum) then
                 local savedTgt = self.target
                 self:Stop(true)
                 if AutoReweldEnabled and savedTgt and savedTgt.Parent == Players then
@@ -3785,22 +4042,39 @@ local EmoteHub = {
                     if WeldIntent.refreshUI then pcall(WeldIntent.refreshUI) end
                 elseif self.sideMode ~= "free" then
                     self.missingFrames = (self.missingFrames or 0) + 1
-                    local hiddenCF = getBestTargetCFrame(self.target) or getTargetStreamHintCFrame(self.target)
-                    if hiddenCF and not isLethalVoidCF(hiddenCF) then
-                        local tNow = tick()
-                        if tNow - (self.lastStreamReq or 0) > 0.35 then
-                            self.lastStreamReq = tNow
-                            ensureStreamFocusAt(hiddenCF)
-                            task.spawn(function()
-                                pcall(function() LP:RequestStreamAroundAsync(hiddenCF.Position, 1.5) end)
-                            end)
+                    pcall(function() LP.ReplicationFocus = nil end)
+                    if sethiddenproperty then
+                        pcall(function() sethiddenproperty(root, "PhysicsRepRootPart", nil) end)
+                        pcall(function() sethiddenproperty(root, "PhysicsRepRootRef", nil) end)
+                    end
+                    local hasStreamedParts = (tc and tc:FindFirstChildWhichIsA("BasePart", true) ~= nil)
+                    if hasStreamedParts then
+                        -- Target is mid-invisibility or reanimation transition in workspace; hold current safe CFrame in place!
+                        local holdCF = self.currentLockCF or self.preCopySafeCF
+                        if holdCF then
+                            root.CFrame = holdCF
+                            root.AssemblyLinearVelocity = Vector3.zero
+                            root.AssemblyAngularVelocity = Vector3.zero
+                            syncAnimCopyReanimRoots(holdCF, root)
                         end
-                        local chaseCF = hiddenCF * CFrame.new(self.sideDistance or 3.2, 0, 0)
-                        self.currentLockCF = chaseCF
-                        root.CFrame = chaseCF
-                        root.AssemblyLinearVelocity = Vector3.zero
-                        root.AssemblyAngularVelocity = Vector3.zero
-                        markIntentionalTeleport(chaseCF)
+                    else
+                        local hiddenCF = getBestTargetCFrame(self.target) or getTargetStreamHintCFrame(self.target)
+                        if hiddenCF and isValidTargetWorldCF(hiddenCF) then
+                            local tNow = tick()
+                            if tNow - (self.lastStreamReq or 0) > 0.35 then
+                                self.lastStreamReq = tNow
+                                ensureStreamFocusAt(hiddenCF)
+                                task.spawn(function()
+                                    pcall(function() LP:RequestStreamAroundAsync(hiddenCF.Position, 1.5) end)
+                                end)
+                            end
+                            local chaseCF = hiddenCF * CFrame.new(self.sideDistance or 3.2, 0, 0)
+                            self.currentLockCF = chaseCF
+                            root.CFrame = chaseCF
+                            root.AssemblyLinearVelocity = Vector3.zero
+                            root.AssemblyAngularVelocity = Vector3.zero
+                            markIntentionalTeleport(chaseCF)
+                        end
                     end
                 end
                 if self.lastTargetAvailable > 0 and now - self.lastTargetAvailable > 1.25 then
@@ -3819,8 +4093,8 @@ local EmoteHub = {
                 return
             end
 
-            -- Keep server streaming focused on the target's root part
-            local focusPart = (tc and (tc:FindFirstChild("HumanoidRootPart") or tr)) or tr
+            -- Keep server streaming & PhysicsRepRootPart focused strictly on validated tr (never an unvalidated desynced HumanoidRootPart!)
+            local focusPart = tr
             pcall(function() LP.ReplicationFocus = focusPart end)
 
             -- Cache target location & update safe standing CFrame
@@ -4689,11 +4963,11 @@ local function weldToTarget(target, speaker, offset, animId, osc, refMode, animF
     local fastMyChar = speaker and speaker.Character
     local fastMyRoot = fastMyChar and (fastMyChar:FindFirstChild("HumanoidRootPart") or fastMyChar:FindFirstChildWhichIsA("BasePart"))
     local fastMyHum  = fastMyChar and fastMyChar:FindFirstChildOfClass("Humanoid")
-    local fastTChar  = findPlayerCharacterAnywhere(TPlayer, true)
+    local fastTChar  = findPlayerCharacterAnywhere(TPlayer, false)
     local fastTHum   = fastTChar and fastTChar:FindFirstChildOfClass("Humanoid")
     local isFastTReanim = (fastTChar and isCharacterNetlessReanimated(fastTChar)) or (findTargetReanimModel(TPlayer) ~= nil)
     local fastTRoot  = (isFastTReanim or not (fastTHum and fastTHum.Health <= 0)) and fastTChar and pickTargetRef(fastTChar, refMode or "torso") or nil
-    if fastMyChar and fastMyRoot and fastMyHum and fastMyHum.Health > 0 and fastTRoot and fastTRoot.Parent and not isLethalVoidCF(fastTRoot.CFrame, fastTRoot.AssemblyLinearVelocity) then
+    if fastMyChar and fastMyRoot and isLocalCharAliveOrReanimated(fastMyChar, fastMyHum) and fastTRoot and fastTRoot.Parent and not isLethalVoidCF(fastTRoot.CFrame, fastTRoot.AssemblyLinearVelocity) then
         pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
         RescueGeneration = RescueGeneration + 1
         local preSeekSafeCF = isSafePlayableCF(fastMyRoot.CFrame) and fastMyRoot.CFrame or LastKnownSafeCF or findFallbackSafeCF()
@@ -4848,7 +5122,8 @@ applyWeldPreset = function(presetKey, target, callerGen)
     LastWeldTargetUserId = TPlayer.UserId
 
     local r15 = isR15(LP)
-    local anim = r15 and preset.anim15 or preset.anim6
+    local customAnim = (V and V.CustomWeldAnimId and tonumber(V.CustomWeldAnimId)) or nil
+    local anim = customAnim or (r15 and preset.anim15 or preset.anim6)
     local fallbacks = r15 and (preset.animFallbacks15 or preset.animFallbacks) or (preset.animFallbacks6 or preset.animFallbacks)
     local ok = weldToTarget(TPlayer, LP, preset.offset, anim, preset.osc, preset.refMode, fallbacks, myGen, presetKey)
     return ok
@@ -4974,17 +5249,19 @@ task.spawn(function()
                     local myChar = LP.Character
                     local myRoot = myChar and (myChar:FindFirstChild("HumanoidRootPart") or myChar:FindFirstChildWhichIsA("BasePart"))
                     local myHum  = myChar and myChar:FindFirstChildOfClass("Humanoid")
-                    if myRoot and myHum and myHum.Health > 0 then
+                    if myRoot and isLocalCharAliveOrReanimated(myChar, myHum) then
                         reweldWatchdogBusy = true
                         pcall(function()
                             local quickChar = findPlayerCharacterAnywhere(tgt)
                             local quickHum = quickChar and quickChar:FindFirstChildOfClass("Humanoid")
-                            if quickHum and quickHum.Health <= 0 then return end
+                            local isWatchReanim = (quickChar and isCharacterNetlessReanimated(quickChar)) or (findTargetReanimModel(tgt) ~= nil)
+                            if quickHum and quickHum.Health <= 0 and not isWatchReanim then return end
                             local preset = WELD_PRESETS[WeldIntent.presetKey]
                             local refMode = preset and preset.refMode or "torso"
                             local tChar, tRef = streamAndTeleportToTarget(tgt, refMode, 0.9, false)
                             local tHum = tChar and tChar:FindFirstChildOfClass("Humanoid")
-                            if WeldIntent.active and not CurrentWeld and tRef and tRef.Parent and (not tHum or tHum.Health > 0) then
+                            local isTReanimNow = (tChar and isCharacterNetlessReanimated(tChar)) or (findTargetReanimModel(tgt) ~= nil)
+                            if WeldIntent.active and not CurrentWeld and tRef and tRef.Parent and (isTReanimNow or not tHum or tHum.Health > 0) then
                                 if not isLethalVoidCF(tRef.CFrame, tRef.AssemblyLinearVelocity) then
                                     applyWeldPreset(WeldIntent.presetKey, tgt)
                                     if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
@@ -6057,7 +6334,33 @@ local function gL()
     end)
     return ok and res or nil
 end
+_G.CocoAntiTagBypass = true
+_G.CocoCustomRoasts = _G.CocoCustomRoasts or {}
+local defaultCS_W = {}
+for _, w in ipairs(CS_W) do table.insert(defaultCS_W, w) end
+_G.AddCocoCustomRoast = function(word)
+    word = tostring(word or ""):gsub("^%s+", ""):gsub("%s+$", "")
+    if word == "" then return false end
+    table.insert(CS_W, 1, word:upper())
+    table.insert(_G.CocoCustomRoasts, word:upper())
+    return true
+end
+_G.ResetCocoCustomRoasts = function()
+    table.clear(CS_W)
+    for _, w in ipairs(defaultCS_W) do table.insert(CS_W, w) end
+    table.clear(_G.CocoCustomRoasts)
+end
+
+local antiTagTokens = { "\226\128\139", "\226\128\140", "\226\128\141", " \194\183", " \226\150\184", " \226\151\134" }
+local antiTagSeq = 0
 snd2 = function(tx)
+    if _G.CocoAntiTagBypass and type(tx) == "string" and not tx:match("^!") then
+        antiTagSeq = (antiTagSeq % #antiTagTokens) + 1
+        local zw = antiTagTokens[antiTagSeq] .. string.rep("\226\128\139", (csCnt % 4) + 1)
+        if #tx + #zw <= CS_M then
+            tx = tx .. zw
+        end
+    end
     if #tx > CS_M then tx = tx:sub(1, CS_M) end
     if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
         if not csCh or not csCh.Parent then csCh = gC() end
@@ -6169,7 +6472,9 @@ Anti = {
     Kill        = { enabled = false, charAdded = nil, descConn = nil, loopConn = nil, wsDescConn = nil, blockedTouches = 0, originalPartFlags = setmetatable({}, {__mode = "k"}) },
     GamePaused  = { enabled = false, childAdded = nil, propConn = nil, loopConn = nil },
     AFK         = { enabled = false, conn = nil, loopConn = nil },
-    VC          = { enabled = false, running = false, statusText = "Status: Idle", statusLbl = nil, activateBtn = nil, rowSubLbl = nil, openPanelFn = nil },
+    VC          = { enabled = false, running = false, statusText = "Status: Idle", statusLbl = nil, activateBtn = nil, rowSubLbl = nil, openPanelFn = nil, openNovolinePanelFn = nil, openVCB2Fn = nil },
+    VCV1        = { enabled = false, running = false, muted = true, statusText = "Status: Ready (V1)", rowSubLbl = nil, startFn = nil, stopFn = nil, toggleMuteFn = nil },
+    VCV2        = { enabled = false, running = false, muted = true, statusText = "Status: Ready (V2)", rowSubLbl = nil, startFn = nil, stopFn = nil, toggleMuteFn = nil },
     Redirect    = { enabled = false },
     PauseTrap   = { enabled = false },
     FlingShield = { enabled = false, steppedConn = nil, heartbeatConn = nil, preStepCF = nil, blockedFlings = 0 },
@@ -6818,14 +7123,28 @@ avStart = function(silent)
 end
 
 avStop = function()
-    -- Always-On enforcement: Anti-Void remains enabled at all times
-    if not Anti.Void.enabled or not Anti.Void.steppedConn or not Anti.Void.loopConn then
-        avStart(true)
+    if Anti.lockAlwaysOn then
+        if not Anti.Void.enabled or not Anti.Void.steppedConn or not Anti.Void.loopConn then
+            avStart(true)
+        end
+        if syncAllAntiButtons then pcall(syncAllAntiButtons) end
+        if updateDefenceStatsUI then pcall(updateDefenceStatsUI) end
+        notify("COCO POWDER", "Anti-Void is locked as Always-On (unlock in Anti Shield tab to disable)!")
+        sToggleOn()
+        return
+    end
+    Anti.Void.enabled = false
+    if Anti.Void.steppedConn then Anti.Void.steppedConn:Disconnect(); Anti.Void.steppedConn = nil end
+    if Anti.Void.loopConn then Anti.Void.loopConn:Disconnect(); Anti.Void.loopConn = nil end
+    if Anti.Void.charAdded then Anti.Void.charAdded:Disconnect(); Anti.Void.charAdded = nil end
+    avRemoveSafetyFloor()
+    if not (Anti.Kill and Anti.Kill.enabled) then
+        pcall(function() workspace.FallenPartsDestroyHeight = OriginalFPDH end)
     end
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
     if updateDefenceStatsUI then pcall(updateDefenceStatsUI) end
-    notify("COCO POWDER", "Anti-Void is permanently enabled (Always-On)!")
-    sToggleOn()
+    notify("COCO POWDER", "Anti-Void disabled")
+    sToggleOff()
 end
 
 -- ═══════════════════════════════════════════════════════════════════════════════
@@ -7430,11 +7749,713 @@ end
 
 _G.ActivateCocoAntiVC = vcStart
 _G.ActivateTeslaAntiVC = vcStart
-_G.launchCocoAntiVCBypassSuite = openStandaloneOriginalVCGUI
-_G.launchCocoAntiVCB2 = openStandaloneOriginalVCGUI
 Anti.VC.openPanelFn = openStandaloneOriginalVCGUI
-Anti.VC.openVCB2Fn = openStandaloneOriginalVCGUI
 Anti.VC.openCompactPanelFn = openStandaloneOriginalVCGUI
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- 5B. NOVOLINE V3 DUAL ANTI-VC BYPASSER SUITE (BOTH V1 & V2 MODES + GLASS UI)
+--     • Preserves Original VC Bypass above AND adds both Novoline V3 Anti-VC modes:
+--       - Bypass V1: leaveVoice -> disable all VoiceChatInternal.StateChanged conns
+--                    -> joinVoice -> PublishPause(true) + Floating Glass NV_MicToggleGUI
+--       - Bypass V2: Unmute wait -> leaveVoice -> disable StateChanged[7..#conns]
+--                    -> joinVoice -> TopBar CustomVoiceController + RedVoiceDot sync
+-- ═══════════════════════════════════════════════════════════════════════════════
+do
+    local nvCloneref = cloneref or function(x) return x end
+    local nvClonefunction = clonefunction or function(x) return x end
+    local nvGetconnections = (type(getconnections) == "function" and nvClonefunction(getconnections)) or nil
+
+    local nvV1DisabledConns = {}
+    local nvV2DisabledConns = {}
+    local nvV2RenderConn = nil
+    local nvV2StoredFolder = nil
+    local nvActivePanelStatusUpdater = nil
+
+    local function nvGetGuiParent()
+        if type(gethui) == "function" then
+            local ok, res = pcall(gethui)
+            if ok and typeof(res) == "Instance" then return res end
+        end
+        return CoreGui or (LP and LP:FindFirstChildOfClass("PlayerGui"))
+    end
+
+    local function nvUpdateStatus(modeTag, text, color)
+        if modeTag == "V1" then
+            Anti.VCV1.statusText = text
+            if Anti.VCV1.rowSubLbl and Anti.VCV1.rowSubLbl.Parent then
+                Anti.VCV1.rowSubLbl.Text = text
+            end
+        elseif modeTag == "V2" then
+            Anti.VCV2.statusText = text
+            if Anti.VCV2.rowSubLbl and Anti.VCV2.rowSubLbl.Parent then
+                Anti.VCV2.rowSubLbl.Text = text
+            end
+        end
+        if nvActivePanelStatusUpdater then
+            pcall(nvActivePanelStatusUpdater, text, color)
+        end
+        if syncAllAntiButtons then pcall(syncAllAntiButtons) end
+    end
+
+    local function nvMakeDraggable(frame, dragHandle)
+        local dragging, dragInput, dragStart, startPos
+        dragHandle = dragHandle or frame
+        dragHandle.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                dragging = true
+                dragStart = input.Position
+                startPos = frame.Position
+                input.Changed:Connect(function()
+                    if input.UserInputState == Enum.UserInputState.End then
+                        dragging = false
+                    end
+                end)
+            end
+        end)
+        dragHandle.InputChanged:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+                dragInput = input
+            end
+        end)
+        UIS.InputChanged:Connect(function(input)
+            if input == dragInput and dragging then
+                local delta = input.Position - dragStart
+                TweenService:Create(frame, TweenInfo.new(0.08, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
+                    Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+                }):Play()
+            end
+        end)
+    end
+
+    local function nvSpawnV1FloatingMicGUI(vci)
+        local parent = nvGetGuiParent()
+        if not parent then return end
+        local oldGui = parent:FindFirstChild("NV_MicToggleGUI")
+        if oldGui then oldGui:Destroy() end
+
+        local micGui = Instance.new("ScreenGui")
+        micGui.Name = "NV_MicToggleGUI"
+        micGui.ResetOnSpawn = false
+        micGui.DisplayOrder = 999999
+        pcall(function() if syn and syn.protect_gui then syn.protect_gui(micGui) end end)
+        micGui.Parent = parent
+
+        local container = Instance.new("Frame")
+        container.Size = UDim2.new(0, 75, 0, 75)
+        container.Position = UDim2.new(0.85, 0, 0.4, 0)
+        container.BackgroundColor3 = Color3.fromRGB(16, 12, 24)
+        container.BackgroundTransparency = 0.28
+        container.BorderSizePixel = 0
+        container.Active = true
+        container.Parent = micGui
+        Instance.new("UICorner", container).CornerRadius = UDim.new(0, 18)
+
+        local grad = Instance.new("UIGradient")
+        grad.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(200, 190, 230)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(130, 115, 160)),
+        })
+        grad.Rotation = 45
+        grad.Parent = container
+
+        local stroke = Instance.new("UIStroke")
+        stroke.Color = Color3.fromRGB(239, 68, 68)
+        stroke.Thickness = 2
+        stroke.Transparency = 0.2
+        stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+        stroke.Parent = container
+
+        local iconLbl = Instance.new("TextLabel")
+        iconLbl.Size = UDim2.new(1, 0, 0, 40)
+        iconLbl.Position = UDim2.new(0, 0, 0, 10)
+        iconLbl.BackgroundTransparency = 1
+        iconLbl.Text = "🔇"
+        iconLbl.TextSize = 26
+        iconLbl.Font = Enum.Font.GothamBold
+        iconLbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+        iconLbl.Parent = container
+
+        local stateLbl = Instance.new("TextLabel")
+        stateLbl.Size = UDim2.new(1, 0, 0, 15)
+        stateLbl.Position = UDim2.new(0, 0, 1, -20)
+        stateLbl.BackgroundTransparency = 1
+        stateLbl.Text = "MUTED"
+        stateLbl.TextSize = 10
+        stateLbl.Font = Enum.Font.GothamBold
+        stateLbl.TextColor3 = Color3.fromRGB(239, 68, 68)
+        stateLbl.Parent = container
+
+        local hitBtn = Instance.new("TextButton")
+        hitBtn.Size = UDim2.new(1, 0, 1, 0)
+        hitBtn.BackgroundTransparency = 1
+        hitBtn.Text = ""
+        hitBtn.Parent = container
+
+        nvMakeDraggable(container, hitBtn)
+
+        local function syncV1MicVisual(isMutedNow)
+            Anti.VCV1.muted = isMutedNow
+            if not isMutedNow then
+                iconLbl.Text = "🎙️"
+                stateLbl.Text = "UNMUTED"
+                stateLbl.TextColor3 = Color3.fromRGB(16, 185, 129)
+                TweenService:Create(stroke, TweenInfo.new(0.2), { Color = Color3.fromRGB(16, 185, 129) }):Play()
+                TweenService:Create(container, TweenInfo.new(0.2), { BackgroundColor3 = Color3.fromRGB(16, 45, 35) }):Play()
+            else
+                iconLbl.Text = "🔇"
+                stateLbl.Text = "MUTED"
+                stateLbl.TextColor3 = Color3.fromRGB(239, 68, 68)
+                TweenService:Create(stroke, TweenInfo.new(0.2), { Color = Color3.fromRGB(239, 68, 68) }):Play()
+                TweenService:Create(container, TweenInfo.new(0.2), { BackgroundColor3 = Color3.fromRGB(16, 12, 24) }):Play()
+            end
+        end
+
+        hitBtn.MouseButton1Click:Connect(function()
+            local okP, curPaused = pcall(function() return vci:IsPublishPaused() end)
+            local nextMuted = okP and (not curPaused) or (not Anti.VCV1.muted)
+            pcall(function() vci:PublishPause(nextMuted) end)
+            syncV1MicVisual(nextMuted)
+            nvUpdateStatus("V1", "Status: V1 Active (" .. (nextMuted and "Muted" or "Unmuted") .. ")", Color3.fromRGB(16, 185, 129))
+        end)
+    end
+
+    local function nvCleanupV1()
+        for i = #nvV1DisabledConns, 1, -1 do
+            local c = nvV1DisabledConns[i]
+            if c then pcall(function() c:Enable() end) end
+            nvV1DisabledConns[i] = nil
+        end
+        local parent = nvGetGuiParent()
+        if parent then
+            local g = parent:FindFirstChild("NV_MicToggleGUI")
+            if g then pcall(function() g:Destroy() end) end
+        end
+        Anti.VCV1.enabled = false
+        Anti.VCV1.running = false
+        nvUpdateStatus("V1", "Status: Idle (V1 Disabled)", Color3.fromRGB(165, 155, 185))
+    end
+
+    local function nvCleanupV2()
+        if nvV2RenderConn then
+            pcall(function() nvV2RenderConn:Disconnect() end)
+            nvV2RenderConn = nil
+        end
+        for i = #nvV2DisabledConns, 1, -1 do
+            local c = nvV2DisabledConns[i]
+            if c then pcall(function() c:Enable() end) end
+            nvV2DisabledConns[i] = nil
+        end
+        pcall(function()
+            local cg = nvCloneref(game:GetService("CoreGui"))
+            for _, d in ipairs(cg:GetDescendants()) do
+                if d.Name == "toggle_mic_mute" and d:IsA("GuiObject") then
+                    d.Visible = true
+                end
+            end
+            local parent = nvGetGuiParent()
+            if parent and parent:FindFirstChild("CustomVoiceController") then
+                parent.CustomVoiceController:Destroy()
+            end
+            if cg:FindFirstChild("CustomVoiceController") then
+                cg.CustomVoiceController:Destroy()
+            end
+            if nvV2StoredFolder and nvV2StoredFolder.Parent then
+                nvV2StoredFolder:Destroy()
+                nvV2StoredFolder = nil
+            end
+        end)
+        Anti.VCV2.enabled = false
+        Anti.VCV2.running = false
+        nvUpdateStatus("V2", "Status: Idle (V2 Disabled)", Color3.fromRGB(165, 155, 185))
+    end
+
+    local function nvStartV1()
+        if Anti.VCV1.running then return end
+        nvCleanupV1()
+        Anti.VCV1.running = true
+        nvUpdateStatus("V1", "Status: Starting V1 Bypass...", Color3.fromRGB(245, 158, 11))
+
+        task.spawn(function()
+            local ok, err = pcall(function()
+                local vcs = nvCloneref(game:GetService("VoiceChatService"))
+                local vci = nvCloneref(game:GetService("VoiceChatInternal"))
+                nvUpdateStatus("V1", "Status: Leaving Voice...", Color3.fromRGB(245, 158, 11))
+                vcs:leaveVoice()
+                task.wait(0.3)
+
+                nvUpdateStatus("V1", "Status: Disabling StateChanged Conns...", Color3.fromRGB(245, 158, 11))
+                if nvGetconnections then
+                    for _, conn in ipairs(nvGetconnections(vci.StateChanged)) do
+                        pcall(function()
+                            conn:Disable()
+                            table.insert(nvV1DisabledConns, conn)
+                        end)
+                    end
+                end
+                task.wait(0.2)
+
+                nvUpdateStatus("V1", "Status: Rejoining Voice...", Color3.fromRGB(245, 158, 11))
+                vcs:joinVoice()
+                task.wait(0.5)
+                pcall(function() vci:PublishPause(true) end)
+                Anti.VCV1.muted = true
+                nvSpawnV1FloatingMicGUI(vci)
+            end)
+            Anti.VCV1.running = false
+            if ok then
+                Anti.VCV1.enabled = true
+                nvUpdateStatus("V1", "Status: V1 Bypassed! Use Floating UI", Color3.fromRGB(16, 185, 129))
+                notify("NOVOLINE ANTI-VC V1", "V1 Bypass active! Use the floating glass mic button to mute/unmute.")
+                sToggleOn()
+            else
+                Anti.VCV1.enabled = false
+                nvUpdateStatus("V1", "Status: V1 Failed (" .. tostring(err):sub(1, 36) .. ")", Color3.fromRGB(239, 68, 68))
+                notify("NOVOLINE ANTI-VC V1", "V1 Error: " .. tostring(err))
+                sError()
+            end
+        end)
+    end
+
+    local function nvStartV2()
+        if Anti.VCV2.running then return end
+        nvCleanupV2()
+        Anti.VCV2.running = true
+        nvUpdateStatus("V2", "Status: Scanning CoreGui for Mic...", Color3.fromRGB(245, 158, 11))
+
+        task.spawn(function()
+            local ok, err = pcall(function()
+                if not nvGetconnections then
+                    error("Executor missing getconnections")
+                end
+                local vcs = nvCloneref(game:GetService("VoiceChatService"))
+                local vci = nvCloneref(game:GetService("VoiceChatInternal"))
+                local cg = nvCloneref(game:GetService("CoreGui"))
+                local rrs = nvCloneref(game:GetService("RobloxReplicatedStorage"))
+
+                local folder = Instance.new("Folder")
+                folder.Name = "NV_VCB2_Folder"
+                folder.Parent = rrs
+                nvV2StoredFolder = folder
+
+                local originalMic, originalParent
+                for _, d in ipairs(cg:GetDescendants()) do
+                    if d.Name == "toggle_mic_mute" then
+                        originalMic = d
+                        originalParent = d.Parent
+                        break
+                    end
+                end
+
+                local function getMicIcon(btn)
+                    local target = btn or originalMic
+                    if not target then return nil end
+                    local f1 = target:WaitForChild("IntegrationIconFrame", 5)
+                    if not f1 then return nil end
+                    local f2 = f1:WaitForChild("IntegrationIcon", 5)
+                    if not f2 then return nil end
+                    return f2:WaitForChild("1", 5)
+                end
+
+                if not originalMic then
+                    nvUpdateStatus("V2", "Status: Joining VC to find Mic...", Color3.fromRGB(245, 158, 11))
+                    pcall(function() vcs:joinVoice() end)
+                    local t0 = tick()
+                    repeat
+                        for _, d in ipairs(cg:GetDescendants()) do
+                            if d.Name == "toggle_mic_mute" then
+                                originalMic = d
+                                originalParent = d.Parent
+                                break
+                            end
+                        end
+                        task.wait(0.5)
+                    until originalMic or (tick() - t0 > 10)
+                    if not originalMic then
+                        error("Mic button not found in CoreGui")
+                    end
+                end
+
+                local micIcon = getMicIcon(originalMic)
+                if not micIcon then
+                    error("Mic icon structure unsupported")
+                end
+
+                nvUpdateStatus("V2", "Status: Unmute your Roblox Mic to continue!", Color3.fromRGB(59, 130, 246))
+                vcNotify("Unmute your mic inside Roblox to continue V2!")
+                repeat
+                    task.wait(0.5)
+                until not Anti.VCV2.running or micIcon.Image ~= "rbxasset://textures/ui/VoiceChat/MicLight/Muted.png"
+                if not Anti.VCV2.running then error("Cancelled") end
+
+                nvUpdateStatus("V2", "Status: Leaving Voice...", Color3.fromRGB(245, 158, 11))
+                vcs:leaveVoice()
+                task.wait(1.5)
+
+                nvUpdateStatus("V2", "Status: Disabling StateChanged[7+]...", Color3.fromRGB(245, 158, 11))
+                local conns = nvGetconnections(vci.StateChanged)
+                for i = 7, #conns do
+                    if conns[i] then
+                        pcall(function()
+                            conns[i]:Disable()
+                            table.insert(nvV2DisabledConns, conns[i])
+                        end)
+                    end
+                end
+                task.wait(1.5)
+
+                nvUpdateStatus("V2", "Status: Rejoining & Hooking TopBar...", Color3.fromRGB(245, 158, 11))
+                vcs:joinVoice()
+                if originalParent then
+                    originalMic = originalParent:WaitForChild("toggle_mic_mute", 10)
+                end
+                if originalMic and originalParent then
+                    local clonedMic = originalMic:Clone()
+                    clonedMic.Parent = folder
+                    originalMic.Visible = false
+
+                    local guiHost = nvGetGuiParent() or cg
+                    if guiHost:FindFirstChild("CustomVoiceController") then
+                        guiHost.CustomVoiceController:Destroy()
+                    end
+
+                    local customGui = Instance.new("ScreenGui")
+                    customGui.Name = "CustomVoiceController"
+                    customGui.DisplayOrder = 999999
+                    customGui.IgnoreGuiInset = true
+                    customGui.ResetOnSpawn = false
+                    pcall(function() if syn and syn.protect_gui then syn.protect_gui(customGui) end end)
+                    customGui.Parent = guiHost
+
+                    local fakeBtn = Instance.new("ImageButton")
+                    fakeBtn.Name = "FakeMicButton"
+                    fakeBtn.BackgroundTransparency = 1
+                    fakeBtn.Image = ""
+                    local absPos = originalMic.AbsolutePosition
+                    local absSize = originalMic.AbsoluteSize
+                    local topbarInset = game:GetService("GuiService"):GetGuiInset()
+                    fakeBtn.Position = UDim2.fromOffset(absPos.X, absPos.Y + topbarInset.Y)
+                    fakeBtn.Size = UDim2.fromOffset(absSize.X, absSize.Y)
+                    fakeBtn.Parent = customGui
+
+                    clonedMic.Visible = true
+                    clonedMic.Position = UDim2.fromOffset(0, 0)
+                    clonedMic.Size = UDim2.fromScale(1, 1)
+                    clonedMic.Parent = fakeBtn
+
+                    local clonedHit = clonedMic:FindFirstChild("IconHitArea_toggle_mic_mute", true)
+                    if clonedHit then clonedHit.Active = false end
+
+                    local clonedIcon = getMicIcon(clonedMic)
+                    local originalIcon = getMicIcon(originalMic)
+                    local redDot = clonedMic:FindFirstChild("RedVoiceDot", true)
+
+                    local v2IsMuted = true
+                    Anti.VCV2.muted = true
+                    pcall(function() vci:PublishPause(true) end)
+                    if clonedIcon then
+                        clonedIcon.Image = "rbxasset://textures/ui/VoiceChat/MicLight/Muted.png"
+                    end
+                    if redDot then
+                        redDot.Visible = false
+                    end
+
+                    fakeBtn.MouseButton1Click:Connect(function()
+                        v2IsMuted = not v2IsMuted
+                        Anti.VCV2.muted = v2IsMuted
+                        pcall(function() vci:PublishPause(v2IsMuted) end)
+                        if v2IsMuted and clonedIcon then
+                            clonedIcon.Image = "rbxasset://textures/ui/VoiceChat/MicLight/Muted.png"
+                        end
+                        nvUpdateStatus("V2", "Status: V2 Active (" .. (v2IsMuted and "Muted" or "Unmuted") .. ")", Color3.fromRGB(16, 185, 129))
+                    end)
+
+                    nvV2RenderConn = RunService.RenderStepped:Connect(function()
+                        if originalMic and originalMic.Parent then
+                            local pNow = originalMic.AbsolutePosition
+                            local insetNow = game:GetService("GuiService"):GetGuiInset()
+                            fakeBtn.Position = UDim2.fromOffset(pNow.X, pNow.Y + insetNow.Y)
+                        end
+                        if redDot then
+                            redDot.Visible = not v2IsMuted
+                        end
+                        if not v2IsMuted and clonedIcon and originalIcon then
+                            if originalIcon.Image == "rbxasset://textures/ui/VoiceChat/MicLight/Muted.png" then
+                                clonedIcon.Image = "rbxasset://textures/ui/VoiceChat/MicLight/Unmuted0.png"
+                            else
+                                clonedIcon.Image = originalIcon.Image
+                            end
+                        end
+                    end)
+                else
+                    error("Failed to re-hook TopBar mic after rejoin")
+                end
+            end)
+            Anti.VCV2.running = false
+            if ok then
+                Anti.VCV2.enabled = true
+                nvUpdateStatus("V2", "Status: V2 Bypassed! Topbar Ready", Color3.fromRGB(16, 185, 129))
+                vcNotify("Bypass V2 Complete! Use the normal Topbar Mic Icon.")
+                sToggleOn()
+            else
+                Anti.VCV2.enabled = false
+                if tostring(err):find("Cancelled") then
+                    nvUpdateStatus("V2", "Status: V2 Cancelled", Color3.fromRGB(165, 155, 185))
+                else
+                    nvUpdateStatus("V2", "Status: V2 Failed (" .. tostring(err):sub(1, 34) .. ")", Color3.fromRGB(239, 68, 68))
+                    vcNotify("V2 Error: " .. tostring(err))
+                    sError()
+                end
+            end
+        end)
+    end
+
+    local function nvToggleMuteAny()
+        local ok, newMuted = pcall(function()
+            local vci = nvCloneref(game:GetService("VoiceChatInternal"))
+            local nextState = not vci:IsPublishPaused()
+            vci:PublishPause(nextState)
+            return nextState
+        end)
+        if ok then
+            Anti.VCV1.muted = newMuted
+            Anti.VCV2.muted = newMuted
+            notify("🎙️ VC PUBLISH PAUSE", newMuted and "Microphone Muted (PublishPause = true)" or "Microphone Unmuted (PublishPause = false)")
+            return newMuted
+        end
+        return nil
+    end
+
+    local function launchNovolineVCBypasser(defaultMode)
+        local parent = nvGetGuiParent()
+        if not parent then return end
+
+        local existing = parent:FindFirstChild("NV_VCBypasser")
+        if existing then
+            existing:Destroy()
+            nvActivePanelStatusUpdater = nil
+            return
+        end
+
+        local selectedMode = (defaultMode == "V2") and "V2" or "V1"
+        local sg = Instance.new("ScreenGui")
+        sg.Name = "NV_VCBypasser"
+        sg.ResetOnSpawn = false
+        sg.DisplayOrder = 999999
+        pcall(function() if syn and syn.protect_gui then syn.protect_gui(sg) end end)
+        sg.Parent = parent
+
+        local mainFrame = Instance.new("Frame")
+        mainFrame.Size = UDim2.new(0, 280, 0, 165)
+        mainFrame.Position = UDim2.new(0.5, -140, 0.2, 0)
+        mainFrame.BackgroundColor3 = Color3.fromRGB(16, 12, 24)
+        mainFrame.BackgroundTransparency = 0.28
+        mainFrame.BorderSizePixel = 0
+        mainFrame.Active = true
+        mainFrame.Parent = sg
+        Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 12)
+
+        local mGrad = Instance.new("UIGradient")
+        mGrad.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(200, 190, 230)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(130, 115, 160)),
+        })
+        mGrad.Rotation = 45
+        mGrad.Parent = mainFrame
+
+        local mStroke = Instance.new("UIStroke")
+        mStroke.Color = Color3.fromRGB(135, 115, 175)
+        mStroke.Thickness = 1.2
+        mStroke.Transparency = 0.45
+        mStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+        mStroke.Parent = mainFrame
+
+        local topBar = Instance.new("Frame")
+        topBar.Size = UDim2.new(1, 0, 0, 32)
+        topBar.BackgroundColor3 = Color3.fromRGB(28, 22, 40)
+        topBar.BackgroundTransparency = 0.35
+        topBar.BorderSizePixel = 0
+        topBar.Parent = mainFrame
+        Instance.new("UICorner", topBar).CornerRadius = UDim.new(0, 12)
+        nvMakeDraggable(mainFrame, topBar)
+
+        local title = Instance.new("TextLabel")
+        title.Size = UDim2.new(1, -40, 1, 0)
+        title.Position = UDim2.new(0, 12, 0, 0)
+        title.BackgroundTransparency = 1
+        title.Text = "VC BYPASSER (V1 & V2)"
+        title.TextColor3 = Color3.fromRGB(245, 240, 255)
+        title.Font = Enum.Font.GothamBold
+        title.TextSize = 12
+        title.TextXAlignment = Enum.TextXAlignment.Left
+        title.Parent = topBar
+
+        local closeBtn = Instance.new("TextButton")
+        closeBtn.Size = UDim2.new(0, 24, 0, 24)
+        closeBtn.Position = UDim2.new(1, -28, 0.5, -12)
+        closeBtn.BackgroundColor3 = Color3.fromRGB(239, 68, 68)
+        closeBtn.BackgroundTransparency = 0.2
+        closeBtn.Text = "×"
+        closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        closeBtn.Font = Enum.Font.GothamBold
+        closeBtn.TextSize = 16
+        closeBtn.Parent = topBar
+        Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 6)
+
+        local modeContainer = Instance.new("Frame")
+        modeContainer.Size = UDim2.new(1, -24, 0, 28)
+        modeContainer.Position = UDim2.new(0, 12, 0, 40)
+        modeContainer.BackgroundColor3 = Color3.fromRGB(22, 16, 32)
+        modeContainer.BackgroundTransparency = 0.4
+        modeContainer.BorderSizePixel = 0
+        modeContainer.Parent = mainFrame
+        Instance.new("UICorner", modeContainer).CornerRadius = UDim.new(0, 8)
+
+        local v1Btn = Instance.new("TextButton")
+        v1Btn.Size = UDim2.new(0.5, -2, 1, -4)
+        v1Btn.Position = UDim2.new(0, 2, 0, 2)
+        v1Btn.BackgroundColor3 = Color3.fromRGB(168, 85, 247)
+        v1Btn.BackgroundTransparency = 0.2
+        v1Btn.Text = "Bypass V1"
+        v1Btn.TextColor3 = Color3.fromRGB(245, 240, 255)
+        v1Btn.Font = Enum.Font.GothamBold
+        v1Btn.TextSize = 11
+        v1Btn.Parent = modeContainer
+        Instance.new("UICorner", v1Btn).CornerRadius = UDim.new(0, 6)
+
+        local v2Btn = Instance.new("TextButton")
+        v2Btn.Size = UDim2.new(0.5, -2, 1, -4)
+        v2Btn.Position = UDim2.new(0.5, 0, 0, 2)
+        v2Btn.BackgroundColor3 = Color3.fromRGB(36, 28, 50)
+        v2Btn.BackgroundTransparency = 0.4
+        v2Btn.Text = "Bypass V2"
+        v2Btn.TextColor3 = Color3.fromRGB(165, 155, 185)
+        v2Btn.Font = Enum.Font.GothamBold
+        v2Btn.TextSize = 11
+        v2Btn.Parent = modeContainer
+        Instance.new("UICorner", v2Btn).CornerRadius = UDim.new(0, 6)
+
+        local statusLbl = Instance.new("TextLabel")
+        statusLbl.Size = UDim2.new(1, -24, 0, 28)
+        statusLbl.Position = UDim2.new(0, 12, 0, 74)
+        statusLbl.BackgroundTransparency = 1
+        statusLbl.Text = "Status: Ready (Select V1 or V2)"
+        statusLbl.TextColor3 = Color3.fromRGB(165, 155, 185)
+        statusLbl.Font = Enum.Font.GothamMedium
+        statusLbl.TextSize = 11
+        statusLbl.TextWrapped = true
+        statusLbl.Parent = mainFrame
+
+        local execBtn = Instance.new("TextButton")
+        execBtn.Size = UDim2.new(0.66, -14, 0, 38)
+        execBtn.Position = UDim2.new(0, 12, 1, -50)
+        execBtn.BackgroundColor3 = Color3.fromRGB(36, 28, 50)
+        execBtn.BackgroundTransparency = 0.2
+        execBtn.Text = "Execute Bypass"
+        execBtn.TextColor3 = Color3.fromRGB(245, 240, 255)
+        execBtn.Font = Enum.Font.GothamBold
+        execBtn.TextSize = 12
+        execBtn.Parent = mainFrame
+        Instance.new("UICorner", execBtn).CornerRadius = UDim.new(0, 8)
+        local execStroke = Instance.new("UIStroke")
+        execStroke.Color = Color3.fromRGB(168, 85, 247)
+        execStroke.Thickness = 1
+        execStroke.Transparency = 0.35
+        execStroke.Parent = execBtn
+
+        local muteBtn = Instance.new("TextButton")
+        muteBtn.Size = UDim2.new(0.34, -14, 0, 38)
+        muteBtn.Position = UDim2.new(0.66, 2, 1, -50)
+        muteBtn.BackgroundColor3 = Color3.fromRGB(28, 22, 42)
+        muteBtn.BackgroundTransparency = 0.2
+        muteBtn.Text = "🎙️ Mute"
+        muteBtn.TextColor3 = Color3.fromRGB(245, 240, 255)
+        muteBtn.Font = Enum.Font.GothamBold
+        muteBtn.TextSize = 11
+        muteBtn.Parent = mainFrame
+        Instance.new("UICorner", muteBtn).CornerRadius = UDim.new(0, 8)
+        local muteStroke = Instance.new("UIStroke")
+        muteStroke.Color = Color3.fromRGB(135, 115, 175)
+        muteStroke.Thickness = 1
+        muteStroke.Transparency = 0.45
+        muteStroke.Parent = muteBtn
+
+        nvActivePanelStatusUpdater = function(txt, col)
+            if statusLbl and statusLbl.Parent then
+                statusLbl.Text = tostring(txt or "")
+                if col then statusLbl.TextColor3 = col end
+            end
+        end
+
+        local function selectModeVisual(m)
+            selectedMode = m
+            if m == "V1" then
+                TweenService:Create(v1Btn, TweenInfo.new(0.2), { BackgroundColor3 = Color3.fromRGB(168, 85, 247), BackgroundTransparency = 0.2, TextColor3 = Color3.fromRGB(245, 240, 255) }):Play()
+                TweenService:Create(v2Btn, TweenInfo.new(0.2), { BackgroundColor3 = Color3.fromRGB(36, 28, 50), BackgroundTransparency = 0.4, TextColor3 = Color3.fromRGB(165, 155, 185) }):Play()
+                statusLbl.Text = Anti.VCV1.enabled and "Status: V1 Bypassed! Use Floating UI" or "Status: Ready (Bypass V1 Selected)"
+            else
+                TweenService:Create(v2Btn, TweenInfo.new(0.2), { BackgroundColor3 = Color3.fromRGB(168, 85, 247), BackgroundTransparency = 0.2, TextColor3 = Color3.fromRGB(245, 240, 255) }):Play()
+                TweenService:Create(v1Btn, TweenInfo.new(0.2), { BackgroundColor3 = Color3.fromRGB(36, 28, 50), BackgroundTransparency = 0.4, TextColor3 = Color3.fromRGB(165, 155, 185) }):Play()
+                statusLbl.Text = Anti.VCV2.enabled and "Status: V2 Bypassed! Topbar Ready" or "Status: Ready (Bypass V2 Selected)"
+            end
+        end
+        selectModeVisual(selectedMode)
+
+        v1Btn.MouseButton1Click:Connect(function()
+            if not Anti.VCV1.running and not Anti.VCV2.running then
+                selectModeVisual("V1")
+            end
+        end)
+        v2Btn.MouseButton1Click:Connect(function()
+            if not Anti.VCV1.running and not Anti.VCV2.running then
+                selectModeVisual("V2")
+            end
+        end)
+
+        execBtn.MouseButton1Click:Connect(function()
+            if selectedMode == "V1" then
+                nvStartV1()
+            else
+                nvStartV2()
+            end
+        end)
+
+        muteBtn.MouseButton1Click:Connect(function()
+            local mNow = nvToggleMuteAny()
+            if mNow ~= nil then
+                muteBtn.Text = mNow and "🔇 Muted" or "🎙️ Live"
+            end
+        end)
+
+        closeBtn.MouseButton1Click:Connect(function()
+            nvActivePanelStatusUpdater = nil
+            sg:Destroy()
+        end)
+    end
+
+    Anti.VCV1.startFn = nvStartV1
+    Anti.VCV1.stopFn = nvCleanupV1
+    Anti.VCV1.toggleMuteFn = nvToggleMuteAny
+    Anti.VCV2.startFn = nvStartV2
+    Anti.VCV2.stopFn = nvCleanupV2
+    Anti.VCV2.toggleMuteFn = nvToggleMuteAny
+    Anti.VC.openNovolinePanelFn = function() launchNovolineVCBypasser("V1") end
+    Anti.VC.openVCB2Fn = function() launchNovolineVCBypasser("V2") end
+
+    _G.launchCocoAntiVCBypassSuite = function() launchNovolineVCBypasser("V1") end
+    _G.launchCocoAntiVCB2 = function() launchNovolineVCBypasser("V2") end
+    _G.NovolineVCBypasser = {
+        LaunchUI = launchNovolineVCBypasser,
+        LaunchV1 = function() launchNovolineVCBypasser("V1") end,
+        LaunchV2 = function() launchNovolineVCBypasser("V2") end,
+        RunV1Direct = nvStartV1,
+        RunV2Direct = nvStartV2,
+        StopV1 = nvCleanupV1,
+        StopV2 = nvCleanupV2,
+        ToggleMute = nvToggleMuteAny,
+    }
+end
 end)()
 ;(function() -- Sub-scope 2 for Anti (Ragdoll, Anchor, Attach, Blind, Bring, FlingShield, DefenceTroll)
 local contactTimers = {}
@@ -8499,14 +9520,41 @@ Anti.SeatTrap.startFn = function(silent)
 end
 
 Anti.SeatTrap.stopFn = function()
-    -- Always-On enforcement: Anti-Sit remains enabled at all times
-    if not Anti.SeatTrap.enabled or not Anti.SeatTrap.loopConn or not Anti.SeatTrap.wsDescConn then
-        Anti.SeatTrap.startFn(true)
+    if Anti.lockAlwaysOn then
+        if not Anti.SeatTrap.enabled or not Anti.SeatTrap.loopConn or not Anti.SeatTrap.wsDescConn then
+            Anti.SeatTrap.startFn(true)
+        end
+        if syncAllAntiButtons then pcall(syncAllAntiButtons) end
+        if updateDefenceStatsUI then pcall(updateDefenceStatsUI) end
+        notify("COCO POWDER", "Anti-Sit is locked as Always-On (unlock in Anti Shield tab to sit in vehicles)!")
+        sToggleOn()
+        return
+    end
+    Anti.SeatTrap.enabled = false
+    if Anti.SeatTrap.loopConn then Anti.SeatTrap.loopConn:Disconnect(); Anti.SeatTrap.loopConn = nil end
+    if Anti.SeatTrap.wsDescConn then Anti.SeatTrap.wsDescConn:Disconnect(); Anti.SeatTrap.wsDescConn = nil end
+    if Anti.SeatTrap.charAddedConn then Anti.SeatTrap.charAddedConn:Disconnect(); Anti.SeatTrap.charAddedConn = nil end
+    if Anti.SeatTrap.charConns then
+        for _, c in ipairs(Anti.SeatTrap.charConns) do pcall(function() c:Disconnect() end) end
+        Anti.SeatTrap.charConns = {}
+    end
+    for seat, orig in pairs(Anti.SeatTrap.savedSeats) do
+        if seat and seat.Parent then
+            pcall(function()
+                seat.Disabled = orig.Disabled
+                seat.CanTouch = orig.CanTouch
+            end)
+        end
+        Anti.SeatTrap.savedSeats[seat] = nil
+    end
+    local myHum = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
+    if myHum then
+        pcall(function() myHum:SetStateEnabled(Enum.HumanoidStateType.Seated, true) end)
     end
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
     if updateDefenceStatsUI then pcall(updateDefenceStatsUI) end
-    notify("COCO POWDER", "Anti-Sit is permanently enabled (Always-On)!")
-    sToggleOn()
+    notify("COCO POWDER", "Anti-Seat disabled — you can now sit in chairs & vehicles!")
+    sToggleOff()
 end
 
 -- ═══════════════════════════════════════════════════════════════════════════════
@@ -8595,8 +9643,11 @@ disableAllAntiSystems = function()
     defenceTrollStop()
     redirectStop()
     pauseTrapStop()
-    -- Anti-Void and Anti-Sit remain permanently enabled (Always-On)
-    avStart(true)
+    if Anti.lockAlwaysOn then
+        avStart(true)
+    else
+        avStop()
+    end
     akStop()
     flingShieldStop()
     ragdollStop()
@@ -8604,11 +9655,17 @@ disableAllAntiSystems = function()
     attachStop()
     blindStop()
     bringStop()
-    if Anti.SeatTrap.startFn then Anti.SeatTrap.startFn(true) end
+    if Anti.lockAlwaysOn then
+        if Anti.SeatTrap.startFn then Anti.SeatTrap.startFn(true) end
+    else
+        if Anti.SeatTrap.stopFn then Anti.SeatTrap.stopFn() end
+    end
     if Anti.ToolGuard.stopFn then Anti.ToolGuard.stopFn() end
     agpStop()
     afkStop()
     vcStop()
+    if Anti.VCV1 and Anti.VCV1.stopFn then pcall(Anti.VCV1.stopFn) end
+    if Anti.VCV2 and Anti.VCV2.stopFn then pcall(Anti.VCV2.stopFn) end
     if updateDefenceStatsUI then pcall(updateDefenceStatsUI) end
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
     if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
@@ -10549,7 +11606,25 @@ end
 -- ⌨️ PC TROLL KEYBIND MANAGER & DYNAMIC RE-ASSIGNMENT ARSENAL
 -- ═══════════════════════════════════════════════════════════════════════════════
 local KeybindManager = {
+    enabled = true,
     listeningAction = nil,
+    defaultBinds = {
+        animcopy  = Enum.KeyCode.Z,
+        jerktroll = Enum.KeyCode.J,
+        voidthrow = Enum.KeyCode.C,
+        facebang  = Enum.KeyCode.V,
+        backshots = Enum.KeyCode.B,
+        headsit   = Enum.KeyCode.G,
+        kiss      = Enum.KeyCode.K,
+        headpat   = Enum.KeyCode.P,
+        fling     = Enum.KeyCode.F,
+        clicktp   = Enum.KeyCode.T,
+        fly       = Enum.KeyCode.Q,
+        deflect   = Enum.KeyCode.E,
+        rewind    = Enum.KeyCode.R,
+        vanish    = Enum.KeyCode.H,
+        stop      = Enum.KeyCode.X,
+    },
     binds = {
         animcopy  = Enum.KeyCode.Z,
         jerktroll = Enum.KeyCode.J,
@@ -10566,6 +11641,23 @@ local KeybindManager = {
         rewind    = Enum.KeyCode.R,
         vanish    = Enum.KeyCode.H,
         stop      = Enum.KeyCode.X,
+    },
+    actionEnabled = {
+        animcopy  = true,
+        jerktroll = true,
+        voidthrow = true,
+        facebang  = true,
+        backshots = true,
+        headsit   = true,
+        kiss      = true,
+        headpat   = true,
+        fling     = true,
+        clicktp   = true,
+        fly       = true,
+        deflect   = true,
+        rewind    = true,
+        vanish    = true,
+        stop      = true,
     },
     actionLabels = {
         animcopy  = "Copy Animation (Side-by-Side)",
@@ -10602,11 +11694,22 @@ local KeybindManager = {
         stop      = "Clears all welds, flings, movers & safely returns to ground",
     },
     buttonRefs = {},
+    masterCallbacks = {},
 }
+_G.CocoKeybindsEnabled = true
+
+function KeybindManager:IsActionBindEnabled(actionKey)
+    if not self.enabled then return false end
+    if self.actionEnabled[actionKey] == false then return false end
+    return self.binds[actionKey] ~= nil
+end
 
 function KeybindManager:GetKeyName(actionKey)
     local kc = self.binds[actionKey]
     if not kc then return "[None]" end
+    if not self.enabled or self.actionEnabled[actionKey] == false then
+        return "[" .. kc.Name .. "·OFF]"
+    end
     return "[ " .. kc.Name .. " ]"
 end
 
@@ -10614,9 +11717,88 @@ function KeybindManager:UpdateDisplay(actionKey)
     local r = self.buttonRefs[actionKey]
     if r and r.pillBtn and r.pillBtn.Parent then
         local isListening = (self.listeningAction == actionKey)
+        local hasKey = (self.binds[actionKey] ~= nil)
+        local isActOn = (self.actionEnabled[actionKey] ~= false)
+        local isEffectiveOn = self.enabled and isActOn and hasKey
         r.pillBtn.Text = isListening and "[Press Key]" or self:GetKeyName(actionKey)
-        r.pillBtn.BackgroundColor3 = isListening and T.Accent2 or (self.binds[actionKey] and T.Panel or T.BG2)
-        r.pillBtn.TextColor3 = isListening and Color3.new(1, 1, 1) or (self.binds[actionKey] and T.Neon or T.TextMuted)
+        r.pillBtn.BackgroundColor3 = isListening and T.Accent2 or (isEffectiveOn and T.Panel or T.BG2)
+        r.pillBtn.TextColor3 = isListening and Color3.new(1, 1, 1) or (isEffectiveOn and T.Neon or T.TextMuted)
+        if r.pillStroke then
+            r.pillStroke.Color = isListening and T.Neon or (isEffectiveOn and T.Accent or T.Border)
+        end
+        if r.circleBtn and r.circleBtn.Parent then
+            r.circleBtn.Text = isActOn and "ON" or "OFF"
+            r.circleBtn.BackgroundColor3 = (isActOn and self.enabled) and T.Accent2 or T.BG2
+            r.circleBtn.TextColor3 = (isActOn and self.enabled) and Color3.new(1, 1, 1) or T.TextMuted
+            if r.circleStroke then
+                r.circleStroke.Color = (isActOn and self.enabled) and T.Neon or T.Border
+            end
+        end
+    end
+end
+
+function KeybindManager:UpdateAllDisplays()
+    for actionKey, _ in pairs(self.actionLabels) do
+        self:UpdateDisplay(actionKey)
+    end
+end
+
+function KeybindManager:SetMasterEnabled(st, showToast)
+    st = (st == true)
+    self.enabled = st
+    _G.CocoKeybindsEnabled = st
+    if not st then
+        self.listeningAction = nil
+    end
+    self:UpdateAllDisplays()
+    for _, cb in ipairs(self.masterCallbacks) do
+        pcall(cb, st)
+    end
+    if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
+    if showToast ~= false then
+        notify("⌨️ KEYBINDS", st and "All Keybinds: ON (Single-Button Active)" or "All Keybinds: OFF (All Hotkeys Paused)")
+        if st then sToggleOn() else sToggleOff() end
+    end
+end
+
+function KeybindManager:ToggleMasterEnabled(showToast)
+    self:SetMasterEnabled(not self.enabled, showToast)
+    return self.enabled
+end
+
+function KeybindManager:ToggleActionEnabled(actionKey, showToast)
+    local nextState = (self.actionEnabled[actionKey] == false)
+    self.actionEnabled[actionKey] = nextState
+    self:UpdateDisplay(actionKey)
+    if showToast ~= false then
+        local lbl = self.actionLabels[actionKey] or actionKey
+        notify("⌨️ KEYBIND", lbl .. " Keybind: " .. (nextState and "ON" or "OFF"))
+        if nextState then sToggleOn() else sToggleOff() end
+    end
+    return nextState
+end
+
+function KeybindManager:SetAllActionsEnabled(st, showToast)
+    st = (st == true)
+    for actionKey, _ in pairs(self.actionLabels) do
+        self.actionEnabled[actionKey] = st
+    end
+    self:SetMasterEnabled(st, false)
+    if showToast ~= false then
+        notify("⌨️ KEYBINDS", st and "Enabled ALL individual keybinds!" or "Disabled ALL individual keybinds!")
+        if st then sToggleOn() else sToggleOff() end
+    end
+end
+
+function KeybindManager:RestoreDefaultBinds(showToast)
+    for actionKey, defKey in pairs(self.defaultBinds) do
+        self.binds[actionKey] = defKey
+        self.actionEnabled[actionKey] = true
+    end
+    self:SetMasterEnabled(true, false)
+    if showToast ~= false then
+        notify("⌨️ KEYBINDS", "Restored all default keybinds & turned ON!")
+        sSuccess()
     end
 end
 
@@ -15390,6 +16572,47 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
         end)
         emptyBindsLabel.Visible = (#bindEntries == 0)
 
+        if #bindEntries > 0 then
+            local clearAllRow = Instance.new("Frame")
+            clearAllRow.Size = UDim2.new(1, -6, 0, 32)
+            clearAllRow.BackgroundColor3 = Color3.fromRGB(28, 18, 28)
+            clearAllRow.BorderSizePixel = 0
+            clearAllRow.LayoutOrder = 0
+            clearAllRow.Parent = bindsPage
+            addCorner(clearAllRow, 6)
+            addStroke(clearAllRow, Theme.accent, 1, 0.35)
+
+            local clearAllLbl = Instance.new("TextLabel")
+            clearAllLbl.Size = UDim2.new(1, -110, 1, 0)
+            clearAllLbl.Position = UDim2.new(0, 12, 0, 0)
+            clearAllLbl.BackgroundTransparency = 1
+            clearAllLbl.Text = "Active Reanim Binds (" .. tostring(#bindEntries) .. ")"
+            clearAllLbl.TextColor3 = Theme.text
+            clearAllLbl.Font = Enum.Font.GothamBold
+            clearAllLbl.TextSize = 10.5
+            clearAllLbl.TextXAlignment = Enum.TextXAlignment.Left
+            clearAllLbl.Parent = clearAllRow
+
+            local clearAllBtn = Instance.new("TextButton")
+            clearAllBtn.Size = UDim2.new(0, 92, 0, 22)
+            clearAllBtn.Position = UDim2.new(1, -98, 0.5, -11)
+            clearAllBtn.BackgroundColor3 = Theme.dangerHover
+            clearAllBtn.Text = "Clear All 🗑️"
+            clearAllBtn.TextColor3 = Color3.fromRGB(255, 210, 210)
+            clearAllBtn.Font = Enum.Font.GothamBold
+            clearAllBtn.TextSize = 9.5
+            clearAllBtn.Parent = clearAllRow
+            addCorner(clearAllBtn, 4)
+            addStroke(clearAllBtn, Theme.accent, 1, 0.3)
+
+            clearAllBtn.MouseButton1Click:Connect(function()
+                savedConfig.binds = {}
+                saveConfig()
+                refreshBindsTab()
+                notify("🦴 COCA REANIM", "Cleared all Coca Reanim animation keybinds!")
+            end)
+        end
+
         for idx, entry in ipairs(bindEntries) do
             local row = Instance.new("Frame")
             row.Size = UDim2.new(1, -6, 0, 36)
@@ -15479,18 +16702,51 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
     bangPage.Parent = bodyContainer
 
     local bangTargetInput = Instance.new("TextBox")
-    bangTargetInput.Size = UDim2.new(1, 0, 0, 30)
+    bangTargetInput.Size = UDim2.new(1, -86, 0, 30)
     bangTargetInput.Position = UDim2.new(0, 0, 0, 0)
     bangTargetInput.BackgroundColor3 = Theme.input
-    bangTargetInput.PlaceholderText = "Target username..."
-    bangTargetInput.Text = ""
+    bangTargetInput.PlaceholderText = "Target username (blank = auto-synced locked target)..."
+    bangTargetInput.Text = (selectedPlayer and selectedPlayer.Name) or ""
     bangTargetInput.TextColor3 = Theme.text
     bangTargetInput.Font = Enum.Font.Gotham
-    bangTargetInput.TextSize = 12
+    bangTargetInput.TextSize = 11.5
     bangTargetInput.ClearTextOnFocus = false
     bangTargetInput.Parent = bangPage
     addCorner(bangTargetInput, 8)
     addStroke(bangTargetInput, Theme.border, 1, 0.4)
+
+    local syncBangTgtBtn = Instance.new("TextButton")
+    syncBangTgtBtn.Size = UDim2.new(0, 80, 0, 30)
+    syncBangTgtBtn.Position = UDim2.new(1, -80, 0, 0)
+    syncBangTgtBtn.BackgroundColor3 = Theme.surface
+    syncBangTgtBtn.Text = "Sync 🎯"
+    syncBangTgtBtn.TextColor3 = Theme.accent
+    syncBangTgtBtn.Font = Enum.Font.GothamBold
+    syncBangTgtBtn.TextSize = 10.5
+    syncBangTgtBtn.Parent = bangPage
+    addCorner(syncBangTgtBtn, 8)
+    addStroke(syncBangTgtBtn, Theme.accent, 1, 0.35)
+
+    syncBangTgtBtn.MouseButton1Click:Connect(function()
+        local activePlr = resolveActiveTarget()
+        if activePlr and activePlr ~= LocalPlayer then
+            bangTargetInput.Text = activePlr.Name
+            notify("🦴 BANG TARGET", "Synced Bang Target to @" .. activePlr.Name)
+        else
+            bangTargetInput.Text = ""
+            notify("🦴 BANG TARGET", "Using Auto-Nearest Target")
+        end
+    end)
+
+    bangPage:GetPropertyChangedSignal("Visible"):Connect(function()
+        if bangPage.Visible and (bangTargetInput.Text == "" or not bangTargetInput:IsFocused()) then
+            if selectedPlayer and selectedPlayer.Parent == Players then
+                bangTargetInput.PlaceholderText = "Synced Locked Target: @" .. selectedPlayer.Name
+            else
+                bangTargetInput.PlaceholderText = "Target username (blank = Auto-Nearest)..."
+            end
+        end
+    end)
 
     local bangAnimSearch = Instance.new("TextBox")
     bangAnimSearch.Size = UDim2.new(1, 0, 0, 28)
@@ -15648,9 +16904,18 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
     -- Closure root.73.124.76: Start Bang Reanimation Lock ("face" or "back")
     local function startBangReanim(modeKey)
         local typed = tostring(bangTargetInput.Text or ""):gsub("^%s+", ""):gsub("%s+$", "")
-        local queryToUse = (typed ~= "") and typed or lastBangTargetName
-        local targetPlr = findTargetPlayer(queryToUse)
-        if not targetPlr or not targetPlr.Character then
+        local targetPlr = nil
+        if typed ~= "" then
+            targetPlr = findTargetPlayer(typed)
+        end
+        if not targetPlr then
+            targetPlr = resolveActiveTarget()
+        end
+        if not targetPlr and lastBangTargetName ~= "" then
+            targetPlr = findTargetPlayer(lastBangTargetName)
+        end
+        local initTChar = targetPlr and findPlayerCharacterAnywhere(targetPlr)
+        if not targetPlr or not initTChar then
             if bangStatus then bangStatus.Text = "Invalid target" end
             return
         end
@@ -15734,15 +16999,41 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
             return list
         end
 
+        local lastBangValidPos = nil
+        local lastBangSafeDesiredCF = nil
         local function stepLock()
             if not bangLockActive then return end
-            local liveTarget = Players:FindFirstChild(lastBangTargetName) or targetPlr
-            if not liveTarget or not liveTarget.Character then return end
-            local targetRoot = liveTarget.Character:FindFirstChild("HumanoidRootPart")
-            if not targetRoot then return end
+            local liveTarget = (selectedPlayer and selectedPlayer.Parent == Players and selectedPlayer)
+                or Players:FindFirstChild(lastBangTargetName)
+                or targetPlr
+            if not liveTarget then return end
+            local liveChar = findPlayerCharacterAnywhere(liveTarget)
+            if not liveChar then return end
+            local targetRoot = pickTargetRef(liveChar, "torso")
+            if not targetRoot or not isRefPartValid(targetRoot, liveChar) then
+                pcall(function() LocalPlayer.ReplicationFocus = nil end)
+                if lastBangSafeDesiredCF then
+                    for _, entry in ipairs(collectLocalRoots()) do
+                        if typeof(sethiddenproperty) == "function" then
+                            pcall(sethiddenproperty, entry.root, "PhysicsRepRootPart", nil)
+                            pcall(sethiddenproperty, entry.root, "PhysicsRepRootRef", nil)
+                        end
+                        entry.root.CFrame = lastBangSafeDesiredCF
+                        entry.root.AssemblyLinearVelocity = Vector3.zero
+                        entry.root.AssemblyAngularVelocity = Vector3.zero
+                    end
+                end
+                return
+            end
+            if lastBangValidPos and (targetRoot.Position - lastBangValidPos).Magnitude > 165 then
+                if targetRoot.Position.Y > 850 or targetRoot.Position.Y < -60 or targetRoot.Position.Magnitude > 14000 or targetRoot.Transparency >= 0.95 then
+                    return
+                end
+            end
+            lastBangValidPos = targetRoot.Position
 
-            local targetHead = liveTarget.Character:FindFirstChild("Head")
-            local validHead = targetHead and targetHead:IsA("BasePart") and ((targetHead.Position - targetRoot.Position).Magnitude <= 10)
+            local targetHead = pickTargetRef(liveChar, "head") or liveChar:FindFirstChild("Head")
+            local validHead = targetHead and targetHead:IsA("BasePart") and isRefPartValid(targetHead, liveChar) and ((targetHead.Position - targetRoot.Position).Magnitude <= 10)
             local levelTargetRootCF = getFlatYawCFrame(targetRoot.CFrame, targetRoot.Position)
             local desiredCF
             if modeKey == "face" and validHead then
@@ -15780,6 +17071,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                 desiredCF = levelTargetRootCF * CFrame.new(0, 0, dist)
             end
 
+            lastBangSafeDesiredCF = desiredCF
             markIntentionalTeleport(desiredCF)
             pcall(function() LocalPlayer.ReplicationFocus = targetRoot end)
             local tVel = targetRoot.AssemblyLinearVelocity
@@ -17181,13 +18473,22 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
         if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
         local keyName = input.KeyCode.Name
 
-        -- 1. Assigning an animation keybind
+        -- 1. Assigning an animation keybind (Backspace/Escape/Delete clears bind)
         if pendingAnimBindObj then
-            savedConfig.binds[pendingAnimBindObj.name] = keyName
-            saveConfig()
-            if pendingAnimBindObj.btn then
-                pendingAnimBindObj.btn.Text = "[" .. keyName .. "]"
-                pendingAnimBindObj.btn.TextColor3 = Theme.accent
+            if keyName == "Backspace" or keyName == "Escape" or keyName == "Delete" then
+                savedConfig.binds[pendingAnimBindObj.name] = nil
+                saveConfig()
+                if pendingAnimBindObj.btn then
+                    pendingAnimBindObj.btn.Text = "[+]"
+                    pendingAnimBindObj.btn.TextColor3 = Theme.textMuted
+                end
+            else
+                savedConfig.binds[pendingAnimBindObj.name] = keyName
+                saveConfig()
+                if pendingAnimBindObj.btn then
+                    pendingAnimBindObj.btn.Text = "[" .. keyName .. "]"
+                    pendingAnimBindObj.btn.TextColor3 = Theme.accent
+                end
             end
             pendingAnimBindObj = nil
             return
@@ -17197,7 +18498,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
         if cocaExtraPanels.pendingTrackBind then
             local tKey = cocaExtraPanels.pendingTrackBind
             cocaExtraPanels.pendingTrackBind = nil
-            if keyName == "Backspace" or keyName == "Escape" then
+            if keyName == "Backspace" or keyName == "Escape" or keyName == "Delete" then
                 savedConfig.trackingBinds[tKey] = nil
             else
                 savedConfig.trackingBinds[tKey] = keyName
@@ -17212,22 +18513,31 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
             return
         end
 
-        -- 2. Assigning a speed preset keybind
+        -- 2. Assigning a speed preset keybind (Backspace/Escape/Delete clears bind)
         if pendingSpeedBindKey then
-            savedConfig.speedBinds[pendingSpeedBindKey] = keyName
-            saveConfig()
             local btn = speedBindButtons[pendingSpeedBindKey]
-            if btn then
-                btn.Text = "[" .. keyName .. "]"
-                btn.TextColor3 = Theme.accent
+            if keyName == "Backspace" or keyName == "Escape" or keyName == "Delete" then
+                savedConfig.speedBinds[pendingSpeedBindKey] = nil
+                saveConfig()
+                if btn then
+                    btn.Text = "[+]"
+                    btn.TextColor3 = Theme.textMuted
+                end
+            else
+                savedConfig.speedBinds[pendingSpeedBindKey] = keyName
+                saveConfig()
+                if btn then
+                    btn.Text = "[" .. keyName .. "]"
+                    btn.TextColor3 = Theme.accent
+                end
             end
             pendingSpeedBindKey = nil
             return
         end
 
-        if gameProcessed then return end
+        if gameProcessed or UserInputService:GetFocusedTextBox() or (KeybindManager and not KeybindManager.enabled) then return end
 
-        -- 2B. Triggering a Tracking keybind
+        -- 2B. Triggering a Tracking keybind (toggles ON and OFF from single button)
         if savedConfig.trackingBinds then
             for tKey, boundKey in pairs(savedConfig.trackingBinds) do
                 if boundKey == keyName then
@@ -17240,12 +18550,16 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
             end
         end
 
-        -- 3. Triggering a speed preset keybind
+        -- 3. Triggering a speed preset keybind (toggles speed ON to preset and OFF back to 1.0x from single button)
         for spdStr, boundKey in pairs(savedConfig.speedBinds) do
             if boundKey == keyName then
                 local numSpd = tonumber(spdStr)
                 if numSpd then
-                    applyPlaybackSpeed(numSpd)
+                    if math.abs((currentSpeed or 1) - numSpd) < 0.05 and math.abs(numSpd - 1) > 0.05 then
+                        applyPlaybackSpeed(1)
+                    else
+                        applyPlaybackSpeed(numSpd)
+                    end
                 end
                 return
             end
@@ -18005,8 +19319,26 @@ _G.CocaSkyDestroyer = CocaSkyDestroyer
     local flashThread = nil
 
     -- ⚡ ZERO-DELAY SYNCHRONOUS REANIMATION DISPATCHER (0.00ms Frame-0 Execution)
+    local function warnIfNoLayeredClothing()
+        pcall(function()
+            local ch = (CocaSkyDestroyer.get_real_character and CocaSkyDestroyer.get_real_character()) or LP.Character
+            if not ch then return end
+            local count = 0
+            for _, acc in ipairs(ch:GetChildren()) do
+                if acc:IsA("Accessory") and acc:FindFirstChildWhichIsA("WrapLayer", true) then
+                    count = count + 1
+                end
+            end
+            if count == 0 then
+                notify("⚠️ NO 3D LAYERED CLOTHING", "0 WrapLayer items equipped! Equip any 3D Layered jacket/pants or Glitch Walker so all players see Sky Destroyer.")
+            end
+        end)
+    end
+    _G.WarnIfNoLayeredClothing = warnIfNoLayeredClothing
+
     local function ensureReanimated()
         if isTransitioning then return end
+        warnIfNoLayeredClothing()
         if not CocaSkyDestroyer.is_reanimated() then
             isTransitioning = true
             if _G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated) == "function" and _G._AngoorZenApi.is_reanimated() then
@@ -20129,6 +21461,128 @@ local function buildMainUI()
         }
     end
 
+    -- 3. Interactive Drag Slider + Direct Numeric Input Row (Novoline Dual-Control Row)
+    local function createSliderInputRow(groupCard, order, titleText, subText, minVal, maxVal, defaultVal, decimals, suffix, onValueChanged)
+        decimals = decimals or 1
+        suffix = suffix or ""
+        local fmt = "%." .. tostring(decimals) .. "f"
+        local curVal = math.clamp(tonumber(defaultVal) or minVal, minVal, maxVal)
+
+        local row, tLbl, sLbl = createGroupRowBase(groupCard, order, titleText, subText, 166, 52)
+
+        local sliderBg = Instance.new("TextButton")
+        sliderBg.Name = "SliderTrack"
+        sliderBg.Size = UDim2.new(0, 92, 0, 8)
+        sliderBg.Position = UDim2.new(1, -158, 0.5, -4)
+        sliderBg.BackgroundColor3 = T.BG2
+        sliderBg.BorderSizePixel = 0
+        sliderBg.Text = ""
+        sliderBg.AutoButtonColor = false
+        sliderBg.ZIndex = 9
+        sliderBg.Parent = row
+        Instance.new("UICorner", sliderBg).CornerRadius = UDim.new(1, 0)
+        local sbStroke = Instance.new("UIStroke", sliderBg)
+        sbStroke.Color = T.Border
+        sbStroke.Thickness = 1
+        sbStroke.Transparency = 0.35
+
+        local fill = Instance.new("Frame")
+        fill.Name = "SliderFill"
+        local initAlpha = math.clamp((curVal - minVal) / math.max(0.0001, maxVal - minVal), 0, 1)
+        fill.Size = UDim2.new(initAlpha, 0, 1, 0)
+        fill.BackgroundColor3 = T.Accent
+        fill.BorderSizePixel = 0
+        fill.ZIndex = 10
+        fill.Parent = sliderBg
+        Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
+        table.insert(UI.themeDynamicFills, fill)
+
+        local knob = Instance.new("Frame")
+        knob.Name = "SliderKnob"
+        knob.Size = UDim2.new(0, 14, 0, 14)
+        knob.Position = UDim2.new(initAlpha, -7, 0.5, -7)
+        knob.BackgroundColor3 = Color3.new(1, 1, 1)
+        knob.BorderSizePixel = 0
+        knob.ZIndex = 11
+        knob.Parent = sliderBg
+        Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 0)
+
+        local valBox = Instance.new("TextBox")
+        valBox.Name = "SliderValueBox"
+        valBox.Size = UDim2.new(0, 56, 0, 24)
+        valBox.Position = UDim2.new(1, -58, 0.5, -12)
+        valBox.BackgroundColor3 = T.BG2
+        valBox.Text = string.format(fmt, curVal) .. suffix
+        valBox.TextColor3 = T.Neon
+        valBox.Font = Enum.Font.GothamBold
+        valBox.TextSize = 9.5
+        valBox.ClearTextOnFocus = false
+        valBox.ZIndex = 9
+        valBox.Parent = row
+        Instance.new("UICorner", valBox).CornerRadius = UDim.new(0, 7)
+        local vbStroke = Instance.new("UIStroke", valBox)
+        vbStroke.Color = T.Border
+        vbStroke.Thickness = 1
+        vbStroke.Transparency = 0.3
+        table.insert(UI.themeDynamicTexts, valBox)
+
+        local function setValue(newVal, fireCallback)
+            local mult = 10 ^ decimals
+            curVal = math.clamp(math.floor((tonumber(newVal) or curVal) * mult + 0.5) / mult, minVal, maxVal)
+            local alpha = math.clamp((curVal - minVal) / math.max(0.0001, maxVal - minVal), 0, 1)
+            fill.Size = UDim2.new(alpha, 0, 1, 0)
+            knob.Position = UDim2.new(alpha, -7, 0.5, -7)
+            if not valBox:IsFocused() then
+                valBox.Text = string.format(fmt, curVal) .. suffix
+            end
+            if fireCallback and onValueChanged then
+                onValueChanged(curVal)
+            end
+        end
+
+        local dragging = false
+        local function updateFromX(screenX)
+            local absX = sliderBg.AbsolutePosition.X
+            local absW = math.max(1, sliderBg.AbsoluteSize.X)
+            local a = math.clamp((screenX - absX) / absW, 0, 1)
+            setValue(minVal + a * (maxVal - minVal), true)
+        end
+
+        sliderBg.InputBegan:Connect(function(inp)
+            if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+                dragging = true
+                updateFromX(inp.Position.X)
+            end
+        end)
+        UIS.InputChanged:Connect(function(inp)
+            if dragging and (inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch) then
+                updateFromX(inp.Position.X)
+            end
+        end)
+        UIS.InputEnded:Connect(function(inp)
+            if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+                dragging = false
+            end
+        end)
+
+        valBox.FocusLost:Connect(function()
+            local cleaned = (valBox.Text or ""):gsub("[^%d%.%-]", "")
+            local num = tonumber(cleaned)
+            if num then
+                setValue(num, true)
+            else
+                setValue(curVal, false)
+            end
+        end)
+
+        return {
+            row = row,
+            setValue = setValue,
+            getValue = function() return curVal end,
+            valBox = valBox,
+        }
+    end
+
     -- ═══════════════════════════════════════════════════════════════════════════
     -- CREATE CATEGORIES IN LEFT DOCK (Animation Copy, Animation Library and Emotes are separate pages)
     -- ═══════════════════════════════════════════════════════════════════════════
@@ -20196,6 +21650,9 @@ local function buildMainUI()
         { key = "vanish",    pillLabel = "Vanish 👻",  width = 104 },
         { key = "vanishtgt", pillLabel = "VanishTgt", width = 108 },
         { key = "overtags",  pillLabel = "Tags ON/OFF", width = 112 },
+        { key = "keybinds",  pillLabel = "Keys ON/OFF", width = 112 },
+        { key = "emote1",    pillLabel = "Emote #1 💃", width = 108 },
+        { key = "emote2",    pillLabel = "Emote #2 💃", width = 108 },
     }
     PILL_META = {}
     for _, item in ipairs(PILL_CATALOG) do PILL_META[item.key] = item end
@@ -20231,6 +21688,7 @@ local function buildMainUI()
             return (tgt and moveState and moveState.Vanish and moveState.Vanish.vanishedTargets[tgt.UserId] ~= nil) or false
         end
         if key == "overtags" then return OwnerAdminState.overheadTagsEnabled == true end
+        if key == "keybinds" then return (KeybindManager and KeybindManager.enabled == true) end
         if key == "deflect" then return (DefenceTroll.enabled or Anti.Redirect.enabled or Anti.PauseTrap.enabled) end
         return (WeldIntent.active == true and WeldIntent.presetKey == key)
     end
@@ -20349,6 +21807,22 @@ local function buildMainUI()
             end
             return
         end
+        if key == "keybinds" then
+            if KeybindManager and KeybindManager.ToggleMasterEnabled then
+                KeybindManager:ToggleMasterEnabled(true)
+            end
+            return
+        end
+        if key == "emote1" or key == "emote2" then
+            local slotIdx = (key == "emote1") and 1 or 2
+            local slot = EmoteHub and EmoteHub.quickSlots and EmoteHub.quickSlots[slotIdx]
+            if slot and slot.id then
+                EmoteHub:PlayCatalogEmote(slot.name, slot.id)
+            else
+                notify("💃 QUICK EMOTE", "Assign an emote to Slot #" .. tostring(slotIdx) .. " in the Emotes tab first!")
+            end
+            return
+        end
         if key == "rewind" then
             RewindSys:Start(RewindSys.duration)
             syncAllActiveIndicators()
@@ -20410,7 +21884,7 @@ local function buildMainUI()
             return
         end
 
-        if WeldIntent.active and WeldIntent.presetKey == key then
+        if ((WeldIntent.active or WeldIntent.waitingForSpawn) and WeldIntent.presetKey == key) or (key == "animcopy" and AnimCopySys and AnimCopySys.active) then
             stopWeld(false)
             StateManager:Cleanup(selectedPlayer ~= nil, false)
             if not selectedPlayer then
@@ -20670,6 +22144,128 @@ local function buildMainUI()
         end)
         table.insert(UI.selfOverheadTagSwitches, genSelfTagSw.setState)
 
+        local genKbSw = createSwitchRow(sessionGrp, 5, "PC Keybinds Master Switch (ON / OFF)", "Single switch to turn all keyboard hotkeys ON or OFF at once", KeybindManager.enabled, function(st)
+            KeybindManager:SetMasterEnabled(st, true)
+        end)
+        table.insert(KeybindManager.masterCallbacks, function(st)
+            genKbSw.setState(st, false)
+        end)
+
+        -- Persistent Disk Configuration Engine (writefile / readfile JSON)
+        UI.autoSaveConfig = true
+        local CONFIG_FILE_NAME = "CocoPowder_v36_Config.json"
+        UI.saveConfigToDisk = function(showToast)
+            local ok, err = pcall(function()
+                if typeof(writefile) ~= "function" then return end
+                local HttpService = game:GetService("HttpService")
+                local bindsMap = {}
+                for k, v in pairs(KeybindManager.binds or {}) do
+                    if typeof(v) == "EnumItem" then bindsMap[k] = v.Name end
+                end
+                local favList = {}
+                if EmoteHub and EmoteHub.favoriteEmotes then
+                    for id, isFav in pairs(EmoteHub.favoriteEmotes) do
+                        if isFav then table.insert(favList, tostring(id)) end
+                    end
+                end
+                local payload = {
+                    autoReweld = AutoReweldEnabled,
+                    autoHeight = V.AutoHeight,
+                    overheadTags = OwnerAdminState.overheadTagsEnabled,
+                    selfOverheadTag = OwnerAdminState.showSelfOverheadTag,
+                    keybindsMaster = KeybindManager.enabled,
+                    keybindsMap = bindsMap,
+                    keybindsActionEnabled = KeybindManager.actionEnabled,
+                    activePackName = EmoteHub and EmoteHub.activePackName or "Default",
+                    favoriteEmotes = favList,
+                    themeName = UI.currentThemeName or "Novoline Violet (Default)",
+                    glassMode = UI.glassMode == true,
+                    sidebarVisible = UI.sidebarVisible ~= false,
+                    sfxEnabled = UI.sfxEnabled ~= false,
+                    nebulaEnabled = UI.nebulaEnabled ~= false,
+                    uiScale = UI.uiScale or 1.0,
+                    ignoreFriends = _G.CocoIgnoreFriends == true,
+                    antiTagBypass = _G.CocoAntiTagBypass ~= false,
+                    customRoasts = _G.CocoCustomRoasts or {},
+                }
+                writefile(CONFIG_FILE_NAME, HttpService:JSONEncode(payload))
+            end)
+            if showToast then
+                if ok and typeof(writefile) == "function" then
+                    notify("💾 CONFIG SAVED", "Saved preferences, keybinds & theme to " .. CONFIG_FILE_NAME)
+                    sSuccess()
+                else
+                    notify("💾 SESSION SAVED", "Preferences updated in active session memory")
+                end
+            end
+        end
+
+        UI.loadConfigFromDisk = function()
+            pcall(function()
+                if typeof(isfile) ~= "function" or typeof(readfile) ~= "function" or not isfile(CONFIG_FILE_NAME) then return end
+                local raw = readfile(CONFIG_FILE_NAME)
+                if not raw or raw == "" then return end
+                local data = game:GetService("HttpService"):JSONDecode(raw)
+                if type(data) ~= "table" then return end
+                if type(data.autoReweld) == "boolean" then AutoReweldEnabled = data.autoReweld end
+                if type(data.autoHeight) == "boolean" then V.AutoHeight = data.autoHeight end
+                if type(data.overheadTags) == "boolean" and UI.setOverheadTagsEnabled then UI.setOverheadTagsEnabled(data.overheadTags, false) end
+                if type(data.selfOverheadTag) == "boolean" and UI.setSelfOverheadTagEnabled then UI.setSelfOverheadTagEnabled(data.selfOverheadTag, false) end
+                if type(data.keybindsMaster) == "boolean" then KeybindManager:SetMasterEnabled(data.keybindsMaster, false) end
+                if type(data.keybindsMap) == "table" then
+                    for act, kcName in pairs(data.keybindsMap) do
+                        if type(kcName) == "string" and Enum.KeyCode[kcName] then
+                            KeybindManager.binds[act] = Enum.KeyCode[kcName]
+                        end
+                    end
+                end
+                if type(data.keybindsActionEnabled) == "table" then
+                    for act, st in pairs(data.keybindsActionEnabled) do
+                        KeybindManager.actionEnabled[act] = (st ~= false)
+                    end
+                end
+                KeybindManager:UpdateAllDisplays()
+                if type(data.favoriteEmotes) == "table" and EmoteHub then
+                    EmoteHub.favoriteEmotes = EmoteHub.favoriteEmotes or {}
+                    for _, id in ipairs(data.favoriteEmotes) do
+                        EmoteHub.favoriteEmotes[tostring(id)] = true
+                    end
+                end
+                if type(data.activePackName) == "string" and data.activePackName ~= "Default" and EmoteHub then
+                    EmoteHub.activePackName = data.activePackName
+                end
+                if type(data.ignoreFriends) == "boolean" then _G.CocoIgnoreFriends = data.ignoreFriends end
+                if type(data.antiTagBypass) == "boolean" then _G.CocoAntiTagBypass = data.antiTagBypass end
+                if type(data.customRoasts) == "table" and _G.AddCocoCustomRoast then
+                    for _, w in ipairs(data.customRoasts) do _G.AddCocoCustomRoast(w) end
+                end
+                if type(data.uiScale) == "number" then UI.uiScale = math.clamp(data.uiScale, 0.75, 1.25) end
+                if type(data.themeName) == "string" then UI.savedThemeToApply = data.themeName end
+            end)
+        end
+
+        createSwitchRow(sessionGrp, 6, "Auto-Save Session Config (JSON)", "Automatically saves keybinds, theme, pack & toggles across rejoins", UI.autoSaveConfig, function(st)
+            UI.autoSaveConfig = st
+            if st then UI.saveConfigToDisk(true) end
+        end)
+
+        createActionRow(sessionGrp, 7, "Save Config Now / Reset Saved Config", "Tap [Save Now] to write config · Tap [↺] to delete saved config file", "Save Now", function(pillBtn)
+            UI.saveConfigToDisk(true)
+            pillBtn.Text = "Saved!"
+            task.delay(1.3, function()
+                if pillBtn and pillBtn.Parent then pillBtn.Text = "Save Now" end
+            end)
+        end, function()
+            pcall(function()
+                if typeof(delfile) == "function" and typeof(isfile) == "function" and isfile(CONFIG_FILE_NAME) then
+                    delfile(CONFIG_FILE_NAME)
+                end
+            end)
+            KeybindManager:RestoreDefaultBinds(false)
+            notify("💾 CONFIG RESET", "Reset saved disk configuration & restored defaults!")
+            sToggleOff()
+        end, "↺")
+
         createSectionTitle(genPage, 2, "Windows")
         local winGrp = createGroupCard(genPage, 3)
 
@@ -20863,11 +22459,41 @@ local function buildMainUI()
         winRowRefs["def_mini"] = createActionRow(winGrp, 5, "Defence Radar Matrix", "Open last time · Auto-counter incoming trolls", "Open", function()
             spawnOrToggleMiniWindow("def_mini", "🛡️ Defence Matrix", {
                 { label = "Toggle Defence Matrix", cb = function() togglePresetOrAction("deflect") end },
-                { label = "Enable All 13 Shields", cb = function() enableAllAntiSystems() end },
+                { label = "Enable All 16 Shields", cb = function() enableAllAntiSystems() end },
                 { label = "Disable All Shields",   cb = function() disableAllAntiSystems() end },
             }, UDim2.new(1, -214, 0.62, 0))
         end, function()
             toggleFloatingPill("deflect")
+        end)
+
+        winRowRefs["fly_mini"] = createActionRow(winGrp, 6, "Flight & Speed Deck (NEW)", "Detachable HUD · 4-Phase Flight, Speed 16/120/500, Noclip & Dash", "Open", function()
+            spawnOrToggleMiniWindow("fly_mini", "🚀 Flight & Speed", {
+                { label = "✈️ Toggle 4-Phase Flight", cb = function() if moveState and moveState.toggleFly then moveState.toggleFly() end end },
+                { label = "⚡ WalkSpeed: 16 / 120 / 500", cb = function(b)
+                    local nxt = (not moveState.speed and 120) or (moveState.customWalkSpeed == 120 and 500) or 16
+                    moveState.customWalkSpeed = nxt
+                    moveState.speed = (nxt > 16)
+                    local h = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
+                    if h then h.WalkSpeed = nxt end
+                    b.Text = "⚡ WalkSpeed: " .. tostring(nxt)
+                end },
+                { label = "👻 Toggle Noclip Phase", cb = function(b)
+                    moveState.noclip = not moveState.noclip
+                    b.Text = moveState.noclip and "👻 Noclip: ON" or "👻 Toggle Noclip Phase"
+                end },
+                { label = "💨 Phase Dash Forward", cb = function()
+                    local ch = LP.Character
+                    local r = ch and ch:FindFirstChild("HumanoidRootPart")
+                    if r then
+                        local dest = r.CFrame + (r.CFrame.LookVector * (moveState.dashDistance or 32))
+                        markIntentionalTeleport(dest)
+                        r.CFrame = dest
+                        sWhoosh()
+                    end
+                end },
+            }, UDim2.new(1, -214, 0.22, 0))
+        end, function()
+            toggleFloatingPill("fly")
         end)
     end
 
@@ -20898,7 +22524,7 @@ local function buildMainUI()
         wrapperHdrWrap.Parent = wrapperSection
 
         local wrapperTitle = Instance.new("TextLabel")
-        wrapperTitle.Size = UDim2.new(1, -76, 0, 18)
+        wrapperTitle.Size = UDim2.new(1, -268, 0, 18)
         wrapperTitle.Position = UDim2.new(0, 2, 0, 0)
         wrapperTitle.BackgroundTransparency = 1
         wrapperTitle.Text = "Weld Wrapper"
@@ -20906,12 +22532,13 @@ local function buildMainUI()
         wrapperTitle.Font = Enum.Font.GothamBold
         wrapperTitle.TextSize = 13
         wrapperTitle.TextXAlignment = Enum.TextXAlignment.Left
+        wrapperTitle.TextTruncate = Enum.TextTruncate.AtEnd
         wrapperTitle.ZIndex = 8
         wrapperTitle.Parent = wrapperHdrWrap
 
         local topStatusLbl = Instance.new("TextLabel")
         topStatusLbl.Name = "TopLeaveStatus"
-        topStatusLbl.Size = UDim2.new(1, -76, 0, 14)
+        topStatusLbl.Size = UDim2.new(1, -268, 0, 14)
         topStatusLbl.Position = UDim2.new(0, 2, 0, 19)
         topStatusLbl.BackgroundTransparency = 1
         topStatusLbl.Text = WeldIntent.topStatusText or "ready · select a target or preset"
@@ -20922,6 +22549,31 @@ local function buildMainUI()
         topStatusLbl.TextTruncate = Enum.TextTruncate.AtEnd
         topStatusLbl.ZIndex = 8
         topStatusLbl.Parent = wrapperHdrWrap
+
+        local keysHdrBtn = Instance.new("TextButton")
+        keysHdrBtn.Name = "MasterKeybindsToggleBtn"
+        keysHdrBtn.Size = UDim2.new(0, 60, 0, 24)
+        keysHdrBtn.Position = UDim2.new(1, -262, 0, 4)
+        keysHdrBtn.Text = KeybindManager.enabled and "Keys: ON" or "Keys: OFF"
+        keysHdrBtn.TextColor3 = Color3.new(1, 1, 1)
+        keysHdrBtn.Font = Enum.Font.GothamBold
+        keysHdrBtn.TextSize = 9
+        keysHdrBtn.ZIndex = 9
+        keysHdrBtn.Parent = wrapperHdrWrap
+        Instance.new("UICorner", keysHdrBtn).CornerRadius = UDim.new(1, 0)
+        styleBtn(keysHdrBtn, KeybindManager.enabled and T.Accent2 or T.PanelLt)
+        table.insert(KeybindManager.masterCallbacks, function(st)
+            if keysHdrBtn and keysHdrBtn.Parent then
+                keysHdrBtn.Text = st and "Keys: ON" or "Keys: OFF"
+                local col = st and T.Accent2 or T.PanelLt
+                BtnColors[keysHdrBtn] = col
+                keysHdrBtn.BackgroundColor3 = col
+            end
+        end)
+        keysHdrBtn.MouseButton1Click:Connect(function()
+            playClick()
+            KeybindManager:ToggleMasterEnabled(true)
+        end)
 
         local tagsHdrBtn = Instance.new("TextButton")
         tagsHdrBtn.Name = "AboveTagsToggleBtn"
@@ -21286,9 +22938,12 @@ local function buildMainUI()
         bottomStatusLbl.ZIndex = 9
         bottomStatusLbl.Parent = targetInputSection
 
+        local updatingUsernameBoxProgrammatically = false
         WeldIntent.setUsernameBoxText = function(txt)
-            if weldUsernameBox and weldUsernameBox.Parent and not weldUsernameBox:IsFocused() then
+            if weldUsernameBox and weldUsernameBox.Parent then
+                updatingUsernameBoxProgrammatically = true
                 weldUsernameBox.Text = tostring(txt or "")
+                updatingUsernameBoxProgrammatically = false
             end
         end
 
@@ -21365,7 +23020,7 @@ local function buildMainUI()
         end)
 
         weldUsernameBox:GetPropertyChangedSignal("Text"):Connect(function()
-            if not weldUsernameBox:IsFocused() then return end
+            if updatingUsernameBoxProgrammatically or not weldUsernameBox:IsFocused() then return end
             local raw = (weldUsernameBox.Text or ""):gsub("^%s*@+%s*", ""):gsub("^%s+", ""):gsub("%s+$", "")
             WeldIntent.typedUsername = raw
             if raw == "" then
@@ -21561,10 +23216,11 @@ local function buildMainUI()
             local char = findPlayerCharacterAnywhere(tgt)
             local hum = char and char:FindFirstChildOfClass("Humanoid")
             local ref = char and pickTargetRef(char, "torso")
+            local isCardReanim = (char and isCharacterNetlessReanimated(char)) or (findTargetReanimModel(tgt) ~= nil)
             local activeKey = WeldIntent.active and WeldIntent.presetKey or ((AnimCopySys and AnimCopySys.active) and "animcopy" or nil)
             local activePresetLbl = activeKey and WELD_PRESETS[activeKey] and WELD_PRESETS[activeKey].label or activeKey
 
-            if hum and hum.Health <= 0 then
+            if hum and hum.Health <= 0 and not isCardReanim then
                 topStatusLbl.Text = activePresetLbl and ("respawning · " .. activePresetLbl .. " queued") or "target respawning"
                 topStatusLbl.TextColor3 = T.Warning
                 midStatusLbl.Text = "target respawning · " .. tgt.Name
@@ -21824,6 +23480,96 @@ local function buildMainUI()
         table.insert(UI.selfOverheadTagSwitches, weldSelfTagSw.setState)
 
         addPresetRow(tuneGrp, 9, "overtags", "Pin 'Tags ON/OFF' Floating Pill", "Tap [Open] to toggle Above Tags · Tap [⦿] to pin floating screen pill")
+
+        -- Precision Drag Sliders + Direct Number Inputs for Speed, Z, Y, X
+        local spdSlider = createSliderInputRow(tuneGrp, 10, "Precision Speed Slider & Input", "Drag bar or type exact oscillation speed (0.1x – 10.0x)", 0.1, 10.0, V.Speed or 1.0, 1, "x", function(val)
+            V.Speed = val
+        end)
+        local zSlider = createSliderInputRow(tuneGrp, 11, "Precision Distance (Z) Slider & Input", "Drag bar or type exact Z offset (-5.0 to +10.0 studs)", -5.0, 10.0, V.Z or 1.3, 2, "", function(val)
+            V.Z = val
+            if distRowRef and distRowRef.pillBtn then distRowRef.pillBtn.Text = string.format("Z: %.1f", V.Z) end
+        end)
+        local ySlider = createSliderInputRow(tuneGrp, 12, "Precision Height (Y) Slider & Input", "Drag bar or type exact Y height offset (-6.0 to +6.0 studs)", -6.0, 6.0, V.Y or 0.0, 2, "", function(val)
+            V.Y = val
+            if heightRowRef and heightRowRef.pillBtn then heightRowRef.pillBtn.Text = string.format("Y: %+.1f", V.Y) end
+        end)
+        local xSlider = createSliderInputRow(tuneGrp, 13, "Precision Sideways (X) Slider & Input", "Drag bar or type exact X sideways offset (-6.0 to +6.0 studs)", -6.0, 6.0, V.X or 0.0, 2, "", function(val)
+            V.X = val
+            if sideRowRef and sideRowRef.pillBtn then sideRowRef.pillBtn.Text = string.format("X: %+.1f", V.X) end
+        end)
+
+        -- Custom Weld Oscillation Animation ID Override Box
+        local customAnimRow, _, customAnimSub = createGroupRowBase(tuneGrp, 14, "Custom Weld Animation ID Override", "Type any rbxassetid number to use during welds (blank = preset default)", 170, 50)
+        local customAnimBox = Instance.new("TextBox")
+        customAnimBox.Size = UDim2.new(0, 96, 0, 26)
+        customAnimBox.Position = UDim2.new(1, -162, 0.5, -13)
+        customAnimBox.BackgroundColor3 = T.BG2
+        customAnimBox.PlaceholderText = "Anim ID..."
+        customAnimBox.Text = V.CustomWeldAnimId and tostring(V.CustomWeldAnimId) or ""
+        customAnimBox.TextColor3 = T.Text
+        customAnimBox.PlaceholderColor3 = T.Muted
+        customAnimBox.Font = Enum.Font.GothamMedium
+        customAnimBox.TextSize = 9.5
+        customAnimBox.ClearTextOnFocus = false
+        customAnimBox.ZIndex = 9
+        customAnimBox.Parent = customAnimRow
+        Instance.new("UICorner", customAnimBox).CornerRadius = UDim.new(0, 7)
+        local cabStroke = Instance.new("UIStroke", customAnimBox)
+        cabStroke.Color = T.Border
+        cabStroke.Thickness = 1
+        cabStroke.Transparency = 0.3
+
+        local applyAnimBtn = Instance.new("TextButton")
+        applyAnimBtn.Size = UDim2.new(0, 34, 0, 26)
+        applyAnimBtn.Position = UDim2.new(1, -62, 0.5, -13)
+        applyAnimBtn.BackgroundColor3 = T.Accent2
+        applyAnimBtn.Text = "Set"
+        applyAnimBtn.TextColor3 = Color3.new(1, 1, 1)
+        applyAnimBtn.Font = Enum.Font.GothamBold
+        applyAnimBtn.TextSize = 9.5
+        applyAnimBtn.ZIndex = 9
+        applyAnimBtn.Parent = customAnimRow
+        Instance.new("UICorner", applyAnimBtn).CornerRadius = UDim.new(1, 0)
+        styleBtn(applyAnimBtn, T.Accent2)
+
+        local clrAnimBtn = Instance.new("TextButton")
+        clrAnimBtn.Size = UDim2.new(0, 24, 0, 26)
+        clrAnimBtn.Position = UDim2.new(1, -24, 0.5, -13)
+        clrAnimBtn.BackgroundColor3 = T.BG2
+        clrAnimBtn.Text = "↺"
+        clrAnimBtn.TextColor3 = T.Text
+        clrAnimBtn.Font = Enum.Font.GothamBold
+        clrAnimBtn.TextSize = 10
+        clrAnimBtn.ZIndex = 9
+        clrAnimBtn.Parent = customAnimRow
+        Instance.new("UICorner", clrAnimBtn).CornerRadius = UDim.new(1, 0)
+        styleBtn(clrAnimBtn, T.BG2)
+
+        local function applyCustomWeldAnim()
+            local digits = (customAnimBox.Text or ""):gsub("%D", "")
+            if digits ~= "" and tonumber(digits) then
+                V.CustomWeldAnimId = tonumber(digits)
+                customAnimBox.Text = digits
+                if customAnimSub then customAnimSub.Text = "Active custom weld anim: rbxassetid://" .. digits end
+                notify("⚡ CUSTOM WELD ANIM", "Set custom weld animation ID to " .. digits)
+                sSuccess()
+                if WeldIntent.active and WeldIntent.presetKey and WeldIntent.target then
+                    applyWeldPreset(WeldIntent.presetKey, WeldIntent.target)
+                end
+            else
+                V.CustomWeldAnimId = nil
+                customAnimBox.Text = ""
+                if customAnimSub then customAnimSub.Text = "Using default preset animations" end
+                notify("⚡ CUSTOM WELD ANIM", "Restored default weld preset animations")
+            end
+        end
+        applyAnimBtn.MouseButton1Click:Connect(function() playClick(); applyCustomWeldAnim() end)
+        customAnimBox.FocusLost:Connect(function(enter) if enter then applyCustomWeldAnim() end end)
+        clrAnimBtn.MouseButton1Click:Connect(function()
+            playClick()
+            customAnimBox.Text = ""
+            applyCustomWeldAnim()
+        end)
     end
 
     -- Spawn the default floating quick pills (including AnimCopy!)
@@ -22315,6 +24061,20 @@ local function buildMainUI()
             end
         )
 
+        createSliderInputRow(tuneSkyGrp, 7, "Ground Elevation Slider (-25 to 100 st)", "Live drag or type exact Ground Blanket elevation", -25.0, 100.0, _G._HaloCoverGroundHeight or 1.5, 1, " st", function(val)
+            _G._HaloCoverGroundHeight = val
+            if groundElevRow and groundElevRow.pillBtn then groundElevRow.pillBtn.Text = string.format("%.1f st", val) end
+        end)
+
+        createSliderInputRow(tuneSkyGrp, 8, "Sky Dome Elevation Slider (-25 to 250 st)", "Live drag or type exact Sky Dome height above character", -25.0, 250.0, _G._HaloCoverSkyHeight or 3.0, 1, " st", function(val)
+            _G._HaloCoverSkyHeight = val
+            if skyElevRow and skyElevRow.pillBtn then skyElevRow.pillBtn.Text = string.format("%.1f st", val) end
+        end)
+
+        createSliderInputRow(tuneSkyGrp, 9, "Mesh Reach Scale Slider (0.01x to 3.0x)", "Live drag or type reach multiplier (1.0x = 25M studs)", 0.01, 3.0, _G._HaloCoverScaleMult or 1.0, 2, "x", function(val)
+            _G._HaloCoverScaleMult = val
+        end)
+
         CocaSkyDestroyer.syncUIFn = function()
             if swGround then swGround.setState(_G._HaloCoverGroundActive == true, false) end
             if swSky then swSky.setState(_G._HaloCoverSkyActive == true, false) end
@@ -22474,6 +24234,19 @@ local function buildMainUI()
                     return
                 end
                 pcall(function()
+                    -- Snapshot original outfit once per character before morphing so we can restore without resetting!
+                    if not AnimCopySys.savedOutfitChar or AnimCopySys.savedOutfitChar ~= myChar then
+                        AnimCopySys.savedOutfitChar = myChar
+                        AnimCopySys.savedOutfitItems = {}
+                        for _, v in ipairs(myChar:GetChildren()) do
+                            if v:IsA("Accessory") or v:IsA("Shirt") or v:IsA("Pants") or v:IsA("ShirtGraphic") or v:IsA("BodyColors") or v:IsA("CharacterMesh") then
+                                table.insert(AnimCopySys.savedOutfitItems, v:Clone())
+                            end
+                        end
+                        local mh = myChar:FindFirstChild("Head")
+                        local mf = mh and mh:FindFirstChildOfClass("Decal")
+                        AnimCopySys.savedFaceTexture = mf and mf.Texture or nil
+                    end
                     for _, v in ipairs(myChar:GetChildren()) do
                         if v:IsA("Accessory") or v:IsA("Shirt") or v:IsA("Pants") or v:IsA("ShirtGraphic") or v:IsA("BodyColors") or v:IsA("CharacterMesh") then
                             v:Destroy()
@@ -22508,6 +24281,76 @@ local function buildMainUI()
                     if pillBtn and pillBtn.Parent then pillBtn.Text = "Morph Twin" end
                 end)
             end
+        )
+
+        createActionRow(
+            copyGrp,
+            8,
+            "Restore Original Avatar Outfit (Undo Twin Morph) (NEW)",
+            "Restores your own clothes, accessories, body colors & face without resetting",
+            "Restore Me",
+            function(pillBtn)
+                local myChar = LP.Character
+                if not myChar or AnimCopySys.savedOutfitChar ~= myChar or not AnimCopySys.savedOutfitItems then
+                    notify("🎭 OUTFIT RESTORE", "Your original avatar outfit is already active!")
+                    return
+                end
+                pcall(function()
+                    for _, v in ipairs(myChar:GetChildren()) do
+                        if v:IsA("Accessory") or v:IsA("Shirt") or v:IsA("Pants") or v:IsA("ShirtGraphic") or v:IsA("BodyColors") or v:IsA("CharacterMesh") then
+                            v:Destroy()
+                        end
+                    end
+                    for _, savedItem in ipairs(AnimCopySys.savedOutfitItems) do
+                        if savedItem then
+                            savedItem:Clone().Parent = myChar
+                        end
+                    end
+                    local myHead = myChar:FindFirstChild("Head")
+                    local myFace = myHead and myHead:FindFirstChildOfClass("Decal")
+                    if myFace and AnimCopySys.savedFaceTexture then
+                        myFace.Texture = AnimCopySys.savedFaceTexture
+                    end
+                end)
+                pillBtn.Text = "Restored!"
+                notify("🎭 OUTFIT RESTORED", "Restored your original avatar outfit & accessories!")
+                sSuccess()
+                task.delay(1.4, function()
+                    if pillBtn and pillBtn.Parent then pillBtn.Text = "Restore Me" end
+                end)
+            end
+        )
+
+        local rotModes = {
+            { deg = 0,   spin = false, label = "0° (Match)" },
+            { deg = 180, spin = false, label = "180° (Face)" },
+            { deg = 90,  spin = false, label = "+90° (Right)" },
+            { deg = -90, spin = false, label = "-90° (Left)" },
+            { deg = 0,   spin = true,  label = "360° Spin" },
+        }
+        local rotIdx = 1
+        createActionRow(
+            copyGrp,
+            9,
+            "Target Facing & Rotation Angle Offset (RY) (NEW)",
+            "Cycle facing angle (0° Match, 180° Opposite, ±90° Sideways, or 360° Spin) · Tap [↺] for 0°",
+            "0° (Match)",
+            function(pillBtn)
+                rotIdx = (rotIdx % #rotModes) + 1
+                local rm = rotModes[rotIdx]
+                AnimCopySys.rotationOffsetDeg = rm.deg
+                AnimCopySys.spinMode = rm.spin
+                pillBtn.Text = rm.label
+                notify("🎭 ROTATION OFFSET", "Anim Copy Facing Mode: " .. rm.label)
+            end,
+            function(_, pillBtn)
+                rotIdx = 1
+                AnimCopySys.rotationOffsetDeg = 0
+                AnimCopySys.spinMode = false
+                if pillBtn then pillBtn.Text = "0° (Match)" end
+                notify("🎭 ROTATION OFFSET", "Reset facing rotation to 0° (Match Target)")
+            end,
+            "↺"
         )
 
         -- Section 2: Jerk Troll & Emote Playback Controls
@@ -22595,8 +24438,54 @@ local function buildMainUI()
             end
         )
 
-        -- Section 3: All 28 Official Roblox Catalog R15 Animation Packs
-        createSectionTitle(animationPage, 3, "Catalog Animation Packs")
+        -- Section 3: 125+ Official & UGC R15 Animation Packs with Instant Search & Filter
+        createSectionTitle(animationPage, 3, "Catalog & UGC Animation Packs (125+ Bundles)")
+
+        local packFilterWrap = Instance.new("Frame")
+        packFilterWrap.Size = UDim2.new(1, 0, 0, 68)
+        packFilterWrap.BackgroundTransparency = 1
+        packFilterWrap.LayoutOrder = 3
+        packFilterWrap.ZIndex = 7
+        packFilterWrap.Parent = animationPage
+
+        local packSearchBox = Instance.new("TextBox")
+        packSearchBox.Size = UDim2.new(1, 0, 0, 32)
+        packSearchBox.Position = UDim2.new(0, 0, 0, 0)
+        packSearchBox.BackgroundColor3 = T.Panel
+        packSearchBox.PlaceholderText = "Search 125+ animation packs (Vampire, Mage, Zombie, UGC, Retro, Shinobi...)..."
+        packSearchBox.Text = ""
+        packSearchBox.TextColor3 = T.Text
+        packSearchBox.PlaceholderColor3 = T.Muted
+        packSearchBox.Font = Enum.Font.Gotham
+        packSearchBox.TextSize = 10
+        packSearchBox.ClearTextOnFocus = false
+        packSearchBox.ZIndex = 8
+        packSearchBox.Parent = packFilterWrap
+        Instance.new("UICorner", packSearchBox).CornerRadius = UDim.new(1, 0)
+        local psStroke = Instance.new("UIStroke", packSearchBox)
+        psStroke.Color = T.Border
+        psStroke.Thickness = 1
+        psStroke.Transparency = 0.35
+        local psPad = Instance.new("UIPadding", packSearchBox)
+        psPad.PaddingLeft = UDim.new(0, 12)
+        psPad.PaddingRight = UDim.new(0, 12)
+
+        local packCatBar = Instance.new("Frame")
+        packCatBar.Size = UDim2.new(1, 0, 0, 28)
+        packCatBar.Position = UDim2.new(0, 0, 0, 36)
+        packCatBar.BackgroundTransparency = 1
+        packCatBar.ZIndex = 8
+        packCatBar.Parent = packFilterWrap
+        local packCatLayout = Instance.new("UIListLayout", packCatBar)
+        packCatLayout.FillDirection = Enum.FillDirection.Horizontal
+        packCatLayout.Padding = UDim.new(0, 6)
+        packCatLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+        local PACK_CATS = { "All (125)", "Official (36)", "UGC / Mortal (89)" }
+        local selectedPackCat = "All (125)"
+        local packCatBtns = {}
+        local packRowEntries = {}
+
         local packGrp = createGroupCard(animationPage, 4)
 
         createActionRow(
@@ -22607,22 +24496,65 @@ local function buildMainUI()
             "Restore",
             function()
                 EmoteHub:RestoreDefaultPack()
+                if UI.autoSaveConfig and UI.saveConfigToDisk then UI.saveConfigToDisk(false) end
             end
         )
+
+        local function filterCatalogPacksList()
+            local q = (packSearchBox.Text or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
+            for _, entry in ipairs(packRowEntries) do
+                local catOk = (selectedPackCat == "All (125)")
+                    or (selectedPackCat == "Official (36)" and not entry.isUGC)
+                    or (selectedPackCat == "UGC / Mortal (89)" and entry.isUGC)
+                local txtOk = (q == "") or entry.searchName:find(q, 1, true)
+                if entry.rInfo and entry.rInfo.row then
+                    entry.rInfo.row.Visible = (catOk and txtOk)
+                end
+            end
+        end
+
+        for idx, cName in ipairs(PACK_CATS) do
+            local b = Instance.new("TextButton")
+            b.Size = UDim2.new(0, 102, 0, 26)
+            b.Text = cName
+            b.TextColor3 = (cName == selectedPackCat) and Color3.new(1, 1, 1) or T.Text
+            b.Font = Enum.Font.GothamBold
+            b.TextSize = 9.5
+            b.LayoutOrder = idx
+            b.ZIndex = 9
+            b.Parent = packCatBar
+            Instance.new("UICorner", b).CornerRadius = UDim.new(1, 0)
+            styleBtn(b, (cName == selectedPackCat) and T.Accent2 or T.Panel)
+            packCatBtns[cName] = b
+            b.MouseButton1Click:Connect(function()
+                playClick()
+                selectedPackCat = cName
+                for k, btn in pairs(packCatBtns) do
+                    local isAct = (k == selectedPackCat)
+                    BtnColors[btn] = isAct and T.Accent2 or T.Panel
+                    btn.BackgroundColor3 = isAct and T.Accent2 or T.Panel
+                    btn.TextColor3 = isAct and Color3.new(1, 1, 1) or T.Text
+                end
+                filterCatalogPacksList()
+            end)
+        end
 
         local packsBuilt = false
         local function ensureCatalogPacksBuilt()
             if packsBuilt then return end
             packsBuilt = true
             for idx, pack in ipairs(EmoteHub.CatalogPacks) do
-                createActionRow(
+                local isUGC = (idx > 36) or (pack.name:find("^%(UGC%)") ~= nil)
+                local subDesc = isUGC and "MortalHub / UGC Character Animation Bundle" or "Official Catalog Bundle: Idle, Walk, Run, Jump, Fall, Climb & Swim"
+                local rInfo = createActionRow(
                     packGrp,
                     idx + 1,
                     pack.name .. " Animation Pack",
-                    "Full Catalog Bundle: Idle, Walk, Run, Jump, Fall, Climb & Swim",
+                    subDesc,
                     "Apply",
                     function(pillBtn)
                         if EmoteHub:ApplyCatalogPack(pack) then
+                            if UI.autoSaveConfig and UI.saveConfigToDisk then UI.saveConfigToDisk(false) end
                             pillBtn.Text = "Applied"
                             task.delay(1.4, function()
                                 if pillBtn and pillBtn.Parent then pillBtn.Text = "Apply" end
@@ -22630,8 +24562,19 @@ local function buildMainUI()
                         end
                     end
                 )
+                table.insert(packRowEntries, {
+                    rInfo = rInfo,
+                    pack = pack,
+                    isUGC = isUGC,
+                    searchName = pack.name:lower(),
+                })
             end
+            filterCatalogPacksList()
         end
+        packSearchBox:GetPropertyChangedSignal("Text"):Connect(function()
+            ensureCatalogPacksBuilt()
+            filterCatalogPacksList()
+        end)
         animationPage:GetPropertyChangedSignal("Visible"):Connect(function()
             if animationPage.Visible then ensureCatalogPacksBuilt() end
         end)
@@ -22707,9 +24650,61 @@ local function buildMainUI()
         catFilterLayout.SortOrder = Enum.SortOrder.LayoutOrder
         catFilterLayout.Parent = catFilterBar
 
-        local EMOTE_CATS = { "All", "Trending", "Dances", "Poses", "Actions", "R6" }
+        EmoteHub.favoriteEmotes = EmoteHub.favoriteEmotes or {}
+        EmoteHub.quickSlots = EmoteHub.quickSlots or {
+            [1] = { name = "Bang (Coco)", id = "116235062592344" },
+            [2] = { name = "Goon (Coco)", id = "136828069054505" },
+        }
+        EmoteHub.lastPlayedEmote = EmoteHub.quickSlots[1]
+
+        local EMOTE_CATS = { "All", "★ Favs", "Trending", "Dances", "Poses", "Actions", "R6" }
         local selectedEmoteCat = "All"
         local catFilterBtns = {}
+
+        local quickEmoteGrp = createGroupCard(emotePage, 2)
+        local slot1Row = createActionRow(
+            quickEmoteGrp,
+            1,
+            "Quick Emote Slot #1: " .. EmoteHub.quickSlots[1].name,
+            "Tap [Play #1] to play · Tap [⦿] to pin floating screen pill (binds last played emote on right-click)",
+            "Play #1",
+            function()
+                local s = EmoteHub.quickSlots[1]
+                if s and s.id then EmoteHub:PlayCatalogEmote(s.name, s.id) end
+            end,
+            function()
+                toggleFloatingPill("emote1")
+            end,
+            ActivePills["emote1"] and "✓" or "⦿"
+        )
+        presetActionRows["emote1"] = slot1Row
+
+        local slot2Row = createActionRow(
+            quickEmoteGrp,
+            2,
+            "Quick Emote Slot #2: " .. EmoteHub.quickSlots[2].name,
+            "Tap [Set Last] to bind your last-played emote into Slot #1/#2 · Tap [⦿] to pin Slot #2 pill",
+            "Set Last",
+            function()
+                local last = EmoteHub.lastPlayedEmote
+                if last and last.id then
+                    EmoteHub.quickSlots[1] = { name = last.name, id = last.id }
+                    slot1Row.titleLbl.Text = "Quick Emote Slot #1: " .. last.name
+                    notify("💃 QUICK SLOT #1", "Assigned '" .. last.name .. "' to Quick Emote Slot #1!")
+                    sSuccess()
+                end
+            end,
+            function()
+                local last = EmoteHub.lastPlayedEmote
+                if last and last.id then
+                    EmoteHub.quickSlots[2] = { name = last.name, id = last.id }
+                    slot2Row.titleLbl.Text = "Quick Emote Slot #2: " .. last.name
+                end
+                toggleFloatingPill("emote2")
+            end,
+            ActivePills["emote2"] and "✓" or "⦿"
+        )
+        presetActionRows["emote2"] = slot2Row
 
         local emoteListGrp = createGroupCard(emotePage, 3)
         local emoteRowPool = {}
@@ -22720,7 +24715,10 @@ local function buildMainUI()
             local q = (emoteSearchBox.Text or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
             local shown = 0
             for _, em in ipairs(EmoteHub.CatalogEmotes) do
-                local catMatch = (selectedEmoteCat == "All") or (em.cat == selectedEmoteCat)
+                local isFav = EmoteHub.favoriteEmotes[tostring(em.id)] == true
+                local catMatch = (selectedEmoteCat == "All")
+                    or (selectedEmoteCat == "★ Favs" and isFav)
+                    or (em.cat == selectedEmoteCat)
                 local txtMatch = (q == "") or em.name:lower():find(q, 1, true) or em.id:find(q, 1, true) or em.cat:lower():find(q, 1, true)
                 if catMatch and txtMatch then
                     shown = shown + 1
@@ -22736,14 +24734,30 @@ local function buildMainUI()
                             function(pillBtn)
                                 local cur = poolEntry and poolEntry.emote or boundEmote
                                 if cur then
+                                    EmoteHub.lastPlayedEmote = cur
                                     EmoteHub:PlayCatalogEmote(cur.name, cur.id)
                                     pillBtn.Text = "Playing"
                                     task.delay(1.5, function()
                                         if pillBtn and pillBtn.Parent then pillBtn.Text = "Play" end
                                     end)
                                 end
-                            end
+                            end,
+                            function(cBtn)
+                                local cur = poolEntry and poolEntry.emote or boundEmote
+                                if not cur then return end
+                                local idKey = tostring(cur.id)
+                                local nowFav = not EmoteHub.favoriteEmotes[idKey]
+                                EmoteHub.favoriteEmotes[idKey] = nowFav or nil
+                                cBtn.Text = nowFav and "★" or "☆"
+                                cBtn.TextColor3 = nowFav and Color3.fromRGB(255, 215, 70) or T.Text
+                                if UI.autoSaveConfig and UI.saveConfigToDisk then UI.saveConfigToDisk(false) end
+                                if selectedEmoteCat == "★ Favs" then refreshEmotesCatalogList() end
+                            end,
+                            isFav and "★" or "☆"
                         )
+                        if rInfo.circleBtn then
+                            rInfo.circleBtn.TextColor3 = isFav and Color3.fromRGB(255, 215, 70) or T.Text
+                        end
                         poolEntry = { rowInfo = rInfo, emote = em }
                         emoteRowPool[shown] = poolEntry
                     else
@@ -22752,6 +24766,10 @@ local function buildMainUI()
                         poolEntry.rowInfo.titleLbl.Text = em.name
                         if poolEntry.rowInfo.subLbl then
                             poolEntry.rowInfo.subLbl.Text = "[" .. em.cat .. "]  ·  rbxassetid://" .. em.id
+                        end
+                        if poolEntry.rowInfo.circleBtn then
+                            poolEntry.rowInfo.circleBtn.Text = isFav and "★" or "☆"
+                            poolEntry.rowInfo.circleBtn.TextColor3 = isFav and Color3.fromRGB(255, 215, 70) or T.Text
                         end
                     end
                 end
@@ -23034,6 +25052,48 @@ local function buildMainUI()
             end
         )
 
+        _G.CocoIgnoreFriends = _G.CocoIgnoreFriends or false
+        _G.CocoTargetWhitelist = _G.CocoTargetWhitelist or {}
+
+        createSwitchRow(
+            intelGrp,
+            4,
+            "Ignore Roblox Friends & Whitelisted Players (NEW)",
+            "Prevents Auto-Nearest, Pursuit & Void Fling from locking onto your friends",
+            _G.CocoIgnoreFriends,
+            function(st)
+                _G.CocoIgnoreFriends = st
+                if UI.autoSaveConfig and UI.saveConfigToDisk then UI.saveConfigToDisk(false) end
+                notify("🛡️ FRIEND GUARD", st and "Auto-Nearest will now ignore Roblox Friends & Whitelisted players!" or "Friend Ignore disabled")
+            end
+        )
+
+        createActionRow(
+            intelGrp,
+            5,
+            "Whitelist / Un-Whitelist Locked Target (NEW)",
+            "Tap [Whitelist] to protect/unprotect target · Tap [↺] to clear custom whitelist",
+            "Whitelist",
+            function(pillBtn)
+                local tgt = selectedPlayer or resolveActiveTarget()
+                if not tgt or tgt == LP then
+                    notify("🛡️ WHITELIST", "Select a player first!")
+                    return
+                end
+                local nowWl = not _G.CocoTargetWhitelist[tgt.UserId]
+                _G.CocoTargetWhitelist[tgt.UserId] = nowWl or nil
+                pillBtn.Text = nowWl and "Protected" or "Whitelist"
+                notify("🛡️ WHITELIST", (nowWl and "Added @" or "Removed @") .. tgt.Name .. (nowWl and " to Protected Whitelist!" or " from Whitelist"))
+                if refreshList then pcall(refreshList, true) end
+            end,
+            function()
+                _G.CocoTargetWhitelist = {}
+                notify("🛡️ WHITELIST", "Cleared custom target whitelist")
+                if refreshList then pcall(refreshList, true) end
+            end,
+            "↺"
+        )
+
         createSectionTitle(targetPage, 3, "Server Players")
         local plrGrp = createGroupCard(targetPage, 4)
         plrGrp:SetAttribute("DynamicList", true)
@@ -23083,11 +25143,17 @@ local function buildMainUI()
             for i, p in ipairs(plrs) do
                 local isSel = (selectedPlayer == p)
                 local distStr = "hidden / unstreamed"
+                local hpStr = "HP: —"
                 pcall(function()
                     local myR = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
                     local tCF = getBestTargetCFrame(p)
                     if myR and tCF then
-                        distStr = string.format("%d studs away", math.floor((tCF.Position - myR.Position).Magnitude))
+                        distStr = string.format("%d studs", math.floor((tCF.Position - myR.Position).Magnitude))
+                    end
+                    local tChar = findPlayerCharacterAnywhere(p, true)
+                    local tHum = tChar and tChar:FindFirstChildOfClass("Humanoid")
+                    if tHum and tHum.MaxHealth > 0 then
+                        hpStr = string.format("❤️ %d%%", math.clamp(math.floor((tHum.Health / tHum.MaxHealth) * 100 + 0.5), 0, 100))
                     end
                 end)
 
@@ -23100,11 +25166,14 @@ local function buildMainUI()
                 elseif detInfo and (tick() - (detInfo.lastSeen or 0)) < 25 then
                     cpTag = detInfo.isFrozen and "  [❄️ CP FROZEN]" or "  [⚡ CP USER]"
                 end
+                if _G.CocoTargetWhitelist and _G.CocoTargetWhitelist[p.UserId] then
+                    cpTag = cpTag .. "  [🛡️ VIP]"
+                end
                 local rowInfo = createActionRow(
                     plrGrp,
                     i,
                     p.DisplayName .. cpTag .. (isSel and "  [LOCKED]" or ""),
-                    "@" .. p.Name .. "  ·  " .. distStr,
+                    "@" .. p.Name .. "  ·  " .. hpStr .. "  ·  " .. distStr,
                     isSel and "Locked" or "Lock",
                     function()
                         if selectedPlayer == p or (WeldIntent.typedUsername ~= "" and WeldIntent.typedUsername:lower() == p.Name:lower()) then
@@ -23127,6 +25196,7 @@ local function buildMainUI()
                             selectedPlayer = p
                             CurrentTarget = p
                             LastWeldTargetUserId = p.UserId
+                            WeldIntent.target = p
                             WeldIntent.typedUsername = p.Name
                             WeldIntent.leftInfo = nil
                             WeldIntent.waitingForSpawn = false
@@ -23134,18 +25204,34 @@ local function buildMainUI()
                             footerLabel.Text = "Target: " .. p.Name
                             footerSub.Text = "locked (tap again to disconnect)"
                             syncChatTarget(p)
-                            -- If a weld is currently active on someone else, seamlessly switch it to the newly locked player!
-                            if WeldIntent.active and WeldIntent.presetKey then
-                                applyWeldPreset(WeldIntent.presetKey, p)
+                            hookTargetRespawn(p)
+                            -- Immediately connect to the newly selected target if a weld/copy/preset is active, waiting, or previously armed!
+                            local presetToConnect = (WeldIntent.active and WeldIntent.presetKey)
+                                or ((AnimCopySys and AnimCopySys.active) and "animcopy")
+                                or (CurrentWeld and (WeldIntent.presetKey or LastPresetKey))
+                                or (WeldIntent.waitingForSpawn and (WeldIntent.presetKey or LastPresetKey))
+                                or WeldIntent.presetKey
+                                or LastPresetKey
+                            if presetToConnect and WELD_PRESETS[presetToConnect] then
+                                applyWeldPreset(presetToConnect, p)
                                 syncAllActiveIndicators()
+                                notify("COCO POWDER", "Locked & connected (" .. (WELD_PRESETS[presetToConnect].label or presetToConnect) .. ") -> @" .. p.Name)
+                            else
+                                notify("COCO POWDER", "Locked onto @" .. p.Name .. " (tap any weld preset to attach)")
                             end
-                            notify("COCO POWDER", "Locked onto @" .. p.Name)
                         end
                         refreshList()
                         if refreshCard then pcall(refreshCard) end
                     end,
                     function()
                         selectedPlayer = p
+                        CurrentTarget = p
+                        LastWeldTargetUserId = p.UserId
+                        WeldIntent.target = p
+                        WeldIntent.typedUsername = p.Name
+                        WeldIntent.leftInfo = nil
+                        WeldIntent.waitingForSpawn = false
+                        if WeldIntent.setUsernameBoxText then pcall(WeldIntent.setUsernameBoxText, p.Name) end
                         syncChatTarget(p)
                         task.spawn(function()
                             local _, tRef = streamAndTeleportToTarget(p, "root", 1.8, CFrame.new(3.2, 0, 0))
@@ -23594,6 +25680,19 @@ local function buildMainUI()
             cBtn.Text = tostring(nxt)
             notify("⚡ PHASE DASH", "Dash distance: " .. tostring(nxt) .. " studs")
         end, tostring(moveState.dashDistance))
+
+        createSliderInputRow(spdGrp, 10, "WalkSpeed Precision Slider (16 – 500)", "Drag bar or type exact ground WalkSpeed", 16, 500, currentSpeed, 0, "", function(val)
+            applySpeedValue(val)
+        end)
+
+        createSliderInputRow(spdGrp, 11, "JumpPower Precision Slider (50 – 350)", "Drag bar or type exact JumpPower height", 50, 350, currentJump, 0, "", function(val)
+            currentJump = math.floor(val)
+            local _, hum = getMoveCharacter()
+            if hum then hum.UseJumpPower = true; if moveState.jump then hum.JumpPower = currentJump end end
+            if jumpSwitchRef and jumpSwitchRef.subLbl then
+                jumpSwitchRef.subLbl.Text = "Enhances jump height (" .. tostring(currentJump) .. " power)"
+            end
+        end)
 
         end)() -- end WalkSpeed & Physics sub-scope
         createSectionTitle(movePage, 5, "Cinematic 4-Phase Flight")
@@ -24752,7 +26851,7 @@ local function buildMainUI()
                     local styleCfg = FLY_STYLES[moveState.flyStyle] or FLY_STYLES[1]
                     local moving = dir.Magnitude > 0.05
                     local unitDir = moving and dir.Unit or Vector3.zero
-                    local flySpeed = math.max(28, currentSpeed)
+                    local flySpeed = (moveState.useCustomFlySpeed ~= false and moveState.flySpeed) or math.max(28, currentSpeed)
                     local speedNorm = math.clamp(flySpeed / 120, 0.35, 1.4)
 
                     -- Check solid ground proximity for dynamic Takeoff / Touchdown Landing transitions
@@ -24933,6 +27032,17 @@ local function buildMainUI()
                     cleanupFlyTrails()
                 end
             end)
+
+            moveState.flySpeed = moveState.flySpeed or 75
+            moveState.useCustomFlySpeed = true
+            createSliderInputRow(flyGrp, 4, "Independent Flight Speed Slider (20 – 500)", "Adjust supersonic flight speed separately from ground WalkSpeed", 20, 500, moveState.flySpeed, 0, " st/s", function(val)
+                moveState.flySpeed = math.floor(val)
+            end)
+
+            createSwitchRow(flyGrp, 5, "Use Independent Flight Speed", "ON: uses Flight Speed slider above · OFF: matches ground WalkSpeed", moveState.useCustomFlySpeed, function(st)
+                moveState.useCustomFlySpeed = st
+                notify("✈️ FLIGHT SPEED", st and ("Using Independent Flight Speed (" .. tostring(moveState.flySpeed) .. " st/s)") or "Flight Speed synced with WalkSpeed")
+            end)
         end)()
 
         -- Section 7: Vanish Player & Ghost Invisibility Engine
@@ -25086,31 +27196,27 @@ local function buildMainUI()
             end
         end)
 
-        local infJumpEnabled = false
-        local infJumpConn = nil
-        createSwitchRow(fpsGrp, 3, "Infinite Air-Jump (Multi-Jump in Mid-Air) (NEW)", "Press Space or Mobile Jump infinitely in mid-air without falling", false, function(st)
-            infJumpEnabled = st
-            if infJumpConn then infJumpConn:Disconnect(); infJumpConn = nil end
-            if st then
-                local lastJumpTick = 0
-                infJumpConn = UIS.JumpRequest:Connect(function()
-                    if not infJumpEnabled or FlingActive or CurrentWeld ~= nil then return end
-                    if tick() - lastJumpTick < 0.14 then return end
-                    lastJumpTick = tick()
-                    local ch = LP.Character
-                    local hum = ch and ch:FindFirstChildOfClass("Humanoid")
-                    local root = ch and ch:FindFirstChild("HumanoidRootPart")
-                    if hum and root and hum.Health > 0 then
-                        local v = root.AssemblyLinearVelocity
-                        local jp = (hum.UseJumpPower and hum.JumpPower or 50)
-                        root.AssemblyLinearVelocity = Vector3.new(v.X, math.max(jp, 54), v.Z)
-                        pcall(function() hum:ChangeState(Enum.HumanoidStateType.Jumping) end)
+        -- Replaced duplicate Infinite Air-Jump row with Anti-Fall-Damage & Zero-Slip Ice Physics Guard
+        local noSlipConn = nil
+        createSwitchRow(fpsGrp, 3, "Zero-Slip Ice & Steep Slope Grip (NEW)", "Prevents sliding on ice/oil & lets you climb steep terrain angles", false, function(st)
+            if noSlipConn then noSlipConn:Disconnect(); noSlipConn = nil end
+            local applyGrip = function(ch)
+                if not ch then return end
+                local hum = ch:FindFirstChildOfClass("Humanoid")
+                if hum then pcall(function() hum.MaxSlopeAngle = st and 89.9 or 89 end) end
+                for _, p in ipairs(ch:GetDescendants()) do
+                    if p:IsA("BasePart") then
+                        pcall(function() p.CustomPhysicalProperties = st and PhysicalProperties.new(0.7, 1.0, 0.0, 1.0, 1.0) or nil end)
                     end
-                end)
-                notify("🦘 INFINITE JUMP", "Infinite Mid-Air Jump ON!")
+                end
+            end
+            applyGrip(LP.Character)
+            if st then
+                noSlipConn = LP.CharacterAdded:Connect(function(c) task.wait(0.2); applyGrip(c) end)
+                notify("🥾 SURFACE GRIP", "Zero-Slip Ice & 89.9° Steep Slope Grip ON!")
                 sToggleOn()
             else
-                notify("🦘 INFINITE JUMP", "Infinite Mid-Air Jump OFF")
+                notify("🥾 SURFACE GRIP", "Default character friction restored")
                 sToggleOff()
             end
         end)
@@ -25209,6 +27315,17 @@ local function buildMainUI()
         end, function()
             disableAllAntiSystems()
         end, "✕")
+
+        Anti.lockAlwaysOn = false
+        createSwitchRow(masterGrp, 2, "Lock Anti-Void & Anti-Sit as Always-On", "Turn OFF (default) so you can disable Anti-Sit to sit in cars/chairs anytime", Anti.lockAlwaysOn, function(st)
+            Anti.lockAlwaysOn = st
+            if st then
+                avStart(true)
+                if Anti.SeatTrap.startFn then Anti.SeatTrap.startFn(true) end
+                syncAllAntiButtons()
+            end
+            notify("🛡️ SHIELD LOCK", st and "Anti-Void & Anti-Sit locked as Always-On" or "Anti-Void & Anti-Sit can now be freely toggled ON/OFF!")
+        end)
 
         createSectionTitle(antiPage, 2, "Defence Troll Matrix V3 (Active Counter-Radar)")
         local defGrp = createGroupCard(antiPage, 3)
@@ -25312,9 +27429,50 @@ local function buildMainUI()
             vcStart()
         end, "⚡")
 
+        local vcV1Sw = createSwitchRow(bypassGrp, 7, "Novoline Anti-VC Bypass V1 (Floating Mic UI)", "Status: Ready (V1) · Disables all StateChanged conns + spawns draggable NV_MicToggleGUI", Anti.VCV1.enabled, function(st)
+            if st then
+                if Anti.VCV1.startFn then Anti.VCV1.startFn() end
+            else
+                if Anti.VCV1.stopFn then Anti.VCV1.stopFn() end
+            end
+            syncAllAntiButtons()
+        end)
+        Anti.VCV1.rowSubLbl = vcV1Sw.subLbl
+        table.insert(antiToggleRegistry, { sw = vcV1Sw, getState = function() return Anti.VCV1.enabled or Anti.VCV1.running end })
+
+        local vcV2Sw = createSwitchRow(bypassGrp, 8, "Novoline Anti-VC Bypass V2 (TopBar + RedDot)", "Status: Ready (V2) · Unmute wait + disables StateChanged[7+] + CustomVoiceController", Anti.VCV2.enabled, function(st)
+            if st then
+                if Anti.VCV2.startFn then Anti.VCV2.startFn() end
+            else
+                if Anti.VCV2.stopFn then Anti.VCV2.stopFn() end
+            end
+            syncAllAntiButtons()
+        end)
+        Anti.VCV2.rowSubLbl = vcV2Sw.subLbl
+        table.insert(antiToggleRegistry, { sw = vcV2Sw, getState = function() return Anti.VCV2.enabled or Anti.VCV2.running end })
+
+        createActionRow(bypassGrp, 9, "Open Novoline VC Bypasser Panel (V1 & V2 Glass GUI)", "Tap [Open V1/V2] for Novoline V1/V2 switcher GUI · Tap [V2] to open in V2 mode", "Open V1/V2", function()
+            if Anti.VC.openNovolinePanelFn then
+                Anti.VC.openNovolinePanelFn()
+            end
+        end, function()
+            if Anti.VC.openVCB2Fn then
+                Anti.VC.openVCB2Fn()
+            end
+        end, "V2")
+
+        createActionRow(bypassGrp, 10, "VC Quick Mute / Unmute (PublishPause)", "Instantly toggles VoiceChatInternal:PublishPause without VC suspension risk", "Mute / Unmute", function(pillBtn)
+            if Anti.VCV1.toggleMuteFn then
+                local mNow = Anti.VCV1.toggleMuteFn()
+                if mNow ~= nil and pillBtn then
+                    pillBtn.Text = mNow and "🔇 Muted" or "🎙️ Unmuted"
+                end
+            end
+        end)
+
         local antiCamLockOn = false
         local antiCamConn = nil
-        createSwitchRow(bypassGrp, 8, "Anti-Camera Lock, Shake & Forced Cutscene (NEW)", "Prevents scripts from locking CameraType to Scriptable or shaking your screen", false, function(st)
+        createSwitchRow(bypassGrp, 11, "Anti-Camera Lock, Shake & Forced Cutscene (NEW)", "Prevents scripts from locking CameraType to Scriptable or shaking your screen", false, function(st)
             antiCamLockOn = st
             if antiCamConn then antiCamConn:Disconnect(); antiCamConn = nil end
             if st then
@@ -25340,7 +27498,7 @@ local function buildMainUI()
         end)
 
         local mentionGuardOn = true
-        createSwitchRow(bypassGrp, 9, "Chat Mention & Whisper Radar Alert (NEW)", "Alerts you immediately when any player types your name or whispers in chat", mentionGuardOn, function(st)
+        createSwitchRow(bypassGrp, 12, "Chat Mention & Whisper Radar Alert (NEW)", "Alerts you immediately when any player types your name or whispers in chat", mentionGuardOn, function(st)
             mentionGuardOn = st
             notify("🔔 MENTION RADAR", st and "Chat Mention & Whisper Radar ON" or "Chat Mention & Whisper Radar OFF")
         end)
@@ -25517,6 +27675,77 @@ local function buildMainUI()
             cBtn.Text = string.format("%.0fs", CS_D)
             notify("💬 CHAT DELAY", string.format("Broadcast interval set to %.1fs", CS_D))
         end, "5s")
+
+        createSwitchRow(chatGrp, 5, "Anti-Tag & Anti-Spam Rate-Limit Bypass (NEW)", "Appends invisible zero-width variation markers so repeated messages aren't blocked", _G.CocoAntiTagBypass ~= false, function(st)
+            _G.CocoAntiTagBypass = st
+            if UI.autoSaveConfig and UI.saveConfigToDisk then UI.saveConfigToDisk(false) end
+            notify("💬 ANTI-RATE-LIMIT", st and "Zero-Width Anti-Duplicate Chat Bypass ON!" or "Anti-Duplicate Chat Bypass OFF")
+        end)
+
+        local customRoastRow, _, customRoastSub = createGroupRowBase(chatGrp, 6, "Custom Roast Word / Line Editor (NEW)", "Add custom words to the Auto-Roast generator pool · Tap [↺] to reset", 170, 50)
+        local customRoastBox = Instance.new("TextBox")
+        customRoastBox.Size = UDim2.new(0, 96, 0, 26)
+        customRoastBox.Position = UDim2.new(1, -162, 0.5, -13)
+        customRoastBox.BackgroundColor3 = T.BG2
+        customRoastBox.PlaceholderText = "New roast word..."
+        customRoastBox.Text = ""
+        customRoastBox.TextColor3 = T.Text
+        customRoastBox.PlaceholderColor3 = T.Muted
+        customRoastBox.Font = Enum.Font.Gotham
+        customRoastBox.TextSize = 9.5
+        customRoastBox.ClearTextOnFocus = false
+        customRoastBox.ZIndex = 9
+        customRoastBox.Parent = customRoastRow
+        Instance.new("UICorner", customRoastBox).CornerRadius = UDim.new(0, 7)
+        local crStroke = Instance.new("UIStroke", customRoastBox)
+        crStroke.Color = T.Border
+        crStroke.Thickness = 1
+        crStroke.Transparency = 0.3
+
+        local addRoastBtn = Instance.new("TextButton")
+        addRoastBtn.Size = UDim2.new(0, 34, 0, 26)
+        addRoastBtn.Position = UDim2.new(1, -62, 0.5, -13)
+        addRoastBtn.BackgroundColor3 = T.Accent2
+        addRoastBtn.Text = "Add"
+        addRoastBtn.TextColor3 = Color3.new(1, 1, 1)
+        addRoastBtn.Font = Enum.Font.GothamBold
+        addRoastBtn.TextSize = 9.5
+        addRoastBtn.ZIndex = 9
+        addRoastBtn.Parent = customRoastRow
+        Instance.new("UICorner", addRoastBtn).CornerRadius = UDim.new(1, 0)
+        styleBtn(addRoastBtn, T.Accent2)
+
+        local rstRoastBtn = Instance.new("TextButton")
+        rstRoastBtn.Size = UDim2.new(0, 24, 0, 26)
+        rstRoastBtn.Position = UDim2.new(1, -24, 0.5, -13)
+        rstRoastBtn.BackgroundColor3 = T.BG2
+        rstRoastBtn.Text = "↺"
+        rstRoastBtn.TextColor3 = T.Text
+        rstRoastBtn.Font = Enum.Font.GothamBold
+        rstRoastBtn.TextSize = 10
+        rstRoastBtn.ZIndex = 9
+        rstRoastBtn.Parent = customRoastRow
+        Instance.new("UICorner", rstRoastBtn).CornerRadius = UDim.new(1, 0)
+        styleBtn(rstRoastBtn, T.BG2)
+
+        addRoastBtn.MouseButton1Click:Connect(function()
+            playClick()
+            if _G.AddCocoCustomRoast and _G.AddCocoCustomRoast(customRoastBox.Text) then
+                local added = customRoastBox.Text:upper()
+                customRoastBox.Text = ""
+                if customRoastSub then customRoastSub.Text = "Added '" .. added .. "' (" .. tostring(#(_G.CocoCustomRoasts or {})) .. " custom roasts active)" end
+                if UI.autoSaveConfig and UI.saveConfigToDisk then UI.saveConfigToDisk(false) end
+                notify("💬 ROAST ADDED", "Added '" .. added .. "' to Auto-Roast generator!")
+                sSuccess()
+            end
+        end)
+        rstRoastBtn.MouseButton1Click:Connect(function()
+            playClick()
+            if _G.ResetCocoCustomRoasts then _G.ResetCocoCustomRoasts() end
+            if customRoastSub then customRoastSub.Text = "Restored default roast vocabulary" end
+            if UI.autoSaveConfig and UI.saveConfigToDisk then UI.saveConfigToDisk(false) end
+            notify("💬 ROAST LIST", "Restored default roast vocabulary!")
+        end)
     end)()
 
     -- ═══════════════════════════════════════════════════════════════════════════
@@ -25606,6 +27835,30 @@ local function buildMainUI()
             UI.setSelfOverheadTagEnabled(st, true)
         end)
         table.insert(UI.selfOverheadTagSwitches, prefSelfTagSw.setState)
+
+        UI.uiScale = UI.uiScale or 1.0
+        local uiScaleSlider = createSliderInputRow(prefGrp, 7, "UI Window Scale (75% – 125%) (NEW)", "Resize the entire Dual-Card hub cleanly for PC or Mobile screens", 75, 125, math.floor((UI.uiScale or 1.0) * 100), 0, "%", function(pct)
+            UI.uiScale = math.clamp(pct / 100, 0.75, 1.25)
+            if UI.applyRootScaleFn then UI.applyRootScaleFn(UI.uiScale) end
+            if UI.autoSaveConfig and UI.saveConfigToDisk then UI.saveConfigToDisk(false) end
+        end)
+
+        createActionRow(prefGrp, 8, "Reset UI Window Scale to 100%", "Restores default 1.0x window size", "100% ↺", function()
+            UI.uiScale = 1.0
+            uiScaleSlider.setValue(100, true)
+            notify("🎨 UI SCALE", "Restored UI Window Scale to 100%")
+        end)
+
+        -- Expose theme lookup so saved config can auto-apply theme
+        UI.applyThemeByName = function(tName)
+            for _, th in ipairs(THEMES) do
+                if th.name == tName then
+                    UI.currentThemeName = th.name
+                    applyTheme(th)
+                    break
+                end
+            end
+        end
     end)()
 
     -- ═══════════════════════════════════════════════════════════════════════════
@@ -25629,7 +27882,7 @@ local function buildMainUI()
         local roleTitleText = isScriptOwner(LP)
             and ("👑 Script Owner: @" .. LP.Name .. " (Full Authority)")
             or (isPremiumUser(LP) and ("💎 Premium Admin: @" .. LP.Name .. " (Admin Panel Unlocked)") or "🔒 Restricted: Owner & Premium Only")
-        local roleSubText = "Owner: shivyy73 · Premium: kaun_bhai, retreee_yawrrr, Armaan_lulla, cocacola"
+        local roleSubText = "Owner: shivyy73 · Premium: kaun_bhai, retreee_yawrrr, Armaan_lulla, shivyy7711"
 
         createActionRow(
             ownerInfoGrp,
@@ -26799,12 +29052,54 @@ local function buildMainUI()
         -- SECTION 9: 👑 SCRIPT USERS & PLAYERS (Freeze / Ban / Chat / Vanish)
         -- ═══════════════════════════════════════════════════════════════════════
         createSectionTitle(adminPage, 18, "Script Users & Server Players (Freeze / Chat / Vanish / Prem / Ban)")
+
+        local adminSearchRow = Instance.new("Frame")
+        adminSearchRow.Size = UDim2.new(1, 0, 0, 34)
+        adminSearchRow.BackgroundTransparency = 1
+        adminSearchRow.LayoutOrder = 18
+        adminSearchRow.ZIndex = 7
+        adminSearchRow.Parent = adminPage
+
+        local adminSearchBox = Instance.new("TextBox")
+        adminSearchBox.Size = UDim2.new(1, -112, 1, 0)
+        adminSearchBox.BackgroundColor3 = T.Panel
+        adminSearchBox.PlaceholderText = "Search server players or filter ('user', 'frozen', 'banned')..."
+        adminSearchBox.Text = ""
+        adminSearchBox.TextColor3 = T.Text
+        adminSearchBox.PlaceholderColor3 = T.Muted
+        adminSearchBox.Font = Enum.Font.Gotham
+        adminSearchBox.TextSize = 10
+        adminSearchBox.ClearTextOnFocus = false
+        adminSearchBox.ZIndex = 8
+        adminSearchBox.Parent = adminSearchRow
+        Instance.new("UICorner", adminSearchBox).CornerRadius = UDim.new(1, 0)
+        local asbStroke = Instance.new("UIStroke", adminSearchBox)
+        asbStroke.Color = T.Border
+        asbStroke.Thickness = 1
+        asbStroke.Transparency = 0.35
+        local asbPad = Instance.new("UIPadding", adminSearchBox)
+        asbPad.PaddingLeft = UDim.new(0, 12)
+        asbPad.PaddingRight = UDim.new(0, 10)
+
+        local freezeNonFriendsBtn = Instance.new("TextButton")
+        freezeNonFriendsBtn.Size = UDim2.new(0, 106, 1, 0)
+        freezeNonFriendsBtn.Position = UDim2.new(1, -106, 0, 0)
+        freezeNonFriendsBtn.Text = "Freeze Non-Fr ❄️"
+        freezeNonFriendsBtn.TextColor3 = Color3.new(1, 1, 1)
+        freezeNonFriendsBtn.Font = Enum.Font.GothamBold
+        freezeNonFriendsBtn.TextSize = 9.5
+        freezeNonFriendsBtn.ZIndex = 8
+        freezeNonFriendsBtn.Parent = adminSearchRow
+        Instance.new("UICorner", freezeNonFriendsBtn).CornerRadius = UDim.new(1, 0)
+        styleBtn(freezeNonFriendsBtn, T.Accent2)
+
         local adminPlrGrp = createGroupCard(adminPage, 19)
         adminPlrGrp:SetAttribute("DynamicList", true)
         local adminListDirty = true
 
         local function refreshAdminPlayerList(forceRebuild)
             syncAdminTabVisibility()
+            local q = (adminSearchBox and adminSearchBox.Text or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
             local others = {}
             local scriptUserCount = 0
             for _, p in ipairs(Players:GetPlayers()) do
@@ -26812,7 +29107,17 @@ local function buildMainUI()
                     local det = DetectedScriptUsers[p.UserId]
                     local isUser = (det and det.isScriptUser and (tick() - (det.lastSeen or 0)) < 25.0) or isConfiguredScriptOwner(p) or isConfiguredPremiumUser(p)
                     if isUser then scriptUserCount = scriptUserCount + 1 end
-                    table.insert(others, { player = p, isUser = isUser, det = det })
+                    local isFrz = OwnerAdminState.ownerFrozenTargets[p.UserId] or (det and det.isFrozen) or false
+                    local isBan = OwnerAdminState.ownerBannedTargets[p.UserId] or false
+                    local matchQ = (q == "")
+                        or p.Name:lower():find(q, 1, true)
+                        or p.DisplayName:lower():find(q, 1, true)
+                        or (q == "user" and isUser)
+                        or (q == "frozen" and isFrz)
+                        or (q == "banned" and isBan)
+                    if matchQ then
+                        table.insert(others, { player = p, isUser = isUser, det = det })
+                    end
                 end
             end
 
@@ -27112,6 +29417,32 @@ local function buildMainUI()
             if refreshList then pcall(refreshList) end
         end
 
+        adminSearchBox:GetPropertyChangedSignal("Text"):Connect(function()
+            pcall(refreshAdminPlayerList, true)
+        end)
+        freezeNonFriendsBtn.MouseButton1Click:Connect(function()
+            playClick()
+            if not hasAdminAccess(LP) then
+                notify("🔒 ACCESS DENIED", "Only Owner & Premium Users can freeze script users!")
+                sError()
+                return
+            end
+            local count = 0
+            for _, p in ipairs(Players:GetPlayers()) do
+                if p ~= LP and not isProtectedFromLocalPlayer(p) then
+                    local okFr, isFr = pcall(function() return LP:IsFriendsWith(p.UserId) end)
+                    if not (okFr and isFr) and not (_G.CocoTargetWhitelist and _G.CocoTargetWhitelist[p.UserId]) then
+                        OwnerAdminState.ownerFrozenTargets[p.UserId] = true
+                        broadcastOwnerAdminCommand(12, p, "cpfreeze")
+                        count = count + 1
+                    end
+                end
+            end
+            pcall(updateOverheadNameTags)
+            pcall(refreshAdminPlayerList, true)
+            notify("❄️ FREEZE NON-FRIENDS", "Froze " .. tostring(count) .. " non-friend player(s) in server!")
+            sSuccess()
+        end)
         adminPage:GetPropertyChangedSignal("Visible"):Connect(function()
             if adminPage.Visible and adminListDirty then
                 pcall(refreshAdminPlayerList, true)
@@ -27165,7 +29496,64 @@ local function buildMainUI()
             defaultLabel = "Click TP",
         }
 
-        createSectionTitle(toolsPage, 3, "PC Troll Keybinds & Key Re-Assignment")
+        createSectionTitle(toolsPage, 3, "PC Troll Keybinds · Single-Button ON/OFF & Re-Assignment")
+        local masterKbGrp = createGroupCard(toolsPage, 3)
+
+        local masterKbRow = createActionRow(
+            masterKbGrp,
+            1,
+            "All Keybinds Master Button (1-Click ON / OFF)",
+            "Tap [Keys: ON/OFF] to toggle all hotkeys from 1 button · Tap [⦿] to pin floating pill",
+            KeybindManager.enabled and "Keys: ON" or "Keys: OFF",
+            function()
+                KeybindManager:ToggleMasterEnabled(true)
+            end,
+            function()
+                toggleFloatingPill("keybinds")
+            end,
+            ActivePills["keybinds"] and "✓" or "⦿"
+        )
+        masterKbRow.defaultLabel = "Keys: ON"
+        presetActionRows["keybinds"] = masterKbRow
+
+        local masterKbSw = createSwitchRow(
+            masterKbGrp,
+            2,
+            "Master Keybinds Active Switch (ON / OFF)",
+            "When OFF, pressing keyboard keys will never trigger troll actions or Coca Reanim binds",
+            KeybindManager.enabled,
+            function(st)
+                KeybindManager:SetMasterEnabled(st, true)
+            end
+        )
+
+        createActionRow(
+            masterKbGrp,
+            3,
+            "Batch Toggle All Individual Keybinds / Restore Defaults",
+            "Tap [All ON / OFF] to toggle every individual bind · Tap [↺] to restore default keys",
+            "All ON",
+            function(pillBtn)
+                local turnOn = not KeybindManager.enabled
+                KeybindManager:SetAllActionsEnabled(turnOn, true)
+                pillBtn.Text = turnOn and "All ON" or "All OFF"
+            end,
+            function()
+                KeybindManager:RestoreDefaultBinds(true)
+            end,
+            "↺"
+        )
+
+        table.insert(KeybindManager.masterCallbacks, function(st)
+            masterKbSw.setState(st, false)
+            if masterKbRow and masterKbRow.pillBtn and masterKbRow.pillBtn.Parent then
+                masterKbRow.pillBtn.Text = st and "Keys: ON" or "Keys: OFF"
+                local col = st and T.Accent2 or T.BG2
+                BtnColors[masterKbRow.pillBtn] = col
+                masterKbRow.pillBtn.BackgroundColor3 = col
+            end
+        end)
+
         local trollKbGrp = createGroupCard(toolsPage, 4)
 
         local trollActionOrder = {
@@ -27176,19 +29564,30 @@ local function buildMainUI()
 
         for idx, actKey in ipairs(trollActionOrder) do
             local label = KeybindManager.actionLabels[actKey] or actKey
-            local desc = KeybindManager.actionDescriptions[actKey] or "Customizable hotkey"
-            local rInfo = createActionRow(trollKbGrp, idx, label, desc, KeybindManager:GetKeyName(actKey), function(pillBtn)
-                if KeybindManager.listeningAction == actKey then
-                    KeybindManager.listeningAction = nil
-                    KeybindManager:UpdateDisplay(actKey)
-                    notify("⌨️ KEYBIND", "Cancelled assignment for " .. label)
-                else
-                    KeybindManager.listeningAction = actKey
-                    KeybindManager:UpdateDisplay(actKey)
-                    notify("⌨️ KEYBIND", "Press ANY key on your keyboard to bind " .. label .. "! (Backspace/Esc to clear)")
-                    sWhoosh()
-                end
-            end)
+            local desc = (KeybindManager.actionDescriptions[actKey] or "Customizable hotkey") .. " · Press key to toggle ON/OFF"
+            local rInfo = createActionRow(
+                trollKbGrp,
+                idx,
+                label,
+                desc,
+                KeybindManager:GetKeyName(actKey),
+                function()
+                    if KeybindManager.listeningAction == actKey then
+                        KeybindManager.listeningAction = nil
+                        KeybindManager:UpdateDisplay(actKey)
+                        notify("⌨️ KEYBIND", "Cancelled assignment for " .. label)
+                    else
+                        KeybindManager.listeningAction = actKey
+                        KeybindManager:UpdateDisplay(actKey)
+                        notify("⌨️ KEYBIND", "Press ANY key on your keyboard to bind " .. label .. "! (Backspace/Esc to clear)")
+                        sWhoosh()
+                    end
+                end,
+                function()
+                    KeybindManager:ToggleActionEnabled(actKey, true)
+                end,
+                KeybindManager.actionEnabled[actKey] ~= false and "ON" or "OFF"
+            )
             KeybindManager.buttonRefs[actKey] = rInfo
             KeybindManager:UpdateDisplay(actKey)
         end
@@ -27347,21 +29746,25 @@ local function buildMainUI()
     end)
 
     local rootScale = Instance.new("UIScale")
-    rootScale.Scale = 1
+    rootScale.Scale = UI.uiScale or 1
     rootScale.Parent = rootWrap
+    UI.applyRootScaleFn = function(sc)
+        rootScale.Scale = sc or 1
+    end
 
     setPanelOpen = function(isOpen)
         gui.Enabled = true
         UI.open = isOpen
         UI.minimized = not isOpen
         pcall(syncNebulaPlayback)
+        local targetSc = UI.uiScale or 1
         if isOpen then
             rootWrap.Visible = true
             catShadow.Visible = UI.sidebarVisible
             mainShadow.Visible = true
             mobToggle.Visible = false
-            rootScale.Scale = 0.90
-            TweenService:Create(rootScale, TI_SPRING, { Scale = 1 }):Play()
+            rootScale.Scale = targetSc * 0.90
+            TweenService:Create(rootScale, TI_SPRING, { Scale = targetSc }):Play()
         else
             catShadow.Visible = false
             mainShadow.Visible = false
@@ -27531,14 +29934,15 @@ local function buildMainUI()
             return
         end
 
-        -- Check registered troll & utility keybinds
-        if KeybindManager and KeybindManager.binds then
+        -- Check registered troll & utility keybinds (respects Master ON/OFF & Per-Keybind ON/OFF; each key toggles its action ON and OFF)
+        if KeybindManager and KeybindManager.enabled and KeybindManager.binds then
             local handled = false
             for actionKey, boundKey in pairs(KeybindManager.binds) do
-                if boundKey and inp.KeyCode == boundKey then
+                if boundKey and KeybindManager.actionEnabled[actionKey] ~= false and inp.KeyCode == boundKey then
                     handled = true
                     if actionKey == "rewind" then
                         RewindSys:Start(RewindSys.duration)
+                        syncAllActiveIndicators()
                     elseif actionKey == "clicktp" then
                         local mouse = LP:GetMouse()
                         if mouse and mouse.Hit then
@@ -27549,14 +29953,19 @@ local function buildMainUI()
                         end
                     elseif actionKey == "fly" then
                         if moveState and moveState.toggleFly then moveState.toggleFly() end
+                        syncAllActiveIndicators()
                     elseif actionKey == "stop" then
                         stopWeld()
+                        if EmoteHub then
+                            pcall(function() EmoteHub:StopEmote() end)
+                            pcall(function() EmoteHub:StopJerk() end)
+                        end
                         StateManager:Cleanup(false)
                         LastWeldTargetUserId = nil
                         LastPresetKey = nil
                         footerSub.Text = "stopped"
                         syncAllActiveIndicators()
-                        notify("COCO POWDER", "Emergency Unweld triggered via [" .. boundKey.Name .. "]")
+                        notify("COCO POWDER", "Emergency Stop / Unweld triggered via [" .. boundKey.Name .. "]")
                         sToggleOff()
                     else
                         togglePresetOrAction(actionKey)
@@ -27566,16 +29975,19 @@ local function buildMainUI()
             end
             if handled then return end
         end
-
-        -- Direct Zero-Delay Fallback Trigger for Chrono-Rewind (Keybind: R) if not rebound
-        if inp.KeyCode == Enum.KeyCode.R and not (KeybindManager and KeybindManager.listeningAction) then
-            RewindSys:Start(RewindSys.duration)
-            return
-        end
     end)
 
     -- Default to "General" or "Weld & Troll" — open "General" first to showcase the exact 2nd-image layout,
     -- or users can tap any category in the left dock!
+    if UI.loadConfigFromDisk then
+        pcall(UI.loadConfigFromDisk)
+        if UI.savedThemeToApply and UI.applyThemeByName then
+            pcall(UI.applyThemeByName, UI.savedThemeToApply)
+        end
+        if UI.applyRootScaleFn and UI.uiScale then
+            pcall(UI.applyRootScaleFn, UI.uiScale)
+        end
+    end
     showCategory("Weld & Troll")
 end
 
