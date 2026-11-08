@@ -6351,14 +6351,7 @@ _G.ResetCocoCustomRoasts = function()
     table.clear(_G.CocoCustomRoasts)
 end
 
-local antiTagTokens = {
-    "\226\128\139",
-    "\226\128\140",
-    "\226\128\141",
-    "\226\129\160",
-    "\226\129\161",
-    "\226\129\162",
-}
+local antiTagTokens = { "\226\128\139", "\226\128\140", "\226\128\141", " \194\183", " \226\150\184", " \226\151\134" }
 local antiTagSeq = 0
 snd2 = function(tx)
     if _G.CocoAntiTagBypass and type(tx) == "string" and not tx:match("^!") then
