@@ -834,7 +834,7 @@ end
 
 local loadPlayableAnim
 do
-    local ANIM_VERIFY_TIME = 0.06
+    local ANIM_VERIFY_TIME = 0.10
     local ANIM_MAX_ATTEMPTS = 2
     local ResolvedCatalogAnimCache = {}
 
@@ -850,10 +850,39 @@ do
                     local first = objs[1]
                     if first:IsA("Animation") and first.AnimationId ~= "" then
                         ResolvedCatalogAnimCache[cleanDigits] = first.AnimationId
+                    elseif first:IsA("KeyframeSequence") then
+                        pcall(function()
+                            local ksp = game:GetService("KeyframeSequenceProvider")
+                            local hashUri = ksp and ksp:RegisterKeyframeSequence(first)
+                            if hashUri and tostring(hashUri) ~= "" then
+                                ResolvedCatalogAnimCache[cleanDigits] = tostring(hashUri)
+                            end
+                        end)
                     else
                         local innerAnim = first:FindFirstChildWhichIsA("Animation", true)
                         if innerAnim and innerAnim.AnimationId ~= "" then
                             ResolvedCatalogAnimCache[cleanDigits] = innerAnim.AnimationId
+                        else
+                            local innerKfs = first:FindFirstChildWhichIsA("KeyframeSequence", true)
+                            if innerKfs then
+                                pcall(function()
+                                    local ksp = game:GetService("KeyframeSequenceProvider")
+                                    local hashUri = ksp and ksp:RegisterKeyframeSequence(innerKfs)
+                                    if hashUri and tostring(hashUri) ~= "" then
+                                        ResolvedCatalogAnimCache[cleanDigits] = tostring(hashUri)
+                                    end
+                                end)
+                            else
+                                for _, desc in ipairs(first:GetDescendants()) do
+                                    if (desc:IsA("StringValue") or desc:IsA("NumberValue") or desc:IsA("IntValue")) and tostring(desc.Value):find("%d%d%d%d%d+") then
+                                        local digits = tostring(desc.Value):match("(%d%d%d%d%d+)")
+                                        if digits then
+                                            ResolvedCatalogAnimCache[cleanDigits] = "rbxassetid://" .. digits
+                                            break
+                                        end
+                                    end
+                                end
+                            end
                         end
                     end
                     pcall(function() first:Destroy() end)
@@ -871,7 +900,7 @@ do
         pcall(resolveCatalogOrAnimUri, "90735295463164")
     end)
 
-    local function tryPlayOnce(Animator, animId, hum, priority)
+    local function tryPlayOnce(Animator, animId, hum, priority, verifyPlayable)
         local cleanDigits = tostring(animId or ""):gsub("%D", "")
         if cleanDigits == "" then return nil, nil, false, nil end
         local resolvedUri = resolveCatalogOrAnimUri(cleanDigits) or ("rbxassetid://" .. cleanDigits)
@@ -883,32 +912,7 @@ do
             okLoad, track = pcall(function() return Animator:LoadAnimation(anim) end)
         end
         if not okLoad or not track then
-            anim:Destroy()
-            -- Fallback for Catalog Emote Bundle IDs via HumanoidDescription:AddEmote
-            local numId = tonumber(cleanDigits)
-            if numId and hum then
-                local playedEmote = false
-                pcall(function()
-                    local desc = hum:GetAppliedDescription()
-                    desc:AddEmote("CocoWallRizz_" .. cleanDigits, numId)
-                    hum:ApplyDescriptionClientServer(desc)
-                end)
-                pcall(function()
-                    playedEmote = hum:PlayEmote("CocoWallRizz_" .. cleanDigits)
-                end)
-                if playedEmote and Animator then
-                    local okTr, tracks = pcall(function() return Animator:GetPlayingAnimationTracks() end)
-                    if okTr and tracks then
-                        for _, tr in ipairs(tracks) do
-                            pcall(function()
-                                tr.Priority = priority or Enum.AnimationPriority.Action4
-                                tr.Looped = true
-                            end)
-                            return tr, nil, true, cleanDigits
-                        end
-                    end
-                end
-            end
+            pcall(function() anim:Destroy() end)
             return nil, nil, false, nil
         end
         local pri = priority or Enum.AnimationPriority.Action4
@@ -918,8 +922,33 @@ do
         forcePhysicsState(hum)
         local okPlay = pcall(function() track:Play(0, 1.0, 1.0) end)
         if not okPlay then
-            pcall(function() track:Stop(0) end); pcall(function() track:Destroy() end)
+            pcall(function() track:Stop(0) end)
+            pcall(function() track:Destroy() end)
+            pcall(function() anim:Destroy() end)
             return nil, nil, false, nil
+        end
+        if verifyPlayable then
+            local len = 0
+            pcall(function() len = track.Length or 0 end)
+            if len <= 0 then
+                local t0 = os.clock()
+                while (os.clock() - t0) < ANIM_VERIFY_TIME do
+                    RunService.Heartbeat:Wait()
+                    local stillPlaying = false
+                    pcall(function()
+                        len = track.Length or 0
+                        stillPlaying = track.IsPlaying
+                    end)
+                    if len > 0 then break end
+                    if not stillPlaying then break end
+                end
+            end
+            if len <= 0 then
+                pcall(function() track:Stop(0) end)
+                pcall(function() track:Destroy() end)
+                pcall(function() anim:Destroy() end)
+                return nil, nil, false, nil
+            end
         end
         return track, anim, true, cleanDigits
     end
@@ -937,12 +966,15 @@ do
         end
         addCand(animId)
         for _, f in ipairs(fallbacks or {}) do addCand(f) end
-        for _, id in ipairs(cands) do
-            for attempt = 1, ANIM_MAX_ATTEMPTS do
-                local track, anim, ok, cleanId = tryPlayOnce(Animator, id, hum, priority)
+        local totalCands = #cands
+        for idx, id in ipairs(cands) do
+            -- Verify track.Length > 0 whenever fallback candidates exist so unplayable catalog/rig IDs automatically fall back!
+            local shouldVerify = (totalCands > 1) and (idx < totalCands)
+            for attempt = 1, (shouldVerify and 1 or ANIM_MAX_ATTEMPTS) do
+                local track, anim, ok, cleanId = tryPlayOnce(Animator, id, hum, priority, shouldVerify)
                 if ok then return track, anim, cleanId end
                 if anim then pcall(function() anim:Destroy() end) end
-                if attempt < ANIM_MAX_ATTEMPTS then RunService.Heartbeat:Wait() end
+                if attempt < ANIM_MAX_ATTEMPTS and not shouldVerify then RunService.Heartbeat:Wait() end
             end
         end
         return nil, nil, nil
@@ -1347,6 +1379,51 @@ isCharacterNetlessReanimated = function(char)
     return false
 end
 
+local function isLocalPlayerOwnedModel(m)
+    if not m then return false end
+    if LP then
+        if m == LP.Character then return true end
+        local lpName = LP.Name
+        local lpDisp = LP.DisplayName or lpName
+        if m.Name == lpName or m.Name == lpDisp
+            or m.Name == (lpName .. "_Clone") or m.Name == (lpName .. "_Fake")
+            or m.Name == "CocaReanimation" or m.Name == "AngoorReanimation"
+            or m.Name == "CocoVanishGhost" or m.Name == "Reanimation"
+            or m.Name == "ReanimationClone" then
+            return true
+        end
+    end
+    local zApi = _G._AngoorZenApi
+    if zApi then
+        if type(zApi.get_clone) == "function" then
+            local okC, cl = pcall(zApi.get_clone)
+            if okC and cl == m then return true end
+        end
+        if type(zApi.get_real_character) == "function" then
+            local okR, rc = pcall(zApi.get_real_character)
+            if okR and rc == m then return true end
+        end
+    end
+    local skyApi = _G.CocaSkyDestroyer
+    if skyApi then
+        if type(skyApi.get_clone) == "function" then
+            local okC, cl = pcall(skyApi.get_clone)
+            if okC and cl == m then return true end
+        end
+        if type(skyApi.get_real_character) == "function" then
+            local okR, rc = pcall(skyApi.get_real_character)
+            if okR and rc == m then return true end
+        end
+    end
+    if moveState and moveState.Vanish and moveState.Vanish.ghostModel == m then
+        return true
+    end
+    if AnimCopySys and AnimCopySys.savedOutfitChar == m then
+        return true
+    end
+    return false
+end
+
 findTargetReanimModel = function(targetPlr)
     if not targetPlr then return nil end
     -- Local player reanimation / ghost lookup
@@ -1359,6 +1436,7 @@ findTargetReanimModel = function(targetPlr)
         if moveState and moveState.Vanish and moveState.Vanish.selfActive and moveState.Vanish.ghostModel and moveState.Vanish.ghostModel.Parent then
             return moveState.Vanish.ghostModel
         end
+        return nil
     end
 
     local tName = targetPlr.Name
@@ -1373,12 +1451,10 @@ findTargetReanimModel = function(targetPlr)
         tName .. "_Ghost",
         tDisp .. "_Fake",
         tDisp .. "_Clone",
-        "CocoVanishGhost",
-        "CocaReanimation",
-        "AngoorReanimation",
     }
     local origChar = targetPlr.Character
     local function matchesTargetIdentity(m, ref)
+        if isLocalPlayerOwnedModel(m) then return false end
         if not origChar then return true end
         local origBody = origChar:FindFirstChild("UpperTorso") or origChar:FindFirstChild("Torso") or origChar:FindFirstChild("Head")
         if origBody and origBody:IsA("BasePart") then
@@ -1402,22 +1478,16 @@ findTargetReanimModel = function(targetPlr)
 
     for _, cName in ipairs(candidates) do
         local m = workspace:FindFirstChild(cName) or (workspace.CurrentCamera and workspace.CurrentCamera:FindFirstChild(cName))
-        if m and m:IsA("Model") and m ~= LP.Character then
+        if m and m:IsA("Model") and not isLocalPlayerOwnedModel(m) then
             local ref = m:FindFirstChild("UpperTorso") or m:FindFirstChild("Torso") or m:FindFirstChild("Head") or m:FindFirstChild("HumanoidRootPart") or m.PrimaryPart
             if ref and ref:IsA("BasePart") and isRefPartValid(ref, m) then
-                if cName == "CocaReanimation" or cName == "AngoorReanimation" or cName == "CocoVanishGhost" then
-                    if matchesTargetIdentity(m, ref) then
-                        return m
-                    end
-                else
-                    return m
-                end
+                return m
             end
         end
     end
 
     local direct = workspace:FindFirstChild(tName)
-    if direct and direct:IsA("Model") and direct ~= LP.Character and direct ~= targetPlr.Character then
+    if direct and direct:IsA("Model") and not isLocalPlayerOwnedModel(direct) and direct ~= targetPlr.Character then
         local ref = direct:FindFirstChild("UpperTorso") or direct:FindFirstChild("Torso") or direct:FindFirstChild("Head") or direct:FindFirstChild("HumanoidRootPart") or direct.PrimaryPart
         if ref and ref:IsA("BasePart") and isRefPartValid(ref, direct) then
             return direct
@@ -1427,7 +1497,7 @@ findTargetReanimModel = function(targetPlr)
     for _, fName in ipairs({ "Characters", "Players", "Entities", "Live", "Units", "Ingame", "Chars" }) do
         local f = workspace:FindFirstChild(fName)
         local found = f and f:FindFirstChild(tName)
-        if found and found:IsA("Model") and found ~= LP.Character and found ~= targetPlr.Character then
+        if found and found:IsA("Model") and not isLocalPlayerOwnedModel(found) and found ~= targetPlr.Character then
             local ref = found:FindFirstChild("UpperTorso") or found:FindFirstChild("Torso") or found:FindFirstChild("Head") or found:FindFirstChild("HumanoidRootPart") or found.PrimaryPart
             if ref and ref:IsA("BasePart") and isRefPartValid(ref, found) then
                 return found
@@ -1435,7 +1505,7 @@ findTargetReanimModel = function(targetPlr)
         end
     end
 
-    -- Fallback scan inside workspace.CurrentCamera or workspace for custom-named reanim/invis clones matching accessories/clothing
+    -- Fallback scan inside workspace.CurrentCamera or workspace ONLY when target's real character is dead or desynced
     if origChar then
         local origHum = origChar:FindFirstChildOfClass("Humanoid")
         local origHRP = origChar:FindFirstChild("HumanoidRootPart")
@@ -1445,7 +1515,7 @@ findTargetReanimModel = function(targetPlr)
             for _, cont in ipairs(containers) do
                 if cont then
                     for _, child in ipairs(cont:GetChildren()) do
-                        if child:IsA("Model") and child ~= LP.Character and child ~= origChar and not Players:GetPlayerFromCharacter(child) then
+                        if child:IsA("Model") and not isLocalPlayerOwnedModel(child) and child ~= origChar and not Players:GetPlayerFromCharacter(child) then
                             local ref = child:FindFirstChild("UpperTorso") or child:FindFirstChild("Torso") or child:FindFirstChild("Head")
                             if ref and ref:IsA("BasePart") and isRefPartValid(ref, child) and matchesTargetIdentity(child, ref) then
                                 return child
@@ -1476,7 +1546,9 @@ end
 --   • Specifically calibrates "rizz" (Wall Rizz Pose / Kabedon Wall Lean – Catalog ID 90735295463164) so your character's
 --     leaning shoulder/hand/gaze height aligns accurately with the other character's head & upper torso without clipping!
 local function getCharacterAnatomyMetrics(char, hum, refPart)
-    if not char then return 3.0, 1.5, 1.0, 0.0 end
+    if not char or char == workspace or typeof(char) ~= "Instance" or not char:IsA("Model") then
+        return 3.0, 1.5, 1.0, 0.0
+    end
     hum = hum or char:FindFirstChildOfClass("Humanoid")
     local hrp = char:FindFirstChild("HumanoidRootPart") or (hum and hum.RootPart) or refPart
     local head = char:FindFirstChild("Head")
@@ -1571,8 +1643,14 @@ local computeDynamicHeightWeld = function(myChar, myHum, myRoot, targetChar, tar
         return 0, 1.0, 1.0, 0
     end
 
-    local myRootToGround, myRootToHead, myScaleY, _ = getCharacterAnatomyMetrics(myChar, myHum, myRoot)
-    local tRootToGround, tRefToHead, tScaleY, tRefToRootY = getCharacterAnatomyMetrics(targetChar, targetHum, targetPart)
+    local okM, myRootToGround, myRootToHead, myScaleY = pcall(getCharacterAnatomyMetrics, myChar, myHum, myRoot)
+    if not okM or type(myRootToGround) ~= "number" then
+        myRootToGround, myRootToHead, myScaleY = 3.0, 1.5, 1.0
+    end
+    local okT, tRootToGround, tRefToHead, tScaleY, tRefToRootY = pcall(getCharacterAnatomyMetrics, targetChar, targetHum, targetPart)
+    if not okT or type(tRootToGround) ~= "number" then
+        tRootToGround, tRefToHead, tScaleY, tRefToRootY = 3.0, 1.5, 1.0, 0.0
+    end
 
     local autoY = 0.0
     local autoZ = 0.0
@@ -1711,9 +1789,12 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
     local Humanoid = Character:FindFirstChildWhichIsA("Humanoid")
     if not Root or not Humanoid or not isLocalCharAliveOrReanimated(Character, Humanoid) then return nil end
 
-    -- Stop Coca Reanim's standalone Bang lock if active so the two loops never fight over Root.CFrame
+    -- Stop Coca Reanim's standalone Bang lock & Reanim Copier if active so the loops never fight over Root.CFrame
     if type(_G.stopCocaBangLock) == "function" then
         pcall(_G.stopCocaBangLock)
+    end
+    if type(_G.stopCocaReanimCopier) == "function" then
+        pcall(_G.stopCocaReanimCopier)
     end
 
     -- Cancel any pending void-return loop so it never fights our new weld connection (from khaman_dhokla.lua)
@@ -1721,8 +1802,10 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
     Root.Anchored = false
     breakAllSeatsAndExternalJoints(Character, Humanoid, Root)
 
-    local TargetChar = (TargetPart and TargetPart.Parent) or (TargetPlayer and findPlayerCharacterAnywhere(TargetPlayer))
-    local TargetHum  = TargetChar and TargetChar:FindFirstChildOfClass("Humanoid")
+    local TargetChar = (TargetPlayer and findPlayerCharacterAnywhere(TargetPlayer))
+        or (TargetPart and TargetPart:FindFirstAncestorOfClass("Model"))
+        or (TargetPart and TargetPart.Parent)
+    local TargetHum  = (TargetChar and TargetChar:IsA("Model")) and TargetChar:FindFirstChildOfClass("Humanoid") or nil
     local lastSafeCF = (PreSeekSafeCF and typeof(PreSeekSafeCF) == "CFrame" and isSafePlayableCF(PreSeekSafeCF) and PreSeekSafeCF)
         or (isSafePlayableCF(LastKnownSafeCF) and LastKnownSafeCF)
         or (isSafePlayableCF(Root.CFrame) and Root.CFrame)
@@ -1739,21 +1822,118 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
     killAnimate(Character)
 
     local AnimTrack, AnimInstance = nil, nil
+    local ActiveCleanAnimId = nil
     local animLoading = false
     local animAttempts = 0
     local Weld = { destroyed = false }
 
+    -- Zero-Delay Procedural Motor6D Kabedon / Wall Rizz Pose Solver (Works on R15, R6, Twin-Morphed & Cloned Rigs!)
+    local rizzMotors = nil
+    local rizzSavedC0 = {}
+    local function buildRizzMotorCache(char)
+        local map = {}
+        if not char then return map end
+        for _, d in ipairs(char:GetDescendants()) do
+            if d:IsA("Motor6D") then
+                map[d.Name] = d
+                if d.Part1 then
+                    map[d.Part1.Name] = d
+                end
+                if not rizzSavedC0[d] then
+                    rizzSavedC0[d] = d.C0
+                end
+            end
+        end
+        return map
+    end
+
+    local function restoreRizzMotors()
+        for m, origC0 in pairs(rizzSavedC0) do
+            if m and m.Parent then
+                pcall(function()
+                    m.C0 = origC0
+                    m.Transform = CFrame.identity
+                end)
+            end
+        end
+        table.clear(rizzSavedC0)
+        rizzMotors = nil
+    end
+
+    local function stepProceduralRizzPose(tClock)
+        if PresetKey ~= "rizz" or Weld.destroyed or not Character or not Character.Parent then return end
+        -- If the genuine Catalog ID 90735295463164 track loaded with real keyframes (Length > 0), let the native track drive joints
+        if AnimTrack and ActiveCleanAnimId == "90735295463164" then
+            local okLen, len = pcall(function() return AnimTrack.Length end)
+            local okPlay, isPl = pcall(function() return AnimTrack.IsPlaying end)
+            if okLen and okPlay and isPl and len and len > 0.01 then
+                return
+            end
+        end
+        if not rizzMotors then
+            rizzMotors = buildRizzMotorCache(Character)
+        end
+        local breathe = math.sin(tClock * 2.2) * 0.035
+        local sway = math.cos(tClock * 1.6) * math.rad(2.5)
+        local isRigR15 = (Humanoid and Humanoid.RigType == Enum.HumanoidRigType.R15)
+
+        local function poseJoint(nameA, nameB, offsetCF)
+            local m = rizzMotors[nameA] or (nameB and rizzMotors[nameB])
+            if m and m.Parent then
+                local baseC0 = rizzSavedC0[m] or m.C0
+                pcall(function()
+                    m.C0 = baseC0 * offsetCF
+                end)
+            end
+        end
+
+        if isRigR15 then
+            -- R15 Kabedon / Wall Rizz Lean Pose (Right hand braced high on wall beside target's head, Left hand on hip, confident lean-in)
+            poseJoint("LowerTorso", "Root", CFrame.new(0, -0.06 + breathe, -0.10) * CFrame.Angles(math.rad(-8), math.rad(-10), 0))
+            poseJoint("UpperTorso", "Waist", CFrame.Angles(math.rad(-10) + sway, math.rad(12), math.rad(-3)))
+            poseJoint("Head", "Neck", CFrame.Angles(math.rad(-14) - sway, math.rad(-10), math.rad(6)))
+            poseJoint("RightUpperArm", "RightShoulder", CFrame.new(0, 0.08, -0.12) * CFrame.Angles(math.rad(106), math.rad(14), math.rad(12)))
+            poseJoint("RightLowerArm", "RightElbow", CFrame.Angles(math.rad(28), 0, 0))
+            poseJoint("RightHand", "RightWrist", CFrame.Angles(math.rad(-55), 0, math.rad(-10)))
+            poseJoint("LeftUpperArm", "LeftShoulder", CFrame.Angles(math.rad(-26), math.rad(-18), math.rad(-34)))
+            poseJoint("LeftLowerArm", "LeftElbow", CFrame.Angles(math.rad(68), 0, math.rad(18)))
+            poseJoint("RightUpperLeg", "RightHip", CFrame.Angles(math.rad(14), math.rad(8), math.rad(6)))
+            poseJoint("RightLowerLeg", "RightKnee", CFrame.Angles(math.rad(-16), 0, 0))
+            poseJoint("LeftUpperLeg", "LeftHip", CFrame.Angles(math.rad(-10), math.rad(-6), math.rad(-5)))
+            poseJoint("LeftLowerLeg", "LeftKnee", CFrame.Angles(math.rad(-8), 0, 0))
+        else
+            -- R6 Kabedon / Wall Rizz Lean Pose (Note: R6 RootJoint has -90 deg X rest orientation)
+            poseJoint("Torso", "RootJoint", CFrame.new(0, -0.05 + breathe, -0.12) * CFrame.Angles(math.rad(-12), math.rad(-8), 0))
+            poseJoint("Head", "Neck", CFrame.Angles(math.rad(14) + sway, math.rad(-8), math.rad(-6)))
+            poseJoint("Right Arm", "Right Shoulder", CFrame.new(0, 0.12, -0.15) * CFrame.Angles(math.rad(105), math.rad(12), math.rad(14)))
+            poseJoint("Left Arm", "Left Shoulder", CFrame.new(0, -0.05, 0.05) * CFrame.Angles(math.rad(-24), math.rad(-15), math.rad(-28)))
+            poseJoint("Right Leg", "Right Hip", CFrame.Angles(math.rad(12), 0, math.rad(6)))
+            poseJoint("Left Leg", "Left Hip", CFrame.Angles(math.rad(-10), 0, math.rad(-5)))
+        end
+    end
+
     local function ensureAnim(force)
         if not AnimationId or Weld.destroyed or animLoading then return end
+        -- If Coca Reanim is active on a cloned rig and PresetKey == "rizz", also trigger its native Wall Rizz animation
+        local zApi = _G._AngoorZenApi
+        if zApi and type(zApi.is_reanimated) == "function" and zApi.is_reanimated() and force then
+            pcall(function()
+                if PresetKey == "rizz" and type(zApi.play_animation) == "function" then
+                    zApi.play_animation("builtin://Wall Rizz Pose", math.clamp(V.Speed or 1.0, 0.2, 6.0))
+                end
+            end)
+        end
         if AnimTrack and not force then
             local ip = false
+            local len = 0
             pcall(function()
                 ip = AnimTrack.IsPlaying
-                if ip and AnimTrack.Length > 0 and AnimTrack.TimePosition >= (AnimTrack.Length - 0.04) then
+                len = AnimTrack.Length or 0
+                if ip and len > 0 and AnimTrack.TimePosition >= (len - 0.04) then
                     AnimTrack.TimePosition = 0
                 end
             end)
-            if ip then
+            if ip and len > 0 then
                 pcall(function() AnimTrack:AdjustSpeed(math.clamp(V.Speed or 1.0, 0.2, 6.0)) end)
                 return
             end
@@ -1770,7 +1950,7 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
                     Animator.Parent = Humanoid
                 end
                 if not Animator then return end
-                local track, anim = loadPlayableAnim(Animator, AnimationId, AnimFallbacks, Humanoid)
+                local track, anim, cleanId = loadPlayableAnim(Animator, AnimationId, AnimFallbacks, Humanoid)
                 if Weld.destroyed then
                     if track then pcall(function() track:Stop(0); track:Destroy() end) end
                     if anim then pcall(function() anim:Destroy() end) end
@@ -1789,12 +1969,16 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
                     end
                     AnimTrack = track
                     AnimInstance = anim
+                    ActiveCleanAnimId = cleanId
                 end
             end)
             animLoading = false
         end)
     end
-    -- Load animation asynchronously so Frame-0 CFrame lock is NEVER delayed!
+    -- Load animation asynchronously so Frame-0 CFrame lock is NEVER delayed, and apply procedural Frame-0 Rizz pose immediately!
+    if PresetKey == "rizz" then
+        pcall(stepProceduralRizzPose, 0)
+    end
     ensureAnim(true)
 
     local weldCachedParts = {}
@@ -1904,6 +2088,7 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
             pcall(function() sethiddenproperty(Root, "PhysicsRepRootPart", nil) end)
             pcall(function() sethiddenproperty(Root, "PhysicsRepRootRef", nil) end)
         end
+        pcall(restoreRizzMotors)
         if AnimTrack then
             pcall(function() AnimTrack:Stop(0) end)
             pcall(function() AnimTrack:Destroy() end)
@@ -2011,6 +2196,9 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
                 lastValidLockCF = currentLockCF
                 Root.CFrame = currentLockCF
                 syncReanimRoots(currentLockCF)
+                if PresetKey == "rizz" then
+                    pcall(stepProceduralRizzPose, clock)
+                end
             end
         end
     end
@@ -2370,14 +2558,17 @@ end -- end WELD_PRESETS scope
 
 -- Compute a clean, level, upright CFrame relative to a target part/character
 getFlatYawCFrame = function(cf, posOverride)
-    if not cf then return CFrame.new() end
-    local pos = posOverride or cf.Position
+    if typeof(cf) ~= "CFrame" then return CFrame.new() end
+    local pos = (typeof(posOverride) == "Vector3" and posOverride) or cf.Position
+    if pos.X ~= pos.X or pos.Y ~= pos.Y or pos.Z ~= pos.Z then return cf end
     local look = cf.LookVector
     local flatLook = Vector3.new(look.X, 0, look.Z)
     if flatLook.Magnitude > 0.001 then
-        return CFrame.lookAt(pos, pos + flatLook.Unit, Vector3.yAxis)
+        local okL, resCF = pcall(CFrame.lookAt, pos, pos + flatLook.Unit, Vector3.yAxis)
+        if okL and resCF then return resCF end
     end
     local _, yYaw, _ = cf:ToEulerAnglesYXZ()
+    if yYaw ~= yYaw then yYaw = 0 end
     return CFrame.new(pos) * CFrame.Angles(0, yYaw, 0)
 end
 
@@ -2390,16 +2581,31 @@ local TargetRefCache = setmetatable({}, { __mode = "k" })
 
 findPlayerCharacterAnywhere = function(plr, skipDeepSearch)
     if not plr then return nil end
-    -- Check for live reanimated clone or ghost avatar first (0.00ms Zero-Delay)
+    if plr == LP then
+        local reanimSelf = findTargetReanimModel(LP)
+        if reanimSelf and reanimSelf.Parent then return reanimSelf end
+        return LP.Character
+    end
+    -- Fast O(1) path: if target's standard Character is alive with a valid in-bounds torso/root/head, return it immediately!
+    local stdChar = plr.Character
+    if stdChar and stdChar.Parent then
+        local stdHum = stdChar:FindFirstChildOfClass("Humanoid")
+        local stdPart = stdChar:FindFirstChild("UpperTorso") or stdChar:FindFirstChild("Torso") or stdChar:FindFirstChild("HumanoidRootPart") or stdChar:FindFirstChild("Head")
+        if (not stdHum or stdHum.Health > 0) and stdPart and stdPart:IsA("BasePart") and isRefPartValid(stdPart, stdChar) then
+            CustomCharLookupCache[plr.UserId] = { model = stdChar, lastScan = tick() }
+            return stdChar
+        end
+    end
+    -- Check for live reanimated clone or ghost avatar when standard Character is dead, missing, or desynced
     local reanimModel = findTargetReanimModel(plr)
     if reanimModel and reanimModel.Parent then
         CustomCharLookupCache[plr.UserId] = { model = reanimModel, lastScan = tick() }
         return reanimModel
     end
 
-    if plr.Character and plr.Character.Parent then
-        CustomCharLookupCache[plr.UserId] = { model = plr.Character, lastScan = tick() }
-        return plr.Character
+    if stdChar and stdChar.Parent then
+        CustomCharLookupCache[plr.UserId] = { model = stdChar, lastScan = tick() }
+        return stdChar
     end
     local cached = CustomCharLookupCache[plr.UserId]
     if cached and cached.model and cached.model.Parent then
@@ -12982,6 +13188,26 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                         setPose("Left Arm", CFrame.Angles(math.rad(88) + pitch * 0.6, 0, math.rad(-18)))
                         setPose("Right Arm", CFrame.Angles(math.rad(88) + pitch * 0.6, 0, math.rad(18)))
                         setPose("Head", CFrame.Angles(-pitch * 0.7, 0, 0))
+                    elseif lower:find("rizz") or lower:find("kabedon") or lower:find("wall lean") then
+                        local breathe = math.sin(t * 0.45) * 0.04
+                        local sway = math.cos(t * 0.35) * math.rad(2.5)
+                        setPose("LowerTorso", CFrame.new(0, -0.06 + breathe, -0.10) * CFrame.Angles(math.rad(-8), math.rad(-10), 0))
+                        setPose("UpperTorso", CFrame.Angles(math.rad(-10) + sway, math.rad(12), math.rad(-3)))
+                        setPose("Torso", CFrame.new(0, -0.05 + breathe, -0.12) * CFrame.Angles(math.rad(-12), math.rad(-8), 0))
+                        setPose("RightUpperArm", CFrame.new(0, 0.08, -0.12) * CFrame.Angles(math.rad(106), math.rad(14), math.rad(12)))
+                        setPose("RightLowerArm", CFrame.Angles(math.rad(28), 0, 0))
+                        setPose("RightHand", CFrame.Angles(math.rad(-55), 0, math.rad(-10)))
+                        setPose("Right Arm", CFrame.new(0, 0.12, -0.15) * CFrame.Angles(math.rad(105), math.rad(12), math.rad(14)))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(-26), math.rad(-18), math.rad(-34)))
+                        setPose("LeftLowerArm", CFrame.Angles(math.rad(68), 0, math.rad(18)))
+                        setPose("Left Arm", CFrame.new(0, -0.05, 0.05) * CFrame.Angles(math.rad(-24), math.rad(-15), math.rad(-28)))
+                        setPose("RightUpperLeg", CFrame.Angles(math.rad(14), math.rad(8), math.rad(6)))
+                        setPose("RightLowerLeg", CFrame.Angles(math.rad(-16), 0, 0))
+                        setPose("Right Leg", CFrame.Angles(math.rad(12), 0, math.rad(6)))
+                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(-10), math.rad(-6), math.rad(-5)))
+                        setPose("LeftLowerLeg", CFrame.Angles(math.rad(-8), 0, 0))
+                        setPose("Left Leg", CFrame.Angles(math.rad(-10), 0, math.rad(-5)))
+                        setPose("Head", CFrame.Angles(math.rad(-14) - sway, math.rad(-10), math.rad(6)))
                     elseif lower:find("bang") or lower:find("backshot") or lower:find("thrust") then
                         local thrust = math.sin(t * 2.4) * 0.65
                         local pitch = math.sin(t * 2.4) * math.rad(22)
@@ -14467,15 +14693,18 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                 if assetDigits and cloneHum then
                     local okTrack = pcall(function()
                         local animator = cloneHum:FindFirstChildOfClass("Animator") or Instance.new("Animator", cloneHum)
-                        local animObj = Instance.new("Animation")
-                        animObj.AnimationId = "rbxassetid://" .. assetDigits
-                        local tr = animator:LoadAnimation(animObj)
-                        tr.Priority = Enum.AnimationPriority.Action4
-                        tr.Looped = true
-                        tr:Play(0.05, 1, nativeState.currentSpeed)
-                        nativeState.activeTrack = tr
-                        nativeState.activeAnimObj = animObj
+                        local tr, animObj = loadPlayableAnim(animator, assetDigits, (assetDigits == "90735295463164") and { 1069977950, 180435571 } or nil, cloneHum)
+                        if tr then
+                            tr:AdjustSpeed(nativeState.currentSpeed or 1.0)
+                            nativeState.activeTrack = tr
+                            nativeState.activeAnimObj = animObj
+                        end
                     end)
+                    if assetDigits == "90735295463164" and (not nativeState.activeTrack or (nativeState.activeTrack.Length or 0) <= 0) then
+                        playProceduralPresetOnClone("Wall Rizz Pose", cloneChar)
+                        for _, cb in ipairs(nativeState.playListeners) do pcall(cb, animPath) end
+                        return true
+                    end
                     if okTrack and nativeState.activeTrack then
                         for _, cb in ipairs(nativeState.playListeners) do pcall(cb, animPath) end
                         return true
@@ -18428,6 +18657,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
             end
 
             local function stopReanimCopier()
+                copierActive = false
                 if copierStepConn then copierStepConn:Disconnect(); copierStepConn = nil end
                 local clone = zenApi and type(zenApi.get_clone) == "function" and zenApi.get_clone()
                 if clone then
@@ -18452,6 +18682,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                 frozenPos = nil
                 updateCopierStatus()
             end
+            _G.stopCocaReanimCopier = stopReanimCopier
 
             local function startReanimCopier()
                 stopReanimCopier()
@@ -25001,13 +25232,74 @@ local function buildMainUI()
                     return
                 end
                 pcall(function()
+                    local function cloneAndWeldAccessoryToChar(srcAcc, destChar, srcCharRef)
+                        if not (srcAcc and destChar) then return end
+                        local okCl, accClone = pcall(function() return srcAcc:Clone() end)
+                        if not okCl or not accClone then return end
+                        local handle = accClone:FindFirstChild("Handle") or accClone:FindFirstChildWhichIsA("BasePart")
+                        -- Remove all existing joints/welds inside the cloned accessory so Part1 NEVER points to tChar!
+                        for _, desc in ipairs(accClone:GetDescendants()) do
+                            if desc:IsA("JointInstance") or desc:IsA("WeldConstraint") or desc:IsA("RigidConstraint") or desc:IsA("WrapLayer") then
+                                pcall(function() desc:Destroy() end)
+                            elseif desc:IsA("BasePart") then
+                                desc.CanCollide = false
+                                desc.CanTouch = false
+                                desc.CanQuery = false
+                                desc.Massless = true
+                                desc.Anchored = false
+                            end
+                        end
+                        accClone.Parent = destChar
+                        if handle and handle:IsA("BasePart") then
+                            local handleAtt = handle:FindFirstChildOfClass("Attachment")
+                            local charAtt = nil
+                            if handleAtt then
+                                for _, d in ipairs(destChar:GetDescendants()) do
+                                    if d:IsA("Attachment") and d.Name == handleAtt.Name and not d:IsDescendantOf(accClone) then
+                                        charAtt = d
+                                        break
+                                    end
+                                end
+                            end
+                            local targetLimb = (charAtt and charAtt.Parent and charAtt.Parent:IsA("BasePart") and charAtt.Parent)
+                                or destChar:FindFirstChild("Head")
+                                or destChar:FindFirstChild("UpperTorso")
+                                or destChar:FindFirstChild("Torso")
+                                or destChar:FindFirstChild("HumanoidRootPart")
+                            if targetLimb and targetLimb:IsA("BasePart") then
+                                local c0 = handleAtt and handleAtt.CFrame or CFrame.identity
+                                local c1 = charAtt and charAtt.CFrame or CFrame.new(0, 0.5, 0)
+                                if not charAtt and srcCharRef then
+                                    local srcHandle = srcAcc:FindFirstChild("Handle")
+                                    local srcLimb = srcCharRef:FindFirstChild(targetLimb.Name) or srcCharRef:FindFirstChild("Head")
+                                    if srcHandle and srcLimb and srcHandle:IsA("BasePart") and srcLimb:IsA("BasePart") then
+                                        c0 = CFrame.identity
+                                        c1 = srcLimb.CFrame:ToObjectSpace(srcHandle.CFrame)
+                                    end
+                                end
+                                handle.CFrame = targetLimb.CFrame * c1 * c0:Inverse()
+                                local aw = Instance.new("Weld")
+                                aw.Name = "AccessoryWeld"
+                                aw.Part0 = handle
+                                aw.Part1 = targetLimb
+                                aw.C0 = c0
+                                aw.C1 = c1
+                                aw.Parent = handle
+                            end
+                        end
+                    end
+                    AnimCopySys.cloneAndWeldAccessoryToChar = cloneAndWeldAccessoryToChar
+
                     -- Snapshot original outfit once per character before morphing so we can restore without resetting!
                     if not AnimCopySys.savedOutfitChar or AnimCopySys.savedOutfitChar ~= myChar then
                         AnimCopySys.savedOutfitChar = myChar
                         AnimCopySys.savedOutfitItems = {}
                         for _, v in ipairs(myChar:GetChildren()) do
                             if v:IsA("Accessory") or v:IsA("Shirt") or v:IsA("Pants") or v:IsA("ShirtGraphic") or v:IsA("BodyColors") or v:IsA("CharacterMesh") then
-                                table.insert(AnimCopySys.savedOutfitItems, v:Clone())
+                                local okS, savedCl = pcall(function() return v:Clone() end)
+                                if okS and savedCl then
+                                    table.insert(AnimCopySys.savedOutfitItems, savedCl)
+                                end
                             end
                         end
                         local mh = myChar:FindFirstChild("Head")
@@ -25016,21 +25308,14 @@ local function buildMainUI()
                     end
                     for _, v in ipairs(myChar:GetChildren()) do
                         if v:IsA("Accessory") or v:IsA("Shirt") or v:IsA("Pants") or v:IsA("ShirtGraphic") or v:IsA("BodyColors") or v:IsA("CharacterMesh") then
-                            v:Destroy()
+                            pcall(function() v:Destroy() end)
                         end
                     end
                     for _, v in ipairs(tChar:GetChildren()) do
                         if v:IsA("Shirt") or v:IsA("Pants") or v:IsA("ShirtGraphic") or v:IsA("BodyColors") or v:IsA("CharacterMesh") then
-                            v:Clone().Parent = myChar
+                            pcall(function() v:Clone().Parent = myChar end)
                         elseif v:IsA("Accessory") then
-                            local accClone = v:Clone()
-                            for _, desc in ipairs(accClone:GetDescendants()) do
-                                if desc:IsA("BasePart") then
-                                    desc.CanCollide = false
-                                    desc.Massless = true
-                                end
-                            end
-                            accClone.Parent = myChar
+                            cloneAndWeldAccessoryToChar(v, myChar, tChar)
                         end
                     end
                     local myHead = myChar:FindFirstChild("Head")
@@ -25070,7 +25355,11 @@ local function buildMainUI()
                     end
                     for _, savedItem in ipairs(AnimCopySys.savedOutfitItems) do
                         if savedItem then
-                            savedItem:Clone().Parent = myChar
+                            if savedItem:IsA("Accessory") and AnimCopySys.cloneAndWeldAccessoryToChar then
+                                AnimCopySys.cloneAndWeldAccessoryToChar(savedItem, myChar, nil)
+                            else
+                                pcall(function() savedItem:Clone().Parent = myChar end)
+                            end
                         end
                     end
                     local myHead = myChar:FindFirstChild("Head")
