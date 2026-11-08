@@ -34,7 +34,7 @@
     • Advanced Anti-System Matrix V3 (Predictive Void Catch, Dual-Stage Anti-Fling & Threat Radar)
     • Cinematic 4-Phase Flight System (4 Styles, Zero-Drift Altitude Lock & Mobile HUD)
     • Advanced Side-by-Side Animation Copy (Live 6-Mode Alignment & Cross-Rig Motor6D Bridge)
-    • Massive Catalog Animation & Emote Hub (36 Official Packs + 195+ Catalog Emotes)
+    • Massive Catalog Animation & Emote Hub (215+ Official, Dog, Moonwalk & UGC Packs + 315+ Emotes)
 ═══════════════════════════════════════════════════════════════════════════════]]
 
 print("[COCO POWDER] V36.7 Zero-Delay Troll Restoration & Cosmic Defense bootstrapping...")
@@ -4375,7 +4375,7 @@ local EmoteHub = {
         -- ═══ MORTALHUB & UGC CHARACTER ANIMATION PACKS (89 Additional Packs) ═══
         { name = "(UGC) 1x1x1x1", idle1 = "76780522821306", idle2 = "76780522821306" },
         { name = "(UGC) Coolkid", idle1 = "95203125292023", idle2 = "95203125292023" },
-        { name = "(UGC) Dog", run = "130072963359721" },
+        { name = "(UGC) Dog", idle1 = "131357828460801", idle2 = "109774075934042", walk = "108457757168019", run = "130072963359721", jump = "89904018461899", fall = "124705831982259", climb = "139728378883263", swim = "104113363749101", swimidle = "79090109939093", cat = "Dog/Animal" },
         { name = "(UGC) John Doe", idle1 = "72526127498800", idle2 = "72526127498800" },
         { name = "(UGC) Magician", idle1 = "139433213852503", idle2 = "139433213852503" },
         { name = "(UGC) Noli", idle1 = "139360856809483", idle2 = "139360856809483" },
@@ -4462,6 +4462,91 @@ local EmoteHub = {
         { name = "scrapped popstar", idle1 = "114369846793878", idle2 = "114369846793878" },
         { name = "superhero aura", idle1 = "116944673851292", idle2 = "105356446763414", walk = "97462772841800", run = "72394449489636", jump = "110741235266373", fall = "88037637684328" },
         { name = "warrior idle", idle1 = "72492959889389", idle2 = "72492959889389" },
+
+        -- ═══ 🐕 DOG, WOLF, CAT, QUADRUPED & CRAWLER ANIMATION PACKS (Catalog + Universal R6/R15) ═══
+        { name = "🐕 Dog All-Fours Quadruped (Universal R6/R15)", procMode = "dog", cat = "Dog/Animal", idle1 = "131357828460801", idle2 = "129026910898635", walk = "108457757168019", run = "107228888474052", jump = "89904018461899", fall = "124705831982259", climb = "139728378883263", swim = "104113363749101", swimidle = "79090109939093" },
+        { name = "🐕 Dog Quadruped Pack (Bad's House)", cat = "Dog/Animal", idle1 = "131357828460801", idle2 = "129026910898635", walk = "108457757168019", run = "107228888474052", jump = "89904018461899", fall = "124705831982259", climb = "139728378883263", swim = "132697394189921", swimidle = "79090109939093" },
+        { name = "🐕 Dog Pack (Akusesa All-Fours)", cat = "Dog/Animal", idle1 = "84324707404321", idle2 = "84324707404321", walk = "70673418486280", run = "75222080312923", jump = "89904018461899", fall = "77069224396280", climb = "139728378883263", swim = "104113363749101", swimidle = "98854111361360" },
+        { name = "🐕 Dog Pack (Ozen's Quadruped)", cat = "Dog/Animal", idle1 = "109774075934042", idle2 = "129026910898635", walk = "89736672096019", run = "80597098340809", jump = "89904018461899", fall = "124705831982259", climb = "124810859712282", swim = "104113363749101", swimidle = "79090109939093" },
+        { name = "🐕 Cute Dog Pack (Panda UGC)", cat = "Dog/Animal", idle1 = "84324707404321", idle2 = "129026910898635", walk = "126860441025423", run = "82631878766059", jump = "131203832825082", fall = "77069224396280", climb = "139728378883263", swim = "104113363749101", swimidle = "95378774382957" },
+        { name = "🐕 Dog Bounding Pack (Terola)", cat = "Dog/Animal", idle1 = "131357828460801", idle2 = "109774075934042", walk = "75913783399774", run = "133204721484473", jump = "89904018461899", fall = "124705831982259", climb = "139728378883263", swim = "104113363749101", swimidle = "79090109939093" },
+        { name = "🐕 Dog WhoseTrade Pack", cat = "Dog/Animal", idle1 = "109774075934042", idle2 = "84324707404321", walk = "70673418486280", run = "133204721484473", jump = "89904018461899", fall = "77069224396280", climb = "139728378883263", swim = "104113363749101", swimidle = "79090109939093" },
+        { name = "🐾 Quadruped Animal Pack (Dr4rkofur)", cat = "Dog/Animal", idle1 = "99689776099970", idle2 = "128838183008466", walk = "127409538625371", run = "80821364777380", jump = "123565665274439", fall = "124705831982259", climb = "75085836535654", swim = "104113363749101", swimidle = "79090109939093" },
+        { name = "🐈 Cat / Feline Prowl (Universal R6/R15)", procMode = "cat", cat = "Dog/Animal", idle1 = "94217798575599", idle2 = "129026910898635", walk = "89959236640842", run = "100321704971003", jump = "131203832825082", fall = "77069224396280", climb = "124810859712282", swim = "104113363749101", swimidle = "95378774382957" },
+        { name = "🐈 Cat Pack (One-Eyed Motion)", cat = "Dog/Animal", idle1 = "94217798575599", idle2 = "129026910898635", walk = "89959236640842", run = "100321704971003", jump = "131203832825082", fall = "77069224396280", climb = "124810859712282", swim = "104113363749101", swimidle = "95378774382957" },
+        { name = "🐈 Cat Pack V1 (Cool Anims)", cat = "Dog/Animal", idle1 = "94217798575599", idle2 = "111821292044705", walk = "89959236640842", run = "128300828787316", jump = "102635582722041", fall = "137079985547592", climb = "76660530164497", swim = "104113363749101", swimidle = "95378774382957" },
+        { name = "🐺 Wolf Quadruped Pack (Universal R6/R15)", procMode = "wolf", cat = "Dog/Animal", idle1 = "1083195517", idle2 = "1083214717", walk = "131989912322730", run = "107422259488646", jump = "1083218792", fall = "1083189019", climb = "91877735442759", swim = "104113363749101", swimidle = "1083225406" },
+        { name = "🐺 Wolf Pack (Ashford Studio)", cat = "Dog/Animal", idle1 = "1083195517", idle2 = "1083214717", walk = "131989912322730", run = "107422259488646", jump = "1083218792", fall = "1083189019", climb = "91877735442759", swim = "104113363749101", swimidle = "1083225406" },
+        { name = "🐺 Wolf Pack V2 (Charmis)", cat = "Dog/Animal", idle1 = "1083195517", idle2 = "129026910898635", walk = "70867099352574", run = "118292624889777", jump = "1083218792", fall = "1083189019", climb = "91877735442759", swim = "104113363749101", swimidle = "1083225406" },
+        { name = "🕷️ Spider / Exorcist Crawl (Universal R6/R15)", procMode = "spider", cat = "Dog/Animal", idle1 = "131357828460801", idle2 = "90806086002292", walk = "78487132141565", run = "127698798443837", jump = "89904018461899", fall = "77069224396280", climb = "139728378883263" },
+        { name = "🕷️ Spider Animation Pack (Juno)", cat = "Dog/Animal", idle1 = "1132473842", idle2 = "1132477671", walk = "78487132141565", run = "127698798443837", jump = "1132489853", fall = "1132469004", climb = "1132461372" },
+        { name = "👹 Creepy Crawl Monster (MixGino)", cat = "Dog/Animal", idle1 = "131357828460801", idle2 = "90806086002292", walk = "78487132141565", run = "136334810359565", jump = "89904018461899", fall = "77069224396280", climb = "139728378883263" },
+        { name = "👹 Creepy Meme Crawl (Anims!)", cat = "Dog/Animal", idle1 = "90806086002292", idle2 = "77672872857991", walk = "136334810359565", run = "78487132141565", jump = "89904018461899", fall = "77069224396280", climb = "139728378883263" },
+
+        -- ═══ 🕺 MOONWALK, MICHAEL JACKSON & GLIDE ANIMATION PACKS (Catalog + Universal R6/R15) ═══
+        { name = "🕺 Moonwalk Glide Pack (Universal R6/R15)", procMode = "moonwalk", cat = "Moonwalk", idle1 = "94544877510084", idle2 = "107982740338300", walk = "128504141010614", run = "102444605735103", jump = "114735354415677", fall = "101138950218555", climb = "81486268245289", swim = "90439469471312", swimidle = "106894713022785" },
+        { name = "🕺 Moonwalk Reverse Backslide (Universal R6/R15)", procMode = "moonwalk_reverse", cat = "Moonwalk", idle1 = "94544877510084", idle2 = "130821503426609", walk = "99725042814253", run = "101531926378460", jump = "104533631513747", fall = "101138950218555", climb = "79306475091221", swim = "90439469471312", swimidle = "106894713022785" },
+        { name = "🕺 Michael Jackson Moonwalk (Motion Haven)", cat = "Moonwalk", idle1 = "94544877510084", idle2 = "107982740338300", walk = "128504141010614", run = "102444605735103", jump = "114735354415677", fall = "101138950218555", climb = "81486268245289", swim = "90439469471312", swimidle = "106894713022785" },
+        { name = "🕺 Moonwalker Pro (C4rpye UGC)", cat = "Moonwalk", idle1 = "92710716765283", idle2 = "130821503426609", walk = "114763801999339", run = "101531926378460", jump = "104533631513747", fall = "136353144297748", climb = "79306475091221", swim = "90439469471312", swimidle = "106894713022785" },
+        { name = "🕺 Moonwalk Classic (OFF SCRIPT)", cat = "Moonwalk", idle1 = "76121318049646", idle2 = "83302689045020", walk = "99725042814253", run = "84691221550535", jump = "98654991147591", fall = "79588780766775", climb = "90626990290723", swim = "90439469471312", swimidle = "106894713022785" },
+        { name = "🕺 Moonwalk Smooth Glide (Mia's Home)", cat = "Moonwalk", idle1 = "96784267158530", idle2 = "83302689045020", walk = "75496628647622", run = "84691221550535", jump = "114735354415677", fall = "101138950218555", climb = "85132806930294", swim = "90439469471312", swimidle = "106894713022785" },
+        { name = "🕺 Moonwalk Billie Jean (Yummy Studio)", cat = "Moonwalk", idle1 = "83302689045020", idle2 = "96784267158530", walk = "91487533984459", run = "106250550654373", jump = "98654991147591", fall = "136353144297748", climb = "135135787387462", swim = "90439469471312", swimidle = "106894713022785" },
+        { name = "🕺 Moonwalker 55Epaa Bundle", cat = "Moonwalk", idle1 = "96784267158530", idle2 = "130821503426609", walk = "87459032537337", run = "84691221550535", jump = "104533631513747", fall = "136353144297748", climb = "90626990290723", swim = "90439469471312", swimidle = "106894713022785" },
+        { name = "👩‍🚀 Astronaut Moonwalk Hybrid", cat = "Moonwalk", idle1 = "891621366", idle2 = "94544877510084", walk = "99725042814253", run = "106250550654373", jump = "891627522", fall = "79588780766775", climb = "90626990290723", swim = "891639666", swimidle = "891663592" },
+
+        -- ═══ 🌟 EXPANDED OFFICIAL, VIRAL UGC, SONIC, AIR-WALK, KURSED & POPSTAR PACKS ═══
+        { name = "Mocap (Official Studio Bundle)", isOfficial = true, idle1 = "913367814", idle2 = "913373430", walk = "913402848", run = "913376220", jump = "913370268", fall = "913365531", climb = "913362637", swim = "913384386", swimidle = "913389285" },
+        { name = "Blocky Mech (Rthro Bundle)", isOfficial = true, idle1 = "4417977954", idle2 = "4417978624", walk = "2510202577", run = "4417979645", jump = "2510197830", fall = "2510195892", climb = "2510192778", swim = "2510199791", swimidle = "2510201162" },
+        { name = "Oinan Thickhoof (Knight Brute)", isOfficial = true, idle1 = "657595757", idle2 = "657568135", walk = "2510202577", run = "3236836670", jump = "2510197830", fall = "2510195892", climb = "2510192778", swim = "2510199791", swimidle = "2510201162" },
+        { name = "Ud'zal Complete Rthro Pack", isOfficial = true, idle1 = "3303162274", idle2 = "3303162549", walk = "3303162967", run = "3236836670", jump = "2510197830", fall = "2510195892", climb = "2510192778", swim = "2510199791", swimidle = "2510201162" },
+        { name = "Borock Complete Rthro Pack", isOfficial = true, idle1 = "3293641938", idle2 = "3293642554", walk = "2510202577", run = "3236836670", jump = "2510197830", fall = "2510195892", climb = "2510192778", swim = "2510199791", swimidle = "2510201162" },
+        { name = "Mr. Toilet Complete Pack", isOfficial = true, idle1 = "4417977954", idle2 = "4417978624", walk = "2510202577", run = "4417979645", jump = "2510197830", fall = "2510195892", climb = "2510192778", swim = "2510199791", swimidle = "2510201162" },
+        { name = "Ghost 2 (Swim-In-Air Float)", idle1 = "1151221899", idle2 = "1151221899", walk = "1151221899", run = "1151221899", jump = "1151221899", fall = "1151221899", climb = "616003713", swim = "16738339158", swimidle = "1151221899" },
+        { name = "⚡ Sonic Speedster (Universal R6/R15)", procMode = "sonic", idle1 = "130478945531503", idle2 = "97228380923037", walk = "99171546947893", run = "123582333974777", jump = "125931084402382", fall = "78063381806134", climb = "80447333562084" },
+        { name = "⚡ Sonic Animation Pack (Summerden)", idle1 = "130478945531503", idle2 = "97228380923037", walk = "99171546947893", run = "123582333974777", jump = "125931084402382", fall = "78063381806134", climb = "80447333562084" },
+        { name = "⚡ Sonic Adventure Pack (AvatarVerse)", idle1 = "130478945531503", idle2 = "97228380923037", walk = "99171546947893", run = "130968228095323", jump = "125931084402382", fall = "78063381806134", climb = "108899295465725" },
+        { name = "⚡ Sonic Motion Haven Pack", idle1 = "130478945531503", idle2 = "97228380923037", walk = "99171546947893", run = "110060862044037", jump = "125931084402382", fall = "78063381806134", climb = "80447333562084" },
+        { name = "⚡ Sonic Speedster R6 Pack (raddoob)", idle1 = "113830148777717", idle2 = "12521158637", walk = "99171546947893", run = "83851522234030", jump = "125931084402382", fall = "78063381806134", climb = "80447333562084" },
+        { name = "☁️ Air Walk Sky-Stroll (Universal R6/R15)", procMode = "airwalk", idle1 = "123259517629491", idle2 = "70397772586973", walk = "104955383019144", run = "104294379333676", jump = "126574577065596", fall = "129591520941189", climb = "94364927317793" },
+        { name = "☁️ Air Walk Pack (Later Animation)", idle1 = "123259517629491", idle2 = "123259517629491", walk = "104955383019144", run = "104294379333676", jump = "126574577065596", fall = "129591520941189", climb = "94364927317793" },
+        { name = "☁️ Air Walk Pack V2 (Vinix GFX)", idle1 = "70397772586973", idle2 = "123259517629491", walk = "104955383019144", run = "120886805086285", jump = "126574577065596", fall = "129591520941189", climb = "94364927317793" },
+        { name = "🌀 Naruto Shinobi Pack (Memetoon)", idle1 = "97228380923037", idle2 = "656118341", walk = "656121766", run = "656118852", jump = "656117878", fall = "656115606", climb = "656114359", swim = "656119721", swimidle = "656121397" },
+        { name = "🤸 Free Runner Parkour (ANIMATIN)", idle1 = "130478945531503", idle2 = "130478945531503", walk = "135053978101043", run = "117731821250222", jump = "97382616171117", fall = "102674302534126", climb = "121075390792786" },
+        { name = "🤸 Parkour Pro Freerunner (Kursed)", idle1 = "130478945531503", idle2 = "130478945531503", walk = "135053978101043", run = "117731821250222", jump = "97382616171117", fall = "102674302534126", climb = "134977367563514" },
+        { name = "✌ Casual Chill Pack (Juno)", idle1 = "83510983476062", idle2 = "83510983476062", walk = "73549495367573", run = "74134888509401", jump = "88831699335989", fall = "110205622518029", climb = "82707738967601" },
+        { name = "👑 Main Character Pack (Motion Haven)", idle1 = "92686470851073", idle2 = "90591590857374", walk = "96518992532733", run = "114949725526779", jump = "100518661329672", fall = "83909243974536", climb = "82707738967601" },
+        { name = "👑 Main Character V2 (EMORYX)", idle1 = "92686470851073", idle2 = "107993486985036", walk = "126430735666126", run = "114949725526779", jump = "100518661329672", fall = "83909243974536", climb = "82707738967601" },
+        { name = "✨ Effortless Unlimited Aura Pack", idle1 = "138665010911335", idle2 = "85573078572941", walk = "115793563707855", run = "120142877225965", jump = "93382302369459", fall = "83909243974536", climb = "82707738967601", swim = "80645586378736" },
+        { name = "🐰 Jumping Bouncy Pack", idle1 = "86510248747781", idle2 = "86510248747781", walk = "98971759567775", run = "135153143780195", jump = "72388373557525", fall = "88414036567341", climb = "108241236505831" },
+        { name = "🎀 Cute Bouncy Pack (Animations Bundles)", idle1 = "138347770262046", idle2 = "131834925395849", walk = "76969972032565", run = "135153143780195", jump = "72388373557525", fall = "88414036567341", climb = "108241236505831" },
+        { name = "🎀 Cute Bouncy V2 (Olyx / Coldest)", idle1 = "138347770262046", idle2 = "74642942460483", walk = "124582210438888", run = "75116059705876", jump = "109539221751455", fall = "88414036567341", climb = "108241236505831" },
+        { name = "🎀 Cute Bouncy V3 (Eat Eggs)", idle1 = "137434897497548", idle2 = "74642942460483", walk = "76154781771725", run = "77691616369709", jump = "134473289142802", fall = "96117211674694", climb = "87078664208712" },
+        { name = "👠 Catwalk Runway (Arc Animations)", idle1 = "101669074550523", idle2 = "94970088341563", walk = "109168724482748", run = "81024476153754", jump = "74292242880451", fall = "92294537340807", climb = "119377220967554", swim = "134591743181628", swimidle = "98854111361360" },
+        { name = "👠 Catwalk Model (RobotGentleman)", idle1 = "85156663384198", idle2 = "101669074550523", walk = "109168724482748", run = "81024476153754", jump = "74292242880451", fall = "92294537340807", climb = "119377220967554" },
+        { name = "💚 Wicked Popular Official Walk", idle1 = "118832222982049", idle2 = "76049494037641", walk = "133304526526319", run = "72301599441680", jump = "104325245285198", fall = "121152442762481", climb = "131326830509784", swim = "99384245425157", swimidle = "113199415118199" },
+        { name = "💚 Wicked Dancing Through Life V2", idle1 = "92849173543269", idle2 = "132238900951109", walk = "73718308412641", run = "79789194522561", jump = "78508480717326", fall = "78147885297412", climb = "129447497744818", swim = "110657013921774", swimidle = "129183123083281" },
+        { name = "👟 Adidas Community V2 (Official)", idle1 = "122257458498464", idle2 = "102357151005774", walk = "106810508343012", run = "82598234841035", jump = "75290611992385", fall = "98600215928904", climb = "88763136693023", swim = "133308483266208", swimidle = "109346520324160" },
+        { name = "✨ Glow Motion Pack (elfup)", idle1 = "133806214992291", idle2 = "94970088341563", walk = "124733969277188", run = "81024476153754", jump = "116936326516985", fall = "92294537340807", climb = "119377220967554" },
+        { name = "🎭 Standard Dynamic Pack (Kanji)", idle1 = "133773964630669", idle2 = "95884606664820", walk = "115825677624788", run = "102294264237491", jump = "117150377950987", fall = "110205622518029" },
+        { name = "🧚 Cute Fairy Float (Motion Haven)", idle1 = "115038305653152", idle2 = "110375749767299", walk = "84782014405060", run = "71267457613791", jump = "75611679208549", fall = "129591520941189", climb = "94364927317793" },
+        { name = "🥋 Kung Fu Crane Stance (Kursed)", idle1 = "100338363816765", idle2 = "72492959889389", walk = "85262188852122", run = "131966574701281", jump = "79564871837257", fall = "76518470305885", climb = "124760765734594" },
+        { name = "🤡 Mime Act Invisible Box (Kursed)", idle1 = "132806359718468", idle2 = "103572794348956", walk = "110106034100313", run = "84243340114477", jump = "108564434408211", fall = "138967706335414", climb = "93550710314258" },
+        { name = "🗣️ Head Walker Pet Leash (Kursed)", idle1 = "110420382510957", idle2 = "110420382510957", walk = "106305882349055", run = "84243340114477", jump = "108564434408211", fall = "138967706335414", climb = "93550710314258" },
+        { name = "🏀 Head Dribble Basketball (Kursed)", idle1 = "95788767217676", idle2 = "95788767217676", walk = "106305882349055", run = "116881956670910", jump = "119846112151352", fall = "129773241321032", climb = "134630013742019" },
+        { name = "🎪 Head Juggler Circus (Kursed)", idle1 = "95788767217676", idle2 = "110420382510957", walk = "106305882349055", run = "132499588684957", jump = "108564434408211", fall = "138967706335414", climb = "93550710314258" },
+        { name = "🔄 Backwards Body Reversed (Kursed)", idle1 = "91960706982560", idle2 = "91960706982560", walk = "99725042814253", run = "106250550654373", jump = "98654991147591", fall = "136353144297748", climb = "90626990290723" },
+        { name = "😴 R6 Sleepover Cozy (Kursed)", idle1 = "113830148777717", idle2 = "12521162526", walk = "12518152696", run = "12518152696", jump = "12520880485", fall = "12520972571", climb = "12520982150" },
+        { name = "🦵 Half Leg Hop Pack (Motion Haven)", idle1 = "133610637065984", idle2 = "73905365652295", walk = "79481899491864", run = "72050477908546", jump = "133610637065984", fall = "100853596755700", climb = "96190263234418" },
+        { name = "🎲 Random Glitch Stride (Juno)", idle1 = "139189947264706", idle2 = "112453383756112", walk = "74302053463942", run = "137340970562844", jump = "110623583422695", fall = "124316642863030", climb = "126611450428432" },
+        { name = "🧛 Werewolf + Vampire Hybrid (Ghosted)", idle1 = "112348953322810", idle2 = "1083450166", walk = "105610661919719", run = "89818150705369", jump = "114630550221708", fall = "136667063493990", climb = "97729104944738", swim = "1083222527", swimidle = "1083471239" },
+        { name = "🧟 Vampire + Zombie Hybrid (Ghosted)", idle1 = "97675461789970", idle2 = "616160636", walk = "78277963591495", run = "93046425468576", jump = "114630550221708", fall = "82016749565236", climb = "97729104944738", swim = "616165109", swimidle = "616166655" },
+        { name = "🧛 Vampire Mirrored (Matvey)", idle1 = "1083445855", idle2 = "1083450166", walk = "1083473930", run = "93046425468576", jump = "1083455352", fall = "1083443587", climb = "1083439238", swim = "1083468726", swimidle = "1083471239" },
+        { name = "🤖 M3GAN Robot Doll Pack", idle1 = "125803725853577", idle2 = "616089559", walk = "125803725853577", run = "99649534578309", jump = "616090535", fall = "616087089", climb = "616086039", swim = "616092998", swimidle = "616094091" },
+        { name = "🌟 The Weeknd Starboy Pack", idle1 = "133110725387025", idle2 = "1069987858", walk = "71105746210464", run = "1070001516", jump = "1069984524", fall = "1069973677", climb = "1069946257" },
+        { name = "💖 KATSEYE Touch Idol Pack", idle1 = "135876612109535", idle2 = "1212900985", walk = "109168724482748", run = "1212980348", jump = "1212954642", fall = "1212900995", climb = "1213044953" },
+        { name = "🔥 Chappell Roan HOT TO GO Pack", idle1 = "85267023718407", idle2 = "1212900985", walk = "92072849924640", run = "72301599441680", jump = "104325245285198", fall = "121152442762481", climb = "131326830509784" },
+        { name = "🍎 Charli xcx Brat Apple Pack", idle1 = "18946844622", idle2 = "133806214992291", walk = "109168724482748", run = "81024476153754", jump = "116936326516985", fall = "92294537340807", climb = "119377220967554" },
+        { name = "🦑 Squid Game Thanos Pack", idle1 = "97611664803614", idle2 = "112011282168475", walk = "97611664803614", run = "138305342272849", jump = "97611664803614", fall = "138967706335414", climb = "93550710314258" },
     }
 
     local function setAnimChildId(animateScript, folderName, childName, idStr)
@@ -4490,30 +4575,207 @@ local EmoteHub = {
         self.savedDefaultPack = snap
     end
 
+    function EmoteHub:StopProceduralPack()
+        if self.procPackConn then
+            self.procPackConn:Disconnect()
+            self.procPackConn = nil
+        end
+        self.procPackMode = nil
+        if self.procSavedMotors then
+            for m, origC0 in pairs(self.procSavedMotors) do
+                if m and m.Parent then
+                    pcall(function() m.C0 = origC0 end)
+                end
+            end
+            table.clear(self.procSavedMotors)
+        end
+    end
+
+    function EmoteHub:StartProceduralPack(mode)
+        self:StopProceduralPack()
+        if not mode or mode == "" then return end
+        self.procPackMode = mode
+        self.procSavedMotors = self.procSavedMotors or {}
+        local clock = 0
+        self.procPackConn = RunService.RenderStepped:Connect(function(dt)
+            local ch = LP.Character
+            local hum = ch and ch:FindFirstChildOfClass("Humanoid")
+            if not ch or not hum or hum.Health <= 0 then return end
+            local moveMag = hum.MoveDirection.Magnitude
+            local inAir = (hum.FloorMaterial == Enum.Material.Air)
+            local r15 = (hum.RigType == Enum.HumanoidRigType.R15)
+            local rate = (moveMag > 0.05) and math.clamp(hum.WalkSpeed / 16, 0.75, 2.8) or 1.0
+            clock = clock + dt * rate
+
+            local function poseMotor(parentPart, motorName, offsetCF)
+                if not parentPart then return end
+                local m = parentPart:FindFirstChild(motorName)
+                if m and m:IsA("Motor6D") then
+                    if not self.procSavedMotors[m] then
+                        self.procSavedMotors[m] = m.C0
+                    end
+                    m.C0 = self.procSavedMotors[m] * offsetCF
+                end
+            end
+
+            if mode == "dog" or mode == "wolf" or mode == "cat" then
+                local freq = (moveMag > 0.05) and 11.0 or 2.6
+                local s = math.sin(clock * freq)
+                local c = math.cos(clock * freq)
+                local stride = (moveMag > 0.05) and (s * 48) or (s * 4)
+                local wag = (mode == "cat") and (math.sin(clock * 3.2) * 14) or (math.sin(clock * 8.5) * 18)
+                local bob = (moveMag > 0.05) and (math.abs(c) * 0.22) or (math.sin(clock * 2.5) * 0.06)
+                local leapPitch = inAir and 22 or 0
+                if r15 then
+                    poseMotor(ch:FindFirstChild("LowerTorso"), "Root", CFrame.new(0, -1.22 + bob, 0) * CFrame.Angles(math.rad(-78 + leapPitch), 0, math.rad(wag * 0.35)))
+                    poseMotor(ch:FindFirstChild("UpperTorso"), "Waist", CFrame.Angles(math.rad(-8), math.rad(-wag * 0.4), 0))
+                    poseMotor(ch:FindFirstChild("Head"), "Neck", CFrame.Angles(math.rad(68 + math.sin(clock * 3) * 5), math.rad(wag * 0.3), 0))
+                    poseMotor(ch:FindFirstChild("LeftUpperArm"), "LeftShoulder", CFrame.Angles(math.rad(78 + stride), 0, math.rad(-8)))
+                    poseMotor(ch:FindFirstChild("RightUpperArm"), "RightShoulder", CFrame.Angles(math.rad(78 - stride), 0, math.rad(8)))
+                    poseMotor(ch:FindFirstChild("LeftLowerArm"), "LeftElbow", CFrame.Angles(math.rad(22 + math.max(0, -s) * 28), 0, 0))
+                    poseMotor(ch:FindFirstChild("RightLowerArm"), "RightElbow", CFrame.Angles(math.rad(22 + math.max(0, s) * 28), 0, 0))
+                    poseMotor(ch:FindFirstChild("LeftUpperLeg"), "LeftHip", CFrame.Angles(math.rad(72 - stride), 0, math.rad(-8)))
+                    poseMotor(ch:FindFirstChild("RightUpperLeg"), "RightHip", CFrame.Angles(math.rad(72 + stride), 0, math.rad(8)))
+                    poseMotor(ch:FindFirstChild("LeftLowerLeg"), "LeftKnee", CFrame.Angles(math.rad(-35 - math.max(0, s) * 30), 0, 0))
+                    poseMotor(ch:FindFirstChild("RightLowerLeg"), "RightKnee", CFrame.Angles(math.rad(-35 - math.max(0, -s) * 30), 0, 0))
+                else
+                    local torso = ch:FindFirstChild("Torso")
+                    poseMotor(ch:FindFirstChild("HumanoidRootPart"), "RootJoint", CFrame.new(0, 0, -1.22 + bob) * CFrame.Angles(math.rad(78 - leapPitch), math.rad(wag * 0.35), 0))
+                    poseMotor(torso, "Neck", CFrame.Angles(math.rad(-68 - math.sin(clock * 3) * 5), 0, 0))
+                    poseMotor(torso, "Left Shoulder", CFrame.Angles(0, 0, math.rad(-82 - stride)))
+                    poseMotor(torso, "Right Shoulder", CFrame.Angles(0, 0, math.rad(82 - stride)))
+                    poseMotor(torso, "Left Hip", CFrame.Angles(0, 0, math.rad(-74 + stride)))
+                    poseMotor(torso, "Right Hip", CFrame.Angles(0, 0, math.rad(74 + stride)))
+                end
+            elseif mode == "moonwalk" or mode == "moonwalk_reverse" then
+                local s = math.sin(clock * 7.5)
+                local revYaw = (mode == "moonwalk_reverse" and moveMag > 0.05) and math.pi or 0
+                local legSwing = (moveMag > 0.05) and (s * 42) or 0
+                if r15 then
+                    poseMotor(ch:FindFirstChild("LowerTorso"), "Root", CFrame.new(0, 0, 0) * CFrame.Angles(math.rad((moveMag > 0.05) and -6 or 0), revYaw, 0))
+                    poseMotor(ch:FindFirstChild("UpperTorso"), "Waist", CFrame.Angles(math.rad(-6), math.rad(s * 8), 0))
+                    poseMotor(ch:FindFirstChild("Head"), "Neck", CFrame.Angles(math.rad(-18), 0, 0))
+                    poseMotor(ch:FindFirstChild("RightUpperArm"), "RightShoulder", CFrame.Angles(math.rad(68), math.rad(-25), math.rad(12)))
+                    poseMotor(ch:FindFirstChild("RightLowerArm"), "RightElbow", CFrame.Angles(math.rad(82), 0, 0))
+                    poseMotor(ch:FindFirstChild("LeftUpperArm"), "LeftShoulder", CFrame.Angles(math.rad(-legSwing * 0.55), 0, math.rad(-12)))
+                    poseMotor(ch:FindFirstChild("LeftUpperLeg"), "LeftHip", CFrame.Angles(math.rad(legSwing), 0, 0))
+                    poseMotor(ch:FindFirstChild("LeftLowerLeg"), "LeftKnee", CFrame.Angles(math.rad((moveMag > 0.05) and (-math.max(0, -s) * 58) or 0), 0, 0))
+                    poseMotor(ch:FindFirstChild("RightUpperLeg"), "RightHip", CFrame.Angles(math.rad(-legSwing), 0, 0))
+                    poseMotor(ch:FindFirstChild("RightLowerLeg"), "RightKnee", CFrame.Angles(math.rad((moveMag > 0.05) and (-math.max(0, s) * 58) or 0), 0, 0))
+                else
+                    local torso = ch:FindFirstChild("Torso")
+                    poseMotor(ch:FindFirstChild("HumanoidRootPart"), "RootJoint", CFrame.Angles(math.rad((moveMag > 0.05) and 6 or 0), 0, revYaw))
+                    poseMotor(torso, "Neck", CFrame.Angles(math.rad(18), 0, 0))
+                    poseMotor(torso, "Right Shoulder", CFrame.Angles(math.rad(25), 0, math.rad(72)))
+                    poseMotor(torso, "Left Shoulder", CFrame.Angles(0, 0, math.rad(-legSwing * 0.55)))
+                    poseMotor(torso, "Left Hip", CFrame.Angles(0, 0, math.rad(-legSwing)))
+                    poseMotor(torso, "Right Hip", CFrame.Angles(0, 0, math.rad(-legSwing)))
+                end
+            elseif mode == "spider" then
+                local s = math.sin(clock * ((moveMag > 0.05) and 12.0 or 3.0))
+                local stride = (moveMag > 0.05) and (s * 45) or (s * 6)
+                if r15 then
+                    poseMotor(ch:FindFirstChild("LowerTorso"), "Root", CFrame.new(0, -1.12 + math.abs(s) * 0.16, 0) * CFrame.Angles(math.rad(88), 0, math.rad(s * 10)))
+                    poseMotor(ch:FindFirstChild("Head"), "Neck", CFrame.Angles(math.rad(65), math.rad(s * 35), 0))
+                    poseMotor(ch:FindFirstChild("LeftUpperArm"), "LeftShoulder", CFrame.Angles(math.rad(165 + stride), 0, math.rad(-25)))
+                    poseMotor(ch:FindFirstChild("RightUpperArm"), "RightShoulder", CFrame.Angles(math.rad(165 - stride), 0, math.rad(25)))
+                    poseMotor(ch:FindFirstChild("LeftUpperLeg"), "LeftHip", CFrame.Angles(math.rad(-65 - stride), 0, math.rad(-22)))
+                    poseMotor(ch:FindFirstChild("RightUpperLeg"), "RightHip", CFrame.Angles(math.rad(-65 + stride), 0, math.rad(22)))
+                else
+                    local torso = ch:FindFirstChild("Torso")
+                    poseMotor(ch:FindFirstChild("HumanoidRootPart"), "RootJoint", CFrame.new(0, 0, -1.12 + math.abs(s) * 0.16) * CFrame.Angles(math.rad(-88), math.rad(s * 10), 0))
+                    poseMotor(torso, "Neck", CFrame.Angles(math.rad(-65), 0, math.rad(s * 35)))
+                    poseMotor(torso, "Left Shoulder", CFrame.Angles(0, 0, math.rad(-165 - stride)))
+                    poseMotor(torso, "Right Shoulder", CFrame.Angles(0, 0, math.rad(165 - stride)))
+                    poseMotor(torso, "Left Hip", CFrame.Angles(0, 0, math.rad(65 + stride)))
+                    poseMotor(torso, "Right Hip", CFrame.Angles(0, 0, math.rad(-65 + stride)))
+                end
+            elseif mode == "sonic" then
+                local s = math.sin(clock * ((moveMag > 0.05) and 16.0 or 2.8))
+                local lean = (moveMag > 0.05) and -48 or -6
+                local armBack = (moveMag > 0.05) and -78 or (-12 + s * 8)
+                if r15 then
+                    poseMotor(ch:FindFirstChild("LowerTorso"), "Root", CFrame.new(0, (moveMag > 0.05) and (math.abs(s) * 0.22) or 0, 0) * CFrame.Angles(math.rad(lean), 0, 0))
+                    poseMotor(ch:FindFirstChild("Head"), "Neck", CFrame.Angles(math.rad(-lean * 0.75), 0, 0))
+                    poseMotor(ch:FindFirstChild("LeftUpperArm"), "LeftShoulder", CFrame.Angles(math.rad(armBack), 0, math.rad(-18)))
+                    poseMotor(ch:FindFirstChild("RightUpperArm"), "RightShoulder", CFrame.Angles(math.rad(armBack), 0, math.rad(18)))
+                else
+                    local torso = ch:FindFirstChild("Torso")
+                    poseMotor(ch:FindFirstChild("HumanoidRootPart"), "RootJoint", CFrame.Angles(math.rad(-lean), 0, 0))
+                    poseMotor(torso, "Neck", CFrame.Angles(math.rad(lean * 0.75), 0, 0))
+                    poseMotor(torso, "Left Shoulder", CFrame.Angles(0, 0, math.rad(-armBack)))
+                    poseMotor(torso, "Right Shoulder", CFrame.Angles(0, 0, math.rad(armBack)))
+                end
+            elseif mode == "airwalk" then
+                local bob = math.sin(clock * 2.2) * 0.28
+                if r15 then
+                    poseMotor(ch:FindFirstChild("LowerTorso"), "Root", CFrame.new(0, 2.85 + bob, 0))
+                else
+                    poseMotor(ch:FindFirstChild("HumanoidRootPart"), "RootJoint", CFrame.new(0, 0, 2.85 + bob))
+                end
+            end
+        end)
+    end
+
     function EmoteHub:ApplyCatalogPack(packEntry)
         local ch = LP.Character
         local hum = ch and ch:FindFirstChildOfClass("Humanoid")
         local animate = ch and ch:FindFirstChild("Animate")
-        if not ch or not hum or not animate then
-            notify("📦 ANIM PACK", "Character or Animate script not ready!")
+        if not ch or not hum then
+            notify("📦 ANIM PACK", "Character not ready!")
             sError()
             return false
         end
-        self:SaveDefaultPack(ch)
-        animate.Disabled = true
-        stopDefaultTracks(ch)
+        self:StopProceduralPack()
+        if animate then
+            self:SaveDefaultPack(ch)
+            animate.Disabled = true
+            stopDefaultTracks(ch)
+            -- Reset to clean defaults first so partial UGC packs never inherit leftover tracks from a previous pack
+            if self.savedDefaultPack then
+                for folderName, animMap in pairs(self.savedDefaultPack) do
+                    local folder = animate:FindFirstChild(folderName)
+                    if folder then
+                        for animName, animId in pairs(animMap) do
+                            local a = folder:FindFirstChild(animName)
+                            if a and a:IsA("Animation") then
+                                a.AnimationId = animId
+                            end
+                        end
+                    end
+                end
+            end
 
-        setAnimChildId(animate, "idle",     "Animation1", packEntry.idle1)
-        setAnimChildId(animate, "idle",     "Animation2", packEntry.idle2)
-        setAnimChildId(animate, "walk",     "WalkAnim",   packEntry.walk)
-        setAnimChildId(animate, "run",      "RunAnim",    packEntry.run)
-        setAnimChildId(animate, "jump",     "JumpAnim",   packEntry.jump)
-        setAnimChildId(animate, "fall",     "FallAnim",   packEntry.fall)
-        setAnimChildId(animate, "climb",    "ClimbAnim",  packEntry.climb)
-        setAnimChildId(animate, "swim",     "Swim",       packEntry.swim)
-        setAnimChildId(animate, "swimidle", "SwimIdle",   packEntry.swimidle)
+            setAnimChildId(animate, "idle",     "Animation1", packEntry.idle1)
+            setAnimChildId(animate, "idle",     "Animation2", packEntry.idle2 or packEntry.idle1)
+            setAnimChildId(animate, "pose",     nil,          packEntry.idle1)
+            setAnimChildId(animate, "walk",     "WalkAnim",   packEntry.walk)
+            setAnimChildId(animate, "run",      "RunAnim",    packEntry.run)
+            setAnimChildId(animate, "jump",     "JumpAnim",   packEntry.jump)
+            setAnimChildId(animate, "fall",     "FallAnim",   packEntry.fall)
+            setAnimChildId(animate, "climb",    "ClimbAnim",  packEntry.climb)
+            setAnimChildId(animate, "swim",     "Swim",       packEntry.swim)
+            setAnimChildId(animate, "swimidle", "SwimIdle",   packEntry.swimidle)
 
-        animate.Disabled = false
+            animate.Disabled = false
+        end
+
+        local autoProc = packEntry.procMode
+        if not autoProc and hum.RigType == Enum.HumanoidRigType.R6 then
+            local ln = (packEntry.name or ""):lower()
+            if ln:find("dog") or ln:find("quadruped") then autoProc = "dog"
+            elseif ln:find("wolf") then autoProc = "wolf"
+            elseif ln:find("cat") and not ln:find("catwalk") then autoProc = "cat"
+            elseif ln:find("moonwalk") then autoProc = "moonwalk"
+            elseif ln:find("spider") or ln:find("crawl") then autoProc = "spider"
+            elseif ln:find("sonic") then autoProc = "sonic"
+            elseif ln:find("air walk") then autoProc = "airwalk"
+            end
+        end
+        if autoProc then
+            self:StartProceduralPack(autoProc)
+        end
+
         pcall(function() hum:ChangeState(Enum.HumanoidStateType.Landed) end)
         self.activePackName = packEntry.name
         notify("📦 CATALOG PACK", "Applied '" .. packEntry.name .. "' Animation Pack!")
@@ -4522,11 +4784,13 @@ local EmoteHub = {
     end
 
     function EmoteHub:RestoreDefaultPack()
+        self:StopProceduralPack()
         local ch = LP.Character
         local hum = ch and ch:FindFirstChildOfClass("Humanoid")
         local animate = ch and ch:FindFirstChild("Animate")
         if not ch or not animate or not self.savedDefaultPack then
-            notify("📦 ANIM PACK", "Default Animation Pack is already active!")
+            self.activePackName = "Default"
+            notify("📦 ANIM PACK", "Restored Default Character Posture!")
             return
         end
         animate.Disabled = true
@@ -4786,6 +5050,161 @@ local EmoteHub = {
         { name = "Princess Royal Idle",          id = "941003647",       cat = "Poses" },
         { name = "Cowboy Gunslinger Stance",     id = "1014390418",      cat = "Poses" },
         { name = "Confident Boss Stance",        id = "1069977950",      cat = "Poses" },
+
+        -- ═══ 🐕 DOG, CAT, WOLF, CRAWLER & MOONWALK EMOTES (Catalog & R6/R15) ═══
+        { name = "🐕 Dog Idle Pant & Sit",          id = "131357828460801", cat = "Actions" },
+        { name = "🐕 Dog All-Fours Trot Walk",      id = "108457757168019", cat = "Actions" },
+        { name = "🐕 Dog All-Fours Gallop Run",     id = "107228888474052", cat = "Actions" },
+        { name = "🐕 Dog Akusesa Idle Pose",        id = "84324707404321",  cat = "Poses"   },
+        { name = "🐕 Dog Ozen Sprint",              id = "80597098340809",  cat = "Actions" },
+        { name = "🐕 Cute Dog Walk (Panda UGC)",    id = "126860441025423", cat = "Actions" },
+        { name = "🐕 Dog Happy Tail Wag",           id = "129026910898635", cat = "Actions" },
+        { name = "🐾 Quadruped Animal Walk",        id = "127409538625371", cat = "Actions" },
+        { name = "🐾 Quadruped Animal Sprint",      id = "80821364777380",  cat = "Actions" },
+        { name = "🐈 Cat Idle Pose",                id = "94217798575599",  cat = "Poses"   },
+        { name = "🐈 Cat Prowl Walk",               id = "89959236640842",  cat = "Actions" },
+        { name = "🐈 Cat Sprint Run",               id = "100321704971003", cat = "Actions" },
+        { name = "🐺 Wolf Prowl Walk",              id = "131989912322730", cat = "Actions" },
+        { name = "🐺 Wolf Pack Sprint",             id = "107422259488646", cat = "Actions" },
+        { name = "👹 Creepy Monster Floor Crawl",   id = "78487132141565",  cat = "Actions" },
+        { name = "👹 Creepy Meme Floor Crawl",      id = "136334810359565", cat = "Actions" },
+        { name = "🕷️ Spider Crawl Sprint",          id = "127698798443837", cat = "Actions" },
+        { name = "🕺 MJ Moonwalk Glide (Motion)",   id = "128504141010614", cat = "Trending" },
+        { name = "🕺 MJ Moonwalk Pose (Motion)",    id = "94544877510084",  cat = "Poses"   },
+        { name = "🕺 Moonwalker Walk (C4rpye)",     id = "114763801999339", cat = "Trending" },
+        { name = "🕺 Moonwalk Slide (OFF SCRIPT)",  id = "99725042814253",  cat = "Trending" },
+        { name = "🕺 Moonwalk Glide (Yummy)",       id = "91487533984459",  cat = "Trending" },
+        { name = "🕺 Moonwalk Classic (R6)",        id = "30196114",        cat = "R6"      },
+        { name = "🕺 Moon Dance Step (R6)",         id = "27789359",        cat = "R6"      },
+
+        -- ═══ 🔥 VIRAL 2024–2026 CATALOG & UGC EMOTES (Charli xcx, Chappell, KATSEYE, Squid Game, M3GAN) ═══
+        { name = "Charli xcx - Apple Dance",        id = "18946844622",     cat = "Trending" },
+        { name = "Chappell Roan - HOT TO GO!",      id = "85267023718407",  cat = "Trending" },
+        { name = "KATSEYE - Touch Dance",           id = "135876612109535", cat = "Trending" },
+        { name = "Ice Spice - Sturdy Dance",        id = "17746180844",     cat = "Trending" },
+        { name = "M3GAN's Viral Corridor Dance",    id = "99649534578309",  cat = "Trending" },
+        { name = "Robot M3GAN Doll Walk",           id = "125803725853577", cat = "Trending" },
+        { name = "Squid Game - Thanos Happy Jump",  id = "97611664803614",  cat = "Trending" },
+        { name = "Squid Game - Young-hee Head Spin",id = "112011282168475", cat = "Trending" },
+        { name = "Skibidi - Titan Speakerman Spin", id = "134283166482394", cat = "Trending" },
+        { name = "Boney M. - Rasputin Cossack",     id = "114872820353992", cat = "Trending" },
+        { name = "The Weeknd - Starboy Strut",      id = "71105746210464",  cat = "Trending" },
+        { name = "The Weeknd - Opening Night",      id = "133110725387025", cat = "Trending" },
+        { name = "SpongeBob - Imaginaaation 🌈",    id = "18443237526",     cat = "Trending" },
+        { name = "SpongeBob - Victory Dance",       id = "18443245017",     cat = "Dances"   },
+        { name = "Shrek - Swamp Roar",              id = "18524313628",     cat = "Actions"  },
+        { name = "Kung Fu Panda 4 - Skadoosh",      id = "16371217304",     cat = "Actions"  },
+        { name = "Team USA - Olympic Breaking",     id = "18526288497",     cat = "Dances"   },
+        { name = "Olympic Gymnastics Dismount",     id = "18665825805",     cat = "Actions"  },
+        { name = "NBA / WNBA Fadeaway Shot",        id = "18526362841",     cat = "Actions"  },
+        { name = "NBA Monster Slam Dunk",           id = "132748833449150", cat = "Actions"  },
+        { name = "TMNT Ninja Turtle Dance",         id = "18665811005",     cat = "Dances"   },
+        { name = "Mean Girls - Dance Break",        id = "15963314052",     cat = "Dances"   },
+        { name = "Imagine Dragons - Bones Dance",   id = "15689279687",     cat = "Dances"   },
+        { name = "GloRilla - Tomorrow Dance",       id = "15689278184",     cat = "Trending" },
+        { name = "Nicki Minaj - Super Bass",        id = "15571446961",     cat = "Trending" },
+        { name = "Nicki Minaj - Boom Boom Boom",    id = "15571448688",     cat = "Dances"   },
+        { name = "Nicki Minaj - Anaconda",          id = "15571450952",     cat = "Trending" },
+        { name = "Nicki Minaj - Starships Jump",    id = "15571453761",     cat = "Dances"   },
+        { name = "Olivia Rodrigo - good 4 u",       id = "15517862739",     cat = "Dances"   },
+        { name = "Olivia Rodrigo - Fall Back Float",id = "15549124879",     cat = "Poses"    },
+        { name = "Olivia Rodrigo - Head Bop",       id = "15517864808",     cat = "Dances"   },
+        { name = "Paris Hilton - Sliving Groove",   id = "15392759696",     cat = "Dances"   },
+        { name = "Paris Hilton - Iconic IT-Grrrl",  id = "15392756794",     cat = "Poses"    },
+        { name = "Paris Hilton - Checking Angles",  id = "15392752812",     cat = "Poses"    },
+        { name = "Paris Hilton - Sanasa Dance",     id = "16126469463",     cat = "Dances"   },
+        { name = "Glass Animals - Dave's Spin Move",id = "16272432203",     cat = "Dances"   },
+        { name = "Sol de Janeiro - Brazilian Samba",id = "16270690701",     cat = "Dances"   },
+        { name = "Rolling Stones - Guitar Strum",   id = "18148804340",     cat = "Actions"  },
+        { name = "Bebe Rexha - Rock Out",           id = "18225053113",     cat = "Dances"   },
+        { name = "ALTÉGO - Couldn't Care Less",     id = "107875941017127", cat = "Trending" },
+        { name = "Secret Handshake Dance",          id = "71243990877913",  cat = "Dances"   },
+        { name = "Fashion Klossette - Runway Walk", id = "80995190624232",  cat = "Poses"    },
+        { name = "Fashion Spin Model Turn",         id = "131669256082047", cat = "Poses"    },
+        { name = "Fashion Roadkill Dramatic Drop",  id = "136831243854748", cat = "Poses"    },
+        { name = "The Zabb Viral Dance",            id = "129470135909814", cat = "Trending" },
+
+        -- ═══ 🎤 EXPANDED K-POP & CONCERT CATALOG EMOTES (BLACKPINK, TWICE, Stray Kids, NCT 127) ═══
+        { name = "BLACKPINK - Pink Venom (Get 'Em)",id = "14548619594",     cat = "Dances"   },
+        { name = "BLACKPINK - Pink Venom (Pain)",   id = "14548620495",     cat = "Dances"   },
+        { name = "BLACKPINK - Pink Venom (Dome)",   id = "14548621256",     cat = "Dances"   },
+        { name = "BLACKPINK - Shut Down Part 1",    id = "14901306096",     cat = "Dances"   },
+        { name = "BLACKPINK - Shut Down Part 2",    id = "14901308987",     cat = "Dances"   },
+        { name = "BLACKPINK - How You Like That",   id = "16874470507",     cat = "Trending" },
+        { name = "BLACKPINK - Lovesick Girls",      id = "16874472321",     cat = "Dances"   },
+        { name = "BLACKPINK - Kill This Love",      id = "16181798319",     cat = "Dances"   },
+        { name = "BLACKPINK - Ice Cream",           id = "16181797368",     cat = "Dances"   },
+        { name = "BLACKPINK - Boombayah",           id = "16553164850",     cat = "Dances"   },
+        { name = "BLACKPINK - As If It's Your Last",id = "18855536648",     cat = "Dances"   },
+        { name = "BLACKPINK - LISA Money",          id = "15679623052",     cat = "Trending" },
+        { name = "BLACKPINK - JENNIE You & Me",     id = "15439356296",     cat = "Dances"   },
+        { name = "BLACKPINK - JISOO Flower",        id = "15439354020",     cat = "Trending" },
+        { name = "BLACKPINK - ROSÉ On The Ground",  id = "15679624464",     cat = "Dances"   },
+        { name = "TWICE - Strategy",                id = "97311229290836",  cat = "Trending" },
+        { name = "TWICE - Takedown",                id = "140182843839424", cat = "Trending" },
+        { name = "TWICE - ABCD by Nayeon",          id = "18933706381",     cat = "Dances"   },
+        { name = "TWICE - POP! by Nayeon",          id = "13768941455",     cat = "Dances"   },
+        { name = "TWICE - I GOT YOU Part 1",        id = "16215030041",     cat = "Dances"   },
+        { name = "TWICE - I GOT YOU Part 2",        id = "16256203246",     cat = "Dances"   },
+        { name = "TWICE - Fancy",                   id = "13520524517",     cat = "Dances"   },
+        { name = "TWICE - The Feels",               id = "12874447851",     cat = "Dances"   },
+        { name = "TWICE - Moonlight Sunrise",       id = "12714233242",     cat = "Dances"   },
+        { name = "TWICE - Set Me Free Part 1",      id = "12714228341",     cat = "Dances"   },
+        { name = "TWICE - Set Me Free Part 2",      id = "12714231087",     cat = "Dances"   },
+        { name = "TWICE - Like OOH-AHH",            id = "14123781004",     cat = "Dances"   },
+        { name = "Stray Kids - Walkin On Water",    id = "125064469983655", cat = "Trending" },
+        { name = "NCT 127 - 2 Baddies Dance",       id = "12259828678",     cat = "Dances"   },
+        { name = "NCT 127 - Kick It Martial Arts",  id = "12259826609",     cat = "Dances"   },
+        { name = "NCT 127 - Sticker Dance",         id = "12259825026",     cat = "Dances"   },
+        { name = "NCT 127 - Ay-Yo Step",            id = "12804157977",     cat = "Dances"   },
+        { name = "SUNMI - Gashina Dance",           id = "9527886709",      cat = "Dances"   },
+        { name = "SUNMI - You Can't Sit With Us",   id = "9983520970",      cat = "Actions"  },
+
+        -- ═══ 🏆 SPORTS, FASHION, POSES & CLASSIC R6 TROLL EMOTES ═══
+        { name = "Burberry Lola - Gem Levitate",    id = "10147815602",     cat = "Poses"    },
+        { name = "Burberry Lola - Nimbus Float",    id = "10147821284",     cat = "Poses"    },
+        { name = "Burberry Lola - Hydro Wave",      id = "10147823318",     cat = "Poses"    },
+        { name = "Burberry Lola - Bloom Pose",      id = "10147817997",     cat = "Poses"    },
+        { name = "Man City - Bicycle Kick",         id = "13421057998",     cat = "Actions"  },
+        { name = "Man City - Scorpion Kick",        id = "13694096724",     cat = "Actions"  },
+        { name = "Man City - Backflip Goal",        id = "13694100677",     cat = "Actions"  },
+        { name = "KSI - Boxing Punch Combo",        id = "7202863182",      cat = "Actions"  },
+        { name = "KSI - Wake Up Call Stance",       id = "7199000883",      cat = "Actions"  },
+        { name = "24kGoldn - Victory Levitate",     id = "9178377686",      cat = "Poses"    },
+        { name = "Alo Yoga - Warrior II Pose",      id = "12507083048",     cat = "Poses"    },
+        { name = "Alo Yoga - Triangle Pose",        id = "12507084541",     cat = "Poses"    },
+        { name = "Alo Yoga - Lotus Meditation",     id = "12507085924",     cat = "Poses"    },
+        { name = "Hero Landing Superhero Drop",     id = "5104344710",      cat = "Poses"    },
+        { name = "Quiet Waves Relaxed Sit",         id = "7465981288",      cat = "Poses"    },
+        { name = "Borock's Rage Roar",              id = "3236842542",      cat = "Actions"  },
+        { name = "Ud'zal's Dark Summoning",         id = "3303161675",      cat = "Actions"  },
+        { name = "Super Charge Energy Aura",        id = "10478338114",     cat = "Actions"  },
+        { name = "Swag Walk Boss Strut",            id = "10478341260",     cat = "Dances"   },
+        { name = "Bone Chillin' Skeleton Bop",      id = "15122972413",     cat = "Dances"   },
+        { name = "Mini Kong Chest Pound",           id = "17000021306",     cat = "Actions"  },
+        { name = "HUGO - Let's Drive",              id = "17360699557",     cat = "Actions"  },
+        { name = "Vroom Vroom Bike Rev",            id = "18526397037",     cat = "Actions"  },
+        { name = "R6 Balloon Float Hover",          id = "148840371",       cat = "R6"       },
+        { name = "R6 Arm Turbine Helicopter",       id = "259438880",       cat = "R6"       },
+        { name = "R6 Floating Head Spin",           id = "121572214",       cat = "R6"       },
+        { name = "R6 Penguin Belly Slide",          id = "282574440",       cat = "R6"       },
+        { name = "R6 Zombie Arms Out",              id = "183294396",       cat = "R6"       },
+        { name = "R6 Superhero Flying",             id = "46196309",        cat = "R6"       },
+        { name = "R6 Insane Legs Kick",             id = "87986341",        cat = "R6"       },
+        { name = "R6 Head Detach Hold",             id = "35154961",        cat = "R6"       },
+        { name = "R6 Arm Detach Rip",               id = "33169583",        cat = "R6"       },
+        { name = "R6 Beat Box Groove",              id = "45504977",        cat = "R6"       },
+        { name = "R6 Big Guns Muscle Flex",         id = "161268368",       cat = "R6"       },
+        { name = "R6 Charleston Classic",           id = "429703734",       cat = "R6"       },
+        { name = "R6 Glitch Levitate",              id = "313762630",       cat = "R6"       },
+        { name = "R6 Faint Collapse",               id = "181526230",       cat = "R6"       },
+        { name = "R6 Floor Faint Flat",             id = "181525546",       cat = "R6"       },
+        { name = "R6 Spin Dance Tornado",           id = "429730430",       cat = "R6"       },
+        { name = "R6 Mega Insane Freakout",         id = "184574340",       cat = "R6"       },
+        { name = "R6 Classic Dab",                  id = "183412246",       cat = "R6"       },
+        { name = "R6 Clone Speed Illusion",         id = "215384594",       cat = "R6"       },
+        { name = "R6 Sword Slam Strike",            id = "204295235",       cat = "R6"       },
+        { name = "R6 Bow Down Respect",             id = "204292303",       cat = "R6"       },
     }
     local ResolvedEmoteCache = {}
 
@@ -13227,6 +13646,26 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                         setPose("LeftUpperLeg", CFrame.Angles(math.sin(roll) * math.rad(55), 0, 0))
                         setPose("RightUpperLeg", CFrame.Angles(-math.sin(roll) * math.rad(55), 0, 0))
                         setPose("Head", CFrame.Angles(math.rad(-45), 0, 0))
+                    elseif lower:find("dog") or lower:find("puppy") or lower:find("wolf") or lower:find("quadruped") or (lower:find("cat") and not lower:find("catwalk")) then
+                        local s = math.sin(t * 3.8)
+                        local c = math.cos(t * 3.8)
+                        local wag = math.sin(t * 6.5) * 18
+                        setPose("LowerTorso", CFrame.new(0, -1.22 + math.abs(c) * 0.18, 0) * CFrame.Angles(math.rad(-78), 0, math.rad(wag * 0.35)))
+                        setPose("UpperTorso", CFrame.Angles(math.rad(-8), math.rad(-wag * 0.4), 0))
+                        setPose("Torso", CFrame.new(0, -1.22 + math.abs(c) * 0.18, 0) * CFrame.Angles(math.rad(-78), 0, math.rad(wag * 0.35)))
+                        setPose("LeftUpperArm", CFrame.Angles(math.rad(80 + s * 38), 0, math.rad(-8)))
+                        setPose("RightUpperArm", CFrame.Angles(math.rad(80 - s * 38), 0, math.rad(8)))
+                        setPose("LeftLowerArm", CFrame.Angles(math.rad(22 + math.max(0, -s) * 28), 0, 0))
+                        setPose("RightLowerArm", CFrame.Angles(math.rad(22 + math.max(0, s) * 28), 0, 0))
+                        setPose("Left Arm", CFrame.Angles(math.rad(80 + s * 38), 0, math.rad(-8)))
+                        setPose("Right Arm", CFrame.Angles(math.rad(80 - s * 38), 0, math.rad(8)))
+                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(72 - s * 38), 0, math.rad(-8)))
+                        setPose("RightUpperLeg", CFrame.Angles(math.rad(72 + s * 38), 0, math.rad(8)))
+                        setPose("LeftLowerLeg", CFrame.Angles(math.rad(-35 - math.max(0, s) * 28), 0, 0))
+                        setPose("RightLowerLeg", CFrame.Angles(math.rad(-35 - math.max(0, -s) * 28), 0, 0))
+                        setPose("Left Leg", CFrame.Angles(math.rad(72 - s * 38), 0, math.rad(-8)))
+                        setPose("Right Leg", CFrame.Angles(math.rad(72 + s * 38), 0, math.rad(8)))
+                        setPose("Head", CFrame.Angles(math.rad(68 + math.sin(t * 2.5) * 6), math.rad(wag * 0.3), 0))
                     elseif lower:find("marionette") or lower:find("jester puppet") then
                         local j = math.sin(t * 3.8)
                         local jerk = (math.abs(j) > 0.75) and 1 or 0
@@ -14166,7 +14605,8 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
         "🗡️ Toji Heavenly Restriction Dash", "🌌 Cid Shadow Atomic Float", "👑 Sung Jin-Woo Monarch Arise",
         "💚 Broly Legendary Rage", "🌸 Goku Black Scythe Pose", "⚔️ Zoro Three-Sword Slash",
         -- Viral & TikTok Dances
-        "🕺 Michael Jackson 45° Lean", "🕺 Moonwalk Glide Pro", "👟 Griddy Pro Footwork",
+        "🐕 Dog All-Fours Quadruped Trot", "🐕 Puppy Happy Tail Wag", "🐺 Wolf Howl & Prowl", "🐈 Cat Feline Prowl",
+        "🕺 Michael Jackson 45° Lean", "🕺 Moonwalk Glide Pro", "🕺 Billie Jean Moonwalk Spin", "👟 Griddy Pro Footwork",
         "🧊 Slickback Air Glide", "🗽 Sturdy NY Get Sturdy", "🔥 Billy Bounce Smooth",
         "🍊 Orange Justice Turbo", "💃 Floss Dance Pro", "🤡 Take The L Troll",
         "🕺 Default Dance Classic", "⚡ Electro Shuffle Pro", "🕺 Boogie Down Groove",
@@ -21589,10 +22029,10 @@ local function buildMainUI()
     local genPage       = createCategory("General",           "⚙",  7,   "Session behavior, auto-reweld & detachable mini-windows", "General")
     local adminPage     = createCategory("Admin Panel",       "👑", 0,   "Owner & Premium control center: freeze, ban & overhead tags", "Admin")
     local animPage      = createCategory("Animation Copy",    "🎭", 8,   "Live 1:1 target animation mirroring & 6-mode alignment", "Anim Copy")
-    local animationPage = createCategory("Animation Library", "🎬", 36,  "36 official catalog animation packs & playback controls", "Anim Packs")
+    local animationPage = createCategory("Animation Library", "🎬", 215, "215+ Official, Dog, Moonwalk, Animal & UGC animation packs", "Anim Packs")
     local cocaReanimPage= createCategory("Coca Reanim",       "🦴", 8,   "Coca Reanim keyframe player, custom scripts, state anims & limb hider", "Coca Reanim")
     local skyPage       = createCategory("Coca Sky Destroyer","💥", 9,   "3D Layered Clothing & Glitch Walker Sky, Ground & Cube Matrix Destroyer", "Coca Sky")
-    local emotePage     = createCategory("Emotes",            "💃", 195, "Searchable catalog emotes, viral dances, poses & custom IDs", "Emotes")
+    local emotePage     = createCategory("Emotes",            "💃", 315, "315+ searchable catalog emotes, viral dances, dog/moonwalk & custom IDs", "Emotes")
     local weldPage      = createCategory("Weld & Troll",      "⚡", 15,  "Dynamic height-adaptive welds, jerk troll, void throws & pins", "Weld & Troll")
     local targetPage    = createCategory("Target",            "🎯", 1,   "Omnipresent hidden-player seeker & server-wide lock", "Target")
     local movePage      = createCategory("Performance",       "🚀", 11,  "60Hz Chrono-Rewind, WalkSpeed 500 & 4-Phase Flight", "Move & Fly")
@@ -24438,8 +24878,8 @@ local function buildMainUI()
             end
         )
 
-        -- Section 3: 125+ Official & UGC R15 Animation Packs with Instant Search & Filter
-        createSectionTitle(animationPage, 3, "Catalog & UGC Animation Packs (125+ Bundles)")
+        -- Section 3: 195+ Official, Dog/Animal, Moonwalk & UGC Animation Packs with Instant Search & Filter
+        createSectionTitle(animationPage, 3, "Catalog, Dog, Moonwalk & UGC Packs (" .. tostring(#EmoteHub.CatalogPacks) .. " Bundles)")
 
         local packFilterWrap = Instance.new("Frame")
         packFilterWrap.Size = UDim2.new(1, 0, 0, 68)
@@ -24452,7 +24892,7 @@ local function buildMainUI()
         packSearchBox.Size = UDim2.new(1, 0, 0, 32)
         packSearchBox.Position = UDim2.new(0, 0, 0, 0)
         packSearchBox.BackgroundColor3 = T.Panel
-        packSearchBox.PlaceholderText = "Search 125+ animation packs (Vampire, Mage, Zombie, UGC, Retro, Shinobi...)..."
+        packSearchBox.PlaceholderText = "Search " .. tostring(#EmoteHub.CatalogPacks) .. "+ packs (Dog, Moonwalk, Wolf, Cat, Sonic, Air Walk, Vampire...)..."
         packSearchBox.Text = ""
         packSearchBox.TextColor3 = T.Text
         packSearchBox.PlaceholderColor3 = T.Muted
@@ -24478,11 +24918,11 @@ local function buildMainUI()
         packCatBar.Parent = packFilterWrap
         local packCatLayout = Instance.new("UIListLayout", packCatBar)
         packCatLayout.FillDirection = Enum.FillDirection.Horizontal
-        packCatLayout.Padding = UDim.new(0, 6)
+        packCatLayout.Padding = UDim.new(0, 5)
         packCatLayout.SortOrder = Enum.SortOrder.LayoutOrder
 
-        local PACK_CATS = { "All (125)", "Official (36)", "UGC / Mortal (89)" }
-        local selectedPackCat = "All (125)"
+        local PACK_CATS = { "All", "Dog & Animal", "Moonwalk", "Official", "UGC / Viral" }
+        local selectedPackCat = "All"
         local packCatBtns = {}
         local packRowEntries = {}
 
@@ -24503,9 +24943,11 @@ local function buildMainUI()
         local function filterCatalogPacksList()
             local q = (packSearchBox.Text or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
             for _, entry in ipairs(packRowEntries) do
-                local catOk = (selectedPackCat == "All (125)")
-                    or (selectedPackCat == "Official (36)" and not entry.isUGC)
-                    or (selectedPackCat == "UGC / Mortal (89)" and entry.isUGC)
+                local catOk = (selectedPackCat == "All")
+                    or (selectedPackCat == "Official" and entry.isOfficial)
+                    or (selectedPackCat == "Dog & Animal" and entry.isAnimal)
+                    or (selectedPackCat == "Moonwalk" and entry.isMoonwalk)
+                    or (selectedPackCat == "UGC / Viral" and entry.isUGC)
                 local txtOk = (q == "") or entry.searchName:find(q, 1, true)
                 if entry.rInfo and entry.rInfo.row then
                     entry.rInfo.row.Visible = (catOk and txtOk)
@@ -24515,11 +24957,11 @@ local function buildMainUI()
 
         for idx, cName in ipairs(PACK_CATS) do
             local b = Instance.new("TextButton")
-            b.Size = UDim2.new(0, 102, 0, 26)
+            b.Size = UDim2.new(0, 64, 0, 26)
             b.Text = cName
             b.TextColor3 = (cName == selectedPackCat) and Color3.new(1, 1, 1) or T.Text
             b.Font = Enum.Font.GothamBold
-            b.TextSize = 9.5
+            b.TextSize = 9
             b.LayoutOrder = idx
             b.ZIndex = 9
             b.Parent = packCatBar
@@ -24544,8 +24986,16 @@ local function buildMainUI()
             if packsBuilt then return end
             packsBuilt = true
             for idx, pack in ipairs(EmoteHub.CatalogPacks) do
-                local isUGC = (idx > 36) or (pack.name:find("^%(UGC%)") ~= nil)
-                local subDesc = isUGC and "MortalHub / UGC Character Animation Bundle" or "Official Catalog Bundle: Idle, Walk, Run, Jump, Fall, Climb & Swim"
+                local ln = (pack.name or ""):lower()
+                local isOfficial = (idx <= 36) or (pack.isOfficial == true)
+                local isAnimal = (pack.cat == "Dog/Animal") or (ln:find("dog") ~= nil) or (ln:find("wolf") ~= nil) or (ln:find("animal") ~= nil) or (ln:find("furry") ~= nil) or (ln:find("feline") ~= nil) or (ln:find("tailwag") ~= nil) or (ln:find("spider") ~= nil) or (ln:find("crawl") ~= nil) or (ln:find("cat") ~= nil and not ln:find("catwalk"))
+                local isMoonwalk = (pack.cat == "Moonwalk") or (ln:find("moonwalk") ~= nil) or (ln:find("michael jackson") ~= nil)
+                local isUGC = not isOfficial
+                local subDesc = pack.procMode and "Universal R6 & R15 Locomotion + Full Catalog Animation Bundle"
+                    or (isAnimal and "Quadruped / Animal Locomotion Bundle (Idle, Walk, Run, Jump & Climb)")
+                    or (isMoonwalk and "Michael Jackson Moonwalk Glide Bundle (Idle, Walk, Run, Jump & Climb)")
+                    or (isOfficial and "Official Catalog Bundle: Idle, Walk, Run, Jump, Fall, Climb & Swim")
+                    or "Catalog & UGC Character Animation Bundle"
                 local rInfo = createActionRow(
                     packGrp,
                     idx + 1,
@@ -24565,8 +25015,11 @@ local function buildMainUI()
                 table.insert(packRowEntries, {
                     rInfo = rInfo,
                     pack = pack,
+                    isOfficial = isOfficial,
                     isUGC = isUGC,
-                    searchName = pack.name:lower(),
+                    isAnimal = isAnimal,
+                    isMoonwalk = isMoonwalk,
+                    searchName = ln .. " " .. (isAnimal and "dog animal quadruped pet wolf cat crawl " or "") .. (isMoonwalk and "moonwalk michael jackson glide slide " or ""),
                 })
             end
             filterCatalogPacksList()
