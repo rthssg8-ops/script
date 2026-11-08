@@ -67,8 +67,7 @@ local PREMIUM_USERS = {
         "kaun_bhai",
         "retreee_yawrrr",
         "Armaan_lulla",
-        "BUNDBAAZz_COCACOLA",
-        "cocacola",
+        "shivyy7711",
     },
 }
 
