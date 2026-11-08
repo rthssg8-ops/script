@@ -68,6 +68,7 @@ local PREMIUM_USERS = {
         "retreee_yawrrr",
         "Armaan_lulla",
         "shivyy7711",
+        "apkadeewana",
     },
 }
 
@@ -27881,7 +27882,7 @@ local function buildMainUI()
         local roleTitleText = isScriptOwner(LP)
             and ("👑 Script Owner: @" .. LP.Name .. " (Full Authority)")
             or (isPremiumUser(LP) and ("💎 Premium Admin: @" .. LP.Name .. " (Admin Panel Unlocked)") or "🔒 Restricted: Owner & Premium Only")
-        local roleSubText = "Owner: shivyy73 · Premium: kaun_bhai, retreee_yawrrr, Armaan_lulla, cocacola"
+        local roleSubText = "Owner: shivyy73 · Premium: kaun_bhai, retreee_yawrrr, Armaan_lulla, shivyy7711"
 
         createActionRow(
             ownerInfoGrp,
