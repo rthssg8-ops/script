@@ -34550,6 +34550,9 @@ end
 
     local activeSGLoaderGui = nil
     local scanToken = 0
+    local function playClick()
+        if UI and UI.sfxEnabled then pcall(sClick) end
+    end
 
     local function openScriptGuardVerificationPage(manualOpen)
         scanToken = scanToken + 1
@@ -35545,6 +35548,7 @@ end
         local function closeVerificationLoader()
             scanToken = scanToken + 1
             if sgGui and sgGui.Parent then
+                pcall(function() backdrop.Active = false end)
                 pcall(function()
                     TweenService:Create(backdrop, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
                         BackgroundTransparency = 1,
