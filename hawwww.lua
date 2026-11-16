@@ -2099,19 +2099,33 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
                 currentLockCF = baseTargetCF * localOffset
                 lastValidLockCF = currentLockCF
                 Root.CFrame = currentLockCF
+                Root.AssemblyLinearVelocity = Vector3.zero
+                Root.AssemblyAngularVelocity = Vector3.zero
+                markIntentionalTeleport(currentLockCF)
+                pcall(function() LP.ReplicationFocus = TargetPart end)
+                if sethiddenproperty then
+                    pcall(function()
+                        sethiddenproperty(Root, "PhysicsRepRootPart", TargetPart)
+                        if InstanceHandleNew then
+                            sethiddenproperty(Root, "PhysicsRepRootRef", InstanceHandleNew(TargetPart))
+                        end
+                        sethiddenproperty(Root, "NetworkIsSleeping", false)
+                    end)
+                end
                 syncReanimRoots(currentLockCF)
             end
         end
     end
 
     -- Immediate Frame-0 Lock + Zero-Delay Network Replication Bind (0.00ms startup delay!)
-    -- Never set PhysicsRepRootPart/PhysicsRepRootRef on Root (prevents 2x coordinate void fling & target invisibility!)
     if TargetPart and TargetPart.Parent and Root and Root.Parent and isRefPartValid(TargetPart, TargetChar) then
-        pcall(function() LP.ReplicationFocus = nil end)
+        pcall(function() LP.ReplicationFocus = TargetPart end)
         if sethiddenproperty then
             pcall(function()
-                sethiddenproperty(Root, "PhysicsRepRootPart", nil)
-                sethiddenproperty(Root, "PhysicsRepRootRef", nil)
+                sethiddenproperty(Root, "PhysicsRepRootPart", TargetPart)
+                if InstanceHandleNew then
+                    sethiddenproperty(Root, "PhysicsRepRootRef", InstanceHandleNew(TargetPart))
+                end
                 sethiddenproperty(Root, "NetworkIsSleeping", false)
             end)
         end
@@ -2294,8 +2308,8 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
             end
         end
 
-        -- Keep ReplicationFocus nil when already streamed so server SimulationRadius stays centered on our own character!
-        pcall(function() LP.ReplicationFocus = nil end)
+        -- Keep server streaming focused on TargetPart for zero-delay replication lock
+        pcall(function() LP.ReplicationFocus = TargetPart end)
         ensureTargetVisibleOnClient(TargetPlayer, TargetChar)
 
         -- Cache target location & update safe standing CFrame only when target is near stable ground
@@ -2328,15 +2342,16 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
         local baseTargetCF = (PresetKey == "rizz" and getFlatYawCFrame) and getFlatYawCFrame(TargetPart.CFrame, TargetPart.Position) or TargetPart.CFrame
         currentLockCF = baseTargetCF * localOffset
         Root.CFrame = currentLockCF
-        -- Velocity-matched anti-sleep replication (from khaman_dhokla.lua): prevents network sleep & trailing lag on other players' screens
-        local microWake = Vector3.new(0, math.sin(clock * 24) * 0.03, 0)
-        Root.AssemblyLinearVelocity = (tVel.Magnitude < 350 and (tVel * 0.85) or Vector3.zero) + microWake
+        Root.AssemblyLinearVelocity = Vector3.zero
         Root.AssemblyAngularVelocity = Vector3.zero
         syncReanimRoots(currentLockCF)
         markIntentionalTeleport(Root.CFrame)
+        pcall(function() LP.ReplicationFocus = TargetPart end)
         if sethiddenproperty then pcall(function()
-            sethiddenproperty(Root, "PhysicsRepRootPart", nil)
-            sethiddenproperty(Root, "PhysicsRepRootRef", nil)
+            sethiddenproperty(Root, "PhysicsRepRootPart", TargetPart)
+            if InstanceHandleNew then
+                sethiddenproperty(Root, "PhysicsRepRootRef", InstanceHandleNew(TargetPart))
+            end
             sethiddenproperty(Root, "NetworkIsSleeping", false)
         end) end
         pcall(function() ensureAnim(false) end)
@@ -4465,17 +4480,17 @@ local EmoteHub = {
                     root.Anchored = false
                     root.CFrame = desiredCF
                     syncAnimCopyReanimRoots(desiredCF, root)
-                    -- Velocity-matched anti-sleep replication (from WeldTo): prevents network sleep & trailing lag on other players' screens
-                    local microWake = Vector3.new(0, math.sin(self.clock * 24) * 0.03, 0)
-                    root.AssemblyLinearVelocity = (tVel.Magnitude < 350 and (tVel * 0.85) or Vector3.zero) + microWake
+                    root.AssemblyLinearVelocity = Vector3.zero
                     root.AssemblyAngularVelocity = Vector3.zero
                     markIntentionalTeleport(desiredCF)
-                    pcall(function() LP.ReplicationFocus = nil end)
+                    pcall(function() LP.ReplicationFocus = tr end)
                     ensureTargetVisibleOnClient(self.target, tc)
                     if sethiddenproperty then
                         pcall(function()
-                            sethiddenproperty(root, "PhysicsRepRootPart", nil)
-                            sethiddenproperty(root, "PhysicsRepRootRef", nil)
+                            sethiddenproperty(root, "PhysicsRepRootPart", tr)
+                            if InstanceHandleNew then
+                                sethiddenproperty(root, "PhysicsRepRootRef", InstanceHandleNew(tr))
+                            end
                             sethiddenproperty(root, "NetworkIsSleeping", false)
                         end)
                     end
@@ -5750,6 +5765,16 @@ local function weldToTarget(target, speaker, offset, animId, osc, refMode, animF
         local destCF = baseFastCF * (offset * initAdjust)
         markIntentionalTeleport(destCF)
         fastMyRoot.CFrame = destCF
+        pcall(function() LP.ReplicationFocus = fastTRoot end)
+        if sethiddenproperty then
+            pcall(function()
+                sethiddenproperty(fastMyRoot, "PhysicsRepRootPart", fastTRoot)
+                if InstanceHandleNew then
+                    sethiddenproperty(fastMyRoot, "PhysicsRepRootRef", InstanceHandleNew(fastTRoot))
+                end
+                sethiddenproperty(fastMyRoot, "NetworkIsSleeping", false)
+            end)
+        end
         CurrentWeld = WeldTo(fastTRoot, offset, speaker, animId, osc, animFallbacks, TPlayer, refMode or "torso", preSeekSafeCF, presetKey)
         if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
         if WeldIntent.refreshUI then pcall(WeldIntent.refreshUI) end
@@ -5838,6 +5863,16 @@ local function weldToTarget(target, speaker, offset, animId, osc, refMode, animF
             local destCF = baseSlowCF * (offset * initAdjust)
             markIntentionalTeleport(destCF)
             myRoot.CFrame = destCF
+            pcall(function() LP.ReplicationFocus = TRoot end)
+            if sethiddenproperty then
+                pcall(function()
+                    sethiddenproperty(myRoot, "PhysicsRepRootPart", TRoot)
+                    if InstanceHandleNew then
+                        sethiddenproperty(myRoot, "PhysicsRepRootRef", InstanceHandleNew(TRoot))
+                    end
+                    sethiddenproperty(myRoot, "NetworkIsSleeping", false)
+                end)
+            end
         end
 
         local old = CurrentWeld
@@ -7120,11 +7155,24 @@ local function utf8SafeTruncate(s, maxBytes)
 end
 
 local function gC()
-    if TextChatService.ChatVersion ~= Enum.ChatVersion.TextChatService then return nil end
     local ok, res = pcall(function()
+        if TextChatService.ChatVersion ~= Enum.ChatVersion.TextChatService then
+            if not TextChatService:FindFirstChild("TextChannels") then return nil end
+        end
+        local inputCfg = TextChatService:FindFirstChild("ChatInputBarConfiguration")
+        if inputCfg and inputCfg.TargetTextChannel and inputCfg.TargetTextChannel:IsA("TextChannel") and inputCfg.TargetTextChannel.Name ~= "RBXSystem" then
+            return inputCfg.TargetTextChannel
+        end
         local c = TextChatService:FindFirstChild("TextChannels")
         if not c then return nil end
-        return c:FindFirstChild("RBXGeneral") or c:FindFirstChild("General") or c:GetChildren()[1]
+        local gen = c:FindFirstChild("RBXGeneral") or c:FindFirstChild("General")
+        if gen and gen:IsA("TextChannel") then return gen end
+        for _, ch in ipairs(c:GetChildren()) do
+            if ch:IsA("TextChannel") and ch.Name ~= "RBXSystem" and ch.Name ~= "RBXWhisper" then
+                return ch
+            end
+        end
+        return nil
     end)
     return ok and res or nil
 end
@@ -7152,7 +7200,7 @@ _G.ResetCocoCustomRoasts = function()
     table.clear(_G.CocoCustomRoasts)
 end
 
-local antiTagTokens = { "\226\128\139", "\226\128\140", "\226\128\141", " \194\183", " \226\150\184", " \226\151\134" }
+local antiTagTokens = { " .", " ..", " !", " ·", " ~", " *", " -", " +" }
 local antiTagSeq = 0
 snd2 = function(tx)
     if type(tx) ~= "string" then return false end
@@ -7160,23 +7208,40 @@ snd2 = function(tx)
     if tx == "" then return false end
     if _G.CocoAntiTagBypass and not tx:match("^!") then
         antiTagSeq = (antiTagSeq % #antiTagTokens) + 1
-        local zw = antiTagTokens[antiTagSeq] .. string.rep("\226\128\139", (csCnt % 4) + 1)
-        tx = utf8SafeTruncate(tx, CS_M - #zw) .. zw
+        local suffix = antiTagTokens[antiTagSeq]
+        tx = utf8SafeTruncate(tx, CS_M - #suffix) .. suffix
     else
         tx = utf8SafeTruncate(tx, CS_M)
     end
-    if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
-        if not csCh or not csCh.Parent then csCh = gC() end
+    if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService or TextChatService:FindFirstChild("TextChannels") then
+        if not csCh or not csCh.Parent or csCh.Name == "RBXSystem" then csCh = gC() end
         if csCh then
-            local ok = pcall(function() csCh:SendAsync(tx) end)
-            if ok then csMtd = "TextChat"; return true end
+            local ok, msgRes = pcall(function() return csCh:SendAsync(tx) end)
+            if ok then
+                local blocked = false
+                if typeof(msgRes) == "Instance" and msgRes:IsA("TextChatMessage") then
+                    if msgRes.Status == Enum.TextChatMessageStatus.Floodchecked
+                        or msgRes.Status == Enum.TextChatMessageStatus.InvalidPrivacySettings
+                        or msgRes.Status == Enum.TextChatMessageStatus.InvalidTextChannelParameters then
+                        blocked = true
+                    end
+                end
+                if not blocked then
+                    csMtd = "TextChat"
+                    return true
+                end
+            else
+                csCh = nil
+            end
         end
     end
-    if not csLg then csLg = gL() end
+    if not csLg or not csLg.Parent then csLg = gL() end
     if csLg then
         local ok = pcall(function() csLg:FireServer(tx, "All") end)
         if ok then csMtd = "Legacy"; return true end
     end
+    local okChat = pcall(function() Players:Chat(tx) end)
+    if okChat then csMtd = "PlayersChat"; return true end
     return false
 end
 
@@ -8365,7 +8430,7 @@ end
 
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- ═══════════════════════════════════════════════════════════════════════════════
--- 5. ANTI-VC BYPASS · JAMUN VC BYPASS (CLEANED & INTEGRATED V2)
+-- 5. ANTI-VC BYPASS · COCA VC BYPASS (CLEANED & INTEGRATED V2)
 --    • Flow: joinVoice → wait unmute (0.5s poll with mic-rebuild recovery) →
 --            leaveVoice → disable StateChanged hooks (7..#conns) → rejoin →
 --            swap mic button into RobloxReplicatedStorage.AntiVC_Stash & hook
@@ -8373,7 +8438,7 @@ end
 -- ═══════════════════════════════════════════════════════════════════════════════
 local vcDisabledConns = {}
 local vcStoredFolder = nil
-local JAMUN_MUTED_ICON = "rbxasset://textures/ui/VoiceChat/MicLight/Muted.png"
+local COCA_MUTED_ICON = "rbxasset://textures/ui/VoiceChat/MicLight/Muted.png"
 
 local function vcNotify(titleOrText, maybeText)
     local title = maybeText and tostring(titleOrText) or "Anti-VC"
@@ -8406,7 +8471,7 @@ local function updateVCBypassUI(statusText, statusColor, buttonText)
     end
 end
 
-local function jamunFindMicButton()
+local function cocaFindMicButton()
     local coreGui = CoreGui or game:GetService("CoreGui")
     for _, d in ipairs(coreGui:GetDescendants()) do
         if d.Name == "toggle_mic_mute" then
@@ -8416,7 +8481,7 @@ local function jamunFindMicButton()
     return nil, nil
 end
 
-local function jamunGetMicIcon(btn)
+local function cocaGetMicIcon(btn)
     return (btn or error("no mic btn"))
         :WaitForChild("IntegrationIconFrame", 15)
         :WaitForChild("IntegrationIcon", 15)["1"]
@@ -8439,7 +8504,7 @@ vcStart = function()
 
             local VoiceChatService = cloneref_(game:GetService("VoiceChatService"))
             local VoiceChatInternal = cloneref_(game:GetService("VoiceChatInternal"))
-            local getconns = clonefunction_(getconnections)
+            local getconns = (typeof(getconnections) == "function") and clonefunction_(getconnections) or nil
 
             if vcStoredFolder and vcStoredFolder.Parent then
                 pcall(function() vcStoredFolder:Destroy() end)
@@ -8449,7 +8514,7 @@ vcStart = function()
             stash.Parent = RRS
             vcStoredFolder = stash
 
-            local micBtn, micParent = jamunFindMicButton()
+            local micBtn, micParent = cocaFindMicButton()
 
             local function isPublishPaused()
                 return VoiceChatInternal:IsPublishPaused()
@@ -8466,7 +8531,7 @@ vcStart = function()
                 if micParent then
                     micBtn = micParent:WaitForChild("toggle_mic_mute", 15)
                 else
-                    micBtn, micParent = jamunFindMicButton()
+                    micBtn, micParent = cocaFindMicButton()
                 end
                 if not micBtn then
                     error("Mic button not found after joinVoice")
@@ -8481,14 +8546,14 @@ vcStart = function()
                     error("Cancelled")
                 end
                 task.wait(0.5)
-                local okIcon, icon = pcall(jamunGetMicIcon, micBtn)
+                local okIcon, icon = pcall(cocaGetMicIcon, micBtn)
                 if not okIcon or not icon then
-                    micBtn, micParent = jamunFindMicButton()
+                    micBtn, micParent = cocaFindMicButton()
                     if not micBtn then
                         error("Mic button lost while waiting for unmute")
                     end
                 else
-                    if icon.Image ~= JAMUN_MUTED_ICON then
+                    if icon.Image ~= COCA_MUTED_ICON then
                         break
                     end
                 end
@@ -8502,7 +8567,7 @@ vcStart = function()
 
             vcDisabledConns = {}
             local okConns, conns = pcall(function()
-                return getconns(VoiceChatInternal.StateChanged)
+                return getconns and getconns(VoiceChatInternal.StateChanged) or {}
             end)
             if okConns and type(conns) == "table" then
                 for i = 7, #conns do
@@ -8524,7 +8589,7 @@ vcStart = function()
                 end)
             end
             if not micBtn or not micBtn.Parent then
-                micBtn, micParent = jamunFindMicButton()
+                micBtn, micParent = cocaFindMicButton()
             end
 
             if micBtn and micParent then
@@ -8534,22 +8599,26 @@ vcStart = function()
                 clone.Name = "toggle_mic_mute_new"
                 clone.Parent = micParent
 
-                local cloneIcon = jamunGetMicIcon(clone)
-                local origIcon = jamunGetMicIcon(micBtn)
+                local okCI, cloneIcon = pcall(cocaGetMicIcon, clone)
+                local okOI, origIcon = pcall(cocaGetMicIcon, micBtn)
 
                 -- Start paused (looks muted)
                 setPublishPaused(true)
-                cloneIcon.Image = JAMUN_MUTED_ICON
+                if okCI and cloneIcon then
+                    cloneIcon.Image = COCA_MUTED_ICON
+                end
 
                 local hit = clone:WaitForChild("IconHitArea_toggle_mic_mute", 15)
                 if hit then
                     hit.Activated:Connect(function()
                         local nowPaused = not isPublishPaused()
                         setPublishPaused(nowPaused)
-                        if nowPaused then
-                            cloneIcon.Image = JAMUN_MUTED_ICON
-                        else
-                            cloneIcon.Image = origIcon.Image
+                        if okCI and cloneIcon then
+                            if nowPaused then
+                                cloneIcon.Image = COCA_MUTED_ICON
+                            elseif okOI and origIcon then
+                                cloneIcon.Image = origIcon.Image
+                            end
                         end
                     end)
                 end
@@ -8565,7 +8634,7 @@ vcStart = function()
         Anti.VC.running = false
         if ok then
             Anti.VC.enabled = true
-            updateVCBypassUI("Status: Active (Jamun Anti-VC) — use mic button to publish/unpublish", Color3.fromRGB(102, 235, 150), "ANTI-VC ACTIVE")
+            updateVCBypassUI("Status: Active (Coca Anti-VC) — use mic button to publish/unpublish", Color3.fromRGB(102, 235, 150), "ANTI-VC ACTIVE")
             if syncAllAntiButtons then pcall(syncAllAntiButtons) end
             vcNotify("Anti-VC", "Active — use the mic button to publish/unpublish")
         else
@@ -8610,9 +8679,9 @@ vcStop = function()
             vcStoredFolder = nil
         end
     end)
-    updateVCBypassUI("Status: Not active (Jamun Anti-VC ready)", Color3.new(1, 1, 1), "Activate Anti-VC")
+    updateVCBypassUI("Status: Not active (Coca Anti-VC ready)", Color3.new(1, 1, 1), "Activate Anti-VC")
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
-    vcNotify("Anti-VC", "Jamun Anti-VC Bypass reset")
+    vcNotify("Anti-VC", "Coca Anti-VC Bypass reset")
 end
 
 local function openStandaloneOriginalVCGUI()
@@ -18120,24 +18189,28 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
 
             lastBangSafeDesiredCF = desiredCF
             markIntentionalTeleport(desiredCF)
-            pcall(function() LocalPlayer.ReplicationFocus = nil end)
+            pcall(function() LocalPlayer.ReplicationFocus = targetRoot end)
             ensureTargetVisibleOnClient(liveTarget, liveChar)
-            local tVel = targetRoot.AssemblyLinearVelocity
             local tNow = os.clock()
-            local microWake = Vector3.new(0, math.sin(tNow * 24) * 0.03, 0)
-            local syncVel = (tVel.Magnitude < 350 and (tVel * 0.85) or Vector3.zero) + microWake
             local netlessVel = Vector3.new(0, 25.05, 0) + Vector3.new(math.sin(tNow * 30) * 0.025, 0, math.cos(tNow * 30) * 0.025)
             local realCharRef = zenApi and type(zenApi.is_reanimated) == "function" and zenApi.is_reanimated() and type(zenApi.get_real_character) == "function" and zenApi.get_real_character() or nil
             for _, entry in ipairs(collectLocalRoots()) do
                 local isRealRig = (realCharRef ~= nil and entry.char == realCharRef)
                 if typeof(sethiddenproperty) == "function" then
-                    pcall(sethiddenproperty, entry.root, "PhysicsRepRootPart", nil)
-                    pcall(sethiddenproperty, entry.root, "PhysicsRepRootRef", nil)
+                    if isRealRig then
+                        pcall(sethiddenproperty, entry.root, "PhysicsRepRootPart", nil)
+                        pcall(sethiddenproperty, entry.root, "PhysicsRepRootRef", nil)
+                    else
+                        pcall(sethiddenproperty, entry.root, "PhysicsRepRootPart", targetRoot)
+                        if InstanceHandleNew then
+                            pcall(sethiddenproperty, entry.root, "PhysicsRepRootRef", InstanceHandleNew(targetRoot))
+                        end
+                    end
                     pcall(sethiddenproperty, entry.root, "NetworkIsSleeping", false)
                 end
                 entry.root.Anchored = false
                 entry.root.CFrame = desiredCF
-                entry.root.AssemblyLinearVelocity = isRealRig and netlessVel or syncVel
+                entry.root.AssemblyLinearVelocity = isRealRig and netlessVel or Vector3.zero
                 entry.root.AssemblyAngularVelocity = Vector3.zero
                 safeSyncPhysicsStep(entry.root, targetRoot)
                 if entry.char and not isRealRig then
@@ -28570,14 +28643,14 @@ local function buildMainUI()
         registerAntiSwitch(bypassGrp, 2, "Redirect Attacker",      "Slingshots incoming attacker onto nearest bystander",           function() return Anti.Redirect.enabled end, redirectStart, redirectStop)
         registerAntiSwitch(bypassGrp, 3, "Anti-GameplayPaused",    "Prevents streaming pause & network freeze screens",             function() return Anti.GamePaused.enabled end, agpStart, agpStop)
         registerAntiSwitch(bypassGrp, 4, "Anti-AFK v2",            "Idled connection + VirtualUser anti-kick pulse",                function() return Anti.AFK.enabled end, afkStart, afkStop)
-        local vcSw = createSwitchRow(bypassGrp, 5, "Jamun Anti-VC Bypass (Updated V2)", "Status: Ready · joinVoice -> wait unmute -> leaveVoice -> StateChanged[7+] -> AntiVC_Stash", Anti.VC.enabled, function(st)
+        local vcSw = createSwitchRow(bypassGrp, 5, "Coca Anti-VC Bypass (Updated V2)", "Status: Ready · joinVoice -> wait unmute -> leaveVoice -> StateChanged[7+] -> AntiVC_Stash", Anti.VC.enabled, function(st)
             if st then vcStart() else vcStop() end
             syncAllAntiButtons()
         end)
         Anti.VC.rowSubLbl = vcSw.subLbl
         table.insert(antiToggleRegistry, { sw = vcSw, getState = function() return Anti.VC.enabled or Anti.VC.running end })
 
-        createActionRow(bypassGrp, 6, "Jamun Anti-VC Quick Launcher & GUI", "Tap [Open GUI] for floating VC Bypass card · Tap [⚡] to run Jamun Anti-VC now", "Open GUI", function()
+        createActionRow(bypassGrp, 6, "Coca Anti-VC Quick Launcher & GUI", "Tap [Open GUI] for floating VC Bypass card · Tap [⚡] to run Coca Anti-VC now", "Open GUI", function()
             if Anti.VC.openPanelFn then
                 Anti.VC.openPanelFn()
             end
@@ -33798,7 +33871,7 @@ local function buildMainUI()
                 end,
             },
             {
-                name = "Jamun Anti-VC",
+                name = "Coca Anti-VC",
                 sub = "Bypass VC mute/ban",
                 cat = "Shield & ESP",
                 bindKey = nil,
@@ -34398,7 +34471,7 @@ end
 --      - Center Card:"STEP 3 OF 3 · Script verified", 1 Submit — 2 Scan — 3 Verified
 --                    stepper, Script ID ("SG-CP37-LUAU") + [Re-scan] button, numbered
 --                    Luau code preview, 2x2 safety/feature check cards, and
---                    [Launch Verified Script] + [Activate Jamun Anti-VC] + [Copy Report]
+--                    [Launch Verified Script] + [Activate Coca Anti-VC] + [Copy Report]
 --      - Right Card: Premium Player Profile & Avatar Card (Headshot, DisplayName, @Name,
 --                    UserId, AccountAge, Role Crown/Diamond Badge) + Circular "Trust score"
 --                    99 out of 100 · VERIFIED gauge + telemetry breakdown rows!
@@ -34659,9 +34732,9 @@ end
                 interacted = true
                 playClick()
                 if tab.name == "My scripts" then
-                    notify("🛡️ SCRIPTGUARD", "Loaded Module: Coco Powder V37.0 Zero-Delay + Jamun Anti-VC Suite")
+                    notify("🛡️ SCRIPTGUARD", "Loaded Module: Coco Powder V37.0 Zero-Delay + Coca Anti-VC Suite")
                 elseif tab.name == "Docs" then
-                    notify("📘 SCRIPTGUARD DOCS", "Zero-Delay Weld: 0.00ms PreCam + Character+1 · Anti-VC: Jamun StateChanged[7+]")
+                    notify("📘 SCRIPTGUARD DOCS", "Zero-Delay Weld: 0.00ms PreCam + Character+1 · Anti-VC: Coca StateChanged[7+]")
                 elseif tab.name == "Support" then
                     notify("👑 SCRIPT OWNERS", "Supreme Owners: @shivyy73 & @retreee_yawrrr · Role: " .. roleInfo.tier)
                 end
@@ -34807,7 +34880,7 @@ end
             { t = "00:02", msg = "Remotes & 0.00ms Weld",              badge = "OK", col = SG_GREEN_LT },
             { t = "00:03", msg = "HTTP & Cloud Audio",                 badge = "OK", col = SG_GREEN_LT },
             { t = "00:04", msg = "Obfuscation & Guard",                badge = "OK", col = SG_GREEN_LT },
-            { t = "00:04", msg = "Jamun Anti-VC Bypass",               badge = "OK", col = SG_GREEN_LT },
+            { t = "00:04", msg = "Coca Anti-VC Bypass",               badge = "OK", col = SG_GREEN_LT },
             { t = "00:05", msg = "Reanim Netless Sync",                badge = "OK", col = SG_GREEN_LT },
             { t = "00:05", msg = "Role: " .. roleInfo.shortTier,       badge = "VIP", col = roleInfo.color },
             { t = "00:06", msg = "Signing report",                     badge = nil },
@@ -35095,7 +35168,7 @@ end
             '<font color="#5E6A82">2</font>  <font color="#C084FC">local</font> VoiceChat = game:<font color="#60A5FA">GetService</font>(<font color="#34D399">"VoiceChatInternal"</font>)',
             '<font color="#5E6A82">3</font>  RunService:<font color="#60A5FA">BindToRenderStep</font>(<font color="#34D399">"CocoWeldZeroDelayLock"</font>, <font color="#FBBF24">201</font>, syncWeld)',
             '<font color="#5E6A82">4</font>  <font color="#C084FC">if</font> <font color="#60A5FA">verifyIdentity</font>(Players.LocalPlayer) <font color="#C084FC">then</font>',
-            '<font color="#5E6A82">5</font>      <font color="#60A5FA">enableJamunAntiVC</font>(VoiceChat.StateChanged) <font color="#5E6A82">-- 0.00ms Verified</font>',
+            '<font color="#5E6A82">5</font>      <font color="#60A5FA">enableCocaAntiVC</font>(VoiceChat.StateChanged) <font color="#5E6A82">-- 0.00ms Verified</font>',
             '<font color="#5E6A82">6</font>  <font color="#C084FC">end</font>',
         }, "\n")
         codeBody.Parent = codeBox
@@ -35111,7 +35184,7 @@ end
             {
                 x = 232, y = 314,
                 icon = "✓", col = SG_GREEN_LT, bg = SG_GREEN_DARK,
-                title = "Jamun Anti-VC Bypass",
+                title = "Coca Anti-VC Bypass",
                 sub = "StateChanged[7+] & mic stash ready",
             },
             {
@@ -35416,7 +35489,7 @@ end
         local metricRows = {
             { label = "Lines scanned",   val = "34,500+",           col = SG_TEXT_MAIN, y = 290 },
             { label = "Zero-Delay Weld", val = "0.00 ms",           col = SG_GREEN_LT,  y = 324 },
-            { label = "Anti-VC Bypass",  val = "Jamun V2",          col = Color3.fromRGB(56, 224, 255), y = 358 },
+            { label = "Anti-VC Bypass",  val = "Coca V2",          col = Color3.fromRGB(56, 224, 255), y = 358 },
             { label = "Account Age",     val = tostring(LP and LP.AccountAge or 0) .. " days", col = roleInfo.color, y = 392 },
         }
         for _, mr in ipairs(metricRows) do
@@ -35600,7 +35673,7 @@ end
                 "Access Role: " .. roleInfo.tier,
                 "Trust Score: " .. tostring(roleInfo.trustScore) .. " / 100 (VERIFIED)",
                 "Zero-Delay Weld: 0.00ms PreCam + Character+1 Active",
-                "Anti-VC Engine: Jamun Anti-VC Bypass V2 Ready",
+                "Anti-VC Engine: Coca Anti-VC Bypass V2 Ready",
                 "Executor: " .. execName,
             }, "\n")
             pcall(function()
@@ -35625,5 +35698,5 @@ end
     end)
 end)()
 
-notify("COCO POWDER V37", "ScriptGuard Verified & Jamun Anti-VC Ready! RightShift or CP pill to toggle.")
-print("[COCO POWDER V37] ScriptGuard Verification Loader & Jamun Anti-VC Ready.")
+notify("COCO POWDER V37", "ScriptGuard Verified & Coca Anti-VC Ready! RightShift or CP pill to toggle.")
+print("[COCO POWDER V37] ScriptGuard Verification Loader & Coca Anti-VC Ready.")
