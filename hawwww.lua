@@ -1739,14 +1739,21 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
         if not AnimationId or Weld.destroyed or animLoading then return end
         if AnimTrack and not force then
             local ip = false
+            local curSpeed = nil
+            local targetSpeed = math.clamp(V.Speed or 1.0, 0.2, 6.0)
             pcall(function()
                 ip = AnimTrack.IsPlaying
-                if ip and AnimTrack.Length > 0 and AnimTrack.TimePosition >= (AnimTrack.Length - 0.04) then
-                    AnimTrack.TimePosition = 0
+                if ip then
+                    if not AnimTrack.Looped then
+                        AnimTrack.Looped = true
+                    end
+                    curSpeed = AnimTrack.Speed
                 end
             end)
             if ip then
-                pcall(function() AnimTrack:AdjustSpeed(math.clamp(V.Speed or 1.0, 0.2, 6.0)) end)
+                if curSpeed == nil or math.abs(curSpeed - targetSpeed) > 0.01 then
+                    pcall(function() AnimTrack:AdjustSpeed(targetSpeed) end)
+                end
                 return
             end
         end
@@ -1903,6 +1910,34 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
     local missingFrames = 0
     local lastStreamReq = 0
     local currentLockCF = nil
+    local lastRepRoot, lastRepTarget = nil, nil
+    local function bindRepRootOnce(rPart, tPart)
+        if not rPart or not tPart then return end
+        if lastRepRoot == rPart and lastRepTarget == tPart then return end
+        lastRepRoot = rPart
+        lastRepTarget = tPart
+        pcall(function() LP.ReplicationFocus = tPart end)
+        if sethiddenproperty then
+            pcall(function()
+                sethiddenproperty(rPart, "PhysicsRepRootPart", tPart)
+                if InstanceHandleNew then
+                    sethiddenproperty(rPart, "PhysicsRepRootRef", InstanceHandleNew(tPart))
+                end
+                sethiddenproperty(rPart, "NetworkIsSleeping", false)
+            end)
+        end
+    end
+    local function clearRepRootCache(rPart)
+        lastRepRoot = nil
+        lastRepTarget = nil
+        pcall(function() LP.ReplicationFocus = nil end)
+        if rPart and sethiddenproperty then
+            pcall(function()
+                sethiddenproperty(rPart, "PhysicsRepRootPart", nil)
+                sethiddenproperty(rPart, "PhysicsRepRootRef", nil)
+            end)
+        end
+    end
 
     local function syncReanimRoots(attachCF)
         local tNow = os.clock()
@@ -2068,11 +2103,7 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
                     TargetPart = newPart
                 else
                     -- Target is mid-invisibility/reanim dump transition: clear ReplicationFocus/PhysicsRepRootPart and hold safe lock position!
-                    pcall(function() LP.ReplicationFocus = nil end)
-                    if sethiddenproperty then
-                        pcall(function() sethiddenproperty(Root, "PhysicsRepRootPart", nil) end)
-                        pcall(function() sethiddenproperty(Root, "PhysicsRepRootRef", nil) end)
-                    end
+                    clearRepRootCache(Root)
                     if lastValidLockCF then
                         currentLockCF = lastValidLockCF
                         Root.CFrame = lastValidLockCF
@@ -2102,35 +2133,16 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
                 Root.AssemblyLinearVelocity = Vector3.zero
                 Root.AssemblyAngularVelocity = Vector3.zero
                 markIntentionalTeleport(currentLockCF)
-                pcall(function() LP.ReplicationFocus = TargetPart end)
-                if sethiddenproperty then
-                    pcall(function()
-                        sethiddenproperty(Root, "PhysicsRepRootPart", TargetPart)
-                        if InstanceHandleNew then
-                            sethiddenproperty(Root, "PhysicsRepRootRef", InstanceHandleNew(TargetPart))
-                        end
-                        sethiddenproperty(Root, "NetworkIsSleeping", false)
-                    end)
-                end
-                syncReanimRoots(currentLockCF)
             end
         end
     end
 
     -- Immediate Frame-0 Lock + Zero-Delay Network Replication Bind (0.00ms startup delay!)
     if TargetPart and TargetPart.Parent and Root and Root.Parent and isRefPartValid(TargetPart, TargetChar) then
-        pcall(function() LP.ReplicationFocus = TargetPart end)
-        if sethiddenproperty then
-            pcall(function()
-                sethiddenproperty(Root, "PhysicsRepRootPart", TargetPart)
-                if InstanceHandleNew then
-                    sethiddenproperty(Root, "PhysicsRepRootRef", InstanceHandleNew(TargetPart))
-                end
-                sethiddenproperty(Root, "NetworkIsSleeping", false)
-            end)
-        end
+        bindRepRootOnce(Root, TargetPart)
         ensureTargetVisibleOnClient(TargetPlayer, TargetChar)
         updateZeroDelayLockCF()
+        syncReanimRoots(currentLockCF or Root.CFrame)
     end
 
     pcall(function()
@@ -2346,14 +2358,8 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
         Root.AssemblyAngularVelocity = Vector3.zero
         syncReanimRoots(currentLockCF)
         markIntentionalTeleport(Root.CFrame)
-        pcall(function() LP.ReplicationFocus = TargetPart end)
-        if sethiddenproperty then pcall(function()
-            sethiddenproperty(Root, "PhysicsRepRootPart", TargetPart)
-            if InstanceHandleNew then
-                sethiddenproperty(Root, "PhysicsRepRootRef", InstanceHandleNew(TargetPart))
-            end
-            sethiddenproperty(Root, "NetworkIsSleeping", false)
-        end) end
+        bindRepRootOnce(Root, TargetPart)
+        if sethiddenproperty then pcall(function() sethiddenproperty(Root, "NetworkIsSleeping", false) end) end
         pcall(function() ensureAnim(false) end)
         pcall(function()
             if not Humanoid.PlatformStand then Humanoid.PlatformStand = true end
@@ -4317,6 +4323,7 @@ local EmoteHub = {
         end)
 
         -- 6. Pass 3: Heartbeat Omnipresent Lock, Physics Replication & Zero-Delay Animation Sync
+        local lastACRepRoot, lastACRepTarget = nil, nil
         self.hbConn = RunService.Heartbeat:Connect(function(dt)
             if not self.active then return end
             local c = LP.Character
@@ -4483,16 +4490,22 @@ local EmoteHub = {
                     root.AssemblyLinearVelocity = Vector3.zero
                     root.AssemblyAngularVelocity = Vector3.zero
                     markIntentionalTeleport(desiredCF)
-                    pcall(function() LP.ReplicationFocus = tr end)
                     ensureTargetVisibleOnClient(self.target, tc)
+                    if lastACRepRoot ~= root or lastACRepTarget ~= tr then
+                        lastACRepRoot = root
+                        lastACRepTarget = tr
+                        pcall(function() LP.ReplicationFocus = tr end)
+                        if sethiddenproperty then
+                            pcall(function()
+                                sethiddenproperty(root, "PhysicsRepRootPart", tr)
+                                if InstanceHandleNew then
+                                    sethiddenproperty(root, "PhysicsRepRootRef", InstanceHandleNew(tr))
+                                end
+                            end)
+                        end
+                    end
                     if sethiddenproperty then
-                        pcall(function()
-                            sethiddenproperty(root, "PhysicsRepRootPart", tr)
-                            if InstanceHandleNew then
-                                sethiddenproperty(root, "PhysicsRepRootRef", InstanceHandleNew(tr))
-                            end
-                            sethiddenproperty(root, "NetworkIsSleeping", false)
-                        end)
+                        pcall(function() sethiddenproperty(root, "NetworkIsSleeping", false) end)
                     end
                     pcall(function()
                         if hum.Sit then hum.Sit = false end
@@ -18111,7 +18124,8 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
 
         local lastBangValidPos = nil
         local lastBangSafeDesiredCF = nil
-        local function stepLock()
+        local lastBangRepMap = setmetatable({}, { __mode = "k" })
+        local function stepLock(isPhysicsStep)
             if not bangLockActive then return end
             local liveTarget = (selectedPlayer and selectedPlayer.Parent == Players and selectedPlayer)
                 or Players:FindFirstChild(lastBangTargetName)
@@ -18189,21 +18203,29 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
 
             lastBangSafeDesiredCF = desiredCF
             markIntentionalTeleport(desiredCF)
-            pcall(function() LocalPlayer.ReplicationFocus = targetRoot end)
-            ensureTargetVisibleOnClient(liveTarget, liveChar)
+            if isPhysicsStep then
+                pcall(function() LocalPlayer.ReplicationFocus = targetRoot end)
+                ensureTargetVisibleOnClient(liveTarget, liveChar)
+            end
             local tNow = os.clock()
             local netlessVel = Vector3.new(0, 25.05, 0) + Vector3.new(math.sin(tNow * 30) * 0.025, 0, math.cos(tNow * 30) * 0.025)
             local realCharRef = zenApi and type(zenApi.is_reanimated) == "function" and zenApi.is_reanimated() and type(zenApi.get_real_character) == "function" and zenApi.get_real_character() or nil
             for _, entry in ipairs(collectLocalRoots()) do
                 local isRealRig = (realCharRef ~= nil and entry.char == realCharRef)
-                if typeof(sethiddenproperty) == "function" then
+                if isPhysicsStep and typeof(sethiddenproperty) == "function" then
                     if isRealRig then
-                        pcall(sethiddenproperty, entry.root, "PhysicsRepRootPart", nil)
-                        pcall(sethiddenproperty, entry.root, "PhysicsRepRootRef", nil)
+                        if lastBangRepMap[entry.root] ~= nil then
+                            lastBangRepMap[entry.root] = nil
+                            pcall(sethiddenproperty, entry.root, "PhysicsRepRootPart", nil)
+                            pcall(sethiddenproperty, entry.root, "PhysicsRepRootRef", nil)
+                        end
                     else
-                        pcall(sethiddenproperty, entry.root, "PhysicsRepRootPart", targetRoot)
-                        if InstanceHandleNew then
-                            pcall(sethiddenproperty, entry.root, "PhysicsRepRootRef", InstanceHandleNew(targetRoot))
+                        if lastBangRepMap[entry.root] ~= targetRoot then
+                            lastBangRepMap[entry.root] = targetRoot
+                            pcall(sethiddenproperty, entry.root, "PhysicsRepRootPart", targetRoot)
+                            if InstanceHandleNew then
+                                pcall(sethiddenproperty, entry.root, "PhysicsRepRootRef", InstanceHandleNew(targetRoot))
+                            end
                         end
                     end
                     pcall(sethiddenproperty, entry.root, "NetworkIsSleeping", false)
@@ -18212,31 +18234,35 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                 entry.root.CFrame = desiredCF
                 entry.root.AssemblyLinearVelocity = isRealRig and netlessVel or Vector3.zero
                 entry.root.AssemblyAngularVelocity = Vector3.zero
-                safeSyncPhysicsStep(entry.root, targetRoot)
-                if entry.char and not isRealRig then
-                    local hum = entry.char:FindFirstChildWhichIsA("Humanoid")
-                    if hum then
-                        pcall(function()
-                            hum.PlatformStand = true
-                            hum.AutoRotate = false
-                            hum.WalkSpeed = 0
-                            hum:ChangeState(Enum.HumanoidStateType.Physics)
-                        end)
+                if isPhysicsStep then
+                    safeSyncPhysicsStep(entry.root, targetRoot)
+                    if entry.char and not isRealRig then
+                        local hum = entry.char:FindFirstChildWhichIsA("Humanoid")
+                        if hum then
+                            pcall(function()
+                                if not hum.PlatformStand then hum.PlatformStand = true end
+                                if hum.AutoRotate then hum.AutoRotate = false end
+                                if hum.WalkSpeed ~= 0 then hum.WalkSpeed = 0 end
+                                if hum:GetState() ~= Enum.HumanoidStateType.Physics then
+                                    hum:ChangeState(Enum.HumanoidStateType.Physics)
+                                end
+                            end)
+                        end
                     end
                 end
             end
-            if zenApi and type(zenApi.sync_now) == "function" then
+            if isPhysicsStep and zenApi and type(zenApi.sync_now) == "function" then
                 pcall(zenApi.sync_now, true)
             end
         end
 
-        stepLock()
+        stepLock(true)
         local stepName = "CocaBangLock"
         pcall(function() RunService:UnbindFromRenderStep(stepName) end)
-        local hbConn = RunService.Heartbeat:Connect(stepLock)
-        local rsConn = RunService.RenderStepped:Connect(stepLock)
+        local hbConn = RunService.Heartbeat:Connect(function() stepLock(true) end)
+        local rsConn = RunService.RenderStepped:Connect(function() stepLock(false) end)
         pcall(function()
-            RunService:BindToRenderStep(stepName, Enum.RenderPriority.Camera.Value + 1, stepLock)
+            RunService:BindToRenderStep(stepName, Enum.RenderPriority.Camera.Value + 1, function() stepLock(false) end)
         end)
 
         bangLockConnObj = {
