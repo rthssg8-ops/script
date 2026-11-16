@@ -31078,6 +31078,11 @@ local function buildMainUI()
         end
     end
 
+    _G.OpenCocoMainHub = function()
+        if gui then gui.Enabled = true end
+        if setPanelOpen then pcall(setPanelOpen, true) end
+    end
+
     btnMin.MouseButton1Click:Connect(function()
         playClick()
         setPanelOpen(false)
@@ -34563,7 +34568,7 @@ end
         sgGui.ResetOnSpawn = false
         sgGui.IgnoreGuiInset = true
         sgGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
-        sgGui.DisplayOrder = 999999
+        sgGui.DisplayOrder = 1000000
         pcall(function()
             if syn and syn.protect_gui then syn.protect_gui(sgGui) end
         end)
@@ -35540,17 +35545,25 @@ end
         local function closeVerificationLoader()
             scanToken = scanToken + 1
             if sgGui and sgGui.Parent then
-                TweenService:Create(backdrop, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-                    BackgroundTransparency = 1,
-                }):Play()
-                TweenService:Create(shellScale, TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
-                    Scale = shellScale.Scale * 0.88,
-                }):Play()
+                pcall(function()
+                    TweenService:Create(backdrop, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                        BackgroundTransparency = 1,
+                    }):Play()
+                    TweenService:Create(shellScale, TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
+                        Scale = shellScale.Scale * 0.88,
+                    }):Play()
+                end)
                 task.delay(0.23, function()
                     if sgGui and sgGui.Parent then
-                        sgGui:Destroy()
+                        pcall(function() sgGui:Destroy() end)
+                    end
+                    if activeSGLoaderGui == sgGui then
+                        activeSGLoaderGui = nil
                     end
                 end)
+            end
+            if type(_G.OpenCocoMainHub) == "function" then
+                pcall(_G.OpenCocoMainHub)
             end
         end
 
