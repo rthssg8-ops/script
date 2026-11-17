@@ -47,7 +47,7 @@ local n33, n34, n35, n36, n37, n38, n39, n40, n41, n42
 local n43, n44, tbl8, tbl9, fn3, n45, n46, n47, fn4
 local fn5, tbl10, imageLabel3, textLabel5, frame2, n48, n49, n50, n51, n52
 local n53, n54, n55, n56, n57, n58, n59, n60, n61, n62
-local n63, frame3, n64, activeEternityUsers, fn6, fn7, n65, n66, n67
+local n63, frame3, n64, activeRiyonUsers, fn6, fn7, n65, n66, n67
 
 do
 	local step, ReplicatedStorage, StarterGui, Lighting, n68, n69, n70, n71, n72, n73
@@ -120,7 +120,7 @@ do
 				end)
 			end
 
-			if getgenv().EternityV1_UI and getgenv().EternityV1_UI.Parent then
+			if getgenv().RiyonV1_UI and getgenv().RiyonV1_UI.Parent then
 				nextBlock = 2
 			else
 				nextBlock = 3
@@ -128,14 +128,14 @@ do
 		elseif nextBlock == 2 then
 			pcall(function()
 				local getgenv_ = getgenv
-				getgenv_().EternityV1_UI:Destroy()
+				getgenv_().RiyonV1_UI:Destroy()
 			end)
 
 			nextBlock = 3
 		elseif nextBlock == 3 then
-			getgenv().EternityLoaderSuccess = false
-			getgenv().EternityLoaderClosed = false
-			getgenv().EternityLoaded = false
+			getgenv().RiyonLoaderSuccess = false
+			getgenv().RiyonLoaderClosed = false
+			getgenv().RiyonLoaded = false
 			L1.tbl11 = { name = nil }
 			spill_2.r13 = game.GameId
 
@@ -528,7 +528,7 @@ do
 				},
 			}
 
-			if not getgenv().EternityCustomTags then
+			if not getgenv().RiyonCustomTags then
 				nextBlock = 10
 			else
 				nextBlock = 15
@@ -552,27 +552,27 @@ do
 			spill_2.r13[spill_2.r21_1] = spill_2.r22_1
 			nextBlock = 11
 		elseif nextBlock == 14 then
-			getgenv().EternityCustomTags = spill_2.r13
+			getgenv().RiyonCustomTags = spill_2.r13
 			nextBlock = 15
 		elseif nextBlock == 15 then
 			local fetchRemoteBlacklist
 
 			function fetchCustomTags(callback)
-				local eternityCustomTags = {}
+				local riyonCustomTags = {}
 				if type(L1.tbl12) == "table" then
 					for k, v in pairs(L1.tbl12) do
-						eternityCustomTags[string.lower(tostring(k))] = v
+						riyonCustomTags[string.lower(tostring(k))] = v
 					end
 				end
-				getgenv().EternityCustomTags = eternityCustomTags
+				getgenv().RiyonCustomTags = riyonCustomTags
 				if callback then
-					pcall(callback, eternityCustomTags)
+					pcall(callback, riyonCustomTags)
 				end
 			end
 
 			task.spawn(fetchCustomTags)
 
-			getgenv().EternityBlacklistDatabase = {}
+			getgenv().RiyonBlacklistDatabase = {}
 			SCRIPT_OWNERS = {
 				Usernames = { "shivyy73", "retreee_yawrrr", "kaun_bhai", "retree", "INDIANGAMER6975", "horize1n", "hor1zen" },
 				UserIds = {},
@@ -587,7 +587,7 @@ do
 			}
 			getgenv().SCRIPT_OWNERS = SCRIPT_OWNERS
 			getgenv().PREMIUM_USERS = PREMIUM_USERS
-			getgenv().EternityBlacklistDatabase = {}
+			getgenv().RiyonBlacklistDatabase = {}
 			fetchRemoteBlacklist = function() end
 			L1.isUserBlacklisted = function(player) return false end
 			getgenv().isUserBlacklisted = L1.isUserBlacklisted
@@ -623,7 +623,7 @@ do
 			end
 			getgenv().isUserWhitelisted = L1.isUserWhitelisted
 			_G.isUserWhitelisted = L1.isUserWhitelisted
-			getgenv().EternityIsWhitelisted = true
+			getgenv().RiyonIsWhitelisted = true
 
 			function isNoDelayAllowed(arg)
 				return true
@@ -632,7 +632,7 @@ do
 			_G.isNoDelayAllowed = isNoDelayAllowed
 
 			function launchLoader()
-				getgenv().EternityLoaderSuccess = true
+				getgenv().RiyonLoaderSuccess = true
 				getgenv().IsKeyVerified = true
 				IsKeyVerified = true
 				return true
@@ -644,23 +644,23 @@ do
 				nextBlock = 16
 			end
 		elseif nextBlock == 16 then
-			if getgenv().EternityLoaded and getgenv().EternityV1_UI and getgenv().EternityV1_UI.Parent then
+			if getgenv().RiyonLoaded and getgenv().RiyonV1_UI and getgenv().RiyonV1_UI.Parent then
 				nextBlock = 377
 			else
 				nextBlock = 17
 			end
 		elseif nextBlock == 17 then
-			getgenv().EternityLoaded = true
+			getgenv().RiyonLoaded = true
 			ScriptFullyLoaded = false
 			L1.fn8 = nil
 
-			if not getgenv().EternityLoaderSuccess then
+			if not getgenv().RiyonLoaderSuccess then
 				nextBlock = 18
 			else
 				nextBlock = 41
 			end
 		elseif nextBlock == 18 then
-			if getgenv().EternityLoaderClosed then
+			if getgenv().RiyonLoaderClosed then
 				nextBlock = 376
 			else
 				nextBlock = 19
@@ -748,7 +748,7 @@ do
 				nextBlock = 374
 			end
 		elseif nextBlock == 33 then
-			getgenv().EternityLoaderSuccess = true
+			getgenv().RiyonLoaderSuccess = true
 
 			pcall(function()
 				game:GetService("HttpService")
@@ -803,7 +803,7 @@ do
 			L1.iterState1 = getgenv().WhitelistedUsers[L1.iterFn1] == true
 			nextBlock = 38
 		elseif nextBlock == 38 then
-			getgenv().EternityIsWhitelisted = L1.iterState1 == true
+			getgenv().RiyonIsWhitelisted = L1.iterState1 == true
 
 			pcall(function()
 				if fetchCustomTags then
@@ -897,7 +897,7 @@ do
 			getgenv().IsKeyVerified = true
 			VALID_KEY = "zzzen"
 			SCRIPT_VERSION = "v2.0"
-			SCRIPT_NAME = "Eternity"
+			SCRIPT_NAME = "Riyon"
 			flag = false
 			TargetPlayer = nil
 			ctxTargetPlayer = nil
@@ -907,6 +907,7 @@ do
 			AllPlayersWeldEnabled = false
 			AllPlayersCycleInterval = 1.2
 			AllPlayersActivePreset = nil
+			LastKnownSafeCF = nil
 			FacebangTarget = nil
 			HeadsitTarget = nil
 			BackhugTarget = nil
@@ -930,7 +931,7 @@ do
 			HipbangTarget = nil
 			PatTarget = nil
 			FacebangSpeed = 1
-			FacebangDistance = 5
+			FacebangDistance = 2.9
 			HipbangSpeed = 1
 			HipbangDistance = 2.9
 			_bigBPSelectedColor = Color3.fromRGB(128, 128, 128)
@@ -1091,6 +1092,15 @@ do
 				CustomAttach = function(p) CustomAttachTarget = p end,
 			}
 
+			function isAnyAttachActive()
+				for _, v4 in ipairs(AttachFeatures or {}) do
+					if tbl and tbl[v4] then
+						return true, v4
+					end
+				end
+				return false, nil
+			end
+
 			do
 				function SetAttachState(arg, arg2)
 					if arg2 then
@@ -1118,6 +1128,11 @@ do
 								_G.MobileButtonManager.UpdateState(arg)
 							end
 							return
+						end
+
+						-- Record safe standing CFrame before attaching if not already attached
+						if not isAnyAttachActive() and humanoidRootPart and type(isSafePlayableCF) == "function" and isSafePlayableCF(humanoidRootPart.CFrame) then
+							LastKnownSafeCF = humanoidRootPart.CFrame
 						end
 
 						-- Automatically turn off any previously active attach preset for 0.00ms hot-swap
@@ -1153,11 +1168,17 @@ do
 						end
 
 						if pgPlayer_ then
-							if AttachTargetSetters[arg] and not (AttachTargetGetters[arg] and AttachTargetGetters[arg]()) then
+							if AttachTargetSetters[arg] then
 								AttachTargetSetters[arg](pgPlayer_)
 							end
 							if type(syncAttachTarget) == "function" then
 								syncAttachTarget(pgPlayer_)
+							end
+							-- If target is in an unstreamed chunk, stream & catch up to them first!
+							if type(streamAndTeleportToTarget) == "function" then
+								task.spawn(function()
+									pcall(streamAndTeleportToTarget, pgPlayer_, "torso", 1.5)
+								end)
 							end
 						end
 
@@ -1173,12 +1194,15 @@ do
 							_G.SetActiveFeature(arg)
 						end
 						if type(stepZeroDelayWeldFrameNow) == "function" then
-							pcall(stepZeroDelayWeldFrameNow)
+							pcall(stepZeroDelayWeldFrameNow, false)
 						end
 						return
 					end
 
 					tbl[arg] = false
+					if not isAnyAttachActive() and type(clearPhysicsRep) == "function" then
+						clearPhysicsRep()
+					end
 					if GridButtonVisuals[arg] then
 						GridButtonVisuals[arg](false)
 					end
@@ -1197,7 +1221,7 @@ do
 				end
 			end
 
-			CONFIG_FILE = "eternity_config.json"
+			CONFIG_FILE = "riyon_config.json"
 
 			tbl2 = {
 				ToggleGUI = Enum.KeyCode.RightControl,
@@ -2127,43 +2151,43 @@ do
 				end
 			end
 
-			if getgenv().EternityV1_UI then
+			if getgenv().RiyonV1_UI then
 				nextBlock = 61
 			else
 				nextBlock = 62
 			end
 		elseif nextBlock == 61 then
 			pcall(function()
-				getgenv().EternityV1_UI:Destroy()
+				getgenv().RiyonV1_UI:Destroy()
 			end)
 
 			nextBlock = 62
 		elseif nextBlock == 62 then
 			pcall(function()
 				if gethui then
-					local eternityV1 = gethui():FindFirstChild("EternityV1")
+					local riyonV1 = gethui():FindFirstChild("RiyonV1")
 
-					if eternityV1 then
-						eternityV1:Destroy()
+					if riyonV1 then
+						riyonV1:Destroy()
 					end
 				end
 
-				local eternityV1 = game:GetService("CoreGui"):FindFirstChild("EternityV1")
+				local riyonV1 = game:GetService("CoreGui"):FindFirstChild("RiyonV1")
 
-				if eternityV1 then
-					eternityV1:Destroy()
+				if riyonV1 then
+					riyonV1:Destroy()
 				end
 
-				local eternityV12 = localPlayer_:WaitForChild("PlayerGui"):FindFirstChild("EternityV1")
+				local riyonV12 = localPlayer_:WaitForChild("PlayerGui"):FindFirstChild("RiyonV1")
 
-				if eternityV12 then
-					eternityV12:Destroy()
+				if riyonV12 then
+					riyonV12:Destroy()
 				end
 			end)
 
 			screenGui = Instance.new("ScreenGui")
-			screenGui.Name = "EternityV1"
-			getgenv().EternityV1_UI = screenGui
+			screenGui.Name = "RiyonV1"
+			getgenv().RiyonV1_UI = screenGui
 			getcustomasset_ = getcustomasset
 
 			if not getcustomasset_ then
@@ -2255,7 +2279,7 @@ do
 				end
 			end
 
-			r211 = getgenv().EternityPlatformMode == "Phone"
+			r211 = getgenv().RiyonPlatformMode == "Phone"
 			mainFrame = Instance.new("Frame", screenGui)
 			mainFrame.Name = "MainGUI"
 
@@ -3109,7 +3133,7 @@ do
 						end)
 
 						frame12.Visible = false
-						SendNotification("Eternity", "Target cleared", 2)
+						SendNotification("Riyon", "Target cleared", 2)
 						return
 					end
 				end)
@@ -6159,7 +6183,7 @@ do
 					end
 
 					if L1.frame6.Visible then
-						if getgenv().EternityMusicPlaying then
+						if getgenv().RiyonMusicPlaying then
 							if L1.textLabel6.Visible then
 								L1.textLabel6.Visible = false
 							end
@@ -6178,13 +6202,13 @@ do
 								frame12.BackgroundColor3 = tbl3.accent
 							end
 
-							local eternityMusicTrackName = getgenv().EternityMusicTrackName or ""
+							local riyonMusicTrackName = getgenv().RiyonMusicTrackName or ""
 
-							if #eternityMusicTrackName > 14 then
-								eternityMusicTrackName = string.sub(eternityMusicTrackName, 1, 12) .. ".."
+							if #riyonMusicTrackName > 14 then
+								riyonMusicTrackName = string.sub(riyonMusicTrackName, 1, 12) .. ".."
 							end
 
-							textLabel7.Text = eternityMusicTrackName
+							textLabel7.Text = riyonMusicTrackName
 						else
 							if not L1.textLabel6.Visible then
 								L1.textLabel6.Visible = true
@@ -7114,8 +7138,8 @@ do
 
 						local head = player.Character.Head
 
-						if head:FindFirstChild("EternityOverhead") then
-							head.EternityOverhead.Enabled = showOverheadLogo
+						if head:FindFirstChild("RiyonOverhead") then
+							head.RiyonOverhead.Enabled = showOverheadLogo
 						end
 					end
 				end
@@ -7133,7 +7157,7 @@ do
 				spill_2.r222.Position = UDim2.new(0, 0, 0, 36)
 				spill_2.r222.BackgroundTransparency = 1
 				spill_2.r222.ClipsDescendants = true
-				local flag8 = getgenv().EternityPlatformMode == "Phone"
+				local flag8 = getgenv().RiyonPlatformMode == "Phone"
 			end
 
 			local imageLabel5
@@ -7172,7 +7196,7 @@ do
 				end)
 			end
 
-			L1.iterState1 = getgenv().EternityPlatformMode == "Phone"
+			L1.iterState1 = getgenv().RiyonPlatformMode == "Phone"
 
 			if not L1.iterState1 then
 				nextBlock = 200
@@ -7405,7 +7429,7 @@ do
 				end)
 			end
 
-			L1.iterState1 = getgenv().EternityPlatformMode == "Phone"
+			L1.iterState1 = getgenv().RiyonPlatformMode == "Phone"
 
 			if not L1.iterState1 then
 				nextBlock = 219
@@ -7615,7 +7639,7 @@ do
 
 			do
 				function createStatBlock(name4, text, text2, layoutOrder, arg, text3, textColor3)
-					local r2112 = getgenv().EternityPlatformMode == "Phone" or r211
+					local r2112 = getgenv().RiyonPlatformMode == "Phone" or r211
 					local frame12 = Instance.new("Frame", L1.frame9)
 					frame12.Name = name4
 					local uDim2New = UDim2.new
@@ -7860,7 +7884,7 @@ do
 
 			do
 				function createGridContainer(arg, layoutOrder)
-					local flag8 = getgenv().EternityPlatformMode == "Phone"
+					local flag8 = getgenv().RiyonPlatformMode == "Phone"
 					local frame12 = Instance.new("Frame", arg)
 					frame12.Size = UDim2.new(1, -8, 0, 0)
 					frame12.AutomaticSize = Enum.AutomaticSize.Y
@@ -8232,7 +8256,7 @@ do
 			L1.step5 = nil
 			L1.n140 = nil
 			L1.n153 = nil
-			L1.touchEnabled = getgenv().EternityPlatformMode == "Phone"
+			L1.touchEnabled = getgenv().RiyonPlatformMode == "Phone"
 
 			if not L1.touchEnabled then
 				nextBlock = 237
@@ -8691,7 +8715,7 @@ do
 
 					pcall(function()
 						local sendNotification = SendNotification
-						local str3 = "Eternity"
+						local str3 = "Riyon"
 						local mobileButtonsVisible = tbl.MobileButtonsVisible
 
 						if mobileButtonsVisible then
@@ -9718,13 +9742,13 @@ do
 								stopSfly()
 							end
 
-							SendNotification("Eternity", "Superman Fly stopped.", 2)
+							SendNotification("Riyon", "Superman Fly stopped.", 2)
 						else
 							local startSfly_ = _G.startSfly or startSfly
 
 							if startSfly_ then
 								task.spawn(startSfly_)
-								SendNotification("Eternity", "Superman Fly active!", 2)
+								SendNotification("Riyon", "Superman Fly active!", 2)
 							end
 						end
 
@@ -9762,7 +9786,7 @@ do
 							end
 
 							tbl.GlitchMoveActive = false
-							SendNotification("Eternity", "Glitch Movement stopped.", 2)
+							SendNotification("Riyon", "Glitch Movement stopped.", 2)
 						else
 							tbl.GlitchMoveActive = true
 							local startGlitchLoop_ = _G.startGlitchLoop or startGlitchLoop
@@ -9771,7 +9795,7 @@ do
 								startGlitchLoop_()
 							end
 
-							SendNotification("Eternity", "Glitch Movement active!", 2)
+							SendNotification("Riyon", "Glitch Movement active!", 2)
 						end
 					end,
 				},
@@ -9816,7 +9840,7 @@ do
 									_G.UpdateGlitchCF(cFrame2)
 								end
 
-								SendNotification("Eternity", "Teleported!", 1.5)
+								SendNotification("Riyon", "Teleported!", 1.5)
 							end
 						end)
 					end,
@@ -9874,7 +9898,7 @@ do
 					onHoldStart = function()
 						_G.MobileReversing = true
 						tbl.Reverse = true
-						SendNotification("Eternity", "Rewinding...", 1)
+						SendNotification("Riyon", "Rewinding...", 1)
 
 						if step == L1.step4 then
 						end
@@ -9923,7 +9947,7 @@ do
 							end)
 						end)
 
-						SendNotification("Eternity", "Fakeout triggered!", 2)
+						SendNotification("Riyon", "Fakeout triggered!", 2)
 					end,
 				},
 				GoUnderground = {
@@ -9970,7 +9994,7 @@ do
 								glitchDeactivate()
 							end
 
-							SendNotification("Eternity", "Glitch Desync OFF.", 2)
+							SendNotification("Riyon", "Glitch Desync OFF.", 2)
 						elseif tbl.ExtremeGlitchDesyncEnabled then
 							if glitchActivate then
 								task.spawn(function()
@@ -9978,7 +10002,7 @@ do
 								end)
 							end
 
-							SendNotification("Eternity", "Extreme Glitch Desync ON!", 2)
+							SendNotification("Riyon", "Extreme Glitch Desync ON!", 2)
 						else
 							if glitchActivate then
 								task.spawn(function()
@@ -9986,7 +10010,7 @@ do
 								end)
 							end
 
-							SendNotification("Eternity", "Normal Glitch Desync ON!", 2)
+							SendNotification("Riyon", "Normal Glitch Desync ON!", 2)
 						end
 					end,
 				},
@@ -10058,13 +10082,13 @@ do
 								_G.stopSkyDestroyer()
 							end
 
-							SendNotification("Eternity", "Sky Destroyer stopped.", 2)
+							SendNotification("Riyon", "Sky Destroyer stopped.", 2)
 						else
 							if _G.startSkyDestroyer then
 								_G.startSkyDestroyer()
 							end
 
-							SendNotification("Eternity", "Sky Destroyer active!", 2)
+							SendNotification("Riyon", "Sky Destroyer active!", 2)
 						end
 					end,
 				},
@@ -10124,7 +10148,7 @@ do
 								SetAttachState(r2112, true)
 							else
 								SetAttachState(r2112, false)
-								SendNotification("Eternity", "No target found!", 2)
+								SendNotification("Riyon", "No target found!", 2)
 							end
 						else
 							SetAttachState(r2112, false)
@@ -10434,13 +10458,13 @@ do
 					L1.n140 = 542384746
 					L1.touchEnabled = mobileButtonsEnabled
 					local genv = getgenv()
-					local eternityPlatformMode = mobileButtonsEnabled
+					local riyonPlatformMode = mobileButtonsEnabled
 
-					if eternityPlatformMode then
-						eternityPlatformMode = "Phone"
+					if riyonPlatformMode then
+						riyonPlatformMode = "Phone"
 					end
 
-					genv.EternityPlatformMode = eternityPlatformMode or "PC"
+					genv.RiyonPlatformMode = riyonPlatformMode or "PC"
 					tbl.MobileButtonsEnabled = mobileButtonsEnabled
 
 					if mobileButtonsEnabled then
@@ -10729,7 +10753,7 @@ do
 
 									if not (isNoDelayAllowed_ and isNoDelayAllowed_()) then
 										if typeof(SendNotification) == "function" then
-											SendNotification("Eternity", "You're not a premium user!", 3)
+											SendNotification("Riyon", "You're not a premium user!", 3)
 										end
 
 										return
@@ -11874,7 +11898,7 @@ do
 								end
 							end)
 
-							local flag8 = getgenv().EternityPlatformMode == "Phone"
+							local flag8 = getgenv().RiyonPlatformMode == "Phone"
 							local instanceNew = Instance.new
 							local flag9 = flag8
 
@@ -12425,9 +12449,9 @@ do
 									floatingTopContainer = nil
 								end
 
-								eternityDiscordCard = Instance.new("Frame", _homeDashboard)
-								eternityDiscordCard.Name = "EternityDiscordHero"
-								local eternityDiscordCard_ = eternityDiscordCard
+								riyonDiscordCard = Instance.new("Frame", _homeDashboard)
+								riyonDiscordCard.Name = "RiyonDiscordHero"
+								local riyonDiscordCard_ = riyonDiscordCard
 								local uDim2New = UDim2.new
 								local n213 = 1
 								local n214 = -8
@@ -12438,13 +12462,13 @@ do
 									r2112 = 94
 								end
 
-								eternityDiscordCard_.Size = uDim2New(n213, n214, n215, r2112 or 90)
-								eternityDiscordCard.BackgroundColor3 = Color3.fromRGB(18, 17, 30)
-								eternityDiscordCard.BorderSizePixel = 0
-								eternityDiscordCard.LayoutOrder = 1
-								eternityDiscordCard.ClipsDescendants = true
-								corner(eternityDiscordCard, 14)
-								local uiGradient = Instance.new("UIGradient", eternityDiscordCard)
+								riyonDiscordCard_.Size = uDim2New(n213, n214, n215, r2112 or 90)
+								riyonDiscordCard.BackgroundColor3 = Color3.fromRGB(18, 17, 30)
+								riyonDiscordCard.BorderSizePixel = 0
+								riyonDiscordCard.LayoutOrder = 1
+								riyonDiscordCard.ClipsDescendants = true
+								corner(riyonDiscordCard, 14)
+								local uiGradient = Instance.new("UIGradient", riyonDiscordCard)
 
 								uiGradient.Color = ColorSequence.new({
 									ColorSequenceKeypoint.new(0, Color3.fromRGB(36, 30, 68)),
@@ -12453,7 +12477,7 @@ do
 								})
 
 								uiGradient.Rotation = 135
-								local imageLabel5 = Instance.new("ImageLabel", eternityDiscordCard)
+								local imageLabel5 = Instance.new("ImageLabel", riyonDiscordCard)
 								imageLabel5.Name = "Watermark"
 								imageLabel5.Size = UDim2.new(0, 130, 0, 130)
 								imageLabel5.Position = UDim2.new(1, -60, 0.5, -65)
@@ -12462,7 +12486,7 @@ do
 								imageLabel5.ImageColor3 = Color3.fromRGB(88, 101, 242)
 								imageLabel5.ImageTransparency = 0.94
 								imageLabel5.ZIndex = 1
-								local uiStroke = Instance.new("UIStroke", eternityDiscordCard)
+								local uiStroke = Instance.new("UIStroke", riyonDiscordCard)
 								uiStroke.Color = Color3.fromRGB(88, 101, 242)
 								uiStroke.Thickness = 1.2
 								uiStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
@@ -12483,7 +12507,7 @@ do
 								})
 
 								table.insert(breathingGradients, uiGradient2)
-								local frame13 = Instance.new("Frame", eternityDiscordCard)
+								local frame13 = Instance.new("Frame", riyonDiscordCard)
 								frame13.Name = "Badge"
 								local udim23
 
@@ -12561,7 +12585,7 @@ do
 								frame14.ZIndex = 4
 								corner(frame14, 5)
 								stroke(frame14, Color3.fromRGB(20, 18, 32), 1.5, 0)
-								local frame15 = Instance.new("Frame", eternityDiscordCard)
+								local frame15 = Instance.new("Frame", riyonDiscordCard)
 								frame15.Name = "Content"
 								local udim29
 
@@ -12609,10 +12633,10 @@ do
 								local text = r211
 
 								if text then
-									text = "Eternity Discord"
+									text = "Riyon Discord"
 								end
 
-								textLabel7.Text = text or "Join Eternity Discord"
+								textLabel7.Text = text or "Join Riyon Discord"
 								textLabel7.Font = Enum.Font.GothamBold
 								local textSize = r211
 
@@ -12693,19 +12717,19 @@ do
 									textLabel9.BackgroundTransparency = 1
 									local instanceNew = Instance.new
 									local str3 = "Frame"
-									local eternityDiscordCard_2 = r211
+									local riyonDiscordCard_2 = r211
 
-									if eternityDiscordCard_2 then
-										eternityDiscordCard_2 = eternityDiscordCard
+									if riyonDiscordCard_2 then
+										riyonDiscordCard_2 = riyonDiscordCard
 									end
 
-									local gui = instanceNew(str3, eternityDiscordCard_2 or frame15)
+									local gui = instanceNew(str3, riyonDiscordCard_2 or frame15)
 									gui.Name = "DevRow"
 
 									if r211 then
 										gui.Size = UDim2.new(1, -24, 0, 24)
 										gui.Position = UDim2.new(0, 12, 0, 62)
-										local frame18 = Instance.new("Frame", eternityDiscordCard)
+										local frame18 = Instance.new("Frame", riyonDiscordCard)
 										frame18.Name = "Divider"
 										frame18.Size = UDim2.new(1, -24, 0, 1)
 										frame18.Position = UDim2.new(0, 12, 0, 54)
@@ -12812,7 +12836,7 @@ do
 										end)
 									end)
 
-									local textButton6 = Instance.new("TextButton", eternityDiscordCard)
+									local textButton6 = Instance.new("TextButton", riyonDiscordCard)
 									textButton6.Name = "JoinButton"
 									local udim215
 
@@ -12911,12 +12935,12 @@ do
 										end)
 									end)
 
-									eternityDiscordCard.MouseEnter:Connect(function()
-										tween(eternityDiscordCard, { BackgroundColor3 = Color3.fromRGB(24, 21, 40) }, 0.2)
+									riyonDiscordCard.MouseEnter:Connect(function()
+										tween(riyonDiscordCard, { BackgroundColor3 = Color3.fromRGB(24, 21, 40) }, 0.2)
 									end)
 
-									eternityDiscordCard.MouseLeave:Connect(function()
-										tween(eternityDiscordCard, { BackgroundColor3 = Color3.fromRGB(18, 17, 30) }, 0.2)
+									riyonDiscordCard.MouseLeave:Connect(function()
+										tween(riyonDiscordCard, { BackgroundColor3 = Color3.fromRGB(18, 17, 30) }, 0.2)
 									end)
 
 									createSection(_homeDashboard, "Quick Utilities", 1.3)
@@ -13459,7 +13483,7 @@ do
 											friendsContainer.Size = UDim2.new(1, -8, 0, 0)
 											friendsContainer.BackgroundTransparency = 1
 											friendsContainer.LayoutOrder = 10
-											local udim217 = getgenv().EternityPlatformMode == "Phone"
+											local udim217 = getgenv().RiyonPlatformMode == "Phone"
 											local uiGridLayout = Instance.new("UIGridLayout", friendsContainer)
 											local udim218
 
@@ -13774,7 +13798,7 @@ do
 										textLabel13.Size = UDim2.new(1, -60, 0, 16)
 										textLabel13.Position = UDim2.new(0, 52, 0, 0)
 										textLabel13.BackgroundTransparency = 1
-										textLabel13.Text = "<b>Eternity</b> <font color='rgb(100,100,100)'>@SYSTEM</font>"
+										textLabel13.Text = "<b>Riyon</b> <font color='rgb(100,100,100)'>@SYSTEM</font>"
 										textLabel13.RichText = true
 										textLabel13.TextColor3 = tbl3.white
 										textLabel13.Font = Enum.Font.GothamBold
@@ -13824,7 +13848,7 @@ do
 
 <font color="rgb(80, 255, 100)">+</font> Added Click Teleport Tool in Movement so phone users can tap anywhere on screen to teleport.
 
-<font color="rgb(80, 255, 100)">+</font> Dual Floating Pill on screen for Phone (Eternity logo to toggle script visibility, 2nd icon to toggle on-screen action buttons visibility).
+<font color="rgb(80, 255, 100)">+</font> Dual Floating Pill on screen for Phone (Riyon logo to toggle script visibility, 2nd icon to toggle on-screen action buttons visibility).
 
 <font color="rgb(80, 255, 100)">+</font> New page in Visuals (Camera & Light): Adjust contrast, exposure, saturation, FOV, time, and 360° spinning reset buttons.
 
@@ -13872,11 +13896,11 @@ do
 
 <font color="rgb(80, 255, 100)">+</font> Redesigned Basic Controls guide with explicit functions for Mac buttons (Red=Close, Yellow=Minimize, Green=Resize).
 
-<font color="rgb(80, 255, 100)">+</font> Stacked Discord Integration Cards (Developer & Eternity Discord) with quick-copy buttons.
+<font color="rgb(80, 255, 100)">+</font> Stacked Discord Integration Cards (Developer & Riyon Discord) with quick-copy buttons.
 
 <font color="rgb(80, 255, 100)">+</font> Fixed a UI bug in Activity that caused the "No friends currently in-game" text to overlap onto the sub-tab bar.
 
-<font color="rgb(80, 255, 100)">+</font> Completely redesigned Update Logs & Shortcuts as premium System Message cards featuring the Eternity logo, fading gradients, and yellow accents.
+<font color="rgb(80, 255, 100)">+</font> Completely redesigned Update Logs & Shortcuts as premium System Message cards featuring the Riyon logo, fading gradients, and yellow accents.
 
 <font color="rgb(80, 255, 100)">+</font> Added a state-saving Auto-Execute toggle for Shaders, Terrains, and Environments.
 
@@ -14015,7 +14039,7 @@ do
 															_G.UpdateGlitchCF(cFrame2)
 														end
 
-														SendNotification("Eternity", "Teleported!", 1)
+														SendNotification("Riyon", "Teleported!", 1)
 													end
 
 													return
@@ -14108,10 +14132,10 @@ do
 
 									if clickTeleportTool then
 										giveClickTeleportTool()
-										SendNotification("Eternity", "Click Teleport Tool added to inventory!", 2)
+										SendNotification("Riyon", "Click Teleport Tool added to inventory!", 2)
 									else
 										removeClickTeleportTool()
-										SendNotification("Eternity", "Click Teleport Tool removed.", 1.5)
+										SendNotification("Riyon", "Click Teleport Tool removed.", 1.5)
 									end
 
 									task.spawn(saveSettings)
@@ -14253,9 +14277,9 @@ do
 									if not glitchMoveEnabled then
 										tbl.GlitchMoveActive = false
 										stopGlitchLoop()
-										SendNotification("Eternity", "Glitch Movement disabled.", 2)
+										SendNotification("Riyon", "Glitch Movement disabled.", 2)
 									else
-										SendNotification("Eternity", "Glitch Movement armed! Press keybind to activate.", 2)
+										SendNotification("Riyon", "Glitch Movement armed! Press keybind to activate.", 2)
 									end
 								end)
 
@@ -14263,13 +14287,13 @@ do
 									tbl.GoUndergroundEnabled = goUndergroundEnabled
 
 									if goUndergroundEnabled then
-										SendNotification("Eternity", "Go Underground armed! Press keybind to trigger.", 2)
+										SendNotification("Riyon", "Go Underground armed! Press keybind to trigger.", 2)
 									else
 										if tbl.GoUndergroundActive then
 											tbl.goUndergroundDeactivate()
 										end
 
-										SendNotification("Eternity", "Go Underground disarmed.", 2)
+										SendNotification("Riyon", "Go Underground disarmed.", 2)
 									end
 								end)
 
@@ -14950,9 +14974,9 @@ do
 									if arg then
 										task.spawn(fn19)
 
-										SendNotification("Eternity", "Touch Fling: ON", 2)
+										SendNotification("Riyon", "Touch Fling: ON", 2)
 									else
-										SendNotification("Eternity", "Touch Fling: OFF", 2)
+										SendNotification("Riyon", "Touch Fling: OFF", 2)
 									end
 								end)
 							end)
@@ -14972,24 +14996,27 @@ do
 						flingPage = _trollContainers.fling
 						createSection(combatPage, "Attach & Zero-Delay Weld Settings", -2)
 
-						createToggle(combatPage, "No Delay (0.00ms CocoWeld)", "Enable multi-stage RenderStep + PhysicsRepRootPart + ReplicationFocus zero-delay weld", "NoDelay", -1, function(arg)
+						createToggle(combatPage, "No Delay (0.00ms Weld)", "Enable zero-delay physics weld replication (PhysicsRepRootPart + ToObjectSpace)", "NoDelay", -1, function(arg)
 							tbl.NoDelay = arg
 							if arg then
-								SendNotification("Eternity", "0.00ms Zero-Delay Weld Enabled (PreCam + Character+1 + PhysicsRep).", 2)
+								SendNotification("Riyon", "0.00ms No Delay Weld Enabled (Weld Method).", 2)
 								if type(stepZeroDelayWeldFrameNow) == "function" then
-									pcall(stepZeroDelayWeldFrameNow)
+									pcall(stepZeroDelayWeldFrameNow, false)
 								end
 							else
 								if clearPhysicsRep then
 									clearPhysicsRep()
 								end
-								SendNotification("Eternity", "Zero-Delay Weld Disabled (Standard CFrame Mode).", 2)
+								if type(stepZeroDelayWeldFrameNow) == "function" then
+									pcall(stepZeroDelayWeldFrameNow, false)
+								end
+								SendNotification("Riyon", "No Delay Weld Disabled (CFrame Method).", 2)
 							end
 						end)
 
 						createToggle(combatPage, "Anatomical Auto-Height", "Dynamically calibrate height & scale differences across R6/R15/Tall/Chibi rigs", "AutoHeight", -0.8, function(arg)
 							tbl.AutoHeight = arg
-							SendNotification("Eternity", "Anatomical Auto-Height: " .. (arg and "ON" or "OFF"), 2)
+							SendNotification("Riyon", "Anatomical Auto-Height: " .. (arg and "ON" or "OFF"), 2)
 						end)
 
 						createToggle(combatPage, "All Players Auto-Cycle (0.00ms)", "Sequentially attach to every player in the server with 0.00ms target hot-swap", "AllPlayersCycle", -0.6, function(arg)
@@ -15402,7 +15429,7 @@ do
 				n91 = nil
 				userId = nil
 				createSection(targetPage, "Target Selection", 1)
-				flag2 = getgenv().EternityPlatformMode == "Phone"
+				flag2 = getgenv().RiyonPlatformMode == "Phone"
 				L1.iterFn1 = Instance.new("Frame", targetPage)
 
 				if flag2 then
@@ -15635,6 +15662,9 @@ do
 								pcall(GridButtonVisuals[feat], false)
 							end
 						end
+						if type(clearPhysicsRep) == "function" then
+							clearPhysicsRep()
+						end
 					end
 
 					L1.iterState1 = function(player, keepLeftDisplay)
@@ -15824,7 +15854,7 @@ do
 						if TargetPlayer then
 							userId = nil
 							iterState12(nil)
-							SendNotification("Eternity", "Target cleared.", 2)
+							SendNotification("Riyon", "Target cleared.", 2)
 
 							if workspace.CurrentCamera.CameraSubject ~= humanoid then
 								workspace.CurrentCamera.CameraSubject = humanoid
@@ -15841,14 +15871,14 @@ do
 					end)
 
 					highlight = Instance.new("Highlight")
-					highlight.Name = "EternityHoverHighlight"
+					highlight.Name = "RiyonHoverHighlight"
 					highlight.FillColor = tbl3.accent
 					highlight.OutlineColor = tbl3.accent
 					highlight.FillTransparency = 0.8
 					highlight.OutlineTransparency = 0
 					highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
 					billboardGui = Instance.new("BillboardGui")
-					billboardGui.Name = "EternityHoverName"
+					billboardGui.Name = "RiyonHoverName"
 					billboardGui.Size = UDim2.new(0, 150, 0, 40)
 					billboardGui.StudsOffset = Vector3.new(0, 4, 0)
 					billboardGui.AlwaysOnTop = true
@@ -15904,10 +15934,10 @@ do
 									v7.Text = "Stop View"
 									tween(v7, { BackgroundColor3 = Color3.fromRGB(180, 50, 50) }, 0.2)
 								else
-									SendNotification("Eternity", "No target selected!", 3)
+									SendNotification("Riyon", "No target selected!", 3)
 								end
 							else
-								SendNotification("Eternity", "No target selected!", 3)
+								SendNotification("Riyon", "No target selected!", 3)
 								return
 							end
 						else
@@ -15934,12 +15964,12 @@ do
 						if TargetPlayer and TargetPlayer.Character then
 							if TargetPlayer.Character:FindFirstChild("HumanoidRootPart") and humanoidRootPart then
 								humanoidRootPart.CFrame = TargetPlayer.Character.HumanoidRootPart.CFrame
-								SendNotification("Eternity", "Teleported to " .. TargetPlayer.DisplayName, 2)
+								SendNotification("Riyon", "Teleported to " .. TargetPlayer.DisplayName, 2)
 							else
-								SendNotification("Eternity", "No target selected!", 3)
+								SendNotification("Riyon", "No target selected!", 3)
 							end
 						else
-							SendNotification("Eternity", "No target selected!", 3)
+							SendNotification("Riyon", "No target selected!", 3)
 							return
 						end
 
@@ -16120,7 +16150,7 @@ do
 						if arg then
 							local v6 = getValidAttachTarget(useHead)
 							if not v6 then
-								SendNotification("Eternity", "No valid target found!", 3)
+								SendNotification("Riyon", "No valid target found!", 3)
 								return false
 							end
 							if AttachTargetSetters and AttachTargetSetters[featName] then
@@ -16181,7 +16211,7 @@ do
 						if L1.step3 == 921535053 then
 						end
 
-						return getcustomasset_("eternity_assets/audios/search.png")
+						return getcustomasset_("riyon_assets/audios/search.png")
 					end)
 
 					if ok and L1.iterControl1 then
@@ -16305,11 +16335,17 @@ do
 										LastAttachedDepartedInfo = nil
 										iterState12(player)
 										targetWasAutoSelected = false
-										SendNotification("Eternity", "Selected: " .. player.DisplayName, 2)
+										-- If an attach preset is currently active, switch its target to the newly selected player immediately!
+										for _, feat in ipairs(AttachFeatures or {}) do
+											if tbl[feat] and AttachTargetSetters and AttachTargetSetters[feat] then
+												AttachTargetSetters[feat](player)
+											end
+										end
+										SendNotification("Riyon", "Selected: " .. player.DisplayName, 2)
 									else
 										iterState12(nil)
 										targetWasAutoSelected = false
-										SendNotification("Eternity", "Deselected target", 2)
+										SendNotification("Riyon", "Deselected target", 2)
 									end
 									L1.onTextChanged()
 								end)
@@ -16388,7 +16424,7 @@ do
 					L1.Players_.PlayerAdded:Connect(function(player)
 						local depRecord = DepartedPlayersCache and DepartedPlayersCache[player.UserId]
 						if (userId and player.UserId == userId) or depRecord then
-							SendNotification("Eternity", "TARGET RETURNED: " .. player.DisplayName .. " has rejoined the game!", 6)
+							SendNotification("Riyon", "TARGET RETURNED: " .. player.DisplayName .. " has rejoined the game!", 6)
 							local rejoinPreset = depRecord and depRecord.ActivePreset or nil
 							userId = nil
 							if DepartedPlayersCache then
@@ -16444,7 +16480,7 @@ do
 							if AllPlayersWeldEnabled and type(stepAllPlayersCycleNow) == "function" then
 								task.defer(stepAllPlayersCycleNow)
 							else
-								SendNotification("Eternity", "Target " .. player.DisplayName .. " left the game! Retained in panel until changed.", 5)
+								SendNotification("Riyon", "Target " .. player.DisplayName .. " left the game! Retained in panel until changed.", 5)
 								userId = player.UserId
 								TargetPlayer = nil
 								iterState12(nil, true)
@@ -17202,7 +17238,7 @@ do
 									local getgenv_ = getgenv
 
 									if getgenv_ then
-										getgenv_ = getgenv().EternityIsWhitelisted == true
+										getgenv_ = getgenv().RiyonIsWhitelisted == true
 									end
 
 									if not getgenv_ then
@@ -18741,7 +18777,7 @@ do
 							local getgenv_ = getgenv
 
 							if getgenv_ then
-								getgenv_ = getgenv().EternityIsWhitelisted == true
+								getgenv_ = getgenv().RiyonIsWhitelisted == true
 							end
 
 							if not getgenv_ then
@@ -18810,8 +18846,8 @@ do
 								end
 							end
 
-							if _G._EternityStudioGui and _G._EternityStudioGui.Parent then
-								fn21(_G._EternityStudioGui)
+							if _G._RiyonStudioGui and _G._RiyonStudioGui.Parent then
+								fn21(_G._RiyonStudioGui)
 							end
 
 							if gethui then
@@ -18819,7 +18855,7 @@ do
 
 								if hui then
 									for _, child in ipairs(hui:GetChildren()) do
-										if child.Name == "EternityStudioTimelineEditor" or child.Name == "UnicornStudioTimelineEditor" or child.Name == "ZenStudioTimelineEditor" then
+										if child.Name == "RiyonStudioTimelineEditor" or child.Name == "UnicornStudioTimelineEditor" or child.Name == "ZenStudioTimelineEditor" then
 											fn21(child)
 										end
 									end
@@ -18830,7 +18866,7 @@ do
 
 							if CoreGui then
 								for _, child in ipairs(CoreGui:GetChildren()) do
-									if child.Name == "EternityStudioTimelineEditor" or child.Name == "UnicornStudioTimelineEditor" or child.Name == "ZenStudioTimelineEditor" then
+									if child.Name == "RiyonStudioTimelineEditor" or child.Name == "UnicornStudioTimelineEditor" or child.Name == "ZenStudioTimelineEditor" then
 										fn21(child)
 									end
 								end
@@ -18840,7 +18876,7 @@ do
 
 							if localPlayer_2 and localPlayer_2:FindFirstChild("PlayerGui") then
 								for _, child in ipairs(localPlayer_2.PlayerGui:GetChildren()) do
-									if child.Name == "EternityStudioTimelineEditor" or child.Name == "UnicornStudioTimelineEditor" or child.Name == "ZenStudioTimelineEditor" then
+									if child.Name == "RiyonStudioTimelineEditor" or child.Name == "UnicornStudioTimelineEditor" or child.Name == "ZenStudioTimelineEditor" then
 										fn21(child)
 									end
 								end
@@ -18866,7 +18902,7 @@ do
 						local n234 = nil
 						local n235 = nil
 
-						function _G.__LAUNCH_ETERNITY_STUDIO()
+						function _G.__LAUNCH_RIYON_STUDIO()
 							n234 = 91771753
 							n235 = 199485332
 							local count2 = 332247007
@@ -18890,8 +18926,8 @@ do
 									end
 								end
 
-								if _G._EternityStudioGui and _G._EternityStudioGui.Parent then
-									fn23(_G._EternityStudioGui)
+								if _G._RiyonStudioGui and _G._RiyonStudioGui.Parent then
+									fn23(_G._RiyonStudioGui)
 								end
 
 								if gethui then
@@ -18899,7 +18935,7 @@ do
 
 									if hui then
 										for _, child in ipairs(hui:GetChildren()) do
-											if child.Name == "EternityStudioTimelineEditor" or child.Name == "UnicornStudioTimelineEditor" or child.Name == "ZenStudioTimelineEditor" then
+											if child.Name == "RiyonStudioTimelineEditor" or child.Name == "UnicornStudioTimelineEditor" or child.Name == "ZenStudioTimelineEditor" then
 												fn23(child)
 											end
 										end
@@ -18908,7 +18944,7 @@ do
 
 								if CoreGui then
 									for _, child in ipairs(CoreGui:GetChildren()) do
-										if child.Name == "EternityStudioTimelineEditor" or child.Name == "UnicornStudioTimelineEditor" or child.Name == "ZenStudioTimelineEditor" then
+										if child.Name == "RiyonStudioTimelineEditor" or child.Name == "UnicornStudioTimelineEditor" or child.Name == "ZenStudioTimelineEditor" then
 											fn23(child)
 										end
 									end
@@ -18916,7 +18952,7 @@ do
 
 								if localPlayer_2 and localPlayer_2:FindFirstChild("PlayerGui") then
 									for _, child in ipairs(localPlayer_2.PlayerGui:GetChildren()) do
-										if child.Name == "EternityStudioTimelineEditor" or child.Name == "UnicornStudioTimelineEditor" or child.Name == "ZenStudioTimelineEditor" then
+										if child.Name == "RiyonStudioTimelineEditor" or child.Name == "UnicornStudioTimelineEditor" or child.Name == "ZenStudioTimelineEditor" then
 											if count == 253236875 then
 												fn23(child)
 												continue
@@ -19435,13 +19471,13 @@ do
 												end
 											end
 										else
-											warn("Eternity Studio: Failed to parse animations.json - " .. tostring(data))
+											warn("Riyon Studio: Failed to parse animations.json - " .. tostring(data))
 										end
 									else
 										if step7 == count3 then
 										end
 
-										warn("Eternity Studio: Failed to download animations.json")
+										warn("Riyon Studio: Failed to download animations.json")
 									end
 
 									pcall(function()
@@ -19455,7 +19491,7 @@ do
 											isfile_ = "ZenReanimConfig.json"
 										end
 
-										isfile_ = isfile_ or "EternityStudioConfig.json"
+										isfile_ = isfile_ or "RiyonStudioConfig.json"
 
 										if step7 == 849033861 then
 											if isfile and isfile(isfile_) then
@@ -19487,7 +19523,7 @@ do
 										return arg.name:lower() < arg2.name:lower()
 									end)
 
-									print(string.format("[Eternity Studio] Loaded %d animations into catalog.", #tbl24))
+									print(string.format("[Riyon Studio] Loaded %d animations into catalog.", #tbl24))
 								end
 
 								fn30()
@@ -19798,7 +19834,7 @@ do
 								end
 
 								local tbl28 = { screenGui = Instance.new("ScreenGui") }
-								tbl28.screenGui.Name = "EternityStudioTimelineEditor"
+								tbl28.screenGui.Name = "RiyonStudioTimelineEditor"
 								tbl28.screenGui.ResetOnSpawn = false
 								tbl28.screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
@@ -19813,8 +19849,8 @@ do
 									end
 								end)
 
-								_G._EternityStudioGui = tbl28.screenGui
-								_G._EternityStudioLoaded = true
+								_G._RiyonStudioGui = tbl28.screenGui
+								_G._RiyonStudioLoaded = true
 								tbl28.mainFrame = Instance.new("Frame")
 								tbl28.mainFrame.Name = "MainStudioHUD"
 								tbl28.mainFrame.Size = UDim2.new(1, 0, 1, 0)
@@ -19852,7 +19888,7 @@ do
 								tbl28.pillTitle.Size = UDim2.new(1, -26, 1, 0)
 								tbl28.pillTitle.Position = UDim2.new(0, 22, 0, 0)
 								tbl28.pillTitle.BackgroundTransparency = 1
-								tbl28.pillTitle.Text = "ETERNITY STUDIO // [K]"
+								tbl28.pillTitle.Text = "RIYON STUDIO // [K]"
 								tbl28.pillTitle.TextColor3 = tbl21.accentSoft
 								tbl28.pillTitle.Font = Enum.Font.GothamBold
 								tbl28.pillTitle.TextSize = 9
@@ -20812,20 +20848,20 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 												end
 
 												tbl26.isHoldingPose = false
-												local eternityStudio = bundledZenApi.reanimate(false)
+												local riyonStudio = bundledZenApi.reanimate(false)
 
-												if eternityStudio and typeof(eternityStudio) == "string" and eternityStudio ~= "Already reanimated." then
-													warn("Eternity Studio: " .. eternityStudio)
+												if riyonStudio and typeof(riyonStudio) == "string" and riyonStudio ~= "Already reanimated." then
+													warn("Riyon Studio: " .. riyonStudio)
 												end
 
 												task.wait(0.08)
 												fn39()
 												fn25(localPlayer_2.Character)
 											else
-												local eternityStudio = bundledZenApi.reanimate(true)
+												local riyonStudio = bundledZenApi.reanimate(true)
 
-												if eternityStudio and typeof(eternityStudio) == "string" and eternityStudio ~= "Already reanimated." then
-													warn("Eternity Studio: " .. eternityStudio)
+												if riyonStudio and typeof(riyonStudio) == "string" and riyonStudio ~= "Already reanimated." then
+													warn("Riyon Studio: " .. riyonStudio)
 												end
 
 												fn39()
@@ -20927,7 +20963,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 								tbl28.emptyTrackLabel.Parent = tbl28.trackLane
 								local now = 0
 
-								local function eternityStudioToggle()
+								local function riyonStudioToggle()
 									local now2 = os.clock()
 									if now2 - now < 0.25 then
 										return
@@ -20950,9 +20986,9 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 									end
 								end
 
-								_G._EternityStudioToggle = eternityStudioToggle
-								tbl28.minimizeBtn.MouseButton1Click:Connect(eternityStudioToggle)
-								tbl28.floatingPill.MouseButton1Click:Connect(eternityStudioToggle)
+								_G._RiyonStudioToggle = riyonStudioToggle
+								tbl28.minimizeBtn.MouseButton1Click:Connect(riyonStudioToggle)
+								tbl28.floatingPill.MouseButton1Click:Connect(riyonStudioToggle)
 
 								UserInputService2.InputBegan:Connect(function(input3, gameProcessed)
 									if tbl28.screenGui and tbl28.screenGui.Parent then
@@ -20976,7 +21012,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 											end)
 
 											if input3.KeyCode.Name == studioToggleKey or studioToggleKey == "K" and input3.KeyCode == Enum.KeyCode.K then
-												eternityStudioToggle()
+												riyonStudioToggle()
 											end
 
 											return
@@ -21013,9 +21049,9 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 										return
 									end)
 
-									_G._EternityStudioGui = nil
-									_G._EternityStudioToggle = nil
-									_G._EternityStudioLoaded = false
+									_G._RiyonStudioGui = nil
+									_G._RiyonStudioToggle = nil
+									_G._RiyonStudioLoaded = false
 
 									for _, v6 in ipairs(fn22()) do
 										pcall(function()
@@ -21186,10 +21222,10 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 									if bundledZenApi and bundledZenApi.reanimate and bundledZenApi.is_reanimated and not bundledZenApi.is_reanimated() then
 										task.spawn(function()
 											n286 = 739173921
-											local eternityStudio = bundledZenApi.reanimate(true)
+											local riyonStudio = bundledZenApi.reanimate(true)
 
-											if eternityStudio and typeof(eternityStudio) == "string" and eternityStudio ~= "Already reanimated." then
-												warn("Eternity Studio: " .. eternityStudio)
+											if riyonStudio and typeof(riyonStudio) == "string" and riyonStudio ~= "Already reanimated." then
+												warn("Riyon Studio: " .. riyonStudio)
 											end
 
 											if fn39 then
@@ -29664,7 +29700,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 								tbl28.btnAddCatalog.Size = UDim2.new(1, -32, 0, 30)
 								tbl28.btnAddCatalog.Position = UDim2.new(0, 16, 1, -40)
 								tbl28.btnAddCatalog.BackgroundColor3 = Color3.fromRGB(20, 24, 35)
-								tbl28.btnAddCatalog.Text = "+ Add to Eternity Reanimations Catalog"
+								tbl28.btnAddCatalog.Text = "+ Add to Riyon Reanimations Catalog"
 								tbl28.btnAddCatalog.TextColor3 = Color3.fromRGB(120, 180, 255)
 								tbl28.btnAddCatalog.Font = Enum.Font.GothamBold
 								tbl28.btnAddCatalog.TextSize = 10
@@ -29805,7 +29841,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 									local time_2 = tbl29[len].Time
 									local tbl30 = {}
 									table.insert(tbl30, "-- ══════════════════════════════════════════════════\n")
-									table.insert(tbl30, "-- Merged Reanimation Sequence created with Eternity Studio\n")
+									table.insert(tbl30, "-- Merged Reanimation Sequence created with Riyon Studio\n")
 									table.insert(tbl30, string.format("-- Total Clips: %d | Keyframes: %d | Duration: %.3fs\n", #tbl26.clips, len, time_2))
 									table.insert(tbl30, "-- ══════════════════════════════════════════════════\n")
 									table.insert(tbl30, "return {\n")
@@ -29967,13 +30003,13 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 									if step6 == 1009415172 then
 										pcall(function()
 											if makefolder then
-												makefolder("EternityStudio")
-												makefolder("EternityStudio/Merged")
+												makefolder("RiyonStudio")
+												makefolder("RiyonStudio/Merged")
 											end
 
 											if writefile then
-												writefile("EternityStudio/Merged/" .. match2 .. ".lua", v6)
-												tbl28.exportStatus.Text = "Saved to EternityStudio/Merged/" .. match2 .. ".lua"
+												writefile("RiyonStudio/Merged/" .. match2 .. ".lua", v6)
+												tbl28.exportStatus.Text = "Saved to RiyonStudio/Merged/" .. match2 .. ".lua"
 												tbl28.exportStatus.TextColor3 = tbl21.green
 											else
 												tbl28.exportStatus.Text = "File writing not supported on this executor."
@@ -30051,14 +30087,14 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 												isCustom = true,
 											})
 											fn37(tbl28.libSearch.Text)
-											tbl28.exportStatus.Text = "Added to Eternity Reanimations catalog!"
+											tbl28.exportStatus.Text = "Added to Riyon Reanimations catalog!"
 											tbl28.exportStatus.TextColor3 = tbl21.green
 											return
 										end
 									end)
 								end)
 
-								print("[Eternity Studio] Video Editor & Timeline Sequencer initialized successfully.")
+								print("[Riyon Studio] Video Editor & Timeline Sequencer initialized successfully.")
 								return
 							end
 
@@ -30068,13 +30104,13 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 								end)
 							end
 
-							local eternityStudioGui = tbl20[1]
-							_G._EternityStudioGui = eternityStudioGui
+							local riyonStudioGui = tbl20[1]
+							_G._RiyonStudioGui = riyonStudioGui
 
-							if _G._EternityStudioToggle then
-								_G._EternityStudioToggle()
+							if _G._RiyonStudioToggle then
+								_G._RiyonStudioToggle()
 							else
-								eternityStudioGui.Enabled = not eternityStudioGui.Enabled
+								riyonStudioGui.Enabled = not riyonStudioGui.Enabled
 							end
 						end
 
@@ -30086,12 +30122,12 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							end
 
 							pcall(function()
-								if _G.__LAUNCH_ETERNITY_STUDIO then
-									_G.__LAUNCH_ETERNITY_STUDIO()
-								elseif isfile and isfile("EternityStudio.lua") then
-									loadstring(readfile("EternityStudio.lua"))()
-								elseif isfile and isfile("EternityStudio") then
-									loadstring(readfile("EternityStudio"))()
+								if _G.__LAUNCH_RIYON_STUDIO then
+									_G.__LAUNCH_RIYON_STUDIO()
+								elseif isfile and isfile("RiyonStudio.lua") then
+									loadstring(readfile("RiyonStudio.lua"))()
+								elseif isfile and isfile("RiyonStudio") then
+									loadstring(readfile("RiyonStudio"))()
 
 								end
 							end)
@@ -30110,9 +30146,9 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							end
 
 							if count5 < L1.step3 then
-								_G._EternityStudioGui = nil
-								_G._EternityStudioToggle = nil
-								_G._EternityStudioLoaded = false
+								_G._RiyonStudioGui = nil
+								_G._RiyonStudioToggle = nil
+								_G._RiyonStudioLoaded = false
 								return
 							end
 						end
@@ -30121,8 +30157,8 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							local v6 = fn21()
 
 							if v6 then
-								if _G._EternityStudioToggle then
-									_G._EternityStudioToggle()
+								if _G._RiyonStudioToggle then
+									_G._RiyonStudioToggle()
 								else
 									v6.Enabled = not v6.Enabled
 								end
@@ -30204,7 +30240,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 								if iterFn12 and iterFn12.is_reanimated and not iterFn12.is_reanimated() then
 									flag8 = true
 									iterFn12.reanimate(true)
-									SendNotification("Eternity", "Entering Reanimated state...", 2)
+									SendNotification("Riyon", "Entering Reanimated state...", 2)
 
 									if n204 == L1.step3 then
 										L1.step3 = 248082303
@@ -30228,7 +30264,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 
 							if not _G._HaloCoverGroundActive and not _G._HaloCoverSkyActive and not _G._HaloCoverCubeMatrixActive and not _G._HaloCoverFlashActive and iterFn12 and iterFn12.is_reanimated and iterFn12.is_reanimated() and not flag8 then
 								flag8 = true
-								SendNotification("Eternity", "Returning from Reanimated state...", 2)
+								SendNotification("Riyon", "Returning from Reanimated state...", 2)
 								iterFn12.reanimate(false)
 								flag8 = false
 							end
@@ -30280,7 +30316,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 						local getgenv_ = getgenv
 
 						if getgenv_ then
-							getgenv_ = getgenv().EternityIsWhitelisted == true
+							getgenv_ = getgenv().RiyonIsWhitelisted == true
 						end
 
 						if not getgenv_ then
@@ -30326,7 +30362,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 						textLabel7.Size = UDim2.new(1, -42, 0, 18)
 						textLabel7.Position = UDim2.new(0, 36, 0, 4)
 						textLabel7.BackgroundTransparency = 1
-						textLabel7.Text = "ETERNITY PREMIUM EXCLUSIVE"
+						textLabel7.Text = "RIYON PREMIUM EXCLUSIVE"
 						textLabel7.TextColor3 = Color3.fromRGB(255, 215, 80)
 						textLabel7.Font = Enum.Font.GothamBold
 						textLabel7.TextSize = 10
@@ -30340,7 +30376,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 						textLabel7.Size = UDim2.new(1, -42, 0, 16)
 						textLabel7.Position = UDim2.new(0, 36, 0, 21)
 						textLabel7.BackgroundTransparency = 1
-						textLabel7.Text = "Sky Destroyer is reserved for Eternity Premium users."
+						textLabel7.Text = "Sky Destroyer is reserved for Riyon Premium users."
 						textLabel7.TextColor3 = Color3.fromRGB(190, 170, 125)
 						textLabel7.Font = Enum.Font.Gotham
 						textLabel7.TextSize = 9
@@ -30410,7 +30446,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 								tbl.CoverGround = false
 							end
 
-							SendNotification("Eternity Premium", "You're not a premium user!", 3)
+							SendNotification("Riyon Premium", "You're not a premium user!", 3)
 							return
 						end
 
@@ -30420,10 +30456,10 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							if coverGround then
 								fn16()
 								_G._HaloCoverGroundActive = true
-								SendNotification("Eternity", "Cover Ground active! (Reanimated)", 2)
+								SendNotification("Riyon", "Cover Ground active! (Reanimated)", 2)
 							else
 								_G._HaloCoverGroundActive = false
-								SendNotification("Eternity", "Cover Ground disabled.", 2)
+								SendNotification("Riyon", "Cover Ground disabled.", 2)
 								fn17()
 							end
 						end)
@@ -30437,7 +30473,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 						if coverSky and not fn20() then
 							if step == 948147176 then
 								tbl.CoverSky = false
-								SendNotification("Eternity Premium", "You're not a premium user!", 3)
+								SendNotification("Riyon Premium", "You're not a premium user!", 3)
 								return
 							end
 						end
@@ -30448,10 +30484,10 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							if coverSky then
 								fn16()
 								_G._HaloCoverSkyActive = true
-								SendNotification("Eternity", "Cover Sky active! (Reanimated)", 2)
+								SendNotification("Riyon", "Cover Sky active! (Reanimated)", 2)
 							else
 								_G._HaloCoverSkyActive = false
-								SendNotification("Eternity", "Cover Sky disabled.", 2)
+								SendNotification("Riyon", "Cover Sky disabled.", 2)
 								fn17()
 							end
 						end)
@@ -30464,7 +30500,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 					createToggle(skydestroyerPage, "Cube / Box Matrix", "Deform layered clothing into 3D cube rooms & horizontal lines", "CoverCubeMatrix", 7, function(coverCubeMatrix)
 						if coverCubeMatrix and not fn20() then
 							tbl.CoverCubeMatrix = false
-							SendNotification("Eternity Premium", "You're not a premium user!", 3)
+							SendNotification("Riyon Premium", "You're not a premium user!", 3)
 							return
 						end
 
@@ -30474,10 +30510,10 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							if coverCubeMatrix then
 								fn16()
 								_G._HaloCoverCubeMatrixActive = true
-								SendNotification("Eternity", "Cube / Box Matrix active! (Reanimated)", 2)
+								SendNotification("Riyon", "Cube / Box Matrix active! (Reanimated)", 2)
 							else
 								_G._HaloCoverCubeMatrixActive = false
-								SendNotification("Eternity", "Cube / Box Matrix disabled.", 2)
+								SendNotification("Riyon", "Cube / Box Matrix disabled.", 2)
 								fn17()
 							end
 						end)
@@ -30490,7 +30526,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 					createToggle(skydestroyerPage, "Flash Mode", "Rapidly flash sky, ground & cubes on and off", "CoverFlash", 9, function(coverFlash)
 						if coverFlash and not fn20() then
 							tbl.CoverFlash = false
-							SendNotification("Eternity Premium", "You're not a premium user!", 3)
+							SendNotification("Riyon Premium", "You're not a premium user!", 3)
 							return
 						end
 
@@ -30500,10 +30536,10 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							if coverFlash then
 								fn16()
 								fn18()
-								SendNotification("Eternity", "Flash Mode active!", 2)
+								SendNotification("Riyon", "Flash Mode active!", 2)
 							else
 								fn19()
-								SendNotification("Eternity", "Flash Mode disabled.", 2)
+								SendNotification("Riyon", "Flash Mode disabled.", 2)
 								fn17()
 							end
 						end)
@@ -30560,8 +30596,8 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 									hui = hui or localPlayer_:WaitForChild("PlayerGui")
 
 									pcall(function()
-										if hui:FindFirstChild("EternityFlingGUI") then
-											hui.EternityFlingGUI:Destroy()
+										if hui:FindFirstChild("RiyonFlingGUI") then
+											hui.RiyonFlingGUI:Destroy()
 										end
 									end)
 
@@ -30575,7 +30611,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 									tbl17 = {}
 									local flag11 = false
 									local screenGui2 = Instance.new("ScreenGui")
-									screenGui2.Name = "EternityFlingGUI"
+									screenGui2.Name = "RiyonFlingGUI"
 									screenGui2.ResetOnSpawn = false
 									screenGui2.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 									screenGui2.Parent = hui
@@ -30903,7 +30939,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 									fn25 = function(player2)
 										if player2 and player2 ~= player then
 											if fn23(player2.UserId) then
-												SendNotification("Eternity Fling", player2.DisplayName .. " is already tracked!", 2)
+												SendNotification("Riyon Fling", player2.DisplayName .. " is already tracked!", 2)
 												return
 											end
 											local tableInsert2 = table.insert
@@ -30918,7 +30954,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 												tbl20.Player = player2
 												tableInsert2(step8, tbl20)
 												local sendNotification = SendNotification
-												local str4 = "Eternity Fling"
+												local str4 = "Riyon Fling"
 												tbl20 = "Tracking: " .. (player2.DisplayName or player2.Name)
 												sendNotification(str4, tbl20, 2)
 												step8 = L1.step3
@@ -30955,7 +30991,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 											table.remove(tbl18, v6)
 
 											if not arg then
-												SendNotification("Eternity Fling", "Untracked: " .. player2.DisplayName, 2)
+												SendNotification("Riyon Fling", "Untracked: " .. player2.DisplayName, 2)
 											end
 
 											fn24()
@@ -30974,7 +31010,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 										if n208 < step7 then
 											tbl18 = {}
 											fn24()
-											SendNotification("Eternity Fling", "All tracked targets cleared.", 2)
+											SendNotification("Riyon Fling", "All tracked targets cleared.", 2)
 											return
 										end
 									end
@@ -31160,10 +31196,10 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 
 												textBox2.Text = ""
 											else
-												SendNotification("Eternity Fling", "Player '" .. text .. "' not found in server!", 2)
+												SendNotification("Riyon Fling", "Player '" .. text .. "' not found in server!", 2)
 											end
 										else
-											SendNotification("Eternity Fling", "Player '" .. text .. "' not found in server!", 2)
+											SendNotification("Riyon Fling", "Player '" .. text .. "' not found in server!", 2)
 											return
 										end
 									end)
@@ -31227,7 +31263,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 										if v6 then
 											fn25(v6)
 										else
-											SendNotification("Eternity Fling", "No players nearby!", 2)
+											SendNotification("Riyon Fling", "No players nearby!", 2)
 										end
 
 										if step7 == 1041789906 then
@@ -31417,7 +31453,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 											player3.Name = player2.Name
 											player3.DisplayName = player2.DisplayName or player2.Name
 											fn24()
-											SendNotification("Eternity Fling", player3.DisplayName .. " rejoined! Still tracked.", 3)
+											SendNotification("Riyon Fling", player3.DisplayName .. " rejoined! Still tracked.", 3)
 
 											if flag8 then
 												if fn17 then
@@ -31839,7 +31875,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 									textButton7.MouseButton1Click:Connect(function()
 										textBox2.Text = "all"
 										fn28("all")
-										SendNotification("Eternity", "Target: All Players", 2)
+										SendNotification("Riyon", "Target: All Players", 2)
 										if n204 < L1.step3 then
 											return
 										end
@@ -31859,7 +31895,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 										fn28("nonfriends")
 
 										if L1.step3 < step then
-											SendNotification("Eternity", "Target: Non-Friends", 2)
+											SendNotification("Riyon", "Target: Non-Friends", 2)
 										else
 											tableInsert += 958
 											L1.step4 = 1023159229
@@ -31877,7 +31913,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 										textBox2.Text = "tracked"
 										fn28("tracked")
 
-										SendNotification("Eternity", "Target: Tracked Players (" .. #tbl18 .. ")", 2)
+										SendNotification("Riyon", "Target: Tracked Players (" .. #tbl18 .. ")", 2)
 									end)
 
 									textButton6.MouseButton1Click:Connect(function()
@@ -31889,7 +31925,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 											flag8 = false
 										end
 
-										SendNotification("Eternity", "Target cleared.", 2)
+										SendNotification("Riyon", "Target cleared.", 2)
 									end)
 								end
 
@@ -31950,7 +31986,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 											local getgenv_ = getgenv
 
 											if getgenv_ then
-												getgenv_ = getgenv().EternityIsWhitelisted == true
+												getgenv_ = getgenv().RiyonIsWhitelisted == true
 											end
 
 											if not getgenv_ then
@@ -31992,7 +32028,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 									textLabel11.Size = UDim2.new(1, -42, 0, 18)
 									textLabel11.Position = UDim2.new(0, 36, 0, 4)
 									textLabel11.BackgroundTransparency = 1
-									textLabel11.Text = "ETERNITY PREMIUM EXCLUSIVE"
+									textLabel11.Text = "RIYON PREMIUM EXCLUSIVE"
 									textLabel11.TextColor3 = Color3.fromRGB(255, 215, 80)
 									textLabel11.Font = Enum.Font.GothamBold
 									textLabel11.TextSize = 10
@@ -32001,7 +32037,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 									textLabel12.Size = UDim2.new(1, -42, 0, 16)
 									textLabel12.Position = UDim2.new(0, 36, 0, 21)
 									textLabel12.BackgroundTransparency = 1
-									textLabel12.Text = "Instant physics replication & zero-delay fling is reserved for Eternity Premium users."
+									textLabel12.Text = "Instant physics replication & zero-delay fling is reserved for Riyon Premium users."
 									textLabel12.TextColor3 = Color3.fromRGB(190, 170, 125)
 									textLabel12.Font = Enum.Font.Gotham
 									textLabel12.TextSize = 9
@@ -32103,7 +32139,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 
 									textButton6.MouseButton1Click:Connect(function()
 										if not fn30() then
-											SendNotification("Eternity Fling", "You're not a premium user!", 3)
+											SendNotification("Riyon Fling", "You're not a premium user!", 3)
 											flag9 = false
 											fn29()
 											return
@@ -32114,7 +32150,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 
 										if step6 > 341045471 then
 											local sendNotification = SendNotification
-											local str4 = "Eternity Fling"
+											local str4 = "Riyon Fling"
 											local flag12 = flag9
 
 											if flag12 then
@@ -32209,7 +32245,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 										if L1.step3 == 921533470 then
 											fn30()
 											local sendNotification = SendNotification
-											local str4 = "Eternity Fling"
+											local str4 = "Riyon Fling"
 											local flag12 = flag10
 
 											if flag12 then
@@ -32393,7 +32429,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 											end
 
 											tbl2.Fling = keyCode
-											SendNotification("Eternity Fling", "Fling Keybind set to: " .. keyCode.Name, 2)
+											SendNotification("Riyon Fling", "Fling Keybind set to: " .. keyCode.Name, 2)
 
 											if saveSettings then
 												task.spawn(saveSettings)
@@ -32444,19 +32480,19 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 										return players2
 									end
 
-									local eternityFlingCamAnchor = nil
+									local riyonFlingCamAnchor = nil
 
 									local function getCameraSubject()
-										if eternityFlingCamAnchor and eternityFlingCamAnchor.Parent then
-											return eternityFlingCamAnchor
+										if riyonFlingCamAnchor and riyonFlingCamAnchor.Parent then
+											return riyonFlingCamAnchor
 										end
-										local eternityFlingCamAnchor2 = workspace:FindFirstChild("EternityFlingCamAnchor")
-										if eternityFlingCamAnchor2 then
-											eternityFlingCamAnchor = eternityFlingCamAnchor2
-											return eternityFlingCamAnchor
+										local riyonFlingCamAnchor2 = workspace:FindFirstChild("RiyonFlingCamAnchor")
+										if riyonFlingCamAnchor2 then
+											riyonFlingCamAnchor = riyonFlingCamAnchor2
+											return riyonFlingCamAnchor
 										end
 										local part = Instance.new("Part")
-										part.Name = "EternityFlingCamAnchor"
+										part.Name = "RiyonFlingCamAnchor"
 										part.Transparency = 1
 										part.CanCollide = false
 										part.CanTouch = false
@@ -32464,7 +32500,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 										part.Anchored = true
 										part.Size = Vector3.new(0.5, 0.5, 0.5)
 										part.Parent = workspace
-										eternityFlingCamAnchor = part
+										riyonFlingCamAnchor = part
 
 										if step7 == 6218665 then
 											step6 -= 801
@@ -32478,7 +32514,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 											return
 										end
 
-										return eternityFlingCamAnchor
+										return riyonFlingCamAnchor
 									end
 
 									local function fn31(cFrame, cameraSubject)
@@ -32605,12 +32641,11 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 
 											if arg and flag10 and part and typeof(sethiddenproperty) == "function" then
 												pcall(function()
-													localPlayer_.ReplicationFocus = part
 													sethiddenproperty(humanoidRootPart2, "PhysicsRepRootPart", part)
 													sethiddenproperty(humanoidRootPart2, "NetworkIsSleeping", false)
 												end)
 
-												humanoidRootPart2.CFrame = cframe
+												humanoidRootPart2.CFrame = part.CFrame:ToObjectSpace(cframe)
 												humanoidRootPart2.AssemblyLinearVelocity = Vector3.zero
 												humanoidRootPart2.AssemblyAngularVelocity = Vector3.new(900000000, 900000000, 900000000)
 
@@ -32862,21 +32897,21 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 									fn16 = function()
 										fn34()
 
-										if eternityFlingCamAnchor and eternityFlingCamAnchor.Parent then
+										if riyonFlingCamAnchor and riyonFlingCamAnchor.Parent then
 											pcall(function()
-												eternityFlingCamAnchor:Destroy()
+												riyonFlingCamAnchor:Destroy()
 											end)
 
-											eternityFlingCamAnchor = nil
+											riyonFlingCamAnchor = nil
 										end
 
-										local eternityFlingCamAnchor2 = workspace:FindFirstChild("EternityFlingCamAnchor")
+										local riyonFlingCamAnchor2 = workspace:FindFirstChild("RiyonFlingCamAnchor")
 										local n219 = nil
 
-										if eternityFlingCamAnchor2 then
+										if riyonFlingCamAnchor2 then
 											pcall(function()
 												n219 = 325980837
-												eternityFlingCamAnchor2:Destroy()
+												riyonFlingCamAnchor2:Destroy()
 												if n204 < n219 then
 													return
 												end
@@ -39838,7 +39873,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 										n205 = flag12 or 1
 										textButton6.Text = tostring(n205)
 										local tbl20 = { "SkidFling", "Spin/shhhlol", "Yeet" }
-										SendNotification("Eternity Fling", "Fling Mode: " .. (tbl20[n205] or tostring(n205)), 2)
+										SendNotification("Riyon Fling", "Fling Mode: " .. (tbl20[n205] or tostring(n205)), 2)
 										return
 									end
 
@@ -39882,7 +39917,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 														fn28("specific", player3)
 													end
 
-													SendNotification("Eternity Fling", "Auto-targeted nearest: " .. (player3.DisplayName or player3.Name), 2)
+													SendNotification("Riyon Fling", "Auto-targeted nearest: " .. (player3.DisplayName or player3.Name), 2)
 												end
 											end
 
@@ -39891,7 +39926,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 												flag8 = false
 												textButton7.Text = "Fling Players: OFF"
 												textButton7.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-												SendNotification("Eternity Fling", "No target found! Add a target or enter a name.", 2)
+												SendNotification("Riyon Fling", "No target found! Add a target or enter a name.", 2)
 												return
 											end
 
@@ -39904,7 +39939,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 											textButton7.Text = "Fling Players: ON"
 											textButton7.BackgroundColor3 = Color3.fromRGB(80, 20, 20)
 											coroutine.wrap(fn21)()
-											SendNotification("Eternity Fling", "Fling started!", 2)
+											SendNotification("Riyon Fling", "Fling started!", 2)
 										else
 											textButton7.Text = "Fling Players: OFF"
 											textButton7.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
@@ -39927,15 +39962,15 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 												userId2 = nil
 											end
 
-											SendNotification("Eternity Fling", "Fling stopped.", 2)
+											SendNotification("Riyon Fling", "Fling stopped.", 2)
 										end
 									end
 
-									function _G.ToggleEternityFling()
+									function _G.ToggleRiyonFling()
 										onMouseButton1Click()
 									end
 
-									function _G.IsEternityFlingActive()
+									function _G.IsRiyonFlingActive()
 										if step6 == 510940117 then
 											return flag8
 										end
@@ -39977,7 +40012,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 											textLabel9.TextColor3 = Color3.fromRGB(255, 110, 110)
 											textLabel10.Text = "Status: Target left, waiting to rejoin..."
 
-											SendNotification("Eternity Fling", (player3.DisplayName or player3.Name) .. " left the game. Waiting to rejoin...", 3)
+											SendNotification("Riyon Fling", (player3.DisplayName or player3.Name) .. " left the game. Waiting to rejoin...", 3)
 										end
 									end)
 								end
@@ -40009,7 +40044,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 												imageLabel5.ImageTransparency = 0
 												textLabel7.Visible = false
 												textLabel10.Text = "Status: Target rejoined!"
-												SendNotification("Eternity Fling", (player3.DisplayName or player3.Name) .. " rejoined! Resuming target tracking.", 3)
+												SendNotification("Riyon Fling", (player3.DisplayName or player3.Name) .. " rejoined! Resuming target tracking.", 3)
 
 												if flag8 then
 													fn17(player3)
@@ -40104,9 +40139,9 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 
 					createSection(flingPage, "Fling Sub-System", 1)
 
-					createActionButton(flingPage, "Execute Fling GUI", "Launch the dedicated standalone Eternity Fling GUI window with targeted flinging, reconnect tracking, and quick toggles.", 2, function()
+					createActionButton(flingPage, "Execute Fling GUI", "Launch the dedicated standalone Riyon Fling GUI window with targeted flinging, reconnect tracking, and quick toggles.", 2, function()
 						fn()
-						SendNotification("Eternity", "Fling GUI Launched!", 2)
+						SendNotification("Riyon", "Fling GUI Launched!", 2)
 					end)
 
 					visualPage = createPage("visual")
@@ -40169,10 +40204,10 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 																	end
 
 																	if character2 then
-																		local eternityESP = character2:FindFirstChild("EternityESP")
+																		local riyonESP = character2:FindFirstChild("RiyonESP")
 
-																		if eternityESP then
-																			eternityESP:Destroy()
+																		if riyonESP then
+																			riyonESP:Destroy()
 																		end
 																	end
 
@@ -40217,9 +40252,9 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 																n208 = player.Character:FindFirstChild(billboardGui)
 
 																if n208 then
-																	if not n208:FindFirstChild("EternityESP") then
+																	if not n208:FindFirstChild("RiyonESP") then
 																		billboardGui = Instance.new("BillboardGui", n208)
-																		billboardGui.Name = "EternityESP"
+																		billboardGui.Name = "RiyonESP"
 																		billboardGui.Size = UDim2.new(0, 120, 0, 40)
 																		billboardGui.StudsOffset = Vector3.new(0, 3, 0)
 																		billboardGui.AlwaysOnTop = true
@@ -40262,7 +40297,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 												nextBlock = 19
 											elseif nextBlock == 19 then
 												textLabel7 = n208
-												uDim2New = "EternityESP"
+												uDim2New = "RiyonESP"
 												billboardGui = n208.FindFirstChild(textLabel7, uDim2New)
 
 												if billboardGui then
@@ -40569,7 +40604,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 								task.spawn(function()
 									pcall(fn16)
 									if not url then
-										SendNotification("Eternity", "Shaders reset to default!", 2)
+										SendNotification("Riyon", "Shaders reset to default!", 2)
 										return
 									end
 
@@ -40578,9 +40613,9 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 									end)
 
 									if ok then
-										SendNotification("Eternity", str3 .. " shader applied!", 2)
+										SendNotification("Riyon", str3 .. " shader applied!", 2)
 									else
-										SendNotification("Eternity", "Failed to load shader: " .. tostring(result), 2)
+										SendNotification("Riyon", "Failed to load shader: " .. tostring(result), 2)
 									end
 								end)
 
@@ -40746,7 +40781,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 					end
 
 					resetShades()
-					SendNotification("Eternity", "Shaders reset to default!", 2)
+					SendNotification("Riyon", "Shaders reset to default!", 2)
 				end)
 
 				do
@@ -40830,7 +40865,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 						task.spawn(function()
 							pcall(fn16)
 							if not url then
-								SendNotification("Eternity", "Terrains reset to default!", 2)
+								SendNotification("Riyon", "Terrains reset to default!", 2)
 								return
 							end
 
@@ -40839,9 +40874,9 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							end)
 
 							if ok then
-								SendNotification("Eternity", str3 .. " terrain applied!", 2)
+								SendNotification("Riyon", str3 .. " terrain applied!", 2)
 							else
-								SendNotification("Eternity", "Failed to load terrain: " .. tostring(result), 2)
+								SendNotification("Riyon", "Failed to load terrain: " .. tostring(result), 2)
 							end
 						end)
 
@@ -41003,7 +41038,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							end
 
 							resetTerrains()
-							SendNotification("Eternity", "Terrains reset to default!", 2)
+							SendNotification("Riyon", "Terrains reset to default!", 2)
 							return
 						end)
 					end
@@ -41183,13 +41218,13 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 									end
 
 									if arg == "reset" then
-										SendNotification("Eternity", "Environment reset to default!", 2)
+										SendNotification("Riyon", "Environment reset to default!", 2)
 										return
 									end
 
 									if tbl18[arg] then
 										pcall(tbl18[arg])
-										SendNotification("Eternity", str3 .. " environment applied!", 2)
+										SendNotification("Riyon", str3 .. " environment applied!", 2)
 									end
 								end)
 							end
@@ -41636,19 +41671,19 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 
 				do
 					local function fn16()
-						local eternityCamLightCC = Lighting:FindFirstChild("EternityCamLightCC")
+						local riyonCamLightCC = Lighting:FindFirstChild("RiyonCamLightCC")
 
-						if not (eternityCamLightCC and eternityCamLightCC:IsA("ColorCorrectionEffect")) then
-							eternityCamLightCC = Instance.new("ColorCorrectionEffect")
-							eternityCamLightCC.Name = "EternityCamLightCC"
-							eternityCamLightCC.Saturation = 0
+						if not (riyonCamLightCC and riyonCamLightCC:IsA("ColorCorrectionEffect")) then
+							riyonCamLightCC = Instance.new("ColorCorrectionEffect")
+							riyonCamLightCC.Name = "RiyonCamLightCC"
+							riyonCamLightCC.Saturation = 0
 
-							eternityCamLightCC.Contrast = 0
-							eternityCamLightCC.Brightness = 0
-							eternityCamLightCC.Parent = Lighting
+							riyonCamLightCC.Contrast = 0
+							riyonCamLightCC.Brightness = 0
+							riyonCamLightCC.Parent = Lighting
 						end
 
-						return eternityCamLightCC
+						return riyonCamLightCC
 					end
 
 					v7 = createSettingsSlider(_vCamLight, "Saturation", -2, 2, 0, 1, 4, function(saturation)
@@ -41709,10 +41744,10 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 						v10.SetValue(14, true)
 
 						pcall(function()
-							local eternityCamLightCC = Lighting:FindFirstChild("EternityCamLightCC")
+							local riyonCamLightCC = Lighting:FindFirstChild("RiyonCamLightCC")
 
-							if eternityCamLightCC then
-								eternityCamLightCC:Destroy()
+							if riyonCamLightCC then
+								riyonCamLightCC:Destroy()
 							end
 						end)
 
@@ -42113,7 +42148,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 										local textLabel7 = Instance.new("TextLabel", frame15)
 										textLabel7.Size = UDim2.new(1, -16, 0, 20)
 										textLabel7.Position = UDim2.new(0, 10, 0, 25)
-										textLabel7.Text = "Only Eternity users in this exact server can see messages here. Zero external requests • Private & instant."
+										textLabel7.Text = "Only Riyon users in this exact server can see messages here. Zero external requests • Private & instant."
 										textLabel7.Font = Enum.Font.Gotham
 										textLabel7.TextSize = 9
 										textLabel7.TextColor3 = tbl3.textMuted
@@ -42224,7 +42259,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 											imageLabel5.Position = UDim2.new(0, 8, 0, 8)
 											imageLabel5.BackgroundTransparency = 1
 
-											if userId2 == "ETERNITY" then
+											if userId2 == "RIYON" then
 												imageLabel5.Image = "rbxassetid://139175707588865"
 												imageLabel5.ScaleType = Enum.ScaleType.Fit
 											else
@@ -42894,8 +42929,8 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 												if string.lower(text) == ";cmd" or string.lower(text) == ";cmds" then
 													spawnGlobalMessage({
 														sender = "SYSTEM",
-														displayName = "Eternity",
-														userId = "ETERNITY",
+														displayName = "Riyon",
+														userId = "RIYON",
 													}, [[<font color="rgb(255,200,50)"><b>CHAT SHORTCUTS</b></font>
 <font color="rgb(200,200,200)">;tp</font> <font color="rgb(100,100,100)">(name)</font> <font color="rgb(150,150,150)">- Teleport</font>
 <font color="rgb(200,200,200)">;fb</font> <font color="rgb(100,100,100)">(name)</font> <font color="rgb(150,150,150)">- Facebang</font>
@@ -42951,7 +42986,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 														if match == ".kick" and v9 and executeRemoteKick then
 															executeRemoteKick(v9)
 														else
-															SendNotification("Eternity Admin", "Dispatched command: " .. text, 3)
+															SendNotification("Riyon Admin", "Dispatched command: " .. text, 3)
 														end
 													end
 												end)
@@ -43647,7 +43682,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 									end
 
 									local function fn17()
-										local str3 = string.upper(localPlayer_.DisplayName or localPlayer_.Name or "ETERNITY")
+										local str3 = string.upper(localPlayer_.DisplayName or localPlayer_.Name or "RIYON")
 
 										return {
 											"[TMX MEH PRIME]",
@@ -43927,13 +43962,13 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 								end
 
 								pcall(function()
-									if makefolder and not isfolder("eternity_music") then
-										makefolder("eternity_music")
+									if makefolder and not isfolder("riyon_music") then
+										makefolder("riyon_music")
 									end
 								end)
 
 								tbl17.sound = Instance.new("Sound")
-								tbl17.sound.Name = "EternitySpotifyPlayer"
+								tbl17.sound.Name = "RiyonSpotifyPlayer"
 								tbl17.sound.Volume = 0.8
 								tbl17.sound.Looped = false
 								tbl17.sound.Parent = game:GetService("SoundService")
@@ -43947,7 +43982,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 								tbl17.miniBars = {}
 								tbl17.isMuted = false
 								tbl17.lastVol = 0.8
-								tbl17.favFile = "eternity_music/favorites.json"
+								tbl17.favFile = "riyon_music/favorites.json"
 								tbl17.favorites = {}
 
 								function tbl17.loadFavs()
@@ -44088,7 +44123,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 								function tbl17.loadImg(arg, artUrl, id)
 									if artUrl and artUrl ~= "" then
 										task.spawn(function()
-											local str3 = "eternity_music/art_" .. string.gsub(tostring(id), "[^%w_]", "") .. ".jpg"
+											local str3 = "riyon_music/art_" .. string.gsub(tostring(id), "[^%w_]", "") .. ".jpg"
 											local isfile_ = false
 
 											pcall(function()
@@ -44903,12 +44938,12 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 										tbl17.playIcon.Image = tbl18.Pause
 										tbl17.isPlaying = true
 										tbl17.status.Text = "Status: Loading " .. text .. "..."
-										getgenv().EternityMusicPlaying = true
+										getgenv().RiyonMusicPlaying = true
 
 										if step == 948149004 then
 										end
 
-										getgenv().EternityMusicTrackName = text
+										getgenv().RiyonMusicTrackName = text
 										tbl17.updateNowPlayingFav()
 
 										if tbl17.queue and #tbl17.queue > 0 then
@@ -44929,11 +44964,11 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 											local streamUrl = track.streamUrl
 
 											if not streamUrl and track.id then
-												streamUrl = "https://discoveryprovider.audius.co/v1/tracks/" .. tostring(track.id) .. "/stream?app_name=Eternity"
+												streamUrl = "https://discoveryprovider.audius.co/v1/tracks/" .. tostring(track.id) .. "/stream?app_name=Riyon"
 											end
 
 											if streamUrl and streamUrl ~= "" then
-												local str3 = "eternity_music/track_" .. string.gsub(tostring(track.id or "curr"), "[^%w_]", "") .. ".mp3"
+												local str3 = "riyon_music/track_" .. string.gsub(tostring(track.id or "curr"), "[^%w_]", "") .. ".mp3"
 												local isfile_ = false
 
 												pcall(function()
@@ -45022,12 +45057,12 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 											tbl17.sound:Pause()
 											tbl17.playIcon.Image = tbl18.Play
 											tbl17.isPlaying = false
-											getgenv().EternityMusicPlaying = false
+											getgenv().RiyonMusicPlaying = false
 										else
 											tbl17.sound:Resume()
 											tbl17.playIcon.Image = tbl18.Pause
 											tbl17.isPlaying = true
-											getgenv().EternityMusicPlaying = true
+											getgenv().RiyonMusicPlaying = true
 										end
 
 										if tbl17.queue and #tbl17.queue > 0 then
@@ -45409,7 +45444,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 
 											task.spawn(function()
 												n247 = 353277651
-												local str3 = "https://discoveryprovider.audius.co/v1/tracks/search?query=" .. game:GetService("HttpService"):UrlEncode(arg) .. "&app_name=Eternity&limit=25"
+												local str3 = "https://discoveryprovider.audius.co/v1/tracks/search?query=" .. game:GetService("HttpService"):UrlEncode(arg) .. "&app_name=Riyon&limit=25"
 												local v8 = tbl17.download(str3)
 
 												if v8 and #v8 > 0 then
@@ -45447,7 +45482,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 																tbl19.artist = fn17(user or "Artist")
 																tbl19.duration = v9.duration or 0
 																tbl19.artUrl = artUrl
-																tbl19.streamUrl = "https://discoveryprovider.audius.co/v1/tracks/" .. tostring(v9.id) .. "/stream?app_name=Eternity"
+																tbl19.streamUrl = "https://discoveryprovider.audius.co/v1/tracks/" .. tostring(v9.id) .. "/stream?app_name=Riyon"
 																tableInsert(queue, tbl19)
 																continue
 															end
@@ -47348,7 +47383,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 										local getgenv_ = getgenv
 
 										if getgenv_ then
-											getgenv_ = getgenv().EternityIsWhitelisted == true
+											getgenv_ = getgenv().RiyonIsWhitelisted == true
 										end
 
 										if not getgenv_ then
@@ -47391,7 +47426,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							tbl20.premTitle.Size = UDim2.new(1, -42, 0, 18)
 							tbl20.premTitle.Position = UDim2.new(0, 36, 0, 4)
 							tbl20.premTitle.BackgroundTransparency = 1
-							tbl20.premTitle.Text = "ETERNITY PREMIUM EXCLUSIVE"
+							tbl20.premTitle.Text = "RIYON PREMIUM EXCLUSIVE"
 							tbl20.premTitle.TextColor3 = Color3.fromRGB(255, 215, 80)
 							tbl20.premTitle.Font = Enum.Font.GothamBold
 							tbl20.premTitle.TextSize = 10
@@ -47400,7 +47435,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							tbl20.premDesc.Size = UDim2.new(1, -42, 0, 16)
 							tbl20.premDesc.Position = UDim2.new(0, 36, 0, 21)
 							tbl20.premDesc.BackgroundTransparency = 1
-							tbl20.premDesc.Text = "Limb and body part visibility is reserved for Eternity Premium users."
+							tbl20.premDesc.Text = "Limb and body part visibility is reserved for Riyon Premium users."
 							tbl20.premDesc.TextColor3 = Color3.fromRGB(190, 170, 125)
 							tbl20.premDesc.Font = Enum.Font.Gotham
 							tbl20.premDesc.TextSize = 9
@@ -47711,7 +47746,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 
 									if not fn22() then
 										pcall(function()
-											SendNotification("Eternity Premium", "Limb & body visibility is exclusive to Eternity Premium users!", 3)
+											SendNotification("Riyon Premium", "Limb & body visibility is exclusive to Riyon Premium users!", 3)
 											if count < n246 then
 												return
 											end
@@ -47764,7 +47799,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 								tbl20.masterBtn.MouseButton1Click:Connect(function()
 									if not fn22() then
 										pcall(function()
-											SendNotification("Eternity Premium", "Limb & body visibility is exclusive to Eternity Premium users!", 3)
+											SendNotification("Riyon Premium", "Limb & body visibility is exclusive to Riyon Premium users!", 3)
 										end)
 
 										return
@@ -47902,7 +47937,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 									textButton5.MouseButton1Click:Connect(function()
 										if not fn22() then
 											pcall(function()
-												SendNotification("Eternity Premium", "Limb & body visibility is exclusive to Eternity Premium users!", 3)
+												SendNotification("Riyon Premium", "Limb & body visibility is exclusive to Riyon Premium users!", 3)
 											end)
 
 											return
@@ -50013,8 +50048,8 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 										end
 									end
 
-									if _G._EternityStudioGui and _G._EternityStudioGui.Parent then
-										fn28(_G._EternityStudioGui)
+									if _G._RiyonStudioGui and _G._RiyonStudioGui.Parent then
+										fn28(_G._RiyonStudioGui)
 									end
 
 									local tbl31, v10, v11
@@ -50035,7 +50070,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 									while true do
 										if entryTo ~= 1 then
 											for _, v12 in tbl31, v10, v11 do
-												if v12.Name == "EternityStudioTimelineEditor" or v12.Name == "UnicornStudioTimelineEditor" or v12.Name == "ZenStudioTimelineEditor" then
+												if v12.Name == "RiyonStudioTimelineEditor" or v12.Name == "UnicornStudioTimelineEditor" or v12.Name == "ZenStudioTimelineEditor" then
 													fn28(v12)
 												end
 											end
@@ -50046,7 +50081,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 
 										if CoreGui then
 											for _, child in ipairs(CoreGui:GetChildren()) do
-												if child.Name == "EternityStudioTimelineEditor" or child.Name == "UnicornStudioTimelineEditor" or child.Name == "ZenStudioTimelineEditor" then
+												if child.Name == "RiyonStudioTimelineEditor" or child.Name == "UnicornStudioTimelineEditor" or child.Name == "ZenStudioTimelineEditor" then
 													fn28(child)
 												end
 											end
@@ -50064,7 +50099,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 
 									if exitTo == 1 then
 										for _, child in ipairs(localPlayer_3.PlayerGui:GetChildren()) do
-											if child.Name == "EternityStudioTimelineEditor" or child.Name == "UnicornStudioTimelineEditor" or child.Name == "ZenStudioTimelineEditor" then
+											if child.Name == "RiyonStudioTimelineEditor" or child.Name == "UnicornStudioTimelineEditor" or child.Name == "ZenStudioTimelineEditor" then
 												fn28(child)
 											end
 										end
@@ -50114,10 +50149,10 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 											if n250 == step then
 											else
 												pcall(function()
-													if isfile and isfile("EternityStudio.lua") then
-														loadstring(readfile("EternityStudio.lua"))()
-													elseif isfile and isfile("EternityStudio") then
-														loadstring(readfile("EternityStudio"))()
+													if isfile and isfile("RiyonStudio.lua") then
+														loadstring(readfile("RiyonStudio.lua"))()
+													elseif isfile and isfile("RiyonStudio") then
+														loadstring(readfile("RiyonStudio"))()
 
 													end
 
@@ -50142,9 +50177,9 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 								end
 
 								do
-									_G._EternityStudioGui = nil
-									_G._EternityStudioToggle = nil
-									_G._EternityStudioLoaded = false
+									_G._RiyonStudioGui = nil
+									_G._RiyonStudioToggle = nil
+									_G._RiyonStudioLoaded = false
 
 									if bundledZenApi and bundledZenApi.close_studio then
 										pcall(function()
@@ -50169,8 +50204,8 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 
 										if not gui then
 											tbl29.launch()
-										elseif _G._EternityStudioToggle then
-											_G._EternityStudioToggle()
+										elseif _G._RiyonStudioToggle then
+											_G._RiyonStudioToggle()
 										else
 											gui.Enabled = not gui.Enabled
 										end
@@ -50209,7 +50244,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 									local textLabel7 = Instance.new("TextLabel", scrollingFrame)
 									textLabel7.Size = UDim2.new(1, 0, 0, 16)
 									textLabel7.BackgroundTransparency = 1
-									textLabel7.Text = "ETERNITY STUDIO"
+									textLabel7.Text = "RIYON STUDIO"
 									textLabel7.TextColor3 = tbl17.textMuted
 									textLabel7.Font = Enum.Font.GothamBold
 									textLabel7.TextSize = 10
@@ -52919,7 +52954,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 
 							tbl.SavedAnimations = {}
 							saveSettings()
-							SendNotification("Eternity", "Animations reset to your equipped defaults!", 2)
+							SendNotification("Riyon", "Animations reset to your equipped defaults!", 2)
 							return
 						end
 					end
@@ -53008,7 +53043,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 
 						if v7 then
 							setAnimation(r225, v7)
-							SendNotification("Eternity", "Animation applied: " .. animationApplied, 2)
+							SendNotification("Riyon", "Animation applied: " .. animationApplied, 2)
 						end
 
 						if L1.step3 == 921533470 then
@@ -53082,7 +53117,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 									local v6 = (function(arg, ...)
 										if tbl9.AntiKick and arg == localPlayer_ then
 											local str3 = tostring(... or "No reason provided")
-											SendNotification("Eternity Anti-Kick", "Blocked kick: " .. string.sub(str3, 1, 35), 4)
+											SendNotification("Riyon Anti-Kick", "Blocked kick: " .. string.sub(str3, 1, 35), 4)
 											return nil
 										end
 
@@ -53094,13 +53129,13 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 									tbl9.OriginalKick = hookfunction_(kick, v6)
 								end
 
-								SendNotification("Eternity", "Anti-Kick: Enabled", 2)
+								SendNotification("Riyon", "Anti-Kick: Enabled", 2)
 							else
-								SendNotification("Eternity", "Executor does not support hookfunction", 3)
+								SendNotification("Riyon", "Executor does not support hookfunction", 3)
 							end
 						end)
 					else
-						SendNotification("Eternity", "Anti-Kick: Disabled", 2)
+						SendNotification("Riyon", "Anti-Kick: Disabled", 2)
 					end
 
 					return
@@ -53240,7 +53275,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 
 						do
 							local sendNotification = SendNotification
-							local str3 = "Eternity"
+							local str3 = "Riyon"
 
 							if fling then
 								fling = "Anti Fling: ON"
@@ -53661,7 +53696,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 									tbl9.applyGodMode(character2)
 								end
 							end)
-							SendNotification("Eternity", "God Mode ON - immune to damage.", 3)
+							SendNotification("Riyon", "God Mode ON - immune to damage.", 3)
 						else
 							pcall(function()
 								local character2 = localPlayer_.Character
@@ -53702,7 +53737,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 								end
 							end)
 
-							SendNotification("Eternity", "God Mode OFF.", 2)
+							SendNotification("Riyon", "God Mode OFF.", 2)
 						end
 					end)
 
@@ -53710,9 +53745,9 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 						tbl.FakeoutEnabled = fakeoutEnabled
 
 						if fakeoutEnabled then
-							SendNotification("Eternity", "Fakeout armed! Press keybind to trigger.", 2)
+							SendNotification("Riyon", "Fakeout armed! Press keybind to trigger.", 2)
 						else
-							SendNotification("Eternity", "Fakeout disarmed.", 2)
+							SendNotification("Riyon", "Fakeout disarmed.", 2)
 						end
 
 						if L1.step3 == 921533470 then
@@ -53921,13 +53956,13 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 									ToggleRegistry.NormalGlitchDesyncEnabled(false)
 								end
 
-								SendNotification("Eternity", "Extreme Glitch Desync armed!", 2)
+								SendNotification("Riyon", "Extreme Glitch Desync armed!", 2)
 							else
 								if tbl10 and tbl10.Active then
 									fn5()
 								end
 
-								SendNotification("Eternity", "Extreme Glitch Desync disarmed.", 2)
+								SendNotification("Riyon", "Extreme Glitch Desync disarmed.", 2)
 							end
 						end)
 					end
@@ -53942,13 +53977,13 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 								ToggleRegistry.ExtremeGlitchDesyncEnabled(false)
 							end
 
-							SendNotification("Eternity", "Normal Glitch Desync armed!", 2)
+							SendNotification("Riyon", "Normal Glitch Desync armed!", 2)
 						else
 							if tbl10 and tbl10.Active then
 								fn5()
 							end
 
-							SendNotification("Eternity", "Normal Glitch Desync disarmed.", 2)
+							SendNotification("Riyon", "Normal Glitch Desync disarmed.", 2)
 						end
 					end)
 				end
@@ -53983,7 +54018,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 						tbl.undergroundLoop = nil
 					end
 
-					SendNotification("Eternity", "You have returned to the surface.", 2)
+					SendNotification("Riyon", "You have returned to the surface.", 2)
 				end
 
 				do
@@ -54036,7 +54071,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							end
 
 							tbl.GoUndergroundActive = true
-							SendNotification("Eternity", "You are now Underground.", 2)
+							SendNotification("Riyon", "You are now Underground.", 2)
 						end
 					end
 				end
@@ -54067,61 +54102,51 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 				end
 
 				do
+					local antiEvadeCooldown = 0
 					L1.RunService.Stepped:Connect(function()
 						if not tbl9.Headsit and not tbl9.Facebang then
 							return
 						end
+						-- NEVER trigger AntiHeadsit / AntiFacebang when WE are welding/attaching/copying someone!
+						if (type(isAnyAttachActive) == "function" and isAnyAttachActive()) or AllPlayersWeldEnabled or _G.AnimCopyActive then
+							return
+						end
+						if tick() - antiEvadeCooldown < 0.6 then
+							return
+						end
 
-						if L1.step2 < L1.step3 then
-							pcall(function()
-								local character2 = localPlayer_.Character
-								if not character2 then
-									return
-								end
-								local humanoidRootPart2 = character2:FindFirstChild("HumanoidRootPart")
-								if not humanoidRootPart2 then
-									return
-								end
-								local cFrame = humanoidRootPart2.CFrame
+						pcall(function()
+							local character2 = localPlayer_.Character
+							local humanoidRootPart2 = character2 and character2:FindFirstChild("HumanoidRootPart")
+							if not humanoidRootPart2 then return end
+							local myCF = humanoidRootPart2.CFrame
 
-								for _, player in ipairs(L1.Players_:GetPlayers()) do
-									if player ~= localPlayer_ and player.Character then
-										local humanoidRootPart3 = player.Character:FindFirstChild("HumanoidRootPart")
-
-										if humanoidRootPart3 then
-											local x = humanoidRootPart3.Position.X
-											local y = humanoidRootPart3.Position.Y
-											local z = humanoidRootPart3.Position.Z
-
-											if tbl9.Headsit then
-												local z2 = humanoidRootPart2.CFrame.Z
-												local n209 = y - humanoidRootPart2.CFrame.Y
-
-												if math.abs(x - humanoidRootPart2.CFrame.X) <= 2.5 and math.abs(z - z2) <= 2.5 and n209 >= 1.25 then
-													humanoidRootPart2.CFrame = CFrame.new(0, -950, 0)
-													task.wait(0.25)
-													humanoidRootPart2.CFrame = cFrame
-													break
-												end
+							for _, player in ipairs(L1.Players_:GetPlayers()) do
+								if player ~= localPlayer_ and player.Character then
+									local humanoidRootPart3 = player.Character:FindFirstChild("HumanoidRootPart")
+									if humanoidRootPart3 then
+										local pos3 = humanoidRootPart3.Position
+										if tbl9.Headsit then
+											local dy = pos3.Y - myCF.Position.Y
+											if math.abs(pos3.X - myCF.Position.X) <= 2.2 and math.abs(pos3.Z - myCF.Position.Z) <= 2.2 and dy >= 1.25 and dy <= 5.5 then
+												antiEvadeCooldown = tick()
+												-- Safe horizontal sidestep instead of throwing player to Y = -950 in the void!
+												humanoidRootPart2.CFrame = myCF * CFrame.new(6, 0, 6)
+												break
 											end
-
-											if tbl9.Facebang then
-												local n209 = humanoidRootPart2.CFrame * CFrame.new(0, 0, -1.75)
-
-												if math.abs(x - n209.Position.X) <= 1.25 and math.abs(z - n209.Position.Z) <= 1.25 then
-													humanoidRootPart2.CFrame = CFrame.new(0, -950, 0)
-													task.wait(0.25)
-													humanoidRootPart2.CFrame = cFrame
-													break
-												end
+										end
+										if tbl9.Facebang then
+											local frontPt = (myCF * CFrame.new(0, 0, -1.75)).Position
+											if math.abs(pos3.X - frontPt.X) <= 1.25 and math.abs(pos3.Z - frontPt.Z) <= 1.25 and math.abs(pos3.Y - frontPt.Y) <= 3.5 then
+												antiEvadeCooldown = tick()
+												humanoidRootPart2.CFrame = myCF * CFrame.new(-6, 0, 6)
+												break
 											end
 										end
 									end
 								end
-							end)
-
-							return
-						end
+							end
+						end)
 					end)
 				end
 
@@ -54424,55 +54449,44 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 						end)
 					end)
 
-					local function stepAnimCopyZeroDelay()
+					local function stepAnimCopyZeroDelay(isHeartbeatStep)
 						if not flag8 or not player then return end
-						local character2 = player.Character
+						local character2 = type(findPlayerCharacterAnywhere) == "function" and findPlayerCharacterAnywhere(player) or player.Character
 						local character3 = localPlayer_.Character
 						if not character2 or not character3 then return end
-						local humanoidRootPart2 = character2:FindFirstChild("HumanoidRootPart") or character2:FindFirstChild("Torso")
+						local humanoidRootPart2 = type(pickTargetRef) == "function" and pickTargetRef(character2, "torso") or character2:FindFirstChild("HumanoidRootPart")
 						local humanoidRootPart3 = character3:FindFirstChild("HumanoidRootPart") or character3:FindFirstChild("Torso")
 
 						if humanoidRootPart2 and humanoidRootPart3 and str3 ~= "Free" then
+							local baseRefCF = type(getFlatYawCFrame) == "function" and getFlatYawCFrame(humanoidRootPart2.CFrame) or humanoidRootPart2.CFrame
 							local targetCF
 							if str3 == "Orbit" then
 								local angle = os.clock() * 3.5
-								targetCF = humanoidRootPart2.CFrame * CFrame.new(math.cos(angle) * 3.5, 0, math.sin(angle) * 3.5)
+								targetCF = baseRefCF * CFrame.new(math.cos(angle) * 3.5, 0, math.sin(angle) * 3.5)
 							else
-								targetCF = humanoidRootPart2.CFrame * (tbl17[str3] or CFrame.new(3.2, 0, 0))
+								targetCF = baseRefCF * (tbl17[str3] or CFrame.new(3.2, 0, 0))
 							end
-							humanoidRootPart3.CFrame = targetCF
-							local tVel = humanoidRootPart2.AssemblyLinearVelocity or Vector3.zero
-							local microWake = Vector3.new(0, math.sin(os.clock() * 24) * 0.03, 0)
-							humanoidRootPart3.AssemblyLinearVelocity = ((tVel.Magnitude < 350) and (tVel * 0.85) or Vector3.zero) + microWake
-							humanoidRootPart3.AssemblyAngularVelocity = Vector3.zero
-							pcall(function()
-								localPlayer_.ReplicationFocus = humanoidRootPart2
-								if typeof(sethiddenproperty) == "function" then
-									sethiddenproperty(humanoidRootPart3, "PhysicsRepRootPart", humanoidRootPart2)
-									sethiddenproperty(humanoidRootPart3, "NetworkIsSleeping", false)
-								end
-							end)
-							if type(_G.CocoSyncReanimRoots) == "function" then
-								pcall(_G.CocoSyncReanimRoots, targetCF)
+							if type(applyZeroDelayWeldCFrame) == "function" then
+								applyZeroDelayWeldCFrame(targetCF, character2:FindFirstChild("HumanoidRootPart"), isHeartbeatStep == true)
+							else
+								humanoidRootPart3.CFrame = targetCF
 							end
 						end
 					end
 
 					local function fn17()
-						pcall(function() L1.RunService:UnbindFromRenderStep("CocoAnimCopyZeroDelayPreCam") end)
-						pcall(function() L1.RunService:UnbindFromRenderStep("CocoAnimCopyZeroDelayLock") end)
+						_G.AnimCopyActive = false
+						pcall(function() L1.RunService:UnbindFromRenderStep("CocoAnimCopyZeroDelayFirst") end)
 						if connection then connection:Disconnect(); connection = nil end
 						if steppedConn then steppedConn:Disconnect(); steppedConn = nil end
 						if hbConn then hbConn:Disconnect(); hbConn = nil end
+						if type(clearPhysicsRep) == "function" then
+							clearPhysicsRep()
+						end
 
 						pcall(function()
 							local character2 = localPlayer_.Character
 							if not character2 then return end
-							local hrp = character2:FindFirstChild("HumanoidRootPart")
-							if hrp and typeof(sethiddenproperty) == "function" then
-								pcall(function() sethiddenproperty(hrp, "PhysicsRepRootPart", nil) end)
-							end
-							localPlayer_.ReplicationFocus = nil
 							local humanoid2 = character2:FindFirstChildOfClass("Humanoid")
 							local animator = humanoid2 and humanoid2:FindFirstChildOfClass("Animator")
 							if animator then
@@ -54497,6 +54511,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							return
 						end
 						flag8 = not flag8
+						_G.AnimCopyActive = flag8
 
 						if flag8 then
 							tween(frame16, { BackgroundColor3 = Color3.fromRGB(45, 180, 80) }, 0.2)
@@ -54512,20 +54527,25 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 								if animate then animate.Disabled = true end
 							end)
 
-							stepAnimCopyZeroDelay()
+							stepAnimCopyZeroDelay(false)
 							pcall(function()
-								L1.RunService:BindToRenderStep("CocoAnimCopyZeroDelayPreCam", Enum.RenderPriority.Camera.Value - 1, stepAnimCopyZeroDelay)
-								L1.RunService:BindToRenderStep("CocoAnimCopyZeroDelayLock", Enum.RenderPriority.Character.Value + 1, stepAnimCopyZeroDelay)
+								L1.RunService:BindToRenderStep("CocoAnimCopyZeroDelayFirst", Enum.RenderPriority.First.Value, function()
+									stepAnimCopyZeroDelay(false)
+								end)
 							end)
-							steppedConn = L1.RunService.Stepped:Connect(stepAnimCopyZeroDelay)
-							hbConn = L1.RunService.Heartbeat:Connect(stepAnimCopyZeroDelay)
+							steppedConn = L1.RunService.Stepped:Connect(function()
+								stepAnimCopyZeroDelay(false)
+							end)
+							hbConn = L1.RunService.Heartbeat:Connect(function()
+								stepAnimCopyZeroDelay(true)
+							end)
 
 							connection = L1.RunService.RenderStepped:Connect(function()
 								if not flag8 then
 									fn17()
 									return
 								end
-								stepAnimCopyZeroDelay()
+								stepAnimCopyZeroDelay(false)
 								local character2 = player and player.Character
 								local character3 = localPlayer_.Character
 								if not character2 or not character3 then return end
@@ -54937,7 +54957,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 								imageLabel3.Image = "rbxassetid://109767984466074"
 								textButton5.Text = "ANTI VC ACTIVE"
 								tween(frame13, { BackgroundColor3 = tbl3.success }, 0.3)
-								SendNotification("Eternity", "Anti-VC activated successfully!", 4)
+								SendNotification("Riyon", "Anti-VC activated successfully!", 4)
 								return
 							end)
 
@@ -54950,7 +54970,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 								tween(frame13, { BackgroundColor3 = tbl3.dangerDim }, 0.3)
 								task.wait(2)
 								tween(frame13, { BackgroundColor3 = tbl3.accentDim }, 0.3)
-								SendNotification("Eternity", "Anti-VC Error: " .. tostring(result), 4)
+								SendNotification("Riyon", "Anti-VC Error: " .. tostring(result), 4)
 								warn("Anti-VC Error:", result)
 							end
 						end)
@@ -54969,7 +54989,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 					local ok
 
 					ok, spill_2.r13 = pcall(function()
-						return getcustomasset_("eternity_assets/audios/search.png")
+						return getcustomasset_("riyon_assets/audios/search.png")
 					end)
 
 					if ok and spill_2.r13 then
@@ -55130,9 +55150,9 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 									hide_buildList()
 
 									if flag8 then
-										SendNotification("Eternity", "Hidden " .. player.DisplayName .. " locally (Muted VC).", 2)
+										SendNotification("Riyon", "Hidden " .. player.DisplayName .. " locally (Muted VC).", 2)
 									else
-										SendNotification("Eternity", "Unhidden " .. player.DisplayName .. ".", 2)
+										SendNotification("Riyon", "Unhidden " .. player.DisplayName .. ".", 2)
 									end
 
 									if L1.step3 == 921533470 then
@@ -55293,7 +55313,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 				do
 					createActionButton(_miscGeneral, "Rejoin Current Game", "Disconnects and immediately reconnects you to this exact same server", 2, function()
 						local TeleportService = game:GetService("TeleportService")
-						SendNotification("Eternity", "Rejoining server...", 3)
+						SendNotification("Riyon", "Rejoining server...", 3)
 						task.wait(0.5)
 						TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, localPlayer_)
 						return
@@ -55305,7 +55325,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 				createActionButton(_miscGeneral, "Server Hop", "Hops to the most active server with the best ping", 2.5, function()
 					local HttpService = game:GetService("HttpService")
 					local TeleportService = game:GetService("TeleportService")
-					SendNotification("Eternity", "Searching for the best server...", 3)
+					SendNotification("Riyon", "Searching for the best server...", 3)
 					local count4 = 1017395965
 
 					if L1.step4 < count4 then
@@ -55339,11 +55359,11 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 									end
 
 									if id then
-										SendNotification("Eternity", "Found optimal server! Teleporting...", 3)
+										SendNotification("Riyon", "Found optimal server! Teleporting...", 3)
 										task.wait(0.5)
 										TeleportService:TeleportToPlaceInstance(placeId, id, localPlayer_)
 									else
-										SendNotification("Eternity", "No perfect matches found. Hopping to random...", 3)
+										SendNotification("Riyon", "No perfect matches found. Hopping to random...", 3)
 
 										if step ~= 948147176 then
 										end
@@ -55358,7 +55378,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 									end
 								end
 							else
-								SendNotification("Eternity", "Failed to fetch server list!", 3)
+								SendNotification("Riyon", "Failed to fetch server list!", 3)
 							end
 						end)
 
@@ -55370,7 +55390,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 				tbl17 = {}
 
 				do
-					local tbl18 = { name = "Eternity Gold", color = Color3.fromRGB(245, 190, 75) }
+					local tbl18 = { name = "Riyon Gold", color = Color3.fromRGB(245, 190, 75) }
 					local tbl19 = { name = "Crimson Red", color = Color3.fromRGB(220, 20, 60) }
 					local tbl20 = { name = "Royal Blue", color = Color3.fromRGB(65, 105, 225) }
 					local tbl21 = { name = "Forest Green", color = Color3.fromRGB(34, 139, 34) }
@@ -55482,13 +55502,13 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 										continue
 									end
 
-									local eternityOverhead = player.Character.Head:FindFirstChild("EternityOverhead")
+									local riyonOverhead = player.Character.Head:FindFirstChild("RiyonOverhead")
 
-									if not eternityOverhead then
+									if not riyonOverhead then
 										continue
 									end
 
-									local frame13 = eternityOverhead:FindFirstChildOfClass("Frame")
+									local frame13 = riyonOverhead:FindFirstChildOfClass("Frame")
 
 									if not frame13 then
 										continue
@@ -55647,7 +55667,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 						if n54 < L1.step4 then
 							applyThemeToUI(r223.color)
 							saveSettings()
-							SendNotification("Eternity", "Theme instantly updated to " .. r223.name .. "!", 3)
+							SendNotification("Riyon", "Theme instantly updated to " .. r223.name .. "!", 3)
 							return
 						end
 					end)
@@ -55814,7 +55834,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 
 						saveSettings()
 						if L1.step3 == 921533470 then
-							SendNotification("Eternity", "Background changed to " .. r223.name .. "!", 3)
+							SendNotification("Riyon", "Background changed to " .. r223.name .. "!", 3)
 							return
 						end
 					end)
@@ -55847,7 +55867,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							end
 
 							saveSettings()
-							SendNotification("Eternity", "Custom background applied!", 3)
+							SendNotification("Riyon", "Custom background applied!", 3)
 
 							for _, child in ipairs(frame3:GetChildren()) do
 								if child:IsA("Frame") and child:FindFirstChild("Swatch") then
@@ -56222,20 +56242,21 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							end
 						end)
 
-						local eternityCamAnchor = nil
+						local riyonCamAnchor = nil
 						local cFrame = nil
+						local lastAppliedWorldCFrame = nil
 
 						function getOrCreateCamAnchor()
-							if eternityCamAnchor and eternityCamAnchor.Parent then
-								return eternityCamAnchor
+							if riyonCamAnchor and riyonCamAnchor.Parent then
+								return riyonCamAnchor
 							end
-							local eternityCamAnchor2 = workspace:FindFirstChild("EternityCamAnchor")
-							if eternityCamAnchor2 then
-								eternityCamAnchor = eternityCamAnchor2
-								return eternityCamAnchor
+							local riyonCamAnchor2 = workspace:FindFirstChild("RiyonCamAnchor")
+							if riyonCamAnchor2 then
+								riyonCamAnchor = riyonCamAnchor2
+								return riyonCamAnchor
 							end
 							local part = Instance.new("Part")
-							part.Name = "EternityCamAnchor"
+							part.Name = "RiyonCamAnchor"
 							part.Transparency = 1
 							part.CanCollide = false
 							part.CanTouch = false
@@ -56243,8 +56264,8 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							part.Anchored = true
 							part.Size = Vector3.new(0.5, 0.5, 0.5)
 							part.Parent = workspace
-							eternityCamAnchor = part
-							return eternityCamAnchor
+							riyonCamAnchor = part
+							return riyonCamAnchor
 						end
 
 						function updateAttachCam(arg)
@@ -56269,17 +56290,17 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 
 						function attachRestoreCam()
 							attachAutoCamActive = false
-							if eternityCamAnchor and eternityCamAnchor.Parent then
-								cFrame = eternityCamAnchor.CFrame
-								pcall(function() eternityCamAnchor:Destroy() end)
-								eternityCamAnchor = nil
+							if riyonCamAnchor and riyonCamAnchor.Parent then
+								cFrame = riyonCamAnchor.CFrame
+								pcall(function() riyonCamAnchor:Destroy() end)
+								riyonCamAnchor = nil
 							end
-							local eternityCamAnchor2 = workspace:FindFirstChild("EternityCamAnchor")
-							if eternityCamAnchor2 then
+							local riyonCamAnchor2 = workspace:FindFirstChild("RiyonCamAnchor")
+							if riyonCamAnchor2 then
 								if not cFrame then
-									cFrame = eternityCamAnchor2.CFrame
+									cFrame = riyonCamAnchor2.CFrame
 								end
-								pcall(function() eternityCamAnchor2:Destroy() end)
+								pcall(function() riyonCamAnchor2:Destroy() end)
 							end
 							if workspace.CurrentCamera then
 								local character2 = localPlayer_.Character or character
@@ -56291,29 +56312,202 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 						end
 
 						-- =====================================================================
+						-- PORTED FROM FILE 2: Safe World Bounds & Sky/Void Desync Validators
+						-- (Prevents connecting to targets whose HumanoidRootPart is at Y=10000
+						--  or Y=85000 in the sky or Y=-9200 / Y=-500 in the void!)
+						-- =====================================================================
+						local OriginalFPDH = -500
+						pcall(function()
+							local h = workspace.FallenPartsDestroyHeight
+							if type(h) == "number" and h == h and h > -10000 and h < 0 then
+								OriginalFPDH = h
+							end
+						end)
+
+						function isLethalVoidCF(cf, vel)
+							if not cf then return true end
+							local pos = cf.Position
+							if pos.X ~= pos.X or pos.Y ~= pos.Y or pos.Z ~= pos.Z then return true end
+							if pos.Magnitude > 150000 then return true end
+							if math.abs(pos.Y - 85000) < 3500 or math.abs(pos.Y - 10000) < 1500 or pos.Y > 4500 then
+								return true
+							end
+							local voidFloor = math.min(OriginalFPDH + 15, -280)
+							if pos.Y <= voidFloor then return true end
+							if vel and vel.Y < -85 and pos.Y < (voidFloor + 40) then return true end
+							return false
+						end
+
+						function isSafePlayableCF(cf)
+							if not cf or typeof(cf) ~= "CFrame" then return false end
+							if isLethalVoidCF(cf) then return false end
+							local pos = cf.Position
+							if pos.Magnitude < 0.05 then return false end
+							return true
+						end
+
+						function isPartInSafeWorldBounds(p)
+							if not (p and p.Parent and p:IsA("BasePart")) then return false, nil end
+							local okCF, cf = pcall(function() return p.CFrame end)
+							if not okCF or not cf then return false, nil end
+							local okV, vel = pcall(function() return p.AssemblyLinearVelocity end)
+							if isLethalVoidCF(cf, okV and vel or nil) then return false, nil end
+							return true, cf.Position
+						end
+
+						function isRefPartValid(part, char)
+							local okBounds, pos = isPartInSafeWorldBounds(part)
+							if not okBounds or not pos then return false end
+							if char and not part:IsDescendantOf(char) then return false end
+							-- Reject HumanoidRootPart if it is >28 studs desynced from UpperTorso/Torso/Head (FE Invisibility / Sky Root dump)
+							if char and part.Name == "HumanoidRootPart" then
+								local upper = char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso") or char:FindFirstChild("Head")
+								if upper and upper ~= part then
+									local okUpper, upperPos = isPartInSafeWorldBounds(upper)
+									if okUpper and (pos - upperPos).Magnitude > 28.0 then
+										return false
+									end
+								end
+							end
+							return true
+						end
+
+						local function isLocalOwnedModel(m)
+							if not m then return true end
+							if localPlayer_ and m == localPlayer_.Character then return true end
+							local mName = m.Name
+							if mName == "CocaReanimation" or mName == "AngoorReanimation" or mName == "CocoVanishGhost" or mName == "ReanimationClone" then
+								return true
+							end
+							for _, zenApi in ipairs({ _G.__BUNDLED_ZEN_API, _G._AngoorZenApi, _G.CocaSkyDestroyer }) do
+								if type(zenApi) == "table" then
+									if type(zenApi.get_real_character) == "function" and m == zenApi.get_real_character() then return true end
+									if type(zenApi.get_clone) == "function" and m == zenApi.get_clone() then return true end
+									if type(zenApi.get_clone_character) == "function" and m == zenApi.get_clone_character() then return true end
+								end
+							end
+							return false
+						end
+
+						function findTargetReanimModel(targetPlr)
+							if not targetPlr or targetPlr == localPlayer_ then return nil end
+							local tName = targetPlr.Name
+							local tDisp = targetPlr.DisplayName or tName
+							local candidates = {
+								tName .. "_Reanim", tName .. "Reanim", tName .. "_Fake",
+								tName .. "Clone", tName .. "Rig", tName .. "_Clone",
+								tName .. " Dummy", tName .. "_Ghost", tDisp .. "_Fake", tDisp .. "_Clone",
+							}
+							for _, cName in ipairs(candidates) do
+								local m = workspace:FindFirstChild(cName) or (workspace.CurrentCamera and workspace.CurrentCamera:FindFirstChild(cName))
+								if m and m:IsA("Model") and not isLocalOwnedModel(m) then
+									local ref = m:FindFirstChild("UpperTorso") or m:FindFirstChild("Torso") or m:FindFirstChild("Head") or m:FindFirstChild("HumanoidRootPart") or m.PrimaryPart
+									if ref and ref:IsA("BasePart") and isRefPartValid(ref, m) then
+										return m
+									end
+								end
+							end
+							local direct = workspace:FindFirstChild(tName)
+							if direct and direct:IsA("Model") and not isLocalOwnedModel(direct) and direct ~= targetPlr.Character then
+								local ref = direct:FindFirstChild("UpperTorso") or direct:FindFirstChild("Torso") or direct:FindFirstChild("Head") or direct:FindFirstChild("HumanoidRootPart") or direct.PrimaryPart
+								if ref and ref:IsA("BasePart") and isRefPartValid(ref, direct) then
+									return direct
+								end
+							end
+							return nil
+						end
+
+						function findPlayerCharacterAnywhere(plr, skipDeepSearch)
+							if not plr then return nil end
+							if plr == localPlayer_ then return localPlayer_.Character end
+							local reanimModel = findTargetReanimModel(plr)
+							if reanimModel and reanimModel.Parent then
+								-- Prefer reanimModel if plr.Character's root is desynced in sky/void
+								local origChar = plr.Character
+								local origHrp = origChar and origChar:FindFirstChild("HumanoidRootPart")
+								if not origHrp or not isRefPartValid(origHrp, origChar) then
+									return reanimModel
+								end
+							end
+							if plr.Character and plr.Character.Parent then
+								return plr.Character
+							end
+							if reanimModel and reanimModel.Parent then
+								return reanimModel
+							end
+							if not skipDeepSearch then
+								local byName = workspace:FindFirstChild(plr.Name, true)
+								if byName and byName:IsA("Model") and not isLocalOwnedModel(byName) and (byName:FindFirstChildOfClass("Humanoid") or byName.PrimaryPart) then
+									return byName
+								end
+							end
+							return plr.Character
+						end
+
+						-- Deep fallback reference part resolver from File 2 (never returns a sky-desynced or void-desynced root!)
+						function pickTargetRef(char, mode)
+							if not char then return nil end
+							if mode == "head" then
+								local h = char:FindFirstChild("Head") or char:FindFirstChild("head", true)
+								if h and h:IsA("BasePart") and isRefPartValid(h, char) then
+									return h
+								end
+							end
+							local cands = {
+								char:FindFirstChild("HumanoidRootPart"),
+								char:FindFirstChild("UpperTorso"),
+								char:FindFirstChild("Torso"),
+								char:FindFirstChild("LowerTorso"),
+								char:FindFirstChild("Head"),
+								char.PrimaryPart,
+							}
+							for _, p in ipairs(cands) do
+								if p and p:IsA("BasePart") and isRefPartValid(p, char) then
+									return p
+								end
+							end
+							local hum = char:FindFirstChildOfClass("Humanoid")
+							if hum and hum.SeatPart and hum.SeatPart:IsA("BasePart") and isPartInSafeWorldBounds(hum.SeatPart) then
+								return hum.SeatPart
+							end
+							return nil
+						end
+
+						-- Compute a level, upright CFrame relative to a target part so head nods or ragdoll tilts never throw you into the void or sky!
+						function getFlatYawCFrame(cf, posOverride)
+							if not cf then return CFrame.new() end
+							local pos = posOverride or cf.Position
+							local look = cf.LookVector
+							local flatLook = Vector3.new(look.X, 0, look.Z)
+							if flatLook.Magnitude > 0.001 then
+								return CFrame.lookAt(pos, pos + flatLook.Unit, Vector3.yAxis)
+							end
+							local _, yYaw, _ = cf:ToEulerAnglesYXZ()
+							return CFrame.new(pos) * CFrame.Angles(0, yYaw, 0)
+						end
+
+						-- =====================================================================
 						-- PORTED FROM FILE 2: Reanimation Real-Root 0.00ms Sync (_G.CocoSyncReanimRoots)
 						-- =====================================================================
 						local function syncAllActiveReanimRoots(attachCF)
-							if not attachCF then return false end
+							if not attachCF or not isSafePlayableCF(attachCF) then return false end
 							local syncedAny = false
 							local tNow = os.clock()
 							local netlessVel = Vector3.new(0, 25.05, 0) + Vector3.new(math.sin(tNow * 30) * 0.025, 0, math.cos(tNow * 30) * 0.025)
 
-							local zenApis = { _G.__BUNDLED_ZEN_API, _G._AngoorZenApi }
+							local zenApis = { _G.__BUNDLED_ZEN_API, _G._AngoorZenApi, _G.CocaSkyDestroyer }
 							for _, zenApi in ipairs(zenApis) do
 								if type(zenApi) == "table" and type(zenApi.is_reanimated) == "function" then
 									local okR, isReanim = pcall(zenApi.is_reanimated)
 									if okR and isReanim and type(zenApi.get_real_character) == "function" then
 										local okReal, realChar = pcall(zenApi.get_real_character)
 										local realRoot = okReal and realChar and (realChar:FindFirstChild("HumanoidRootPart") or realChar:FindFirstChild("Torso") or realChar:FindFirstChild("UpperTorso"))
-										if realRoot then
+										if realRoot and realRoot ~= humanoidRootPart then
+											realRoot.Anchored = false
+											realRoot.CanCollide = false
 											realRoot.CFrame = attachCF
 											realRoot.AssemblyLinearVelocity = netlessVel
 											realRoot.AssemblyAngularVelocity = Vector3.zero
-											pcall(function()
-												realRoot.Velocity = netlessVel
-												realRoot.RotVelocity = Vector3.zero
-											end)
 											syncedAny = true
 										end
 										if type(zenApi.sync_now) == "function" then
@@ -56322,72 +56516,64 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 									end
 								end
 							end
-
-							local skyApi = _G.CocaSkyDestroyer
-							if type(skyApi) == "table" and type(skyApi.is_reanimated) == "function" then
-								local okS, isSky = pcall(skyApi.is_reanimated)
-								if okS and isSky and type(skyApi.get_real_character) == "function" then
-									local okReal, realChar = pcall(skyApi.get_real_character)
-									local realRoot = okReal and realChar and (realChar:FindFirstChild("HumanoidRootPart") or realChar:FindFirstChild("Torso") or realChar:FindFirstChild("UpperTorso"))
-									if realRoot then
-										realRoot.CFrame = attachCF
-										realRoot.AssemblyLinearVelocity = netlessVel
-										realRoot.AssemblyAngularVelocity = Vector3.zero
-										pcall(function()
-											realRoot.Velocity = netlessVel
-											realRoot.RotVelocity = Vector3.zero
-										end)
-										syncedAny = true
-									end
-									if type(skyApi.sync_now) == "function" then
-										pcall(skyApi.sync_now, true)
-									end
-								end
-							end
-
 							return syncedAny
 						end
 						_G.CocoSyncReanimRoots = syncAllActiveReanimRoots
 
 						-- =====================================================================
-						-- PORTED FROM FILE 2: Exact PhysicsRepRootPart + ReplicationFocus Lock
+						-- FIXED NO-DELAY PHYSICS REPLICATION (PhysicsRepRootPart + ToObjectSpace)
 						-- =====================================================================
-						local InstanceHandleNew = (Instance and type(Instance) == "table" and Instance.handle and type(Instance.handle.new) == "function") and Instance.handle.new or nil
-						local lastPhysicsRepPart = nil
+						local currentPhysicsRepPart = nil
 
 						function setPhysicsRep(arg)
-							if tbl.NoDelay and humanoidRootPart and arg then
+							if tbl.NoDelay and humanoidRootPart and typeof(sethiddenproperty) == "function" and arg and isRefPartValid(arg, arg.Parent) then
 								pcall(function()
-									if localPlayer_.ReplicationFocus ~= arg then
-										localPlayer_.ReplicationFocus = arg
-									end
+									sethiddenproperty(humanoidRootPart, "PhysicsRepRootPart", arg)
+									sethiddenproperty(humanoidRootPart, "NetworkIsSleeping", false)
+									sethiddenproperty(localPlayer_, "SimulationRadius", 112412400000)
+									sethiddenproperty(localPlayer_, "MaxSimulationRadius", 112412400000)
+									settings().Physics.AllowSleep = false
 								end)
-								if typeof(sethiddenproperty) == "function" then
-									pcall(function()
-										sethiddenproperty(humanoidRootPart, "PhysicsRepRootPart", arg)
-										if InstanceHandleNew then
-											sethiddenproperty(humanoidRootPart, "PhysicsRepRootRef", InstanceHandleNew(arg))
-										end
-										sethiddenproperty(humanoidRootPart, "NetworkIsSleeping", false)
-										sethiddenproperty(localPlayer_, "SimulationRadius", 112412400000)
-										sethiddenproperty(localPlayer_, "MaxSimulationRadius", 112412400000)
-										settings().Physics.AllowSleep = false
-									end)
-								end
-								lastPhysicsRepPart = arg
+								currentPhysicsRepPart = arg
+							else
+								clearPhysicsRep()
 							end
 						end
 
 						function clearPhysicsRep()
-							lastPhysicsRepPart = nil
-							pcall(function()
-								localPlayer_.ReplicationFocus = nil
-							end)
+							currentPhysicsRepPart = nil
 							if humanoidRootPart and typeof(sethiddenproperty) == "function" then
 								pcall(function()
 									sethiddenproperty(humanoidRootPart, "PhysicsRepRootPart", nil)
 								end)
 							end
+						end
+
+						-- =====================================================================
+						-- PORTED FROM FILE 2: Break SeatWelds & External Joints Before/During Weld
+						-- =====================================================================
+						local function breakAllSeatsAndExternalJoints(char, hum, root)
+							if not char then return end
+							hum = hum or char:FindFirstChildOfClass("Humanoid")
+							root = root or char:FindFirstChild("HumanoidRootPart")
+							pcall(function()
+								if hum then
+									local seatPart = hum.SeatPart
+									if seatPart and seatPart:IsA("BasePart") then
+										pcall(function() seatPart.CanTouch = false end)
+										for _, ch in ipairs(seatPart:GetChildren()) do
+											if ch:IsA("JointInstance") or ch:IsA("WeldConstraint") or ch.Name == "SeatWeld" then
+												pcall(function() ch:Destroy() end)
+											end
+										end
+									end
+								end
+								for _, part in ipairs(char:GetDescendants()) do
+									if part:IsA("SeatWeld") or part.Name == "SeatWeld" then
+										pcall(function() part:Destroy() end)
+									end
+								end
+							end)
 						end
 
 						-- =====================================================================
@@ -56406,14 +56592,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 						end
 
 						function clearAutoSelectedTarget()
-							local anyActive = false
-							for _, feat in ipairs(AttachFeatures or {}) do
-								if tbl and tbl[feat] then
-									anyActive = true
-									break
-								end
-							end
-							if not anyActive and targetWasAutoSelected then
+							if not isAnyAttachActive() and targetWasAutoSelected then
 								targetWasAutoSelected = false
 							end
 						end
@@ -56436,10 +56615,10 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 									end
 								end
 							end
-							-- Auto-select nearest valid player in server
+							-- Auto-select nearest valid, in-bounds player in server (never selecting someone in sky/void)
 							local myChar = localPlayer_.Character or character
 							local myRoot = myChar and (myChar:FindFirstChild("HumanoidRootPart") or myChar:FindFirstChild("Torso") or myChar:FindFirstChild("Head"))
-							local myPos = myRoot and myRoot.Position or Vector3.zero
+							local myPos = (myRoot and isPartInSafeWorldBounds(myRoot)) and myRoot.Position or Vector3.zero
 							local bestPlr = nil
 							local bestDist = math.huge
 							local fallbackPlr = nil
@@ -56449,8 +56628,8 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 									if not fallbackPlr then
 										fallbackPlr = plr
 									end
-									local tChar = plr.Character
-									local tRoot = tChar and (tChar:FindFirstChild("HumanoidRootPart") or tChar:FindFirstChild("Torso") or tChar:FindFirstChild("UpperTorso") or tChar:FindFirstChild("Head"))
+									local tChar = findPlayerCharacterAnywhere(plr, true)
+									local tRoot = tChar and pickTargetRef(tChar, "torso")
 									if tRoot then
 										local d = (tRoot.Position - myPos).Magnitude
 										if d < bestDist then
@@ -56470,68 +56649,107 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 						end
 
 						-- =====================================================================
-						-- PORTED FROM FILE 2: Anatomical Height & Scale Solver
+						-- PORTED FROM FILE 2: Static-Dimension Anatomical Height & Scale Solver
+						-- (Uses rig part sizes, HipHeight & BodyHeightScale — NEVER live world
+						--  Y differences that distort when your character is horizontal!)
 						-- =====================================================================
-						function getCharacterAnatomyMetrics(char)
-							if not char then return nil end
-							local root = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso")
+						function getCharacterAnatomyMetrics(char, hum, refPart)
+							if not char then return 3.0, 1.5, 1.0, 0.0 end
+							hum = hum or char:FindFirstChildOfClass("Humanoid")
+							local hrp = char:FindFirstChild("HumanoidRootPart") or (hum and hum.RootPart) or refPart
 							local head = char:FindFirstChild("Head")
-							local torso = char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso") or root
-							local hum = char:FindFirstChildOfClass("Humanoid")
-							if not root then return nil end
+							local upperTorso = char:FindFirstChild("UpperTorso")
+							local lowerTorso = char:FindFirstChild("LowerTorso")
+							local torso = char:FindFirstChild("Torso") or upperTorso
 
-							local rootY = root.Position.Y
-							local headY = head and head.Position.Y or (rootY + 1.5)
-							local headTopY = head and (head.Position.Y + head.Size.Y * 0.5) or (headY + 0.6)
-							local torsoY = torso and torso.Position.Y or rootY
-							local hipH = (hum and hum.HipHeight and hum.HipHeight > 0) and hum.HipHeight or 2.0
-							local feetY = rootY - (root.Size.Y * 0.5) - hipH
-
-							local lFoot = char:FindFirstChild("LeftFoot") or char:FindFirstChild("Left Leg")
-							local rFoot = char:FindFirstChild("RightFoot") or char:FindFirstChild("Right Leg")
-							if lFoot and rFoot then
-								local lowFoot = math.min(lFoot.Position.Y - lFoot.Size.Y * 0.5, rFoot.Position.Y - rFoot.Size.Y * 0.5)
-								if math.abs(rootY - lowFoot) < 25 then
-									feetY = lowFoot
+							local scaleY = 1.0
+							if hum then
+								local bhs = hum:FindFirstChild("BodyHeightScale")
+								if bhs and bhs:IsA("NumberValue") and bhs.Value > 0.15 and bhs.Value < 5.0 then
+									scaleY = bhs.Value
+								end
+							end
+							if scaleY == 1.0 and torso and torso:IsA("BasePart") then
+								local baseTorsoY = (torso.Name == "UpperTorso") and 1.6 or 2.0
+								local ratio = torso.Size.Y / baseTorsoY
+								if ratio > 0.25 and ratio < 4.5 then
+									scaleY = ratio
 								end
 							end
 
-							local totalHeight = math.clamp(headTopY - feetY, 1.5, 30)
-							local rootToHead = math.clamp(headY - rootY, 0.3, 12)
-							local rootToTorso = math.clamp(torsoY - rootY, -4, 6)
-							local scaleRatio = math.clamp(totalHeight / 5.2, 0.35, 4.0)
+							local rootToGround = 3.0 * scaleY
+							if hum then
+								local hipH = hum.HipHeight or 0
+								if hum.RigType == Enum.HumanoidRigType.R15 then
+									local rSizeY = (hrp and hrp:IsA("BasePart") and hrp.Size.Y) or (2.0 * scaleY)
+									if hipH > 0.05 then
+										rootToGround = hipH + (rSizeY * 0.5)
+									end
+								else
+									local leg = char:FindFirstChild("Right Leg") or char:FindFirstChild("Left Leg")
+									local legY = (leg and leg:IsA("BasePart") and leg.Size.Y) or (2.0 * scaleY)
+									local tSizeY = (torso and torso:IsA("BasePart") and torso.Size.Y) or (2.0 * scaleY)
+									rootToGround = legY + (tSizeY * 0.5) + math.max(0, hipH)
+								end
+							end
 
-							return {
-								root = root,
-								head = head,
-								torso = torso,
-								hum = hum,
-								rootY = rootY,
-								headY = headY,
-								headTopY = headTopY,
-								torsoY = torsoY,
-								feetY = feetY,
-								totalHeight = totalHeight,
-								rootToHead = rootToHead,
-								rootToTorso = rootToTorso,
-								scaleRatio = scaleRatio,
-							}
+							local headSizeY = (head and head:IsA("BasePart") and head.Size.Y) or (1.0 * scaleY)
+							local torsoSpanY = 1.0 * scaleY
+							if upperTorso and upperTorso:IsA("BasePart") then
+								local utY = upperTorso.Size.Y
+								local ltY = (lowerTorso and lowerTorso:IsA("BasePart") and lowerTorso.Size.Y) or (0.4 * scaleY)
+								torsoSpanY = (utY + ltY) * 0.5
+							elseif torso and torso:IsA("BasePart") then
+								torsoSpanY = torso.Size.Y * 0.5
+							end
+							local anatomicalRootToHead = torsoSpanY + (headSizeY * 0.5)
+
+							local refToRootY = 0.0
+							local anchorPart = refPart or hrp or torso
+							if anchorPart and anchorPart:IsA("BasePart") then
+								if anchorPart.Name == "UpperTorso" then
+									refToRootY = -0.42 * scaleY
+								elseif anchorPart.Name == "LowerTorso" then
+									refToRootY = 0.55 * scaleY
+								elseif anchorPart.Name == "Head" then
+									refToRootY = -anatomicalRootToHead
+								end
+							end
+
+							local refToHead = anatomicalRootToHead + refToRootY
+							return rootToGround, refToHead, scaleY, refToRootY
 						end
 
-						function getAnatomicalYAdjustment(presetName, targetChar)
-							if not tbl.AutoHeight then return 0 end
-							local myChar = localPlayer_.Character or character
-							local myM = getCharacterAnatomyMetrics(myChar)
-							local tgtM = getCharacterAnatomyMetrics(targetChar)
-							if not myM or not tgtM then return 0 end
+						local cachedAnatomyHeights = setmetatable({}, { __mode = "k" })
 
-							if presetName == "Rizz" or presetName == "Kiss" or presetName == "Goon" or presetName == "Jerk" then
-								return math.clamp((tgtM.rootToHead - myM.rootToHead) * 0.85, -5.0, 5.0)
-							elseif presetName == "Headsit" then
-								return math.clamp((tgtM.head and tgtM.head.Size.Y * 0.5 or 0.6) - 0.6, -2.5, 4.0)
-							else
-								return math.clamp((tgtM.rootToTorso - myM.rootToTorso), -4.0, 4.0)
+						function getAnatomicalYAdjustment(presetName, targetChar, refPart)
+							if not tbl.AutoHeight or not targetChar then return 0 end
+							local myChar = localPlayer_.Character or character
+							if not myChar then return 0 end
+							local cacheKey = tostring(presetName) .. "_" .. tostring(myChar)
+							if cachedAnatomyHeights[targetChar] and cachedAnatomyHeights[targetChar][cacheKey] then
+								return cachedAnatomyHeights[targetChar][cacheKey]
 							end
+							local myRootToGround, myRootToHead, myScaleY, _ = getCharacterAnatomyMetrics(myChar, humanoid, humanoidRootPart)
+							local tHum = targetChar:FindFirstChildOfClass("Humanoid")
+							local tRootToGround, tRefToHead, tScaleY, tRefToRootY = getCharacterAnatomyMetrics(targetChar, tHum, refPart)
+
+							local autoY = 0.0
+							if presetName == "Rizz" then
+								local headEyeAlignY = (tRefToHead - myRootToHead) + (0.08 * myScaleY)
+								local floorStandAlignY = tRefToRootY + (myRootToGround - tRootToGround)
+								autoY = math.clamp((headEyeAlignY * 0.75) + (floorStandAlignY * 0.25), -2.2, 2.5)
+							elseif presetName == "Facebang" or presetName == "Headsit" then
+								autoY = math.clamp((tScaleY - myScaleY) * 0.65, -1.5, 1.8)
+							elseif presetName == "Kiss" or presetName == "Fronthug" or presetName == "Backhug" or presetName == "Pat" then
+								autoY = math.clamp((tRefToHead - myRootToHead) * 0.6, -1.8, 2.0)
+							else
+								autoY = math.clamp(tRefToRootY + ((tScaleY - myScaleY) * 0.4), -1.5, 1.8)
+							end
+
+							cachedAnatomyHeights[targetChar] = cachedAnatomyHeights[targetChar] or {}
+							cachedAnatomyHeights[targetChar][cacheKey] = autoY
+							return autoY
 						end
 
 						-- =====================================================================
@@ -56546,14 +56764,14 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							GOON_R6 = { 136828069054505, 72042024, 178130996, 148840371 },
 							RIZZ_R15 = { 90735295463164, 1069977950, 15392756794, 15392752812, 3333387824, 507770239 },
 							RIZZ_R6 = { 90735295463164, 180435571, 128777973, 1069977950 },
-							PAT = { 114313599861536, 114022540397953 },
-							HUG = { 95247520541805, 117991975031893 },
-							PROPOSE = { 70639053125611, 107416091886634 },
-							KISS = { 81124524945738, 95247520541805, 117991975031893 },
-							LAWL_R15 = { 507770818, 3333499508 },
-							LAWL_R6 = { 129423131, 182436842 },
-							SIT_R15 = { 2506281703, 178130996 },
-							SIT_R6 = { 178130996, 2506281703 },
+							PAT = { 114313599861536, 114022540397953, 3344650532, 507770239 },
+							HUG = { 95247520541805, 117991975031893, 3338010159 },
+							PROPOSE = { 70639053125611, 107416091886634, 4555816777 },
+							KISS = { 81124524945738, 3576686446, 95247520541805, 117991975031893 },
+							LAWL_R15 = { 507770818, 507770239, 33796059 },
+							LAWL_R6 = { 129423131, 33796059, 180435571 },
+							SIT_R15 = { 2506281703, 2510238627, 507768375, 178130996 },
+							SIT_R6 = { 178130996, 2506281703, 180426354 },
 						}
 
 						function loadBestPresetAnimationTrack(animator, humanoid2, idListR15, idListR6)
@@ -56581,13 +56799,14 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 						end
 
 						-- =====================================================================
-						-- PORTED FROM FILE 2: Cached Character BaseParts Noclip
+						-- PORTED FROM FILE 2: Cached Phase Noclip (CanTouch=false prevents
+						-- map seats, portals, or teleporters from grabbing your character!)
 						-- =====================================================================
 						local weldCachedChar = nil
 						local weldCachedParts = {}
 						local weldDescConn = nil
 
-						local function ensureWeldNoclipCache(char2)
+						local function ensureWeldNoclipCache(char2, disableTouch)
 							if not char2 then return end
 							if weldCachedChar ~= char2 then
 								weldCachedChar = char2
@@ -56600,20 +56819,35 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 									if d:IsA("BasePart") then
 										table.insert(weldCachedParts, d)
 										d.CanCollide = false
-										d.Massless = (d.Name ~= "HumanoidRootPart")
+										if disableTouch then
+											d.CanTouch = false
+											d.CanQuery = false
+											d.Massless = (d.Name ~= "HumanoidRootPart")
+										end
+										d.Anchored = false
+									elseif d:IsA("SeatWeld") or d.Name == "SeatWeld" then
+										pcall(function() d:Destroy() end)
 									end
 								end
 								weldDescConn = char2.DescendantAdded:Connect(function(d)
 									if d:IsA("BasePart") then
 										table.insert(weldCachedParts, d)
 										d.CanCollide = false
+										if disableTouch then
+											d.CanTouch = false
+											d.CanQuery = false
+										end
+									elseif d:IsA("SeatWeld") or d.Name == "SeatWeld" then
+										pcall(function() d:Destroy() end)
 									end
 								end)
 							else
 								for i = #weldCachedParts, 1, -1 do
 									local p = weldCachedParts[i]
 									if p and p.Parent then
-										p.CanCollide = false
+										if p.CanCollide then p.CanCollide = false end
+										if disableTouch and p.CanTouch then p.CanTouch = false end
+										if p.Anchored then p.Anchored = false end
 									else
 										table.remove(weldCachedParts, i)
 									end
@@ -56622,53 +56856,76 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 						end
 
 						-- =====================================================================
-						-- PORTED FROM FILE 2: Core 0.00ms Apply CFrame + PhysicsRep Helper
-						-- (Fixes the ToObjectSpace world-origin flickering bug in File 1!)
+						-- FIXED CORE 0.00ms WELD APPLY FUNCTION:
+						-- • On Stepped / RenderStepped / RenderPriority.First (isHeartbeatStep == false):
+						--   Applies worldCFrame directly so your screen, camera, and local physics
+						--   always keep your character on the target player in world space!
+						-- • On Heartbeat (isHeartbeatStep == true):
+						--   When tbl.NoDelay is true and targetRootPart is a valid HumanoidRootPart,
+						--   binds PhysicsRepRootPart = targetRootPart and sets:
+						--   humanoidRootPart.CFrame = targetRootPart.CFrame:ToObjectSpace(worldCFrame)
+						--   so Roblox's network replicator replicates targetRootPart.CFrame * relCF = worldCFrame
+						--   with 0.00ms zero lag and ZERO double-transform teleporting to the sky/void!
 						-- =====================================================================
 						function applyZeroDelayWeldCFrame(worldCFrame, targetRootPart, isHeartbeatStep)
-							if not worldCFrame or not humanoidRootPart then
+							if not worldCFrame or not humanoidRootPart or not isSafePlayableCF(worldCFrame) then
 								return false
 							end
 							local myChar = localPlayer_.Character or character
 							if myChar then
-								ensureWeldNoclipCache(myChar)
+								ensureWeldNoclipCache(myChar, true)
 							end
 							if humanoidRootPart.Anchored then
 								humanoidRootPart.Anchored = false
 							end
 
-							-- Always apply world-space CFrame directly (never ToObjectSpace!)
-							humanoidRootPart.CFrame = worldCFrame
+							lastAppliedWorldCFrame = worldCFrame
+							cFrame = worldCFrame
 
-							local tVel = targetRootPart and (targetRootPart.AssemblyLinearVelocity or targetRootPart.Velocity) or Vector3.zero
-							local microWake = Vector3.new(0, math.sin(os.clock() * 24) * 0.03, 0)
-							local syncVel = ((tVel.Magnitude < 350) and (tVel * 0.85) or Vector3.zero) + microWake
+							-- Update LastKnownSafeCF when target is at a safe height
+							local _, yYaw, _ = worldCFrame:ToEulerAnglesYXZ()
+							LastKnownSafeCF = CFrame.new(worldCFrame.Position) * CFrame.Angles(0, yYaw, 0)
 
-							humanoidRootPart.AssemblyLinearVelocity = syncVel
-							humanoidRootPart.AssemblyAngularVelocity = Vector3.zero
+							local validRepRoot = (targetRootPart and targetRootPart.Name == "HumanoidRootPart" and isRefPartValid(targetRootPart, targetRootPart.Parent)) and targetRootPart or nil
+
+							if tbl.NoDelay and typeof(sethiddenproperty) == "function" and validRepRoot then
+								setPhysicsRep(validRepRoot)
+								if isHeartbeatStep then
+									-- Object-space CFrame for Roblox's PhysicsRepRootPart network replicator pass
+									local relCF = validRepRoot.CFrame:ToObjectSpace(worldCFrame)
+									humanoidRootPart.CFrame = relCF
+									humanoidRootPart.AssemblyLinearVelocity = Vector3.zero
+									humanoidRootPart.AssemblyAngularVelocity = Vector3.zero
+								else
+									-- World-space CFrame for local rendering, camera, and physics stepping
+									humanoidRootPart.CFrame = worldCFrame
+									humanoidRootPart.AssemblyLinearVelocity = validRepRoot.AssemblyLinearVelocity or Vector3.zero
+									humanoidRootPart.AssemblyAngularVelocity = validRepRoot.AssemblyAngularVelocity or Vector3.zero
+								end
+							else
+								clearPhysicsRep()
+								humanoidRootPart.CFrame = worldCFrame
+								local tVel = (targetRootPart and isPartInSafeWorldBounds(targetRootPart) and targetRootPart.AssemblyLinearVelocity) or Vector3.zero
+								local microWake = Vector3.new(0, math.sin(os.clock() * 24) * 0.03, 0)
+								local syncVel = ((tVel.Magnitude < 350) and (tVel * 0.85) or Vector3.zero) + microWake
+								humanoidRootPart.AssemblyLinearVelocity = syncVel
+								humanoidRootPart.AssemblyAngularVelocity = Vector3.zero
+							end
 
 							pcall(function()
-								humanoidRootPart.Velocity = syncVel
+								humanoidRootPart.Velocity = humanoidRootPart.AssemblyLinearVelocity
 								humanoidRootPart.RotVelocity = Vector3.zero
 							end)
-
-							if tbl.NoDelay and targetRootPart then
-								setPhysicsRep(targetRootPart)
-							end
 
 							syncAllActiveReanimRoots(worldCFrame)
 							return true
 						end
 
 						-- =====================================================================
-						-- STREAMING & TELEPORT HELPERS
+						-- OMNIPRESENT STREAMING & SAFE LANDING HELPERS (PORTED FROM FILE 2)
 						-- =====================================================================
-						local tbl17 = {}
-						local position4 = nil
-						local tbl18 = {}
+						local PlayerLocationCache = {}
 						local position5 = nil
-						local cFrame2 = nil
-						local now = 0
 
 						local function getActiveAttachTargetAndFeature()
 							for _, feat in ipairs(AttachFeatures or {}) do
@@ -56685,186 +56942,218 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							return nil, nil
 						end
 
-						task.spawn(function()
-							while true do
-								task.wait(1.0)
-								local pat = getActiveAttachTargetAndFeature()
-								if not pat or typeof(localPlayer_.RequestStreamAroundAsync) ~= "function" then
-									continue
+						function getBestTargetCFrame(plr)
+							if not plr then return nil end
+							local char = findPlayerCharacterAnywhere(plr, false)
+							if char then
+								local part = pickTargetRef(char, "torso")
+								if part and part.Parent then
+									local cf = part.CFrame
+									PlayerLocationCache[plr.UserId] = { cf = cf, time = tick() }
+									return cf
 								end
-								local position6 = nil
-								local character2 = pat.Character
-								if character2 then
-									local hrp2 = character2:FindFirstChild("HumanoidRootPart") or character2:FindFirstChild("Torso") or character2:FindFirstChild("UpperTorso")
-									if hrp2 then
-										position6 = hrp2.Position
-										position4 = position6
-									elseif typeof(character2.GetPivot) == "function" then
-										local ok, pivot = pcall(function() return character2:GetPivot() end)
-										if ok and pivot and pivot.Position and pivot.Position.Magnitude > 0.1 then
-											position6 = pivot.Position
-											position4 = position6
-										end
+								if typeof(char.GetPivot) == "function" then
+									local okP, piv = pcall(function() return char:GetPivot() end)
+									if okP and piv and isSafePlayableCF(piv) then
+										PlayerLocationCache[plr.UserId] = { cf = piv, time = tick() }
+										return piv
 									end
 								end
-								position6 = position6 or position4
-								if position6 then
-									pcall(function()
-										localPlayer_:RequestStreamAroundAsync(position6, 5)
-									end)
+							end
+							local cached = PlayerLocationCache[plr.UserId]
+							if cached and cached.cf and isSafePlayableCF(cached.cf) then
+								return cached.cf
+							end
+							return nil
+						end
+
+						function streamAndTeleportToTarget(targetPlr, refMode, maxWaitSeconds)
+							if not targetPlr or targetPlr.Parent ~= L1.Players_ then return nil, nil end
+							maxWaitSeconds = maxWaitSeconds or 1.5
+							local tChar = findPlayerCharacterAnywhere(targetPlr)
+							local tRef = tChar and pickTargetRef(tChar, refMode or "torso")
+							if tRef and tRef.Parent then
+								return tChar, tRef
+							end
+							local started = tick()
+							while tick() - started < maxWaitSeconds do
+								if targetPlr.Parent ~= L1.Players_ then return nil, nil end
+								tChar = findPlayerCharacterAnywhere(targetPlr)
+								tRef = tChar and pickTargetRef(tChar, refMode or "torso")
+								if tRef and tRef.Parent then
+									return tChar, tRef
+								end
+								local hintCF = getBestTargetCFrame(targetPlr)
+								if hintCF and isSafePlayableCF(hintCF) then
+									if typeof(localPlayer_.RequestStreamAroundAsync) == "function" then
+										task.spawn(function()
+											pcall(function() localPlayer_:RequestStreamAroundAsync(hintCF.Position, 2) end)
+										end)
+									end
+								else
+									break
+								end
+								L1.RunService.Heartbeat:Wait()
+							end
+							tChar = findPlayerCharacterAnywhere(targetPlr)
+							tRef = tChar and pickTargetRef(tChar, refMode or "torso")
+							return tChar, tRef
+						end
+
+						task.spawn(function()
+							while true do
+								task.wait(0.8)
+								for _, p in ipairs(L1.Players_:GetPlayers()) do
+									if p ~= localPlayer_ then
+										pcall(getBestTargetCFrame, p)
+									end
+								end
+								local pat = getActiveAttachTargetAndFeature()
+								if pat and typeof(localPlayer_.RequestStreamAroundAsync) == "function" then
+									local bestCF = getBestTargetCFrame(pat)
+									if bestCF and isSafePlayableCF(bestCF) then
+										pcall(function()
+											localPlayer_:RequestStreamAroundAsync(bestCF.Position, 3)
+										end)
+									end
 								end
 							end
 						end)
 
 						function recordTargetSurfacePos(player)
-							if player and player.Character then
-								local hrp2 = player.Character:FindFirstChild("HumanoidRootPart") or player.Character:FindFirstChild("Torso")
-								if hrp2 and hrp2.Position.Y > -50 and hrp2.AssemblyLinearVelocity.Y > -60 then
-									position5 = hrp2.Position
-									cFrame2 = hrp2.CFrame
+							if player then
+								local cf = getBestTargetCFrame(player)
+								if cf and isSafePlayableCF(cf) then
+									position5 = cf.Position
 								end
 							end
 						end
 
 						function getBestSurfacePos()
+							if LastKnownSafeCF and isSafePlayableCF(LastKnownSafeCF) then
+								return LastKnownSafeCF.Position
+							end
 							if position5 then return position5 end
 							local spawnLoc = workspace:FindFirstChildOfClass("SpawnLocation", true)
-							if spawnLoc then return spawnLoc.Position + Vector3.new(0, 4, 0) end
+							if spawnLoc and isPartInSafeWorldBounds(spawnLoc) then
+								return spawnLoc.Position + Vector3.new(0, 4, 0)
+							end
 							return Vector3.new(0, 25, 0)
 						end
 
 						function handleTunnelExitRecovery()
-							if tick() - now < 2.5 then return end
-							now = tick()
-							local v6 = getBestSurfacePos()
-							if humanoidRootPart and v6 then
-								humanoidRootPart.CFrame = CFrame.new(v6)
-								humanoidRootPart.AssemblyLinearVelocity = Vector3.zero
-								humanoidRootPart.AssemblyAngularVelocity = Vector3.zero
-							end
+							-- Disabled during active welds so ToObjectSpace CFrames never trigger false void teleports!
+							if isAnyAttachActive() then return end
 						end
 
 						function checkAndFollowTargetTeleport(player)
-							if player and player.Character and humanoidRootPart then
-								local character2 = player.Character
-								local humanoidRootPart2 = character2:FindFirstChild("HumanoidRootPart") or character2:FindFirstChild("Torso") or character2:FindFirstChild("UpperTorso")
-								local position6 = nil
-								local cFrame3 = nil
-								if humanoidRootPart2 then
-									position6 = humanoidRootPart2.Position
-									cFrame3 = humanoidRootPart2.CFrame
-								elseif typeof(character2.GetPivot) == "function" then
-									local ok, pivot = pcall(function() return character2:GetPivot() end)
-									if ok and pivot and pivot.Position and pivot.Position.Magnitude > 0.1 then
-										position6 = pivot.Position
-										cFrame3 = pivot
+							-- Stream in unstreamed target if their character streamed out while welded
+							if not player then return end
+							local tChar = findPlayerCharacterAnywhere(player)
+							local tRef = tChar and pickTargetRef(tChar, "torso")
+							if not tRef then
+								local hintCF = getBestTargetCFrame(player)
+								if hintCF and isSafePlayableCF(hintCF) and humanoidRootPart then
+									if typeof(localPlayer_.RequestStreamAroundAsync) == "function" then
+										task.spawn(function()
+											pcall(function() localPlayer_:RequestStreamAroundAsync(hintCF.Position, 2) end)
+										end)
 									end
-								end
-								if not position6 then return end
-								local v6 = tbl17[player]
-								tbl17[player] = position6
-								position4 = position6
-								local magnitude = v6 and (position6 - v6).Magnitude or (humanoidRootPart and (position6 - humanoidRootPart.Position).Magnitude or 0)
-								if magnitude > 25 then
-									pcall(function()
-										if typeof(localPlayer_.RequestStreamAroundAsync) == "function" then
-											task.spawn(function()
-												pcall(function() localPlayer_:RequestStreamAroundAsync(position6, 5) end)
-											end)
-										end
-										local cframe = cFrame3 and (cFrame3 * CFrame.new(0, 0, 2)) or CFrame.new(position6 + Vector3.new(0, 2, 0))
-										humanoidRootPart.CFrame = cframe
-										humanoidRootPart.AssemblyLinearVelocity = Vector3.zero
-										humanoidRootPart.AssemblyAngularVelocity = Vector3.zero
-									end)
+									clearPhysicsRep()
+									humanoidRootPart.CFrame = hintCF * CFrame.new(0, 2, 0)
+									humanoidRootPart.AssemblyLinearVelocity = Vector3.zero
+									humanoidRootPart.AssemblyAngularVelocity = Vector3.zero
 								end
 							end
 						end
 
 						function isTargetValidAndAlive(model)
 							if not model then return false end
-							local character2 = model.Character or ((typeof(model) == "Instance" and model:IsA("Model")) and model or nil)
+							local character2 = (typeof(model) == "Instance" and model:IsA("Player")) and findPlayerCharacterAnywhere(model)
+								or model.Character
+								or ((typeof(model) == "Instance" and model:IsA("Model")) and model or nil)
 							if character2 and character2.Parent then
-								tbl18[model] = nil
 								local humanoid2 = character2:FindFirstChildOfClass("Humanoid")
-								if humanoid2 then
-									if humanoid2.Health <= 0 or humanoid2:GetState() == Enum.HumanoidStateType.Dead then
-										return false
+								if humanoid2 and (humanoid2.Health <= 0 or humanoid2:GetState() == Enum.HumanoidStateType.Dead) then
+									-- Check if target has a live reanimation clone before declaring dead
+									if typeof(model) == "Instance" and model:IsA("Player") then
+										local reanimChar = findTargetReanimModel(model)
+										if reanimChar and reanimChar ~= character2 then
+											return true
+										end
 									end
+									return false
 								end
-								local hrp2 = character2:FindFirstChild("HumanoidRootPart") or character2:FindFirstChild("Torso") or character2:FindFirstChild("UpperTorso") or character2:FindFirstChild("Head")
-								if hrp2 and hrp2.Parent then
-									local fpdh = workspace.FallenPartsDestroyHeight
-									if typeof(fpdh) ~= "number" or fpdh ~= fpdh then fpdh = -500 end
-									if hrp2.AssemblyLinearVelocity.Y < -80 and hrp2.Position.Y < fpdh + 30 then
-										return false
-									end
+								local ref = pickTargetRef(character2, "torso")
+								if ref and ref.Parent then
 									return true
 								end
-								if typeof(character2.GetPivot) == "function" then
-									local ok, piv = pcall(function() return character2:GetPivot() end)
-									if ok and piv and piv.Position and piv.Position.Magnitude > 0.1 then
-										return true
-									end
-								end
 							end
-							local v6 = tbl18[model]
-							if not v6 then
-								tbl18[model] = tick()
+							local hintCF = (typeof(model) == "Instance" and model:IsA("Player")) and getBestTargetCFrame(model) or nil
+							if hintCF and isSafePlayableCF(hintCF) then
 								return true
 							end
-							return (tick() - v6 < 3)
+							return false
 						end
 
 						function touchTargetIntersections(character2)
-							if humanoidRootPart and character2 then
-								local humanoidRootPart2 = character2:FindFirstChild("HumanoidRootPart") or character2:FindFirstChild("Torso")
-								if not humanoidRootPart2 then return end
-								pcall(function()
-									local parts = workspace:GetPartBoundsInBox(humanoidRootPart2.CFrame, Vector3.new(8, 8, 8))
-									for _, part in ipairs(parts) do
-										if part and part.Parent and not part:IsDescendantOf(localPlayer_.Character) and not part:IsDescendantOf(character2) then
-											if typeof(firetouchinterest) == "function" and part:FindFirstChildOfClass("TouchTransmitter") then
-												firetouchinterest(humanoidRootPart, part, 0)
-												task.defer(function()
-													pcall(function() firetouchinterest(humanoidRootPart, part, 1) end)
-												end)
-											end
-										end
-									end
-								end)
-							end
+							-- Intentionally no-op during welds so nearby TouchTransmitters / portals / seats never hijack your character!
 						end
 
 						function attachSafelyLandAtTarget(model)
-							for _, v6 in ipairs(AttachFeatures or {}) do
-								if tbl and tbl[v6] then
-									return
-								end
+							if isAnyAttachActive() then
+								return
 							end
+							clearPhysicsRep()
 							local character2 = localPlayer_.Character or character
 							local humanoidRootPart2 = character2 and (character2:FindFirstChild("HumanoidRootPart") or character2:FindFirstChild("Torso"))
 							local humanoid2 = character2 and character2:FindFirstChildOfClass("Humanoid")
 							if humanoidRootPart2 and humanoid2 then
-								local cFrame2_ = cFrame and (cFrame * CFrame.new(0, -1.5, 0)) or humanoidRootPart2.CFrame
+								local safeLandCF = nil
+								if model and typeof(model) == "Instance" and model:IsA("Player") then
+									local tCF = getBestTargetCFrame(model)
+									if tCF and isSafePlayableCF(tCF) then
+										local _, yYaw, _ = tCF:ToEulerAnglesYXZ()
+										safeLandCF = CFrame.new(tCF.Position + Vector3.new(0, 1.5, 0)) * CFrame.Angles(0, yYaw, 0)
+									end
+								end
+								if not safeLandCF and lastAppliedWorldCFrame and isSafePlayableCF(lastAppliedWorldCFrame) then
+									local _, yYaw, _ = lastAppliedWorldCFrame:ToEulerAnglesYXZ()
+									safeLandCF = CFrame.new(lastAppliedWorldCFrame.Position) * CFrame.Angles(0, yYaw, 0)
+								end
+								if not safeLandCF and LastKnownSafeCF and isSafePlayableCF(LastKnownSafeCF) then
+									safeLandCF = LastKnownSafeCF
+								end
+								if not safeLandCF then
+									safeLandCF = CFrame.new(getBestSurfacePos())
+								end
 								cFrame = nil
+								lastAppliedWorldCFrame = nil
+
 								pcall(function() workspace.Gravity = 196.2 end)
 								humanoid2.PlatformStand = false
 								humanoid2.Sit = false
 								humanoid2.AutoRotate = true
 								for _, descendant in ipairs(character2:GetDescendants()) do
 									if descendant:IsA("BasePart") then
-										descendant.CanCollide = true
+										descendant.Anchored = false
+										descendant.Massless = false
+										descendant.CanTouch = true
+										descendant.CanQuery = true
+										if descendant.Name == "HumanoidRootPart" or descendant.Name == "Torso" or descendant.Name == "UpperTorso" or descendant.Name == "LowerTorso" or descendant.Name == "Head" then
+											descendant.CanCollide = not tbl.Noclip
+										end
 									end
 								end
 								humanoidRootPart2.Anchored = false
-								humanoidRootPart2.CFrame = cFrame2_
+								humanoidRootPart2.CFrame = safeLandCF
 								humanoidRootPart2.AssemblyLinearVelocity = Vector3.zero
 								humanoidRootPart2.AssemblyAngularVelocity = Vector3.zero
 								pcall(function()
 									humanoidRootPart2.Velocity = Vector3.zero
 									humanoidRootPart2.RotVelocity = Vector3.zero
 									humanoid2:ChangeState(Enum.HumanoidStateType.GettingUp)
+									humanoid2:ChangeState(Enum.HumanoidStateType.Running)
 								end)
 							end
 						end
@@ -56872,12 +57161,22 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 						-- =====================================================================
 						-- UNIFIED PRESET SETUP / CLEANUP FACTORY (Supports All 17 Presets)
 						-- =====================================================================
-						local function prepareCharacterForAttach(idListR15, idListR6, useSitState)
+						local function prepareCharacterForAttach(idListR15, idListR6)
 							local character2 = localPlayer_.Character or character
-							if not character2 then return nil, nil end
+							if not character2 then return nil, nil, false end
 							local humanoid2 = character2:FindFirstChildOfClass("Humanoid")
-							if not humanoid2 then return nil, nil end
+							if not humanoid2 then return nil, nil, false end
+							local root2 = character2:FindFirstChild("HumanoidRootPart")
+							breakAllSeatsAndExternalJoints(character2, humanoid2, root2)
 							humanoid2.AutoRotate = false
+							humanoid2.Sit = false
+							humanoid2.PlatformStand = true
+							pcall(function()
+								if not humanoid2:GetStateEnabled(Enum.HumanoidStateType.Physics) then
+									humanoid2:SetStateEnabled(Enum.HumanoidStateType.Physics, true)
+								end
+								humanoid2:ChangeState(Enum.HumanoidStateType.Physics)
+							end)
 							local animator = humanoid2:FindFirstChildOfClass("Animator")
 							if not animator then
 								animator = Instance.new("Animator")
@@ -56895,19 +57194,12 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							for _, tr in ipairs(humanoid2:GetPlayingAnimationTracks() or {}) do
 								pcall(function() tr:Stop(0) end)
 							end
-							if useSitState then
-								humanoid2.Sit = true
-								humanoid2.PlatformStand = false
-							else
-								humanoid2.PlatformStand = true
-								pcall(function() humanoid2:ChangeState(Enum.HumanoidStateType.Physics) end)
-							end
 							pcall(function() workspace.Gravity = 0 end)
 							local track = nil
 							if idListR15 or idListR6 then
 								track = loadBestPresetAnimationTrack(animator, humanoid2, idListR15, idListR6)
 							end
-							ensureWeldNoclipCache(character2)
+							ensureWeldNoclipCache(character2, true)
 							return character2, track, wasAnimDisabled
 						end
 
@@ -56919,13 +57211,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 									track:Destroy()
 								end)
 							end
-							local anyActive = false
-							for _, v6 in ipairs(AttachFeatures or {}) do
-								if tbl and tbl[v6] then
-									anyActive = true
-									break
-								end
-							end
+							local anyActive = isAnyAttachActive()
 							local charToRestore = setupChar or localPlayer_.Character or character
 							if not anyActive and charToRestore then
 								local humanoid2 = charToRestore:FindFirstChildOfClass("Humanoid")
@@ -56933,25 +57219,35 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 									humanoid2.PlatformStand = false
 									humanoid2.Sit = false
 									humanoid2.AutoRotate = true
-									pcall(function() humanoid2:ChangeState(Enum.HumanoidStateType.GettingUp) end)
+									pcall(function()
+										humanoid2:ChangeState(Enum.HumanoidStateType.GettingUp)
+										humanoid2:ChangeState(Enum.HumanoidStateType.Running)
+									end)
 								end
 								local animate = charToRestore:FindFirstChild("Animate")
-								if animate and wasAnimDisabled then
+								if animate then
 									animate.Disabled = false
 								end
 								pcall(function() workspace.Gravity = 196.2 end)
 							end
 							if origParts then
-								for k, v6 in pairs(origParts) do
-									if k and k.Parent then
-										pcall(function() k.CanCollide = v6.CanCollide end)
-									end
-								end
 								table.clear(origParts)
 							end
 						end
 
-						-- 1. PAT / HEADPAT
+						-- Helper to get upright target anchor and valid HRP for any target player
+						local function resolveTargetParts(targetPlr, refMode)
+							if not targetPlr then return nil, nil, nil end
+							local tChar = findPlayerCharacterAnywhere(targetPlr)
+							if not tChar then return nil, nil, nil end
+							local refPart = pickTargetRef(tChar, refMode or "torso")
+							if not refPart then return nil, nil, nil end
+							local rawHRP = tChar:FindFirstChild("HumanoidRootPart")
+							local validHRP = (rawHRP and isRefPartValid(rawHRP, tChar)) and rawHRP or nil
+							return tChar, refPart, validHRP
+						end
+
+						-- 1. PAT / HEADPAT (Exact File 2 Offset: CFrame.new(0, 0, -1.9) * CFrame.Angles(0, math.rad(180), 0))
 						patOriginalParts = {}
 						patSetupChar = nil
 						patAnimTrack = nil
@@ -56971,7 +57267,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 								return true
 							end
 							patCleanup()
-							local c, tr, wasDis = prepareCharacterForAttach(WELD_ANIM_FALLBACKS.PAT, WELD_ANIM_FALLBACKS.PAT, false)
+							local c, tr, wasDis = prepareCharacterForAttach(WELD_ANIM_FALLBACKS.PAT, WELD_ANIM_FALLBACKS.PAT)
 							if not c then return end
 							patSetupChar = c
 							patAnimTrack = tr
@@ -56979,23 +57275,17 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							return true
 						end
 
-						function patComputeCFrame(instance2)
-							local lookVector = instance2.CFrame.LookVector
-							local flat = Vector3.new(lookVector.X, 0, lookVector.Z)
-							local unit2 = (flat.Magnitude > 0) and flat.Unit or Vector3.new(0, 0, 1)
-							local hrp2 = instance2.Parent and instance2.Parent:FindFirstChild("HumanoidRootPart")
-							local y = (hrp2 and hrp2.Position.Y or (instance2.Position.Y - 1.5)) + getAnatomicalYAdjustment("Pat", instance2.Parent)
-							local pos = instance2.Position + unit2 * 1.9
-							local v3 = Vector3.new(pos.X, y, pos.Z)
-							return CFrame.lookAt(v3, Vector3.new(instance2.Position.X, v3.Y, instance2.Position.Z))
+						function patComputeCFrame(refPart, tChar)
+							local baseCF = getFlatYawCFrame(refPart.CFrame)
+							local yAdj = getAnatomicalYAdjustment("Pat", tChar or refPart.Parent, refPart)
+							return baseCF * CFrame.new(0, yAdj, -1.9) * CFrame.Angles(0, math.rad(180), 0)
 						end
 
 						function patApplyCFrame(arg)
-							if tbl.Pat and PatTarget and PatTarget.Character and humanoidRootPart then
-								local head = PatTarget.Character:FindFirstChild("Head")
-								if not head then return false end
-								local hrp2 = PatTarget.Character:FindFirstChild("HumanoidRootPart") or head
-								return applyZeroDelayWeldCFrame(patComputeCFrame(head), hrp2, arg)
+							if tbl.Pat and PatTarget and humanoidRootPart then
+								local tChar, refPart, validHRP = resolveTargetParts(PatTarget, "torso")
+								if not refPart then return false end
+								return applyZeroDelayWeldCFrame(patComputeCFrame(refPart, tChar), validHRP, arg)
 							end
 							return false
 						end
@@ -57013,32 +57303,29 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							clearAutoSelectedTarget()
 						end
 
-						-- 2. FACEBANG
+						-- 2. FACEBANG (Exact File 2 Head Offset & Oscillation)
 						facebangSetupChar = nil
 						local fbAnimTrack = nil
 						local fbWasAnimDisabled = false
 						local fbOrigParts = {}
 
-						function fbComputeCFrame(arg)
-							local spd = tonumber(FacebangSpeed) or 1
-							local dist = tonumber(FacebangDistance) or 2.9
-							local osc = 0.8 + ((math.sin(os.clock() * spd * 12) + 1) * 0.5) * dist
-							local lookVector = arg.CFrame.LookVector
-							local flat = Vector3.new(lookVector.X, 0, lookVector.Z)
-							local unit = (flat.Magnitude > 0) and flat.Unit or Vector3.new(0, 0, 1)
-							local pos = arg.Position + unit * osc
-							local yAdj = getAnatomicalYAdjustment("Facebang", arg.Parent)
-							local v3 = Vector3.new(pos.X, arg.Position.Y + 1.2 + yAdj, pos.Z)
-							return CFrame.lookAt(v3, Vector3.new(arg.Position.X, v3.Y, arg.Position.Z))
+						function fbComputeCFrame(refPart, tChar)
+							local spd = math.clamp(tonumber(FacebangSpeed) or 1, 0.2, 10)
+							local dist = math.clamp(tonumber(FacebangDistance) or 2.9, 0.5, 10)
+							local phase = (math.sin((os.clock() * spd) * (2 * math.pi) / 0.22) + 1) * 0.5
+							local zOff = -3.8 + (dist * phase)
+							local baseCF = getFlatYawCFrame(refPart.CFrame)
+							local yAdj = getAnatomicalYAdjustment("Facebang", tChar or refPart.Parent, refPart)
+							local baseH = (refPart.Name == "Head") and 1.0 or 2.5
+							return baseCF * CFrame.new(0, baseH + yAdj, zOff) * CFrame.Angles(0, math.rad(180), 0)
 						end
 
 						function fbApplyCFrame(arg)
 							local target = FacebangTarget or pgPlayer
-							if tbl.Facebang and target and target.Character and humanoidRootPart then
-								local head = target.Character:FindFirstChild("Head")
-								if not head then return false end
-								local hrp2 = target.Character:FindFirstChild("HumanoidRootPart") or head
-								return applyZeroDelayWeldCFrame(fbComputeCFrame(head), hrp2, arg)
+							if tbl.Facebang and target and humanoidRootPart then
+								local tChar, refPart, validHRP = resolveTargetParts(target, "head")
+								if not refPart then return false end
+								return applyZeroDelayWeldCFrame(fbComputeCFrame(refPart, tChar), validHRP, arg)
 							end
 							return false
 						end
@@ -57054,19 +57341,15 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							local character2 = localPlayer_.Character or character
 							if not character2 then return end
 							local target = FacebangTarget or resolveAttachTarget("Facebang", true)
-							if target and target.Character then
+							if target then
 								FacebangTarget = target
 								syncAttachTarget(target)
 								fbCleanup()
-								local c, tr, wasDis = prepareCharacterForAttach(WELD_ANIM_FALLBACKS.BANG_R15, WELD_ANIM_FALLBACKS.BANG_R6, false)
+								local c, tr, wasDis = prepareCharacterForAttach(WELD_ANIM_FALLBACKS.BANG_R15, WELD_ANIM_FALLBACKS.BANG_R6)
 								facebangSetupChar = c
 								fbAnimTrack = tr
 								fbWasAnimDisabled = wasDis
 								attachFocusTarget(target)
-								local hrp2 = target.Character:FindFirstChild("HumanoidRootPart")
-								if tbl.NoDelay and hrp2 then
-									setPhysicsRep(hrp2)
-								end
 							end
 						end
 
@@ -57078,7 +57361,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							clearAutoSelectedTarget()
 						end
 
-						-- 3. HEADSIT
+						-- 3. HEADSIT (Exact File 2 Offset: CFrame.new(0, 1.2, 0) on Head, PlatformStand + Sit Anim so SeatWelds never hijack!)
 						hsSetupChar = nil
 						hsOriginalParts = {}
 						hsWasAnimateDisabled = false
@@ -57094,11 +57377,11 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 						function hsSetup()
 							local character2 = localPlayer_.Character or character
 							if not character2 then return end
-							if hsSetupChar == character2 and humanoid and humanoid.Sit then
+							if hsSetupChar == character2 and hsAnimTrack and hsAnimTrack.IsPlaying then
 								return true
 							end
 							hsCleanup()
-							local c, tr, wasDis = prepareCharacterForAttach(WELD_ANIM_FALLBACKS.SIT_R15, WELD_ANIM_FALLBACKS.SIT_R6, true)
+							local c, tr, wasDis = prepareCharacterForAttach(WELD_ANIM_FALLBACKS.SIT_R15, WELD_ANIM_FALLBACKS.SIT_R6)
 							if not c then return end
 							hsSetupChar = c
 							hsAnimTrack = tr
@@ -57106,17 +57389,18 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							return true
 						end
 
-						function hsComputeCFrame(arg)
-							local yAdj = getAnatomicalYAdjustment("Headsit", arg.Parent)
-							return arg.CFrame * CFrame.new(0, 1.35 + yAdj, 0)
+						function hsComputeCFrame(refPart, tChar)
+							local baseCF = getFlatYawCFrame(refPart.CFrame)
+							local yAdj = getAnatomicalYAdjustment("Headsit", tChar or refPart.Parent, refPart)
+							local baseH = (refPart.Name == "Head") and 1.25 or 2.75
+							return baseCF * CFrame.new(0, baseH + yAdj, 0)
 						end
 
 						function hsApplyCFrame(arg)
-							if tbl.Headsit and HeadsitTarget and HeadsitTarget.Character and humanoidRootPart then
-								local head = HeadsitTarget.Character:FindFirstChild("Head")
-								if not head then return false end
-								local hrp2 = HeadsitTarget.Character:FindFirstChild("HumanoidRootPart") or head
-								return applyZeroDelayWeldCFrame(hsComputeCFrame(head), hrp2, arg)
+							if tbl.Headsit and HeadsitTarget and humanoidRootPart then
+								local tChar, refPart, validHRP = resolveTargetParts(HeadsitTarget, "head")
+								if not refPart then return false end
+								return applyZeroDelayWeldCFrame(hsComputeCFrame(refPart, tChar), validHRP, arg)
 							end
 							return false
 						end
@@ -57154,7 +57438,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 								return true
 							end
 							bhCleanup()
-							local c, tr, wasDis = prepareCharacterForAttach(WELD_ANIM_FALLBACKS.HUG, WELD_ANIM_FALLBACKS.HUG, false)
+							local c, tr, wasDis = prepareCharacterForAttach(WELD_ANIM_FALLBACKS.HUG, WELD_ANIM_FALLBACKS.HUG)
 							if not c then return end
 							bhSetupChar = c
 							bhAnimTrack = tr
@@ -57162,23 +57446,17 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							return true
 						end
 
-						function bhComputeCFrame(instance2)
-							local lookVector = instance2.CFrame.LookVector
-							local flat = Vector3.new(lookVector.X, 0, lookVector.Z)
-							local unit = (flat.Magnitude > 0) and flat.Unit or Vector3.new(0, 0, 1)
-							local hrp2 = instance2.Parent and instance2.Parent:FindFirstChild("HumanoidRootPart")
-							local y = (hrp2 and hrp2.Position.Y or (instance2.Position.Y - 1.5)) + getAnatomicalYAdjustment("Backhug", instance2.Parent)
-							local pos = instance2.Position - unit * 1.25
-							local v4 = Vector3.new(pos.X, y, pos.Z)
-							return CFrame.lookAt(v4, Vector3.new(instance2.Position.X, v4.Y, instance2.Position.Z))
+						function bhComputeCFrame(refPart, tChar)
+							local baseCF = getFlatYawCFrame(refPart.CFrame)
+							local yAdj = getAnatomicalYAdjustment("Backhug", tChar or refPart.Parent, refPart)
+							return baseCF * CFrame.new(0, yAdj, 1.25)
 						end
 
 						function bhApplyCFrame(arg)
-							if tbl.Backhug and BackhugTarget and BackhugTarget.Character and humanoidRootPart then
-								local head = BackhugTarget.Character:FindFirstChild("Head")
-								if not head then return false end
-								local hrp2 = BackhugTarget.Character:FindFirstChild("HumanoidRootPart") or head
-								return applyZeroDelayWeldCFrame(bhComputeCFrame(head), hrp2, arg)
+							if tbl.Backhug and BackhugTarget and humanoidRootPart then
+								local tChar, refPart, validHRP = resolveTargetParts(BackhugTarget, "torso")
+								if not refPart then return false end
+								return applyZeroDelayWeldCFrame(bhComputeCFrame(refPart, tChar), validHRP, arg)
 							end
 							return false
 						end
@@ -57196,7 +57474,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							clearAutoSelectedTarget()
 						end
 
-						-- 5. FRONTHUG
+						-- 5. FRONTHUG (Exact File 2 Offset: CFrame.new(0, 0, -1.4) * CFrame.Angles(0, math.rad(180), 0))
 						fhSetupChar = nil
 						fhWasAnimateDisabled = false
 						fhAnimTrack = nil
@@ -57216,7 +57494,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 								return true
 							end
 							fhCleanup()
-							local c, tr, wasDis = prepareCharacterForAttach(WELD_ANIM_FALLBACKS.HUG, WELD_ANIM_FALLBACKS.HUG, false)
+							local c, tr, wasDis = prepareCharacterForAttach(WELD_ANIM_FALLBACKS.HUG, WELD_ANIM_FALLBACKS.HUG)
 							if not c then return end
 							fhSetupChar = c
 							fhAnimTrack = tr
@@ -57224,23 +57502,17 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							return true
 						end
 
-						function fhComputeCFrame(arg)
-							local lookVector = arg.CFrame.LookVector
-							local flat = Vector3.new(lookVector.X, 0, lookVector.Z)
-							local unit2 = (flat.Magnitude > 0) and flat.Unit or Vector3.new(0, 0, 1)
-							local hrp2 = arg.Parent and arg.Parent:FindFirstChild("HumanoidRootPart")
-							local y = (hrp2 and hrp2.Position.Y or (arg.Position.Y - 1.5)) + getAnatomicalYAdjustment("Fronthug", arg.Parent)
-							local pos = arg.Position + unit2 * 1.25
-							local v3 = Vector3.new(pos.X, y, pos.Z)
-							return CFrame.lookAt(v3, Vector3.new(arg.Position.X, v3.Y, arg.Position.Z))
+						function fhComputeCFrame(refPart, tChar)
+							local baseCF = getFlatYawCFrame(refPart.CFrame)
+							local yAdj = getAnatomicalYAdjustment("Fronthug", tChar or refPart.Parent, refPart)
+							return baseCF * CFrame.new(0, yAdj, -1.4) * CFrame.Angles(0, math.rad(180), 0)
 						end
 
 						function fhApplyCFrame(arg)
-							if tbl.Fronthug and FronthugTarget and FronthugTarget.Character and humanoidRootPart then
-								local head = FronthugTarget.Character:FindFirstChild("Head")
-								if not head then return false end
-								local hrp2 = FronthugTarget.Character:FindFirstChild("HumanoidRootPart") or head
-								return applyZeroDelayWeldCFrame(fhComputeCFrame(head), hrp2, arg)
+							if tbl.Fronthug and FronthugTarget and humanoidRootPart then
+								local tChar, refPart, validHRP = resolveTargetParts(FronthugTarget, "torso")
+								if not refPart then return false end
+								return applyZeroDelayWeldCFrame(fhComputeCFrame(refPart, tChar), validHRP, arg)
 							end
 							return false
 						end
@@ -57258,7 +57530,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							clearAutoSelectedTarget()
 						end
 
-						-- 6. PROPOSE
+						-- 6. PROPOSE (Exact File 2 Offset: CFrame.new(0, 0, -3.5) * CFrame.Angles(0, math.rad(180), 0))
 						prSetupChar = nil
 						prWasAnimateDisabled = false
 						prAnimTrack = nil
@@ -57278,7 +57550,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 								return true
 							end
 							prCleanup()
-							local c, tr, wasDis = prepareCharacterForAttach(WELD_ANIM_FALLBACKS.PROPOSE, WELD_ANIM_FALLBACKS.PROPOSE, false)
+							local c, tr, wasDis = prepareCharacterForAttach(WELD_ANIM_FALLBACKS.PROPOSE, WELD_ANIM_FALLBACKS.PROPOSE)
 							if not c then return end
 							prSetupChar = c
 							prAnimTrack = tr
@@ -57286,23 +57558,17 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							return true
 						end
 
-						function prComputeCFrame(instance2)
-							local lookVector = instance2.CFrame.LookVector
-							local flat = Vector3.new(lookVector.X, 0, lookVector.Z)
-							local unit2 = (flat.Magnitude > 0) and flat.Unit or Vector3.new(0, 0, 1)
-							local hrp2 = instance2.Parent and instance2.Parent:FindFirstChild("HumanoidRootPart")
-							local y = (hrp2 and hrp2.Position.Y or (instance2.Position.Y - 1.5)) + getAnatomicalYAdjustment("Propose", instance2.Parent)
-							local pos = instance2.Position + unit2 * 3.5
-							local v3 = Vector3.new(pos.X, y, pos.Z)
-							return CFrame.lookAt(v3, Vector3.new(instance2.Position.X, v3.Y, instance2.Position.Z))
+						function prComputeCFrame(refPart, tChar)
+							local baseCF = getFlatYawCFrame(refPart.CFrame)
+							local yAdj = getAnatomicalYAdjustment("Propose", tChar or refPart.Parent, refPart)
+							return baseCF * CFrame.new(0, yAdj, -3.5) * CFrame.Angles(0, math.rad(180), 0)
 						end
 
 						function prApplyCFrame(arg)
-							if tbl.Propose and ProposeTarget and ProposeTarget.Character and humanoidRootPart then
-								local head = ProposeTarget.Character:FindFirstChild("Head")
-								if not head then return false end
-								local hrp2 = ProposeTarget.Character:FindFirstChild("HumanoidRootPart") or head
-								return applyZeroDelayWeldCFrame(prComputeCFrame(head), hrp2, arg)
+							if tbl.Propose and ProposeTarget and humanoidRootPart then
+								local tChar, refPart, validHRP = resolveTargetParts(ProposeTarget, "torso")
+								if not refPart then return false end
+								return applyZeroDelayWeldCFrame(prComputeCFrame(refPart, tChar), validHRP, arg)
 							end
 							return false
 						end
@@ -57320,7 +57586,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							clearAutoSelectedTarget()
 						end
 
-						-- 7. HIPBANG / BANG
+						-- 7. HIPBANG / BANG (Exact File 2 Offset: CFrame.new(0, 0, 3.2) with 2.9 osc)
 						hbSetupChar = nil
 						hbWasAnimateDisabled = false
 						hbAnimTrack = nil
@@ -57340,7 +57606,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 								return true
 							end
 							hbCleanup()
-							local c, tr, wasDis = prepareCharacterForAttach(WELD_ANIM_FALLBACKS.BANG_R15, WELD_ANIM_FALLBACKS.BANG_R6, false)
+							local c, tr, wasDis = prepareCharacterForAttach(WELD_ANIM_FALLBACKS.BANG_R15, WELD_ANIM_FALLBACKS.BANG_R6)
 							if not c then return end
 							hbSetupChar = c
 							hbAnimTrack = tr
@@ -57348,26 +57614,20 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							return true
 						end
 
-						function hbComputeCFrame(instance2)
-							local spd = tonumber(HipbangSpeed) or 1
-							local dist = tonumber(HipbangDistance) or 2.9
-							local osc = 0.6 + ((math.sin(os.clock() * spd * 12) + 1) * 0.5) * dist
-							local lookVector = instance2.CFrame.LookVector
-							local flat = Vector3.new(lookVector.X, 0, lookVector.Z)
-							local unit = (flat.Magnitude > 0) and flat.Unit or Vector3.new(0, 0, 1)
-							local hrp2 = instance2.Parent and instance2.Parent:FindFirstChild("HumanoidRootPart")
-							local y = (hrp2 and hrp2.Position.Y or (instance2.Position.Y - 1.5)) + getAnatomicalYAdjustment("Hipbang", instance2.Parent)
-							local pos = instance2.Position - unit * osc
-							local v4 = Vector3.new(pos.X, y, pos.Z)
-							return CFrame.lookAt(v4, Vector3.new(instance2.Position.X, v4.Y, instance2.Position.Z))
+						function hbComputeCFrame(refPart, tChar)
+							local spd = math.clamp(tonumber(HipbangSpeed) or 1, 0.2, 10)
+							local dist = math.clamp(tonumber(HipbangDistance) or 2.9, 0.2, 8)
+							local phase = (math.sin((os.clock() * spd) * (2 * math.pi) / 0.22) + 1) * 0.5
+							local baseCF = getFlatYawCFrame(refPart.CFrame)
+							local yAdj = getAnatomicalYAdjustment("Hipbang", tChar or refPart.Parent, refPart)
+							return baseCF * CFrame.new(0, yAdj, 3.2 - (dist * phase))
 						end
 
 						function hbApplyCFrame(arg)
-							if tbl.Hipbang and HipbangTarget and HipbangTarget.Character and humanoidRootPart then
-								local head = HipbangTarget.Character:FindFirstChild("Head") or HipbangTarget.Character:FindFirstChild("HumanoidRootPart")
-								if not head then return false end
-								local hrp2 = HipbangTarget.Character:FindFirstChild("HumanoidRootPart") or head
-								return applyZeroDelayWeldCFrame(hbComputeCFrame(head), hrp2, arg)
+							if tbl.Hipbang and HipbangTarget and humanoidRootPart then
+								local tChar, refPart, validHRP = resolveTargetParts(HipbangTarget, "torso")
+								if not refPart then return false end
+								return applyZeroDelayWeldCFrame(hbComputeCFrame(refPart, tChar), validHRP, arg)
 							end
 							return false
 						end
@@ -57385,7 +57645,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							clearAutoSelectedTarget()
 						end
 
-						-- 8. BAGPACK / BACKPACK
+						-- 8. BAGPACK / BACKPACK (Exact File 2 Offset: CFrame.new(0, 0, 1.05))
 						bgpSetupChar = nil
 						bgpOriginalParts = {}
 						bgpWasAnimateDisabled = false
@@ -57401,11 +57661,11 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 						function bgpSetup()
 							local character2 = localPlayer_.Character or character
 							if not character2 then return end
-							if bgpSetupChar == character2 and humanoid and humanoid.Sit then
+							if bgpSetupChar == character2 and bgpAnimTrack and bgpAnimTrack.IsPlaying then
 								return true
 							end
 							bgpCleanup()
-							local c, tr, wasDis = prepareCharacterForAttach(WELD_ANIM_FALLBACKS.SIT_R15, WELD_ANIM_FALLBACKS.SIT_R6, true)
+							local c, tr, wasDis = prepareCharacterForAttach(WELD_ANIM_FALLBACKS.SIT_R15, WELD_ANIM_FALLBACKS.SIT_R6)
 							if not c then return end
 							bgpSetupChar = c
 							bgpAnimTrack = tr
@@ -57413,16 +57673,17 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							return true
 						end
 
-						function bgpComputeCFrame(arg)
-							local yAdj = getAnatomicalYAdjustment("Bagpack", arg.Parent)
-							return arg.CFrame * CFrame.new(0, 0.35 + yAdj, 1.05)
+						function bgpComputeCFrame(refPart, tChar)
+							local baseCF = getFlatYawCFrame(refPart.CFrame)
+							local yAdj = getAnatomicalYAdjustment("Bagpack", tChar or refPart.Parent, refPart)
+							return baseCF * CFrame.new(0, 0.25 + yAdj, 1.05)
 						end
 
 						function bgpApplyCFrame(arg)
-							if tbl.Bagpack and BagpackTarget and BagpackTarget.Character and humanoidRootPart then
-								local hrp2 = BagpackTarget.Character:FindFirstChild("HumanoidRootPart") or BagpackTarget.Character:FindFirstChild("Torso")
-								if not hrp2 then return false end
-								return applyZeroDelayWeldCFrame(bgpComputeCFrame(hrp2), hrp2, arg)
+							if tbl.Bagpack and BagpackTarget and humanoidRootPart then
+								local tChar, refPart, validHRP = resolveTargetParts(BagpackTarget, "torso")
+								if not refPart then return false end
+								return applyZeroDelayWeldCFrame(bgpComputeCFrame(refPart, tChar), validHRP, arg)
 							end
 							return false
 						end
@@ -57440,7 +57701,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							clearAutoSelectedTarget()
 						end
 
-						-- 9. GOON (Updated File 2 Offset & Fallback Chain: 136828069054505 -> 72042024)
+						-- 9. GOON (Exact File 2 Offset: CFrame.new(0, 0, -1.45) * CFrame.Angles(0, math.rad(180), 0))
 						goonSetupChar = nil
 						goonOriginalParts = {}
 						goonAnimTrack = nil
@@ -57460,7 +57721,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 								return true
 							end
 							goonCleanup()
-							local c, tr, wasDis = prepareCharacterForAttach(WELD_ANIM_FALLBACKS.GOON_R15, WELD_ANIM_FALLBACKS.GOON_R6, false)
+							local c, tr, wasDis = prepareCharacterForAttach(WELD_ANIM_FALLBACKS.GOON_R15, WELD_ANIM_FALLBACKS.GOON_R6)
 							if not c then return end
 							goonSetupChar = c
 							goonAnimTrack = tr
@@ -57468,18 +57729,17 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							return true
 						end
 
-						function goonComputeCFrame(instance2)
-							local hrp2 = instance2.Parent and (instance2.Parent:FindFirstChild("HumanoidRootPart") or instance2.Parent:FindFirstChild("Torso")) or instance2
-							local yAdj = getAnatomicalYAdjustment("Goon", instance2.Parent)
-							return hrp2.CFrame * CFrame.new(0, yAdj, -1.45) * CFrame.Angles(0, math.rad(180), 0)
+						function goonComputeCFrame(refPart, tChar)
+							local baseCF = getFlatYawCFrame(refPart.CFrame)
+							local yAdj = getAnatomicalYAdjustment("Goon", tChar or refPart.Parent, refPart)
+							return baseCF * CFrame.new(0, yAdj, -1.45) * CFrame.Angles(0, math.rad(180), 0)
 						end
 
 						function goonApplyCFrame(arg)
-							if tbl.Goon and GoonTarget and GoonTarget.Character and humanoidRootPart then
-								local head = GoonTarget.Character:FindFirstChild("Head") or GoonTarget.Character:FindFirstChild("HumanoidRootPart")
-								if not head then return false end
-								local hrp2 = GoonTarget.Character:FindFirstChild("HumanoidRootPart") or head
-								return applyZeroDelayWeldCFrame(goonComputeCFrame(head), hrp2, arg)
+							if tbl.Goon and GoonTarget and humanoidRootPart then
+								local tChar, refPart, validHRP = resolveTargetParts(GoonTarget, "torso")
+								if not refPart then return false end
+								return applyZeroDelayWeldCFrame(goonComputeCFrame(refPart, tChar), validHRP, arg)
 							end
 							return false
 						end
@@ -57505,75 +57765,68 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							Rizz = {
 								r15 = WELD_ANIM_FALLBACKS.RIZZ_R15,
 								r6 = WELD_ANIM_FALLBACKS.RIZZ_R6,
-								compute = function(char)
-									local hrp2 = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")
-									if not hrp2 then return nil end
-									local yAdj = getAnatomicalYAdjustment("Rizz", char)
-									return hrp2.CFrame * CFrame.new(0, yAdj, -1.28) * CFrame.Angles(0, math.rad(180), 0), hrp2
+								compute = function(refPart, tChar)
+									local baseCF = getFlatYawCFrame(refPart.CFrame)
+									local yAdj = getAnatomicalYAdjustment("Rizz", tChar, refPart)
+									return baseCF * CFrame.new(0, yAdj, -1.28) * CFrame.Angles(0, math.rad(180), 0)
 								end,
 							},
 							Jerk = {
 								r15 = WELD_ANIM_FALLBACKS.JERK_R15,
 								r6 = WELD_ANIM_FALLBACKS.JERK_R6,
-								compute = function(char)
-									local hrp2 = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")
-									if not hrp2 then return nil end
-									local yAdj = getAnatomicalYAdjustment("Jerk", char)
-									return hrp2.CFrame * CFrame.new(0, yAdj, -1.45) * CFrame.Angles(0, math.rad(180), 0), hrp2
+								compute = function(refPart, tChar)
+									local baseCF = getFlatYawCFrame(refPart.CFrame)
+									local yAdj = getAnatomicalYAdjustment("Jerk", tChar, refPart)
+									return baseCF * CFrame.new(0, yAdj, -1.45) * CFrame.Angles(0, math.rad(180), 0)
 								end,
 							},
 							Kiss = {
 								r15 = WELD_ANIM_FALLBACKS.KISS,
 								r6 = WELD_ANIM_FALLBACKS.KISS,
-								compute = function(char)
-									local hrp2 = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")
-									if not hrp2 then return nil end
-									local yAdj = getAnatomicalYAdjustment("Kiss", char)
-									return hrp2.CFrame * CFrame.new(0, yAdj, -1.1) * CFrame.Angles(0, math.rad(180), 0), hrp2
+								compute = function(refPart, tChar)
+									local baseCF = getFlatYawCFrame(refPart.CFrame)
+									local yAdj = getAnatomicalYAdjustment("Kiss", tChar, refPart)
+									return baseCF * CFrame.new(0, yAdj, -1.1) * CFrame.Angles(0, math.rad(180), 0)
 								end,
 							},
 							Lawl = {
 								r15 = WELD_ANIM_FALLBACKS.LAWL_R15,
 								r6 = WELD_ANIM_FALLBACKS.LAWL_R6,
-								compute = function(char)
-									local hrp2 = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")
-									if not hrp2 then return nil end
-									local yAdj = getAnatomicalYAdjustment("Lawl", char)
-									return hrp2.CFrame * CFrame.new(0, yAdj, -2.4) * CFrame.Angles(0, math.rad(180), 0), hrp2
+								compute = function(refPart, tChar)
+									local baseCF = getFlatYawCFrame(refPart.CFrame)
+									local yAdj = getAnatomicalYAdjustment("Lawl", tChar, refPart)
+									return baseCF * CFrame.new(0, yAdj, -2.4) * CFrame.Angles(0, math.rad(180), 0)
 								end,
 							},
 							Chootlelo = {
 								r15 = WELD_ANIM_FALLBACKS.BANG_R15,
 								r6 = WELD_ANIM_FALLBACKS.BANG_R6,
-								compute = function(char)
-									local hrp2 = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")
-									if not hrp2 then return nil end
+								compute = function(refPart, tChar)
+									local baseCF = getFlatYawCFrame(refPart.CFrame)
 									local alpha = (math.sin((os.clock() / 0.22) * math.pi * 2) + 1) * 0.5
 									local zDist = -3.8 + alpha * 2.9
-									local yAdj = getAnatomicalYAdjustment("Chootlelo", char)
-									return hrp2.CFrame * CFrame.new(0, 2.2 + yAdj, zDist) * CFrame.Angles(0, math.rad(180), 0), hrp2
+									local yAdj = getAnatomicalYAdjustment("Chootlelo", tChar, refPart)
+									return baseCF * CFrame.new(0, 2.2 + yAdj, zDist) * CFrame.Angles(0, math.rad(180), 0)
 								end,
 							},
 							Backshots = {
 								r15 = WELD_ANIM_FALLBACKS.BANG_R15,
 								r6 = WELD_ANIM_FALLBACKS.BANG_R6,
-								compute = function(char)
-									local hrp2 = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")
-									if not hrp2 then return nil end
+								compute = function(refPart, tChar)
+									local baseCF = getFlatYawCFrame(refPart.CFrame)
 									local alpha = (math.sin((os.clock() / 0.22) * math.pi * 2) + 1) * 0.5
-									local zDist = 3.2 - alpha * 2.5
-									local yAdj = getAnatomicalYAdjustment("Backshots", char)
-									return hrp2.CFrame * CFrame.new(0, yAdj, zDist), hrp2
+									local zDist = 3.2 - alpha * 2.9
+									local yAdj = getAnatomicalYAdjustment("Backshots", tChar, refPart)
+									return baseCF * CFrame.new(0, yAdj, zDist)
 								end,
 							},
 							Chase = {
 								r15 = nil,
 								r6 = nil,
-								compute = function(char)
-									local hrp2 = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")
-									if not hrp2 then return nil end
-									local yAdj = getAnatomicalYAdjustment("Chase", char)
-									return hrp2.CFrame * CFrame.new(0, yAdj, 2.2), hrp2
+								compute = function(refPart, tChar)
+									local baseCF = getFlatYawCFrame(refPart.CFrame)
+									local yAdj = getAnatomicalYAdjustment("Chase", tChar, refPart)
+									return baseCF * CFrame.new(0, yAdj, 2.2)
 								end,
 							},
 						}
@@ -57595,7 +57848,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 									return true
 								end
 								pCfg.cleanup()
-								local c, tr, wasDis = prepareCharacterForAttach(pCfg.r15, pCfg.r6, false)
+								local c, tr, wasDis = prepareCharacterForAttach(pCfg.r15, pCfg.r6)
 								if not c then return false end
 								st.setupChar = c
 								st.track = tr
@@ -57604,10 +57857,13 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							end
 							pCfg.apply = function(isHb)
 								local tgt = AttachTargetGetters[pName] and AttachTargetGetters[pName]()
-								if tbl[pName] and tgt and tgt.Character and humanoidRootPart then
-									local cf, refPart = pCfg.compute(tgt.Character)
-									if cf and refPart then
-										return applyZeroDelayWeldCFrame(cf, refPart, isHb), cf
+								if tbl[pName] and tgt and humanoidRootPart then
+									local tChar, refPart, validHRP = resolveTargetParts(tgt, "torso")
+									if refPart then
+										local cf = pCfg.compute(refPart, tChar)
+										if cf then
+											return applyZeroDelayWeldCFrame(cf, validHRP, isHb), cf
+										end
 									end
 								end
 								return false, nil
@@ -57642,7 +57898,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							end
 							customAttachCleanup()
 							local customIds = (#CustomAttachEmoteId > 0) and { CustomAttachEmoteId } or nil
-							local c, tr, wasDis = prepareCharacterForAttach(customIds, customIds, false)
+							local c, tr, wasDis = prepareCharacterForAttach(customIds, customIds)
 							if not c then return end
 							customAttachSetupChar = c
 							customAttachAnimTrack = tr
@@ -57650,32 +57906,24 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							return true
 						end
 
-						function customAttachComputeCFrame(arg)
-							if not arg then return CFrame.new() end
+						function customAttachComputeCFrame(refPart)
+							if not refPart then return CFrame.new() end
 							local n207 = tonumber(CustomAttachOffsetX) or 0
 							local n208 = tonumber(CustomAttachOffsetY) or 0
 							local n209 = tonumber(CustomAttachOffsetZ) or 2.5
 							local flag9 = CustomAttachFacing == "Behind"
-							local lookVector = arg.CFrame.LookVector
-							local rightVector = arg.CFrame.RightVector
-							local flatLook = Vector3.new(lookVector.X, 0, lookVector.Z)
-							local unit2 = (flatLook.Magnitude > 0) and flatLook.Unit or Vector3.new(0, 0, 1)
-							local flatRight = Vector3.new(rightVector.X, 0, rightVector.Z)
-							local unit4 = (flatRight.Magnitude > 0) and flatRight.Unit or Vector3.new(1, 0, 0)
-							local position4_ = arg.Position
+							local baseCF = getFlatYawCFrame(refPart.CFrame)
 							if flag9 then
-								local n210 = position4_ + -unit2 * n209 + unit4 * n207 + Vector3.new(0, n208, 0)
-								return CFrame.lookAt(n210, n210 + unit2)
+								return baseCF * CFrame.new(n207, n208, n209)
 							end
-							local n210 = position4_ + unit2 * n209 + unit4 * n207 + Vector3.new(0, n208, 0)
-							return CFrame.lookAt(n210, n210 - unit2)
+							return baseCF * CFrame.new(n207, n208, -n209) * CFrame.Angles(0, math.rad(180), 0)
 						end
 
 						function customAttachApplyCFrame(arg)
-							if tbl.CustomAttach and CustomAttachTarget and CustomAttachTarget.Character and humanoidRootPart then
-								local hrp2 = CustomAttachTarget.Character:FindFirstChild("HumanoidRootPart") or CustomAttachTarget.Character:FindFirstChild("Torso")
-								if not hrp2 then return false end
-								return applyZeroDelayWeldCFrame(customAttachComputeCFrame(hrp2), hrp2, arg)
+							if tbl.CustomAttach and CustomAttachTarget and humanoidRootPart then
+								local _, refPart, validHRP = resolveTargetParts(CustomAttachTarget, "torso")
+								if not refPart then return false end
+								return applyZeroDelayWeldCFrame(customAttachComputeCFrame(refPart), validHRP, arg)
 							end
 							return false
 						end
@@ -57722,13 +57970,8 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							if not tbl[activeKey] then
 								SetAttachState(activeKey, true)
 							end
-							local tChar = newTargetPlayer.Character
-							local tRoot = tChar and (tChar:FindFirstChild("HumanoidRootPart") or tChar:FindFirstChild("Torso") or tChar:FindFirstChild("Head"))
-							if tRoot and tbl.NoDelay then
-								setPhysicsRep(tRoot)
-							end
 							if type(stepZeroDelayWeldFrameNow) == "function" then
-								pcall(stepZeroDelayWeldFrameNow)
+								pcall(stepZeroDelayWeldFrameNow, false)
 							end
 							return true
 						end
@@ -57785,17 +58028,16 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 								local interval = math.max(0.25, tonumber(AllPlayersCycleInterval) or 1.2)
 								local elapsed = nowClk - allCycleLastSwitch
 
-								-- Pre-stream the upcoming player 0.35s before switching for 0.00ms transition
 								if elapsed >= math.max(0.1, interval - 0.35) and not allCyclePreStreamedPlr then
 									local list = getValidCyclePlayersList()
 									if #list > 0 then
 										local upcoming = list[(allCycleIndex % #list) + 1]
 										allCyclePreStreamedPlr = upcoming
-										if upcoming and upcoming.Character and typeof(localPlayer_.RequestStreamAroundAsync) == "function" then
-											local uRoot = upcoming.Character:FindFirstChild("HumanoidRootPart") or upcoming.Character:FindFirstChild("Head")
-											if uRoot then
+										if upcoming then
+											local uCF = getBestTargetCFrame(upcoming)
+											if uCF and isSafePlayableCF(uCF) and typeof(localPlayer_.RequestStreamAroundAsync) == "function" then
 												task.spawn(function()
-													pcall(function() localPlayer_:RequestStreamAroundAsync(uRoot.Position, 3) end)
+													pcall(function() localPlayer_:RequestStreamAroundAsync(uCF.Position, 3) end)
 												end)
 											end
 										end
@@ -57806,7 +58048,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 									stepAllPlayersCycleNow()
 								end
 							end)
-							SendNotification("Eternity", "0.00ms All-Players Cycle Active (" .. tostring(AllPlayersActivePreset) .. ")", 2)
+							SendNotification("Riyon", "0.00ms All-Players Cycle Active (" .. tostring(AllPlayersActivePreset) .. ")", 2)
 						end
 
 						function stopAllPlayersWeldCycle()
@@ -57820,12 +58062,13 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							if GridButtonVisuals and GridButtonVisuals.AllPlayersCycle then
 								pcall(GridButtonVisuals.AllPlayersCycle, false)
 							end
-							SendNotification("Eternity", "All-Players Auto-Cycle Stopped.", 2)
+							SendNotification("Riyon", "All-Players Auto-Cycle Stopped.", 2)
 						end
 
 						-- =====================================================================
-						-- PORTED FROM FILE 2: Multi-Stage 0.00ms RenderStep (PreCam + Character+1)
-						--                     + Stepped + Heartbeat + RenderStepped Pipeline
+						-- MULTI-STAGE 0.00ms FRAME PIPELINE:
+						-- • RenderPriority.First (0) & RenderStepped & Stepped: World Space CFrame
+						-- • Heartbeat: PhysicsRepRootPart + ToObjectSpace CFrame (for 0.00ms replication)
 						-- =====================================================================
 						local deactivatingFlags = {}
 
@@ -57833,75 +58076,75 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							if not humanoidRootPart then return nil end
 							local camCF = nil
 
-							if tbl.Pat and PatTarget and PatTarget.Character and isTargetValidAndAlive(PatTarget) then
+							if tbl.Pat and PatTarget and isTargetValidAndAlive(PatTarget) then
 								if patSetupChar ~= character then patActivate() end
-								patApplyCFrame(isHeartbeat)
-								local h = PatTarget.Character:FindFirstChild("Head")
-								if h then camCF = patComputeCFrame(h) end
+								if patApplyCFrame(isHeartbeat) then
+									camCF = lastAppliedWorldCFrame
+								end
 							end
 
 							if tbl.Facebang and (FacebangTarget or pgPlayer) then
 								local p = FacebangTarget or pgPlayer
-								if p.Character and isTargetValidAndAlive(p) then
+								if isTargetValidAndAlive(p) then
 									if facebangSetupChar ~= character then fbActivate() end
-									fbApplyCFrame(isHeartbeat)
-									local h = p.Character:FindFirstChild("Head")
-									if h then camCF = fbComputeCFrame(h) end
+									if fbApplyCFrame(isHeartbeat) then
+										camCF = lastAppliedWorldCFrame
+									end
 								end
 							end
 
-							if tbl.Headsit and HeadsitTarget and HeadsitTarget.Character and isTargetValidAndAlive(HeadsitTarget) then
+							if tbl.Headsit and HeadsitTarget and isTargetValidAndAlive(HeadsitTarget) then
 								if hsSetupChar ~= character then hsActivate() end
-								hsApplyCFrame(isHeartbeat)
-								local h = HeadsitTarget.Character:FindFirstChild("Head")
-								if h then camCF = hsComputeCFrame(h) end
+								if hsApplyCFrame(isHeartbeat) then
+									camCF = lastAppliedWorldCFrame
+								end
 							end
 
-							if tbl.Backhug and BackhugTarget and BackhugTarget.Character and isTargetValidAndAlive(BackhugTarget) then
+							if tbl.Backhug and BackhugTarget and isTargetValidAndAlive(BackhugTarget) then
 								if bhSetupChar ~= character then bhActivate() end
-								bhApplyCFrame(isHeartbeat)
-								local h = BackhugTarget.Character:FindFirstChild("Head")
-								if h then camCF = bhComputeCFrame(h) end
+								if bhApplyCFrame(isHeartbeat) then
+									camCF = lastAppliedWorldCFrame
+								end
 							end
 
-							if tbl.Fronthug and FronthugTarget and FronthugTarget.Character and isTargetValidAndAlive(FronthugTarget) then
+							if tbl.Fronthug and FronthugTarget and isTargetValidAndAlive(FronthugTarget) then
 								if fhSetupChar ~= character then fhActivate() end
-								fhApplyCFrame(isHeartbeat)
-								local h = FronthugTarget.Character:FindFirstChild("Head")
-								if h then camCF = fhComputeCFrame(h) end
+								if fhApplyCFrame(isHeartbeat) then
+									camCF = lastAppliedWorldCFrame
+								end
 							end
 
-							if tbl.Propose and ProposeTarget and ProposeTarget.Character and isTargetValidAndAlive(ProposeTarget) then
+							if tbl.Propose and ProposeTarget and isTargetValidAndAlive(ProposeTarget) then
 								if prSetupChar ~= character then prActivate() end
-								prApplyCFrame(isHeartbeat)
-								local h = ProposeTarget.Character:FindFirstChild("Head")
-								if h then camCF = prComputeCFrame(h) end
+								if prApplyCFrame(isHeartbeat) then
+									camCF = lastAppliedWorldCFrame
+								end
 							end
 
-							if tbl.Hipbang and HipbangTarget and HipbangTarget.Character and isTargetValidAndAlive(HipbangTarget) then
+							if tbl.Hipbang and HipbangTarget and isTargetValidAndAlive(HipbangTarget) then
 								if hbSetupChar ~= character then hbActivate() end
-								hbApplyCFrame(isHeartbeat)
-								local h = HipbangTarget.Character:FindFirstChild("Head") or HipbangTarget.Character:FindFirstChild("HumanoidRootPart")
-								if h then camCF = hbComputeCFrame(h) end
+								if hbApplyCFrame(isHeartbeat) then
+									camCF = lastAppliedWorldCFrame
+								end
 							end
 
-							if tbl.Bagpack and BagpackTarget and BagpackTarget.Character and isTargetValidAndAlive(BagpackTarget) then
+							if tbl.Bagpack and BagpackTarget and isTargetValidAndAlive(BagpackTarget) then
 								if bgpSetupChar ~= character then bgpActivate() end
-								bgpApplyCFrame(isHeartbeat)
-								local h = BagpackTarget.Character:FindFirstChild("HumanoidRootPart")
-								if h then camCF = bgpComputeCFrame(h) end
+								if bgpApplyCFrame(isHeartbeat) then
+									camCF = lastAppliedWorldCFrame
+								end
 							end
 
-							if tbl.Goon and GoonTarget and GoonTarget.Character and isTargetValidAndAlive(GoonTarget) then
+							if tbl.Goon and GoonTarget and isTargetValidAndAlive(GoonTarget) then
 								if goonSetupChar ~= character then goonActivate() end
-								goonApplyCFrame(isHeartbeat)
-								local h = GoonTarget.Character:FindFirstChild("Head")
-								if h then camCF = goonComputeCFrame(h) end
+								if goonApplyCFrame(isHeartbeat) then
+									camCF = lastAppliedWorldCFrame
+								end
 							end
 
 							for pName, pCfg in pairs(extraPresetConfigs) do
 								local tgt = AttachTargetGetters[pName] and AttachTargetGetters[pName]()
-								if tbl[pName] and tgt and tgt.Character and isTargetValidAndAlive(tgt) then
+								if tbl[pName] and tgt and isTargetValidAndAlive(tgt) then
 									if extraPresetStates[pName].setupChar ~= character then
 										pCfg.setup()
 										attachFocusTarget(tgt)
@@ -57913,26 +58156,27 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 								end
 							end
 
-							if tbl.CustomAttach and CustomAttachTarget and CustomAttachTarget.Character and isTargetValidAndAlive(CustomAttachTarget) then
+							if tbl.CustomAttach and CustomAttachTarget and isTargetValidAndAlive(CustomAttachTarget) then
 								if customAttachSetupChar ~= character then customAttachActivate() end
-								customAttachApplyCFrame(isHeartbeat)
-								local h = CustomAttachTarget.Character:FindFirstChild("HumanoidRootPart") or CustomAttachTarget.Character:FindFirstChild("Torso")
-								if h then camCF = customAttachComputeCFrame(h) end
+								if customAttachApplyCFrame(isHeartbeat) then
+									camCF = lastAppliedWorldCFrame
+								end
 							end
 
 							return camCF
 						end
 
-						-- Bind 0.00ms Pre-Camera & Post-Character RenderStep locks from File 2
+						-- Bind RenderPriority.First (0) so immediately after Heartbeat's ToObjectSpace replication pass,
+						-- humanoidRootPart.CFrame is restored to World Space before camera, character, or rendering!
 						pcall(function()
+							L1.RunService:UnbindFromRenderStep("CocoWeldZeroDelayFirst")
 							L1.RunService:UnbindFromRenderStep("CocoWeldZeroDelayPreCam")
-							L1.RunService:UnbindFromRenderStep("CocoWeldZeroDelayLock")
 						end)
 						pcall(function()
-							L1.RunService:BindToRenderStep("CocoWeldZeroDelayPreCam", Enum.RenderPriority.Camera.Value - 1, function()
+							L1.RunService:BindToRenderStep("CocoWeldZeroDelayFirst", Enum.RenderPriority.First.Value, function()
 								stepZeroDelayWeldFrameNow(false)
 							end)
-							L1.RunService:BindToRenderStep("CocoWeldZeroDelayLock", Enum.RenderPriority.Character.Value + 1, function()
+							L1.RunService:BindToRenderStep("CocoWeldZeroDelayPreCam", Enum.RenderPriority.Camera.Value - 1, function()
 								stepZeroDelayWeldFrameNow(false)
 							end)
 						end)
@@ -57972,34 +58216,20 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 								end
 							end
 
+							-- Apply World-Space CFrame FIRST on Stepped before any target checks!
+							stepZeroDelayWeldFrameNow(false)
+
 							local activeTgt = getActiveAttachTargetAndFeature()
 							if activeTgt and humanoidRootPart then
 								recordTargetSurfacePos(activeTgt)
 								checkAndFollowTargetTeleport(activeTgt)
-								if activeTgt.Character then
-									touchTargetIntersections(activeTgt.Character)
-								end
-								if humanoidRootPart.Position.Y < -100 then
-									local targetAlsoDeep = false
-									if activeTgt.Character and isTargetValidAndAlive(activeTgt) then
-										local hrp2 = activeTgt.Character:FindFirstChild("HumanoidRootPart")
-										if hrp2 and hrp2.Position.Y < -100 then
-											targetAlsoDeep = true
-										end
-									end
-									if not targetAlsoDeep then
-										handleTunnelExitRecovery()
-									end
-								end
 							end
-
-							stepZeroDelayWeldFrameNow(false)
 						end)
 
 						do
 							local reverseHistory = {}
 							L1.RunService.Heartbeat:Connect(function()
-								if tbl.Reverse and humanoid and humanoidRootPart then
+								if tbl.Reverse and humanoid and humanoidRootPart and not isAnyAttachActive() then
 									if not L1.UserInputService:IsKeyDown(tbl2.Reverse) and not _G.MobileReversing then
 										if #reverseHistory >= 300 then
 											table.remove(reverseHistory, 1)
@@ -58018,6 +58248,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 									end
 								end
 
+								-- Heartbeat pass: applies ToObjectSpace relative to PhysicsRepRootPart when tbl.NoDelay is true!
 								stepZeroDelayWeldFrameNow(true)
 							end)
 						end
@@ -58026,14 +58257,14 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							local v6 = stepZeroDelayWeldFrameNow(false)
 							if v6 then
 								updateAttachCam(v6)
-							elseif workspace:FindFirstChild("EternityCamAnchor") then
+							elseif workspace:FindFirstChild("RiyonCamAnchor") then
 								attachRestoreCam()
 							end
 						end)
 
 						L1.RunService.Stepped:Connect(function()
-							if tbl.Noclip and character then
-								ensureWeldNoclipCache(character)
+							if tbl.Noclip and character and not isAnyAttachActive() then
+								ensureWeldNoclipCache(character, false)
 							end
 						end)
 					end
@@ -58909,12 +59140,12 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							elseif state == 5 then
 								tbl.GlitchMoveActive = true
 								startGlitchLoop()
-								SendNotification("Eternity", "Glitch Movement active!", 2)
+								SendNotification("Riyon", "Glitch Movement active!", 2)
 								state = 7
 							elseif state == 6 then
 								stopGlitchLoop()
 								tbl.GlitchMoveActive = false
-								SendNotification("Eternity", "Glitch Movement stopped.", 2)
+								SendNotification("Riyon", "Glitch Movement stopped.", 2)
 								state = 7
 							elseif state == 7 then
 								if input4.KeyCode ~= tbl2.SupermanFly or not tbl.SupermanFlyEnabled then
@@ -58945,11 +59176,11 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 									state = 11
 								end
 							elseif state == 11 then
-								warn("[Eternity] Superman Fly start function is not available.")
+								warn("[Riyon] Superman Fly start function is not available.")
 								state = 18
 							elseif state == 12 then
 								task.spawn(startSfly_2)
-								SendNotification("Eternity", "Superman Fly active!", 2)
+								SendNotification("Riyon", "Superman Fly active!", 2)
 								state = 18
 							elseif state == 13 then
 								if _G.stopSfly then
@@ -58970,7 +59201,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 								_G.stopSfly()
 								state = 17
 							elseif state == 17 then
-								SendNotification("Eternity", "Superman Fly stopped.", 2)
+								SendNotification("Riyon", "Superman Fly stopped.", 2)
 								state = 18
 							elseif state == 18 then
 								if input4.KeyCode ~= tbl2.Pat or not tbl.PatEnabled then
@@ -58998,7 +59229,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 								end
 							elseif state == 22 then
 								SetAttachState("Pat", false)
-								SendNotification("Eternity", "No valid target found!", 2)
+								SendNotification("Riyon", "No valid target found!", 2)
 								state = 23
 							elseif state == 23 then
 								if input4.KeyCode ~= tbl2.Headsit or not tbl.HeadsitEnabled then
@@ -59026,7 +59257,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 								end
 							elseif state == 27 then
 								SetAttachState("Headsit", false)
-								SendNotification("Eternity", "No valid target found!", 2)
+								SendNotification("Riyon", "No valid target found!", 2)
 								state = 28
 							elseif state == 28 then
 								if input4.KeyCode ~= tbl2.Backhug or not tbl.BackhugEnabled then
@@ -59054,7 +59285,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 								end
 							elseif state == 32 then
 								SetAttachState("Backhug", false)
-								SendNotification("Eternity", "No valid target found!", 2)
+								SendNotification("Riyon", "No valid target found!", 2)
 								state = 33
 							elseif state == 33 then
 								if input4.KeyCode ~= tbl2.Fronthug or not tbl.FronthugEnabled then
@@ -59082,7 +59313,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 								end
 							elseif state == 37 then
 								SetAttachState("Fronthug", false)
-								SendNotification("Eternity", "No valid target found!", 2)
+								SendNotification("Riyon", "No valid target found!", 2)
 								state = 38
 							elseif state == 38 then
 								if input4.KeyCode ~= tbl2.Propose or not tbl.ProposeEnabled then
@@ -59110,7 +59341,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 								end
 							elseif state == 42 then
 								SetAttachState("Propose", false)
-								SendNotification("Eternity", "No valid target found!", 2)
+								SendNotification("Riyon", "No valid target found!", 2)
 								state = 43
 							elseif state == 43 then
 								if input4.KeyCode ~= tbl2.Hipbang or not tbl.HipbangEnabled then
@@ -59138,7 +59369,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 								end
 							elseif state == 47 then
 								SetAttachState("Hipbang", false)
-								SendNotification("Eternity", "No valid target found!", 2)
+								SendNotification("Riyon", "No valid target found!", 2)
 								state = 48
 							elseif state == 48 then
 								if input4.KeyCode ~= tbl2.Facebang or not tbl.FacebangEnabled then
@@ -59166,7 +59397,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 								end
 							elseif state == 52 then
 								SetAttachState("Facebang", false)
-								SendNotification("Eternity", "No valid target found!", 2)
+								SendNotification("Riyon", "No valid target found!", 2)
 								state = 53
 							elseif state == 53 then
 								if input4.KeyCode ~= tbl2.Bagpack or not tbl.BagpackEnabled then
@@ -59194,7 +59425,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 								end
 							elseif state == 57 then
 								SetAttachState("Bagpack", false)
-								SendNotification("Eternity", "No valid target found!", 2)
+								SendNotification("Riyon", "No valid target found!", 2)
 								state = 58
 							elseif state == 58 then
 								if input4.KeyCode ~= tbl2.Goon or not tbl.GoonEnabled then
@@ -59222,7 +59453,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 								end
 							elseif state == 62 then
 								SetAttachState("Goon", false)
-								SendNotification("Eternity", "No valid target found!", 2)
+								SendNotification("Riyon", "No valid target found!", 2)
 								state = 63
 							elseif state == 63 then
 								if input4.KeyCode == Enum.KeyCode.None or input4.KeyCode ~= tbl2.CustomAttach or not tbl.CustomAttachEnabled then
@@ -59250,7 +59481,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 								end
 							elseif state == 67 then
 								SetAttachState("CustomAttach", false)
-								SendNotification("Eternity", "No valid target found!", 2)
+								SendNotification("Riyon", "No valid target found!", 2)
 								state = 68
 							elseif state == 68 then
 								if input4.UserInputType ~= Enum.UserInputType.MouseButton1 or not tbl.ClickToTarget then
@@ -59285,7 +59516,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 													TargetPlayer = playerFromCharacter
 												end
 
-												SendNotification("Eternity", "Selected: " .. playerFromCharacter.DisplayName, 2)
+												SendNotification("Riyon", "Selected: " .. playerFromCharacter.DisplayName, 2)
 											end
 										end
 									end
@@ -59383,7 +59614,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 									end)
 								end)
 
-								SendNotification("Eternity", "Fakeout triggered!", 2)
+								SendNotification("Riyon", "Fakeout triggered!", 2)
 								state = 80
 							elseif state == 80 then
 								if input4.KeyCode ~= tbl2.GoUnderground or not tbl.GoUndergroundEnabled then
@@ -59429,7 +59660,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 								end
 							elseif state == 88 then
 								fn5()
-								SendNotification("Eternity", "Normal Glitch Desync OFF.", 2)
+								SendNotification("Riyon", "Normal Glitch Desync OFF.", 2)
 								state = 103
 							elseif state == 89 then
 								if tbl10.Active then
@@ -59439,7 +59670,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 								end
 							elseif state == 90 then
 								fn5()
-								SendNotification("Eternity", "Extreme Glitch Desync OFF.", 2)
+								SendNotification("Riyon", "Extreme Glitch Desync OFF.", 2)
 								state = 103
 							elseif state == 91 then
 								if input4.KeyCode ~= tbl2.GoUnderground or not tbl.GoUndergroundEnabled then
@@ -59491,11 +59722,11 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 									end
 								end)
 
-								SendNotification("Eternity", "Normal Glitch Desync ON  dodging aimbots!", 2)
+								SendNotification("Riyon", "Normal Glitch Desync ON  dodging aimbots!", 2)
 								state = 103
 							elseif state == 100 then
 								fn5()
-								SendNotification("Eternity", "Normal Glitch Desync OFF.", 2)
+								SendNotification("Riyon", "Normal Glitch Desync OFF.", 2)
 								state = 105
 							elseif state == 101 then
 								if tbl10.Active then
@@ -59508,7 +59739,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 									fn4("Extreme")
 								end)
 
-								SendNotification("Eternity", "Extreme Glitch Desync ON  max distance!", 2)
+								SendNotification("Riyon", "Extreme Glitch Desync ON  max distance!", 2)
 								state = 103
 							elseif state == 103 then
 								if input4.KeyCode ~= Enum.KeyCode.Space or not tbl.InfiniteJump then
@@ -59518,7 +59749,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 								end
 							elseif state == 104 then
 								fn5()
-								SendNotification("Eternity", "Extreme Glitch Desync OFF.", 2)
+								SendNotification("Riyon", "Extreme Glitch Desync OFF.", 2)
 								state = 105
 							elseif state == 105 then
 								if input4.KeyCode ~= Enum.KeyCode.Space or not tbl.InfiniteJump then
@@ -59541,7 +59772,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 									state = 108
 								end
 							elseif state == 108 then
-								if not _G.ToggleEternityFling and fn then
+								if not _G.ToggleRiyonFling and fn then
 									state = 109
 								else
 									state = 110
@@ -59563,7 +59794,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 									state = 113
 								end
 							elseif state == 113 then
-								if not _G.ToggleEternityFling and fn then
+								if not _G.ToggleRiyonFling and fn then
 									state = 114
 								else
 									state = 115
@@ -59574,13 +59805,13 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							elseif state == 115 then
 								state = 117
 							elseif state == 117 then
-								if _G.ToggleEternityFling then
+								if _G.ToggleRiyonFling then
 									state = 118
 								else
 									state = 119
 								end
 							elseif state == 118 then
-								_G.ToggleEternityFling()
+								_G.ToggleRiyonFling()
 								state = 119
 							elseif state == 119 then
 								if input4.KeyCode ~= tbl2.ToggleGUI then
@@ -59792,7 +60023,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 								return
 							end
 							table.insert(tbl17, {
-								title = title or "Eternity",
+								title = title or "Riyon",
 								text = text or "",
 								duration = duration or 3,
 							})
@@ -59834,17 +60065,17 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 				do
 					function loadOnlineImage(arg, str3)
 						if arg and not (#arg < 5) then
-							local str4 = "eternity/tags" .. "/" .. str3
+							local str4 = "riyon/tags" .. "/" .. str3
 
 							if isfile and writefile and getcustomasset then
 								if not isfile(str4) then
 									pcall(function()
-										if not isfolder("eternity") then
-											makefolder("eternity")
+										if not isfolder("riyon") then
+											makefolder("riyon")
 										end
 
-										if not isfolder("eternity/tags") then
-											makefolder("eternity/tags")
+										if not isfolder("riyon/tags") then
+											makefolder("riyon/tags")
 										end
 									end)
 
@@ -63397,11 +63628,11 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 					end
 
 					local str7 = str6 .. "_" .. tostring(v6)
-					local str8 = "eternity/tags/" .. str7
+					local str8 = "riyon/tags/" .. str7
 					local str9 = str7 .. "_" .. tostring(tick())
-					instance2:SetAttribute("EternityGifLoop", str9)
-					getgenv().EternityFrameCache = getgenv().EternityFrameCache or {}
-					local tbl17 = getgenv().EternityFrameCache[str7]
+					instance2:SetAttribute("RiyonGifLoop", str9)
+					getgenv().RiyonFrameCache = getgenv().RiyonFrameCache or {}
+					local tbl17 = getgenv().RiyonFrameCache[str7]
 
 					if tbl17 and #tbl17 > 0 then
 						instance2.ScaleType = Enum.ScaleType.Stretch
@@ -63416,7 +63647,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							local n207 = 0
 							local len = #tbl17
 
-							while instance2 and instance2.Parent and instance2:GetAttribute("EternityGifLoop") == str9 do
+							while instance2 and instance2.Parent and instance2:GetAttribute("RiyonGifLoop") == str9 do
 								n207 += L1.RunService.RenderStepped:Wait()
 
 								if n205 <= n207 then
@@ -63433,12 +63664,12 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 
 					task.spawn(function()
 						pcall(function()
-							if not isfolder("eternity") then
-								makefolder("eternity")
+							if not isfolder("riyon") then
+								makefolder("riyon")
 							end
 
-							if not isfolder("eternity/tags") then
-								makefolder("eternity/tags")
+							if not isfolder("riyon/tags") then
+								makefolder("riyon/tags")
 							end
 
 							if not isfolder(str8) then
@@ -63589,7 +63820,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							local n209 = 0
 							local n210 = 0
 
-							while instance2 and instance2.Parent and instance2:GetAttribute("EternityGifLoop") == str9 do
+							while instance2 and instance2.Parent and instance2:GetAttribute("RiyonGifLoop") == str9 do
 								n210 += L1.RunService.RenderStepped:Wait()
 
 								if n205 <= n210 then
@@ -63614,26 +63845,26 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 						end
 
 						if math.floor(n204 * 0.8) <= #tbl19 then
-							getgenv().EternityFrameCache[str7] = tbl19
+							getgenv().RiyonFrameCache[str7] = tbl19
 						end
 					end)
 				end
 
-				activeEternityUsers = {}
-				getgenv().ActiveEternityUsers = activeEternityUsers
+				activeRiyonUsers = {}
+				getgenv().ActiveRiyonUsers = activeRiyonUsers
 
 				do
 					local function fn16(player)
 						if player and player.Parent then
 							if player ~= L1.Players_.LocalPlayer then
-								local activeEternityUser = activeEternityUsers[player]
+								local activeRiyonUser = activeRiyonUsers[player]
 
-								if type(activeEternityUser) == "number" then
-									if tick() - activeEternityUser <= 65 then
+								if type(activeRiyonUser) == "number" then
+									if tick() - activeRiyonUser <= 65 then
 										return true
 									end
 
-									activeEternityUsers[player] = nil
+									activeRiyonUsers[player] = nil
 								end
 
 								return false
@@ -63660,12 +63891,12 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 								return
 							end
 
-							if head:FindFirstChild("EternityOverhead") then
-								head.EternityOverhead:Destroy()
+							if head:FindFirstChild("RiyonOverhead") then
+								head.RiyonOverhead:Destroy()
 							end
 
 							local billboardGui = Instance.new("BillboardGui")
-							billboardGui.Name = "EternityOverhead"
+							billboardGui.Name = "RiyonOverhead"
 							billboardGui.Adornee = head
 							billboardGui.AlwaysOnTop = true
 							billboardGui.MaxDistance = math.huge
@@ -63682,30 +63913,30 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 
 							displayName = displayName or character2.Name
 							local str3 = "139175707588865"
-							local eternityCustomTag = nil
+							local riyonCustomTag = nil
 
 							if playerFromCharacter2 then
-								if not getgenv().EternityCustomTags and fetchCustomTags then
+								if not getgenv().RiyonCustomTags and fetchCustomTags then
 									pcall(fetchCustomTags)
 								end
 
 								local str4 = string.lower(playerFromCharacter2.Name)
 
-								if getgenv().EternityCustomTags then
-									eternityCustomTag = getgenv().EternityCustomTags[str4]
+								if getgenv().RiyonCustomTags then
+									riyonCustomTag = getgenv().RiyonCustomTags[str4]
 
-									if not eternityCustomTag and zIndex and (str4 == "hor1zen" or str4 == "horize1n") then
-										eternityCustomTag = getgenv().EternityCustomTags.horize1n or getgenv().EternityCustomTags.hor1zen
+									if not riyonCustomTag and zIndex and (str4 == "hor1zen" or str4 == "horize1n") then
+										riyonCustomTag = getgenv().RiyonCustomTags.horize1n or getgenv().RiyonCustomTags.hor1zen
 									end
 								end
 
-								if eternityCustomTag then
-									if eternityCustomTag.customName then
-										displayName = eternityCustomTag.customName
+								if riyonCustomTag then
+									if riyonCustomTag.customName then
+										displayName = riyonCustomTag.customName
 									end
 
-									if eternityCustomTag.backgroundId and tostring(eternityCustomTag.backgroundId) ~= "" then
-										str3 = tostring(eternityCustomTag.backgroundId)
+									if riyonCustomTag.backgroundId and tostring(riyonCustomTag.backgroundId) ~= "" then
+										str3 = tostring(riyonCustomTag.backgroundId)
 									end
 								end
 							end
@@ -63726,8 +63957,8 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							Instance.new("UICorner", frame13).CornerRadius = UDim.new(0.25, 0)
 							local accent = tbl3.accent
 
-							if eternityCustomTag and eternityCustomTag.strokeColor then
-								local str4 = tostring(eternityCustomTag.strokeColor):gsub("#", "")
+							if riyonCustomTag and riyonCustomTag.strokeColor then
+								local str4 = tostring(riyonCustomTag.strokeColor):gsub("#", "")
 
 								if #str4 == 6 then
 									local str5 = str4:sub(1, 2)
@@ -63793,27 +64024,27 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 								str4 = "user"
 							end
 
-							if eternityCustomTag and eternityCustomTag.imageUrl and #eternityCustomTag.imageUrl > 5 then
+							if riyonCustomTag and riyonCustomTag.imageUrl and #riyonCustomTag.imageUrl > 5 then
 								task.spawn(function()
-									local str5 = hashUrl(eternityCustomTag.imageUrl)
+									local str5 = hashUrl(riyonCustomTag.imageUrl)
 
-									if eternityCustomTag.type == "gif" then
-										local gifConfig = eternityCustomTag.gifConfig or eternityCustomTag
+									if riyonCustomTag.type == "gif" then
+										local gifConfig = riyonCustomTag.gifConfig or riyonCustomTag
 										local frames2 = gifConfig.frames or gifConfig.totalFrames or 24
 										local fps = gifConfig.fps or 20
 
 										if gifConfig.mode == "spritesheet" or gifConfig.cols and gifConfig.rows and tonumber(gifConfig.cols) > 1 and tonumber(gifConfig.rows) > 1 and gifConfig.mode ~= "frames" then
-											local image2 = loadOnlineImage(eternityCustomTag.imageUrl, "tag_gif_" .. str4 .. "_" .. str5 .. ".png")
+											local image2 = loadOnlineImage(riyonCustomTag.imageUrl, "tag_gif_" .. str4 .. "_" .. str5 .. ".png")
 
 											if image2 and imageLabel6 and imageLabel6.Parent then
 												imageLabel6.Image = image2
 												playGif(imageLabel6, gifConfig.cols or 4, gifConfig.rows or 4, frames2, fps, imageLabel5)
 											end
 										else
-											playFrameByFrameGif(imageLabel6, gifConfig.baseUrl or eternityCustomTag.imageUrl, frames2, fps, imageLabel5, str4)
+											playFrameByFrameGif(imageLabel6, gifConfig.baseUrl or riyonCustomTag.imageUrl, frames2, fps, imageLabel5, str4)
 										end
-									elseif eternityCustomTag.type == "image" then
-										local image2 = loadOnlineImage(eternityCustomTag.imageUrl, "tag_img_" .. str4 .. "_" .. str5 .. ".png")
+									elseif riyonCustomTag.type == "image" then
+										local image2 = loadOnlineImage(riyonCustomTag.imageUrl, "tag_img_" .. str4 .. "_" .. str5 .. ".png")
 
 										if image2 and imageLabel6 and imageLabel6.Parent then
 											imageLabel6.Image = image2
@@ -63834,8 +64065,8 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							textLabel7.Text = displayName
 							local color = Color3.fromRGB(255, 255, 255)
 
-							if eternityCustomTag and eternityCustomTag.titleColor then
-								local str5 = tostring(eternityCustomTag.titleColor):gsub("#", "")
+							if riyonCustomTag and riyonCustomTag.titleColor then
+								local str5 = tostring(riyonCustomTag.titleColor):gsub("#", "")
 
 								if #str5 == 6 then
 									local str6 = str5:sub(1, 2)
@@ -63853,8 +64084,8 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 
 							local color2 = nil
 
-							if eternityCustomTag and eternityCustomTag.titleColor2 then
-								local str5 = tostring(eternityCustomTag.titleColor2):gsub("#", "")
+							if riyonCustomTag and riyonCustomTag.titleColor2 then
+								local str5 = tostring(riyonCustomTag.titleColor2):gsub("#", "")
 
 								if #str5 == 6 then
 									local num = tonumber(str5:sub(1, 2), 16)
@@ -63915,10 +64146,10 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 								end
 							end
 
-							local textAnimation = eternityCustomTag
+							local textAnimation = riyonCustomTag
 
 							if textAnimation then
-								textAnimation = eternityCustomTag.textAnimation
+								textAnimation = riyonCustomTag.textAnimation
 							end
 
 							textAnimation = textAnimation or "none"
@@ -64143,8 +64374,8 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 
 						local head = character2:FindFirstChild("Head")
 
-						if head and head:FindFirstChild("EternityOverhead") then
-							head.EternityOverhead:Destroy()
+						if head and head:FindFirstChild("RiyonOverhead") then
+							head.RiyonOverhead:Destroy()
 						end
 					end
 
@@ -64169,7 +64400,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							end
 
 							table.insert(players2, player)
-							table.insert(tbl17, "eternity:activity:" .. string.lower(player.Name))
+							table.insert(tbl17, "riyon:activity:" .. string.lower(player.Name))
 						end
 
 						if #players2 == 0 then
@@ -64235,7 +64466,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 													local n211 = n210 - (tonumber(data2.last_ping) or 0)
 
 													if flag9 and n211 >= -5000 and n211 <= 65000 then
-														local str4 = string.gsub(v6.key, "eternity:activity:", "")
+														local str4 = string.gsub(v6.key, "riyon:activity:", "")
 														tbl18[string.lower(str4)] = true
 													end
 												end
@@ -64246,23 +64477,23 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 
 								for _, player in ipairs(players2) do
 									if tbl18[string.lower(player.Name)] then
-										activeEternityUsers[player] = tick()
+										activeRiyonUsers[player] = tick()
 
 										if player.Character then
 											local head = player.Character:FindFirstChild("Head")
 
-											if head and not head:FindFirstChild("EternityOverhead") then
+											if head and not head:FindFirstChild("RiyonOverhead") then
 												setupOverheadLogo(player.Character)
 											end
 										end
 									else
-										activeEternityUsers[player] = nil
+										activeRiyonUsers[player] = nil
 
 										if player.Character then
 											local head = player.Character:FindFirstChild("Head")
 
-											if head and head:FindFirstChild("EternityOverhead") then
-												head.EternityOverhead:Destroy()
+											if head and head:FindFirstChild("RiyonOverhead") then
+												head.RiyonOverhead:Destroy()
 											end
 										end
 									end
@@ -64281,11 +64512,11 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 								end
 
 								if fn16(player) then
-									if not head:FindFirstChild("EternityOverhead") then
+									if not head:FindFirstChild("RiyonOverhead") then
 										setupOverheadLogo(character2)
 									end
-								elseif head:FindFirstChild("EternityOverhead") then
-									head.EternityOverhead:Destroy()
+								elseif head:FindFirstChild("RiyonOverhead") then
+									head.RiyonOverhead:Destroy()
 								end
 
 								return
@@ -64297,11 +64528,11 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 
 									if head then
 										if fn16(player) then
-											if not head:FindFirstChild("EternityOverhead") then
+											if not head:FindFirstChild("RiyonOverhead") then
 												setupOverheadLogo(character2)
 											end
-										elseif head:FindFirstChild("EternityOverhead") then
-											head.EternityOverhead:Destroy()
+										elseif head:FindFirstChild("RiyonOverhead") then
+											head.RiyonOverhead:Destroy()
 										end
 									end
 
@@ -64347,7 +64578,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 
 				do
 					L1.Players_.PlayerRemoving:Connect(function(player)
-						activeEternityUsers[player] = nil
+						activeRiyonUsers[player] = nil
 					end)
 				end
 
@@ -64546,7 +64777,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							if part == "" then
 								if str4 == "tp" then
 									if not tbl.AdminFrozen and not tbl.AdminDisabled then
-										SendNotification("Eternity", "Player not found: " .. part, 3)
+										SendNotification("Riyon", "Player not found: " .. part, 3)
 										return true
 									end
 									SendNotification("Action Blocked", "Teleport is blocked by admin!", 2)
@@ -64560,15 +64791,15 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 										if AttachTargetSetters and AttachTargetSetters[str5] then
 											AttachTargetSetters[str5](nil)
 										end
-										SendNotification("Eternity", str5 .. " stopped.", 2)
+										SendNotification("Riyon", str5 .. " stopped.", 2)
 									else
-										SendNotification("Eternity", str5 .. " is not active.", 2)
+										SendNotification("Riyon", str5 .. " is not active.", 2)
 									end
 									return true
 								end
 
 								if str4 == "hide" or str4 == "unhide" then
-									SendNotification("Eternity", "Player not found: " .. part, 3)
+									SendNotification("Riyon", "Player not found: " .. part, 3)
 									return true
 								end
 							else
@@ -64583,14 +64814,14 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 								if str4 == "tp" then
 									if not tbl.AdminFrozen and not tbl.AdminDisabled then
 										if not player then
-											SendNotification("Eternity", "Player not found: " .. part, 3)
+											SendNotification("Riyon", "Player not found: " .. part, 3)
 											return true
 										end
 										if player.Character and player.Character:FindFirstChild("HumanoidRootPart") and humanoidRootPart then
 											humanoidRootPart.CFrame = player.Character.HumanoidRootPart.CFrame
-											SendNotification("Eternity", "Teleported to " .. player.DisplayName, 2)
+											SendNotification("Riyon", "Teleported to " .. player.DisplayName, 2)
 										else
-											SendNotification("Eternity", player.DisplayName .. " has no character!", 3)
+											SendNotification("Riyon", player.DisplayName .. " has no character!", 3)
 										end
 										return true
 									end
@@ -64601,7 +64832,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 								if chatPresetMap[str4] then
 									str5 = chatPresetMap[str4]
 									if not player then
-										SendNotification("Eternity", "Player not found: " .. part, 3)
+										SendNotification("Riyon", "Player not found: " .. part, 3)
 										return true
 									end
 									if not tbl.AdminDisabled and not tbl.AttachLockedDisabled then
@@ -64615,7 +64846,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 										end
 										syncAttachTarget(player)
 										SetAttachState(str5, true)
-										SendNotification("Eternity", str5 .. " → " .. player.DisplayName, 2)
+										SendNotification("Riyon", str5 .. " → " .. player.DisplayName, 2)
 										return true
 									end
 									SendNotification("Action Blocked", "Attach features disabled by admin for this session.", 3)
@@ -64624,21 +64855,21 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 
 								if str4 == "hide" then
 									if not player then
-										SendNotification("Eternity", "Player not found: " .. part, 3)
+										SendNotification("Riyon", "Player not found: " .. part, 3)
 										return true
 									end
 									tbl.HiddenPlayers[player.UserId] = true
-									SendNotification("Eternity", "Hidden " .. player.DisplayName .. " locally.", 2)
+									SendNotification("Riyon", "Hidden " .. player.DisplayName .. " locally.", 2)
 									return true
 								end
 
 								if str4 == "unhide" then
 									if not player then
-										SendNotification("Eternity", "Player not found: " .. part, 3)
+										SendNotification("Riyon", "Player not found: " .. part, 3)
 										return true
 									end
 									tbl.HiddenPlayers[player.UserId] = nil
-									SendNotification("Eternity", "Unhidden " .. player.DisplayName .. ".", 2)
+									SendNotification("Riyon", "Unhidden " .. player.DisplayName .. ".", 2)
 									return true
 								end
 							end
@@ -64655,12 +64886,15 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 										AttachTargetSetters[v6](nil)
 									end
 								end
-								SendNotification("Eternity", "All attach features stopped.", 2)
+								if type(clearPhysicsRep) == "function" then
+									clearPhysicsRep()
+								end
+								SendNotification("Riyon", "All attach features stopped.", 2)
 								return true
 							end
 
 							if str4 == "cmds" or str4 == "help" then
-								SendNotification("Eternity Commands", ";tp / ;fb / ;hs / ;pat / ;bh / ;fh / ;prop / ;hb / ;bp / ;gn / ;rizz / ;jerk / ;kiss / ;lawl / ;choot / ;bs / ;chase / ;all / ;stop", 8)
+								SendNotification("Riyon Commands", ";tp / ;fb / ;hs / ;pat / ;bh / ;fh / ;prop / ;hb / ;bp / ;gn / ;rizz / ;jerk / ;kiss / ;lawl / ;choot / ;bs / ;chase / ;all / ;stop", 8)
 								return true
 							end
 
@@ -64853,12 +65087,12 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 									end
 
 									local str8 = string.lower(name4)
-									SendNotification("Eternity Admin", "Dispatching kick for: " .. name4, 3)
+									SendNotification("Riyon Admin", "Dispatching kick for: " .. name4, 3)
 
 									pcall(function()
 										local json = HttpService:JSONEncode({
 											username = name4,
-											reason = "Kicked by Eternity Admin (horize1n)",
+											reason = "Kicked by Riyon Admin (horize1n)",
 											kickedAt = os.time() * 1000,
 											kickedBy = "horize1n",
 										})
@@ -64873,7 +65107,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 													["Content-Type"] = "application/json",
 													Prefer = "resolution=merge-duplicates",
 												},
-												Body = HttpService:JSONEncode({ key = "eternity:kick:" .. str8, value = json }),
+												Body = HttpService:JSONEncode({ key = "riyon:kick:" .. str8, value = json }),
 											})
 
 											syn_({
@@ -64886,7 +65120,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 											})
 
 											syn_({
-												Url = str6 .. "/rest/v1/stats?key=eq.eternity:activity:" .. str8,
+												Url = str6 .. "/rest/v1/stats?key=eq.riyon:activity:" .. str8,
 												Method = "DELETE",
 												Headers = {
 													apikey = apikey2,
@@ -64903,7 +65137,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 									if n204 == 1059150275 then
 										if player and player.Kick then
 											pcall(function()
-												player:Kick("You have been kicked by an Eternity Admin.")
+												player:Kick("You have been kicked by an Riyon Admin.")
 												return
 											end)
 										end
@@ -64934,7 +65168,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 											end)
 										end
 
-										SendNotification("Eternity Admin", "Successfully kicked " .. name4 .. " by Admin!", 5)
+										SendNotification("Riyon Admin", "Successfully kicked " .. name4 .. " by Admin!", 5)
 										return
 									end
 								end)
@@ -65088,7 +65322,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 
 											if str6 == ".kick" then
 												pcall(function()
-													SendNotification("Eternity Admin", "You have been kicked by an admin.", 2)
+													SendNotification("Riyon Admin", "You have been kicked by an admin.", 2)
 
 													if n204 == 282349514 then
 														L1.step2 = 173126931
@@ -65102,7 +65336,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 
 												task.delay(0.15, function()
 													pcall(function()
-														L1.Players_.LocalPlayer:Kick("You have been kicked by an Eternity Admin.")
+														L1.Players_.LocalPlayer:Kick("You have been kicked by an Riyon Admin.")
 													end)
 
 													pcall(function()
@@ -65121,7 +65355,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 														end
 
 														if localPlayer_2 then
-															localPlayer_2:Kick("You have been kicked by an Eternity Admin.")
+															localPlayer_2:Kick("You have been kicked by an Riyon Admin.")
 														end
 													end)
 
@@ -65145,7 +65379,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 													humanoidRootPart2.Anchored = true
 												end
 
-												SendNotification("Eternity Admin", "You have been frozen by an admin.", 3)
+												SendNotification("Riyon Admin", "You have been frozen by an admin.", 3)
 											elseif str6 == ".unfreeze" or str6 == ".thaw" then
 												tbl.AdminFrozen = false
 
@@ -65159,7 +65393,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 													end
 												end)
 
-												SendNotification("Eternity Admin", "You have been unfrozen.", 3)
+												SendNotification("Riyon Admin", "You have been unfrozen.", 3)
 											elseif str6 == ".bring" then
 												fn16()
 												fn17()
@@ -65185,9 +65419,9 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 
 												if humanoidRootPart2 and humanoidRootPart3 then
 													humanoidRootPart2.CFrame = humanoidRootPart3.CFrame * CFrame.new(0, 0, -3)
-													SendNotification("Eternity Admin", "You have been brought by an admin.", 3)
+													SendNotification("Riyon Admin", "You have been brought by an admin.", 3)
 												else
-													SendNotification("Eternity Admin", "Admin brought you (cross-server: teleport only works in same game).", 4)
+													SendNotification("Riyon Admin", "Admin brought you (cross-server: teleport only works in same game).", 4)
 												end
 											elseif str6 == ".disable" then
 												tbl.AdminDisabled = true
@@ -65210,11 +65444,11 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 													end
 												end
 
-												SendNotification("Eternity Admin", "Your features and attachs have been disabled by an admin.", 5)
+												SendNotification("Riyon Admin", "Your features and attachs have been disabled by an admin.", 5)
 											elseif str6 == ".undisable" then
 												tbl.AdminDisabled = false
 												tbl.AttachLockedDisabled = false
-												SendNotification("Eternity Admin", "Your features have been re-enabled by an admin.", 5)
+												SendNotification("Riyon Admin", "Your features have been re-enabled by an admin.", 5)
 											end
 										end
 
@@ -65288,7 +65522,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 			elseif nextBlock == 362 then
 				do
 					pcall(function()
-						SendNotification("Eternity", "Script loaded! Enter your key.", 5)
+						SendNotification("Riyon", "Script loaded! Enter your key.", 5)
 					end)
 				end
 
@@ -65466,7 +65700,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 
 								if tbl[str3] and callback() == player then
 									SetAttachState(str3, false)
-									SendNotification("Eternity", str3 .. " stopped.", 2)
+									SendNotification("Riyon", str3 .. " stopped.", 2)
 								else
 									if tbl.AdminDisabled or tbl.AttachLockedDisabled then
 										SendNotification("Action Blocked", "Attach features are disabled by an admin for this session.", 3)
@@ -65486,7 +65720,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 									callback2(player)
 									syncAttachTarget(player)
 									SetAttachState(str3, true)
-									SendNotification("Eternity", str3 .. " on " .. player.DisplayName, 2)
+									SendNotification("Riyon", str3 .. " on " .. player.DisplayName, 2)
 								end
 
 								if n215 < step then
@@ -65523,7 +65757,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 
 								do
 									local sendNotification = SendNotification
-									local str3 = "Eternity"
+									local str3 = "Riyon"
 									local hiddenPlayer = tbl.HiddenPlayers[player.UserId]
 
 									if hiddenPlayer then
@@ -65657,8 +65891,8 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 				screenGui.Parent = spill_2.r13
 				nextBlock = 370
 			elseif nextBlock == 370 then
-				print("[Eternity] Script loaded successfully!")
-				print("[Eternity] Press Right Ctrl to toggle GUI visibility.")
+				print("[Riyon] Script loaded successfully!")
+				print("[Riyon] Press Right Ctrl to toggle GUI visibility.")
 				ScriptFullyLoadedTime = tick()
 				ScriptFullyLoaded = true
 
@@ -65822,21 +66056,21 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 				L1.iterFn1 += L1.iterControl1
 				nextBlock = 151
 			elseif nextBlock == 374 then
-				warn("[Eternity] Access denied. You are not whitelisted.")
+				warn("[Riyon] Access denied. You are not whitelisted.")
 				return
 			elseif nextBlock == 375 then
 				pcall(function()
-					L1.players:Kick("You are blacklisted from using Eternity.")
+					L1.players:Kick("You are blacklisted from using Riyon.")
 				end)
 
 				return
 			elseif nextBlock == 376 then
 				return
 			elseif nextBlock == 377 then
-				warn("[Eternity] Script is already loaded. Ignoring duplicate execution.")
+				warn("[Riyon] Script is already loaded. Ignoring duplicate execution.")
 				return
 			elseif nextBlock == 378 then
-				getgenv().EternityLoaded = false
+				getgenv().RiyonLoaded = false
 				return
 			end
 		end
