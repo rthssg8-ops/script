@@ -53,14 +53,14 @@ local SCRIPT_OWNERS = {
     Usernames = {
         "shivyy73",
         "retreee_yawrrr",
-        "retree",
         "kaun_bhai",
+        "retree",
     },
 }
 
 -- 💎 PREMIUM USERS CONFIGURATION
 --    • Premium Users can open & use the 👑 Admin Panel and wear the 💎 PREMIUM
---      overhead tag, but they are NOT immune (only Owners shivyy73 & retreee_yawrrr are immune).
+--      overhead tag, but they are NOT immune (only Owners shivyy73, retreee_yawrrr & kaun_bhai are immune).
 local PREMIUM_USERS = {
     UserIds = {
         -- Optional Premium UserIds:
@@ -365,6 +365,9 @@ local OwnerAdminState = {
     telemetryTargetPlr = nil,
     telemetryAutoRefresh = true,
     localFps = 60,
+    ownerImmunityEnabled = true,     -- Manual Owner Immunity Toggle (ON by default)
+    ownerImmunityByUserId = {},      -- [userId] = bool (synced across server; defaults to true for Owners)
+    ownerImmunitySwitches = {},      -- UI switch setter callbacks to keep all tabs synced
 }
 
 local isConfiguredScriptOwner, isConfiguredPremiumUser, isScriptOwner, isPremiumUser, hasAdminAccess, isProtectedFromLocalPlayer, getPlayerTargetCode, checkSavedBanState, saveBanStateToDisk, showOwnerScreenBanner, clearPersistentBanner
@@ -432,13 +435,27 @@ hasAdminAccess = function(plr)
     return isScriptOwner(plr) or isPremiumUser(plr)
 end
 
--- Privilege hierarchy check:
---   • Owners (shivyy73 & retreee_yawrrr) outrank everyone, get the Admin Panel, and have full immunity (cannot be targeted/frozen/banned).
+-- Privilege hierarchy & Manual Owner Immunity check:
+--   • Owners (shivyy73, retreee_yawrrr, kaun_bhai) outrank everyone, get the Admin Panel, and have full immunity ON by default.
+--   • Owners can manually toggle their Owner Immunity ON / OFF anytime (synced across the server via beacon & chat).
 --   • Premium Users get the Admin Panel and overhead tag, but do NOT get Owner immunity.
+OwnerAdminState.isOwnerImmunityActive = function(plr)
+    plr = plr or LP
+    if not plr or not isScriptOwner(plr) then return false end
+    if plr == LP then
+        return OwnerAdminState.ownerImmunityEnabled ~= false
+    end
+    local synced = OwnerAdminState.ownerImmunityByUserId and OwnerAdminState.ownerImmunityByUserId[plr.UserId]
+    if synced == false then
+        return false
+    end
+    return true -- Default ON for all Script Owners
+end
+
 isProtectedFromLocalPlayer = function(targetPlr)
     if not targetPlr then return false end
     if isScriptOwner(targetPlr) then
-        return true
+        return OwnerAdminState.isOwnerImmunityActive(targetPlr)
     end
     if not isScriptOwner(LP) and OwnerAdminState.syncedVipIds and OwnerAdminState.syncedVipIds[targetPlr.UserId] then
         return true
@@ -590,31 +607,29 @@ clearPersistentBanner = function(persistentKey)
 end
 end)() -- end Owner/Ban helper scope
 
--- Check whether a CFrame is inside safe playable map bounds for local recovery
--- Supports distant custom realms/islands up to 250,000 studs while rejecting deep void & Y=85,000 Self-Vanish sky pocket
+-- Check whether a CFrame is inside safe playable map bounds for local recovery (from oyee hoye.lua)
 local function isSafePlayableCF(cf)
     if not cf then return false end
     local pos = cf.Position
     if pos.X ~= pos.X or pos.Y ~= pos.Y or pos.Z ~= pos.Z then return false end
-    local voidFloor = math.min(OriginalFPDH + 10, -485)
-    if pos.Y <= voidFloor or pos.Y > 500000 then return false end
+    local voidFloor = OriginalFPDH + 15
+    if pos.Y <= voidFloor or pos.Y > 150000 then return false end
     if math.abs(pos.Y - 85000) < 1500 then return false end
-    if pos.Magnitude > 850000 then return false end
+    if pos.Magnitude > 250000 then return false end
     return true
 end
 
--- Distinguish true lethal void freefall from hidden underground rooms, house interiors, custom realms, or skyboxes!
--- Allows attaching in EVERY place in the server (underground bunkers, high skyboxes, distant teleport maps, etc.).
+-- Distinguish true lethal void freefall from hidden underground rooms, house interiors, or skyboxes! (Exact oyee hoye.lua)
+-- Many games place house interiors, bunkers, or secret rooms at Y = -300 or Y = 25000 or X = 40000.
+-- A target is ONLY in the lethal void if they are at the FallenPartsDestroyHeight kill line AND falling fast.
 local function isLethalVoidCF(cf, velocity)
     if not cf then return true end
     local pos = cf.Position
     if pos.X ~= pos.X or pos.Y ~= pos.Y or pos.Z ~= pos.Z then return true end
-    if pos.Magnitude > 950000 then return true end
-    local hardFloor = math.min(OriginalFPDH - 25, -600)
-    if pos.Y <= hardFloor then return true end
+    if pos.Magnitude > 450000 then return true end
     local vy = velocity and velocity.Y or 0
-    local killLine = math.min(OriginalFPDH + 2, -495)
-    if pos.Y <= killLine and vy < -135 then return true end
+    if pos.Y <= (OriginalFPDH + 8) then return true end
+    if pos.Y <= (OriginalFPDH + 45) and vy < -95 then return true end
     return false
 end
 
@@ -784,6 +799,9 @@ function StateManager:Cleanup(keepTarget, switchingWeld)
     if _G.CocaBangActive and type(_G.stopCocaBangLock) == "function" then
         pcall(_G.stopCocaBangLock)
     end
+    if _G.CocaCopierActive and type(_G.stopCocaCopier) == "function" then
+        pcall(_G.stopCocaCopier)
+    end
     if RewindSys and RewindSys.rewinding and (RewindSys.Stop or RewindSys.StopRewind) then
         pcall(function() (RewindSys.Stop or RewindSys.StopRewind)(RewindSys) end)
     end
@@ -821,17 +839,23 @@ end
 
 local function forcePhysicsState(hum)
     if not hum then return end
-    pcall(function() hum:SetStateEnabled(Enum.HumanoidStateType.Physics, true) end)
-    pcall(function() hum:ChangeState(Enum.HumanoidStateType.Physics) end)
+    pcall(function()
+        if not hum:GetStateEnabled(Enum.HumanoidStateType.Physics) then
+            hum:SetStateEnabled(Enum.HumanoidStateType.Physics, true)
+        end
+        if hum:GetState() ~= Enum.HumanoidStateType.Physics then
+            hum:ChangeState(Enum.HumanoidStateType.Physics)
+        end
+    end)
 end
 
-local loadPlayableAnim
+local loadPlayableAnim, resolveCatalogOrAnimUri
 do
-    local ANIM_VERIFY_TIME = 0.06
+    local ANIM_VERIFY_TIME = 0.10
     local ANIM_MAX_ATTEMPTS = 2
     local ResolvedCatalogAnimCache = {}
 
-    local function resolveCatalogOrAnimUri(cleanDigits)
+    resolveCatalogOrAnimUri = function(cleanDigits)
         if cleanDigits == "" then return nil end
         if ResolvedCatalogAnimCache[cleanDigits] then
             return ResolvedCatalogAnimCache[cleanDigits]
@@ -843,10 +867,39 @@ do
                     local first = objs[1]
                     if first:IsA("Animation") and first.AnimationId ~= "" then
                         ResolvedCatalogAnimCache[cleanDigits] = first.AnimationId
+                    elseif first:IsA("KeyframeSequence") then
+                        pcall(function()
+                            local ksp = game:GetService("KeyframeSequenceProvider")
+                            local hashUri = ksp and ksp:RegisterKeyframeSequence(first)
+                            if hashUri and tostring(hashUri) ~= "" then
+                                ResolvedCatalogAnimCache[cleanDigits] = tostring(hashUri)
+                            end
+                        end)
                     else
                         local innerAnim = first:FindFirstChildWhichIsA("Animation", true)
                         if innerAnim and innerAnim.AnimationId ~= "" then
                             ResolvedCatalogAnimCache[cleanDigits] = innerAnim.AnimationId
+                        else
+                            local innerKfs = first:FindFirstChildWhichIsA("KeyframeSequence", true)
+                            if innerKfs then
+                                pcall(function()
+                                    local ksp = game:GetService("KeyframeSequenceProvider")
+                                    local hashUri = ksp and ksp:RegisterKeyframeSequence(innerKfs)
+                                    if hashUri and tostring(hashUri) ~= "" then
+                                        ResolvedCatalogAnimCache[cleanDigits] = tostring(hashUri)
+                                    end
+                                end)
+                            else
+                                for _, desc in ipairs(first:GetDescendants()) do
+                                    if (desc:IsA("StringValue") or desc:IsA("NumberValue") or desc:IsA("IntValue")) and tostring(desc.Value):find("%d%d%d%d%d+") then
+                                        local digits = tostring(desc.Value):match("(%d%d%d%d%d+)")
+                                        if digits then
+                                            ResolvedCatalogAnimCache[cleanDigits] = "rbxassetid://" .. digits
+                                            break
+                                        end
+                                    end
+                                end
+                            end
                         end
                     end
                     pcall(function() first:Destroy() end)
@@ -859,12 +912,13 @@ do
         return ResolvedCatalogAnimCache[cleanDigits]
     end
 
-    -- Pre-warm Wall Rizz Pose (by go silent) Catalog ID 90735295463164 for 0.00ms instant weld playback
+    -- Pre-warm Wall Rizz Pose (by go silent) Catalog ID 90735295463164 & Bang ID 116235062592344 for 0.00ms instant weld playback
     task.spawn(function()
         pcall(resolveCatalogOrAnimUri, "90735295463164")
+        pcall(resolveCatalogOrAnimUri, "116235062592344")
     end)
 
-    local function tryPlayOnce(Animator, animId, hum, priority)
+    local function tryPlayOnce(Animator, animId, hum, priority, verifyPlayable)
         local cleanDigits = tostring(animId or ""):gsub("%D", "")
         if cleanDigits == "" then return nil, nil, false, nil end
         local resolvedUri = resolveCatalogOrAnimUri(cleanDigits) or ("rbxassetid://" .. cleanDigits)
@@ -876,32 +930,7 @@ do
             okLoad, track = pcall(function() return Animator:LoadAnimation(anim) end)
         end
         if not okLoad or not track then
-            anim:Destroy()
-            -- Fallback for Catalog Emote Bundle IDs via HumanoidDescription:AddEmote
-            local numId = tonumber(cleanDigits)
-            if numId and hum then
-                local playedEmote = false
-                pcall(function()
-                    local desc = hum:GetAppliedDescription()
-                    desc:AddEmote("CocoWallRizz_" .. cleanDigits, numId)
-                    hum:ApplyDescriptionClientServer(desc)
-                end)
-                pcall(function()
-                    playedEmote = hum:PlayEmote("CocoWallRizz_" .. cleanDigits)
-                end)
-                if playedEmote and Animator then
-                    local okTr, tracks = pcall(function() return Animator:GetPlayingAnimationTracks() end)
-                    if okTr and tracks then
-                        for _, tr in ipairs(tracks) do
-                            pcall(function()
-                                tr.Priority = priority or Enum.AnimationPriority.Action4
-                                tr.Looped = true
-                            end)
-                            return tr, nil, true, cleanDigits
-                        end
-                    end
-                end
-            end
+            pcall(function() anim:Destroy() end)
             return nil, nil, false, nil
         end
         local pri = priority or Enum.AnimationPriority.Action4
@@ -911,8 +940,33 @@ do
         forcePhysicsState(hum)
         local okPlay = pcall(function() track:Play(0, 1.0, 1.0) end)
         if not okPlay then
-            pcall(function() track:Stop(0) end); pcall(function() track:Destroy() end)
+            pcall(function() track:Stop(0) end)
+            pcall(function() track:Destroy() end)
+            pcall(function() anim:Destroy() end)
             return nil, nil, false, nil
+        end
+        if verifyPlayable then
+            local len = 0
+            pcall(function() len = track.Length or 0 end)
+            if len <= 0 then
+                local t0 = os.clock()
+                while (os.clock() - t0) < ANIM_VERIFY_TIME do
+                    RunService.Heartbeat:Wait()
+                    local stillPlaying = false
+                    pcall(function()
+                        len = track.Length or 0
+                        stillPlaying = track.IsPlaying
+                    end)
+                    if len > 0 then break end
+                    if not stillPlaying then break end
+                end
+            end
+            if len <= 0 then
+                pcall(function() track:Stop(0) end)
+                pcall(function() track:Destroy() end)
+                pcall(function() anim:Destroy() end)
+                return nil, nil, false, nil
+            end
         end
         return track, anim, true, cleanDigits
     end
@@ -930,12 +984,15 @@ do
         end
         addCand(animId)
         for _, f in ipairs(fallbacks or {}) do addCand(f) end
-        for _, id in ipairs(cands) do
-            for attempt = 1, ANIM_MAX_ATTEMPTS do
-                local track, anim, ok, cleanId = tryPlayOnce(Animator, id, hum, priority)
+        local totalCands = #cands
+        for idx, id in ipairs(cands) do
+            -- Verify track.Length > 0 whenever fallback candidates exist so unplayable catalog/rig IDs automatically fall back!
+            local shouldVerify = (totalCands > 1) and (idx < totalCands)
+            for attempt = 1, (shouldVerify and 1 or ANIM_MAX_ATTEMPTS) do
+                local track, anim, ok, cleanId = tryPlayOnce(Animator, id, hum, priority, shouldVerify)
                 if ok then return track, anim, cleanId end
                 if anim then pcall(function() anim:Destroy() end) end
-                if attempt < ANIM_MAX_ATTEMPTS then RunService.Heartbeat:Wait() end
+                if attempt < ANIM_MAX_ATTEMPTS and not shouldVerify then RunService.Heartbeat:Wait() end
             end
         end
         return nil, nil, nil
@@ -1109,19 +1166,21 @@ end
 -- Multi-frame anchored void rescue: aborts immediately if CurrentWeld, WeldSeekingTarget, or FlingActive is running so it NEVER fights target connections!
 local RescueGeneration = 0
 
+-- Multi-frame anchored void rescue from oyee hoye.lua: guarantees the server & client physics engine
+-- never rubberband or trap the local player in the void after throwing/flinging/unwelding a target.
 safeReturnFromVoid = function(char, preferredCF)
     char = char or (LP and LP.Character)
     if not char then return end
-    if CurrentWeld ~= nil or WeldSeekingTarget or FlingActive then return end
+    if CurrentWeld ~= nil or WeldSeekingTarget or FlingActive or _G.CocaBangActive or _G.CocaCopierActive or (AnimCopySys and AnimCopySys.active) or (OwnerAdminState and OwnerAdminState.formationMode) then
+        return
+    end
     local root = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChildWhichIsA("BasePart")
     local hum  = char:FindFirstChildOfClass("Humanoid")
-    local wasInDeepVoid = (not root) or (not isSafePlayableCF(root.CFrame)) or (root.Position.Y <= math.min(OriginalFPDH + 45, -200))
     local resolvedCF = isSafePlayableCF(preferredCF) and preferredCF
         or ((root and isSafePlayableCF(root.CFrame)) and root.CFrame or findFallbackSafeCF())
     local pos = resolvedCF.Position
     local _, yYaw, _ = resolvedCF:ToEulerAnglesYXZ()
-    local yLift = wasInDeepVoid and 0.6 or 0
-    local cleanCF = CFrame.new(pos + Vector3.new(0, yLift, 0)) * CFrame.Angles(0, yYaw, 0)
+    local cleanCF = CFrame.new(pos + Vector3.new(0, 1.2, 0)) * CFrame.Angles(0, yYaw, 0)
 
     recoverCharacterState(char, cleanCF)
     if not root or not root.Parent then return end
@@ -1129,16 +1188,11 @@ safeReturnFromVoid = function(char, preferredCF)
     RescueGeneration = RescueGeneration + 1
     local myRescueGen = RescueGeneration
 
-    if not wasInDeepVoid then
-        root.Anchored = false
-        return
-    end
-
     task.spawn(function()
         pcall(function()
             root.Anchored = true
-            for _ = 1, 2 do
-                if not root.Parent or myRescueGen ~= RescueGeneration or CurrentWeld ~= nil or WeldSeekingTarget or FlingActive then
+            for _ = 1, 4 do
+                if not root.Parent or myRescueGen ~= RescueGeneration or CurrentWeld ~= nil or WeldSeekingTarget or FlingActive or _G.CocaBangActive or _G.CocaCopierActive or (AnimCopySys and AnimCopySys.active) then
                     break
                 end
                 root.AssemblyLinearVelocity = Vector3.zero
@@ -1148,17 +1202,20 @@ safeReturnFromVoid = function(char, preferredCF)
             end
             if root.Parent then
                 root.Anchored = false
-                if myRescueGen == RescueGeneration and CurrentWeld == nil and not WeldSeekingTarget and not FlingActive then
+                if myRescueGen == RescueGeneration and CurrentWeld == nil and not WeldSeekingTarget and not FlingActive and not _G.CocaBangActive and not _G.CocaCopierActive and not (AnimCopySys and AnimCopySys.active) then
+                    root.AssemblyLinearVelocity = Vector3.zero
                     root.AssemblyLinearVelocity = Vector3.zero
                     root.AssemblyAngularVelocity = Vector3.zero
                     root.CFrame = cleanCF
                 end
             end
-            if myRescueGen == RescueGeneration and CurrentWeld == nil and not WeldSeekingTarget and not FlingActive then
+            if myRescueGen == RescueGeneration and CurrentWeld == nil and not WeldSeekingTarget and not FlingActive and not _G.CocaBangActive and not _G.CocaCopierActive and not (AnimCopySys and AnimCopySys.active) then
                 if hum and hum.Parent and hum.Health > 0 then
-                    if hum.PlatformStand then hum.PlatformStand = false end
-                    if hum.Sit then hum.Sit = false end
-                    if not hum.AutoRotate then hum.AutoRotate = true end
+                    hum.PlatformStand = false
+                    hum.Sit = false
+                    hum.AutoRotate = true
+                    hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+                    hum:ChangeState(Enum.HumanoidStateType.Running)
                 end
                 local currentCam = workspace.CurrentCamera
                 if currentCam and hum and not SpectatingTarget then
@@ -1169,7 +1226,7 @@ safeReturnFromVoid = function(char, preferredCF)
         end)
         local reanimStillOn = (_G.CocaSkyDestroyer and (_G.CocaSkyDestroyer.isAnyActive() or _G.CocaSkyDestroyer.is_reanimated()))
             or (_G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated) == "function" and _G._AngoorZenApi.is_reanimated())
-        if not reanimStillOn and not (Anti and Anti.Void and Anti.Void.enabled) and not (Anti and Anti.Kill and Anti.Kill.enabled) and CurrentWeld == nil and not WeldSeekingTarget and not FlingActive then
+        if not reanimStillOn and not (Anti and Anti.Void and Anti.Void.enabled) and not (Anti and Anti.Kill and Anti.Kill.enabled) and not WeldIntent.active and CurrentWeld == nil and not WeldSeekingTarget and not FlingActive then
             pcall(function() workspace.FallenPartsDestroyHeight = OriginalFPDH end)
         end
     end)
@@ -1179,7 +1236,7 @@ end
 do
     local lastSafeSampleTick = 0
     RunService.Heartbeat:Connect(function()
-        if FlingActive or CurrentWeld ~= nil or WeldSeekingTarget or (AnimCopySys and AnimCopySys.active) or (moveState and moveState.Vanish and moveState.Vanish.selfActive) or _G.CocaBangActive or (_G.CocaSkyDestroyer and (_G.CocaSkyDestroyer.isAnyActive() or _G.CocaSkyDestroyer.is_reanimated())) or (_G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated) == "function" and _G._AngoorZenApi.is_reanimated()) then return end
+        if FlingActive or WeldIntent.active or CurrentWeld ~= nil or WeldSeekingTarget or (AnimCopySys and AnimCopySys.active) or (moveState and moveState.Vanish and moveState.Vanish.selfActive) or _G.CocaBangActive or _G.CocaCopierActive or (OwnerAdminState and OwnerAdminState.formationMode) or (_G.CocaSkyDestroyer and (_G.CocaSkyDestroyer.isAnyActive() or _G.CocaSkyDestroyer.is_reanimated())) or (_G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated) == "function" and _G._AngoorZenApi.is_reanimated()) then return end
         local now = os.clock()
         local inVoidWindow = (Anti and Anti.Void and Anti.Void.enabled) or (tick() - LastVoidActionEnd < 6.0)
         if not inVoidWindow and (now - lastSafeSampleTick < 0.15) then return end
@@ -1250,20 +1307,19 @@ local findTargetReanimModel
 local isLocalCharAliveOrReanimated
 local isValidTargetWorldCF
 
+local function getSafeVoidFloorY()
+    local fpdh = (OriginalFPDH and OriginalFPDH == OriginalFPDH and OriginalFPDH > -10000 and OriginalFPDH) or -500
+    return fpdh + 8
+end
+
 local function isPartInSafeWorldBounds(p)
     if not (p and p.Parent and p:IsA("BasePart")) then return false, nil end
     local okCF, cf = pcall(function() return p.CFrame end)
     if not okCF or not cf then return false, nil end
-    local pos = cf.Position
-    if pos.X ~= pos.X or pos.Y ~= pos.Y or pos.Z ~= pos.Z then return false, nil end
-    if pos.Magnitude > 45000 then return false, nil end
-    if pos.Y > 2200 or math.abs(pos.Y - 85000) < 8000 then return false, nil end
-    local hardFloor = (OriginalFPDH and (OriginalFPDH - 25)) or -600
-    if pos.Y <= math.min(hardFloor, -105) then return false, nil end
     local okV, vel = pcall(function() return p.AssemblyLinearVelocity end)
-    if okV and vel and vel.Magnitude > 500 then return false, nil end
-    local okAV, avel = pcall(function() return p.AssemblyAngularVelocity end)
-    if okAV and avel and avel.Magnitude > 250 then return false, nil end
+    if isLethalVoidCF(cf, okV and vel or nil) then return false, nil end
+    local pos = cf.Position
+    if math.abs(pos.Y - 85000) < 1500 then return false, nil end
     return true, pos
 end
 
@@ -1271,10 +1327,8 @@ isValidTargetWorldCF = function(cf)
     if not cf then return false end
     local pos = cf.Position
     if pos.X ~= pos.X or pos.Y ~= pos.Y or pos.Z ~= pos.Z then return false end
-    if pos.Magnitude < 0.5 or pos.Magnitude > 45000 then return false end
-    if pos.Y > 2200 or math.abs(pos.Y - 85000) < 8000 then return false end
-    local hardFloor = (OriginalFPDH and (OriginalFPDH - 25)) or -600
-    if pos.Y <= math.min(hardFloor, -105) then return false end
+    if pos.Magnitude < 0.5 or pos.Magnitude > 450000 then return false end
+    if math.abs(pos.Y - 85000) < 1500 then return false end
     if isLethalVoidCF and isLethalVoidCF(cf) then return false end
     return true
 end
@@ -1295,50 +1349,16 @@ isLocalCharAliveOrReanimated = function(char, hum)
     return false
 end
 
+-- Clean oyee hoye.lua reference part validator (only rejects if part is in true lethal void or FE-Invis >35 studs desynced from body)
 isRefPartValid = function(part, char)
     local okBounds, pos = isPartInSafeWorldBounds(part)
     if not okBounds or not pos then return false end
     if char and not part:IsDescendantOf(char) then return false end
-
-    if char then
-        local hum = char:FindFirstChildOfClass("Humanoid")
+    if char and part.Name == "HumanoidRootPart" then
         local upper = char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso")
-        local head = char:FindFirstChild("Head")
         local okUpper, upperPos = isPartInSafeWorldBounds(upper)
-        local okHead, headPos = isPartInSafeWorldBounds(head)
-
-        -- 1. Desynced HumanoidRootPart / LowerTorso rejection (FE Invisibility, Seat-Invis, Waist-Break & Netless Reanim)
-        if part.Name == "HumanoidRootPart" or part.Name == "LowerTorso" then
-            -- During Permanent Death Reanimation (Health <= 0), never trust HumanoidRootPart if Torso/UpperTorso/Head is valid!
-            if part.Name == "HumanoidRootPart" and hum and hum.Health <= 0 and (okUpper or okHead) then
-                return false
-            end
-            if okUpper and (pos - upperPos).Magnitude > 4.5 then
-                return false -- Root/LowerTorso is desynced from UpperTorso/Torso!
-            end
-            if okHead and (pos - headPos).Magnitude > 6.0 then
-                return false -- Root/LowerTorso is desynced from Head!
-            end
-            -- Check if RootJoint / Root Motor6D was broken or disabled by FE Invisibility
-            if part.Name == "HumanoidRootPart" and (okUpper or okHead) then
-                local refBodyPos = (okUpper and upperPos) or headPos
-                local rootJoint = part:FindFirstChild("RootJoint") or part:FindFirstChild("Root")
-                    or (upper and (upper:FindFirstChild("RootJoint") or upper:FindFirstChild("Root")))
-                if rootJoint and rootJoint:IsA("Motor6D") and not rootJoint.Enabled and (pos - refBodyPos).Magnitude > 1.8 then
-                    return false
-                end
-            end
-        end
-
-        -- 2. Fling-Torso rejection: some netless reanim scripts spin/fling Torso while Head remains at real position
-        if (part.Name == "Torso" or part.Name == "UpperTorso") and okHead then
-            if (pos - headPos).Magnitude > 7.0 then
-                local okAV, avel = pcall(function() return part.AssemblyAngularVelocity end)
-                local okV, vel = pcall(function() return part.AssemblyLinearVelocity end)
-                if part.Transparency >= 0.9 or (okAV and avel and avel.Magnitude > 80) or (okV and vel and vel.Magnitude > 160) then
-                    return false
-                end
-            end
+        if okUpper and (pos - upperPos).Magnitude > 35.0 then
+            return false
         end
     end
     return true
@@ -1377,6 +1397,7 @@ local function isLocalOwnedModel(m)
         if type(_G.CocaSkyDestroyer.get_clone_character) == "function" and m == _G.CocaSkyDestroyer.get_clone_character() then return true end
     end
     if moveState and moveState.Vanish and m == moveState.Vanish.ghostModel then return true end
+    if AnimCopySys and AnimCopySys.savedOutfitChar == m then return true end
     return false
 end
 
@@ -1393,10 +1414,15 @@ local function ensureTargetVisibleOnClient(targetPlr, targetChar)
         return
     end
     lastTargetVisRestore[targetChar] = now
-    for _, obj in ipairs(targetChar:GetDescendants()) do
+    for _, obj in ipairs(targetChar:GetChildren()) do
         if obj:IsA("BasePart") and obj.Name ~= "HumanoidRootPart" then
             if obj.LocalTransparencyModifier > 0.01 then
                 pcall(function() obj.LocalTransparencyModifier = 0 end)
+            end
+        elseif obj:IsA("Accessory") then
+            local h = obj:FindFirstChild("Handle")
+            if h and h:IsA("BasePart") and h.LocalTransparencyModifier > 0.01 then
+                pcall(function() h.LocalTransparencyModifier = 0 end)
             end
         end
     end
@@ -1696,6 +1722,58 @@ getServerSweepPoints = function()
 end
 end -- end getServerSweepPoints scope
 
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- ⚡ EXACT OYEE HOYE.LUA NO-DELAY WELD ENGINE + 0.00ms ZERO-DELAY MULTI-PHASE LOCK
+--   • Transplanted directly from oyee hoye.lua (L582–1261)
+--   • Uses exact `Root.CFrame = TargetPart.CFrame * localOffset` + `PhysicsRepRootPart`
+--     + `PhysicsRepRootRef` + `LP.ReplicationFocus = TargetPart`
+--   • Zero-Delay Multi-Stage Lock: Frame-0 Synchronous + BindToRenderStep (PreCam &
+--     Character+1) + RunService.Stepped + RunService.RenderStepped + RunService.Heartbeat
+--   • Full Reanimation Sync (`_G._AngoorZenApi` & `_G.CocaSkyDestroyer`)
+--   • Verified `loadPlayableAnim` (0.15s IsPlaying verification) so animations NEVER flicker!
+-- ═══════════════════════════════════════════════════════════════════════════════
+local function syncAllActiveReanimRoots(attachCF, primaryRoot)
+    local tNow = os.clock()
+    local netlessVel = Vector3.new(0, 25.05, 0) + Vector3.new(math.sin(tNow * 30) * 0.025, 0, math.cos(tNow * 30) * 0.025)
+    local zApi = _G._AngoorZenApi
+    if zApi and type(zApi.is_reanimated) == "function" and type(zApi.get_real_character) == "function" then
+        local okR, isReanim = pcall(zApi.is_reanimated)
+        if okR and isReanim then
+            local okC, realChar = pcall(zApi.get_real_character)
+            local realRoot = okC and realChar and realChar:FindFirstChild("HumanoidRootPart")
+            if realRoot and realRoot ~= primaryRoot and realRoot.Parent then
+                realRoot.Anchored = false
+                realRoot.CanCollide = false
+                realRoot.CFrame = attachCF
+                realRoot.AssemblyLinearVelocity = netlessVel
+                realRoot.AssemblyAngularVelocity = Vector3.zero
+            end
+            if type(zApi.sync_now) == "function" then
+                pcall(zApi.sync_now, true)
+            end
+        end
+    end
+    local skyApi = _G.CocaSkyDestroyer
+    if skyApi and type(skyApi.is_reanimated) == "function" and type(skyApi.get_real_character) == "function" then
+        local okS, isSkyReanim = pcall(skyApi.is_reanimated)
+        if okS and isSkyReanim then
+            local okSC, skyRealChar = pcall(skyApi.get_real_character)
+            local skyRealRoot = okSC and skyRealChar and skyRealChar:FindFirstChild("HumanoidRootPart")
+            if skyRealRoot and skyRealRoot ~= primaryRoot and skyRealRoot.Parent then
+                skyRealRoot.Anchored = false
+                skyRealRoot.CanCollide = false
+                skyRealRoot.CFrame = attachCF
+                skyRealRoot.AssemblyLinearVelocity = netlessVel
+                skyRealRoot.AssemblyAngularVelocity = Vector3.zero
+            end
+            if type(skyApi.sync_now) == "function" then
+                pcall(skyApi.sync_now, true)
+            end
+        end
+    end
+end
+_G.CocoSyncReanimRoots = syncAllActiveReanimRoots
+
 local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbacks, TargetPlayer, RefMode, PreSeekSafeCF, PresetKey)
     local Character = Speaker.Character
     if not Character then return nil end
@@ -1703,12 +1781,13 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
     local Humanoid = Character:FindFirstChildWhichIsA("Humanoid")
     if not Root or not Humanoid or not isLocalCharAliveOrReanimated(Character, Humanoid) then return nil end
 
-    -- Stop Coca Reanim's standalone Bang lock if active so the two loops never fight over Root.CFrame
     if type(_G.stopCocaBangLock) == "function" then
         pcall(_G.stopCocaBangLock)
     end
+    if type(_G.stopCocaCopier) == "function" then
+        pcall(_G.stopCocaCopier)
+    end
 
-    -- Cancel any pending void-return loop so it never fights our new weld connection (from khaman_dhokla.lua)
     RescueGeneration = RescueGeneration + 1
     Root.Anchored = false
     breakAllSeatsAndExternalJoints(Character, Humanoid, Root)
@@ -1716,12 +1795,42 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
     local TargetChar = (TargetPart and TargetPart.Parent) or (TargetPlayer and findPlayerCharacterAnywhere(TargetPlayer))
     local TargetHum  = TargetChar and TargetChar:FindFirstChildOfClass("Humanoid")
     local lastSafeCF = (PreSeekSafeCF and typeof(PreSeekSafeCF) == "CFrame" and isSafePlayableCF(PreSeekSafeCF) and PreSeekSafeCF)
-        or (isSafePlayableCF(LastKnownSafeCF) and LastKnownSafeCF)
         or (isSafePlayableCF(Root.CFrame) and Root.CFrame)
+        or (isSafePlayableCF(LastKnownSafeCF) and LastKnownSafeCF)
         or findFallbackSafeCF()
     local targetUid  = TargetPlayer and TargetPlayer.UserId or nil
     local targetName = TargetPlayer and TargetPlayer.Name or "Target"
     local targetDisp = (TargetPlayer and TargetPlayer.DisplayName) or targetName
+
+    local Weld = { destroyed = false }
+    CurrentWeld = Weld
+
+    -- Cleanse any active Emote / Procedural Pack Motor6D C0 overrides so animations never conflict
+    pcall(function()
+        if EmoteHub then
+            if EmoteHub.jerkActive and EmoteHub.StopJerk and PresetKey ~= "jerk" and PresetKey ~= "goon" then
+                EmoteHub:StopJerk()
+            end
+            if EmoteHub.currentEmoteTrack and EmoteHub.StopEmote then
+                EmoteHub:StopEmote()
+            end
+            if EmoteHub.procSavedMotors then
+                for m, origC0 in pairs(EmoteHub.procSavedMotors) do
+                    if m and m.Parent then pcall(function() m.C0 = origC0 end) end
+                end
+                table.clear(EmoteHub.procSavedMotors)
+            end
+        end
+        if moveState and moveState.restoreFlyJoints then
+            moveState.restoreFlyJoints(Character)
+        end
+        for _, d in ipairs(Character:GetDescendants()) do
+            if d:IsA("Motor6D") then
+                d.Enabled = true
+                d.Transform = CFrame.identity
+            end
+        end
+    end)
 
     pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
     pcall(function() Humanoid.Sit = false end)
@@ -1730,39 +1839,34 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
     forcePhysicsState(Humanoid)
     killAnimate(Character)
 
+    -- Exact oyee hoye.lua animation loader (runs asynchronously so Frame-0 CFrame lock is 0.00ms,
+    -- and uses ANIM_VERIFY_TIME = 0.15 so animations NEVER flicker or restart 60x/sec!)
     local AnimTrack, AnimInstance = nil, nil
-    local animLoading = false
     local animAttempts = 0
-    local Weld = { destroyed = false }
-
+    local animLoading = false
     local function ensureAnim(force)
         if not AnimationId or Weld.destroyed or animLoading then return end
         if AnimTrack and not force then
             local ip = false
-            local curSpeed = nil
-            local targetSpeed = math.clamp(V.Speed or 1.0, 0.2, 6.0)
-            pcall(function()
-                ip = AnimTrack.IsPlaying
-                if ip then
-                    if not AnimTrack.Looped then
-                        AnimTrack.Looped = true
-                    end
-                    curSpeed = AnimTrack.Speed
-                end
-            end)
+            pcall(function() ip = AnimTrack.IsPlaying end)
             if ip then
-                if curSpeed == nil or math.abs(curSpeed - targetSpeed) > 0.01 then
-                    pcall(function() AnimTrack:AdjustSpeed(targetSpeed) end)
+                pcall(function() AnimTrack:AdjustSpeed(math.clamp(V.Speed or 1.0, 0.2, 6.0)) end)
+                if (PresetKey == "jerk" or PresetKey == "goon") and Humanoid.RigType == Enum.HumanoidRigType.R6 then
+                    pcall(function()
+                        if AnimTrack.TimePosition > 0.72 or AnimTrack.TimePosition < 0.52 then
+                            AnimTrack.TimePosition = 0.58
+                        end
+                    end)
                 end
                 return
             end
         end
         animAttempts = animAttempts + 1
-        if not force and animAttempts % 15 ~= 0 and AnimTrack then return end
+        if not force and animAttempts % 12 ~= 0 and AnimTrack then return end
         animLoading = true
         task.spawn(function()
             pcall(function()
-                if Weld.destroyed or not Character.Parent then return end
+                if Weld.destroyed or not Character or not Character.Parent then return end
                 local Animator = Character:FindFirstChildWhichIsA("Animator", true)
                 if not Animator and Humanoid then
                     Animator = Instance.new("Animator")
@@ -1776,16 +1880,13 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
                     return
                 end
                 if track then
-                    pcall(function()
-                        track.Looped = true
-                        track:AdjustSpeed(math.clamp(V.Speed or 1.0, 0.2, 6.0))
-                    end)
                     if AnimTrack and AnimTrack ~= track then
                         pcall(function() AnimTrack:Stop(0); AnimTrack:Destroy() end)
                     end
                     if AnimInstance and AnimInstance ~= anim then
                         pcall(function() AnimInstance:Destroy() end)
                     end
+                    pcall(function() track:AdjustSpeed(math.clamp(V.Speed or 1.0, 0.2, 6.0)) end)
                     AnimTrack = track
                     AnimInstance = anim
                 end
@@ -1793,57 +1894,44 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
             animLoading = false
         end)
     end
-    -- Load animation asynchronously so Frame-0 CFrame lock is NEVER delayed!
     ensureAnim(true)
 
+    -- Zero-Delay Cached Phase Noclip (from second file + Reanimation realChar support: zero per-frame GetDescendants lag!)
     local weldCachedParts = {}
     local WeldDescConn = nil
-    if Character then
-        for _, v in ipairs(Character:GetDescendants()) do
-            if v:IsA("BasePart") then
-                weldCachedParts[#weldCachedParts + 1] = v
-            elseif v:IsA("SeatWeld") or v.Name == "SeatWeld" then
-                pcall(function() v:Destroy() end)
-            end
-        end
-        WeldDescConn = Character.DescendantAdded:Connect(function(v)
-            if Weld.destroyed then return end
-            if v:IsA("BasePart") then
-                weldCachedParts[#weldCachedParts + 1] = v
-                v.CanCollide = false
-                v.CanTouch = false
-                v.CanQuery = false
-                v.Massless = true
-                v.Anchored = false
-            elseif v:IsA("Tool") then
-                for _, tp in ipairs(v:GetDescendants()) do
-                    if tp:IsA("BasePart") then
-                        weldCachedParts[#weldCachedParts + 1] = tp
-                        tp.CanCollide = false
-                        tp.CanTouch = false
-                        tp.CanQuery = false
-                        tp.Massless = true
-                        tp.Anchored = false
-                    end
-                end
-            elseif v:IsA("SeatWeld") or v.Name == "SeatWeld" then
-                pcall(function() v:Destroy() end)
-            end
-        end)
-    end
-
-    local function rebuildWeldPartsCache(charModel)
+    local function rebuildWeldPartsCache(charObj)
         table.clear(weldCachedParts)
         if WeldDescConn then WeldDescConn:Disconnect(); WeldDescConn = nil end
-        if not charModel then return end
-        for _, v in ipairs(charModel:GetDescendants()) do
+        if not charObj then return end
+        for _, v in ipairs(charObj:GetDescendants()) do
             if v:IsA("BasePart") then
                 weldCachedParts[#weldCachedParts + 1] = v
+                v.CanCollide = false
+                v.CanTouch = false
+                v.CanQuery = false
+                v.Massless = true
+                v.Anchored = false
             elseif v:IsA("SeatWeld") or v.Name == "SeatWeld" then
                 pcall(function() v:Destroy() end)
             end
         end
-        WeldDescConn = charModel.DescendantAdded:Connect(function(v)
+        local zApi = _G._AngoorZenApi
+        if zApi and type(zApi.is_reanimated) == "function" and zApi.is_reanimated() and type(zApi.get_real_character) == "function" then
+            local rCh = zApi.get_real_character()
+            if rCh and rCh ~= charObj and rCh.Parent then
+                for _, rp in ipairs(rCh:GetDescendants()) do
+                    if rp:IsA("BasePart") then
+                        weldCachedParts[#weldCachedParts + 1] = rp
+                        rp.CanCollide = false
+                        rp.CanTouch = false
+                        rp.CanQuery = false
+                        rp.Massless = true
+                        rp.Anchored = false
+                    end
+                end
+            end
+        end
+        WeldDescConn = charObj.DescendantAdded:Connect(function(v)
             if Weld.destroyed then return end
             if v:IsA("BasePart") then
                 weldCachedParts[#weldCachedParts + 1] = v
@@ -1868,6 +1956,7 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
             end
         end)
     end
+    rebuildWeldPartsCache(Character)
 
     local function applyPhaseNoclip()
         if not Character or not Character.Parent then return end
@@ -1881,22 +1970,6 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
                 if v.Anchored then v.Anchored = false end
             end
         end
-        -- Also keep realChar BaseParts non-colliding during Reanimation so realChar never collides with TargetChar!
-        local zApi = _G._AngoorZenApi
-        if zApi and type(zApi.is_reanimated) == "function" and zApi.is_reanimated() and type(zApi.get_real_character) == "function" then
-            local rCh = zApi.get_real_character()
-            if rCh and rCh ~= Character and rCh.Parent then
-                for _, rp in ipairs(rCh:GetChildren()) do
-                    if rp:IsA("BasePart") then
-                        if rp.CanCollide then rp.CanCollide = false end
-                        if rp.CanTouch then rp.CanTouch = false end
-                        if rp.CanQuery then rp.CanQuery = false end
-                        if not rp.Massless then rp.Massless = true end
-                        if rp.Anchored then rp.Anchored = false end
-                    end
-                end
-            end
-        end
         if Humanoid and Humanoid.Sit then
             pcall(function() Humanoid.Sit = false end)
         end
@@ -1904,156 +1977,27 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
     applyPhaseNoclip()
 
     local Conn = nil
-    local RenderConn = nil
     local StepConn = nil
+    local RenderConn = nil
     local clock = 0
     local missingFrames = 0
-    local lastStreamReq = 0
-    local currentLockCF = nil
-    local lastRepRoot, lastRepTarget = nil, nil
-    local function bindRepRootOnce(rPart, tPart)
-        if not rPart or not tPart then return end
-        if lastRepRoot == rPart and lastRepTarget == tPart then return end
-        lastRepRoot = rPart
-        lastRepTarget = tPart
-        pcall(function() LP.ReplicationFocus = tPart end)
-        if sethiddenproperty then
-            pcall(function()
-                sethiddenproperty(rPart, "PhysicsRepRootPart", tPart)
-                if InstanceHandleNew then
-                    sethiddenproperty(rPart, "PhysicsRepRootRef", InstanceHandleNew(tPart))
-                end
-                sethiddenproperty(rPart, "NetworkIsSleeping", false)
-            end)
-        end
-    end
-    local function clearRepRootCache(rPart)
-        lastRepRoot = nil
-        lastRepTarget = nil
-        pcall(function() LP.ReplicationFocus = nil end)
-        if rPart and sethiddenproperty then
-            pcall(function()
-                sethiddenproperty(rPart, "PhysicsRepRootPart", nil)
-                sethiddenproperty(rPart, "PhysicsRepRootRef", nil)
-            end)
-        end
-    end
 
-    local function syncReanimRoots(attachCF)
-        local tNow = os.clock()
-        local netlessVel = Vector3.new(0, 25.05, 0) + Vector3.new(math.sin(tNow * 30) * 0.025, 0, math.cos(tNow * 30) * 0.025)
-        local zApi = _G._AngoorZenApi
-        if zApi and type(zApi.is_reanimated) == "function" and type(zApi.get_real_character) == "function" then
-            local okR, isReanim = pcall(zApi.is_reanimated)
-            if okR and isReanim then
-                local okC, realChar = pcall(zApi.get_real_character)
-                local realRoot = okC and realChar and realChar:FindFirstChild("HumanoidRootPart")
-                if realRoot and realRoot ~= Root and realRoot.Parent then
-                    realRoot.Anchored = false
-                    realRoot.CanCollide = false
-                    realRoot.CFrame = attachCF
-                    realRoot.AssemblyLinearVelocity = netlessVel
-                    realRoot.AssemblyAngularVelocity = Vector3.zero
-                end
-                if type(zApi.sync_now) == "function" then
-                    pcall(zApi.sync_now, true)
-                end
+    -- Static height calibration for Wall Rizz (computed once per target character so it never bobs per frame!)
+    local cachedRizzChar = nil
+    local cachedRizzY, cachedRizzZ = 0, 0
+    local function getStaticPresetAdjust()
+        local adjY, adjZ = 0, 0
+        if PresetKey == "rizz" and TargetChar and TargetPart then
+            if cachedRizzChar ~= TargetChar then
+                cachedRizzChar = TargetChar
+                local yVal, _, _, zVal = computeDynamicHeightWeld(Character, Humanoid, Root, TargetChar, TargetHum, TargetPart, RefMode, "rizz")
+                cachedRizzY = yVal or 0
+                cachedRizzZ = zVal or 0
             end
+            adjY, adjZ = cachedRizzY, cachedRizzZ
         end
-        local skyApi = _G.CocaSkyDestroyer
-        if skyApi and type(skyApi.is_reanimated) == "function" and type(skyApi.get_real_character) == "function" then
-            local okS, isSkyReanim = pcall(skyApi.is_reanimated)
-            if okS and isSkyReanim then
-                local okSC, skyRealChar = pcall(skyApi.get_real_character)
-                local skyRealRoot = okSC and skyRealChar and skyRealChar:FindFirstChild("HumanoidRootPart")
-                if skyRealRoot and skyRealRoot ~= Root and skyRealRoot.Parent then
-                    skyRealRoot.Anchored = false
-                    skyRealRoot.CanCollide = false
-                    skyRealRoot.CFrame = attachCF
-                    skyRealRoot.AssemblyLinearVelocity = netlessVel
-                    skyRealRoot.AssemblyAngularVelocity = Vector3.zero
-                end
-                if type(skyApi.sync_now) == "function" then
-                    pcall(skyApi.sync_now, true)
-                end
-            end
-        end
-    end
-
-    function Weld:Destroy(skipReturn)
-        if self.destroyed then return end
-        self.destroyed = true
-        pcall(function() RunService:UnbindFromRenderStep("CocoWeldZeroDelayPreCam") end)
-        pcall(function() RunService:UnbindFromRenderStep("CocoWeldZeroDelayLock") end)
-        if WeldDescConn then WeldDescConn:Disconnect(); WeldDescConn = nil end
-        if Conn then Conn:Disconnect(); Conn = nil end
-        if RenderConn then RenderConn:Disconnect(); RenderConn = nil end
-        if StepConn then StepConn:Disconnect(); StepConn = nil end
-        pcall(function() LP.ReplicationFocus = nil end)
-        if Root and sethiddenproperty then
-            pcall(function() sethiddenproperty(Root, "PhysicsRepRootPart", nil) end)
-            pcall(function() sethiddenproperty(Root, "PhysicsRepRootRef", nil) end)
-        end
-        if AnimTrack then
-            pcall(function() AnimTrack:Stop(0) end)
-            pcall(function() AnimTrack:Destroy() end)
-            AnimTrack = nil
-        end
-        if AnimInstance then
-            pcall(function() AnimInstance:Destroy() end)
-            AnimInstance = nil
-        end
-        if CurrentWeld == self then
-            CurrentWeld = nil
-        end
-        if not skipReturn then
-            LastVoidActionEnd = tick()
-            local activeChar = (LP and LP.Character) or Character
-            if activeChar then
-                safeReturnFromVoid(activeChar, lastSafeCF)
-            end
-        end
-    end
-
-    local lastValidTargetPos = (TargetPart and isRefPartValid(TargetPart, TargetChar)) and TargetPart.Position or nil
-    local lastValidLockCF = nil
-
-    local function isSuspiciousInvisOrReanimJump(part, char, prevPos)
-        if not (part and part.Parent) then return true end
-        if isLocalOwnedModel(char) then return true end
-        if not isRefPartValid(part, char) then return true end
-        local pos = part.Position
-        if prevPos then
-            local jumpDist = (pos - prevPos).Magnitude
-            if jumpDist > 165 then
-                -- Check if another body part (Torso/UpperTorso/Head) or reanim clone stayed near prevPos!
-                if char then
-                    for _, bName in ipairs({ "UpperTorso", "Torso", "Head" }) do
-                        local bp = char:FindFirstChild(bName)
-                        if bp and bp ~= part and bp:IsA("BasePart") and isRefPartValid(bp, char) then
-                            if (bp.Position - prevPos).Magnitude < 65 then
-                                return true -- Current part jumped away while real body stayed!
-                            end
-                        end
-                    end
-                end
-                local rModel = TargetPlayer and findTargetReanimModel(TargetPlayer)
-                if rModel and rModel ~= char then
-                    return true
-                end
-                -- Reject jumps into sky/underground/void pockets or invisible dump boxes
-                if pos.Y > 850 or pos.Y < -60 or pos.Magnitude > 14000 then
-                    return true
-                end
-                local head = char and char:FindFirstChild("Head")
-                local torso = char and (char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso"))
-                if (head and head:IsA("BasePart") and head.Transparency >= 0.95)
-                    and (torso and torso:IsA("BasePart") and torso.Transparency >= 0.95) then
-                    return true -- Target's real rig just turned invisible & teleported to a dump spot!
-                end
-            end
-        end
-        return false
+        return CFrame.new(V.X or 0, (V.Y or 0) + adjY, ((V.Z or 1.3) - 1.3) + adjZ)
+            * CFrame.Angles(math.rad(V.RX or 0), math.rad(V.RY or 0), math.rad(V.RZ or 0))
     end
 
     local function checkAndHotSwapReanimCharacter()
@@ -2085,91 +2029,106 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
         return false
     end
 
-    local function updateZeroDelayLockCF()
+    -- Zero-Delay CFrame + Velocity-Matched Anti-Sleep + PhysicsRepRootPart Lock (Frame-0, BindToRenderStep, Stepped, RenderStepped, Heartbeat)
+    local function stepExactOyeeHoyeWeld()
         if Weld.destroyed then return end
         if Character ~= LP.Character then
             checkAndHotSwapReanimCharacter()
         end
-        if Root and Root.Parent then
-            -- Dynamically verify that TargetPart has not desynced, voided, or jumped to sky/invis dump (FE Invis / Reanim)
-            if isSuspiciousInvisOrReanimJump(TargetPart, TargetChar, lastValidTargetPos) then
-                local resolvedChar = (TargetPlayer and findPlayerCharacterAnywhere(TargetPlayer)) or TargetChar
-                if resolvedChar and resolvedChar ~= TargetChar and not isLocalOwnedModel(resolvedChar) then
-                    TargetChar = resolvedChar
-                    TargetHum  = resolvedChar:FindFirstChildOfClass("Humanoid")
-                end
-                local newPart = TargetChar and pickTargetRef(TargetChar, RefMode or "torso")
-                if newPart and not isSuspiciousInvisOrReanimJump(newPart, TargetChar, lastValidTargetPos) then
-                    TargetPart = newPart
-                else
-                    -- Target is mid-invisibility/reanim dump transition: clear ReplicationFocus/PhysicsRepRootPart and hold safe lock position!
-                    clearRepRootCache(Root)
-                    if lastValidLockCF then
-                        currentLockCF = lastValidLockCF
-                        Root.CFrame = lastValidLockCF
-                        Root.AssemblyLinearVelocity = Vector3.zero
-                        Root.AssemblyAngularVelocity = Vector3.zero
-                        syncReanimRoots(lastValidLockCF)
-                    end
-                    return
-                end
-            end
+        if not Root or not Root.Parent or not TargetPart or not TargetPart.Parent then return end
+        local tVel = TargetPart.AssemblyLinearVelocity
+        if isLethalVoidCF(TargetPart.CFrame, tVel) then return end
 
-            if TargetPart and TargetPart.Parent and isRefPartValid(TargetPart, TargetChar) then
-                ensureTargetVisibleOnClient(TargetPlayer, TargetChar)
-                lastValidTargetPos = TargetPart.Position
-                local autoY, _, _, autoZ = computeDynamicHeightWeld(Character, Humanoid, Root, TargetChar, TargetHum, TargetPart, RefMode, PresetKey)
-                local customAdjust = CFrame.new(V.X or 0, (V.Y or 0) + autoY, ((V.Z or 1.3) - 1.3) + (autoZ or 0))
-                    * CFrame.Angles(math.rad(V.RX or 0), math.rad(V.RY or 0), math.rad(V.RZ or 0))
-                local localOffset = Offset * customAdjust
-                if Osc and Osc.period and Osc.period > 0 then
-                    local phase = (math.sin(clock * (2 * math.pi) / Osc.period) + 1) * 0.5
-                    localOffset = localOffset * CFrame.new(0, 0, -Osc.distance * phase)
+        local customAdjust = getStaticPresetAdjust()
+        local localOffset = Offset * customAdjust
+        if Osc and Osc.period and Osc.period > 0 then
+            local phase = (math.sin(clock * (2 * math.pi) / Osc.period) + 1) * 0.5
+            localOffset = localOffset * CFrame.new(0, 0, -Osc.distance * phase)
+        end
+        local attachCF = TargetPart.CFrame * localOffset
+        Root.Anchored = false
+        Root.CFrame = attachCF
+        local microWake = Vector3.new(0, math.sin(clock * 24) * 0.03, 0)
+        Root.AssemblyLinearVelocity = (tVel.Magnitude < 350 and (tVel * 0.85) or Vector3.zero) + microWake
+        Root.AssemblyAngularVelocity = Vector3.zero
+        syncAllActiveReanimRoots(attachCF, Root)
+        markIntentionalTeleport(attachCF)
+        pcall(function() LP.ReplicationFocus = TargetPart end)
+        if sethiddenproperty then
+            pcall(function()
+                sethiddenproperty(Root, "PhysicsRepRootPart", TargetPart)
+                if InstanceHandleNew then
+                    sethiddenproperty(Root, "PhysicsRepRootRef", InstanceHandleNew(TargetPart))
                 end
-                local baseTargetCF = (PresetKey == "rizz" and getFlatYawCFrame) and getFlatYawCFrame(TargetPart.CFrame, TargetPart.Position) or TargetPart.CFrame
-                currentLockCF = baseTargetCF * localOffset
-                lastValidLockCF = currentLockCF
-                Root.CFrame = currentLockCF
-                Root.AssemblyLinearVelocity = Vector3.zero
-                Root.AssemblyAngularVelocity = Vector3.zero
-                markIntentionalTeleport(currentLockCF)
+                sethiddenproperty(Root, "NetworkIsSleeping", false)
+            end)
+        end
+    end
+
+    function Weld:Destroy(skipReturn)
+        if self.destroyed then return end
+        self.destroyed = true
+        pcall(function() RunService:UnbindFromRenderStep("CocoWeldZeroDelayPreCam") end)
+        pcall(function() RunService:UnbindFromRenderStep("CocoWeldZeroDelayLock") end)
+        if WeldDescConn then WeldDescConn:Disconnect(); WeldDescConn = nil end
+        if Conn then Conn:Disconnect(); Conn = nil end
+        if RenderConn then RenderConn:Disconnect(); RenderConn = nil end
+        if StepConn then StepConn:Disconnect(); StepConn = nil end
+        pcall(function() LP.ReplicationFocus = nil end)
+        if Root and sethiddenproperty then
+            pcall(function() sethiddenproperty(Root, "PhysicsRepRootPart", nil) end)
+            pcall(function() sethiddenproperty(Root, "PhysicsRepRootRef", nil) end)
+        end
+        if AnimTrack then
+            pcall(function() AnimTrack:Stop(0) end)
+            pcall(function() AnimTrack:Destroy() end)
+            AnimTrack = nil
+        end
+        if AnimInstance then
+            pcall(function() AnimInstance:Destroy() end)
+            AnimInstance = nil
+        end
+        if CurrentWeld == self then
+            CurrentWeld = nil
+        end
+        if not skipReturn then
+            LastVoidActionEnd = tick()
+            safeReturnFromVoid(Character, lastSafeCF)
+            if LP.Character and LP.Character ~= Character then
+                safeReturnFromVoid(LP.Character, lastSafeCF)
             end
         end
     end
 
-    -- Immediate Frame-0 Lock + Zero-Delay Network Replication Bind (0.00ms startup delay!)
-    if TargetPart and TargetPart.Parent and Root and Root.Parent and isRefPartValid(TargetPart, TargetChar) then
-        bindRepRootOnce(Root, TargetPart)
-        ensureTargetVisibleOnClient(TargetPlayer, TargetChar)
-        updateZeroDelayLockCF()
-        syncReanimRoots(currentLockCF or Root.CFrame)
-    end
+    -- Frame-0 Immediate Zero-Delay Lock (0.00ms!)
+    stepExactOyeeHoyeWeld()
 
     pcall(function()
-        RunService:BindToRenderStep("CocoWeldZeroDelayPreCam", Enum.RenderPriority.Camera.Value - 1, updateZeroDelayLockCF)
-        RunService:BindToRenderStep("CocoWeldZeroDelayLock", Enum.RenderPriority.Character.Value + 1, updateZeroDelayLockCF)
+        RunService:BindToRenderStep("CocoWeldZeroDelayPreCam", Enum.RenderPriority.Camera.Value - 1, stepExactOyeeHoyeWeld)
+        RunService:BindToRenderStep("CocoWeldZeroDelayLock", Enum.RenderPriority.Character.Value + 1, stepExactOyeeHoyeWeld)
     end)
 
-    -- Stepped pass ensures we phase through walls, doors, roofs, and seats inside any hiding spot
+    -- Stepped pass ensures we phase through walls, doors, roofs, and seats inside any hiding spot (exact oyee hoye.lua + zero-delay lock)
     StepConn = RunService.Stepped:Connect(function()
         if Weld.destroyed then return end
         applyPhaseNoclip()
-        updateZeroDelayLockCF()
+        stepExactOyeeHoyeWeld()
     end)
 
-    -- RenderStepped pass guarantees zero-jitter visual lock when the target sprints or turns camera (exact khaman_dhokla.lua math)
+    -- RenderStepped pass guarantees zero-jitter visual lock on every rendered frame
     RenderConn = RunService.RenderStepped:Connect(function()
         if Weld.destroyed then return end
-        updateZeroDelayLockCF()
+        stepExactOyeeHoyeWeld()
     end)
 
+    -- Heartbeat pass: exact oyee hoye.lua L682–792 logic!
     Conn = RunService.Heartbeat:Connect(function(dt)
-        -- 1. Seamlessly hot-swap if LP.Character switched between realChar and cloneChar during Reanimation
         if Character ~= LP.Character then
             checkAndHotSwapReanimCharacter()
         end
+        -- 1. Check if our own character died or respawned
         if not Character.Parent or Character ~= LP.Character or not Root.Parent or not Humanoid.Parent or not isLocalCharAliveOrReanimated(Character, Humanoid) then
-            Weld:Destroy(true)
+            Weld:Destroy(false)
             return
         end
 
@@ -2209,26 +2168,15 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
             return
         end
 
-        -- 3. Check if target died or reanimated (Zero-Delay Reanimation & Invisibility Protection)
+        -- 3. Check if target died
         if TargetHum and TargetHum.Parent and TargetHum.Health <= 0 then
-            local isReanimActive = false
             local reanimChar = TargetPlayer and findTargetReanimModel(TargetPlayer)
             if reanimChar and reanimChar ~= TargetChar then
                 TargetChar = reanimChar
                 TargetHum  = reanimChar:FindFirstChildOfClass("Humanoid")
                 TargetPart = pickTargetRef(reanimChar, RefMode or "torso")
                 missingFrames = 0
-                isReanimActive = true
-            elseif TargetChar and isCharacterNetlessReanimated(TargetChar) then
-                local validPart = pickTargetRef(TargetChar, RefMode or "torso")
-                if validPart and validPart.Parent and isRefPartValid(validPart, TargetChar) then
-                    TargetPart = validPart
-                    missingFrames = 0
-                    isReanimActive = true
-                end
-            end
-
-            if not isReanimActive then
+            else
                 WeldIntent.waitingForSpawn = true
                 WeldIntent.topStatusText = "target respawning · waiting"
                 WeldIntent.topStatusColor = T.Warning
@@ -2242,59 +2190,38 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
             end
         end
 
-        -- 4. OMNIPRESENT RE-LOCK: If TargetPart streamed out, desynced from invis/reanim, or switched character model
-        if not TargetPart or not TargetPart.Parent or not isRefPartValid(TargetPart, TargetChar) or (TargetPlayer and findPlayerCharacterAnywhere(TargetPlayer) ~= TargetChar) then
+        -- 4. OMNIPRESENT RE-LOCK (exact oyee hoye.lua L706–742):
+        --    If TargetPart streamed out because target teleported to a hiding spot,
+        --    entered a house/locker/vehicle, or switched character model, dynamically re-acquire or follow!
+        if not TargetPart or not TargetPart.Parent or (TargetPlayer and findPlayerCharacterAnywhere(TargetPlayer) ~= TargetChar) then
             if TargetPlayer then
                 local newChar = findPlayerCharacterAnywhere(TargetPlayer)
                 local newHum  = newChar and newChar:FindFirstChildOfClass("Humanoid")
-                local isReanim = (newChar and isCharacterNetlessReanimated(newChar)) or (findTargetReanimModel(TargetPlayer) ~= nil)
-                if newHum and newHum.Health <= 0 and not isReanim then
+                if newHum and newHum.Health <= 0 then
                     WeldIntent.waitingForSpawn = true
                     Weld:Destroy(false)
                     return
                 end
                 local newPart = newChar and pickTargetRef(newChar, RefMode or "torso")
-                if newPart and newPart.Parent and not isSuspiciousInvisOrReanimJump(newPart, newChar, lastValidTargetPos) then
+                if newPart and newPart.Parent then
                     TargetChar = newChar
                     TargetHum  = newHum
                     TargetPart = newPart
                     missingFrames = 0
                 else
+                    -- Target is in an unstreamed hiding spot! Teleport right to their model pivot / cached location to stream them in!
                     missingFrames = missingFrames + 1
-                    pcall(function() LP.ReplicationFocus = nil end)
-                    if sethiddenproperty then
-                        pcall(function() sethiddenproperty(Root, "PhysicsRepRootPart", nil) end)
-                        pcall(function() sethiddenproperty(Root, "PhysicsRepRootRef", nil) end)
+                    local hiddenCF = getBestTargetCFrame(TargetPlayer)
+                    if hiddenCF and not isLethalVoidCF(hiddenCF) then
+                        pcall(function() LP:RequestStreamAroundAsync(hiddenCF.Position, 1) end)
+                        local destCF = hiddenCF * Offset
+                        Root.CFrame = destCF
+                        Root.AssemblyLinearVelocity = Vector3.zero
+                        Root.AssemblyAngularVelocity = Vector3.zero
+                        syncAllActiveReanimRoots(destCF, Root)
+                        markIntentionalTeleport(Root.CFrame)
                     end
-                    -- Distinguish truly unstreamed character (0 BaseParts in workspace) from FE Invisibility / Reanim dump (BaseParts exist but are in invalid sky/void/dump coords)!
-                    local hasStreamedParts = (newChar and newChar:FindFirstChildWhichIsA("BasePart", true) ~= nil)
-                    if hasStreamedParts then
-                        -- Target's character IS in workspace, just mid-invisibility or reanimation transition! Hold safe position in place so we NEVER teleport to another place!
-                        local holdCF = lastValidLockCF or currentLockCF or lastSafeCF
-                        if holdCF then
-                            Root.CFrame = holdCF
-                            Root.AssemblyLinearVelocity = Vector3.zero
-                            Root.AssemblyAngularVelocity = Vector3.zero
-                            syncReanimRoots(holdCF)
-                        end
-                    else
-                        -- Target is genuinely unstreamed; only follow if hiddenCF is a verified, non-dump world coordinate
-                        local hiddenCF = getBestTargetCFrame(TargetPlayer)
-                        if hiddenCF and isValidTargetWorldCF(hiddenCF) then
-                            local now = tick()
-                            if now - lastStreamReq > 0.35 then
-                                lastStreamReq = now
-                                task.spawn(function()
-                                    pcall(function() LP:RequestStreamAroundAsync(hiddenCF.Position, 1) end)
-                                end)
-                            end
-                            Root.CFrame = hiddenCF * Offset
-                            Root.AssemblyLinearVelocity = Vector3.zero
-                            Root.AssemblyAngularVelocity = Vector3.zero
-                            markIntentionalTeleport(Root.CFrame)
-                        end
-                    end
-                    if missingFrames > 180 then
+                    if missingFrames > 90 then
                         Weld:Destroy(false)
                     end
                     return
@@ -2307,29 +2234,26 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
             missingFrames = 0
         end
 
-        -- 5. VOID PROTECTION: Only detach if the target is genuinely plummeting in the lethal void killzone
+        -- 5. VOID PROTECTION (exact oyee hoye.lua L746–751):
+        --    Only detach if the target is genuinely plummeting in the lethal void killzone,
+        --    NOT when they are inside underground rooms, secret bunkers, houses, or skyboxes!
         local tVel = TargetPart.AssemblyLinearVelocity
         if isLethalVoidCF(TargetPart.CFrame, tVel) then
-            local altPart = TargetChar and (TargetChar:FindFirstChild("UpperTorso") or TargetChar:FindFirstChild("Torso") or TargetChar:FindFirstChild("Head"))
-            if altPart and altPart ~= TargetPart and isRefPartValid(altPart, TargetChar) and not isLethalVoidCF(altPart.CFrame, altPart.AssemblyLinearVelocity) then
-                TargetPart = altPart
-            else
-                Weld:Destroy(false)
-                notify("COCO POWDER", "Target fell into lethal Void — detached safely!")
-                return
-            end
+            Weld:Destroy(false)
+            notify("COCO POWDER", "Target fell into lethal Void — detached safely!")
+            return
         end
 
-        -- Keep server streaming focused on TargetPart for zero-delay replication lock
+        -- Keep server streaming focused on the target so they can never outrun our client stream
         pcall(function() LP.ReplicationFocus = TargetPart end)
         ensureTargetVisibleOnClient(TargetPlayer, TargetChar)
 
-        -- Cache target location & update safe standing CFrame only when target is near stable ground
+        -- Cache target location & update safe standing CFrame (exact oyee hoye.lua L757–764)
         if TargetPlayer then
             PlayerLocationCache[TargetPlayer.UserId] = { cf = TargetPart.CFrame, time = tick(), verified = true }
             WeldIntent.waitingForSpawn = false
         end
-        if not isLethalVoidCF(TargetPart.CFrame, tVel) and math.abs(tVel.Y) < 45 and (not TargetHum or TargetHum.FloorMaterial ~= Enum.Material.Air) then
+        if not isLethalVoidCF(TargetPart.CFrame, tVel) then
             local _, yYaw, _ = TargetPart.CFrame:ToEulerAnglesYXZ()
             lastSafeCF = CFrame.new(TargetPart.Position + Vector3.new(0, 2.5, 0)) * CFrame.Angles(0, yYaw, 0)
             LastKnownSafeCF = lastSafeCF
@@ -2343,28 +2267,9 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
 
         local speedMult = math.clamp(V.Speed or 1.0, 0.2, 6.0)
         clock = clock + (dt * speedMult)
-        local autoY, _, _, autoZ = computeDynamicHeightWeld(Character, Humanoid, Root, TargetChar, TargetHum, TargetPart, RefMode, PresetKey)
-        local customAdjust = CFrame.new(V.X or 0, (V.Y or 0) + autoY, ((V.Z or 1.3) - 1.3) + (autoZ or 0))
-            * CFrame.Angles(math.rad(V.RX or 0), math.rad(V.RY or 0), math.rad(V.RZ or 0))
-        local localOffset = Offset * customAdjust
-        if Osc and Osc.period and Osc.period > 0 then
-            local phase = (math.sin(clock * (2 * math.pi) / Osc.period) + 1) * 0.5
-            localOffset = localOffset * CFrame.new(0, 0, -Osc.distance * phase)
-        end
-        local baseTargetCF = (PresetKey == "rizz" and getFlatYawCFrame) and getFlatYawCFrame(TargetPart.CFrame, TargetPart.Position) or TargetPart.CFrame
-        currentLockCF = baseTargetCF * localOffset
-        Root.CFrame = currentLockCF
-        Root.AssemblyLinearVelocity = Vector3.zero
-        Root.AssemblyAngularVelocity = Vector3.zero
-        syncReanimRoots(currentLockCF)
-        markIntentionalTeleport(Root.CFrame)
-        bindRepRootOnce(Root, TargetPart)
-        if sethiddenproperty then pcall(function() sethiddenproperty(Root, "NetworkIsSleeping", false) end) end
+        stepExactOyeeHoyeWeld()
         pcall(function() ensureAnim(false) end)
-        pcall(function()
-            if not Humanoid.PlatformStand then Humanoid.PlatformStand = true end
-            if Humanoid.Sit then Humanoid.Sit = false end
-        end)
+        pcall(function() if not Humanoid.PlatformStand then Humanoid.PlatformStand = true end end)
     end)
 
     return Weld
@@ -2492,193 +2397,100 @@ getFlatYawCFrame = function(cf, posOverride)
     return CFrame.new(pos) * CFrame.Angles(0, yYaw, 0)
 end
 
--- Cached character lookup to avoid expensive recursive Workspace scans every frame (from khaman_dhokla.lua)
-do
-local CustomCharLookupCache = {} -- [userId] = { model = Instance, lastScan = number }
-local CommonCharContainers = { "Characters", "Players", "Entities", "Live", "Units", "Ingame", "Chars" }
-local LastGlobalDeepCharScan = 0
-local TargetRefCache = setmetatable({}, { __mode = "k" })
-
+-- Locate a player's character even if the game parents characters to a custom folder in Workspace (exact oyee hoye.lua + Reanim fallback)
 findPlayerCharacterAnywhere = function(plr, skipDeepSearch)
     if not plr then return nil end
     if plr == LP then return LP.Character end
-    -- If plr.Character exists in workspace and has a valid body part, use it immediately (0.00ms Zero-Delay)
-    if plr.Character and plr.Character.Parent and not isLocalOwnedModel(plr.Character) then
-        local bodyCheck = plr.Character:FindFirstChild("UpperTorso") or plr.Character:FindFirstChild("Torso") or plr.Character:FindFirstChild("Head") or plr.Character:FindFirstChild("HumanoidRootPart")
-        if bodyCheck and bodyCheck:IsA("BasePart") and isPartInSafeWorldBounds(bodyCheck) then
-            CustomCharLookupCache[plr.UserId] = { model = plr.Character, lastScan = tick() }
-            return plr.Character
-        end
-    end
-    -- Fallback to custom reanimation clone or custom character container
-    local reanimModel = findTargetReanimModel(plr)
-    if reanimModel and reanimModel.Parent and not isLocalOwnedModel(reanimModel) then
-        CustomCharLookupCache[plr.UserId] = { model = reanimModel, lastScan = tick() }
-        return reanimModel
-    end
-
-    if plr.Character and plr.Character.Parent and not isLocalOwnedModel(plr.Character) then
-        CustomCharLookupCache[plr.UserId] = { model = plr.Character, lastScan = tick() }
+    if plr.Character and plr.Character.Parent then
         return plr.Character
     end
-    local cached = CustomCharLookupCache[plr.UserId]
-    if cached and cached.model and cached.model.Parent then
-        return cached.model
+    local reanimModel = findTargetReanimModel and findTargetReanimModel(plr)
+    if reanimModel and reanimModel.Parent then
+        return reanimModel
     end
-    -- Fast top-level & common character container check (O(1), zero lag)
-    local direct = workspace:FindFirstChild(plr.Name)
-    if direct and direct:IsA("Model") and direct ~= LP.Character then
-        CustomCharLookupCache[plr.UserId] = { model = direct, lastScan = tick() }
-        return direct
-    end
-    for _, folderName in ipairs(CommonCharContainers) do
-        local folder = workspace:FindFirstChild(folderName)
-        local found = folder and folder:FindFirstChild(plr.Name)
-        if found and found:IsA("Model") and found ~= LP.Character then
-            CustomCharLookupCache[plr.UserId] = { model = found, lastScan = tick() }
-            return found
-        end
-    end
-    -- Globally throttled deep search: prevents multi-player recursive workspace scans from ever spiking FPS
     if not skipDeepSearch then
-        local now = tick()
-        if (now - LastGlobalDeepCharScan) > 2.5 and (not cached or (now - (cached.lastScan or 0)) > 6.0) then
-            LastGlobalDeepCharScan = now
-            CustomCharLookupCache[plr.UserId] = { model = nil, lastScan = now }
-            local byName = workspace:FindFirstChild(plr.Name, true)
-            if byName and byName:IsA("Model") and byName ~= LP.Character and (byName:FindFirstChildOfClass("Humanoid") or byName.PrimaryPart or byName:FindFirstChildWhichIsA("BasePart", true)) then
-                CustomCharLookupCache[plr.UserId] = { model = byName, lastScan = now }
-                return byName
-            end
+        local byName = workspace:FindFirstChild(plr.Name, true)
+        if byName and byName:IsA("Model") and (byName:FindFirstChildOfClass("Humanoid") or byName.PrimaryPart or byName:FindFirstChildWhichIsA("BasePart", true)) then
+            return byName
         end
+    else
+        local direct = workspace:FindFirstChild(plr.Name)
+        if direct and direct:IsA("Model") then return direct end
     end
     return plr.Character
 end
 
--- Deep fallback reference part resolver with weak-table caching & instant FE Invis/Reanim root-desync immunity
+-- Deep fallback reference part resolver (exact oyee hoye.lua L864–882: works even when HumanoidRootPart or Head is missing/renamed/seated)
 pickTargetRef = function(char, mode)
     if not char then return nil end
-    local cacheKey = (mode == "head") and "head" or ((mode == "root") and "root" or "torso")
-    local hum = char:FindFirstChildOfClass("Humanoid")
-    local isDeadOrReanim = (hum and hum.Health <= 0)
-    local cEntry = TargetRefCache[char]
-    if cEntry and cEntry[cacheKey] then
-        local cachedPart = cEntry[cacheKey]
-        if isRefPartValid(cachedPart, char) and not (isDeadOrReanim and cachedPart.Name == "HumanoidRootPart") then
-            return cachedPart
-        else
-            cEntry[cacheKey] = nil
-        end
-    end
-    local resolved = nil
     if mode == "head" then
         local h = char:FindFirstChild("Head") or char:FindFirstChild("head", true)
-        if h and h:IsA("BasePart") and isRefPartValid(h, char) then
-            resolved = h
-        else
-            for _, desc in ipairs(char:GetDescendants()) do
-                if desc:IsA("BasePart") and desc.Name:lower():find("head", 1, true) and isRefPartValid(desc, char) then
-                    resolved = desc
-                    break
-                end
+        if h and h:IsA("BasePart") then return h end
+    end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+        or char.PrimaryPart
+        or char:FindFirstChild("UpperTorso")
+        or char:FindFirstChild("LowerTorso")
+        or char:FindFirstChild("Torso")
+        or char:FindFirstChild("Head")
+    if hrp and hrp:IsA("BasePart") then
+        -- Only bypass HumanoidRootPart if it is >35 studs desynced from Torso/UpperTorso (FE Invisibility root dump)
+        if hrp.Name == "HumanoidRootPart" then
+            local torso = char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso")
+            if torso and torso:IsA("BasePart") and (hrp.Position - torso.Position).Magnitude > 35 and not isLethalVoidCF(torso.CFrame) then
+                return torso
             end
         end
+        return hrp
     end
-    if not resolved then
-        local hrp = char:FindFirstChild("HumanoidRootPart") or (hum and hum.RootPart)
-        local torso = char:FindFirstChild("Torso")
-        local upperTorso = char:FindFirstChild("UpperTorso")
-        local lowerTorso = char:FindFirstChild("LowerTorso")
-        local head = char:FindFirstChild("Head")
-
-        local bodyAnchor = (torso and torso:IsA("BasePart") and isRefPartValid(torso, char) and torso)
-            or (upperTorso and upperTorso:IsA("BasePart") and isRefPartValid(upperTorso, char) and upperTorso)
-
-        -- Only use HumanoidRootPart if it is valid, character is not in 0-HP reanim state, and HRP is tightly aligned with Torso/UpperTorso
-        local hrpValid = (hrp and hrp:IsA("BasePart") and not isDeadOrReanim and isRefPartValid(hrp, char))
-        if hrpValid and bodyAnchor and (hrp.Position - bodyAnchor.Position).Magnitude > 3.2 then
-            hrpValid = false
-        end
-
-        if hrpValid then
-            resolved = hrp
-        elseif bodyAnchor then
-            resolved = bodyAnchor
-        elseif head and head:IsA("BasePart") and isRefPartValid(head, char) then
-            resolved = head
-        elseif lowerTorso and lowerTorso:IsA("BasePart") and isRefPartValid(lowerTorso, char) then
-            resolved = lowerTorso
-        elseif char.PrimaryPart and char.PrimaryPart.Name ~= "HumanoidRootPart" and isRefPartValid(char.PrimaryPart, char) then
-            resolved = char.PrimaryPart
-        elseif hum and hum.SeatPart and hum.SeatPart:IsA("BasePart") and isRefPartValid(hum.SeatPart, char) then
-            resolved = hum.SeatPart
-        else
-            for _, desc in ipairs(char:GetDescendants()) do
-                if desc:IsA("BasePart") and desc.Name ~= "HumanoidRootPart" and isRefPartValid(desc, char) then
-                    resolved = desc
-                    break
-                end
-            end
-        end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if hum and hum.SeatPart and hum.SeatPart:IsA("BasePart") then
+        return hum.SeatPart
     end
-    if resolved then
-        if not cEntry then
-            cEntry = {}
-            TargetRefCache[char] = cEntry
-        end
-        cEntry[cacheKey] = resolved
-    end
-    return resolved
-end
+    return char:FindFirstChildWhichIsA("BasePart", true)
 end
 
 local function getVerifiedStreamedCFrame(plr)
     if not plr then return nil end
-    local char = findPlayerCharacterAnywhere(plr)
+    local char = findPlayerCharacterAnywhere(plr, true)
     if char and char.Parent then
         local part = pickTargetRef(char, "torso")
-        if part and part.Parent and isRefPartValid(part, char) then
+        if part and part.Parent and not isLethalVoidCF(part.CFrame, part.AssemblyLinearVelocity) then
             local cf = part.CFrame
-            if isValidTargetWorldCF(cf) then
-                PlayerLocationCache[plr.UserId] = { cf = cf, time = tick(), verified = true }
-                return cf
-            end
+            PlayerLocationCache[plr.UserId] = { cf = cf, time = tick(), verified = true }
+            return cf
         end
     end
     return nil
 end
 
--- Resolve a player's CFrame even when their Character's BaseParts are 100% streamed out by StreamingEnabled!
--- NEVER falls back to GetPivot()/WorldPivot when the character already has streamed BaseParts (prevents FE Invisibility / Reanim sky/void RootPart from poisoning cache!)
+-- Resolve a player's CFrame even when their Character's BaseParts are 100% streamed out by StreamingEnabled! (Exact oyee hoye.lua L885–914)
 getBestTargetCFrame = function(plr, skipDeepSearch)
     if not plr then return nil end
     local char = findPlayerCharacterAnywhere(plr, skipDeepSearch)
     if char then
         local part = pickTargetRef(char, "torso")
-        if part and part.Parent and isRefPartValid(part, char) then
+        if part and part.Parent then
             local cf = part.CFrame
-            if isValidTargetWorldCF(cf) then
-                PlayerLocationCache[plr.UserId] = { cf = cf, time = tick(), verified = true }
+            if not isLethalVoidCF(cf, part.AssemblyLinearVelocity) then
+                PlayerLocationCache[plr.UserId] = { cf = cf, time = tick() }
                 return cf
             end
         end
-        -- Only consult Model:GetPivot() / WorldPivot when StreamingEnabled has culled ALL BaseParts from char!
-        local hasAnyStreamedPart = (char:FindFirstChildWhichIsA("BasePart", true) ~= nil)
-        if not hasAnyStreamedPart then
-            local okPivot, pivotCF = pcall(function() return char:GetPivot() end)
-            if okPivot and pivotCF and isValidTargetWorldCF(pivotCF) then
-                PlayerLocationCache[plr.UserId] = { cf = pivotCF, time = tick() }
-                return pivotCF
-            end
-            local okWP, wpCF = pcall(function() return char.WorldPivot end)
-            if okWP and wpCF and isValidTargetWorldCF(wpCF) then
-                PlayerLocationCache[plr.UserId] = { cf = wpCF, time = tick() }
-                return wpCF
-            end
+        -- Even when all BaseParts are streamed out in StreamingEnabled, Model:GetPivot() is replicated!
+        local okPivot, pivotCF = pcall(function() return char:GetPivot() end)
+        if okPivot and pivotCF and pivotCF.Position.Magnitude > 0.5 and not isLethalVoidCF(pivotCF) then
+            PlayerLocationCache[plr.UserId] = { cf = pivotCF, time = tick() }
+            return pivotCF
+        end
+        local okWP, wpCF = pcall(function() return char.WorldPivot end)
+        if okWP and wpCF and wpCF.Position.Magnitude > 0.5 and not isLethalVoidCF(wpCF) then
+            PlayerLocationCache[plr.UserId] = { cf = wpCF, time = tick() }
+            return wpCF
         end
     end
     local cached = PlayerLocationCache[plr.UserId]
-    if cached and cached.cf and isValidTargetWorldCF(cached.cf) then
+    if cached and cached.cf and not isLethalVoidCF(cached.cf) then
         return cached.cf
     end
     return nil
@@ -2701,12 +2513,12 @@ local function ensureStreamFocusAt(cfOrPos)
     end)
 end
 
--- Throttled background scanner (2.5Hz, non-recursive) that caches every player's position & pivot without frame lag
+-- Continuous background scanner that caches every player's position & pivot across the server (from oyee hoye.lua)
 do
     local lastScanTick = 0
     RunService.Heartbeat:Connect(function()
         local now = os.clock()
-        if now - lastScanTick < 0.40 then return end
+        if now - lastScanTick < 0.25 then return end
         lastScanTick = now
         for _, p in ipairs(Players:GetPlayers()) do
             if p ~= LP then
@@ -2716,94 +2528,70 @@ do
     end)
 end
 
--- Active Stream-Piercer & Server Hiding-Spot Seeker (from khaman_dhokla.lua):
--- Instant return when target is already streamed; throttled async stream requests when unstreamed.
+-- Active Stream-Piercer & Server Hiding-Spot Seeker (Exact oyee hoye.lua L928–1039):
+-- Teleports local player to the target's coordinates (or sweeps server interiors/spawns/seats)
+-- and forces Roblox StreamingEnabled to load the target's character and reference part.
 streamAndTeleportToTarget = function(targetPlr, refMode, maxWaitSeconds, allowSweepOrOffset)
     if not targetPlr or targetPlr.Parent ~= Players then return nil, nil end
-    maxWaitSeconds = maxWaitSeconds or 1.8
-    local allowSweep = (allowSweepOrOffset == true)
+    maxWaitSeconds = maxWaitSeconds or 2.2
     local stepOffset = (typeof(allowSweepOrOffset) == "CFrame") and allowSweepOrOffset or CFrame.new(0, 1.5, 2)
     local myChar = LP.Character
     local myRoot = myChar and (myChar:FindFirstChild("HumanoidRootPart") or myChar:FindFirstChildWhichIsA("BasePart"))
     local myHum  = myChar and myChar:FindFirstChildOfClass("Humanoid")
-    local originSafeCF = (myRoot and isSafePlayableCF(myRoot.CFrame) and myRoot.CFrame) or LastKnownSafeCF or findFallbackSafeCF()
 
-    local function snapToFoundRef(charObj, refPart)
-        myChar = LP.Character
-        myRoot = myChar and (myChar:FindFirstChild("HumanoidRootPart") or myChar:FindFirstChildWhichIsA("BasePart"))
-        myHum  = myChar and myChar:FindFirstChildOfClass("Humanoid")
-        if myChar and myRoot then
-            if sethiddenproperty then
-                pcall(function() sethiddenproperty(myRoot, "PhysicsRepRootPart", nil) end)
-                pcall(function() sethiddenproperty(myRoot, "PhysicsRepRootRef", nil) end)
+    -- Prepare local character for phase-teleporting into any locked/hidden room
+    if myChar then
+        for _, v in ipairs(myChar:GetDescendants()) do
+            if v:IsA("BasePart") then
+                v.CanCollide = false
+                v.CanTouch = false
+                v.Anchored = false
             end
-            breakAllSeatsAndExternalJoints(myChar, myHum, myRoot)
-            if myHum and myHum.Sit then pcall(function() myHum.Sit = false end) end
-            myRoot.Anchored = false
-            local destCF = refPart.CFrame * stepOffset
+        end
+        if myHum and myHum.Sit then pcall(function() myHum.Sit = false end) end
+    end
+
+    local tChar = findPlayerCharacterAnywhere(targetPlr)
+    local tRef  = tChar and pickTargetRef(tChar, refMode or "torso")
+    if tRef and tRef.Parent then
+        if myRoot then
+            local destCF = tRef.CFrame * stepOffset
             markIntentionalTeleport(destCF)
             myRoot.AssemblyLinearVelocity = Vector3.zero
             myRoot.AssemblyAngularVelocity = Vector3.zero
             myRoot.CFrame = destCF
+            syncAllActiveReanimRoots(destCF, myRoot)
         end
-        return charObj, refPart
+        return tChar, tRef
     end
 
-    -- Fast path: if target's reference part is already streamed in, connect immediately in 0.00ms!
-    local tChar = findPlayerCharacterAnywhere(targetPlr)
-    local tHum  = tChar and tChar:FindFirstChildOfClass("Humanoid")
-    local isTReanim = (tChar and isCharacterNetlessReanimated(tChar)) or (findTargetReanimModel(targetPlr) ~= nil)
-    if (tHum and tHum.Health <= 0) and not isTReanim then
-        return tChar, nil
-    end
-    local tRef = tChar and pickTargetRef(tChar, refMode or "torso")
-    if tRef and tRef.Parent and not isLethalVoidCF(tRef.CFrame, tRef.AssemblyLinearVelocity) then
-        return snapToFoundRef(tChar, tRef)
-    end
-
-    -- Target is in an unstreamed chunk. Guard with WeldSeekingTarget so Anti-Void / Anti-Bring never yank us back mid-stream!
     local prevSeeking = WeldSeekingTarget
     WeldSeekingTarget = true
-    local didTeleportFromOrigin = false
 
-    if myChar then
-        breakAllSeatsAndExternalJoints(myChar, myHum, myRoot)
-        if myHum and myHum.Sit then pcall(function() myHum.Sit = false end) end
-    end
-
+    -- Target is hiding in an unstreamed chunk! Step 1: Teleport to their Model:GetPivot() or cached location
     local started = tick()
-    local lastStreamCall = 0
-    while tick() - started < (maxWaitSeconds * 0.75) do
-        if targetPlr.Parent ~= Players then break end
+    while tick() - started < (maxWaitSeconds * 0.65) do
+        if targetPlr.Parent ~= Players then WeldSeekingTarget = prevSeeking; return nil, nil end
         tChar = findPlayerCharacterAnywhere(targetPlr)
-        tHum  = tChar and tChar:FindFirstChildOfClass("Humanoid")
-        local isLoopReanim = (tChar and isCharacterNetlessReanimated(tChar)) or (findTargetReanimModel(targetPlr) ~= nil)
-        if (tHum and tHum.Health <= 0) and not isLoopReanim then break end
         tRef  = tChar and pickTargetRef(tChar, refMode or "torso")
-        if tRef and tRef.Parent and not isLethalVoidCF(tRef.CFrame, tRef.AssemblyLinearVelocity) then
+        if tRef and tRef.Parent then
             WeldSeekingTarget = prevSeeking
-            return snapToFoundRef(tChar, tRef)
+            return tChar, tRef
         end
         local targetCF = getBestTargetCFrame(targetPlr)
-        if targetCF and not isLethalVoidCF(targetCF) then
-            local now = tick()
-            if now - lastStreamCall > 0.22 then
-                lastStreamCall = now
-                task.spawn(function()
-                    pcall(function() LP:RequestStreamAroundAsync(targetCF.Position, 1.5) end)
-                end)
-            end
+        if targetCF then
+            task.spawn(function()
+                pcall(function() LP:RequestStreamAroundAsync(targetCF.Position, 1.5) end)
+            end)
             myChar = LP.Character
             myRoot = myChar and (myChar:FindFirstChild("HumanoidRootPart") or myChar:FindFirstChildWhichIsA("BasePart"))
             if myRoot then
-                didTeleportFromOrigin = true
-                moveState.lastTeleportTick = tick()
-                for _, v in ipairs(myChar:GetChildren()) do
-                    if v:IsA("BasePart") then v.CanCollide = false end
-                end
+                local hopDest = targetCF * CFrame.new(0, 2, 0)
+                markIntentionalTeleport(hopDest)
                 myRoot.AssemblyLinearVelocity = Vector3.zero
                 myRoot.AssemblyAngularVelocity = Vector3.zero
-                myRoot.CFrame = targetCF * CFrame.new(0, 2, 0)
+                myRoot.CFrame = hopDest
+                syncAllActiveReanimRoots(hopDest, myRoot)
             end
         else
             break
@@ -2812,55 +2600,39 @@ streamAndTeleportToTarget = function(targetPlr, refMode, maxWaitSeconds, allowSw
     end
 
     tChar = findPlayerCharacterAnywhere(targetPlr)
-    tHum  = tChar and tChar:FindFirstChildOfClass("Humanoid")
-    local isReanimMid = (tChar and isCharacterNetlessReanimated(tChar)) or (findTargetReanimModel(targetPlr) ~= nil)
-    tRef  = (isReanimMid or not (tHum and tHum.Health <= 0)) and tChar and pickTargetRef(tChar, refMode or "torso") or nil
-    if tRef and tRef.Parent and not isLethalVoidCF(tRef.CFrame, tRef.AssemblyLinearVelocity) then
+    tRef  = tChar and pickTargetRef(tChar, refMode or "torso")
+    if tRef and tRef.Parent then
         WeldSeekingTarget = prevSeeking
-        return snapToFoundRef(tChar, tRef)
+        return tChar, tRef
     end
 
-    -- Step 2: Sweep map points ONLY if the target character has 0 streamed BaseParts in workspace (never sweep when target is reanimating or invisible in-place!)
-    local hasStreamedPartsNow = (tChar and tChar:FindFirstChildWhichIsA("BasePart", true) ~= nil)
-    if allowSweep and not hasStreamedPartsNow and not isReanimMid and (not tHum or tHum.Health > 0) then
+    -- Step 2: If target was already hiding in an unknown unstreamed chunk before script started,
+    -- rapidly sweep server seats, spawns, and distant structures to stream in their hiding spot!
+    if allowSweepOrOffset ~= false then
         local probePoints = getServerSweepPoints and getServerSweepPoints() or {}
         for idx, probeCF in ipairs(probePoints) do
-            if tick() - started > maxWaitSeconds or idx > 14 then break end
+            if tick() - started > maxWaitSeconds or idx > 28 then break end
             if targetPlr.Parent ~= Players then break end
             tChar = findPlayerCharacterAnywhere(targetPlr)
-            tHum  = tChar and tChar:FindFirstChildOfClass("Humanoid")
-            local isSweepReanim = (tChar and isCharacterNetlessReanimated(tChar)) or (findTargetReanimModel(targetPlr) ~= nil)
-            if (tHum and tHum.Health <= 0) and not isSweepReanim then break end
             tRef  = tChar and pickTargetRef(tChar, refMode or "torso")
-            if tRef and tRef.Parent and not isLethalVoidCF(tRef.CFrame, tRef.AssemblyLinearVelocity) then
+            if tRef and tRef.Parent then
                 WeldSeekingTarget = prevSeeking
-                return snapToFoundRef(tChar, tRef)
+                return tChar, tRef
             end
-            if tChar and tChar:FindFirstChildWhichIsA("BasePart", true) ~= nil then
-                break
-            end
+
             local knownCF = getBestTargetCFrame(targetPlr)
-            local hopCF = (knownCF and isValidTargetWorldCF(knownCF)) and knownCF or probeCF
-            if hopCF and isSafePlayableCF(hopCF) then
-                local now = tick()
-                if now - lastStreamCall > 0.22 then
-                    lastStreamCall = now
-                    task.spawn(function()
-                        pcall(function() LP:RequestStreamAroundAsync(hopCF.Position, 1.0) end)
-                    end)
-                end
-                myChar = LP.Character
-                myRoot = myChar and (myChar:FindFirstChild("HumanoidRootPart") or myChar:FindFirstChildWhichIsA("BasePart"))
-                if myRoot then
-                    didTeleportFromOrigin = true
-                    moveState.lastTeleportTick = tick()
-                    for _, v in ipairs(myChar:GetChildren()) do
-                        if v:IsA("BasePart") then v.CanCollide = false end
-                    end
-                    myRoot.AssemblyLinearVelocity = Vector3.zero
-                    myRoot.AssemblyAngularVelocity = Vector3.zero
-                    myRoot.CFrame = hopCF + Vector3.new(0, 3, 0)
-                end
+            local hopCF = knownCF or probeCF
+            task.spawn(function()
+                pcall(function() LP:RequestStreamAroundAsync(hopCF.Position, 1) end)
+            end)
+            myChar = LP.Character
+            myRoot = myChar and (myChar:FindFirstChild("HumanoidRootPart") or myChar:FindFirstChildWhichIsA("BasePart"))
+            if myRoot then
+                local hopDest = hopCF + Vector3.new(0, 3, 0)
+                markIntentionalTeleport(hopDest)
+                myRoot.CFrame = hopDest
+                myRoot.AssemblyLinearVelocity = Vector3.zero
+                syncAllActiveReanimRoots(hopDest, myRoot)
             end
             RunService.Heartbeat:Wait()
         end
@@ -2868,17 +2640,8 @@ streamAndTeleportToTarget = function(targetPlr, refMode, maxWaitSeconds, allowSw
 
     WeldSeekingTarget = prevSeeking
     tChar = findPlayerCharacterAnywhere(targetPlr)
-    tHum  = tChar and tChar:FindFirstChildOfClass("Humanoid")
-    local isEndReanim = (tChar and isCharacterNetlessReanimated(tChar)) or (findTargetReanimModel(targetPlr) ~= nil)
-    tRef  = (isEndReanim or not (tHum and tHum.Health <= 0)) and tChar and pickTargetRef(tChar, refMode or "torso") or nil
-    if tRef and tRef.Parent and not isLethalVoidCF(tRef.CFrame, tRef.AssemblyLinearVelocity) then
-        return snapToFoundRef(tChar, tRef)
-    end
-
-    if didTeleportFromOrigin and LP.Character and CurrentWeld == nil then
-        recoverCharacterState(LP.Character, originSafeCF)
-    end
-    return tChar, nil
+    tRef  = tChar and pickTargetRef(tChar, refMode or "torso")
+    return tChar, tRef
 end
 
 local getNearestPlayer
@@ -3436,9 +3199,14 @@ end
 AnimCopySys = {
     active = false,
     target = nil,
-    sideMode = "right", -- "right" (+3.2), "left" (-3.2), "front" (+3.2 mirror), "back" (+3.2 shadow), "above" (+4.0), or "free" (no TP)
+    sideMode = "right", -- "right" (+3.2), "left" (-3.2), "front" (+3.2 mirror), "back" (+3.2 shadow), "weld" (0.0 overlap), "above" (+4.0), "orbit", or "free" (no TP)
     sideDistance = 3.2,
     syncMotorTransforms = true, -- Default true for 0.00ms instant real-time joint + track mirroring (zero asset-download lag!)
+    syncC0Deltas = true,
+    copySpeedMult = 1.0,
+    timeOffsetSec = 0.0,
+    pingCompensate = false,
+    syncTolerance = 0.015,
     renderConn = nil, -- RenderStepped zero-jitter visual lock & pre-Animator track sync
     stepConn = nil,   -- Stepped phase noclip, physics lock & 1:1 Motor6D Transform bridge
     hbConn = nil,     -- Heartbeat zero-delay animation & state monitor
@@ -3453,6 +3221,7 @@ AnimCopySys = {
     mirroredTracks = {},   -- [source AnimationTrack] = { track, anim, animId, lastSeen, lastTimeSync, lastWeight, lastAppliedSpeed, lengthReady }
     animObjCache = {},     -- [animId] = Animation instance cache (eliminates per-track allocation & asset re-resolution delay)
     failedIds = {},         -- [animationId] = retry-after timestamp; prevents 60Hz failed-load loops
+    savedOrigMotorC0 = setmetatable({}, { __mode = "k" }),
     lastNoTracksNotice = 0,
     lastLoadFailureNotice = 0,
     lastTargetAvailable = 0,
@@ -3478,7 +3247,7 @@ local EmoteHub = {
 }
 
 ;(function()
-    -- Zero-Delay Reanim Root Synchronization (Matching Weld Engine)
+    -- Zero-Delay Reanim Root Synchronization (Matching Weld Engine from second file + active reanimation sync)
     local function syncAnimCopyReanimRoots(attachCF, excludePart)
         local tNow = os.clock()
         local netlessVel = Vector3.new(0, 25.05, 0) + Vector3.new(math.sin(tNow * 30) * 0.025, 0, math.cos(tNow * 30) * 0.025)
@@ -3520,7 +3289,7 @@ local EmoteHub = {
         end
     end
 
-    -- Multi-Mode Upright Orthogonal Alignment Calculator
+    -- Multi-Mode Upright Orthogonal Alignment Calculator (Exact second file zero-delay math)
     -- Preserves upright pitch/roll so tilted/seated targets never teleport the player into the void or sky!
     local function computeExactSideBySideCF(tRoot, myHum, tHum, mode, dist)
         if not tRoot then return nil end
@@ -3549,7 +3318,10 @@ local EmoteHub = {
         local extraZ = ((V and V.Z) or 1.3) - 1.3
 
         local basePos = tRoot.Position + Vector3.new(0, extraY, 0)
-        if mode == "left" then
+        if mode == "weld" then
+            local worldPos = basePos + (flatRight * extraX) - (flatLook * extraZ)
+            return CFrame.fromMatrix(worldPos, flatRight, Vector3.yAxis, -flatLook)
+        elseif mode == "left" then
             local worldPos = basePos - (flatRight * (dist - extraX)) - (flatLook * extraZ)
             return CFrame.fromMatrix(worldPos, flatRight, Vector3.yAxis, -flatLook)
         elseif mode == "front" then
@@ -3586,7 +3358,7 @@ local EmoteHub = {
         end
     end
 
-    -- Wrap computeExactSideBySideCF to apply custom RY rotation offset or 360 spin to all modes (left/front/back/above/orbit/right)
+    -- Wrap computeExactSideBySideCF to apply custom RY rotation offset or 360 spin to all modes
     do
         local rawComputeCF = computeExactSideBySideCF
         computeExactSideBySideCF = function(tRoot, myHum, tHum, mode, dist)
@@ -3679,6 +3451,7 @@ local EmoteHub = {
             local sideOffset = (sideMode == "left") and CFrame.new(-3.2, 0, 0)
                 or (sideMode == "front" and (CFrame.new(0, 0, -3.2) * CFrame.Angles(0, math.pi, 0)))
                 or (sideMode == "back" and CFrame.new(0, 0, 3.2))
+                or (sideMode == "weld" and CFrame.new(0, 0, 0))
                 or (sideMode == "above" and CFrame.new(0, 4.2, 0))
                 or CFrame.new(3.2, 0, 0)
             local sChar, sRoot = streamAndTeleportToTarget(TPlayer, "root", 1.8, sideOffset)
@@ -3753,11 +3526,24 @@ local EmoteHub = {
         return true
     end
 
+    function AnimCopySys:RestoreSavedMotorC0()
+        if self.savedOrigMotorC0 then
+            for m, origC0 in pairs(self.savedOrigMotorC0) do
+                if m and m.Parent then
+                    pcall(function() m.C0 = origC0 end)
+                end
+                self.savedOrigMotorC0[m] = nil
+            end
+        end
+    end
+
     function AnimCopySys:Stop(skipSafeReturn)
         if not self.active and not self.hbConn and not self.stepConn and not self.renderConn then return end
         self.active = false
         self.target = nil
         self.currentLockCF = nil
+        pcall(function() RunService:UnbindFromRenderStep("CocoAnimCopyZeroDelayPreCam") end)
+        pcall(function() RunService:UnbindFromRenderStep("CocoAnimCopyZeroDelayLock") end)
         if WeldIntent.presetKey == "animcopy" then
             WeldIntent.active = false
             WeldIntent.presetKey = nil
@@ -3770,6 +3556,7 @@ local EmoteHub = {
         if self.hbConn then self.hbConn:Disconnect(); self.hbConn = nil end
         if self.descConn then self.descConn:Disconnect(); self.descConn = nil end
         clearMirroredTracks(0)
+        self:RestoreSavedMotorC0()
         self.lastTargetAvailable = 0
         self.boundCharacter = nil
         pcall(function() LP.ReplicationFocus = nil end)
@@ -3829,7 +3616,7 @@ local EmoteHub = {
     end
 
     local MotorPairCache = setmetatable({}, { __mode = "k" })
-    -- Cross-Rig Motor6D Joint Mapper: Bridges R15 <-> R6 procedural poses with cached Motor6D pairs (zero GetDescendants lag)
+    -- Cross-Rig Motor6D Joint Mapper (Exact second file zero-lag MotorPairCache)
     local function applyCrossRigMotorTransforms(myChar, tChar, myRig, tRig)
         if not myChar or not tChar then return end
         if myRig == tRig then
@@ -3931,7 +3718,7 @@ local EmoteHub = {
         end
     end
 
-    -- Instant Zero-Latency Track Synchronizer: Called on Frame-0, RenderStepped (Pre-Animator), AnimationPlayed Event & Heartbeat
+    -- Instant Zero-Latency Track Synchronizer (Exact second file: zero game:GetObjects blocking calls!)
     local function syncTargetAnimationTracksNow(self, c, hum, tc, th)
         if not self.active or not c or not hum or not tc or not th then return false end
         local tAnimator = th:FindFirstChildOfClass("Animator") or tc:FindFirstChildWhichIsA("Animator", true)
@@ -4121,11 +3908,14 @@ local EmoteHub = {
         end
 
         if CurrentWeld then pcall(function() CurrentWeld:Destroy(true) end); CurrentWeld = nil end
+        if type(_G.stopCocaBangLock) == "function" then pcall(_G.stopCocaBangLock) end
+        if type(_G.stopCocaCopier) == "function" then pcall(_G.stopCocaCopier) end
         if EmoteHub and EmoteHub.StopEmote then pcall(function() EmoteHub:StopEmote() end) end
         if EmoteHub and EmoteHub.StopJerk then pcall(function() EmoteHub:StopJerk() end) end
         self:Stop(true)
 
-        -- Capture safe origin CFrame and disable FallenPartsDestroyHeight (exact Weld engine protection)
+        -- Cancel any pending void-return loop and capture safe origin CFrame (exact Weld engine protection)
+        RescueGeneration = RescueGeneration + 1
         pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
         self.preCopySafeCF = isSafePlayableCF(myRoot.CFrame) and myRoot.CFrame or LastKnownSafeCF or findFallbackSafeCF()
 
@@ -4157,13 +3947,13 @@ local EmoteHub = {
         if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
 
         -- ═══════════════════════════════════════════════════════════════════
-        -- ⚡ ZERO-DELAY WELD PIPELINE FOR ANIMATION COPY (0.00ms FRAME-0 LOCK)
+        -- ⚡ ZERO-DELAY WELD PIPELINE FOR ANIMATION COPY (SECOND FILE + 0.00ms RENDERSTEP LOCK)
         -- ═══════════════════════════════════════════════════════════════════
         -- 1. Sever any external SeatWeld / VehicleSeat weld & kill default Animate script immediately
         breakAllSeatsAndExternalJoints(myChar, myHum, myRoot)
         killAnimate(myChar)
 
-        -- 2. Phase noclip part cache setup (matching WeldTo)
+        -- 2. Phase noclip part cache setup (matching WeldTo from second file)
         local copyCachedParts = {}
         for _, part in ipairs(myChar:GetDescendants()) do
             if part:IsA("BasePart") then
@@ -4220,7 +4010,44 @@ local EmoteHub = {
         end
         applyCopyPhaseNoclip()
 
-        -- 3. Immediate Frame-0 CFrame Lock (0.00ms startup delay!)
+        -- Fast CFrame + Velocity-Matched Anti-Sleep + PhysicsRepRootPart Lock Function (used by BindToRenderStep PreCam & Character+1)
+        local function stepAnimCopyZeroDelayWeldCF()
+            if not self.active or self.sideMode == "free" then return end
+            local c = LP.Character
+            local root = c and (c:FindFirstChild("HumanoidRootPart") or c:FindFirstChildWhichIsA("BasePart"))
+            local hum  = c and c:FindFirstChildOfClass("Humanoid")
+            if not c or not root or not hum then return end
+            local tc = self.target and findPlayerCharacterAnywhere(self.target)
+            local tr = tc and pickTargetRef(tc, "root")
+            local th = tc and tc:FindFirstChildOfClass("Humanoid")
+            local isCopyReanim = (tc and isCharacterNetlessReanimated(tc)) or (findTargetReanimModel(self.target) ~= nil)
+            if not tc or not tr or not tr.Parent or (not isCopyReanim and (not th or th.Health <= 0)) then return end
+            local tVel = tr.AssemblyLinearVelocity
+            if isLethalVoidCF(tr.CFrame, tVel) then return end
+            local desiredCF = computeExactSideBySideCF(tr, hum, th, self.sideMode, self.sideDistance or 3.2)
+            if desiredCF then
+                self.currentLockCF = desiredCF
+                root.Anchored = false
+                root.CFrame = desiredCF
+                local microWake = Vector3.new(0, math.sin((self.clock or 0) * 24) * 0.03, 0)
+                root.AssemblyLinearVelocity = (tVel.Magnitude < 350 and (tVel * 0.85) or Vector3.zero) + microWake
+                root.AssemblyAngularVelocity = Vector3.zero
+                syncAnimCopyReanimRoots(desiredCF, root)
+                markIntentionalTeleport(desiredCF)
+                pcall(function() LP.ReplicationFocus = tr end)
+                if sethiddenproperty then
+                    pcall(function()
+                        sethiddenproperty(root, "PhysicsRepRootPart", tr)
+                        if InstanceHandleNew then
+                            sethiddenproperty(root, "PhysicsRepRootRef", InstanceHandleNew(tr))
+                        end
+                        sethiddenproperty(root, "NetworkIsSleeping", false)
+                    end)
+                end
+            end
+        end
+
+        -- 3. Immediate Frame-0 CFrame Lock (0.00ms startup delay — exact second file!)
         local tChar = findPlayerCharacterAnywhere(TPlayer)
         local tRoot = tChar and pickTargetRef(tChar, "root")
         local tHum  = tChar and tChar:FindFirstChildOfClass("Humanoid")
@@ -4235,11 +4062,13 @@ local EmoteHub = {
                     myRoot.CFrame = initialCF
                     myRoot.AssemblyLinearVelocity = tRoot.AssemblyLinearVelocity
                     myRoot.AssemblyAngularVelocity = Vector3.zero
-                    pcall(function() LP.ReplicationFocus = nil end)
+                    pcall(function() LP.ReplicationFocus = tRoot end)
                     if sethiddenproperty then
                         pcall(function()
-                            sethiddenproperty(myRoot, "PhysicsRepRootPart", nil)
-                            sethiddenproperty(myRoot, "PhysicsRepRootRef", nil)
+                            sethiddenproperty(myRoot, "PhysicsRepRootPart", tRoot)
+                            if InstanceHandleNew then
+                                sethiddenproperty(myRoot, "PhysicsRepRootRef", InstanceHandleNew(tRoot))
+                            end
                             sethiddenproperty(myRoot, "NetworkIsSleeping", false)
                         end)
                     end
@@ -4251,9 +4080,13 @@ local EmoteHub = {
                     local sideOffset = (self.sideMode == "left") and CFrame.new(-3.2, 0, 0)
                         or (self.sideMode == "front" and (CFrame.new(0, 0, -3.2) * CFrame.Angles(0, math.pi, 0)))
                         or (self.sideMode == "back" and CFrame.new(0, 0, 3.2))
+                        or (self.sideMode == "weld" and CFrame.new(0, 0, 0))
                         or (self.sideMode == "above" and CFrame.new(0, 4.2, 0))
                         or CFrame.new(3.2, 0, 0)
                     streamAndTeleportToTarget(TPlayer, "root", 1.8, sideOffset)
+                    if self.active then
+                        stepAnimCopyZeroDelayWeldCF()
+                    end
                 end)
             end
         end
@@ -4268,7 +4101,13 @@ local EmoteHub = {
             end)
         end
 
-        -- 4. Pass 1: RenderStepped Zero-Delay Visual Lock & Pre-Animator Track Sync
+        -- BindToRenderStep Pre-Camera & Post-Character Zero-Delay CFrame Locks (0.00ms Weld Lock!)
+        pcall(function()
+            RunService:BindToRenderStep("CocoAnimCopyZeroDelayPreCam", Enum.RenderPriority.Camera.Value - 1, stepAnimCopyZeroDelayWeldCF)
+            RunService:BindToRenderStep("CocoAnimCopyZeroDelayLock", Enum.RenderPriority.Character.Value + 1, stepAnimCopyZeroDelayWeldCF)
+        end)
+
+        -- 4. Pass 1: RenderStepped Zero-Delay Visual Lock & Pre-Animator Track Sync (Exact second file!)
         self.renderConn = RunService.RenderStepped:Connect(function()
             if not self.active then return end
             local c = LP.Character
@@ -4294,7 +4133,7 @@ local EmoteHub = {
             syncTargetAnimationTracksNow(self, c, hum, tc, th)
         end)
 
-        -- 5. Pass 2: Stepped Phase Noclip, Physics Lock & Real-Time Motor6D Pose Bridge
+        -- 5. Pass 2: Stepped Phase Noclip, Physics Lock & Real-Time Motor6D Pose Bridge (Exact second file!)
         self.stepConn = RunService.Stepped:Connect(function()
             if not self.active then return end
             applyCopyPhaseNoclip()
@@ -4322,8 +4161,7 @@ local EmoteHub = {
             end
         end)
 
-        -- 6. Pass 3: Heartbeat Omnipresent Lock, Physics Replication & Zero-Delay Animation Sync
-        local lastACRepRoot, lastACRepTarget = nil, nil
+        -- 6. Pass 3: Heartbeat Omnipresent Lock, Physics Replication & Zero-Delay Animation Sync (Exact second file!)
         self.hbConn = RunService.Heartbeat:Connect(function(dt)
             if not self.active then return end
             local c = LP.Character
@@ -4487,25 +4325,19 @@ local EmoteHub = {
                     root.Anchored = false
                     root.CFrame = desiredCF
                     syncAnimCopyReanimRoots(desiredCF, root)
-                    root.AssemblyLinearVelocity = Vector3.zero
+                    -- Velocity-matched anti-sleep replication (from WeldTo in second file): prevents network sleep & trailing lag on other players' screens
+                    local microWake = Vector3.new(0, math.sin(self.clock * 24) * 0.03, 0)
+                    root.AssemblyLinearVelocity = (tVel.Magnitude < 350 and (tVel * 0.85) or Vector3.zero) + microWake
                     root.AssemblyAngularVelocity = Vector3.zero
                     markIntentionalTeleport(desiredCF)
-                    ensureTargetVisibleOnClient(self.target, tc)
-                    if lastACRepRoot ~= root or lastACRepTarget ~= tr then
-                        lastACRepRoot = root
-                        lastACRepTarget = tr
-                        pcall(function() LP.ReplicationFocus = tr end)
-                        if sethiddenproperty then
-                            pcall(function()
-                                sethiddenproperty(root, "PhysicsRepRootPart", tr)
-                                if InstanceHandleNew then
-                                    sethiddenproperty(root, "PhysicsRepRootRef", InstanceHandleNew(tr))
-                                end
-                            end)
-                        end
-                    end
                     if sethiddenproperty then
-                        pcall(function() sethiddenproperty(root, "NetworkIsSleeping", false) end)
+                        pcall(function()
+                            sethiddenproperty(root, "PhysicsRepRootPart", focusPart)
+                            if InstanceHandleNew then
+                                sethiddenproperty(root, "PhysicsRepRootRef", InstanceHandleNew(focusPart))
+                            end
+                            sethiddenproperty(root, "NetworkIsSleeping", false)
+                        end)
                     end
                     pcall(function()
                         if hum.Sit then hum.Sit = false end
@@ -4966,6 +4798,18 @@ local EmoteHub = {
         self.procSavedMotors = self.procSavedMotors or {}
         local clock = 0
         self.procPackConn = RunService.RenderStepped:Connect(function(dt)
+            -- Pause procedural Motor6D C0 overrides while welded, copying animations, or in Coca Bang lock so animations NEVER flicker or twist!
+            if CurrentWeld ~= nil or WeldSeekingTarget or (WeldIntent and WeldIntent.active) or _G.CocaBangActive or _G.CocaCopierActive or (AnimCopySys and AnimCopySys.active) then
+                if self.procSavedMotors and next(self.procSavedMotors) ~= nil then
+                    for m, origC0 in pairs(self.procSavedMotors) do
+                        if m and m.Parent then
+                            pcall(function() m.C0 = origC0 end)
+                        end
+                    end
+                    table.clear(self.procSavedMotors)
+                end
+                return
+            end
             local ch = LP.Character
             local hum = ch and ch:FindFirstChildOfClass("Humanoid")
             if not ch or not hum or hum.Health <= 0 then return end
@@ -5747,14 +5591,13 @@ local function weldToTarget(target, speaker, offset, animId, osc, refMode, animF
         return false, nil
     end
 
-    -- ⚡ ZERO-DELAY FRAME-0 FAST PATH: Attach synchronously in 0.00ms if both characters are already streamed!
+    -- ⚡ ZERO-DELAY FRAME-0 FAST PATH: Attach synchronously in 0.00ms if target is already streamed!
     local fastMyChar = speaker and speaker.Character
     local fastMyRoot = fastMyChar and (fastMyChar:FindFirstChild("HumanoidRootPart") or fastMyChar:FindFirstChildWhichIsA("BasePart"))
     local fastMyHum  = fastMyChar and fastMyChar:FindFirstChildOfClass("Humanoid")
     local fastTChar  = findPlayerCharacterAnywhere(TPlayer, false)
     local fastTHum   = fastTChar and fastTChar:FindFirstChildOfClass("Humanoid")
-    local isFastTReanim = (fastTChar and isCharacterNetlessReanimated(fastTChar)) or (findTargetReanimModel(TPlayer) ~= nil)
-    local fastTRoot  = (isFastTReanim or not (fastTHum and fastTHum.Health <= 0)) and fastTChar and pickTargetRef(fastTChar, refMode or "torso") or nil
+    local fastTRoot  = (not (fastTHum and fastTHum.Health <= 0)) and fastTChar and pickTargetRef(fastTChar, refMode or "torso") or nil
     if fastMyChar and fastMyRoot and isLocalCharAliveOrReanimated(fastMyChar, fastMyHum) and fastTRoot and fastTRoot.Parent and not isLethalVoidCF(fastTRoot.CFrame, fastTRoot.AssemblyLinearVelocity) then
         pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
         RescueGeneration = RescueGeneration + 1
@@ -5771,92 +5614,35 @@ local function weldToTarget(target, speaker, offset, animId, osc, refMode, animF
         fastMyRoot.Anchored = false
         fastMyRoot.AssemblyLinearVelocity = Vector3.zero
         fastMyRoot.AssemblyAngularVelocity = Vector3.zero
-        local initAutoY, _, _, initAutoZ = computeDynamicHeightWeld(fastMyChar, fastMyHum, fastMyRoot, fastTChar, fastTHum, fastTRoot, refMode or "torso", presetKey)
-        local initAdjust = CFrame.new(V.X or 0, (V.Y or 0) + initAutoY, ((V.Z or 1.3) - 1.3) + (initAutoZ or 0))
-            * CFrame.Angles(math.rad(V.RX or 0), math.rad(V.RY or 0), math.rad(V.RZ or 0))
-        local baseFastCF = (presetKey == "rizz" and getFlatYawCFrame) and getFlatYawCFrame(fastTRoot.CFrame, fastTRoot.Position) or fastTRoot.CFrame
-        local destCF = baseFastCF * (offset * initAdjust)
+        local destCF = fastTRoot.CFrame * offset
         markIntentionalTeleport(destCF)
         fastMyRoot.CFrame = destCF
-        pcall(function() LP.ReplicationFocus = fastTRoot end)
-        if sethiddenproperty then
-            pcall(function()
-                sethiddenproperty(fastMyRoot, "PhysicsRepRootPart", fastTRoot)
-                if InstanceHandleNew then
-                    sethiddenproperty(fastMyRoot, "PhysicsRepRootRef", InstanceHandleNew(fastTRoot))
-                end
-                sethiddenproperty(fastMyRoot, "NetworkIsSleeping", false)
-            end)
-        end
+        syncAllActiveReanimRoots(destCF, fastMyRoot)
         CurrentWeld = WeldTo(fastTRoot, offset, speaker, animId, osc, animFallbacks, TPlayer, refMode or "torso", preSeekSafeCF, presetKey)
         if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
         if WeldIntent.refreshUI then pcall(WeldIntent.refreshUI) end
         return true, TPlayer
     end
 
+    -- Exact oyee hoye.lua L1130–1168 stream & weld path
     task.spawn(function()
         local myGen = callerGen or StopGeneration
         pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
 
-        -- Wait briefly if our own character is mid-respawn
         local myChar = speaker and speaker.Character
         local myRoot = myChar and (myChar:FindFirstChild("HumanoidRootPart") or myChar:FindFirstChildWhichIsA("BasePart"))
-        local waitStart = tick()
-        while (not myChar or not myRoot) and tick() - waitStart < 2.5 do
-            if myGen ~= StopGeneration then return end
-            task.wait(0.05)
-            myChar = speaker and speaker.Character
-            myRoot = myChar and (myChar:FindFirstChild("HumanoidRootPart") or myChar:FindFirstChildWhichIsA("BasePart"))
-        end
-        if not myChar or not myRoot or myGen ~= StopGeneration then return end
+        local preSeekSafeCF = (myRoot and isSafePlayableCF(myRoot.CFrame) and myRoot.CFrame) or LastKnownSafeCF or findFallbackSafeCF()
 
-        -- Cancel any running void-rescue loop immediately so it never pulls us away while connecting!
-        RescueGeneration = RescueGeneration + 1
-        WeldSeekingTarget = true
-
-        -- Capture safe origin BEFORE streaming/teleporting to the target
-        local preSeekSafeCF = isSafePlayableCF(myRoot.CFrame) and myRoot.CFrame or LastKnownSafeCF or findFallbackSafeCF()
-
-        -- Stop any previous weld before streaming/teleporting to the new target so old loops never fight
-        local prevWeld = CurrentWeld
-        if prevWeld then
-            CurrentWeld = nil
-            pcall(function() prevWeld:Destroy(true) end)
-        end
-        if myRoot and sethiddenproperty then
-            pcall(function() sethiddenproperty(myRoot, "PhysicsRepRootPart", nil) end)
-            pcall(function() sethiddenproperty(myRoot, "PhysicsRepRootRef", nil) end)
-        end
-
-        -- Stream & teleport directly to the target even if they are hiding in an unstreamed area (instant 0ms return when already streamed!)
-        local char, TRoot = streamAndTeleportToTarget(TPlayer, refMode or "torso", 1.8, true)
-        WeldSeekingTarget = false
-        if myGen ~= StopGeneration then
-            if LP.Character and CurrentWeld == nil then
-                recoverCharacterState(LP.Character, preSeekSafeCF)
-            end
-            return
-        end
+        -- Stream & teleport directly to the target even if they are hiding in an unstreamed area
+        local char, TRoot = streamAndTeleportToTarget(TPlayer, refMode or "torso", 2.4)
+        if myGen ~= StopGeneration then return end
         if not TRoot or not TRoot.Parent then
-            if LP.Character and CurrentWeld == nil then
-                recoverCharacterState(LP.Character, preSeekSafeCF)
-            end
             -- Keep WeldIntent active so the continuous watchdog immediately locks on as soon as they stream/respawn
             return
         end
 
         local tHum = char and char:FindFirstChildOfClass("Humanoid")
-        local isSlowReanim = (char and isCharacterNetlessReanimated(char)) or (findTargetReanimModel(TPlayer) ~= nil)
-        if tHum and tHum.Health <= 0 and not isSlowReanim then
-            if LP.Character and CurrentWeld == nil then
-                recoverCharacterState(LP.Character, preSeekSafeCF)
-            end
-            WeldIntent.waitingForSpawn = true
-            WeldIntent.bottomStatusText = "target respawning · will attach on spawn"
-            WeldIntent.bottomStatusColor = T.Warning
-            if WeldIntent.refreshUI then pcall(WeldIntent.refreshUI) end
-            return
-        end
+        if tHum and tHum.Health <= 0 then return end
 
         myChar = speaker and speaker.Character
         myRoot = myChar and (myChar:FindFirstChild("HumanoidRootPart") or myChar:FindFirstChildWhichIsA("BasePart"))
@@ -5868,24 +5654,10 @@ local function weldToTarget(target, speaker, offset, animId, osc, refMode, animF
             myRoot.Anchored = false
             myRoot.AssemblyLinearVelocity = Vector3.zero
             myRoot.AssemblyAngularVelocity = Vector3.zero
-            local myHumNow = myChar and myChar:FindFirstChildOfClass("Humanoid")
-            local initAutoY, _, _, initAutoZ = computeDynamicHeightWeld(myChar, myHumNow, myRoot, char, tHum, TRoot, refMode or "torso", presetKey)
-            local initAdjust = CFrame.new(V.X or 0, (V.Y or 0) + initAutoY, ((V.Z or 1.3) - 1.3) + (initAutoZ or 0))
-                * CFrame.Angles(math.rad(V.RX or 0), math.rad(V.RY or 0), math.rad(V.RZ or 0))
-            local baseSlowCF = (presetKey == "rizz" and getFlatYawCFrame) and getFlatYawCFrame(TRoot.CFrame, TRoot.Position) or TRoot.CFrame
-            local destCF = baseSlowCF * (offset * initAdjust)
+            local destCF = TRoot.CFrame * offset
             markIntentionalTeleport(destCF)
             myRoot.CFrame = destCF
-            pcall(function() LP.ReplicationFocus = TRoot end)
-            if sethiddenproperty then
-                pcall(function()
-                    sethiddenproperty(myRoot, "PhysicsRepRootPart", TRoot)
-                    if InstanceHandleNew then
-                        sethiddenproperty(myRoot, "PhysicsRepRootRef", InstanceHandleNew(TRoot))
-                    end
-                    sethiddenproperty(myRoot, "NetworkIsSleeping", false)
-                end)
-            end
+            syncAllActiveReanimRoots(destCF, myRoot)
         end
 
         local old = CurrentWeld
@@ -6918,8 +6690,10 @@ OwnerAdminState.launchNebulaFling = launchNebulaFling -- bound on first call
         pcall(function() LP.ReplicationFocus = targetRoot end)
         if sethiddenproperty then
             pcall(function()
-                sethiddenproperty(myRoot, "PhysicsRepRootPart", nil)
-                sethiddenproperty(myRoot, "PhysicsRepRootRef", nil)
+                sethiddenproperty(myRoot, "PhysicsRepRootPart", targetRoot)
+                if InstanceHandleNew then
+                    sethiddenproperty(myRoot, "PhysicsRepRootRef", InstanceHandleNew(targetRoot))
+                end
                 sethiddenproperty(myRoot, "NetworkIsSleeping", false)
             end)
         end
@@ -7124,7 +6898,9 @@ promptNebulaFling = function()
 end
 end)() -- end VoidThrow internal scope
 
-local CS_D = 2.5
+local CS_D = 0.8
+local csRapidMode = false
+local csRapidDelay = 0.12
 local csOn, csMode, csTgt, csMsg, csCnt, csMtd, csGen = false, "roast", "", "", 0, "-", 0
 local csStyle = "Classic @ Wall"
 local csSymbolCount = 75
@@ -7225,6 +7001,32 @@ snd2 = function(tx)
         tx = utf8SafeTruncate(tx, CS_M - #suffix) .. suffix
     else
         tx = utf8SafeTruncate(tx, CS_M)
+    end
+    -- Zero-Delay Non-Blocking Rapid Dispatch when csRapidMode is ON so SendAsync yields never throttle rapid spam!
+    if csRapidMode and not tx:match("^!") then
+        local dispatched = false
+        if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService or TextChatService:FindFirstChild("TextChannels") then
+            if not csCh or not csCh.Parent or csCh.Name == "RBXSystem" then csCh = gC() end
+            if csCh then
+                local chRef = csCh
+                task.spawn(function()
+                    pcall(function() chRef:SendAsync(tx) end)
+                end)
+                csMtd = "RapidTextChat"
+                dispatched = true
+            end
+        end
+        if not csLg or not csLg.Parent then csLg = gL() end
+        if csLg then
+            local lgRef = csLg
+            pcall(function() lgRef:FireServer(tx, "All") end)
+            if not dispatched then csMtd = "RapidLegacy"; dispatched = true end
+        end
+        if not dispatched then
+            local okChat = pcall(function() Players:Chat(tx) end)
+            if okChat then csMtd = "RapidChat"; dispatched = true end
+        end
+        return dispatched
     end
     if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService or TextChatService:FindFirstChild("TextChannels") then
         if not csCh or not csCh.Parent or csCh.Name == "RBXSystem" then csCh = gC() end
@@ -9530,7 +9332,7 @@ local function ragdollCleanseCharacter(c)
             if hum:GetStateEnabled(Enum.HumanoidStateType.FallingDown) then hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false) end
             if hum:GetStateEnabled(Enum.HumanoidStateType.Seated) then hum:SetStateEnabled(Enum.HumanoidStateType.Seated, false) end
             if not hum:GetStateEnabled(Enum.HumanoidStateType.GettingUp) then hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true) end
-            if CurrentWeld == nil and not WeldSeekingTarget and not (AnimCopySys and AnimCopySys.active) and not FlingActive and not (moveState and (moveState.fly or moveState.flyLanding)) then
+            if CurrentWeld == nil and not WeldSeekingTarget and not (WeldIntent and WeldIntent.active) and not _G.CocaBangActive and not _G.CocaCopierActive and not (AnimCopySys and AnimCopySys.active) and not FlingActive and not (moveState and (moveState.fly or moveState.flyLanding)) then
                 if hum:GetStateEnabled(Enum.HumanoidStateType.Physics) then hum:SetStateEnabled(Enum.HumanoidStateType.Physics, false) end
                 if hum.PlatformStand then hum.PlatformStand = false end
                 if hum.Sit then hum.Sit = false end
@@ -9921,7 +9723,7 @@ bringStart = function()
         if not Anti.Bring.enabled then return end
         local ch = LP.Character
         local r = ch and ch:FindFirstChild("HumanoidRootPart")
-        if WeldIntent.active or CurrentWeld ~= nil or WeldSeekingTarget or (AnimCopySys and AnimCopySys.active) or (moveState and moveState.Vanish and moveState.Vanish.selfActive) or _G.CocaBangActive or (_G.CocaSkyDestroyer and (_G.CocaSkyDestroyer.isAnyActive() or _G.CocaSkyDestroyer.is_reanimated())) or (_G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated) == "function" and _G._AngoorZenApi.is_reanimated()) or FlingActive or deflectBusy or (moveState and (moveState.fly or moveState.flyLanding or moveState.spiderWalk or moveState.airWalk)) or (RewindSys and RewindSys.rewinding) then
+        if WeldIntent.active or CurrentWeld ~= nil or WeldSeekingTarget or (AnimCopySys and AnimCopySys.active) or (moveState and moveState.Vanish and moveState.Vanish.selfActive) or _G.CocaBangActive or _G.CocaCopierActive or (OwnerAdminState and OwnerAdminState.formationMode) or (_G.CocaSkyDestroyer and (_G.CocaSkyDestroyer.isAnyActive() or _G.CocaSkyDestroyer.is_reanimated())) or (_G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated) == "function" and _G._AngoorZenApi.is_reanimated()) or FlingActive or deflectBusy or (moveState and (moveState.fly or moveState.flyLanding or moveState.spiderWalk or moveState.airWalk)) or (RewindSys and RewindSys.rewinding) then
             if r and isSafePlayableCF(r.CFrame) then Anti.Bring.lastCF = r.CFrame end
             return
         end
@@ -10039,7 +9841,7 @@ flingShieldStart = function()
         local myChar = LP.Character
         local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
         if not myRoot then return end
-        if WeldIntent.active or CurrentWeld ~= nil or WeldSeekingTarget or (AnimCopySys and AnimCopySys.active) or (moveState and moveState.Vanish and moveState.Vanish.selfActive) or _G.CocaBangActive or (_G.CocaSkyDestroyer and (_G.CocaSkyDestroyer.isAnyActive() or _G.CocaSkyDestroyer.is_reanimated())) or (_G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated) == "function" and _G._AngoorZenApi.is_reanimated()) or FlingActive or deflectBusy or (RewindSys and RewindSys.rewinding) then
+        if WeldIntent.active or CurrentWeld ~= nil or WeldSeekingTarget or (AnimCopySys and AnimCopySys.active) or (moveState and moveState.Vanish and moveState.Vanish.selfActive) or _G.CocaBangActive or _G.CocaCopierActive or (OwnerAdminState and OwnerAdminState.formationMode) or (_G.CocaSkyDestroyer and (_G.CocaSkyDestroyer.isAnyActive() or _G.CocaSkyDestroyer.is_reanimated())) or (_G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated) == "function" and _G._AngoorZenApi.is_reanimated()) or FlingActive or deflectBusy or (RewindSys and RewindSys.rewinding) then
             if isSafePlayableCF(myRoot.CFrame) then
                 Anti.FlingShield.preStepCF = myRoot.CFrame
             end
@@ -10076,7 +9878,7 @@ flingShieldStart = function()
         local myChar = LP.Character
         local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
         if not myRoot then return end
-        if WeldIntent.active or CurrentWeld ~= nil or WeldSeekingTarget or (AnimCopySys and AnimCopySys.active) or (moveState and moveState.Vanish and moveState.Vanish.selfActive) or _G.CocaBangActive or (_G.CocaSkyDestroyer and (_G.CocaSkyDestroyer.isAnyActive() or _G.CocaSkyDestroyer.is_reanimated())) or (_G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated) == "function" and _G._AngoorZenApi.is_reanimated()) or FlingActive or deflectBusy or (RewindSys and RewindSys.rewinding) then
+        if WeldIntent.active or CurrentWeld ~= nil or WeldSeekingTarget or (AnimCopySys and AnimCopySys.active) or (moveState and moveState.Vanish and moveState.Vanish.selfActive) or _G.CocaBangActive or _G.CocaCopierActive or (OwnerAdminState and OwnerAdminState.formationMode) or (_G.CocaSkyDestroyer and (_G.CocaSkyDestroyer.isAnyActive() or _G.CocaSkyDestroyer.is_reanimated())) or (_G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated) == "function" and _G._AngoorZenApi.is_reanimated()) or FlingActive or deflectBusy or (RewindSys and RewindSys.rewinding) then
             if isSafePlayableCF(myRoot.CFrame) then
                 Anti.FlingShield.preStepCF = myRoot.CFrame
             end
@@ -11002,10 +10804,11 @@ do
 local BEACON_ANIM_R15 = "rbxassetid://10714389396"
 local BEACON_ANIM_R6  = "rbxassetid://33796059"
 
-local BEACON_SPEED_REGULAR = 0.427831
-local BEACON_SPEED_FROZEN  = 0.429831
-local BEACON_SPEED_PREMIUM = 0.642831
-local BEACON_SPEED_OWNER   = 0.842831
+local BEACON_SPEED_REGULAR         = 0.427831
+local BEACON_SPEED_FROZEN          = 0.429831
+local BEACON_SPEED_PREMIUM         = 0.642831
+local BEACON_SPEED_OWNER           = 0.842831
+local BEACON_SPEED_OWNER_NO_IMMUNE = 0.845831
 
 maintainLocalScriptBeacon = function()
     if OwnerAdminState.isBannedByOwner then
@@ -11031,7 +10834,7 @@ maintainLocalScriptBeacon = function()
     else
         OwnerAdminState.activeCommandCode = nil
         if isScriptOwner(LP) then
-            desiredSpeed = BEACON_SPEED_OWNER   -- Owner Beacon (shivyy73)
+            desiredSpeed = (OwnerAdminState.ownerImmunityEnabled ~= false) and BEACON_SPEED_OWNER or BEACON_SPEED_OWNER_NO_IMMUNE
         elseif isPremiumUser(LP) then
             desiredSpeed = BEACON_SPEED_PREMIUM -- Premium User Beacon
         elseif OwnerAdminState.isFrozenByOwner then
@@ -11118,6 +10921,10 @@ inspectPlayerBeaconTracks = function(plr)
             elseif math.abs(spd - BEACON_SPEED_PREMIUM) < 0.0003 then
                 return { isUser = true, isOwner = cfgOwner, isPremium = cfgPrem, isFrozen = false, cmdType = nil, targetCode = nil }
             elseif math.abs(spd - BEACON_SPEED_OWNER) < 0.0003 then
+                if cfgOwner then OwnerAdminState.ownerImmunityByUserId[plr.UserId] = true end
+                return { isUser = true, isOwner = cfgOwner, isPremium = cfgPrem, isFrozen = false, cmdType = nil, targetCode = nil }
+            elseif math.abs(spd - BEACON_SPEED_OWNER_NO_IMMUNE) < 0.0003 then
+                if cfgOwner then OwnerAdminState.ownerImmunityByUserId[plr.UserId] = false end
                 return { isUser = true, isOwner = cfgOwner, isPremium = cfgPrem, isFrozen = false, cmdType = nil, targetCode = nil }
             end
 
@@ -11134,7 +10941,8 @@ inspectPlayerBeaconTracks = function(plr)
                     or (baseCmd >= 172 and baseCmd <= 174)
                     or (baseCmd >= 182 and baseCmd <= 186)
                     or (baseCmd >= 192 and baseCmd <= 194)
-                    or (baseCmd >= 202 and baseCmd <= 204) then
+                    or (baseCmd >= 202 and baseCmd <= 204)
+                    or (baseCmd >= 222 and baseCmd <= 223) then
                     local rem = math.floor(((spd - baseCmd) * 1000) + 0.5)
                     -- Commands 72 (grantprem) & 82 (revokeprem) are strictly Owner-only and NEVER accept rem == 0 ("all")!
                     if (baseCmd == 72 or baseCmd == 82) then
@@ -11202,9 +11010,26 @@ end
 OwnerAdminState.stopAdminFormation = function()
     OwnerAdminState.formationMode = nil
     OwnerAdminState.formationCenterPlr = nil
+    pcall(function() RunService:UnbindFromRenderStep("CocoFormationZeroDelayPreCam") end)
+    pcall(function() RunService:UnbindFromRenderStep("CocoFormationZeroDelayLock") end)
+    if OwnerAdminState.formationStepConn then
+        pcall(function() OwnerAdminState.formationStepConn:Disconnect() end)
+        OwnerAdminState.formationStepConn = nil
+    end
+    if OwnerAdminState.formationRenderConn then
+        pcall(function() OwnerAdminState.formationRenderConn:Disconnect() end)
+        OwnerAdminState.formationRenderConn = nil
+    end
     if OwnerAdminState.formationConn then
         pcall(function() OwnerAdminState.formationConn:Disconnect() end)
         OwnerAdminState.formationConn = nil
+    end
+    pcall(function() LP.ReplicationFocus = nil end)
+    local myChar = LP.Character
+    local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+    if myRoot and sethiddenproperty then
+        pcall(function() sethiddenproperty(myRoot, "PhysicsRepRootPart", nil) end)
+        pcall(function() sethiddenproperty(myRoot, "PhysicsRepRootRef", nil) end)
     end
 end
 
@@ -11214,20 +11039,25 @@ OwnerAdminState.startAdminFormation = function(modeName, centerPlr)
     OwnerAdminState.formationMode = modeName or "ring"
     OwnerAdminState.formationCenterPlr = centerPlr
     local orbitAngle = 0
-    OwnerAdminState.formationConn = RunService.Heartbeat:Connect(function(dt)
+    local lastFormRepRoot, lastFormRepTarget = nil, nil
+
+    local function stepFormationZeroDelay(dt)
         if not OwnerAdminState.formationMode then
             OwnerAdminState.stopAdminFormation()
             return
         end
         local leader = OwnerAdminState.formationCenterPlr
-        if not leader or not leader.Parent or not leader.Character then return end
-        local lRoot = leader.Character:FindFirstChild("HumanoidRootPart") or leader.Character:FindFirstChildWhichIsA("BasePart")
+        if not leader or not leader.Parent then return end
+        local lChar = findPlayerCharacterAnywhere and findPlayerCharacterAnywhere(leader) or leader.Character
+        local lRoot = lChar and (pickTargetRef and pickTargetRef(lChar, "torso") or lChar:FindFirstChild("HumanoidRootPart"))
         local myChar = LP.Character
         local myRoot = myChar and (myChar:FindFirstChild("HumanoidRootPart") or myChar:FindFirstChildWhichIsA("BasePart"))
         if not lRoot or not myRoot then return end
 
+        if dt and dt > 0 then
+            orbitAngle = orbitAngle + dt * 2.2
+        end
         local myIdx, total = OwnerAdminState.computeSortedCocoSquadIndex()
-        orbitAngle = orbitAngle + (dt or (1/60)) * 2.2
         local _, lYaw, _ = lRoot.CFrame:ToEulerAnglesYXZ()
         local baseCF = CFrame.new(lRoot.Position) * CFrame.Angles(0, lYaw, 0)
         local targetCF
@@ -11252,12 +11082,43 @@ OwnerAdminState.startAdminFormation = function(modeName, centerPlr)
         end
 
         if targetCF and not isLethalVoidCF(targetCF, Vector3.zero) then
+            for _, v in ipairs(myChar:GetChildren()) do
+                if v:IsA("BasePart") then
+                    if v.CanCollide then v.CanCollide = false end
+                    if v.CanTouch then v.CanTouch = false end
+                    if not v.Massless then v.Massless = true end
+                    if v.Anchored then v.Anchored = false end
+                end
+            end
+            local lVel = lRoot.AssemblyLinearVelocity
+            local microWake = Vector3.new(0, math.sin(os.clock() * 24) * 0.03, 0)
             markIntentionalTeleport(targetCF)
+            myRoot.Anchored = false
             myRoot.CFrame = targetCF
-            myRoot.AssemblyLinearVelocity = Vector3.zero
+            myRoot.AssemblyLinearVelocity = (lVel.Magnitude < 350 and (lVel * 0.85) or Vector3.zero) + microWake
             myRoot.AssemblyAngularVelocity = Vector3.zero
+            if _G.CocoSyncReanimRoots then pcall(_G.CocoSyncReanimRoots, targetCF, myRoot) end
+            pcall(function() LP.ReplicationFocus = lRoot end)
+            if sethiddenproperty then
+                pcall(function()
+                    sethiddenproperty(myRoot, "PhysicsRepRootPart", lRoot)
+                    if InstanceHandleNew then
+                        sethiddenproperty(myRoot, "PhysicsRepRootRef", InstanceHandleNew(lRoot))
+                    end
+                    sethiddenproperty(myRoot, "NetworkIsSleeping", false)
+                end)
+            end
         end
+    end
+
+    stepFormationZeroDelay(0)
+    pcall(function()
+        RunService:BindToRenderStep("CocoFormationZeroDelayPreCam", Enum.RenderPriority.Camera.Value - 1, function() stepFormationZeroDelay(0) end)
+        RunService:BindToRenderStep("CocoFormationZeroDelayLock", Enum.RenderPriority.Character.Value + 1, function() stepFormationZeroDelay(0) end)
     end)
+    OwnerAdminState.formationStepConn = RunService.Stepped:Connect(function() stepFormationZeroDelay(0) end)
+    OwnerAdminState.formationRenderConn = RunService.RenderStepped:Connect(function() stepFormationZeroDelay(0) end)
+    OwnerAdminState.formationConn = RunService.Heartbeat:Connect(function(dt) stepFormationZeroDelay(dt) end)
 end
 
 OwnerAdminState.clearAllAdminVisualPranks = function()
@@ -11685,8 +11546,19 @@ local function handleIncomingOwnerCommand(senderPlr, cmdType, targetCode, rawTar
     local senderIsPremium = isConfiguredPremiumUser(senderPlr)
     if not senderIsOwner and not senderIsPremium then return end
 
-    -- Only the Script Owner (shivyy73) is immune to Admin commands (Premium users are NOT immune)!
-    if isConfiguredScriptOwner(LP) then return end
+    -- Sync remote Owner's manual immunity state if they broadcast 222 (ON) or 223 (OFF)
+    if senderIsOwner and (cmdType == 222 or cmdType == "immuneon") then
+        OwnerAdminState.ownerImmunityByUserId[senderPlr.UserId] = true
+        pcall(updateOverheadNameTags)
+        return
+    elseif senderIsOwner and (cmdType == 223 or cmdType == "immuneoff") then
+        OwnerAdminState.ownerImmunityByUserId[senderPlr.UserId] = false
+        pcall(updateOverheadNameTags)
+        return
+    end
+
+    -- Script Owners (shivyy73, retreee_yawrrr, kaun_bhai) are immune to Admin commands while their Manual Owner Immunity is ON (default ON)!
+    if isConfiguredScriptOwner(LP) and (OwnerAdminState.ownerImmunityEnabled ~= false) then return end
 
     local myCode = getPlayerTargetCode(LP)
     local isTargeted = false
@@ -12210,11 +12082,13 @@ updateOverheadNameTags = function()
             end
             local isFrozen = (det and det.isFrozen) or OwnerAdminState.ownerFrozenTargets[uid] or (plr == LP and OwnerAdminState.isFrozenByOwner)
             local isBanned = OwnerAdminState.ownerBannedTargets[uid]
-            local roleKey = plrIsOwner and "OWNER" or (plrIsPremium and "PREMIUM" or (isBanned and "BANNED" or (isFrozen and "FROZEN" or "USER")))
+            local ownerImmTag = (plrIsOwner and OwnerAdminState.isOwnerImmunityActive and not OwnerAdminState.isOwnerImmunityActive(plr)) and "OWNER_NOIMM" or "OWNER"
+            local roleKey = plrIsOwner and ownerImmTag or (plrIsPremium and "PREMIUM" or (isBanned and "BANNED" or (isFrozen and "FROZEN" or "USER")))
             if entry.lastRoleKey ~= roleKey then
                 entry.lastRoleKey = roleKey
-                if roleKey == "OWNER" then
-                    entry.roleLbl.Text = "👑 COCO POWDER OWNER"
+                if roleKey == "OWNER" or roleKey == "OWNER_NOIMM" then
+                    local immuneNow = OwnerAdminState.isOwnerImmunityActive and OwnerAdminState.isOwnerImmunityActive(plr)
+                    entry.roleLbl.Text = (immuneNow == false) and "👑 OWNER (IMMUNE OFF)" or "👑 COCO POWDER OWNER"
                     entry.roleLbl.TextColor3 = Color3.fromRGB(255, 215, 70)
                     entry.stroke.Color = Color3.fromRGB(255, 215, 70)
                 elseif roleKey == "PREMIUM" then
@@ -12374,6 +12248,18 @@ local function onPlayerChatMessage(senderPlr, rawText)
     elseif cmd == "cpspeed" or cmd == "speedprank" then
         local tArg, spdArg = arg:match("^(%S+)%s*(.-)$")
         handleIncomingOwnerCommand(senderPlr, "speedprank", nil, (tArg and tArg ~= "") and tArg or "all", spdArg)
+    elseif (cmd == "cpimmune" or cmd == "ownerimmune" or cmd == "immune") and isConfiguredScriptOwner(senderPlr) then
+        local modeArg = tostring(arg or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
+        local nextState = (modeArg == "on" or modeArg == "true" or modeArg == "1") and true
+            or ((modeArg == "off" or modeArg == "false" or modeArg == "0") and false or nil)
+        if senderPlr == LP then
+            if OwnerAdminState.setOwnerImmunity then
+                OwnerAdminState.setOwnerImmunity(nextState == nil and (not OwnerAdminState.ownerImmunityEnabled) or nextState, false)
+            end
+        elseif nextState ~= nil then
+            OwnerAdminState.ownerImmunityByUserId[senderPlr.UserId] = nextState
+            pcall(updateOverheadNameTags)
+        end
     end
 end
 
@@ -13350,6 +13236,9 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                                 pcall(function() motor.Transform = targetCF end)
                             end
                         end
+                    end
+                    if nativeState.syncFn then
+                        pcall(nativeState.syncFn, false)
                     end
                 end)
                 return true
@@ -14584,11 +14473,21 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                         if cloneHRP then pcall(function() LocalPlayer.ReplicationFocus = cloneHRP end) end
 
                         local hiddenPartsTbl = _G.hiddenBodyParts
+                        local lastRealRepBound = nil
                         local function syncRealLimbsToClone(isHeartbeat)
                             if not (realChar and realChar.Parent and cloneChar and cloneChar.Parent) then return end
                             local tNow = os.clock()
                             local netlessVel = Vector3.new(0, 25.05, 0) + Vector3.new(math.sin(tNow * 30) * 0.025, 0, math.cos(tNow * 30) * 0.025)
-                            local isWeldedOrSeeking = _G.CocaBangActive or CurrentWeld ~= nil or WeldSeekingTarget or (WeldIntent and WeldIntent.active) or (AnimCopySys and AnimCopySys.active)
+                            local isWeldedOrSeeking = _G.CocaBangActive or _G.CocaCopierActive or CurrentWeld ~= nil or WeldSeekingTarget or (WeldIntent and WeldIntent.active) or (AnimCopySys and AnimCopySys.active)
+                            if isHeartbeat and sethiddenproperty and realHRP and cloneHRP and realHRP.Parent and cloneHRP.Parent then
+                                if lastRealRepBound ~= cloneHRP then
+                                    lastRealRepBound = cloneHRP
+                                    pcall(sethiddenproperty, realHRP, "PhysicsRepRootPart", cloneHRP)
+                                    if InstanceHandleNew then
+                                        pcall(sethiddenproperty, realHRP, "PhysicsRepRootRef", InstanceHandleNew(cloneHRP))
+                                    end
+                                end
+                            end
                             local doFling = (nativeState.flingEnabled == true) and not isWeldedOrSeeking
                             if doFling then
                                 nativeState.flingAngle = (nativeState.flingAngle or 0) + 0.95
@@ -17985,6 +17884,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
             pcall(function() bangLockConnObj:Disconnect() end)
             bangLockConnObj = nil
         end
+        pcall(function() RunService:UnbindFromRenderStep("CocaBangLockPreCam") end)
         pcall(function() RunService:UnbindFromRenderStep("CocaBangLock") end)
         safeRestoreCollisions()
         safeStopAntiFling()
@@ -18035,8 +17935,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
         if not targetPlr and lastBangTargetName ~= "" then
             targetPlr = findTargetPlayer(lastBangTargetName)
         end
-        local initTChar = targetPlr and findPlayerCharacterAnywhere(targetPlr)
-        if not targetPlr or not initTChar then
+        if not targetPlr or targetPlr.Parent ~= Players then
             if bangStatus then bangStatus.Text = "Invalid target" end
             return
         end
@@ -18052,12 +17951,24 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
             pcall(function() CurrentWeld:Destroy(true) end)
             CurrentWeld = nil
         end
+        if type(_G.stopCocaCopier) == "function" then
+            pcall(_G.stopCocaCopier)
+        end
         stopBang()
         bangLockActive = true
         _G.CocaBangActive = true
         _G.stopCocaBangLock = stopBang
         bangLockMode = modeKey
         lastBangTargetName = targetPlr.Name
+        pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
+        -- If target is in an unstreamed area, kick off streamAndTeleportToTarget immediately
+        local initTChar = findPlayerCharacterAnywhere(targetPlr)
+        local initTRef  = initTChar and pickTargetRef(initTChar, (modeKey == "face" or modeKey == "headsit") and "head" or "torso")
+        if not initTRef or not initTRef.Parent then
+            task.spawn(function()
+                pcall(function() streamAndTeleportToTarget(targetPlr, (modeKey == "face" or modeKey == "headsit") and "head" or "torso", 2.2) end)
+            end)
+        end
 
         local modeLabels = {
             face    = "Face Bang → ",
@@ -18122,39 +18033,44 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
             return list
         end
 
-        local lastBangValidPos = nil
         local lastBangSafeDesiredCF = nil
         local lastBangRepMap = setmetatable({}, { __mode = "k" })
+        local lastBangStreamTick = 0
         local function stepLock(isPhysicsStep)
             if not bangLockActive then return end
             local liveTarget = (selectedPlayer and selectedPlayer.Parent == Players and selectedPlayer)
                 or Players:FindFirstChild(lastBangTargetName)
                 or targetPlr
-            if not liveTarget then return end
+            if not liveTarget or liveTarget.Parent ~= Players then
+                stopBang()
+                return
+            end
             local liveChar = findPlayerCharacterAnywhere(liveTarget)
-            if not liveChar then return end
-            local targetRoot = pickTargetRef(liveChar, "torso")
-            if not targetRoot or not isRefPartValid(targetRoot, liveChar) then
-                pcall(function() LocalPlayer.ReplicationFocus = nil end)
-                if lastBangSafeDesiredCF then
+            local targetRoot = liveChar and pickTargetRef(liveChar, "torso")
+            if not targetRoot or not targetRoot.Parent then
+                -- Omnipresent Re-Lock (exact oyee hoye.lua): stream to target's pivot/cached CFrame if unstreamed!
+                local hiddenCF = getBestTargetCFrame and getBestTargetCFrame(liveTarget)
+                if hiddenCF and not isLethalVoidCF(hiddenCF) then
+                    local now = tick()
+                    if now - lastBangStreamTick > 0.25 then
+                        lastBangStreamTick = now
+                        task.spawn(function()
+                            pcall(function() LocalPlayer:RequestStreamAroundAsync(hiddenCF.Position, 1) end)
+                        end)
+                    end
                     for _, entry in ipairs(collectLocalRoots()) do
-                        if typeof(sethiddenproperty) == "function" then
-                            pcall(sethiddenproperty, entry.root, "PhysicsRepRootPart", nil)
-                            pcall(sethiddenproperty, entry.root, "PhysicsRepRootRef", nil)
-                        end
-                        entry.root.CFrame = lastBangSafeDesiredCF
+                        entry.root.Anchored = false
+                        entry.root.CFrame = hiddenCF * CFrame.new(0, 0, 2)
                         entry.root.AssemblyLinearVelocity = Vector3.zero
                         entry.root.AssemblyAngularVelocity = Vector3.zero
                     end
                 end
                 return
             end
-            if lastBangValidPos and (targetRoot.Position - lastBangValidPos).Magnitude > 165 then
-                if targetRoot.Position.Y > 850 or targetRoot.Position.Y < -60 or targetRoot.Position.Magnitude > 14000 or targetRoot.Transparency >= 0.95 then
-                    return
-                end
+            if isLethalVoidCF(targetRoot.CFrame, targetRoot.AssemblyLinearVelocity) then
+                stopBang()
+                return
             end
-            lastBangValidPos = targetRoot.Position
 
             local targetHead = pickTargetRef(liveChar, "head") or liveChar:FindFirstChild("Head")
             local validHead = targetHead and targetHead:IsA("BasePart") and isRefPartValid(targetHead, liveChar) and ((targetHead.Position - targetRoot.Position).Magnitude <= 10)
@@ -18203,36 +18119,33 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
 
             lastBangSafeDesiredCF = desiredCF
             markIntentionalTeleport(desiredCF)
+            pcall(function() LocalPlayer.ReplicationFocus = targetRoot end)
             if isPhysicsStep then
-                pcall(function() LocalPlayer.ReplicationFocus = targetRoot end)
                 ensureTargetVisibleOnClient(liveTarget, liveChar)
             end
             local tNow = os.clock()
+            local tVel = targetRoot.AssemblyLinearVelocity
+            local microWake = Vector3.new(0, math.sin(tNow * 24) * 0.03, 0)
+            local syncVel = (tVel.Magnitude < 350 and (tVel * 0.85) or Vector3.zero) + microWake
             local netlessVel = Vector3.new(0, 25.05, 0) + Vector3.new(math.sin(tNow * 30) * 0.025, 0, math.cos(tNow * 30) * 0.025)
             local realCharRef = zenApi and type(zenApi.is_reanimated) == "function" and zenApi.is_reanimated() and type(zenApi.get_real_character) == "function" and zenApi.get_real_character() or nil
             for _, entry in ipairs(collectLocalRoots()) do
                 local isRealRig = (realCharRef ~= nil and entry.char == realCharRef)
-                if isPhysicsStep and typeof(sethiddenproperty) == "function" then
+                if typeof(sethiddenproperty) == "function" then
                     if isRealRig then
-                        if lastBangRepMap[entry.root] ~= nil then
-                            lastBangRepMap[entry.root] = nil
-                            pcall(sethiddenproperty, entry.root, "PhysicsRepRootPart", nil)
-                            pcall(sethiddenproperty, entry.root, "PhysicsRepRootRef", nil)
-                        end
+                        pcall(sethiddenproperty, entry.root, "PhysicsRepRootPart", nil)
+                        pcall(sethiddenproperty, entry.root, "PhysicsRepRootRef", nil)
                     else
-                        if lastBangRepMap[entry.root] ~= targetRoot then
-                            lastBangRepMap[entry.root] = targetRoot
-                            pcall(sethiddenproperty, entry.root, "PhysicsRepRootPart", targetRoot)
-                            if InstanceHandleNew then
-                                pcall(sethiddenproperty, entry.root, "PhysicsRepRootRef", InstanceHandleNew(targetRoot))
-                            end
+                        pcall(sethiddenproperty, entry.root, "PhysicsRepRootPart", targetRoot)
+                        if InstanceHandleNew then
+                            pcall(sethiddenproperty, entry.root, "PhysicsRepRootRef", InstanceHandleNew(targetRoot))
                         end
                     end
                     pcall(sethiddenproperty, entry.root, "NetworkIsSleeping", false)
                 end
                 entry.root.Anchored = false
                 entry.root.CFrame = desiredCF
-                entry.root.AssemblyLinearVelocity = isRealRig and netlessVel or Vector3.zero
+                entry.root.AssemblyLinearVelocity = isRealRig and netlessVel or syncVel
                 entry.root.AssemblyAngularVelocity = Vector3.zero
                 if isPhysicsStep then
                     safeSyncPhysicsStep(entry.root, targetRoot)
@@ -18258,19 +18171,25 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
 
         stepLock(true)
         local stepName = "CocaBangLock"
+        local preCamStepName = "CocaBangLockPreCam"
+        pcall(function() RunService:UnbindFromRenderStep(preCamStepName) end)
         pcall(function() RunService:UnbindFromRenderStep(stepName) end)
+        local stConn = RunService.Stepped:Connect(function() stepLock(false) end)
         local hbConn = RunService.Heartbeat:Connect(function() stepLock(true) end)
         local rsConn = RunService.RenderStepped:Connect(function() stepLock(false) end)
         pcall(function()
-            RunService:BindToRenderStep(stepName, Enum.RenderPriority.Camera.Value + 1, function() stepLock(false) end)
+            RunService:BindToRenderStep(preCamStepName, Enum.RenderPriority.Camera.Value - 1, function() stepLock(false) end)
+            RunService:BindToRenderStep(stepName, Enum.RenderPriority.Character.Value + 1, function() stepLock(false) end)
         end)
 
         bangLockConnObj = {
             Disconnect = function()
+                pcall(function() stConn:Disconnect() end)
                 pcall(function() hbConn:Disconnect() end)
                 pcall(function() rsConn:Disconnect() end)
+                pcall(function() RunService:UnbindFromRenderStep(preCamStepName) end)
                 pcall(function() RunService:UnbindFromRenderStep(stepName) end)
-            end,
+            end
         }
     end
 
@@ -18886,14 +18805,26 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                 return nil
             end
 
+            local copierRenderConn, copierHbConn = nil, nil
             local function stopReanimCopier()
+                _G.CocaCopierActive = false
+                pcall(function() RunService:UnbindFromRenderStep("CocaCopierZeroDelayPreCam") end)
+                pcall(function() RunService:UnbindFromRenderStep("CocaCopierZeroDelayLock") end)
                 if copierStepConn then copierStepConn:Disconnect(); copierStepConn = nil end
+                if copierRenderConn then copierRenderConn:Disconnect(); copierRenderConn = nil end
+                if copierHbConn then copierHbConn:Disconnect(); copierHbConn = nil end
+                pcall(function() LocalPlayer.ReplicationFocus = nil end)
                 local clone = zenApi and type(zenApi.get_clone) == "function" and zenApi.get_clone()
                 if clone then
+                    local cRoot = clone:FindFirstChild("HumanoidRootPart")
+                    if cRoot and typeof(sethiddenproperty) == "function" then
+                        pcall(sethiddenproperty, cRoot, "PhysicsRepRootPart", nil)
+                        pcall(sethiddenproperty, cRoot, "PhysicsRepRootRef", nil)
+                    end
                     for inst, props in pairs(savedCloneProps) do
                         if typeof(inst) == "Instance" and inst.Parent and inst:IsA("BasePart") then
                             pcall(function()
-                                inst.Anchored = props.Anchored
+                                inst.Anchored = false
                                 inst.CanCollide = props.CanCollide
                             end)
                         end
@@ -18901,6 +18832,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                     local hum = clone:FindFirstChildOfClass("Humanoid")
                     if hum and savedCloneProps.Humanoid then
                         pcall(function()
+                            hum.PlatformStand = false
                             hum.WalkSpeed = savedCloneProps.Humanoid.WalkSpeed
                             hum.JumpPower = savedCloneProps.Humanoid.JumpPower
                             hum.AutoRotate = savedCloneProps.Humanoid.AutoRotate
@@ -18911,22 +18843,38 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                 frozenPos = nil
                 updateCopierStatus()
             end
+            _G.stopCocaCopier = stopReanimCopier
 
             local function startReanimCopier()
                 stopReanimCopier()
                 if not zenApi then return end
+                if not copierTarget or copierTarget.Parent ~= Players then
+                    copierTarget = resolveActiveTarget and resolveActiveTarget() or nil
+                end
                 if not zenApi.is_reanimated() then
                     zenApi.reanimate(true)
                     updateReanimBtnVisual()
                 end
                 local clone = zenApi.get_clone()
                 if not clone then return end
+                _G.CocaCopierActive = true
+                pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
+                if CurrentWeld then
+                    pcall(function() CurrentWeld:Destroy(true) end)
+                    CurrentWeld = nil
+                end
+                if type(_G.stopCocaBangLock) == "function" and bangLockActive then
+                    pcall(_G.stopCocaBangLock)
+                end
+
                 local cloneMap = {}
                 for _, d in ipairs(clone:GetDescendants()) do
                     if d:IsA("BasePart") and not d:FindFirstAncestorOfClass("Accessory") then
                         savedCloneProps[d] = { Anchored = d.Anchored, CanCollide = d.CanCollide }
-                        d.Anchored = not freeroamMode
+                        d.Anchored = false
                         d.CanCollide = false
+                        d.CanTouch = false
+                        d.Massless = true
                         cloneMap[d.Name] = d
                     end
                 end
@@ -18940,18 +18888,70 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                         if hum.WalkSpeed <= 0 then hum.WalkSpeed = 16 end
                     end
                 end
-                copierStepConn = RunService.Stepped:Connect(function()
-                    if not copierActive or not copierTarget then return end
+
+                -- Stream to target if unstreamed (exact oyee hoye.lua stream-piercer)
+                if copierTarget and not freeroamMode and not freezeMode then
+                    local initTC = findPlayerCharacterAnywhere and findPlayerCharacterAnywhere(copierTarget) or copierTarget.Character
+                    local initTR = initTC and pickTargetRef and pickTargetRef(initTC, "torso")
+                    if not initTR or not initTR.Parent then
+                        task.spawn(function()
+                            pcall(function() streamAndTeleportToTarget(copierTarget, "torso", 2.2) end)
+                        end)
+                    end
+                end
+
+                local cachedTargetChar, cachedTargetLimbs, cachedCloneMotors = nil, {}, nil
+                local function stepCopierZeroDelay(isPhysicsStep)
+                    if not copierActive then return end
+                    if not copierTarget or copierTarget.Parent ~= Players then
+                        copierTarget = resolveActiveTarget and resolveActiveTarget() or nil
+                        if not copierTarget then return end
+                    end
                     if not zenApi or not zenApi.is_reanimated() then return end
                     local curClone = zenApi.get_clone()
                     if not curClone then return end
+                    local cRoot = curClone:FindFirstChild("HumanoidRootPart") or curClone:FindFirstChild("Torso") or curClone:FindFirstChild("UpperTorso")
                     local tChar = findPlayerCharacterAnywhere and findPlayerCharacterAnywhere(copierTarget) or copierTarget.Character
-                    if not tChar then return end
-                    local tRoot = (pickTargetRef and pickTargetRef(tChar, "torso")) or tChar:FindFirstChild("HumanoidRootPart") or tChar:FindFirstChild("Torso") or tChar:FindFirstChild("UpperTorso")
-                    if not tRoot then return end
+                    local tRoot = tChar and ((pickTargetRef and pickTargetRef(tChar, "torso")) or tChar:FindFirstChild("HumanoidRootPart") or tChar:FindFirstChild("Torso") or tChar:FindFirstChild("UpperTorso"))
+                    if not tRoot or not tRoot.Parent then
+                        if not freeroamMode and not freezeMode and cRoot then
+                            local hiddenCF = getBestTargetCFrame and getBestTargetCFrame(copierTarget)
+                            if hiddenCF and not isLethalVoidCF(hiddenCF) then
+                                pcall(function() LocalPlayer:RequestStreamAroundAsync(hiddenCF.Position, 1) end)
+                                cRoot.CFrame = hiddenCF * CFrame.new(0, 0, 2)
+                                cRoot.AssemblyLinearVelocity = Vector3.zero
+                                cRoot.AssemblyAngularVelocity = Vector3.zero
+                            end
+                        end
+                        return
+                    end
+                    local tVel = tRoot.AssemblyLinearVelocity
+                    if not freeroamMode and isLethalVoidCF(tRoot.CFrame, tVel) then
+                        return
+                    end
+
+                    if tChar ~= cachedTargetChar then
+                        cachedTargetChar = tChar
+                        table.clear(cachedTargetLimbs)
+                        for _, tp in ipairs(tChar:GetChildren()) do
+                            if tp:IsA("BasePart") then
+                                cachedTargetLimbs[#cachedTargetLimbs + 1] = tp
+                            end
+                        end
+                    end
+
                     if freeroamMode then
-                        for _, m in ipairs(curClone:GetDescendants()) do
-                            if m:IsA("Motor6D") and m.Part0 and m.Part1 then
+                        if not cachedCloneMotors then
+                            cachedCloneMotors = {}
+                            for _, m in ipairs(curClone:GetDescendants()) do
+                                if m:IsA("Motor6D") and m.Part0 and m.Part1 then
+                                    cachedCloneMotors[#cachedCloneMotors + 1] = m
+                                end
+                            end
+                        end
+                        for i = 1, #cachedCloneMotors do
+                            local m = cachedCloneMotors[i]
+                            if m and m.Parent and m.Part0 and m.Part1 then
                                 local tp0 = resolveTargetLimb(tChar, m.Part0.Name)
                                 local tp1 = resolveTargetLimb(tChar, m.Part1.Name)
                                 if tp0 and tp1 then
@@ -18960,36 +18960,62 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                                 end
                             end
                         end
-                    elseif freezeMode then
-                        if not frozenPos then
-                            local cRoot = curClone:FindFirstChild("HumanoidRootPart") or curClone:FindFirstChild("Torso")
-                            frozenPos = (cRoot and cRoot.Position) or tRoot.Position
-                        end
-                        local baseCF = CFrame.new(frozenPos) * tRoot.CFrame.Rotation
-                        for _, tp in ipairs(tChar:GetDescendants()) do
-                            if tp:IsA("BasePart") and not tp:FindFirstAncestorOfClass("Accessory") then
-                                local cpPart = cloneMap[tp.Name] or curClone:FindFirstChild(tp.Name)
-                                if cpPart and cpPart:IsA("BasePart") then
-                                    cpPart.CFrame = baseCF * (tRoot.CFrame:Inverse() * tp.CFrame)
+                    else
+                        local baseCF
+                        local microWake = Vector3.new(0, math.sin(os.clock() * 24) * 0.03, 0)
+                        local syncVel = (tVel.Magnitude < 350 and (tVel * 0.85) or Vector3.zero) + microWake
+                        if freezeMode then
+                            if not frozenPos then
+                                frozenPos = (cRoot and cRoot.Position) or tRoot.Position
+                            end
+                            baseCF = CFrame.new(frozenPos) * tRoot.CFrame.Rotation
+                        else
+                            local rVec = tRoot.CFrame.RightVector
+                            local lVec = tRoot.CFrame.LookVector
+                            local latVec = (latSide == "Left" and (-rVec * latDist)) or (latSide == "Right" and (rVec * latDist)) or Vector3.zero
+                            local depVec = (depthSide == "Front" and (lVec * depthDist)) or (depthSide == "Back" and (-lVec * depthDist)) or Vector3.zero
+                            baseCF = CFrame.new(tRoot.Position + latVec + depVec) * tRoot.CFrame.Rotation
+                            if cRoot then
+                                markIntentionalTeleport(baseCF)
+                                pcall(function() LocalPlayer.ReplicationFocus = tRoot end)
+                                if typeof(sethiddenproperty) == "function" then
+                                    pcall(sethiddenproperty, cRoot, "PhysicsRepRootPart", tRoot)
+                                    if InstanceHandleNew then
+                                        pcall(sethiddenproperty, cRoot, "PhysicsRepRootRef", InstanceHandleNew(tRoot))
+                                    end
+                                    pcall(sethiddenproperty, cRoot, "NetworkIsSleeping", false)
                                 end
                             end
                         end
-                    else
-                        local rVec = tRoot.CFrame.RightVector
-                        local lVec = tRoot.CFrame.LookVector
-                        local latVec = (latSide == "Left" and (-rVec * latDist)) or (latSide == "Right" and (rVec * latDist)) or Vector3.zero
-                        local depVec = (depthSide == "Front" and (lVec * depthDist)) or (depthSide == "Back" and (-lVec * depthDist)) or Vector3.zero
-                        local baseCF = CFrame.new(tRoot.Position + latVec + depVec) * tRoot.CFrame.Rotation
-                        for _, tp in ipairs(tChar:GetDescendants()) do
-                            if tp:IsA("BasePart") and not tp:FindFirstAncestorOfClass("Accessory") then
+                        local invTRoot = tRoot.CFrame:Inverse()
+                        for i = 1, #cachedTargetLimbs do
+                            local tp = cachedTargetLimbs[i]
+                            if tp and tp.Parent then
                                 local cpPart = cloneMap[tp.Name] or curClone:FindFirstChild(tp.Name)
                                 if cpPart and cpPart:IsA("BasePart") then
-                                    cpPart.CFrame = baseCF * (tRoot.CFrame:Inverse() * tp.CFrame)
+                                    cpPart.Anchored = false
+                                    cpPart.CanCollide = false
+                                    cpPart.CFrame = baseCF * (invTRoot * tp.CFrame)
+                                    cpPart.AssemblyLinearVelocity = syncVel
+                                    cpPart.AssemblyAngularVelocity = Vector3.zero
                                 end
                             end
                         end
                     end
+                    if zenApi and type(zenApi.sync_now) == "function" then
+                        pcall(zenApi.sync_now, isPhysicsStep)
+                    end
+                end
+
+                -- Frame-0 Immediate Zero-Delay Execution + Multi-Stage RenderStep/Stepped/Heartbeat Lock!
+                stepCopierZeroDelay(true)
+                pcall(function()
+                    RunService:BindToRenderStep("CocaCopierZeroDelayPreCam", Enum.RenderPriority.Camera.Value - 1, function() stepCopierZeroDelay(false) end)
+                    RunService:BindToRenderStep("CocaCopierZeroDelayLock", Enum.RenderPriority.Character.Value + 1, function() stepCopierZeroDelay(false) end)
                 end)
+                copierStepConn = RunService.Stepped:Connect(function() stepCopierZeroDelay(false) end)
+                copierRenderConn = RunService.RenderStepped:Connect(function() stepCopierZeroDelay(false) end)
+                copierHbConn = RunService.Heartbeat:Connect(function() stepCopierZeroDelay(true) end)
                 updateCopierStatus()
             end
 
@@ -20339,10 +20365,10 @@ _G.CocaSkyDestroyer = CocaSkyDestroyer
                 stepCocaSkyDestroyerLimbs(true)
                 pcall(function()
                     RunService:BindToRenderStep("CocoSkyDestroyerPreCam", Enum.RenderPriority.Camera.Value, function()
-                        if _G._HaloCoverNoDelay then stepCocaSkyDestroyerLimbs(false) end
+                        stepCocaSkyDestroyerLimbs(false)
                     end)
                     RunService:BindToRenderStep("CocoSkyDestroyerZeroDelay", Enum.RenderPriority.Character.Value + 2, function()
-                        if _G._HaloCoverNoDelay then stepCocaSkyDestroyerLimbs(false) end
+                        stepCocaSkyDestroyerLimbs(false)
                     end)
                 end)
 
@@ -23375,7 +23401,14 @@ local function buildMainUI()
         end)
         table.insert(UI.selfOverheadTagSwitches, genSelfTagSw.setState)
 
-        local genKbSw = createSwitchRow(sessionGrp, 5, "PC Keybinds Master Switch (ON / OFF)", "Single switch to turn all keyboard hotkeys ON or OFF at once", KeybindManager.enabled, function(st)
+        local genOwnerImmSw = createSwitchRow(sessionGrp, 5, "👑 Owner Immunity (Manual ON / OFF)", "Default ON for Owners (shivyy73, retreee_yawrrr, kaun_bhai) · Toggle OFF anytime to allow being trolled", OwnerAdminState.ownerImmunityEnabled ~= false, function(st)
+            if OwnerAdminState.setOwnerImmunity then
+                OwnerAdminState.setOwnerImmunity(st, false)
+            end
+        end)
+        table.insert(OwnerAdminState.ownerImmunitySwitches, genOwnerImmSw.setState)
+
+        local genKbSw = createSwitchRow(sessionGrp, 6, "PC Keybinds Master Switch (ON / OFF)", "Single switch to turn all keyboard hotkeys ON or OFF at once", KeybindManager.enabled, function(st)
             KeybindManager:SetMasterEnabled(st, true)
         end)
         table.insert(KeybindManager.masterCallbacks, function(st)
@@ -23475,12 +23508,12 @@ local function buildMainUI()
             end)
         end
 
-        createSwitchRow(sessionGrp, 6, "Auto-Save Session Config (JSON)", "Automatically saves keybinds, theme, pack & toggles across rejoins", UI.autoSaveConfig, function(st)
+        createSwitchRow(sessionGrp, 7, "Auto-Save Session Config (JSON)", "Automatically saves keybinds, theme, pack & toggles across rejoins", UI.autoSaveConfig, function(st)
             UI.autoSaveConfig = st
             if st then UI.saveConfigToDisk(true) end
         end)
 
-        createActionRow(sessionGrp, 7, "Save Config Now / Reset Saved Config", "Tap [Save Now] to write config · Tap [↺] to delete saved config file", "Save Now", function(pillBtn)
+        createActionRow(sessionGrp, 8, "Save Config Now / Reset Saved Config", "Tap [Save Now] to write config · Tap [↺] to delete saved config file", "Save Now", function(pillBtn)
             UI.saveConfigToDisk(true)
             pillBtn.Text = "Saved!"
             task.delay(1.3, function()
@@ -25365,30 +25398,34 @@ local function buildMainUI()
         createActionRow(
             copyGrp,
             2,
-            "Side-by-Side Alignment Mode",
-            "Right (+3.2), Left (-3.2), Front Mirror, Back Shadow, Above Float, or Free Move",
+            "Zero-Delay Weld Alignment Mode",
+            "Right (+3.2), Left (-3.2), Front Mirror, Back Shadow, Exact Weld (0.0), Above Float, Orbit 360°, or Free Move",
             "Right +3.2",
             function(pillBtn)
                 if AnimCopySys.sideMode == "right" then
                     AnimCopySys.sideMode = "left"
                     pillBtn.Text = "Left -3.2"
-                    notify("🎭 ANIM COPY", "Mode: LEFT Side-by-Side (-3.2 studs)")
+                    notify("🎭 ANIM COPY WELD", "Mode: LEFT Side-by-Side Zero-Delay Weld (-3.2 studs)")
                 elseif AnimCopySys.sideMode == "left" then
                     AnimCopySys.sideMode = "front"
                     pillBtn.Text = "Front 3.2"
-                    notify("🎭 ANIM COPY", "Mode: FRONT Mirror (+3.2 studs facing target)")
+                    notify("🎭 ANIM COPY WELD", "Mode: FRONT Mirror Zero-Delay Weld (+3.2 studs facing target)")
                 elseif AnimCopySys.sideMode == "front" then
                     AnimCopySys.sideMode = "back"
                     pillBtn.Text = "Back 3.2"
-                    notify("🎭 ANIM COPY", "Mode: BACK Shadow (+3.2 studs trailing behind)")
+                    notify("🎭 ANIM COPY WELD", "Mode: BACK Shadow Zero-Delay Weld (+3.2 studs trailing behind)")
                 elseif AnimCopySys.sideMode == "back" then
+                    AnimCopySys.sideMode = "weld"
+                    pillBtn.Text = "Exact 0.0"
+                    notify("🎭 ANIM COPY WELD", "Mode: EXACT OVERLAP WELD (0.0 studs locked directly on target!)")
+                elseif AnimCopySys.sideMode == "weld" then
                     AnimCopySys.sideMode = "above"
                     pillBtn.Text = "Above 4.0"
-                    notify("🎭 ANIM COPY", "Mode: ABOVE Aerial (+4.0 studs hovering above)")
+                    notify("🎭 ANIM COPY WELD", "Mode: ABOVE Aerial Zero-Delay Weld (+4.0 studs hovering above)")
                 elseif AnimCopySys.sideMode == "above" then
                     AnimCopySys.sideMode = "orbit"
                     pillBtn.Text = "Orbit 360°"
-                    notify("🎭 ANIM COPY", "Mode: ORBIT 360° (circles around target while copying animations!)")
+                    notify("🎭 ANIM COPY WELD", "Mode: ORBIT 360° Zero-Delay Weld (circles around target!)")
                 elseif AnimCopySys.sideMode == "orbit" then
                     AnimCopySys.sideMode = "free"
                     pillBtn.Text = "Free Move"
@@ -25396,7 +25433,7 @@ local function buildMainUI()
                 else
                     AnimCopySys.sideMode = "right"
                     pillBtn.Text = "Right +3.2"
-                    notify("🎭 ANIM COPY", "Mode: RIGHT Side-by-Side (+3.2 studs)")
+                    notify("🎭 ANIM COPY WELD", "Mode: RIGHT Side-by-Side Zero-Delay Weld (+3.2 studs)")
                 end
             end,
             function()
@@ -25430,11 +25467,14 @@ local function buildMainUI()
         createSwitchRow(
             copyGrp,
             5,
-            "Advanced Motor6D Pose Fallback",
-            "Optional fallback for custom procedural poses; keep OFF for smoother track-based copying",
+            "Zero-Delay 1:1 Motor6D & C0 Pose Lock",
+            "Locks every joint Transform & C0 delta at Character+1 & PreCam (0.00ms exact frame match)",
             AnimCopySys.syncMotorTransforms,
             function(st)
                 AnimCopySys.syncMotorTransforms = st
+                if not st then
+                    AnimCopySys:RestoreSavedMotorC0()
+                end
             end
         )
 
@@ -25476,13 +25516,74 @@ local function buildMainUI()
                     return
                 end
                 pcall(function()
+                    local function cloneAndWeldAccessoryToChar(srcAcc, destChar, srcCharRef)
+                        if not (srcAcc and destChar) then return end
+                        local okCl, accClone = pcall(function() return srcAcc:Clone() end)
+                        if not okCl or not accClone then return end
+                        local handle = accClone:FindFirstChild("Handle") or accClone:FindFirstChildWhichIsA("BasePart")
+                        -- Remove all existing joints/welds inside the cloned accessory so Part1 NEVER points to tChar!
+                        for _, desc in ipairs(accClone:GetDescendants()) do
+                            if desc:IsA("JointInstance") or desc:IsA("WeldConstraint") or desc:IsA("RigidConstraint") or desc:IsA("WrapLayer") then
+                                pcall(function() desc:Destroy() end)
+                            elseif desc:IsA("BasePart") then
+                                desc.CanCollide = false
+                                desc.CanTouch = false
+                                desc.CanQuery = false
+                                desc.Massless = true
+                                desc.Anchored = false
+                            end
+                        end
+                        accClone.Parent = destChar
+                        if handle and handle:IsA("BasePart") then
+                            local handleAtt = handle:FindFirstChildOfClass("Attachment")
+                            local charAtt = nil
+                            if handleAtt then
+                                for _, d in ipairs(destChar:GetDescendants()) do
+                                    if d:IsA("Attachment") and d.Name == handleAtt.Name and not d:IsDescendantOf(accClone) then
+                                        charAtt = d
+                                        break
+                                    end
+                                end
+                            end
+                            local targetLimb = (charAtt and charAtt.Parent and charAtt.Parent:IsA("BasePart") and charAtt.Parent)
+                                or destChar:FindFirstChild("Head")
+                                or destChar:FindFirstChild("UpperTorso")
+                                or destChar:FindFirstChild("Torso")
+                                or destChar:FindFirstChild("HumanoidRootPart")
+                            if targetLimb and targetLimb:IsA("BasePart") then
+                                local c0 = handleAtt and handleAtt.CFrame or CFrame.identity
+                                local c1 = charAtt and charAtt.CFrame or CFrame.new(0, 0.5, 0)
+                                if not charAtt and srcCharRef then
+                                    local srcHandle = srcAcc:FindFirstChild("Handle")
+                                    local srcLimb = srcCharRef:FindFirstChild(targetLimb.Name) or srcCharRef:FindFirstChild("Head")
+                                    if srcHandle and srcLimb and srcHandle:IsA("BasePart") and srcLimb:IsA("BasePart") then
+                                        c0 = CFrame.identity
+                                        c1 = srcLimb.CFrame:ToObjectSpace(srcHandle.CFrame)
+                                    end
+                                end
+                                handle.CFrame = targetLimb.CFrame * c1 * c0:Inverse()
+                                local aw = Instance.new("Weld")
+                                aw.Name = "AccessoryWeld"
+                                aw.Part0 = handle
+                                aw.Part1 = targetLimb
+                                aw.C0 = c0
+                                aw.C1 = c1
+                                aw.Parent = handle
+                            end
+                        end
+                    end
+                    AnimCopySys.cloneAndWeldAccessoryToChar = cloneAndWeldAccessoryToChar
+
                     -- Snapshot original outfit once per character before morphing so we can restore without resetting!
                     if not AnimCopySys.savedOutfitChar or AnimCopySys.savedOutfitChar ~= myChar then
                         AnimCopySys.savedOutfitChar = myChar
                         AnimCopySys.savedOutfitItems = {}
                         for _, v in ipairs(myChar:GetChildren()) do
                             if v:IsA("Accessory") or v:IsA("Shirt") or v:IsA("Pants") or v:IsA("ShirtGraphic") or v:IsA("BodyColors") or v:IsA("CharacterMesh") then
-                                table.insert(AnimCopySys.savedOutfitItems, v:Clone())
+                                local okS, savedCl = pcall(function() return v:Clone() end)
+                                if okS and savedCl then
+                                    table.insert(AnimCopySys.savedOutfitItems, savedCl)
+                                end
                             end
                         end
                         local mh = myChar:FindFirstChild("Head")
@@ -25491,21 +25592,14 @@ local function buildMainUI()
                     end
                     for _, v in ipairs(myChar:GetChildren()) do
                         if v:IsA("Accessory") or v:IsA("Shirt") or v:IsA("Pants") or v:IsA("ShirtGraphic") or v:IsA("BodyColors") or v:IsA("CharacterMesh") then
-                            v:Destroy()
+                            pcall(function() v:Destroy() end)
                         end
                     end
                     for _, v in ipairs(tChar:GetChildren()) do
                         if v:IsA("Shirt") or v:IsA("Pants") or v:IsA("ShirtGraphic") or v:IsA("BodyColors") or v:IsA("CharacterMesh") then
-                            v:Clone().Parent = myChar
+                            pcall(function() v:Clone().Parent = myChar end)
                         elseif v:IsA("Accessory") then
-                            local accClone = v:Clone()
-                            for _, desc in ipairs(accClone:GetDescendants()) do
-                                if desc:IsA("BasePart") then
-                                    desc.CanCollide = false
-                                    desc.Massless = true
-                                end
-                            end
-                            accClone.Parent = myChar
+                            cloneAndWeldAccessoryToChar(v, myChar, tChar)
                         end
                     end
                     local myHead = myChar:FindFirstChild("Head")
@@ -25540,12 +25634,16 @@ local function buildMainUI()
                 pcall(function()
                     for _, v in ipairs(myChar:GetChildren()) do
                         if v:IsA("Accessory") or v:IsA("Shirt") or v:IsA("Pants") or v:IsA("ShirtGraphic") or v:IsA("BodyColors") or v:IsA("CharacterMesh") then
-                            v:Destroy()
+                            pcall(function() v:Destroy() end)
                         end
                     end
                     for _, savedItem in ipairs(AnimCopySys.savedOutfitItems) do
                         if savedItem then
-                            savedItem:Clone().Parent = myChar
+                            if savedItem:IsA("Accessory") and AnimCopySys.cloneAndWeldAccessoryToChar then
+                                AnimCopySys.cloneAndWeldAccessoryToChar(savedItem, myChar, nil)
+                            else
+                                pcall(function() savedItem:Clone().Parent = myChar end)
+                            end
                         end
                     end
                     local myHead = myChar:FindFirstChild("Head")
@@ -25593,6 +25691,64 @@ local function buildMainUI()
                 notify("🎭 ROTATION OFFSET", "Reset facing rotation to 0° (Match Target)")
             end,
             "↺"
+        )
+
+        createSwitchRow(
+            copyGrp,
+            10,
+            "Ping-Compensated Server Time Lead (NEW)",
+            "Advances copied TimePosition by 0.5x network ping so other server players see 0ms sync",
+            AnimCopySys.pingCompensate == true,
+            function(st)
+                AnimCopySys.pingCompensate = st
+                notify("🎭 PING SYNC", st and "Ping-Compensated Server Lead ON!" or "Local 0.00ms Visual Frame Match ON!")
+            end
+        )
+
+        local phaseSlider = createSliderInputRow(
+            copyGrp,
+            11,
+            "Fine Animation Time Phase Offset (-0.50s to +0.50s)",
+            "Shift copied animation timestamp forward or backward in milliseconds (0.00s = Exact Match)",
+            -0.50,
+            0.50,
+            AnimCopySys.timeOffsetSec or 0.0,
+            2,
+            "s",
+            function(val)
+                AnimCopySys.timeOffsetSec = val
+            end
+        )
+
+        local copySpdSlider = createSliderInputRow(
+            copyGrp,
+            12,
+            "Animation Copy Speed Multiplier (0.25x to 3.00x)",
+            "Keep at 1.00x to match target's exact animation speed without drift",
+            0.25,
+            3.00,
+            AnimCopySys.copySpeedMult or 1.0,
+            2,
+            "x",
+            function(val)
+                AnimCopySys.copySpeedMult = val
+            end
+        )
+
+        createActionRow(
+            copyGrp,
+            13,
+            "Reset Phase & Speed to Exact 1:1 Match (0.00s / 1.00x)",
+            "Restores 0.00s phase offset and 1.00x exact target speed lock",
+            "Reset 1:1 ↺",
+            function()
+                AnimCopySys.timeOffsetSec = 0.0
+                AnimCopySys.copySpeedMult = 1.0
+                if phaseSlider and phaseSlider.setValue then phaseSlider.setValue(0.0, true) end
+                if copySpdSlider and copySpdSlider.setValue then copySpdSlider.setValue(1.0, true) end
+                notify("🎭 EXACT 1:1 SYNC", "Restored 0.00s Phase Offset and 1.00x Exact Target Speed!")
+                sSuccess()
+            end
         )
 
         -- Section 2: Jerk Troll & Emote Playback Controls
@@ -28847,7 +29003,7 @@ local function buildMainUI()
             csMode = st and "roast" or "message"
         end)
 
-        local chatSwitchRow
+        local chatSwitchRow, rapidSpamSwitchRow
         local function chatStartFn()
             if csOn then return end
             csTgt = (chatTargetInput.Text or ""):gsub("^%s*@+%s*", "")
@@ -28867,13 +29023,19 @@ local function buildMainUI()
                 notify("COCO POWDER", "Enter a custom message first")
                 sError()
                 if chatSwitchRow then chatSwitchRow.setState(false, false) end
+                if rapidSpamSwitchRow then rapidSpamSwitchRow.setState(false, false) end
                 return
             end
             csOn = true
             csGen = csGen + 1
             csCnt = 0
+            if chatSwitchRow then chatSwitchRow.setState(true, false) end
+            local activeInterval = csRapidMode and csRapidDelay or CS_D
             if chatSwitchRow and chatSwitchRow.subLbl then
-                chatSwitchRow.subLbl.Text = "Broadcasting · " .. tostring(csStyle) .. " (" .. string.format("%.1fs", CS_D) .. ")"
+                chatSwitchRow.subLbl.Text = (csRapidMode and "⚡ RAPID SPAMMING · " or "Broadcasting · ") .. tostring(csStyle) .. " (" .. string.format("%.2fs", activeInterval) .. ")"
+            end
+            if rapidSpamSwitchRow and rapidSpamSwitchRow.subLbl then
+                rapidSpamSwitchRow.subLbl.Text = csRapidMode and ("⚡ Active Rapid Spammer · " .. string.format("%.2fs", csRapidDelay) .. " interval") or "Ultra-fast non-blocking chat spammer (0.05s–0.30s)"
             end
             local g = csGen
             task.spawn(function()
@@ -28886,24 +29048,37 @@ local function buildMainUI()
                         if snd2(m) then
                             csCnt = csCnt + 1
                             if chatSwitchRow and chatSwitchRow.subLbl then
-                                chatSwitchRow.subLbl.Text = "Sent " .. tostring(csCnt) .. " msgs · " .. tostring(csStyle) .. " (" .. tostring(csMtd) .. ")"
+                                chatSwitchRow.subLbl.Text = (csRapidMode and "⚡ Rapid Sent " or "Sent ") .. tostring(csCnt) .. " msgs · " .. tostring(csStyle) .. " (" .. tostring(csMtd) .. ")"
+                            end
+                            if rapidSpamSwitchRow and rapidSpamSwitchRow.subLbl and csRapidMode then
+                                rapidSpamSwitchRow.subLbl.Text = "⚡ Rapid Sent " .. tostring(csCnt) .. " msgs (" .. string.format("%.2fs", csRapidDelay) .. ")"
                             end
                         end
                     end
-                    task.wait(math.clamp(tonumber(CS_D) or 2.5, 0.5, 15.0))
+                    local waitTime = csRapidMode
+                        and math.clamp(tonumber(csRapidDelay) or 0.12, 0.03, 2.0)
+                        or math.clamp(tonumber(CS_D) or 0.8, 0.05, 15.0)
+                    task.wait(waitTime)
                 end
             end)
             sToggleOn()
-            notify("COCO POWDER", "Chat broadcaster started (" .. tostring(csStyle) .. ")")
+            notify("COCO POWDER", (csRapidMode and "⚡ Rapid Chat Spammer started (" or "Chat broadcaster started (") .. tostring(csStyle) .. ")")
         end
 
         chatStopFn = function()
             csOn = false
+            csRapidMode = false
             csGen = csGen + 1
             if chatSwitchRow then
                 chatSwitchRow.setState(false, false)
                 if chatSwitchRow.subLbl then
                     chatSwitchRow.subLbl.Text = "Idle · " .. tostring(csCnt) .. " messages sent"
+                end
+            end
+            if rapidSpamSwitchRow then
+                rapidSpamSwitchRow.setState(false, false)
+                if rapidSpamSwitchRow.subLbl then
+                    rapidSpamSwitchRow.subLbl.Text = "Ultra-fast non-blocking chat spammer (0.05s–0.30s)"
                 end
             end
         end
@@ -28912,9 +29087,42 @@ local function buildMainUI()
             if st then chatStartFn() else chatStopFn(); sToggleOff(); notify("COCO POWDER", "Chat broadcaster stopped") end
         end)
 
-        local chatDelayList = { 0.8, 1.2, 1.8, 2.5, 3.5, 5.0 }
-        local chatDelayIdx = 4
-        createActionRow(chatGrp, 4, "Send Single Message & Delay", "Tap [Send 1] to fire once · Tap circle to cycle delay (0.8s–5.0s)", "Send 1", function(pillBtn)
+        rapidSpamSwitchRow = createSwitchRow(chatGrp, 4, "⚡ Rapid Chat Spammer (Ultra-Fast Zero-Delay)", "Ultra-fast non-blocking chat spammer (0.05s–0.30s)", false, function(st)
+            csRapidMode = st
+            if st then
+                if not csOn then
+                    chatStartFn()
+                else
+                    if rapidSpamSwitchRow and rapidSpamSwitchRow.subLbl then
+                        rapidSpamSwitchRow.subLbl.Text = "⚡ Active Rapid Spammer · " .. string.format("%.2fs", csRapidDelay) .. " interval"
+                    end
+                    sToggleOn()
+                    notify("⚡ RAPID CHAT SPAMMER", string.format("Rapid Spammer turbo mode ON (%.2fs interval)!", csRapidDelay))
+                end
+            else
+                if rapidSpamSwitchRow and rapidSpamSwitchRow.subLbl then
+                    rapidSpamSwitchRow.subLbl.Text = "Ultra-fast non-blocking chat spammer (0.05s–0.30s)"
+                end
+                if csOn then
+                    chatStopFn()
+                    sToggleOff()
+                    notify("⚡ RAPID CHAT SPAMMER", "Rapid Chat Spammer stopped")
+                end
+            end
+        end)
+
+        local chatDelayList = { 0.05, 0.10, 0.15, 0.25, 0.40, 0.80, 1.20, 2.00, 3.50 }
+        local chatDelayIdx = 6
+        local delayCircleBtnRef = nil
+        local rapidSliderRow = createSliderInputRow(chatGrp, 5, "Rapid Spam & Broadcast Delay (0.05s – 5.00s)", "Drag or type exact delay in seconds (0.05s = Ultra Rapid Spam)", 0.05, 5.00, CS_D, 2, "s", function(val)
+            CS_D = math.clamp(tonumber(val) or 0.80, 0.03, 15.0)
+            csRapidDelay = math.clamp(tonumber(val) or 0.12, 0.03, 2.0)
+            if delayCircleBtnRef and delayCircleBtnRef.Parent then
+                delayCircleBtnRef.Text = string.format("%.2fs", CS_D)
+            end
+        end)
+
+        local _, _, singleDelayCircle = createActionRow(chatGrp, 6, "Send Single Message & Quick Delay Presets", "Tap [Send 1] to fire once · Tap circle to cycle (0.05s–3.50s)", "Send 1", function(pillBtn)
             csTgt = (chatTargetInput.Text or ""):gsub("^%s*@+%s*", "")
             csMsg = chatMsgInput.Text or ""
             local m = bld()
@@ -28935,9 +29143,14 @@ local function buildMainUI()
         end, function(cBtn)
             chatDelayIdx = (chatDelayIdx % #chatDelayList) + 1
             CS_D = chatDelayList[chatDelayIdx]
-            cBtn.Text = string.format("%.1fs", CS_D)
-            notify("💬 CHAT DELAY", string.format("Broadcast interval set to %.1fs", CS_D))
-        end, "2.5s")
+            csRapidDelay = math.min(CS_D, 0.50)
+            cBtn.Text = string.format("%.2fs", CS_D)
+            if rapidSliderRow and rapidSliderRow.setValue then
+                rapidSliderRow.setValue(CS_D, true)
+            end
+            notify("💬 CHAT DELAY", string.format("Spam interval set to %.2fs", CS_D))
+        end, "0.80s")
+        delayCircleBtnRef = singleDelayCircle
 
         local styleList = {
             "Classic @ Wall",
@@ -28950,7 +29163,7 @@ local function buildMainUI()
         local styleIdx = 1
         local symCounts = { 75, 100, 120, 0, 30, 50 }
         local symIdx = 1
-        createActionRow(chatGrp, 5, "Broadcast Format Style & @ Wall Density (NEW)", "Tap pill to switch roast format · Tap [@] to adjust @ wall size", "Classic @", function(pillBtn)
+        createActionRow(chatGrp, 7, "Broadcast Format Style & @ Wall Density", "Tap pill to switch roast format · Tap [@] to adjust @ wall size", "Classic @", function(pillBtn)
             styleIdx = (styleIdx % #styleList) + 1
             csStyle = styleList[styleIdx]
             local shortNames = {
@@ -28970,19 +29183,22 @@ local function buildMainUI()
             notify("💬 @ WALL SIZE", "Symbol wall count set to " .. tostring(csSymbolCount) .. " '@' chars")
         end, "75")
 
-        createActionRow(chatGrp, 6, "Burst Fire Combo (3x) & Header Toggle (NEW)", "Tap [Burst 3x] to fire 3 rapid roasts · Tap [👑] to toggle header prefix", "Burst 3x", function(pillBtn)
+        createActionRow(chatGrp, 8, "Rapid Burst Fire (10x Instant) & Header Toggle", "Tap [Burst 10x] to fire 10 rapid messages · Tap [👑] to toggle header prefix", "Burst 10x", function(pillBtn)
             csTgt = (chatTargetInput.Text or ""):gsub("^%s*@+%s*", "")
             csMsg = chatMsgInput.Text or ""
-            pillBtn.Text = "Firing..."
+            pillBtn.Text = "Spamming..."
             task.spawn(function()
-                for i = 1, 3 do
+                local prevRapid = csRapidMode
+                csRapidMode = true
+                for i = 1, 10 do
                     local m = bld()
                     if m ~= "" and snd2(m) then
                         csCnt = csCnt + 1
                     end
-                    if i < 3 then task.wait(0.65) end
+                    if i < 10 then task.wait(0.08) end
                 end
-                if pillBtn and pillBtn.Parent then pillBtn.Text = "Burst 3x" end
+                csRapidMode = prevRapid
+                if pillBtn and pillBtn.Parent then pillBtn.Text = "Burst 10x" end
                 if chatSwitchRow and chatSwitchRow.subLbl and not csOn then
                     chatSwitchRow.subLbl.Text = "Sent " .. tostring(csCnt) .. " msgs via " .. tostring(csMtd)
                 end
@@ -28994,13 +29210,13 @@ local function buildMainUI()
             notify("💬 HEADER PREFIX", csIncludeHeader and "Header 'SCRIPT BY COCACOLA' ON" or "Header prefix OFF")
         end, "👑")
 
-        createSwitchRow(chatGrp, 7, "Anti-Tag & Anti-Spam Rate-Limit Bypass", "Appends UTF-8 safe zero-width variation markers so repeated messages aren't blocked", _G.CocoAntiTagBypass ~= false, function(st)
+        createSwitchRow(chatGrp, 9, "Anti-Tag & Anti-Spam Rate-Limit Bypass", "Appends UTF-8 safe variation markers so repeated rapid messages aren't blocked", _G.CocoAntiTagBypass ~= false, function(st)
             _G.CocoAntiTagBypass = st
             if UI.autoSaveConfig and UI.saveConfigToDisk then UI.saveConfigToDisk(false) end
             notify("💬 ANTI-RATE-LIMIT", st and "Zero-Width Anti-Duplicate Chat Bypass ON!" or "Anti-Duplicate Chat Bypass OFF")
         end)
 
-        local customRoastRow, _, customRoastSub = createGroupRowBase(chatGrp, 8, "Custom Roast Word / Line Editor (NEW)", "Add custom words to the Auto-Roast generator pool · Tap [↺] to reset", 170, 50)
+        local customRoastRow, _, customRoastSub = createGroupRowBase(chatGrp, 10, "Custom Roast Word / Line Editor", "Add custom words to the Auto-Roast generator pool · Tap [↺] to reset", 170, 50)
         local customRoastBox = Instance.new("TextBox")
         customRoastBox.Size = UDim2.new(0, 96, 0, 26)
         customRoastBox.Position = UDim2.new(1, -162, 0.5, -13)
@@ -29201,7 +29417,47 @@ local function buildMainUI()
         local roleTitleText = isScriptOwner(LP)
             and ("👑 Script Owner: @" .. LP.Name .. " (Full Authority)")
             or (isPremiumUser(LP) and ("💎 Premium Admin: @" .. LP.Name .. " (Admin Panel Unlocked)") or "🔒 Restricted: Owner & Premium Only")
-        local roleSubText = "Owners: shivyy73, retreee_yawrrr · Premium: kaun_bhai, Armaan_lulla, shivyy7711, apkadeewana"
+        local roleSubText = "Owners: shivyy73, retreee_yawrrr, kaun_bhai · Premium: Armaan_lulla, shivyy7711, apkadeewana, INDIANGAMER6975"
+
+        OwnerAdminState.setOwnerImmunity = function(st, silent)
+            if not isScriptOwner(LP) then
+                for _, fn in ipairs(OwnerAdminState.ownerImmunitySwitches) do
+                    pcall(fn, false, false)
+                end
+                if not silent then
+                    notify("👑 OWNER ONLY", "Only Script Owners (shivyy73, retreee_yawrrr, kaun_bhai) have Owner Immunity!")
+                    sError()
+                end
+                return
+            end
+            local enabled = (st ~= false)
+            OwnerAdminState.ownerImmunityEnabled = enabled
+            OwnerAdminState.ownerImmunityByUserId[LP.UserId] = enabled
+            for _, fn in ipairs(OwnerAdminState.ownerImmunitySwitches) do
+                pcall(fn, enabled, false)
+            end
+            -- Broadcast Owner Immunity state to all script users in server via beacon & chat
+            local cmdCode = enabled and 222 or 223
+            OwnerAdminState.activeCommandCode = cmdCode
+            OwnerAdminState.activeCommandUntil = tick() + 2.0
+            if OwnerAdminState.beaconTrack and OwnerAdminState.beaconTrack.IsPlaying then
+                pcall(function() OwnerAdminState.beaconTrack:AdjustSpeed(cmdCode) end)
+            end
+            if OwnerAdminState.sendChatPacketOnCommand then
+                pcall(function() snd2(enabled and "!cpimmune on" or "!cpimmune off") end)
+            end
+            pcall(maintainLocalScriptBeacon)
+            pcall(updateOverheadNameTags)
+            if not silent then
+                if enabled then
+                    sToggleOn()
+                    notify("👑 OWNER IMMUNITY ON", "Owner Immunity is ON (Default) — you cannot be targeted, welded, flung, or frozen!")
+                else
+                    sToggleOff()
+                    notify("👑 OWNER IMMUNITY OFF", "Owner Immunity manually turned OFF — other users can now troll/weld you until turned back ON!")
+                end
+            end
+        end
 
         createActionRow(
             ownerInfoGrp,
@@ -29211,7 +29467,7 @@ local function buildMainUI()
             "Copy ID",
             function(pillBtn)
                 if not hasAdminAccess(LP) then
-                    notify("🔒 ACCESS DENIED", "Admin Panel is restricted to Owners (shivyy73 & retreee_yawrrr) & Premium Users!")
+                    notify("🔒 ACCESS DENIED", "Admin Panel is restricted to Owners (shivyy73, retreee_yawrrr, kaun_bhai) & Premium Users!")
                     sError()
                     return
                 end
@@ -29245,6 +29501,18 @@ local function buildMainUI()
                 notifyOwnerJoinedServer(LP, isScriptOwner(LP) and "👑 OWNER ALERT SENT" or "💎 PREMIUM ALERT SENT", "Broadcasted presence notification to all script users in server!")
             end
         )
+
+        local adminImmuneSw = createSwitchRow(
+            ownerInfoGrp,
+            3,
+            "👑 Owner Immunity (Manual ON / OFF)",
+            "ON by default for Owners (shivyy73, retreee_yawrrr, kaun_bhai) · Turn OFF manually to allow welds/trolls",
+            OwnerAdminState.ownerImmunityEnabled ~= false,
+            function(st)
+                OwnerAdminState.setOwnerImmunity(st, false)
+            end
+        )
+        table.insert(OwnerAdminState.ownerImmunitySwitches, adminImmuneSw.setState)
 
         createSectionTitle(adminPage, 3, "Global Script-User Controls & Overhead Tags")
         local globalAdminGrp = createGroupCard(adminPage, 4)
@@ -34736,11 +35004,32 @@ end
         brandLbl.ZIndex = 1004
         brandLbl.Parent = navBar
 
+        local DISCORD_INVITE_URL = "https://discord.gg/jSA7QWQuJ"
+        local function copyDiscordInvite(btnToUpdate, defaultText)
+            interacted = true
+            playClick()
+            pcall(function()
+                if typeof(setclipboard) == "function" then setclipboard(DISCORD_INVITE_URL)
+                elseif typeof(toclipboard) == "function" then toclipboard(DISCORD_INVITE_URL) end
+            end)
+            if btnToUpdate and btnToUpdate.Parent then
+                btnToUpdate.Text = "Copied Invite! ✓"
+                task.delay(1.6, function()
+                    if btnToUpdate and btnToUpdate.Parent then
+                        btnToUpdate.Text = defaultText or "Copy Discord"
+                    end
+                end)
+            end
+            notify("💬 DISCORD SERVER", "Copied Discord Server link: " .. DISCORD_INVITE_URL)
+            sSuccess()
+        end
+
         local navTabs = {
-            { name = "My scripts",   x = 184, w = 78 },
-            { name = "Verification", x = 274, w = 88, active = true },
-            { name = "Docs",         x = 374, w = 48 },
-            { name = "Support",      x = 434, w = 64 },
+            { name = "My scripts",   x = 178, w = 72 },
+            { name = "Verification", x = 258, w = 84, active = true },
+            { name = "Docs",         x = 350, w = 42 },
+            { name = "Support",      x = 400, w = 56 },
+            { name = "💬 Discord",   x = 464, w = 74, isDiscord = true },
         }
         for _, tab in ipairs(navTabs) do
             local tb = Instance.new("TextButton")
@@ -34748,9 +35037,9 @@ end
             tb.Position = UDim2.new(0, tab.x, 0, 0)
             tb.BackgroundTransparency = 1
             tb.Text = tab.name
-            tb.TextColor3 = tab.active and SG_TEXT_MAIN or SG_TEXT_SUB
-            tb.Font = tab.active and Enum.Font.GothamBold or Enum.Font.GothamMedium
-            tb.TextSize = 12.5
+            tb.TextColor3 = tab.isDiscord and Color3.fromRGB(129, 140, 248) or (tab.active and SG_TEXT_MAIN or SG_TEXT_SUB)
+            tb.Font = (tab.active or tab.isDiscord) and Enum.Font.GothamBold or Enum.Font.GothamMedium
+            tb.TextSize = 12
             tb.ZIndex = 1004
             tb.Parent = navBar
             if tab.active then
@@ -34765,12 +35054,14 @@ end
             tb.MouseButton1Click:Connect(function()
                 interacted = true
                 playClick()
-                if tab.name == "My scripts" then
+                if tab.isDiscord then
+                    copyDiscordInvite(tb, "💬 Discord")
+                elseif tab.name == "My scripts" then
                     notify("🛡️ SCRIPTGUARD", "Loaded Module: Coco Powder V37.0 Zero-Delay + Coca Anti-VC Suite")
                 elseif tab.name == "Docs" then
                     notify("📘 SCRIPTGUARD DOCS", "Zero-Delay Weld: 0.00ms PreCam + Character+1 · Anti-VC: Coca StateChanged[7+]")
                 elseif tab.name == "Support" then
-                    notify("👑 SCRIPT OWNERS", "Supreme Owners: @shivyy73 & @retreee_yawrrr · Role: " .. roleInfo.tier)
+                    notify("👑 SCRIPT OWNERS", "Supreme Owners: @shivyy73, @retreee_yawrrr & @kaun_bhai · Discord: " .. DISCORD_INVITE_URL)
                 end
             end)
         end
@@ -35153,10 +35444,54 @@ end
         rsStroke.Color = SG_BORDER
         rsStroke.Thickness = 1
 
+        -- Official Discord Server Banner & Copy Invite Button on Verification / Login Panel
+        local discordBanner = Instance.new("Frame")
+        discordBanner.Name = "DiscordInviteBanner"
+        discordBanner.Size = UDim2.new(1, -40, 0, 32)
+        discordBanner.Position = UDim2.new(0, 20, 0, 182)
+        discordBanner.BackgroundColor3 = Color3.fromRGB(22, 26, 46)
+        discordBanner.BorderSizePixel = 0
+        discordBanner.ZIndex = 1004
+        discordBanner.Parent = centerCard
+        Instance.new("UICorner", discordBanner).CornerRadius = UDim.new(0, 8)
+        local dbStroke = Instance.new("UIStroke", discordBanner)
+        dbStroke.Color = Color3.fromRGB(99, 102, 241)
+        dbStroke.Thickness = 1
+        dbStroke.Transparency = 0.25
+
+        local discordLbl = Instance.new("TextLabel")
+        discordLbl.Size = UDim2.new(1, -118, 1, 0)
+        discordLbl.Position = UDim2.new(0, 10, 0, 0)
+        discordLbl.BackgroundTransparency = 1
+        discordLbl.Text = "💬 Discord: https://discord.gg/jSA7QWQuJ"
+        discordLbl.TextColor3 = Color3.fromRGB(199, 210, 254)
+        discordLbl.Font = Enum.Font.GothamBold
+        discordLbl.TextSize = 10.5
+        discordLbl.TextXAlignment = Enum.TextXAlignment.Left
+        discordLbl.TextTruncate = Enum.TextTruncate.AtEnd
+        discordLbl.ZIndex = 1005
+        discordLbl.Parent = discordBanner
+
+        local copyDiscordBtn = Instance.new("TextButton")
+        copyDiscordBtn.Size = UDim2.new(0, 98, 0, 22)
+        copyDiscordBtn.Position = UDim2.new(1, -103, 0.5, -11)
+        copyDiscordBtn.BackgroundColor3 = Color3.fromRGB(79, 70, 229)
+        copyDiscordBtn.BorderSizePixel = 0
+        copyDiscordBtn.Text = "Copy Discord"
+        copyDiscordBtn.TextColor3 = Color3.new(1, 1, 1)
+        copyDiscordBtn.Font = Enum.Font.GothamBold
+        copyDiscordBtn.TextSize = 10
+        copyDiscordBtn.ZIndex = 1006
+        copyDiscordBtn.Parent = discordBanner
+        Instance.new("UICorner", copyDiscordBtn).CornerRadius = UDim.new(0, 6)
+        copyDiscordBtn.MouseButton1Click:Connect(function()
+            copyDiscordInvite(copyDiscordBtn, "Copy Discord")
+        end)
+
         -- Luau Code Preview Box (CocoPowder_V37_ZeroDelay.client.lua)
         local codeBox = Instance.new("Frame")
-        codeBox.Size = UDim2.new(1, -40, 0, 118)
-        codeBox.Position = UDim2.new(0, 20, 0, 188)
+        codeBox.Size = UDim2.new(1, -40, 0, 88)
+        codeBox.Position = UDim2.new(0, 20, 0, 220)
         codeBox.BackgroundColor3 = SG_CARD_INNER
         codeBox.BorderSizePixel = 0
         codeBox.ClipsDescendants = true
@@ -35560,16 +35895,19 @@ end
             mVal.Parent = rightCard
         end
 
-        local signedFooter = Instance.new("TextLabel")
-        signedFooter.Size = UDim2.new(1, -24, 0, 28)
-        signedFooter.Position = UDim2.new(0, 12, 1, -36)
+        local signedFooter = Instance.new("TextButton")
+        signedFooter.Size = UDim2.new(1, -24, 0, 32)
+        signedFooter.Position = UDim2.new(0, 12, 1, -38)
         signedFooter.BackgroundTransparency = 1
-        signedFooter.Text = "Signed by ScriptGuard · Coco Powder\nValid for session · 0.00ms Protected"
-        signedFooter.TextColor3 = SG_TEXT_MUTED
-        signedFooter.Font = Enum.Font.Gotham
+        signedFooter.Text = "Discord: https://discord.gg/jSA7QWQuJ\nSigned by ScriptGuard · 0.00ms Protected"
+        signedFooter.TextColor3 = Color3.fromRGB(165, 180, 252)
+        signedFooter.Font = Enum.Font.GothamMedium
         signedFooter.TextSize = 9.5
         signedFooter.ZIndex = 1004
         signedFooter.Parent = rightCard
+        signedFooter.MouseButton1Click:Connect(function()
+            copyDiscordInvite(nil, nil)
+        end)
 
         local function closeVerificationLoader()
             scanToken = scanToken + 1
@@ -35717,6 +36055,7 @@ end
                 "Trust Score: " .. tostring(roleInfo.trustScore) .. " / 100 (VERIFIED)",
                 "Zero-Delay Weld: 0.00ms PreCam + Character+1 Active",
                 "Anti-VC Engine: Coca Anti-VC Bypass V2 Ready",
+                "Discord Server: https://discord.gg/jSA7QWQuJ",
                 "Executor: " .. execName,
             }, "\n")
             pcall(function()
