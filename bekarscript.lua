@@ -278,6 +278,13 @@ local WeldIntent          = {
     waitingForSpawn = false,
     typedUsername = "",
     leftInfo = nil, -- { userId, name, displayName, accountAge, friendsText, leftAt, wasWelded, presetKey }
+    allMode = false,            -- True when "ALL" (Cycle All Players One-by-One Repeatedly at 0.00ms) is active
+    allCycleInterval = 1.2,     -- Seconds per player in ALL mode before 0.00ms switch to next player
+    allCycleIdx = 0,            -- Current 1-based player index in ALL cycle
+    allCycleTotal = 0,          -- Total valid players in current ALL cycle pass
+    allLastSwitchTick = 0,      -- os.clock() timestamp of last player switch in ALL mode
+    allPreStreamedUid = nil,    -- Next player UserId pre-streamed for 0.00ms transition
+    allCycleConn = nil,         -- RunService.Heartbeat connection for 0.00ms ALL cycle
     topStatusText = "ready · select a target or preset",
     topStatusColor = nil,
     midStatusText = "no target locked · auto-nearest ready",
@@ -1801,8 +1808,9 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
     local targetUid  = TargetPlayer and TargetPlayer.UserId or nil
     local targetName = TargetPlayer and TargetPlayer.Name or "Target"
     local targetDisp = (TargetPlayer and TargetPlayer.DisplayName) or targetName
+    local targetAge  = (TargetPlayer and tostring(TargetPlayer.AccountAge or "—") .. "d") or "—"
 
-    local Weld = { destroyed = false }
+    local Weld = { destroyed = false, presetKey = PresetKey }
     CurrentWeld = Weld
 
     -- Cleanse any active Emote / Procedural Pack Motor6D C0 overrides so animations never conflict
@@ -2065,6 +2073,26 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
         end
     end
 
+    -- 0.00ms Zero-Delay Target Hot-Swap (used by ALL Players Cycle so switching players never restarts animations or unbinds RenderStep!)
+    function Weld:SwitchTargetZeroDelay(newTargetPart, newTargetChar, newTargetHum, newTargetPlayer)
+        if self.destroyed then return false end
+        if not newTargetPart or not newTargetPart.Parent or not newTargetPlayer or newTargetPlayer.Parent ~= Players then
+            return false
+        end
+        TargetPart   = newTargetPart
+        TargetChar   = newTargetChar or newTargetPart.Parent
+        TargetHum    = newTargetHum or (TargetChar and TargetChar:FindFirstChildOfClass("Humanoid"))
+        TargetPlayer = newTargetPlayer
+        targetUid    = newTargetPlayer.UserId
+        targetName   = newTargetPlayer.Name or "Target"
+        targetDisp   = newTargetPlayer.DisplayName or targetName
+        targetAge    = tostring(newTargetPlayer.AccountAge or "—") .. "d"
+        missingFrames = 0
+        cachedRizzChar = nil
+        stepExactOyeeHoyeWeld()
+        return true
+    end
+
     function Weld:Destroy(skipReturn)
         if self.destroyed then return end
         self.destroyed = true
@@ -2139,32 +2167,40 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
                 userId = targetUid,
                 name = targetName,
                 displayName = targetDisp,
-                accountAge = "—",
-                friendsText = "—",
+                accountAge = targetAge or "—",
+                friendsText = "LEFT GAME",
                 leftAt = tick(),
                 wasWelded = true,
                 presetKey = savedKey,
             }
+            if WeldIntent.allMode and type(_G.CocoAdvanceAllPlayersCycle) == "function" then
+                local switched = _G.CocoAdvanceAllPlayersCycle(true, targetName)
+                if switched then
+                    return
+                end
+            end
+            WeldIntent.typedUsername = targetName
+            if WeldIntent.setUsernameBoxText then pcall(WeldIntent.setUsernameBoxText, targetName) end
             WeldIntent.active = false
             WeldIntent.target = nil
             WeldIntent.waitingForSpawn = true
-            WeldIntent.topStatusText = "target left · weld stopped"
+            WeldIntent.topStatusText = "target left · @" .. targetName .. " has left"
             WeldIntent.topStatusColor = T.Danger
-            WeldIntent.midStatusText = "target left · " .. targetName
+            WeldIntent.midStatusText = "🚨 " .. targetDisp .. " (@" .. targetName .. ") has left"
             WeldIntent.midStatusColor = T.Danger
-            WeldIntent.bottomStatusText = "target offline · will attach on spawn"
+            WeldIntent.bottomStatusText = "name kept in panel until changed · auto-attaches if they rejoin"
             WeldIntent.bottomStatusColor = T.Warning
             Weld:Destroy(false)
             if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
             if WeldIntent.refreshUI then pcall(WeldIntent.refreshUI) end
             showOwnerScreenBanner(
                 "🚨 TARGET HAS LEFT THE GAME",
-                "@" .. targetName .. " (" .. targetDisp .. ") left — weld stopped · will attach on spawn",
+                "@" .. targetName .. " (" .. targetDisp .. ") left — name kept in panel until changed",
                 T.Danger,
                 4.5,
                 "TargetLeftBanner"
             )
-            notify("COCO POWDER", "Target left server — safely returned")
+            notify("COCO POWDER", "Target @" .. targetName .. " has left — kept in panel until changed!")
             return
         end
 
@@ -3157,7 +3193,17 @@ local function resolveActiveTarget()
         selectedPlayer = CurrentTarget
         return CurrentTarget, false
     end
-    -- 5. Check Chat tab target input if non-empty
+    -- 5. If the locked/welded target has left the server, keep their departed state pinned until the user changes target!
+    if not WeldIntent.allMode and WeldIntent.leftInfo and WeldIntent.leftInfo.leftAt ~= nil then
+        local rejoined = WeldIntent.leftInfo.name and findPlayerByNameOrDisplay(WeldIntent.leftInfo.name, LP) or nil
+        if rejoined and rejoined.Parent == Players and rejoined ~= LP then
+            selectedPlayer = rejoined
+            CurrentTarget = rejoined
+            return rejoined, false
+        end
+        return nil, false
+    end
+    -- 6. Check Chat tab target input if non-empty
     if chatTargetInput and chatTargetInput.Parent then
         local typed = (chatTargetInput.Text or ""):gsub("^%s*@+%s*", ""):gsub("^%s+", ""):gsub("%s+$", "")
         if typed ~= "" then
@@ -3167,7 +3213,7 @@ local function resolveActiveTarget()
             end
         end
     end
-    -- 6. Auto-Nearest Player fallback
+    -- 7. Auto-Nearest Player fallback
     local nearest = getNearestPlayer(LP)
     return nearest, true
 end
@@ -3912,6 +3958,61 @@ local EmoteHub = {
         if type(_G.stopCocaCopier) == "function" then pcall(_G.stopCocaCopier) end
         if EmoteHub and EmoteHub.StopEmote then pcall(function() EmoteHub:StopEmote() end) end
         if EmoteHub and EmoteHub.StopJerk then pcall(function() EmoteHub:StopJerk() end) end
+        -- Fast 0.00ms Target Hot-Swap if AnimCopySys is already active on our current character!
+        if self.active and self.boundCharacter == myChar and self.hbConn and self.renderConn and self.stepConn then
+            clearMirroredTracks(0)
+            self.failedIds = {}
+            self.hookedAnimator = nil
+            if self.animPlayedConn then pcall(function() self.animPlayedConn:Disconnect() end); self.animPlayedConn = nil end
+            self.target = TPlayer
+            CurrentTarget = TPlayer
+            WeldIntent.active = true
+            WeldIntent.presetKey = "animcopy"
+            WeldIntent.target = TPlayer
+            WeldIntent.waitingForSpawn = false
+            if not WeldIntent.allMode then
+                WeldIntent.leftInfo = nil
+            end
+            LastPresetKey = "animcopy"
+            LastWeldTargetUserId = TPlayer.UserId
+            hookTargetRespawn(TPlayer)
+            local fastTC = findPlayerCharacterAnywhere(TPlayer)
+            local fastTR = fastTC and pickTargetRef(fastTC, "root")
+            local fastTH = fastTC and fastTC:FindFirstChildOfClass("Humanoid")
+            if self.sideMode ~= "free" and fastTR and fastTR.Parent then
+                local initCF = computeExactSideBySideCF(fastTR, myHum, fastTH, self.sideMode, self.sideDistance or 3.2)
+                if initCF then
+                    self.currentLockCF = initCF
+                    markIntentionalTeleport(initCF)
+                    myRoot.Anchored = false
+                    myRoot.CFrame = initCF
+                    myRoot.AssemblyLinearVelocity = fastTR.AssemblyLinearVelocity
+                    myRoot.AssemblyAngularVelocity = Vector3.zero
+                    pcall(function() LP.ReplicationFocus = fastTR end)
+                    if sethiddenproperty then
+                        pcall(function()
+                            sethiddenproperty(myRoot, "PhysicsRepRootPart", fastTR)
+                            if InstanceHandleNew then
+                                sethiddenproperty(myRoot, "PhysicsRepRootRef", InstanceHandleNew(fastTR))
+                            end
+                            sethiddenproperty(myRoot, "NetworkIsSleeping", false)
+                        end)
+                    end
+                    syncAnimCopyReanimRoots(initCF, myRoot)
+                end
+            end
+            if fastTC and fastTH then
+                pcall(function()
+                    local needBridge = syncTargetAnimationTracksNow(self, myChar, myHum, fastTC, fastTH)
+                    if self.syncMotorTransforms or needBridge or myHum.RigType ~= fastTH.RigType then
+                        applyCrossRigMotorTransforms(myChar, fastTC, myHum.RigType, fastTH.RigType)
+                    end
+                end)
+            end
+            if WeldIntent.refreshUI then pcall(WeldIntent.refreshUI) end
+            if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
+            return true, TPlayer
+        end
         self:Stop(true)
 
         -- Cancel any pending void-return loop and capture safe origin CFrame (exact Weld engine protection)
@@ -4183,36 +4284,44 @@ local EmoteHub = {
                 local lName = leftPlr and leftPlr.Name or tostring(WeldIntent.typedUsername or "Target")
                 local lDisp = (leftPlr and leftPlr.DisplayName) or lName
                 local lUid  = leftPlr and leftPlr.UserId or LastWeldTargetUserId
-                self:Stop(false)
+                local lAge  = (leftPlr and tostring(leftPlr.AccountAge or "—") .. "d") or "—"
                 WeldIntent.leftInfo = {
                     userId = lUid,
                     name = lName,
                     displayName = lDisp,
-                    accountAge = "—",
-                    friendsText = "—",
+                    accountAge = lAge,
+                    friendsText = "LEFT GAME",
                     leftAt = tick(),
                     wasWelded = true,
                     presetKey = "animcopy",
                 }
+                if WeldIntent.allMode and type(_G.CocoAdvanceAllPlayersCycle) == "function" then
+                    local switched = _G.CocoAdvanceAllPlayersCycle(true, lName)
+                    if switched then
+                        return
+                    end
+                end
+                self:Stop(false)
                 WeldIntent.presetKey = "animcopy"
                 LastPresetKey = "animcopy"
                 WeldIntent.typedUsername = lName
+                if WeldIntent.setUsernameBoxText then pcall(WeldIntent.setUsernameBoxText, lName) end
                 WeldIntent.waitingForSpawn = true
-                WeldIntent.topStatusText = "target left · weld stopped"
+                WeldIntent.topStatusText = "target left · @" .. lName .. " has left"
                 WeldIntent.topStatusColor = T.Danger
-                WeldIntent.midStatusText = "target left · " .. lName
+                WeldIntent.midStatusText = "🚨 " .. lDisp .. " (@" .. lName .. ") has left"
                 WeldIntent.midStatusColor = T.Danger
-                WeldIntent.bottomStatusText = "target offline · will attach on spawn"
+                WeldIntent.bottomStatusText = "name kept in panel until changed · auto-attaches if they rejoin"
                 WeldIntent.bottomStatusColor = T.Warning
                 if WeldIntent.refreshUI then pcall(WeldIntent.refreshUI) end
                 showOwnerScreenBanner(
                     "🚨 TARGET HAS LEFT THE GAME",
-                    "@" .. lName .. " (" .. lDisp .. ") left — weld stopped · will attach on spawn",
+                    "@" .. lName .. " (" .. lDisp .. ") left — name kept in panel until changed",
                     T.Danger,
                     4.5,
                     "TargetLeftBanner"
                 )
-                notify("COCO POWDER", "Target has left the game: @" .. lName .. " (weld stopped)")
+                notify("COCO POWDER", "Target @" .. lName .. " has left — kept in panel until changed!")
                 return
             end
 
@@ -5603,6 +5712,14 @@ local function weldToTarget(target, speaker, offset, animId, osc, refMode, animF
         RescueGeneration = RescueGeneration + 1
         local preSeekSafeCF = isSafePlayableCF(fastMyRoot.CFrame) and fastMyRoot.CFrame or LastKnownSafeCF or findFallbackSafeCF()
         local prevWeld = CurrentWeld
+        -- 0.00ms Zero-Delay Target Hot-Swap if already welding with the same presetKey!
+        if prevWeld and not prevWeld.destroyed and prevWeld.presetKey == presetKey and type(prevWeld.SwitchTargetZeroDelay) == "function" then
+            if prevWeld:SwitchTargetZeroDelay(fastTRoot, fastTChar, fastTHum, TPlayer) then
+                if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
+                if WeldIntent.refreshUI then pcall(WeldIntent.refreshUI) end
+                return true, TPlayer
+            end
+        end
         if prevWeld then
             CurrentWeld = nil
             pcall(function() prevWeld:Destroy(true) end)
@@ -5698,13 +5815,26 @@ applyWeldPreset = function(presetKey, target, callerGen)
     WeldIntent.presetKey = presetKey
     WeldIntent.target = TPlayer
     WeldIntent.waitingForSpawn = false
-    WeldIntent.leftInfo = nil
-    WeldIntent.topStatusText = "active · " .. (preset.label or presetKey)
-    WeldIntent.topStatusColor = T.Success
-    WeldIntent.midStatusText = "attached · " .. TPlayer.Name
-    WeldIntent.midStatusColor = T.Success
-    WeldIntent.bottomStatusText = "target online · attached (" .. (preset.label or presetKey) .. ")"
-    WeldIntent.bottomStatusColor = T.Success
+    if not WeldIntent.allMode then
+        WeldIntent.leftInfo = nil
+    end
+    if WeldIntent.allMode then
+        local idx = WeldIntent.allCycleIdx or 1
+        local tot = math.max(1, WeldIntent.allCycleTotal or 1)
+        WeldIntent.topStatusText = string.format("ALL MODE (%d/%d) · %s", idx, tot, (preset.label or presetKey))
+        WeldIntent.topStatusColor = T.Success
+        WeldIntent.midStatusText = string.format("🔄 [%d/%d] attached · @%s (%.1fs loop)", idx, tot, TPlayer.Name, WeldIntent.allCycleInterval or 1.2)
+        WeldIntent.midStatusColor = T.Success
+        WeldIntent.bottomStatusText = "ALL PLAYERS AUTO-CYCLE · 0.00ms attaching one by one repeatedly"
+        WeldIntent.bottomStatusColor = T.Neon
+    else
+        WeldIntent.topStatusText = "active · " .. (preset.label or presetKey)
+        WeldIntent.topStatusColor = T.Success
+        WeldIntent.midStatusText = "attached · " .. TPlayer.Name
+        WeldIntent.midStatusColor = T.Success
+        WeldIntent.bottomStatusText = "target online · attached (" .. (preset.label or presetKey) .. ")"
+        WeldIntent.bottomStatusColor = T.Success
+    end
     if WeldIntent.refreshUI then pcall(WeldIntent.refreshUI) end
 
     LastPresetKey = presetKey
@@ -5718,14 +5848,214 @@ applyWeldPreset = function(presetKey, target, callerGen)
     return ok
 end
 
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- 🔄 0.00ms ZERO-DELAY "ALL PLAYERS" AUTO-CYCLE WELD ENGINE (ONE-BY-ONE LOOP)
+-- ═══════════════════════════════════════════════════════════════════════════════
+local function getAllCycleValidPlayers()
+    local raw = Players:GetPlayers()
+    local aliveList = {}
+    local fallbackList = {}
+    for i = 1, #raw do
+        local p = raw[i]
+        if p ~= LP and p.Parent == Players and not isProtectedFromLocalPlayer(p) then
+            local skip = false
+            if _G.CocoTargetWhitelist and _G.CocoTargetWhitelist[p.UserId] then
+                skip = true
+            elseif _G.CocoIgnoreFriends then
+                local okFr, isFr = pcall(function() return LP:IsFriendsWith(p.UserId) end)
+                if okFr and isFr then skip = true end
+            end
+            if not skip then
+                fallbackList[#fallbackList + 1] = p
+                local c = findPlayerCharacterAnywhere(p)
+                local h = c and c:FindFirstChildOfClass("Humanoid")
+                local isReanim = (c and isCharacterNetlessReanimated(c)) or (findTargetReanimModel(p) ~= nil)
+                if not h or h.Health > 0 or isReanim then
+                    aliveList[#aliveList + 1] = p
+                end
+            end
+        end
+    end
+    local out = (#aliveList > 0) and aliveList or fallbackList
+    table.sort(out, function(a, b) return a.UserId < b.UserId end)
+    return out
+end
+
+local function stepAllPlayersCycleNow(forceNext, departedName)
+    if not WeldIntent.allMode then return false end
+    if FlingActive or OwnerAdminState.isFrozenByOwner or OwnerAdminState.isBannedByOwner then return false end
+
+    local myChar = LP and LP.Character
+    local myRoot = myChar and (myChar:FindFirstChild("HumanoidRootPart") or myChar:FindFirstChildWhichIsA("BasePart"))
+    local myHum  = myChar and myChar:FindFirstChildOfClass("Humanoid")
+    if not myChar or not myRoot or not myHum or not isLocalCharAliveOrReanimated(myChar, myHum) then
+        return false
+    end
+
+    local cands = getAllCycleValidPlayers()
+    local total = #cands
+    WeldIntent.allCycleTotal = total
+
+    if total == 0 then
+        if CurrentWeld then pcall(function() CurrentWeld:Destroy(false) end); CurrentWeld = nil end
+        if AnimCopySys and AnimCopySys.active then pcall(function() AnimCopySys:Stop(false) end) end
+        WeldIntent.active = false
+        WeldIntent.target = nil
+        if not (WeldIntent.leftInfo and WeldIntent.leftInfo.leftAt ~= nil) then
+            WeldIntent.topStatusText = "ALL MODE · waiting for players"
+            WeldIntent.topStatusColor = T.Warning
+            WeldIntent.midStatusText = "no targetable players in server · loop armed"
+            WeldIntent.midStatusColor = T.Warning
+            WeldIntent.bottomStatusText = "will auto-attach 0.00ms as soon as any player joins"
+            WeldIntent.bottomStatusColor = T.Muted
+        end
+        if WeldIntent.refreshUI then pcall(WeldIntent.refreshUI) end
+        return false
+    end
+
+    local activeKey = (WeldIntent.presetKey and (WELD_PRESETS[WeldIntent.presetKey] or WeldIntent.presetKey == "animcopy") and WeldIntent.presetKey)
+        or (LastPresetKey and (WELD_PRESETS[LastPresetKey] or LastPresetKey == "animcopy") and LastPresetKey)
+        or "bang"
+    WeldIntent.presetKey = activeKey
+    LastPresetKey = activeKey
+
+    local now = os.clock()
+    local interval = math.clamp(tonumber(WeldIntent.allCycleInterval) or 1.2, 0.25, 15.0)
+    local curTgt = WeldIntent.target
+
+    -- Check if current target left, died, or fell into lethal void -> switch in 0.00ms immediately!
+    local curValid = false
+    if curTgt and curTgt.Parent == Players then
+        for i = 1, total do
+            if cands[i] == curTgt then
+                curValid = true
+                WeldIntent.allCycleIdx = i
+                break
+            end
+        end
+        if curValid then
+            local tc = findPlayerCharacterAnywhere(curTgt)
+            local th = tc and tc:FindFirstChildOfClass("Humanoid")
+            local tr = tc and pickTargetRef(tc, "torso")
+            local isReanim = (tc and isCharacterNetlessReanimated(tc)) or (findTargetReanimModel(curTgt) ~= nil)
+            if (th and th.Health <= 0 and not isReanim) or (tr and isLethalVoidCF(tr.CFrame, tr.AssemblyLinearVelocity)) then
+                curValid = false
+            end
+        end
+    end
+
+    local elapsed = now - (WeldIntent.allLastSwitchTick or 0)
+
+    -- Pre-stream the NEXT player 0.35s before switching so their character is already in memory for a 0.00ms Frame-0 lock!
+    if curValid and not forceNext and total > 1 and (interval - elapsed) <= 0.35 then
+        local peekIdx = ((WeldIntent.allCycleIdx or 1) % total) + 1
+        local peekPlr = cands[peekIdx]
+        if peekPlr and WeldIntent.allPreStreamedUid ~= peekPlr.UserId then
+            WeldIntent.allPreStreamedUid = peekPlr.UserId
+            if not getVerifiedStreamedCFrame(peekPlr) then
+                local peekCF = getBestTargetCFrame(peekPlr)
+                if peekCF and not isLethalVoidCF(peekCF) then
+                    task.spawn(function()
+                        pcall(function() LP:RequestStreamAroundAsync(peekCF.Position, 1) end)
+                    end)
+                end
+            end
+        end
+    end
+
+    local isDetached = (activeKey == "animcopy" and not (AnimCopySys and AnimCopySys.active))
+        or (activeKey ~= "animcopy" and CurrentWeld == nil and not WeldSeekingTarget)
+
+    if forceNext or not curValid or isDetached or elapsed >= interval then
+        local nextIdx = ((WeldIntent.allCycleIdx or 0) % total) + 1
+        if total > 1 and cands[nextIdx] == curTgt and (forceNext or elapsed >= interval) then
+            nextIdx = (nextIdx % total) + 1
+        end
+        local nextPlr = cands[nextIdx]
+        if not nextPlr then return false end
+
+        WeldIntent.allCycleIdx = nextIdx
+        WeldIntent.allLastSwitchTick = now
+        WeldIntent.allPreStreamedUid = nil
+
+        selectedPlayer = nextPlr
+        CurrentTarget = nextPlr
+        WeldIntent.target = nextPlr
+        LastWeldTargetUserId = nextPlr.UserId
+        syncChatTarget(nextPlr)
+        hookTargetRespawn(nextPlr)
+
+        applyWeldPreset(activeKey, nextPlr)
+        if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
+        if WeldIntent.refreshUI then pcall(WeldIntent.refreshUI) end
+        return true
+    end
+
+    return true
+end
+
+_G.CocoAdvanceAllPlayersCycle = stepAllPlayersCycleNow
+
+local function stopAllPlayersWeldCycle(keepCurrentWeld)
+    WeldIntent.allMode = false
+    WeldIntent.allPreStreamedUid = nil
+    if WeldIntent.allCycleConn then
+        pcall(function() WeldIntent.allCycleConn:Disconnect() end)
+        WeldIntent.allCycleConn = nil
+    end
+    if not keepCurrentWeld then
+        stopWeld(false)
+    end
+    if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
+    if WeldIntent.refreshUI then pcall(WeldIntent.refreshUI) end
+end
+
+local function startAllPlayersWeldCycle(presetKeyOverride)
+    if WeldIntent.allCycleConn then
+        pcall(function() WeldIntent.allCycleConn:Disconnect() end)
+        WeldIntent.allCycleConn = nil
+    end
+    WeldIntent.allMode = true
+    WeldIntent.waitingForSpawn = false
+    local chosenKey = presetKeyOverride
+        or (WeldIntent.presetKey and (WELD_PRESETS[WeldIntent.presetKey] or WeldIntent.presetKey == "animcopy") and WeldIntent.presetKey)
+        or (LastPresetKey and (WELD_PRESETS[LastPresetKey] or LastPresetKey == "animcopy") and LastPresetKey)
+        or "bang"
+    WeldIntent.presetKey = chosenKey
+    LastPresetKey = chosenKey
+    WeldIntent.allLastSwitchTick = 0
+
+    -- Immediate Frame-0 0.00ms execution!
+    stepAllPlayersCycleNow(true)
+
+    WeldIntent.allCycleConn = RunService.Heartbeat:Connect(function()
+        if not WeldIntent.allMode then return end
+        stepAllPlayersCycleNow(false)
+    end)
+
+    if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
+    if WeldIntent.refreshUI then pcall(WeldIntent.refreshUI) end
+end
+
+_G.CocoStartAllPlayersCycle = startAllPlayersWeldCycle
+_G.CocoStopAllPlayersCycle  = stopAllPlayersWeldCycle
+
 stopWeld = function(preserveOfflineQueue)
     StopGeneration = StopGeneration + 1
     WeldIntent.active = false
     if not preserveOfflineQueue then
+        WeldIntent.allMode = false
+        if WeldIntent.allCycleConn then
+            pcall(function() WeldIntent.allCycleConn:Disconnect() end)
+            WeldIntent.allCycleConn = nil
+        end
         WeldIntent.presetKey = nil
         WeldIntent.target = nil
         WeldIntent.waitingForSpawn = false
-        WeldIntent.leftInfo = nil
+        -- Preserve WeldIntent.leftInfo if a target left the server so their name stays in the panel until changed!
+        if not (WeldIntent.leftInfo and WeldIntent.leftInfo.leftAt ~= nil) then
+            WeldIntent.leftInfo = nil
+        end
         LastPresetKey = nil
     end
     if AnimCopySys and AnimCopySys.active then
@@ -18699,8 +19029,14 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
             statusLbl.TextSize = 8.5
             statusLbl.TextXAlignment = Enum.TextXAlignment.Left
 
+            local copierLeftInfo = nil -- { name, displayName } kept in panel when target leaves until changed!
             local function updateCopierStatus()
                 if not copierTarget then
+                    if copierLeftInfo then
+                        statusLbl.Text = "🚨 TARGET LEFT: @" .. copierLeftInfo.name .. " (" .. copierLeftInfo.displayName .. ") has left!"
+                        statusLbl.TextColor3 = Color3.fromRGB(244, 63, 94)
+                        return
+                    end
                     statusLbl.Text = copierActive and "ON - Select a player from list above" or "OFF - Select a player and toggle ON"
                     statusLbl.TextColor3 = copierActive and Theme.warning or Theme.textMuted
                     return
@@ -19024,12 +19360,33 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                     if ch:IsA("TextButton") then ch:Destroy() end
                 end
                 local q = tostring(tSearch.Text or ""):lower()
-                for _, plr in ipairs(Players:GetPlayers()) do
+                if copierLeftInfo and not copierTarget then
+                    local leftBtnRow = Instance.new("TextButton", tList)
+                    leftBtnRow.LayoutOrder = 0
+                    leftBtnRow.Size = UDim2.new(1, -6, 0, 24)
+                    leftBtnRow.BackgroundColor3 = Color3.fromRGB(220, 58, 78)
+                    leftBtnRow.BackgroundTransparency = 0.15
+                    leftBtnRow.BorderSizePixel = 0
+                    leftBtnRow.Text = "  🚨 " .. copierLeftInfo.name .. " (@" .. copierLeftInfo.displayName .. ") — HAS LEFT"
+                    leftBtnRow.TextColor3 = Color3.new(1, 1, 1)
+                    leftBtnRow.Font = Enum.Font.GothamBold
+                    leftBtnRow.TextSize = 9.5
+                    leftBtnRow.TextXAlignment = Enum.TextXAlignment.Left
+                    leftBtnRow.AutoButtonColor = false
+                    addCorner(leftBtnRow, 4)
+                    leftBtnRow.MouseButton1Click:Connect(function()
+                        copierLeftInfo = nil
+                        populateCopierPlayers()
+                        updateCopierStatus()
+                    end)
+                end
+                for idx, plr in ipairs(Players:GetPlayers()) do
                     if plr ~= LocalPlayer then
                         local labelStr = plr.Name .. " (@" .. plr.DisplayName .. ")"
                         if q == "" or labelStr:lower():find(q, 1, true) then
                             local pBtn = Instance.new("TextButton", tList)
                             local isSel = (copierTarget == plr)
+                            pBtn.LayoutOrder = idx
                             pBtn.Size = UDim2.new(1, -6, 0, 24)
                             pBtn.BackgroundColor3 = isSel and Theme.accent or Theme.bgCard
                             pBtn.BackgroundTransparency = isSel and 0.15 or 0.5
@@ -19043,6 +19400,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                             addCorner(pBtn, 4)
                             pBtn.MouseButton1Click:Connect(function()
                                 copierTarget = plr
+                                copierLeftInfo = nil
                                 populateCopierPlayers()
                                 if copierActive then startReanimCopier() else updateCopierStatus() end
                             end)
@@ -19052,9 +19410,20 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
             end
 
             tSearch:GetPropertyChangedSignal("Text"):Connect(populateCopierPlayers)
-            Players.PlayerAdded:Connect(function() task.defer(populateCopierPlayers) end)
+            Players.PlayerAdded:Connect(function(plr)
+                if copierLeftInfo and plr.Name:lower() == copierLeftInfo.name:lower() then
+                    copierTarget = plr
+                    copierLeftInfo = nil
+                end
+                task.defer(populateCopierPlayers)
+                task.defer(updateCopierStatus)
+            end)
             Players.PlayerRemoving:Connect(function(plr)
-                if copierTarget == plr then copierTarget = nil end
+                if copierTarget == plr then
+                    copierLeftInfo = { name = plr.Name, displayName = plr.DisplayName or plr.Name }
+                    copierTarget = nil
+                    if copierActive then stopReanimCopier() else updateCopierStatus() end
+                end
                 task.defer(populateCopierPlayers)
             end)
             populateCopierPlayers()
@@ -22877,6 +23246,7 @@ local function buildMainUI()
     local ActivePills = {}
     ;(function()
     local PILL_CATALOG = {
+        { key = "all",          pillLabel = "All Players 🔄", width = 118 },
         { key = "animcopy",     pillLabel = "AnimCopy",   width = 112 },
         { key = "jerktroll",    pillLabel = "JerkTroll",  width = 108 },
         { key = "skydestroyer", pillLabel = "SkyDestroy", width = 114 },
@@ -22929,6 +23299,7 @@ local function buildMainUI()
     local PillOrderList = {}
 
     isActionKeyActive = function(key)
+        if key == "all" then return WeldIntent.allMode == true end
         if key == "skydestroyer" then return (CocaSkyDestroyer and CocaSkyDestroyer.isAnyActive()) == true end
         if key == "coverground" then return _G._HaloCoverGroundActive == true end
         if key == "coversky" then return _G._HaloCoverSkyActive == true end
@@ -23017,6 +23388,32 @@ local function buildMainUI()
     end
 
     togglePresetOrAction = function(key)
+        if key == "all" then
+            if WeldIntent.allMode then
+                if type(_G.CocoStopAllPlayersCycle) == "function" then
+                    _G.CocoStopAllPlayersCycle(false)
+                end
+                footerLabel.Text = "All Mode: OFF"
+                footerSub.Text = "stopped all-players cycle"
+                sToggleOff()
+                notify("🔄 ALL PLAYERS MODE", "Stopped All-Players Auto-Cycle Weld")
+            else
+                local activePreset = (WeldIntent.presetKey and (WELD_PRESETS[WeldIntent.presetKey] or WeldIntent.presetKey == "animcopy") and WeldIntent.presetKey)
+                    or (LastPresetKey and (WELD_PRESETS[LastPresetKey] or LastPresetKey == "animcopy") and LastPresetKey)
+                    or "bang"
+                if type(_G.CocoStartAllPlayersCycle) == "function" then
+                    _G.CocoStartAllPlayersCycle(activePreset)
+                end
+                footerLabel.Text = "🔄 All Players"
+                footerSub.Text = "cycling all (" .. (WELD_PRESETS[activePreset] and WELD_PRESETS[activePreset].label or activePreset) .. ")"
+                sSuccess()
+                notify("🔄 ALL PLAYERS MODE", "Attaching to ALL players one-by-one repeatedly (0.00ms Zero-Delay)!")
+            end
+            syncAllActiveIndicators()
+            if refreshList then pcall(refreshList) end
+            if refreshCard then pcall(refreshCard) end
+            return
+        end
         if key == "skydestroyer" then
             if CocaSkyDestroyer and CocaSkyDestroyer.isAnyActive() then
                 _G.stopSkyDestroyer()
@@ -23144,7 +23541,7 @@ local function buildMainUI()
         if ((WeldIntent.active or WeldIntent.waitingForSpawn) and WeldIntent.presetKey == key) or (key == "animcopy" and AnimCopySys and AnimCopySys.active) then
             stopWeld(false)
             StateManager:Cleanup(selectedPlayer ~= nil, false)
-            if not selectedPlayer then
+            if not selectedPlayer and not (WeldIntent.leftInfo and WeldIntent.leftInfo.leftAt ~= nil) then
                 CurrentTarget = nil
                 LastWeldTargetUserId = nil
                 if not (WeldUsernameBoxRef and WeldUsernameBoxRef:IsFocused()) then
@@ -23153,15 +23550,33 @@ local function buildMainUI()
                 end
             end
             LastPresetKey = nil
-            WeldIntent.topStatusText = "weld stopped"
-            WeldIntent.topStatusColor = T.Muted
-            WeldIntent.bottomStatusText = "stopped · select any preset to attach"
-            WeldIntent.bottomStatusColor = T.Muted
+            if not (WeldIntent.leftInfo and WeldIntent.leftInfo.leftAt ~= nil) then
+                WeldIntent.topStatusText = "weld stopped"
+                WeldIntent.topStatusColor = T.Muted
+                WeldIntent.bottomStatusText = "stopped · select any preset to attach"
+                WeldIntent.bottomStatusColor = T.Muted
+            end
             footerSub.Text = "stopped"
             syncAllActiveIndicators()
             if WeldIntent.refreshUI then pcall(WeldIntent.refreshUI) end
             sToggleOff()
             notify("COCO POWDER", (WELD_PRESETS[key] and WELD_PRESETS[key].label or key) .. " stopped")
+            return
+        end
+
+        -- If ALL Players Mode is active and the user taps a different preset, switch the active preset in ALL mode at 0.00ms!
+        if WeldIntent.allMode and (WELD_PRESETS[key] or key == "animcopy") then
+            WeldIntent.presetKey = key
+            LastPresetKey = key
+            if WeldIntent.target and WeldIntent.target.Parent == Players then
+                applyWeldPreset(key, WeldIntent.target)
+            elseif type(_G.CocoAdvanceAllPlayersCycle) == "function" then
+                _G.CocoAdvanceAllPlayersCycle(true)
+            end
+            syncAllActiveIndicators()
+            if WeldIntent.refreshUI then pcall(WeldIntent.refreshUI) end
+            sSuccess()
+            notify("🔄 ALL PLAYERS MODE", "Switched ALL cycle preset to " .. (WELD_PRESETS[key] and WELD_PRESETS[key].label or key) .. " (0.00ms)!")
             return
         end
 
@@ -23698,8 +24113,9 @@ local function buildMainUI()
             sSuccess()
         end)
 
-        winRowRefs["weld_mini"] = createActionRow(winGrp, 3, "Weld & Troll Deck", "Open last time · AnimCopy, Facebang, Backshots & Void", "Open", function()
+        winRowRefs["weld_mini"] = createActionRow(winGrp, 3, "Weld & Troll Deck", "Open last time · All Players Cycle, AnimCopy, Facebang, Backshots & Void", "Open", function()
             spawnOrToggleMiniWindow("weld_mini", "⚡ Weld & Troll", {
+                { label = "🔄 All Players Cycle", cb = function() togglePresetOrAction("all") end },
                 { label = "🎭 Copy Anim (Side)", cb = function() togglePresetOrAction("animcopy") end },
                 { label = "Wall Rizz (Kabedon)", cb = function() togglePresetOrAction("rizz") end },
                 { label = "Goon Target (Coco)", cb = function() togglePresetOrAction("goon") end },
@@ -23797,7 +24213,7 @@ local function buildMainUI()
         wrapperHdrWrap.Parent = wrapperSection
 
         local wrapperTitle = Instance.new("TextLabel")
-        wrapperTitle.Size = UDim2.new(1, -268, 0, 18)
+        wrapperTitle.Size = UDim2.new(1, -304, 0, 18)
         wrapperTitle.Position = UDim2.new(0, 2, 0, 0)
         wrapperTitle.BackgroundTransparency = 1
         wrapperTitle.Text = "Weld Wrapper"
@@ -23811,7 +24227,7 @@ local function buildMainUI()
 
         local topStatusLbl = Instance.new("TextLabel")
         topStatusLbl.Name = "TopLeaveStatus"
-        topStatusLbl.Size = UDim2.new(1, -268, 0, 14)
+        topStatusLbl.Size = UDim2.new(1, -304, 0, 14)
         topStatusLbl.Position = UDim2.new(0, 2, 0, 19)
         topStatusLbl.BackgroundTransparency = 1
         topStatusLbl.Text = WeldIntent.topStatusText or "ready · select a target or preset"
@@ -23825,12 +24241,12 @@ local function buildMainUI()
 
         local keysHdrBtn = Instance.new("TextButton")
         keysHdrBtn.Name = "MasterKeybindsToggleBtn"
-        keysHdrBtn.Size = UDim2.new(0, 60, 0, 24)
-        keysHdrBtn.Position = UDim2.new(1, -262, 0, 4)
+        keysHdrBtn.Size = UDim2.new(0, 54, 0, 24)
+        keysHdrBtn.Position = UDim2.new(1, -298, 0, 4)
         keysHdrBtn.Text = KeybindManager.enabled and "Keys: ON" or "Keys: OFF"
         keysHdrBtn.TextColor3 = Color3.new(1, 1, 1)
         keysHdrBtn.Font = Enum.Font.GothamBold
-        keysHdrBtn.TextSize = 9
+        keysHdrBtn.TextSize = 8.5
         keysHdrBtn.ZIndex = 9
         keysHdrBtn.Parent = wrapperHdrWrap
         Instance.new("UICorner", keysHdrBtn).CornerRadius = UDim.new(1, 0)
@@ -23850,12 +24266,12 @@ local function buildMainUI()
 
         local tagsHdrBtn = Instance.new("TextButton")
         tagsHdrBtn.Name = "AboveTagsToggleBtn"
-        tagsHdrBtn.Size = UDim2.new(0, 62, 0, 24)
-        tagsHdrBtn.Position = UDim2.new(1, -198, 0, 4)
+        tagsHdrBtn.Size = UDim2.new(0, 56, 0, 24)
+        tagsHdrBtn.Position = UDim2.new(1, -240, 0, 4)
         tagsHdrBtn.Text = OwnerAdminState.overheadTagsEnabled and "Tags: ON" or "Tags: OFF"
         tagsHdrBtn.TextColor3 = Color3.new(1, 1, 1)
         tagsHdrBtn.Font = Enum.Font.GothamBold
-        tagsHdrBtn.TextSize = 9
+        tagsHdrBtn.TextSize = 8.5
         tagsHdrBtn.ZIndex = 9
         tagsHdrBtn.Parent = wrapperHdrWrap
         Instance.new("UICorner", tagsHdrBtn).CornerRadius = UDim.new(1, 0)
@@ -23875,24 +24291,41 @@ local function buildMainUI()
 
         local disconnectTgtBtn = Instance.new("TextButton")
         disconnectTgtBtn.Name = "DisconnectTargetBtn"
-        disconnectTgtBtn.Size = UDim2.new(0, 68, 0, 24)
-        disconnectTgtBtn.Position = UDim2.new(1, -132, 0, 4)
+        disconnectTgtBtn.Size = UDim2.new(0, 62, 0, 24)
+        disconnectTgtBtn.Position = UDim2.new(1, -180, 0, 4)
         disconnectTgtBtn.Text = "Disconnect"
         disconnectTgtBtn.TextColor3 = Color3.new(1, 1, 1)
         disconnectTgtBtn.Font = Enum.Font.GothamBold
-        disconnectTgtBtn.TextSize = 9
+        disconnectTgtBtn.TextSize = 8.5
         disconnectTgtBtn.ZIndex = 9
         disconnectTgtBtn.Parent = wrapperHdrWrap
         Instance.new("UICorner", disconnectTgtBtn).CornerRadius = UDim.new(1, 0)
         styleBtn(disconnectTgtBtn, T.Danger)
 
+        local allModeBtn = Instance.new("TextButton")
+        allModeBtn.Name = "AllPlayersCycleBtn"
+        allModeBtn.Size = UDim2.new(0, 56, 0, 24)
+        allModeBtn.Position = UDim2.new(1, -114, 0, 4)
+        allModeBtn.Text = "All 🔄"
+        allModeBtn.TextColor3 = Color3.new(1, 1, 1)
+        allModeBtn.Font = Enum.Font.GothamBold
+        allModeBtn.TextSize = 9.5
+        allModeBtn.ZIndex = 9
+        allModeBtn.Parent = wrapperHdrWrap
+        Instance.new("UICorner", allModeBtn).CornerRadius = UDim.new(1, 0)
+        styleBtn(allModeBtn, T.PanelLt)
+        allModeBtn.MouseButton1Click:Connect(function()
+            playClick()
+            togglePresetOrAction("all")
+        end)
+
         local autoModeBtn = Instance.new("TextButton")
-        autoModeBtn.Size = UDim2.new(0, 58, 0, 24)
-        autoModeBtn.Position = UDim2.new(1, -58, 0, 4)
+        autoModeBtn.Size = UDim2.new(0, 54, 0, 24)
+        autoModeBtn.Position = UDim2.new(1, -54, 0, 4)
         autoModeBtn.Text = "Auto"
         autoModeBtn.TextColor3 = Color3.new(1, 1, 1)
         autoModeBtn.Font = Enum.Font.GothamBold
-        autoModeBtn.TextSize = 10
+        autoModeBtn.TextSize = 9.5
         autoModeBtn.ZIndex = 9
         autoModeBtn.Parent = wrapperHdrWrap
         Instance.new("UICorner", autoModeBtn).CornerRadius = UDim.new(1, 0)
@@ -24073,6 +24506,7 @@ local function buildMainUI()
         gridLayout.Parent = quickGridFrame
 
         local QUICK_GRID_ITEMS = {
+            { key = "all",       label = "All Players 🔄" },
             { key = "bang",      label = "Bang"       },
             { key = "goon",      label = "Goon"       },
             { key = "rizz",      label = "Rizz"       },
@@ -24273,18 +24707,21 @@ local function buildMainUI()
             end
             StateManager:Cleanup(selectedPlayer ~= nil, false)
             CurrentTarget = selectedPlayer
-            if not selectedPlayer then
+            local hasPinnedLeftTarget = (WeldIntent.leftInfo and WeldIntent.leftInfo.leftAt ~= nil)
+            if not selectedPlayer and not hasPinnedLeftTarget then
                 LastWeldTargetUserId = nil
                 WeldIntent.typedUsername = ""
                 if weldUsernameBox then weldUsernameBox.Text = "" end
             end
             LastPresetKey = nil
-            WeldIntent.waitingForSpawn = false
-            WeldIntent.leftInfo = nil
-            WeldIntent.topStatusText = "weld stopped"
-            WeldIntent.topStatusColor = T.Danger
-            WeldIntent.bottomStatusText = "stopped · tap [Disconnect] to clear target lock"
-            WeldIntent.bottomStatusColor = T.Muted
+            if not hasPinnedLeftTarget then
+                WeldIntent.waitingForSpawn = false
+                WeldIntent.leftInfo = nil
+                WeldIntent.topStatusText = "weld stopped"
+                WeldIntent.topStatusColor = T.Danger
+                WeldIntent.bottomStatusText = "stopped · tap [Disconnect] to clear target lock"
+                WeldIntent.bottomStatusColor = T.Muted
+            end
             footerSub.Text = "stopped"
             syncAllActiveIndicators()
             if refreshList then pcall(refreshList) end
@@ -24304,9 +24741,13 @@ local function buildMainUI()
             else
                 local matched = findPlayerByNameOrDisplay(raw, LP)
                 if matched and matched.Parent == Players then
+                    if WeldIntent.allMode and type(_G.CocoStopAllPlayersCycle) == "function" then
+                        _G.CocoStopAllPlayersCycle(true)
+                    end
                     selectedPlayer = matched
                     CurrentTarget = matched
                     LastWeldTargetUserId = matched.UserId
+                    WeldIntent.leftInfo = nil
                 end
             end
         end)
@@ -24318,8 +24759,12 @@ local function buildMainUI()
                 selectedPlayer = nil
                 WeldIntent.waitingForSpawn = false
                 WeldIntent.leftInfo = nil
+                if refreshList then pcall(refreshList) end
                 if refreshCard then pcall(refreshCard) end
                 return
+            end
+            if WeldIntent.allMode and type(_G.CocoStopAllPlayersCycle) == "function" then
+                _G.CocoStopAllPlayersCycle(true)
             end
             local found = findPlayerByNameOrDisplay(raw, LP)
             if found and found.Parent == Players then
@@ -24365,7 +24810,7 @@ local function buildMainUI()
                         name = raw,
                         displayName = raw,
                         accountAge = "—",
-                        friendsText = "—",
+                        friendsText = "LEFT / OFFLINE",
                         leftAt = tick(),
                         wasWelded = false,
                         presetKey = WeldIntent.presetKey,
@@ -24380,14 +24825,15 @@ local function buildMainUI()
                         end
                     end)
                 end
-                WeldIntent.topStatusText = "target left · weld stopped"
+                WeldIntent.topStatusText = "target left / offline · @" .. raw
                 WeldIntent.topStatusColor = T.Danger
-                WeldIntent.midStatusText = "target left · " .. raw
+                WeldIntent.midStatusText = "🚨 @" .. raw .. " has left / offline (kept until changed)"
                 WeldIntent.midStatusColor = T.Danger
                 WeldIntent.bottomStatusText = "target offline · will attach on spawn"
                 WeldIntent.bottomStatusColor = T.Warning
+                if refreshList then pcall(refreshList) end
                 if refreshCard then pcall(refreshCard) end
-                notify("COCO POWDER", "Target @" .. raw .. " offline — will attach on spawn!")
+                notify("COCO POWDER", "Target @" .. raw .. " offline — kept in panel & will attach on spawn!")
             end
         end)
 
@@ -24415,25 +24861,38 @@ local function buildMainUI()
             end
 
             local tgt, isAutoNearest = resolveActiveTarget()
-            BtnColors[autoModeBtn] = isAutoNearest and T.Accent2 or T.PanelLt
-            autoModeBtn.BackgroundColor3 = isAutoNearest and T.Accent2 or T.PanelLt
+            local isAllOn = (WeldIntent.allMode == true)
+            local hasLeftTargetPinned = (not isAllOn) and (WeldIntent.leftInfo ~= nil and WeldIntent.leftInfo.leftAt ~= nil) and (not selectedPlayer or selectedPlayer.Parent ~= Players)
 
-            -- Case 1: Target left the server or is queued offline ("target left · weld stopped" & "target offline · will attach on spawn")
-            if (not tgt or tgt.Parent ~= Players) and WeldIntent.leftInfo then
+            BtnColors[allModeBtn] = isAllOn and T.Accent2 or T.PanelLt
+            allModeBtn.BackgroundColor3 = isAllOn and T.Accent2 or T.PanelLt
+            allModeBtn.Text = isAllOn and "All: ON" or "All 🔄"
+
+            local autoHighlight = (not isAllOn) and (not hasLeftTargetPinned) and isAutoNearest
+            BtnColors[autoModeBtn] = autoHighlight and T.Accent2 or T.PanelLt
+            autoModeBtn.BackgroundColor3 = autoHighlight and T.Accent2 or T.PanelLt
+
+            -- Case 1: Target left the server! Keep their Name, @Username, Avatar & "HAS LEFT" status locked in panel until changed!
+            if hasLeftTargetPinned or ((not tgt or tgt.Parent ~= Players) and WeldIntent.leftInfo) then
                 local info = WeldIntent.leftInfo
-                nameLbl.Text = info.displayName or info.name or "Unknown"
-                handleLbl.Text = "@" .. (info.name or "unknown")
-                ageLbl.Text = "age —"
-                friendsLbl.Text = "friends —"
+                local disp = info.displayName or info.name or "Unknown"
+                local uname = info.name or "unknown"
+                nameLbl.Text = disp .. "  [PLAYER LEFT]"
+                nameLbl.TextColor3 = T.Danger
+                handleLbl.Text = "@" .. uname .. " · Has Left The Game"
+                handleLbl.TextColor3 = T.Danger
+                ageLbl.Text = "age " .. tostring(info.accountAge or "—")
+                friendsLbl.Text = "status · LEFT"
+                friendsLbl.TextColor3 = T.Danger
                 cardStroke.Color = T.Danger
 
-                topStatusLbl.Text = WeldIntent.topStatusText or "target left · weld stopped"
+                topStatusLbl.Text = WeldIntent.topStatusText or ("target left · @" .. uname .. " has left")
                 topStatusLbl.TextColor3 = WeldIntent.topStatusColor or T.Danger
 
-                midStatusLbl.Text = "target left · " .. (info.name or "unknown")
+                midStatusLbl.Text = "🚨 " .. disp .. " (@" .. uname .. ") has left the server"
                 midStatusLbl.TextColor3 = T.Danger
 
-                bottomStatusLbl.Text = "target offline · will attach on spawn"
+                bottomStatusLbl.Text = "kept in panel until you change target · auto-attaches if they rejoin"
                 bottomStatusLbl.TextColor3 = T.Warning
 
                 if info.userId and lastAvatarId ~= info.userId then
@@ -24447,17 +24906,19 @@ local function buildMainUI()
                     avatarPlaceholder.Visible = true
                     lastAvatarId = nil
                 end
-                -- Do not overwrite weldUsernameBox.Text when a target leaves so Auto-Nearest stays clean
                 return
             end
 
             -- Case 2: No players in server at all and no departed target
             if not tgt then
-                nameLbl.Text = "Auto: Nearest Player"
+                nameLbl.Text = isAllOn and "All Players Cycle (Armed)" or "Auto: Nearest Player"
+                nameLbl.TextColor3 = T.Text
                 handleLbl.Text = "@waiting..."
+                handleLbl.TextColor3 = T.Muted
                 ageLbl.Text = "age —"
-                friendsLbl.Text = "friends —"
-                topStatusLbl.Text = "waiting for players..."
+                friendsLbl.Text = isAllOn and "mode · ALL" or "friends —"
+                friendsLbl.TextColor3 = T.Muted
+                topStatusLbl.Text = isAllOn and "ALL MODE · waiting for players..." or "waiting for players..."
                 topStatusLbl.TextColor3 = T.Muted
                 midStatusLbl.Text = "no other players in server"
                 midStatusLbl.TextColor3 = T.Muted
@@ -24473,12 +24934,16 @@ local function buildMainUI()
             -- Case 3: Active target is in the server!
             avatarPlaceholder.Visible = false
             local uid = tgt.UserId
-            nameLbl.Text = tgt.DisplayName or tgt.Name or "?"
+            local allBadge = isAllOn and string.format("  [ALL %d/%d]", WeldIntent.allCycleIdx or 1, math.max(1, WeldIntent.allCycleTotal or 1)) or ""
+            nameLbl.Text = (tgt.DisplayName or tgt.Name or "?") .. allBadge
+            nameLbl.TextColor3 = T.Text
             handleLbl.Text = "@" .. (tgt.Name or "?")
+            handleLbl.TextColor3 = T.Muted
             pcall(function()
                 ageLbl.Text = "age " .. tostring(tgt.AccountAge or "—") .. "d"
             end)
-            friendsLbl.Text = isAutoNearest and "mode · auto" or "mode · locked"
+            friendsLbl.Text = isAllOn and "mode · ALL 🔄" or (isAutoNearest and "mode · auto" or "mode · locked")
+            friendsLbl.TextColor3 = isAllOn and T.Neon or T.Muted
 
             if lastAvatarId ~= uid then
                 lastAvatarId = uid
@@ -24548,6 +25013,9 @@ local function buildMainUI()
 
         autoModeBtn.MouseButton1Click:Connect(function()
             playClick()
+            if WeldIntent.allMode and type(_G.CocoStopAllPlayersCycle) == "function" then
+                _G.CocoStopAllPlayersCycle(true)
+            end
             selectedPlayer = nil
             WeldIntent.waitingForSpawn = false
             WeldIntent.leftInfo = nil
@@ -24556,6 +25024,7 @@ local function buildMainUI()
             syncChatTarget(nil)
             footerLabel.Text = "Auto: Nearest"
             footerSub.Text = "auto-connects to nearest"
+            syncAllActiveIndicators()
             if refreshList then pcall(refreshList) end
             pcall(refreshCard)
             notify("COCO POWDER", "Auto-Nearest Player mode active")
@@ -24589,6 +25058,21 @@ local function buildMainUI()
 
         createSectionTitle(weldPage, 2, "Signature Welds, Jerk Troll & Animation Copy")
         local sigGrp = createGroupCard(weldPage, 3)
+        addPresetRow(sigGrp, 0, "all",       "All Players Auto-Cycle Weld (One-by-One Loop)", "0.00ms zero-delay attaches to every server player one by one & repeats continuously")
+        local allCycleTimes = { 0.4, 0.8, 1.2, 2.0, 3.0 }
+        local allCycleTimeIdx = 3
+        createActionRow(sigGrp, 0, "All Players Switch Interval (Zero-Delay Loop)", "Tap pill to cycle time per player (0.4s Blitz / 0.8s / 1.2s / 2.0s / 3.0s) · Tap [⏭️] to skip player now", string.format("%.1fs / Plr", WeldIntent.allCycleInterval or 1.2), function(pillBtn)
+            allCycleTimeIdx = (allCycleTimeIdx % #allCycleTimes) + 1
+            WeldIntent.allCycleInterval = allCycleTimes[allCycleTimeIdx]
+            pillBtn.Text = string.format("%.1fs / Plr", WeldIntent.allCycleInterval)
+            notify("🔄 ALL CYCLE SPEED", string.format("All-Players switch interval: %.1fs per player (0.00ms transition)", WeldIntent.allCycleInterval))
+        end, function()
+            if not WeldIntent.allMode then
+                togglePresetOrAction("all")
+            elseif type(_G.CocoAdvanceAllPlayersCycle) == "function" then
+                _G.CocoAdvanceAllPlayersCycle(true)
+            end
+        end, "⏭️")
         addPresetRow(sigGrp, 1, "animcopy",  "Copy Animation (Side-by-Side)", "Locks side-by-side & mirrors all target animations 1:1")
         addPresetRow(sigGrp, 2, "jerktroll", "Jerk Troll (R15 & R6)",         "Rapid arm stroke choreography + animation (or tap ⦿ for pill)")
         createActionRow(sigGrp, 3, "Give 'Jerk Off' Backpack Tool", "Spawns equippable Jerk Troll tool in your Backpack", "Get Tool", function()
@@ -26505,6 +26989,26 @@ local function buildMainUI()
             "↺"
         )
 
+        createActionRow(
+            intelGrp,
+            6,
+            "All Players Auto-Cycle Weld (One-by-One Loop) (NEW)",
+            "Automatically attaches to every player in the server one by one and repeats at 0.00ms zero-delay",
+            WeldIntent.allMode and "All: ON" or "All: OFF",
+            function(pillBtn)
+                togglePresetOrAction("all")
+                pillBtn.Text = WeldIntent.allMode and "All: ON" or "All: OFF"
+            end,
+            function()
+                if type(_G.CocoAdvanceAllPlayersCycle) == "function" and WeldIntent.allMode then
+                    _G.CocoAdvanceAllPlayersCycle(true)
+                else
+                    togglePresetOrAction("all")
+                end
+            end,
+            "⏭️"
+        )
+
         createSectionTitle(targetPage, 3, "Server Players")
         local plrGrp = createGroupCard(targetPage, 4)
         plrGrp:SetAttribute("DynamicList", true)
@@ -26537,8 +27041,49 @@ local function buildMainUI()
                 if c:IsA("Frame") or c:IsA("TextLabel") then c:Destroy() end
             end
 
+            -- Pinned Departed Target Row: If a locked/welded player left the server, keep their name & "HAS LEFT" status in the panel until changed!
+            local hasPinnedLeft = (WeldIntent.leftInfo ~= nil and WeldIntent.leftInfo.leftAt ~= nil)
+            if hasPinnedLeft then
+                local info = WeldIntent.leftInfo
+                local leftDisp = info.displayName or info.name or "Unknown"
+                local leftName = info.name or "unknown"
+                local leftRow = createActionRow(
+                    plrGrp,
+                    0,
+                    leftDisp .. "  [🚨 PLAYER HAS LEFT]",
+                    "@" .. leftName .. "  ·  HAS LEFT THE SERVER  ·  Kept in panel until you change target",
+                    "Has Left",
+                    function()
+                        -- Selecting any other player or tapping here when ready clears the departed lock
+                        WeldIntent.leftInfo = nil
+                        WeldIntent.waitingForSpawn = false
+                        WeldIntent.typedUsername = ""
+                        if WeldIntent.setUsernameBoxText then pcall(WeldIntent.setUsernameBoxText, "") end
+                        refreshList(true)
+                        if refreshCard then pcall(refreshCard) end
+                        notify("COCO POWDER", "Cleared departed player @" .. leftName .. " from panel")
+                    end,
+                    function()
+                        WeldIntent.leftInfo = nil
+                        WeldIntent.waitingForSpawn = false
+                        WeldIntent.typedUsername = ""
+                        if WeldIntent.setUsernameBoxText then pcall(WeldIntent.setUsernameBoxText, "") end
+                        refreshList(true)
+                        if refreshCard then pcall(refreshCard) end
+                        notify("COCO POWDER", "Cleared departed player @" .. leftName .. " from panel")
+                    end,
+                    "✕"
+                )
+                if leftRow and leftRow.pillBtn then
+                    BtnColors[leftRow.pillBtn] = T.Danger
+                    leftRow.pillBtn.BackgroundColor3 = T.Danger
+                    leftRow.pillBtn.TextColor3 = Color3.new(1, 1, 1)
+                    if leftRow.pillStroke then leftRow.pillStroke.Color = T.Danger end
+                end
+            end
+
             local plrs = findPlayers(searchBox.Text)
-            if #plrs == 0 then
+            if #plrs == 0 and not hasPinnedLeft then
                 local e = Instance.new("TextLabel")
                 e.Size = UDim2.new(1, 0, 0, 42)
                 e.BackgroundTransparency = 1
@@ -26604,6 +27149,9 @@ local function buildMainUI()
                             syncAllActiveIndicators()
                             notify("COCO POWDER", "Unlocked & disconnected from @" .. p.Name)
                         else
+                            if WeldIntent.allMode and type(_G.CocoStopAllPlayersCycle) == "function" then
+                                _G.CocoStopAllPlayersCycle(true)
+                            end
                             selectedPlayer = p
                             CurrentTarget = p
                             LastWeldTargetUserId = p.UserId
@@ -26760,46 +27308,63 @@ local function buildMainUI()
             if wasOurTarget then
                 local wasWelding = (WeldIntent.active or CurrentWeld ~= nil or (AnimCopySys and AnimCopySys.active) or FlingActive)
                 local savedKey = WeldIntent.presetKey or LastPresetKey or "facebang"
+                local pDisp = p.DisplayName or p.Name
+                local pAge  = tostring(p.AccountAge or "—") .. "d"
                 WeldIntent.leftInfo = {
                     userId = p.UserId,
                     name = p.Name,
-                    displayName = p.DisplayName or p.Name,
-                    accountAge = "—",
-                    friendsText = "—",
+                    displayName = pDisp,
+                    accountAge = pAge,
+                    friendsText = "LEFT GAME",
                     leftAt = tick(),
                     wasWelded = wasWelding,
                     presetKey = savedKey,
                 }
+                if selectedPlayer == p then
+                    selectedPlayer = nil
+                end
+
+                -- If ALL Players Auto-Cycle is active, immediately switch to the next server player in 0.00ms!
+                if WeldIntent.allMode and type(_G.CocoAdvanceAllPlayersCycle) == "function" then
+                    local switched = _G.CocoAdvanceAllPlayersCycle(true, p.Name)
+                    if switched then
+                        notify("🔄 ALL PLAYERS MODE", "@" .. p.Name .. " left — switched to next player (0.00ms)!")
+                        task.wait(0.1)
+                        pcall(refreshList, true)
+                        if refreshCard then pcall(refreshCard) end
+                        return
+                    end
+                end
+
                 LastWeldTargetUserId = p.UserId
                 LastPresetKey = savedKey
+                WeldIntent.typedUsername = p.Name
+                if WeldIntent.setUsernameBoxText then pcall(WeldIntent.setUsernameBoxText, p.Name) end
                 WeldIntent.waitingForSpawn = true
-                WeldIntent.topStatusText = "target left · weld stopped"
+                WeldIntent.topStatusText = "target left · @" .. p.Name .. " has left"
                 WeldIntent.topStatusColor = T.Danger
-                WeldIntent.midStatusText = "target left · " .. p.Name
+                WeldIntent.midStatusText = "🚨 " .. pDisp .. " (@" .. p.Name .. ") has left"
                 WeldIntent.midStatusColor = T.Danger
-                WeldIntent.bottomStatusText = "target offline · will attach on spawn"
+                WeldIntent.bottomStatusText = "name kept in panel until changed · auto-attaches if they rejoin"
                 WeldIntent.bottomStatusColor = T.Warning
 
                 stopWeld(true)
                 StateManager:Cleanup(true)
-                if selectedPlayer == p then
-                    selectedPlayer = nil
-                end
-                footerLabel.Text = "Left: " .. p.Name
-                footerSub.Text = "target left · weld stopped"
+                footerLabel.Text = "Left: @" .. p.Name
+                footerSub.Text = "player has left · kept until changed"
                 footerDot.BackgroundColor3 = T.Danger
                 pcall(syncAllActiveIndicators)
                 showOwnerScreenBanner(
                     "🚨 TARGET HAS LEFT THE GAME",
-                    "@" .. p.Name .. " (" .. (p.DisplayName or p.Name) .. ") left — weld stopped · will attach on spawn",
+                    "@" .. p.Name .. " (" .. pDisp .. ") left — kept in panel until changed",
                     T.Danger,
                     4.5,
                     "TargetLeftBanner"
                 )
-                notify("COCO POWDER", "Target has left the game: @" .. p.Name .. " (weld stopped)")
+                notify("COCO POWDER", "Target @" .. p.Name .. " has left — kept in panel until changed!")
             end
             task.wait(0.1)
-            pcall(refreshList)
+            pcall(refreshList, true)
             if refreshCard then pcall(refreshCard) end
         end)
     end)()
