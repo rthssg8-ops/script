@@ -53,20 +53,20 @@ local SCRIPT_OWNERS = {
     Usernames = {
         "shivyy73",
         "retreee_yawrrr",
+        "kaun_bhai",
         "retree",
     },
 }
 
 -- 💎 PREMIUM USERS CONFIGURATION
 --    • Premium Users can open & use the 👑 Admin Panel and wear the 💎 PREMIUM
---      overhead tag, but they are NOT immune (only Owners shivyy73 & retreee_yawrrr are immune).
+--      overhead tag, but they are NOT immune (only Owners shivyy73, retreee_yawrrr & kaun_bhai are immune).
 local PREMIUM_USERS = {
     UserIds = {
         -- Optional Premium UserIds:
     },
     Usernames = {
         -- Exact Roblox account usernames only. Never put DisplayNames here.
-        "kaun_bhai",
         "Armaan_lulla",
         "shivyy7711",
         "apkadeewana",
@@ -365,6 +365,9 @@ local OwnerAdminState = {
     telemetryTargetPlr = nil,
     telemetryAutoRefresh = true,
     localFps = 60,
+    ownerImmunityEnabled = true,     -- Manual Owner Immunity Toggle (ON by default)
+    ownerImmunityByUserId = {},      -- [userId] = bool (synced across server; defaults to true for Owners)
+    ownerImmunitySwitches = {},      -- UI switch setter callbacks to keep all tabs synced
 }
 
 local isConfiguredScriptOwner, isConfiguredPremiumUser, isScriptOwner, isPremiumUser, hasAdminAccess, isProtectedFromLocalPlayer, getPlayerTargetCode, checkSavedBanState, saveBanStateToDisk, showOwnerScreenBanner, clearPersistentBanner
@@ -432,13 +435,27 @@ hasAdminAccess = function(plr)
     return isScriptOwner(plr) or isPremiumUser(plr)
 end
 
--- Privilege hierarchy check:
---   • Owners (shivyy73 & retreee_yawrrr) outrank everyone, get the Admin Panel, and have full immunity (cannot be targeted/frozen/banned).
+-- Privilege hierarchy & Manual Owner Immunity check:
+--   • Owners (shivyy73, retreee_yawrrr, kaun_bhai) outrank everyone, get the Admin Panel, and have full immunity ON by default.
+--   • Owners can manually toggle their Owner Immunity ON / OFF anytime (synced across the server via beacon & chat).
 --   • Premium Users get the Admin Panel and overhead tag, but do NOT get Owner immunity.
+OwnerAdminState.isOwnerImmunityActive = function(plr)
+    plr = plr or LP
+    if not plr or not isScriptOwner(plr) then return false end
+    if plr == LP then
+        return OwnerAdminState.ownerImmunityEnabled ~= false
+    end
+    local synced = OwnerAdminState.ownerImmunityByUserId and OwnerAdminState.ownerImmunityByUserId[plr.UserId]
+    if synced == false then
+        return false
+    end
+    return true -- Default ON for all Script Owners
+end
+
 isProtectedFromLocalPlayer = function(targetPlr)
     if not targetPlr then return false end
     if isScriptOwner(targetPlr) then
-        return true
+        return OwnerAdminState.isOwnerImmunityActive(targetPlr)
     end
     if not isScriptOwner(LP) and OwnerAdminState.syncedVipIds and OwnerAdminState.syncedVipIds[targetPlr.UserId] then
         return true
@@ -821,8 +838,14 @@ end
 
 local function forcePhysicsState(hum)
     if not hum then return end
-    pcall(function() hum:SetStateEnabled(Enum.HumanoidStateType.Physics, true) end)
-    pcall(function() hum:ChangeState(Enum.HumanoidStateType.Physics) end)
+    pcall(function()
+        if not hum:GetStateEnabled(Enum.HumanoidStateType.Physics) then
+            hum:SetStateEnabled(Enum.HumanoidStateType.Physics, true)
+        end
+        if hum:GetState() ~= Enum.HumanoidStateType.Physics then
+            hum:ChangeState(Enum.HumanoidStateType.Physics)
+        end
+    end)
 end
 
 local loadPlayableAnim
@@ -1250,20 +1273,25 @@ local findTargetReanimModel
 local isLocalCharAliveOrReanimated
 local isValidTargetWorldCF
 
+local function getSafeVoidFloorY()
+    local fpdh = (OriginalFPDH and OriginalFPDH == OriginalFPDH and OriginalFPDH > -10000 and OriginalFPDH) or -500
+    return math.max(fpdh + 45, -240)
+end
+
 local function isPartInSafeWorldBounds(p)
     if not (p and p.Parent and p:IsA("BasePart")) then return false, nil end
     local okCF, cf = pcall(function() return p.CFrame end)
     if not okCF or not cf then return false, nil end
     local pos = cf.Position
     if pos.X ~= pos.X or pos.Y ~= pos.Y or pos.Z ~= pos.Z then return false, nil end
-    if pos.Magnitude > 45000 then return false, nil end
-    if pos.Y > 2200 or math.abs(pos.Y - 85000) < 8000 then return false, nil end
-    local hardFloor = (OriginalFPDH and (OriginalFPDH - 25)) or -600
-    if pos.Y <= math.min(hardFloor, -105) then return false, nil end
+    if pos.Magnitude > 95000 then return false, nil end
+    if pos.Y > 4500 or math.abs(pos.Y - 85000) < 8000 then return false, nil end
+    local safeFloor = getSafeVoidFloorY()
+    if pos.Y <= safeFloor or math.abs(pos.Y - (-185)) < 6 then return false, nil end
     local okV, vel = pcall(function() return p.AssemblyLinearVelocity end)
-    if okV and vel and vel.Magnitude > 500 then return false, nil end
+    if okV and vel and vel.Magnitude > 3800 then return false, nil end
     local okAV, avel = pcall(function() return p.AssemblyAngularVelocity end)
-    if okAV and avel and avel.Magnitude > 250 then return false, nil end
+    if okAV and avel and avel.Magnitude > 2200 then return false, nil end
     return true, pos
 end
 
@@ -1271,10 +1299,10 @@ isValidTargetWorldCF = function(cf)
     if not cf then return false end
     local pos = cf.Position
     if pos.X ~= pos.X or pos.Y ~= pos.Y or pos.Z ~= pos.Z then return false end
-    if pos.Magnitude < 0.5 or pos.Magnitude > 45000 then return false end
-    if pos.Y > 2200 or math.abs(pos.Y - 85000) < 8000 then return false end
-    local hardFloor = (OriginalFPDH and (OriginalFPDH - 25)) or -600
-    if pos.Y <= math.min(hardFloor, -105) then return false end
+    if pos.Magnitude < 0.5 or pos.Magnitude > 95000 then return false end
+    if pos.Y > 4500 or math.abs(pos.Y - 85000) < 8000 then return false end
+    local safeFloor = getSafeVoidFloorY()
+    if pos.Y <= safeFloor or math.abs(pos.Y - (-185)) < 6 then return false end
     if isLethalVoidCF and isLethalVoidCF(cf) then return false end
     return true
 end
@@ -1313,18 +1341,18 @@ isRefPartValid = function(part, char)
             if part.Name == "HumanoidRootPart" and hum and hum.Health <= 0 and (okUpper or okHead) then
                 return false
             end
-            if okUpper and (pos - upperPos).Magnitude > 4.5 then
-                return false -- Root/LowerTorso is desynced from UpperTorso/Torso!
+            if okUpper and (pos - upperPos).Magnitude > 9.5 then
+                return false -- Root/LowerTorso is genuinely desynced from UpperTorso/Torso!
             end
-            if okHead and (pos - headPos).Magnitude > 6.0 then
-                return false -- Root/LowerTorso is desynced from Head!
+            if okHead and (pos - headPos).Magnitude > 12.0 then
+                return false -- Root/LowerTorso is genuinely desynced from Head!
             end
             -- Check if RootJoint / Root Motor6D was broken or disabled by FE Invisibility
             if part.Name == "HumanoidRootPart" and (okUpper or okHead) then
                 local refBodyPos = (okUpper and upperPos) or headPos
                 local rootJoint = part:FindFirstChild("RootJoint") or part:FindFirstChild("Root")
                     or (upper and (upper:FindFirstChild("RootJoint") or upper:FindFirstChild("Root")))
-                if rootJoint and rootJoint:IsA("Motor6D") and not rootJoint.Enabled and (pos - refBodyPos).Magnitude > 1.8 then
+                if rootJoint and rootJoint:IsA("Motor6D") and not rootJoint.Enabled and (pos - refBodyPos).Magnitude > 4.5 then
                     return false
                 end
             end
@@ -1723,6 +1751,36 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
     local targetName = TargetPlayer and TargetPlayer.Name or "Target"
     local targetDisp = (TargetPlayer and TargetPlayer.DisplayName) or targetName
 
+    local AnimTrack, AnimInstance = nil, nil
+    local animLoading = false
+    local animAttempts = 0
+    local Weld = { destroyed = false }
+    -- Register CurrentWeld immediately BEFORE changing Humanoid states so Anti-Ragdoll / Anti-Void / Self-Heal never fight Frame-0 setup!
+    CurrentWeld = Weld
+
+    -- Cleanse any active Emote / Jerk / Procedural Pack Motor6D C0 overrides so limbs never twist or flicker during weld!
+    pcall(function()
+        if EmoteHub then
+            if EmoteHub.jerkActive and EmoteHub.StopJerk then EmoteHub:StopJerk() end
+            if EmoteHub.currentEmoteTrack and EmoteHub.StopEmote then EmoteHub:StopEmote() end
+            if EmoteHub.procSavedMotors then
+                for m, origC0 in pairs(EmoteHub.procSavedMotors) do
+                    if m and m.Parent then pcall(function() m.C0 = origC0 end) end
+                end
+                table.clear(EmoteHub.procSavedMotors)
+            end
+        end
+        if moveState and moveState.restoreFlyJoints then
+            moveState.restoreFlyJoints(Character)
+        end
+        for _, d in ipairs(Character:GetDescendants()) do
+            if d:IsA("Motor6D") then
+                d.Enabled = true
+                d.Transform = CFrame.identity
+            end
+        end
+    end)
+
     pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
     pcall(function() Humanoid.Sit = false end)
     pcall(function() Humanoid.PlatformStand = true end)
@@ -1730,22 +1788,34 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
     forcePhysicsState(Humanoid)
     killAnimate(Character)
 
-    local AnimTrack, AnimInstance = nil, nil
-    local animLoading = false
-    local animAttempts = 0
-    local Weld = { destroyed = false }
+    local function purgeCompetingAnimatorTracks()
+        if not Humanoid or not Humanoid.Parent then return end
+        local animator = Humanoid:FindFirstChildOfClass("Animator")
+        if not animator then return end
+        local okT, tracks = pcall(function() return animator:GetPlayingAnimationTracks() end)
+        if not okT or not tracks then return end
+        for i = 1, #tracks do
+            local tr = tracks[i]
+            if tr ~= AnimTrack and not IsCocoBeaconTrack[tr] then
+                pcall(function() tr:Stop(0) end)
+            end
+        end
+    end
 
     local function ensureAnim(force)
         if not AnimationId or Weld.destroyed or animLoading then return end
+        local targetSpeed = math.clamp(V.Speed or 1.0, 0.2, 6.0)
         if AnimTrack and not force then
             local ip = false
             local curSpeed = nil
-            local targetSpeed = math.clamp(V.Speed or 1.0, 0.2, 6.0)
             pcall(function()
                 ip = AnimTrack.IsPlaying
                 if ip then
                     if not AnimTrack.Looped then
                         AnimTrack.Looped = true
+                    end
+                    if AnimTrack.Priority ~= Enum.AnimationPriority.Action4 then
+                        AnimTrack.Priority = Enum.AnimationPriority.Action4
                     end
                     curSpeed = AnimTrack.Speed
                 end
@@ -1755,10 +1825,25 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
                     pcall(function() AnimTrack:AdjustSpeed(targetSpeed) end)
                 end
                 return
+            else
+                -- Resume existing loaded track cleanly with 0 fade instead of spawning duplicate tracks (eliminates animation flicker!)
+                local resumed = false
+                pcall(function()
+                    AnimTrack.Priority = Enum.AnimationPriority.Action4
+                    AnimTrack.Looped = true
+                    AnimTrack:Play(0, 1.0, targetSpeed)
+                    AnimTrack:AdjustWeight(1.0, 0)
+                    AnimTrack:AdjustSpeed(targetSpeed)
+                    resumed = AnimTrack.IsPlaying
+                end)
+                if resumed then
+                    purgeCompetingAnimatorTracks()
+                    return
+                end
             end
         end
         animAttempts = animAttempts + 1
-        if not force and animAttempts % 15 ~= 0 and AnimTrack then return end
+        if not force and animAttempts % 30 ~= 0 and AnimTrack then return end
         animLoading = true
         task.spawn(function()
             pcall(function()
@@ -1769,17 +1854,14 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
                     Animator.Parent = Humanoid
                 end
                 if not Animator then return end
-                local track, anim = loadPlayableAnim(Animator, AnimationId, AnimFallbacks, Humanoid)
+                purgeCompetingAnimatorTracks()
+                local track, anim = loadPlayableAnim(Animator, AnimationId, AnimFallbacks, Humanoid, Enum.AnimationPriority.Action4)
                 if Weld.destroyed then
                     if track then pcall(function() track:Stop(0); track:Destroy() end) end
                     if anim then pcall(function() anim:Destroy() end) end
                     return
                 end
                 if track then
-                    pcall(function()
-                        track.Looped = true
-                        track:AdjustSpeed(math.clamp(V.Speed or 1.0, 0.2, 6.0))
-                    end)
                     if AnimTrack and AnimTrack ~= track then
                         pcall(function() AnimTrack:Stop(0); AnimTrack:Destroy() end)
                     end
@@ -1788,6 +1870,13 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
                     end
                     AnimTrack = track
                     AnimInstance = anim
+                    pcall(function()
+                        track.Priority = Enum.AnimationPriority.Action4
+                        track.Looped = true
+                        track:AdjustWeight(1.0, 0)
+                        track:AdjustSpeed(math.clamp(V.Speed or 1.0, 0.2, 6.0))
+                    end)
+                    purgeCompetingAnimatorTracks()
                 end
             end)
             animLoading = false
@@ -2018,6 +2107,17 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
     local lastValidTargetPos = (TargetPart and isRefPartValid(TargetPart, TargetChar)) and TargetPart.Position or nil
     local lastValidLockCF = nil
 
+    local function clampLockCFAboveVoid(cf)
+        if not cf then return cf end
+        local pos = cf.Position
+        local minSafeY = getSafeVoidFloorY() + 6
+        if pos.Y < minSafeY then
+            local rx, ry, rz = cf:ToEulerAnglesYXZ()
+            return CFrame.new(pos.X, minSafeY, pos.Z) * CFrame.fromEulerAnglesYXZ(rx, ry, rz)
+        end
+        return cf
+    end
+
     local function isSuspiciousInvisOrReanimJump(part, char, prevPos)
         if not (part and part.Parent) then return true end
         if isLocalOwnedModel(char) then return true end
@@ -2025,13 +2125,13 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
         local pos = part.Position
         if prevPos then
             local jumpDist = (pos - prevPos).Magnitude
-            if jumpDist > 165 then
+            if jumpDist > 220 then
                 -- Check if another body part (Torso/UpperTorso/Head) or reanim clone stayed near prevPos!
                 if char then
                     for _, bName in ipairs({ "UpperTorso", "Torso", "Head" }) do
                         local bp = char:FindFirstChild(bName)
                         if bp and bp ~= part and bp:IsA("BasePart") and isRefPartValid(bp, char) then
-                            if (bp.Position - prevPos).Magnitude < 65 then
+                            if (bp.Position - prevPos).Magnitude < 75 then
                                 return true -- Current part jumped away while real body stayed!
                             end
                         end
@@ -2042,7 +2142,7 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
                     return true
                 end
                 -- Reject jumps into sky/underground/void pockets or invisible dump boxes
-                if pos.Y > 850 or pos.Y < -60 or pos.Magnitude > 14000 then
+                if pos.Y > 1800 or pos.Y <= getSafeVoidFloorY() or pos.Magnitude > 35000 then
                     return true
                 end
                 local head = char and char:FindFirstChild("Head")
@@ -2127,7 +2227,7 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
                     localOffset = localOffset * CFrame.new(0, 0, -Osc.distance * phase)
                 end
                 local baseTargetCF = (PresetKey == "rizz" and getFlatYawCFrame) and getFlatYawCFrame(TargetPart.CFrame, TargetPart.Position) or TargetPart.CFrame
-                currentLockCF = baseTargetCF * localOffset
+                currentLockCF = clampLockCFAboveVoid(baseTargetCF * localOffset)
                 lastValidLockCF = currentLockCF
                 Root.CFrame = currentLockCF
                 Root.AssemblyLinearVelocity = Vector3.zero
@@ -2269,16 +2369,31 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
                     -- Distinguish truly unstreamed character (0 BaseParts in workspace) from FE Invisibility / Reanim dump (BaseParts exist but are in invalid sky/void/dump coords)!
                     local hasStreamedParts = (newChar and newChar:FindFirstChildWhichIsA("BasePart", true) ~= nil)
                     if hasStreamedParts then
-                        -- Target's character IS in workspace, just mid-invisibility or reanimation transition! Hold safe position in place so we NEVER teleport to another place!
-                        local holdCF = lastValidLockCF or currentLockCF or lastSafeCF
-                        if holdCF then
-                            Root.CFrame = holdCF
-                            Root.AssemblyLinearVelocity = Vector3.zero
-                            Root.AssemblyAngularVelocity = Vector3.zero
-                            syncReanimRoots(holdCF)
+                        -- If target has a fallback BasePart that is above the void floor (even if moving fast), lock onto it instead of detaching!
+                        local fallbackBody = newChar:FindFirstChild("UpperTorso") or newChar:FindFirstChild("Torso") or newChar:FindFirstChild("HumanoidRootPart") or newChar:FindFirstChild("Head")
+                        if fallbackBody and fallbackBody:IsA("BasePart") and fallbackBody.Position.Y > getSafeVoidFloorY() and fallbackBody.Position.Y < 3500 and fallbackBody.Transparency < 0.95 then
+                            TargetChar = newChar
+                            TargetHum  = newHum
+                            TargetPart = fallbackBody
+                            lastValidTargetPos = fallbackBody.Position
+                            missingFrames = 0
+                        else
+                            -- Target's character IS in workspace, just mid-invisibility or void/reanimation transition! Hold safe position in place so we NEVER drop into void!
+                            local holdCF = clampLockCFAboveVoid(lastValidLockCF or currentLockCF or lastSafeCF)
+                            if holdCF then
+                                Root.CFrame = holdCF
+                                Root.AssemblyLinearVelocity = Vector3.zero
+                                Root.AssemblyAngularVelocity = Vector3.zero
+                                syncReanimRoots(holdCF)
+                                markIntentionalTeleport(holdCF)
+                            end
+                            if missingFrames > 420 then
+                                Weld:Destroy(false)
+                            end
+                            return
                         end
                     else
-                        -- Target is genuinely unstreamed; only follow if hiddenCF is a verified, non-dump world coordinate
+                        -- Target is genuinely unstreamed; only follow if hiddenCF is a verified, non-dump world coordinate above void
                         local hiddenCF = getBestTargetCFrame(TargetPlayer)
                         if hiddenCF and isValidTargetWorldCF(hiddenCF) then
                             local now = tick()
@@ -2288,16 +2403,22 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
                                     pcall(function() LP:RequestStreamAroundAsync(hiddenCF.Position, 1) end)
                                 end)
                             end
-                            Root.CFrame = hiddenCF * Offset
+                            local safeStreamCF = clampLockCFAboveVoid(hiddenCF * Offset)
+                            Root.CFrame = safeStreamCF
                             Root.AssemblyLinearVelocity = Vector3.zero
                             Root.AssemblyAngularVelocity = Vector3.zero
-                            markIntentionalTeleport(Root.CFrame)
+                            markIntentionalTeleport(safeStreamCF)
+                        elseif lastValidLockCF or lastSafeCF then
+                            local holdCF = clampLockCFAboveVoid(lastValidLockCF or lastSafeCF)
+                            Root.CFrame = holdCF
+                            Root.AssemblyLinearVelocity = Vector3.zero
+                            Root.AssemblyAngularVelocity = Vector3.zero
                         end
+                        if missingFrames > 420 then
+                            Weld:Destroy(false)
+                        end
+                        return
                     end
-                    if missingFrames > 180 then
-                        Weld:Destroy(false)
-                    end
-                    return
                 end
             else
                 Weld:Destroy(false)
@@ -2352,7 +2473,8 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
             localOffset = localOffset * CFrame.new(0, 0, -Osc.distance * phase)
         end
         local baseTargetCF = (PresetKey == "rizz" and getFlatYawCFrame) and getFlatYawCFrame(TargetPart.CFrame, TargetPart.Position) or TargetPart.CFrame
-        currentLockCF = baseTargetCF * localOffset
+        currentLockCF = clampLockCFAboveVoid(baseTargetCF * localOffset)
+        lastValidLockCF = currentLockCF
         Root.CFrame = currentLockCF
         Root.AssemblyLinearVelocity = Vector3.zero
         Root.AssemblyAngularVelocity = Vector3.zero
@@ -2360,10 +2482,14 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
         markIntentionalTeleport(Root.CFrame)
         bindRepRootOnce(Root, TargetPart)
         if sethiddenproperty then pcall(function() sethiddenproperty(Root, "NetworkIsSleeping", false) end) end
-        pcall(function() ensureAnim(false) end)
+        pcall(function()
+            purgeCompetingAnimatorTracks()
+            ensureAnim(false)
+        end)
         pcall(function()
             if not Humanoid.PlatformStand then Humanoid.PlatformStand = true end
             if Humanoid.Sit then Humanoid.Sit = false end
+            if Humanoid.AutoRotate then Humanoid.AutoRotate = false end
         end)
     end)
 
@@ -4966,6 +5092,18 @@ local EmoteHub = {
         self.procSavedMotors = self.procSavedMotors or {}
         local clock = 0
         self.procPackConn = RunService.RenderStepped:Connect(function(dt)
+            -- Pause procedural Motor6D C0 overrides while welded, copying animations, or in Coca Bang lock so animations NEVER flicker or twist!
+            if CurrentWeld ~= nil or WeldSeekingTarget or (WeldIntent and WeldIntent.active) or _G.CocaBangActive or (AnimCopySys and AnimCopySys.active) then
+                if self.procSavedMotors and next(self.procSavedMotors) ~= nil then
+                    for m, origC0 in pairs(self.procSavedMotors) do
+                        if m and m.Parent then
+                            pcall(function() m.C0 = origC0 end)
+                        end
+                    end
+                    table.clear(self.procSavedMotors)
+                end
+                return
+            end
             local ch = LP.Character
             local hum = ch and ch:FindFirstChildOfClass("Humanoid")
             if not ch or not hum or hum.Health <= 0 then return end
@@ -7124,7 +7262,9 @@ promptNebulaFling = function()
 end
 end)() -- end VoidThrow internal scope
 
-local CS_D = 2.5
+local CS_D = 0.8
+local csRapidMode = false
+local csRapidDelay = 0.12
 local csOn, csMode, csTgt, csMsg, csCnt, csMtd, csGen = false, "roast", "", "", 0, "-", 0
 local csStyle = "Classic @ Wall"
 local csSymbolCount = 75
@@ -7225,6 +7365,32 @@ snd2 = function(tx)
         tx = utf8SafeTruncate(tx, CS_M - #suffix) .. suffix
     else
         tx = utf8SafeTruncate(tx, CS_M)
+    end
+    -- Zero-Delay Non-Blocking Rapid Dispatch when csRapidMode is ON so SendAsync yields never throttle rapid spam!
+    if csRapidMode and not tx:match("^!") then
+        local dispatched = false
+        if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService or TextChatService:FindFirstChild("TextChannels") then
+            if not csCh or not csCh.Parent or csCh.Name == "RBXSystem" then csCh = gC() end
+            if csCh then
+                local chRef = csCh
+                task.spawn(function()
+                    pcall(function() chRef:SendAsync(tx) end)
+                end)
+                csMtd = "RapidTextChat"
+                dispatched = true
+            end
+        end
+        if not csLg or not csLg.Parent then csLg = gL() end
+        if csLg then
+            local lgRef = csLg
+            pcall(function() lgRef:FireServer(tx, "All") end)
+            if not dispatched then csMtd = "RapidLegacy"; dispatched = true end
+        end
+        if not dispatched then
+            local okChat = pcall(function() Players:Chat(tx) end)
+            if okChat then csMtd = "RapidChat"; dispatched = true end
+        end
+        return dispatched
     end
     if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService or TextChatService:FindFirstChild("TextChannels") then
         if not csCh or not csCh.Parent or csCh.Name == "RBXSystem" then csCh = gC() end
@@ -9530,7 +9696,7 @@ local function ragdollCleanseCharacter(c)
             if hum:GetStateEnabled(Enum.HumanoidStateType.FallingDown) then hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false) end
             if hum:GetStateEnabled(Enum.HumanoidStateType.Seated) then hum:SetStateEnabled(Enum.HumanoidStateType.Seated, false) end
             if not hum:GetStateEnabled(Enum.HumanoidStateType.GettingUp) then hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true) end
-            if CurrentWeld == nil and not WeldSeekingTarget and not (AnimCopySys and AnimCopySys.active) and not FlingActive and not (moveState and (moveState.fly or moveState.flyLanding)) then
+            if CurrentWeld == nil and not WeldSeekingTarget and not (WeldIntent and WeldIntent.active) and not _G.CocaBangActive and not (AnimCopySys and AnimCopySys.active) and not FlingActive and not (moveState and (moveState.fly or moveState.flyLanding)) then
                 if hum:GetStateEnabled(Enum.HumanoidStateType.Physics) then hum:SetStateEnabled(Enum.HumanoidStateType.Physics, false) end
                 if hum.PlatformStand then hum.PlatformStand = false end
                 if hum.Sit then hum.Sit = false end
@@ -11002,10 +11168,11 @@ do
 local BEACON_ANIM_R15 = "rbxassetid://10714389396"
 local BEACON_ANIM_R6  = "rbxassetid://33796059"
 
-local BEACON_SPEED_REGULAR = 0.427831
-local BEACON_SPEED_FROZEN  = 0.429831
-local BEACON_SPEED_PREMIUM = 0.642831
-local BEACON_SPEED_OWNER   = 0.842831
+local BEACON_SPEED_REGULAR         = 0.427831
+local BEACON_SPEED_FROZEN          = 0.429831
+local BEACON_SPEED_PREMIUM         = 0.642831
+local BEACON_SPEED_OWNER           = 0.842831
+local BEACON_SPEED_OWNER_NO_IMMUNE = 0.845831
 
 maintainLocalScriptBeacon = function()
     if OwnerAdminState.isBannedByOwner then
@@ -11031,7 +11198,7 @@ maintainLocalScriptBeacon = function()
     else
         OwnerAdminState.activeCommandCode = nil
         if isScriptOwner(LP) then
-            desiredSpeed = BEACON_SPEED_OWNER   -- Owner Beacon (shivyy73)
+            desiredSpeed = (OwnerAdminState.ownerImmunityEnabled ~= false) and BEACON_SPEED_OWNER or BEACON_SPEED_OWNER_NO_IMMUNE
         elseif isPremiumUser(LP) then
             desiredSpeed = BEACON_SPEED_PREMIUM -- Premium User Beacon
         elseif OwnerAdminState.isFrozenByOwner then
@@ -11118,6 +11285,10 @@ inspectPlayerBeaconTracks = function(plr)
             elseif math.abs(spd - BEACON_SPEED_PREMIUM) < 0.0003 then
                 return { isUser = true, isOwner = cfgOwner, isPremium = cfgPrem, isFrozen = false, cmdType = nil, targetCode = nil }
             elseif math.abs(spd - BEACON_SPEED_OWNER) < 0.0003 then
+                if cfgOwner then OwnerAdminState.ownerImmunityByUserId[plr.UserId] = true end
+                return { isUser = true, isOwner = cfgOwner, isPremium = cfgPrem, isFrozen = false, cmdType = nil, targetCode = nil }
+            elseif math.abs(spd - BEACON_SPEED_OWNER_NO_IMMUNE) < 0.0003 then
+                if cfgOwner then OwnerAdminState.ownerImmunityByUserId[plr.UserId] = false end
                 return { isUser = true, isOwner = cfgOwner, isPremium = cfgPrem, isFrozen = false, cmdType = nil, targetCode = nil }
             end
 
@@ -11134,7 +11305,8 @@ inspectPlayerBeaconTracks = function(plr)
                     or (baseCmd >= 172 and baseCmd <= 174)
                     or (baseCmd >= 182 and baseCmd <= 186)
                     or (baseCmd >= 192 and baseCmd <= 194)
-                    or (baseCmd >= 202 and baseCmd <= 204) then
+                    or (baseCmd >= 202 and baseCmd <= 204)
+                    or (baseCmd >= 222 and baseCmd <= 223) then
                     local rem = math.floor(((spd - baseCmd) * 1000) + 0.5)
                     -- Commands 72 (grantprem) & 82 (revokeprem) are strictly Owner-only and NEVER accept rem == 0 ("all")!
                     if (baseCmd == 72 or baseCmd == 82) then
@@ -11685,8 +11857,19 @@ local function handleIncomingOwnerCommand(senderPlr, cmdType, targetCode, rawTar
     local senderIsPremium = isConfiguredPremiumUser(senderPlr)
     if not senderIsOwner and not senderIsPremium then return end
 
-    -- Only the Script Owner (shivyy73) is immune to Admin commands (Premium users are NOT immune)!
-    if isConfiguredScriptOwner(LP) then return end
+    -- Sync remote Owner's manual immunity state if they broadcast 222 (ON) or 223 (OFF)
+    if senderIsOwner and (cmdType == 222 or cmdType == "immuneon") then
+        OwnerAdminState.ownerImmunityByUserId[senderPlr.UserId] = true
+        pcall(updateOverheadNameTags)
+        return
+    elseif senderIsOwner and (cmdType == 223 or cmdType == "immuneoff") then
+        OwnerAdminState.ownerImmunityByUserId[senderPlr.UserId] = false
+        pcall(updateOverheadNameTags)
+        return
+    end
+
+    -- Script Owners (shivyy73, retreee_yawrrr, kaun_bhai) are immune to Admin commands while their Manual Owner Immunity is ON (default ON)!
+    if isConfiguredScriptOwner(LP) and (OwnerAdminState.ownerImmunityEnabled ~= false) then return end
 
     local myCode = getPlayerTargetCode(LP)
     local isTargeted = false
@@ -12210,11 +12393,13 @@ updateOverheadNameTags = function()
             end
             local isFrozen = (det and det.isFrozen) or OwnerAdminState.ownerFrozenTargets[uid] or (plr == LP and OwnerAdminState.isFrozenByOwner)
             local isBanned = OwnerAdminState.ownerBannedTargets[uid]
-            local roleKey = plrIsOwner and "OWNER" or (plrIsPremium and "PREMIUM" or (isBanned and "BANNED" or (isFrozen and "FROZEN" or "USER")))
+            local ownerImmTag = (plrIsOwner and OwnerAdminState.isOwnerImmunityActive and not OwnerAdminState.isOwnerImmunityActive(plr)) and "OWNER_NOIMM" or "OWNER"
+            local roleKey = plrIsOwner and ownerImmTag or (plrIsPremium and "PREMIUM" or (isBanned and "BANNED" or (isFrozen and "FROZEN" or "USER")))
             if entry.lastRoleKey ~= roleKey then
                 entry.lastRoleKey = roleKey
-                if roleKey == "OWNER" then
-                    entry.roleLbl.Text = "👑 COCO POWDER OWNER"
+                if roleKey == "OWNER" or roleKey == "OWNER_NOIMM" then
+                    local immuneNow = OwnerAdminState.isOwnerImmunityActive and OwnerAdminState.isOwnerImmunityActive(plr)
+                    entry.roleLbl.Text = (immuneNow == false) and "👑 OWNER (IMMUNE OFF)" or "👑 COCO POWDER OWNER"
                     entry.roleLbl.TextColor3 = Color3.fromRGB(255, 215, 70)
                     entry.stroke.Color = Color3.fromRGB(255, 215, 70)
                 elseif roleKey == "PREMIUM" then
@@ -12374,6 +12559,18 @@ local function onPlayerChatMessage(senderPlr, rawText)
     elseif cmd == "cpspeed" or cmd == "speedprank" then
         local tArg, spdArg = arg:match("^(%S+)%s*(.-)$")
         handleIncomingOwnerCommand(senderPlr, "speedprank", nil, (tArg and tArg ~= "") and tArg or "all", spdArg)
+    elseif (cmd == "cpimmune" or cmd == "ownerimmune" or cmd == "immune") and isConfiguredScriptOwner(senderPlr) then
+        local modeArg = tostring(arg or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
+        local nextState = (modeArg == "on" or modeArg == "true" or modeArg == "1") and true
+            or ((modeArg == "off" or modeArg == "false" or modeArg == "0") and false or nil)
+        if senderPlr == LP then
+            if OwnerAdminState.setOwnerImmunity then
+                OwnerAdminState.setOwnerImmunity(nextState == nil and (not OwnerAdminState.ownerImmunityEnabled) or nextState, false)
+            end
+        elseif nextState ~= nil then
+            OwnerAdminState.ownerImmunityByUserId[senderPlr.UserId] = nextState
+            pcall(updateOverheadNameTags)
+        end
     end
 end
 
@@ -23375,6 +23572,13 @@ local function buildMainUI()
         end)
         table.insert(UI.selfOverheadTagSwitches, genSelfTagSw.setState)
 
+        local genOwnerImmSw = createSwitchRow(sessionGrp, 4, "👑 Owner Immunity (Manual ON / OFF)", "Default ON for Owners (shivyy73, retreee_yawrrr, kaun_bhai) · Toggle OFF anytime to allow being trolled", OwnerAdminState.ownerImmunityEnabled ~= false, function(st)
+            if OwnerAdminState.setOwnerImmunity then
+                OwnerAdminState.setOwnerImmunity(st, false)
+            end
+        end)
+        table.insert(OwnerAdminState.ownerImmunitySwitches, genOwnerImmSw.setState)
+
         local genKbSw = createSwitchRow(sessionGrp, 5, "PC Keybinds Master Switch (ON / OFF)", "Single switch to turn all keyboard hotkeys ON or OFF at once", KeybindManager.enabled, function(st)
             KeybindManager:SetMasterEnabled(st, true)
         end)
@@ -28847,7 +29051,7 @@ local function buildMainUI()
             csMode = st and "roast" or "message"
         end)
 
-        local chatSwitchRow
+        local chatSwitchRow, rapidSpamSwitchRow
         local function chatStartFn()
             if csOn then return end
             csTgt = (chatTargetInput.Text or ""):gsub("^%s*@+%s*", "")
@@ -28867,13 +29071,19 @@ local function buildMainUI()
                 notify("COCO POWDER", "Enter a custom message first")
                 sError()
                 if chatSwitchRow then chatSwitchRow.setState(false, false) end
+                if rapidSpamSwitchRow then rapidSpamSwitchRow.setState(false, false) end
                 return
             end
             csOn = true
             csGen = csGen + 1
             csCnt = 0
+            if chatSwitchRow then chatSwitchRow.setState(true, false) end
+            local activeInterval = csRapidMode and csRapidDelay or CS_D
             if chatSwitchRow and chatSwitchRow.subLbl then
-                chatSwitchRow.subLbl.Text = "Broadcasting · " .. tostring(csStyle) .. " (" .. string.format("%.1fs", CS_D) .. ")"
+                chatSwitchRow.subLbl.Text = (csRapidMode and "⚡ RAPID SPAMMING · " or "Broadcasting · ") .. tostring(csStyle) .. " (" .. string.format("%.2fs", activeInterval) .. ")"
+            end
+            if rapidSpamSwitchRow and rapidSpamSwitchRow.subLbl then
+                rapidSpamSwitchRow.subLbl.Text = csRapidMode and ("⚡ Active Rapid Spammer · " .. string.format("%.2fs", csRapidDelay) .. " interval") or "Ultra-fast non-blocking chat spammer (0.05s–0.30s)"
             end
             local g = csGen
             task.spawn(function()
@@ -28886,24 +29096,37 @@ local function buildMainUI()
                         if snd2(m) then
                             csCnt = csCnt + 1
                             if chatSwitchRow and chatSwitchRow.subLbl then
-                                chatSwitchRow.subLbl.Text = "Sent " .. tostring(csCnt) .. " msgs · " .. tostring(csStyle) .. " (" .. tostring(csMtd) .. ")"
+                                chatSwitchRow.subLbl.Text = (csRapidMode and "⚡ Rapid Sent " or "Sent ") .. tostring(csCnt) .. " msgs · " .. tostring(csStyle) .. " (" .. tostring(csMtd) .. ")"
+                            end
+                            if rapidSpamSwitchRow and rapidSpamSwitchRow.subLbl and csRapidMode then
+                                rapidSpamSwitchRow.subLbl.Text = "⚡ Rapid Sent " .. tostring(csCnt) .. " msgs (" .. string.format("%.2fs", csRapidDelay) .. ")"
                             end
                         end
                     end
-                    task.wait(math.clamp(tonumber(CS_D) or 2.5, 0.5, 15.0))
+                    local waitTime = csRapidMode
+                        and math.clamp(tonumber(csRapidDelay) or 0.12, 0.03, 2.0)
+                        or math.clamp(tonumber(CS_D) or 0.8, 0.05, 15.0)
+                    task.wait(waitTime)
                 end
             end)
             sToggleOn()
-            notify("COCO POWDER", "Chat broadcaster started (" .. tostring(csStyle) .. ")")
+            notify("COCO POWDER", (csRapidMode and "⚡ Rapid Chat Spammer started (" or "Chat broadcaster started (") .. tostring(csStyle) .. ")")
         end
 
         chatStopFn = function()
             csOn = false
+            csRapidMode = false
             csGen = csGen + 1
             if chatSwitchRow then
                 chatSwitchRow.setState(false, false)
                 if chatSwitchRow.subLbl then
                     chatSwitchRow.subLbl.Text = "Idle · " .. tostring(csCnt) .. " messages sent"
+                end
+            end
+            if rapidSpamSwitchRow then
+                rapidSpamSwitchRow.setState(false, false)
+                if rapidSpamSwitchRow.subLbl then
+                    rapidSpamSwitchRow.subLbl.Text = "Ultra-fast non-blocking chat spammer (0.05s–0.30s)"
                 end
             end
         end
@@ -28912,9 +29135,42 @@ local function buildMainUI()
             if st then chatStartFn() else chatStopFn(); sToggleOff(); notify("COCO POWDER", "Chat broadcaster stopped") end
         end)
 
-        local chatDelayList = { 0.8, 1.2, 1.8, 2.5, 3.5, 5.0 }
-        local chatDelayIdx = 4
-        createActionRow(chatGrp, 4, "Send Single Message & Delay", "Tap [Send 1] to fire once · Tap circle to cycle delay (0.8s–5.0s)", "Send 1", function(pillBtn)
+        rapidSpamSwitchRow = createSwitchRow(chatGrp, 4, "⚡ Rapid Chat Spammer (Ultra-Fast Zero-Delay)", "Ultra-fast non-blocking chat spammer (0.05s–0.30s)", false, function(st)
+            csRapidMode = st
+            if st then
+                if not csOn then
+                    chatStartFn()
+                else
+                    if rapidSpamSwitchRow and rapidSpamSwitchRow.subLbl then
+                        rapidSpamSwitchRow.subLbl.Text = "⚡ Active Rapid Spammer · " .. string.format("%.2fs", csRapidDelay) .. " interval"
+                    end
+                    sToggleOn()
+                    notify("⚡ RAPID CHAT SPAMMER", string.format("Rapid Spammer turbo mode ON (%.2fs interval)!", csRapidDelay))
+                end
+            else
+                if rapidSpamSwitchRow and rapidSpamSwitchRow.subLbl then
+                    rapidSpamSwitchRow.subLbl.Text = "Ultra-fast non-blocking chat spammer (0.05s–0.30s)"
+                end
+                if csOn then
+                    chatStopFn()
+                    sToggleOff()
+                    notify("⚡ RAPID CHAT SPAMMER", "Rapid Chat Spammer stopped")
+                end
+            end
+        end)
+
+        local chatDelayList = { 0.05, 0.10, 0.15, 0.25, 0.40, 0.80, 1.20, 2.00, 3.50 }
+        local chatDelayIdx = 6
+        local delayCircleBtnRef = nil
+        local rapidSliderRow = createSliderInputRow(chatGrp, 5, "Rapid Spam & Broadcast Delay (0.05s – 5.00s)", "Drag or type exact delay in seconds (0.05s = Ultra Rapid Spam)", 0.05, 5.00, CS_D, 2, "s", function(val)
+            CS_D = math.clamp(tonumber(val) or 0.80, 0.03, 15.0)
+            csRapidDelay = math.clamp(tonumber(val) or 0.12, 0.03, 2.0)
+            if delayCircleBtnRef and delayCircleBtnRef.Parent then
+                delayCircleBtnRef.Text = string.format("%.2fs", CS_D)
+            end
+        end)
+
+        local _, _, singleDelayCircle = createActionRow(chatGrp, 6, "Send Single Message & Quick Delay Presets", "Tap [Send 1] to fire once · Tap circle to cycle (0.05s–3.50s)", "Send 1", function(pillBtn)
             csTgt = (chatTargetInput.Text or ""):gsub("^%s*@+%s*", "")
             csMsg = chatMsgInput.Text or ""
             local m = bld()
@@ -28935,9 +29191,14 @@ local function buildMainUI()
         end, function(cBtn)
             chatDelayIdx = (chatDelayIdx % #chatDelayList) + 1
             CS_D = chatDelayList[chatDelayIdx]
-            cBtn.Text = string.format("%.1fs", CS_D)
-            notify("💬 CHAT DELAY", string.format("Broadcast interval set to %.1fs", CS_D))
-        end, "2.5s")
+            csRapidDelay = math.min(CS_D, 0.50)
+            cBtn.Text = string.format("%.2fs", CS_D)
+            if rapidSliderRow and rapidSliderRow.setValue then
+                rapidSliderRow.setValue(CS_D, true)
+            end
+            notify("💬 CHAT DELAY", string.format("Spam interval set to %.2fs", CS_D))
+        end, "0.80s")
+        delayCircleBtnRef = singleDelayCircle
 
         local styleList = {
             "Classic @ Wall",
@@ -28950,7 +29211,7 @@ local function buildMainUI()
         local styleIdx = 1
         local symCounts = { 75, 100, 120, 0, 30, 50 }
         local symIdx = 1
-        createActionRow(chatGrp, 5, "Broadcast Format Style & @ Wall Density (NEW)", "Tap pill to switch roast format · Tap [@] to adjust @ wall size", "Classic @", function(pillBtn)
+        createActionRow(chatGrp, 7, "Broadcast Format Style & @ Wall Density", "Tap pill to switch roast format · Tap [@] to adjust @ wall size", "Classic @", function(pillBtn)
             styleIdx = (styleIdx % #styleList) + 1
             csStyle = styleList[styleIdx]
             local shortNames = {
@@ -28970,19 +29231,22 @@ local function buildMainUI()
             notify("💬 @ WALL SIZE", "Symbol wall count set to " .. tostring(csSymbolCount) .. " '@' chars")
         end, "75")
 
-        createActionRow(chatGrp, 6, "Burst Fire Combo (3x) & Header Toggle (NEW)", "Tap [Burst 3x] to fire 3 rapid roasts · Tap [👑] to toggle header prefix", "Burst 3x", function(pillBtn)
+        createActionRow(chatGrp, 8, "Rapid Burst Fire (10x Instant) & Header Toggle", "Tap [Burst 10x] to fire 10 rapid messages · Tap [👑] to toggle header prefix", "Burst 10x", function(pillBtn)
             csTgt = (chatTargetInput.Text or ""):gsub("^%s*@+%s*", "")
             csMsg = chatMsgInput.Text or ""
-            pillBtn.Text = "Firing..."
+            pillBtn.Text = "Spamming..."
             task.spawn(function()
-                for i = 1, 3 do
+                local prevRapid = csRapidMode
+                csRapidMode = true
+                for i = 1, 10 do
                     local m = bld()
                     if m ~= "" and snd2(m) then
                         csCnt = csCnt + 1
                     end
-                    if i < 3 then task.wait(0.65) end
+                    if i < 10 then task.wait(0.08) end
                 end
-                if pillBtn and pillBtn.Parent then pillBtn.Text = "Burst 3x" end
+                csRapidMode = prevRapid
+                if pillBtn and pillBtn.Parent then pillBtn.Text = "Burst 10x" end
                 if chatSwitchRow and chatSwitchRow.subLbl and not csOn then
                     chatSwitchRow.subLbl.Text = "Sent " .. tostring(csCnt) .. " msgs via " .. tostring(csMtd)
                 end
@@ -28994,13 +29258,13 @@ local function buildMainUI()
             notify("💬 HEADER PREFIX", csIncludeHeader and "Header 'SCRIPT BY COCACOLA' ON" or "Header prefix OFF")
         end, "👑")
 
-        createSwitchRow(chatGrp, 7, "Anti-Tag & Anti-Spam Rate-Limit Bypass", "Appends UTF-8 safe zero-width variation markers so repeated messages aren't blocked", _G.CocoAntiTagBypass ~= false, function(st)
+        createSwitchRow(chatGrp, 9, "Anti-Tag & Anti-Spam Rate-Limit Bypass", "Appends UTF-8 safe variation markers so repeated rapid messages aren't blocked", _G.CocoAntiTagBypass ~= false, function(st)
             _G.CocoAntiTagBypass = st
             if UI.autoSaveConfig and UI.saveConfigToDisk then UI.saveConfigToDisk(false) end
             notify("💬 ANTI-RATE-LIMIT", st and "Zero-Width Anti-Duplicate Chat Bypass ON!" or "Anti-Duplicate Chat Bypass OFF")
         end)
 
-        local customRoastRow, _, customRoastSub = createGroupRowBase(chatGrp, 8, "Custom Roast Word / Line Editor (NEW)", "Add custom words to the Auto-Roast generator pool · Tap [↺] to reset", 170, 50)
+        local customRoastRow, _, customRoastSub = createGroupRowBase(chatGrp, 10, "Custom Roast Word / Line Editor", "Add custom words to the Auto-Roast generator pool · Tap [↺] to reset", 170, 50)
         local customRoastBox = Instance.new("TextBox")
         customRoastBox.Size = UDim2.new(0, 96, 0, 26)
         customRoastBox.Position = UDim2.new(1, -162, 0.5, -13)
@@ -29201,7 +29465,47 @@ local function buildMainUI()
         local roleTitleText = isScriptOwner(LP)
             and ("👑 Script Owner: @" .. LP.Name .. " (Full Authority)")
             or (isPremiumUser(LP) and ("💎 Premium Admin: @" .. LP.Name .. " (Admin Panel Unlocked)") or "🔒 Restricted: Owner & Premium Only")
-        local roleSubText = "Owners: shivyy73, retreee_yawrrr · Premium: kaun_bhai, Armaan_lulla, shivyy7711, apkadeewana"
+        local roleSubText = "Owners: shivyy73, retreee_yawrrr, kaun_bhai · Premium: Armaan_lulla, shivyy7711, apkadeewana, INDIANGAMER6975"
+
+        OwnerAdminState.setOwnerImmunity = function(st, silent)
+            if not isScriptOwner(LP) then
+                for _, fn in ipairs(OwnerAdminState.ownerImmunitySwitches) do
+                    pcall(fn, false, false)
+                end
+                if not silent then
+                    notify("👑 OWNER ONLY", "Only Script Owners (shivyy73, retreee_yawrrr, kaun_bhai) have Owner Immunity!")
+                    sError()
+                end
+                return
+            end
+            local enabled = (st ~= false)
+            OwnerAdminState.ownerImmunityEnabled = enabled
+            OwnerAdminState.ownerImmunityByUserId[LP.UserId] = enabled
+            for _, fn in ipairs(OwnerAdminState.ownerImmunitySwitches) do
+                pcall(fn, enabled, false)
+            end
+            -- Broadcast Owner Immunity state to all script users in server via beacon & chat
+            local cmdCode = enabled and 222 or 223
+            OwnerAdminState.activeCommandCode = cmdCode
+            OwnerAdminState.activeCommandUntil = tick() + 2.0
+            if OwnerAdminState.beaconTrack and OwnerAdminState.beaconTrack.IsPlaying then
+                pcall(function() OwnerAdminState.beaconTrack:AdjustSpeed(cmdCode) end)
+            end
+            if OwnerAdminState.sendChatPacketOnCommand then
+                pcall(function() snd2(enabled and "!cpimmune on" or "!cpimmune off") end)
+            end
+            pcall(maintainLocalScriptBeacon)
+            pcall(updateOverheadNameTags)
+            if not silent then
+                if enabled then
+                    sToggleOn()
+                    notify("👑 OWNER IMMUNITY ON", "Owner Immunity is ON (Default) — you cannot be targeted, welded, flung, or frozen!")
+                else
+                    sToggleOff()
+                    notify("👑 OWNER IMMUNITY OFF", "Owner Immunity manually turned OFF — other users can now troll/weld you until turned back ON!")
+                end
+            end
+        end
 
         createActionRow(
             ownerInfoGrp,
@@ -29211,7 +29515,7 @@ local function buildMainUI()
             "Copy ID",
             function(pillBtn)
                 if not hasAdminAccess(LP) then
-                    notify("🔒 ACCESS DENIED", "Admin Panel is restricted to Owners (shivyy73 & retreee_yawrrr) & Premium Users!")
+                    notify("🔒 ACCESS DENIED", "Admin Panel is restricted to Owners (shivyy73, retreee_yawrrr, kaun_bhai) & Premium Users!")
                     sError()
                     return
                 end
@@ -29245,6 +29549,18 @@ local function buildMainUI()
                 notifyOwnerJoinedServer(LP, isScriptOwner(LP) and "👑 OWNER ALERT SENT" or "💎 PREMIUM ALERT SENT", "Broadcasted presence notification to all script users in server!")
             end
         )
+
+        local adminImmuneSw = createSwitchRow(
+            ownerInfoGrp,
+            3,
+            "👑 Owner Immunity (Manual ON / OFF)",
+            "ON by default for Owners (shivyy73, retreee_yawrrr, kaun_bhai) · Turn OFF manually to allow welds/trolls",
+            OwnerAdminState.ownerImmunityEnabled ~= false,
+            function(st)
+                OwnerAdminState.setOwnerImmunity(st, false)
+            end
+        )
+        table.insert(OwnerAdminState.ownerImmunitySwitches, adminImmuneSw.setState)
 
         createSectionTitle(adminPage, 3, "Global Script-User Controls & Overhead Tags")
         local globalAdminGrp = createGroupCard(adminPage, 4)
@@ -34736,11 +35052,32 @@ end
         brandLbl.ZIndex = 1004
         brandLbl.Parent = navBar
 
+        local DISCORD_INVITE_URL = "https://discord.gg/jSA7QWQuJ"
+        local function copyDiscordInvite(btnToUpdate, defaultText)
+            interacted = true
+            playClick()
+            pcall(function()
+                if typeof(setclipboard) == "function" then setclipboard(DISCORD_INVITE_URL)
+                elseif typeof(toclipboard) == "function" then toclipboard(DISCORD_INVITE_URL) end
+            end)
+            if btnToUpdate and btnToUpdate.Parent then
+                btnToUpdate.Text = "Copied Invite! ✓"
+                task.delay(1.6, function()
+                    if btnToUpdate and btnToUpdate.Parent then
+                        btnToUpdate.Text = defaultText or "Copy Discord"
+                    end
+                end)
+            end
+            notify("💬 DISCORD SERVER", "Copied Discord Server link: " .. DISCORD_INVITE_URL)
+            sSuccess()
+        end
+
         local navTabs = {
-            { name = "My scripts",   x = 184, w = 78 },
-            { name = "Verification", x = 274, w = 88, active = true },
-            { name = "Docs",         x = 374, w = 48 },
-            { name = "Support",      x = 434, w = 64 },
+            { name = "My scripts",   x = 178, w = 72 },
+            { name = "Verification", x = 258, w = 84, active = true },
+            { name = "Docs",         x = 350, w = 42 },
+            { name = "Support",      x = 400, w = 56 },
+            { name = "💬 Discord",   x = 464, w = 74, isDiscord = true },
         }
         for _, tab in ipairs(navTabs) do
             local tb = Instance.new("TextButton")
@@ -34748,9 +35085,9 @@ end
             tb.Position = UDim2.new(0, tab.x, 0, 0)
             tb.BackgroundTransparency = 1
             tb.Text = tab.name
-            tb.TextColor3 = tab.active and SG_TEXT_MAIN or SG_TEXT_SUB
-            tb.Font = tab.active and Enum.Font.GothamBold or Enum.Font.GothamMedium
-            tb.TextSize = 12.5
+            tb.TextColor3 = tab.isDiscord and Color3.fromRGB(129, 140, 248) or (tab.active and SG_TEXT_MAIN or SG_TEXT_SUB)
+            tb.Font = (tab.active or tab.isDiscord) and Enum.Font.GothamBold or Enum.Font.GothamMedium
+            tb.TextSize = 12
             tb.ZIndex = 1004
             tb.Parent = navBar
             if tab.active then
@@ -34765,12 +35102,14 @@ end
             tb.MouseButton1Click:Connect(function()
                 interacted = true
                 playClick()
-                if tab.name == "My scripts" then
+                if tab.isDiscord then
+                    copyDiscordInvite(tb, "💬 Discord")
+                elseif tab.name == "My scripts" then
                     notify("🛡️ SCRIPTGUARD", "Loaded Module: Coco Powder V37.0 Zero-Delay + Coca Anti-VC Suite")
                 elseif tab.name == "Docs" then
                     notify("📘 SCRIPTGUARD DOCS", "Zero-Delay Weld: 0.00ms PreCam + Character+1 · Anti-VC: Coca StateChanged[7+]")
                 elseif tab.name == "Support" then
-                    notify("👑 SCRIPT OWNERS", "Supreme Owners: @shivyy73 & @retreee_yawrrr · Role: " .. roleInfo.tier)
+                    notify("👑 SCRIPT OWNERS", "Supreme Owners: @shivyy73, @retreee_yawrrr & @kaun_bhai · Discord: " .. DISCORD_INVITE_URL)
                 end
             end)
         end
@@ -35153,10 +35492,54 @@ end
         rsStroke.Color = SG_BORDER
         rsStroke.Thickness = 1
 
+        -- Official Discord Server Banner & Copy Invite Button on Verification / Login Panel
+        local discordBanner = Instance.new("Frame")
+        discordBanner.Name = "DiscordInviteBanner"
+        discordBanner.Size = UDim2.new(1, -40, 0, 32)
+        discordBanner.Position = UDim2.new(0, 20, 0, 182)
+        discordBanner.BackgroundColor3 = Color3.fromRGB(22, 26, 46)
+        discordBanner.BorderSizePixel = 0
+        discordBanner.ZIndex = 1004
+        discordBanner.Parent = centerCard
+        Instance.new("UICorner", discordBanner).CornerRadius = UDim.new(0, 8)
+        local dbStroke = Instance.new("UIStroke", discordBanner)
+        dbStroke.Color = Color3.fromRGB(99, 102, 241)
+        dbStroke.Thickness = 1
+        dbStroke.Transparency = 0.25
+
+        local discordLbl = Instance.new("TextLabel")
+        discordLbl.Size = UDim2.new(1, -118, 1, 0)
+        discordLbl.Position = UDim2.new(0, 10, 0, 0)
+        discordLbl.BackgroundTransparency = 1
+        discordLbl.Text = "💬 Discord: https://discord.gg/jSA7QWQuJ"
+        discordLbl.TextColor3 = Color3.fromRGB(199, 210, 254)
+        discordLbl.Font = Enum.Font.GothamBold
+        discordLbl.TextSize = 10.5
+        discordLbl.TextXAlignment = Enum.TextXAlignment.Left
+        discordLbl.TextTruncate = Enum.TextTruncate.AtEnd
+        discordLbl.ZIndex = 1005
+        discordLbl.Parent = discordBanner
+
+        local copyDiscordBtn = Instance.new("TextButton")
+        copyDiscordBtn.Size = UDim2.new(0, 98, 0, 22)
+        copyDiscordBtn.Position = UDim2.new(1, -103, 0.5, -11)
+        copyDiscordBtn.BackgroundColor3 = Color3.fromRGB(79, 70, 229)
+        copyDiscordBtn.BorderSizePixel = 0
+        copyDiscordBtn.Text = "Copy Discord"
+        copyDiscordBtn.TextColor3 = Color3.new(1, 1, 1)
+        copyDiscordBtn.Font = Enum.Font.GothamBold
+        copyDiscordBtn.TextSize = 10
+        copyDiscordBtn.ZIndex = 1006
+        copyDiscordBtn.Parent = discordBanner
+        Instance.new("UICorner", copyDiscordBtn).CornerRadius = UDim.new(0, 6)
+        copyDiscordBtn.MouseButton1Click:Connect(function()
+            copyDiscordInvite(copyDiscordBtn, "Copy Discord")
+        end)
+
         -- Luau Code Preview Box (CocoPowder_V37_ZeroDelay.client.lua)
         local codeBox = Instance.new("Frame")
-        codeBox.Size = UDim2.new(1, -40, 0, 118)
-        codeBox.Position = UDim2.new(0, 20, 0, 188)
+        codeBox.Size = UDim2.new(1, -40, 0, 88)
+        codeBox.Position = UDim2.new(0, 20, 0, 220)
         codeBox.BackgroundColor3 = SG_CARD_INNER
         codeBox.BorderSizePixel = 0
         codeBox.ClipsDescendants = true
@@ -35560,16 +35943,19 @@ end
             mVal.Parent = rightCard
         end
 
-        local signedFooter = Instance.new("TextLabel")
-        signedFooter.Size = UDim2.new(1, -24, 0, 28)
-        signedFooter.Position = UDim2.new(0, 12, 1, -36)
+        local signedFooter = Instance.new("TextButton")
+        signedFooter.Size = UDim2.new(1, -24, 0, 32)
+        signedFooter.Position = UDim2.new(0, 12, 1, -38)
         signedFooter.BackgroundTransparency = 1
-        signedFooter.Text = "Signed by ScriptGuard · Coco Powder\nValid for session · 0.00ms Protected"
-        signedFooter.TextColor3 = SG_TEXT_MUTED
-        signedFooter.Font = Enum.Font.Gotham
+        signedFooter.Text = "Discord: https://discord.gg/jSA7QWQuJ\nSigned by ScriptGuard · 0.00ms Protected"
+        signedFooter.TextColor3 = Color3.fromRGB(165, 180, 252)
+        signedFooter.Font = Enum.Font.GothamMedium
         signedFooter.TextSize = 9.5
         signedFooter.ZIndex = 1004
         signedFooter.Parent = rightCard
+        signedFooter.MouseButton1Click:Connect(function()
+            copyDiscordInvite(nil, nil)
+        end)
 
         local function closeVerificationLoader()
             scanToken = scanToken + 1
@@ -35717,6 +36103,7 @@ end
                 "Trust Score: " .. tostring(roleInfo.trustScore) .. " / 100 (VERIFIED)",
                 "Zero-Delay Weld: 0.00ms PreCam + Character+1 Active",
                 "Anti-VC Engine: Coca Anti-VC Bypass V2 Ready",
+                "Discord Server: https://discord.gg/jSA7QWQuJ",
                 "Executor: " .. execName,
             }, "\n")
             pcall(function()
