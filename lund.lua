@@ -904,9 +904,6 @@ do
 			targetWasAutoSelected = false
 			DepartedPlayersCache = {}
 			LastAttachedDepartedInfo = nil
-			AllPlayersWeldEnabled = false
-			AllPlayersCycleInterval = 1.2
-			AllPlayersActivePreset = nil
 			LastKnownSafeCF = nil
 			FacebangTarget = nil
 			HeadsitTarget = nil
@@ -915,13 +912,6 @@ do
 			ProposeTarget = nil
 			BagpackTarget = nil
 			GoonTarget = nil
-			RizzTarget = nil
-			JerkTarget = nil
-			KissTarget = nil
-			LawlTarget = nil
-			ChootleloTarget = nil
-			BackshotsTarget = nil
-			ChaseTarget = nil
 			CustomAttachTarget = nil
 			CustomAttachEmoteId = ""
 			CustomAttachFacing = "Front"
@@ -942,7 +932,6 @@ do
 			tbl = {
 				NoDelay = true,
 				AutoHeight = true,
-				AllPlayersCycle = false,
 				ContextMenu = false,
 				AdminDisabled = false,
 				AdminFrozen = false,
@@ -975,20 +964,6 @@ do
 				Bagpack = false,
 				GoonEnabled = false,
 				Goon = false,
-				RizzEnabled = false,
-				Rizz = false,
-				JerkEnabled = false,
-				Jerk = false,
-				KissEnabled = false,
-				Kiss = false,
-				LawlEnabled = false,
-				Lawl = false,
-				ChootleloEnabled = false,
-				Chootlelo = false,
-				BackshotsEnabled = false,
-				Backshots = false,
-				ChaseEnabled = false,
-				Chase = false,
 				CustomAttachEnabled = false,
 				CustomAttach = false,
 				ClickToTarget = false,
@@ -1042,13 +1017,6 @@ do
 				"Fronthug",
 				"Bagpack",
 				"Goon",
-				"Rizz",
-				"Jerk",
-				"Kiss",
-				"Lawl",
-				"Chootlelo",
-				"Backshots",
-				"Chase",
 				"CustomAttach",
 			}
 
@@ -1062,13 +1030,6 @@ do
 				Propose = function() return ProposeTarget end,
 				Bagpack = function() return BagpackTarget end,
 				Goon = function() return GoonTarget end,
-				Rizz = function() return RizzTarget end,
-				Jerk = function() return JerkTarget end,
-				Kiss = function() return KissTarget end,
-				Lawl = function() return LawlTarget end,
-				Chootlelo = function() return ChootleloTarget end,
-				Backshots = function() return BackshotsTarget end,
-				Chase = function() return ChaseTarget end,
 				CustomAttach = function() return CustomAttachTarget end,
 			}
 
@@ -1082,13 +1043,6 @@ do
 				Propose = function(p) ProposeTarget = p end,
 				Bagpack = function(p) BagpackTarget = p end,
 				Goon = function(p) GoonTarget = p end,
-				Rizz = function(p) RizzTarget = p end,
-				Jerk = function(p) JerkTarget = p end,
-				Kiss = function(p) KissTarget = p end,
-				Lawl = function(p) LawlTarget = p end,
-				Chootlelo = function(p) ChootleloTarget = p end,
-				Backshots = function(p) BackshotsTarget = p end,
-				Chase = function(p) ChaseTarget = p end,
 				CustomAttach = function(p) CustomAttachTarget = p end,
 			}
 
@@ -1240,15 +1194,8 @@ do
 				Propose = Enum.KeyCode.V,
 				Hipbang = Enum.KeyCode.N,
 				Bagpack = Enum.KeyCode.J,
-				Goon = Enum.KeyCode.N,
-				Rizz = Enum.KeyCode.None,
-				Jerk = Enum.KeyCode.None,
-				Kiss = Enum.KeyCode.None,
-				Lawl = Enum.KeyCode.None,
-				Chootlelo = Enum.KeyCode.None,
-				Backshots = Enum.KeyCode.None,
-				Chase = Enum.KeyCode.None,
-				CustomAttach = Enum.KeyCode.None,
+				Goon = Enum.KeyCode.Y,
+				CustomAttach = Enum.KeyCode.C,
 				Fling = Enum.KeyCode.None,
 				Fakeout = Enum.KeyCode.K,
 				GlitchDesync = Enum.KeyCode.L,
@@ -12754,7 +12701,7 @@ do
 
 									textLabel10.Size = udim212
 									textLabel10.Position = UDim2.new(0, 0, 0, 0)
-									textLabel10.Text = "<font color='rgb(135, 140, 165)'>Lead Dev:</font> <b>@hor1zxn.</b>"
+									textLabel10.Text = "<font color='rgb(135, 140, 165)'>Owner:</font> <b>@Riyoneee</b>"
 									textLabel10.RichText = true
 									textLabel10.Font = Enum.Font.GothamMedium
 									local textSize4 = r211
@@ -12820,7 +12767,7 @@ do
 										end)
 
 										pcall(function()
-											setclipboard("hor1zxn")
+											setclipboard("Riyoneee")
 											return
 										end)
 
@@ -15019,23 +14966,6 @@ do
 							SendNotification("Riyon", "Anatomical Auto-Height: " .. (arg and "ON" or "OFF"), 2)
 						end)
 
-						createToggle(combatPage, "All Players Auto-Cycle (0.00ms)", "Sequentially attach to every player in the server with 0.00ms target hot-swap", "AllPlayersCycle", -0.6, function(arg)
-							tbl.AllPlayersCycle = arg
-							AllPlayersWeldEnabled = arg
-							if arg then
-								if type(startAllPlayersWeldCycle) == "function" then
-									startAllPlayersWeldCycle(AllPlayersActivePreset or "Facebang")
-								end
-							else
-								if type(stopAllPlayersWeldCycle) == "function" then
-									stopAllPlayersWeldCycle()
-								end
-							end
-						end)
-
-						createSlider(combatPage, "All Players Cycle Speed (sec)", "Time spent welded on each player before 0.00ms hot-swap (0.4s - 5.0s)", 0.4, 5.0, AllPlayersCycleInterval or 1.2, 1, -0.4, function(arg)
-							AllPlayersCycleInterval = tonumber(arg) or 1.2
-						end)
 						createSection(combatPage, "Facebang & Hipbang Controls", 1)
 
 						do
@@ -15054,7 +14984,7 @@ do
 								end
 
 								if not facebangEnabled then
-									tbl.Facebang = false
+									SetAttachState("Facebang", false)
 									FacebangTarget = nil
 								end
 							end)
@@ -15096,8 +15026,7 @@ do
 								end
 
 								if not hipbangEnabled then
-									tbl.Hipbang = false
-
+									SetAttachState("Hipbang", false)
 									HipbangTarget = nil
 								end
 							end)
@@ -15124,7 +15053,7 @@ do
 				do
 					local v6
 
-					createSection(combatPage, "Weld & Attach Interactions (All File 2 Presets)", 8)
+					createSection(combatPage, "Weld & Attach Interactions", 8)
 					v6 = createGridContainer(combatPage, 9)
 
 					local function registerInteractionToggle(label, desc, stateKey, orderIdx)
@@ -15132,7 +15061,7 @@ do
 						createKeybindToggle(v6, label, desc, enabledKey, stateKey, tbl2[stateKey] or Enum.KeyCode.None, orderIdx, function(isEnabled)
 							tbl[enabledKey] = isEnabled
 							if not isEnabled then
-								tbl[stateKey] = false
+								SetAttachState(stateKey, false)
 								if AttachTargetSetters and AttachTargetSetters[stateKey] then
 									AttachTargetSetters[stateKey](nil)
 								end
@@ -15147,13 +15076,6 @@ do
 					registerInteractionToggle("Propose", "Propose to target (70639053125611)", "Propose", 5)
 					registerInteractionToggle("Bagpack", "Attach to target's back like a backpack", "Bagpack", 6)
 					registerInteractionToggle("Goon", "Face-to-face goon emote (136828069054505)", "Goon", 7)
-					registerInteractionToggle("Rizz (Kabedon)", "Eye-level Kabedon rizz pose (90735295463164)", "Rizz", 8)
-					registerInteractionToggle("Jerk", "Front jerk emote with R15/R6 fallbacks (72042024)", "Jerk", 9)
-					registerInteractionToggle("Kiss", "Face-to-face kiss weld (81124524945738)", "Kiss", 10)
-					registerInteractionToggle("Lawl Dance", "Front lawl dance weld (507770818 / 129423131)", "Lawl", 11)
-					registerInteractionToggle("Chootlelo", "Elevated oscillating front weld (116235062592344)", "Chootlelo", 12)
-					registerInteractionToggle("Backshots", "0.00ms oscillating backshots weld (116235062592344)", "Backshots", 13)
-					registerInteractionToggle("Chase", "Zero-delay behind-target chase lock", "Chase", 14)
 				end
 
 				do
@@ -15191,7 +15113,7 @@ do
 							L1.step3 = n209
 							step += 68
 						elseif not customAttachEnabled then
-							tbl.CustomAttach = false
+							SetAttachState("CustomAttach", false)
 							CustomAttachTarget = nil
 						end
 					end)
@@ -16174,29 +16096,6 @@ do
 				bindTargetActionGridBtn("Hipbang", "Hipbang", false, 7, "Chat Command: ;hb (name)")
 				bindTargetActionGridBtn("Bagpack", "Bagpack", false, 8, "Chat Command: ;bp (name)")
 				bindTargetActionGridBtn("Goon", "Goon", true, 9, "Chat Command: ;gn (name)")
-				bindTargetActionGridBtn("Rizz", "Rizz", true, 10, "Chat Command: ;rizz (name)")
-				bindTargetActionGridBtn("Jerk", "Jerk", true, 11, "Chat Command: ;jerk (name)")
-				bindTargetActionGridBtn("Kiss", "Kiss", true, 12, "Chat Command: ;kiss (name)")
-				bindTargetActionGridBtn("Lawl", "Lawl", true, 13, "Chat Command: ;lawl (name)")
-				bindTargetActionGridBtn("Chootlelo", "Chootlelo", true, 14, "Chat Command: ;choot (name)")
-				bindTargetActionGridBtn("Backshots", "Backshots", false, 15, "Chat Command: ;bs (name)")
-				bindTargetActionGridBtn("Chase", "Chase", false, 16, "Chat Command: ;chase (name)")
-
-				GridButtonVisuals.AllPlayersCycle = select(2, createGridButton("Cycle All (0ms)", true, function(arg)
-					tbl.AllPlayersCycle = arg
-					AllPlayersWeldEnabled = arg
-					if arg then
-						if type(startAllPlayersWeldCycle) == "function" then
-							startAllPlayersWeldCycle(AllPlayersActivePreset or "Facebang")
-						end
-						return true
-					else
-						if type(stopAllPlayersWeldCycle) == "function" then
-							stopAllPlayersWeldCycle()
-						end
-						return true
-					end
-				end, 17, "Chat Command: ;all [preset]"))
 				createSection(targetPage, "Player Search", 6)
 				instance = createInputField(targetPage, "SEARCH PLAYERS", "Search by name...", "", 7)
 				L1.iterFn1 = Instance.new("ImageLabel", instance.Parent)
@@ -40334,38 +40233,65 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 
 				do
 					local tbl17 = {}
-					local n204 = nil
 
-					createToggle(_vLighting, "Enhance Graphics", "High fidelity lighting, shadows, and bloom", "EnhanceGraphics", 3, function(arg)
-						n204 = 33653888
-
+					createToggle(_vLighting, "Enhance Graphics", "High fidelity RTX lighting, volumetric atmosphere, shadows, and bloom", "EnhanceGraphics", 3, function(arg)
 						if arg then
 							pcall(function()
+								for _, v6 in ipairs(tbl17) do
+									if v6 and v6.Parent then
+										v6:Destroy()
+									end
+								end
+								table.clear(tbl17)
+
+								pcall(function()
+									if sethiddenproperty then
+										sethiddenproperty(Lighting, "Technology", Enum.Technology.Future)
+									else
+										Lighting.Technology = Enum.Technology.Future
+									end
+								end)
 								Lighting.GlobalShadows = true
-								Lighting.Ambient = Color3.fromRGB(30, 30, 30)
-								Lighting.Brightness = 1.2
+								Lighting.ShadowSoftness = 0.12
+								Lighting.Ambient = Color3.fromRGB(35, 38, 48)
+								Lighting.OutdoorAmbient = Color3.fromRGB(95, 105, 128)
+								Lighting.Brightness = 2.6
 								Lighting.EnvironmentDiffuseScale = 1
 								Lighting.EnvironmentSpecularScale = 1
+								Lighting.ExposureCompensation = 0.15
+
 								local colorCorrectionEffect = Instance.new("ColorCorrectionEffect")
-								colorCorrectionEffect.Brightness = 0
-								colorCorrectionEffect.Contrast = 0.1
-								colorCorrectionEffect.Saturation = 0.15
+								colorCorrectionEffect.Name = "RiyonEnhanceCC"
+								colorCorrectionEffect.Brightness = 0.02
+								colorCorrectionEffect.Contrast = 0.16
+								colorCorrectionEffect.Saturation = 0.22
+								colorCorrectionEffect.TintColor = Color3.fromRGB(252, 248, 255)
 								colorCorrectionEffect.Parent = Lighting
 								table.insert(tbl17, colorCorrectionEffect)
+
 								local bloomEffect = Instance.new("BloomEffect")
-								bloomEffect.Intensity = 0.2
-								bloomEffect.Size = 24
-								bloomEffect.Threshold = 0.8
+								bloomEffect.Name = "RiyonEnhanceBloom"
+								bloomEffect.Intensity = 0.45
+								bloomEffect.Size = 28
+								bloomEffect.Threshold = 0.85
 								bloomEffect.Parent = Lighting
 								table.insert(tbl17, bloomEffect)
+
 								local sunRaysEffect = Instance.new("SunRaysEffect")
-								sunRaysEffect.Intensity = 0.05
-								sunRaysEffect.Spread = 0.1
+								sunRaysEffect.Name = "RiyonEnhanceSunRays"
+								sunRaysEffect.Intensity = 0.12
+								sunRaysEffect.Spread = 0.65
 								sunRaysEffect.Parent = Lighting
-								if n204 < 242839192 then
-									table.insert(tbl17, sunRaysEffect)
-									return
-								end
+								table.insert(tbl17, sunRaysEffect)
+
+								local dofEffect = Instance.new("DepthOfFieldEffect")
+								dofEffect.Name = "RiyonEnhanceDOF"
+								dofEffect.FarIntensity = 0.15
+								dofEffect.FocusDistance = 25
+								dofEffect.InFocusRadius = 35
+								dofEffect.NearIntensity = 0.1
+								dofEffect.Parent = Lighting
+								table.insert(tbl17, dofEffect)
 							end)
 						else
 							pcall(function()
@@ -40374,6 +40300,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 								Lighting.EnvironmentDiffuseScale = environmentDiffuseScale
 								Lighting.EnvironmentSpecularScale = environmentSpecularScale
 								Lighting.GlobalShadows = globalShadows
+								Lighting.ExposureCompensation = 0
 
 								for _, v6 in ipairs(tbl17) do
 									if v6 and v6.Parent then
@@ -40391,64 +40318,105 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 					createSection(_vLighting, "Shades", 5)
 
 					do
-						local function fn16()
-							local count = 113934011
-							game:GetService("Players")
+						local shaderConnections = {}
+						local shaderCreatedInstances = {}
+
+						local function saveLightingSnapshotIfNeeded()
 							local Lighting2 = game:GetService("Lighting")
-							local count3 = 222884579
 							local Workspace_2 = game:GetService("Workspace")
-							local RunService2 = game:GetService("RunService")
-							local n205 = nil
-
-							pcall(function(arg, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16, arg17, arg18, arg19, arg20, arg21, arg22, arg23, arg24, arg25, arg26, arg27, arg28, arg29, arg30, arg31, arg32, arg33, arg34, arg35, arg36, arg37, arg38, arg39, arg40, arg41, arg42, arg43, arg44, arg45, arg46, arg47, arg48, arg49, arg50, callback)
-								n205 = 469482542
-								if count < n205 then
-									Workspace_2.DescendantAdded:DisconnectAll()
-									return
+							if not getgenv().ORIGINAL_LIGHTING or not next(getgenv().ORIGINAL_LIGHTING) then
+								local okT, curTech = pcall(function() return Lighting2.Technology end)
+								getgenv().ORIGINAL_LIGHTING = {
+									Technology = (okT and curTech) or Enum.Technology.ShadowMap,
+									Ambient = Lighting2.Ambient,
+									OutdoorAmbient = Lighting2.OutdoorAmbient,
+									Brightness = Lighting2.Brightness,
+									ColorShift_Bottom = Lighting2.ColorShift_Bottom,
+									ColorShift_Top = Lighting2.ColorShift_Top,
+									FogColor = Lighting2.FogColor,
+									FogEnd = Lighting2.FogEnd,
+									FogStart = Lighting2.FogStart,
+									GlobalShadows = Lighting2.GlobalShadows,
+									ShadowSoftness = Lighting2.ShadowSoftness,
+									EnvironmentDiffuseScale = Lighting2.EnvironmentDiffuseScale,
+									EnvironmentSpecularScale = Lighting2.EnvironmentSpecularScale,
+									ExposureCompensation = Lighting2.ExposureCompensation,
+									ClockTime = Lighting2.ClockTime,
+									GeographicLatitude = Lighting2.GeographicLatitude,
+								}
+								local curSky = Lighting2:FindFirstChildOfClass("Sky")
+								if curSky then
+									getgenv().ORIGINAL_SKY = {
+										SkyboxBk = curSky.SkyboxBk,
+										SkyboxDn = curSky.SkyboxDn,
+										SkyboxFt = curSky.SkyboxFt,
+										SkyboxLf = curSky.SkyboxLf,
+										SkyboxRt = curSky.SkyboxRt,
+										SkyboxUp = curSky.SkyboxUp,
+										CelestialBodiesShown = curSky.CelestialBodiesShown,
+										StarCount = curSky.StarCount,
+									}
 								end
-								count = 1029766323
-								L1.step2 = 960876670
-								step -= 1670
-								n205 = 489584955
-								L1.step4 += 328
-								count3 = 158478715
-								L1.step3 = 637596455
-								callback()
-							end)
-
-							pcall(function()
-								RunService2.RenderStepped:DisconnectAll()
-								if L1.step4 < L1.step2 then
-									return
+								local curAtmo = Lighting2:FindFirstChildOfClass("Atmosphere")
+								if curAtmo then
+									getgenv().ORIGINAL_ATMO = {
+										Density = curAtmo.Density,
+										Offset = curAtmo.Offset,
+										Color = curAtmo.Color,
+										Decay = curAtmo.Decay,
+										Glare = curAtmo.Glare,
+										Haze = curAtmo.Haze,
+									}
 								end
-							end)
+								local terrain = Workspace_2:FindFirstChildOfClass("Terrain")
+								if terrain then
+									getgenv().ORIGINAL_WATER = {
+										WaterColor = terrain.WaterColor,
+										WaterReflectance = terrain.WaterReflectance,
+										WaterTransparency = terrain.WaterTransparency,
+										WaterWaveSize = terrain.WaterWaveSize,
+										WaterWaveSpeed = terrain.WaterWaveSpeed,
+									}
+								end
+							end
+						end
 
-							pcall(function()
-								getgenv().GI_SYSTEM = nil
-							end)
-
-							for _, child in ipairs(Lighting2:GetChildren()) do
+						local function clearShaderEffectsOnly()
+							for _, conn in ipairs(shaderConnections) do
+								pcall(function() conn:Disconnect() end)
+							end
+							table.clear(shaderConnections)
+							for _, inst in ipairs(shaderCreatedInstances) do
 								pcall(function()
-									if child:FindFirstProperty("Enabled") then
-										child.Enabled = false
+									if inst and inst.Parent then inst:Destroy() end
+								end)
+							end
+							table.clear(shaderCreatedInstances)
+							local Lighting2 = game:GetService("Lighting")
+							for _, child in ipairs(Lighting2:GetChildren()) do
+								if child.Name ~= "RiyonCamLightCC" and not child.Name:find("^RiyonEnhance") then
+									if child:IsA("PostEffect") or child:IsA("Atmosphere") or child:IsA("Sky") then
+										pcall(function() child:Destroy() end)
 									end
-
-									child:Destroy()
-								end)
+								end
 							end
+						end
 
-							task.wait(0.05)
-
-							for _, child in ipairs(Lighting2:GetChildren()) do
-								pcall(function()
-									child:Destroy()
-								end)
-							end
+						local function fn16(keepSnapshot)
+							local Lighting2 = game:GetService("Lighting")
+							local Workspace_2 = game:GetService("Workspace")
+							pcall(function() getgenv().GI_SYSTEM = nil end)
+							clearShaderEffectsOnly()
 
 							local originalLighting = getgenv().ORIGINAL_LIGHTING
-
 							if originalLighting and next(originalLighting) then
-								Lighting2.Technology = originalLighting.Technology
+								pcall(function()
+									if sethiddenproperty then
+										sethiddenproperty(Lighting2, "Technology", originalLighting.Technology)
+									else
+										Lighting2.Technology = originalLighting.Technology
+									end
+								end)
 								Lighting2.Ambient = originalLighting.Ambient
 								Lighting2.OutdoorAmbient = originalLighting.OutdoorAmbient
 								Lighting2.Brightness = originalLighting.Brightness
@@ -40464,29 +40432,25 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 								Lighting2.ExposureCompensation = originalLighting.ExposureCompensation
 								Lighting2.ClockTime = originalLighting.ClockTime
 								Lighting2.GeographicLatitude = originalLighting.GeographicLatitude
-								print("[Reset] Lighting restored from snapshot.")
 							else
-								Lighting2.Technology = Enum.Technology.Compatibility
-								Lighting2.Ambient = Color3.fromRGB(127, 127, 127)
+								Lighting2.Ambient = ambient or Color3.fromRGB(127, 127, 127)
 								Lighting2.OutdoorAmbient = Color3.fromRGB(127, 127, 127)
-								Lighting2.Brightness = 2
+								Lighting2.Brightness = brightness or 2
 								Lighting2.ColorShift_Bottom = Color3.fromRGB(0, 0, 0)
 								Lighting2.ColorShift_Top = Color3.fromRGB(0, 0, 0)
 								Lighting2.FogColor = Color3.fromRGB(191, 191, 191)
 								Lighting2.FogEnd = 100000
 								Lighting2.FogStart = 0
-								Lighting2.GlobalShadows = true
+								Lighting2.GlobalShadows = globalShadows ~= false
 								Lighting2.ShadowSoftness = 0.2
-								Lighting2.EnvironmentDiffuseScale = 1
-								Lighting2.EnvironmentSpecularScale = 1
+								Lighting2.EnvironmentDiffuseScale = environmentDiffuseScale or 1
+								Lighting2.EnvironmentSpecularScale = environmentSpecularScale or 1
 								Lighting2.ExposureCompensation = 0
 								Lighting2.ClockTime = 14
 								Lighting2.GeographicLatitude = 41.733
-								print("[Reset] No snapshot — Roblox defaults applied.")
 							end
 
 							local originalSky = getgenv().ORIGINAL_SKY
-
 							if originalSky then
 								local sky = Instance.new("Sky")
 								sky.SkyboxBk = originalSky.SkyboxBk
@@ -40498,13 +40462,9 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 								sky.CelestialBodiesShown = originalSky.CelestialBodiesShown
 								sky.StarCount = originalSky.StarCount
 								sky.Parent = Lighting2
-							else
-								print("[Reset] No sky snapshot — leaving default procedural sky.")
 							end
 
 							local originalAtmo = getgenv().ORIGINAL_ATMO
-							local str3
-
 							if originalAtmo then
 								local atmosphere = Instance.new("Atmosphere")
 								atmosphere.Density = originalAtmo.Density
@@ -40514,26 +40474,11 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 								atmosphere.Glare = originalAtmo.Glare
 								atmosphere.Haze = originalAtmo.Haze
 								atmosphere.Parent = Lighting2
-								str3 = "[Reset] Atmosphere restored from snapshot."
-								print(str3)
-							else
-								print("[Reset] No snapshot — leaving default lighting without Atmosphere.")
-							end
-
-							task.wait(0.05)
-
-							for _, child in ipairs(Lighting2:GetChildren()) do
-								if child:IsA("BloomEffect") or child:IsA("ColorCorrectionEffect") or child:IsA("SunRaysEffect") or child:IsA("DepthOfFieldEffect") or child:IsA("BlurEffect") then
-									child.Enabled = false
-									child:Destroy()
-								end
 							end
 
 							local terrain = Workspace_2:FindFirstChildOfClass("Terrain")
-
 							if terrain then
 								local originalWater = getgenv().ORIGINAL_WATER
-
 								if originalWater then
 									terrain.WaterColor = originalWater.WaterColor
 									terrain.WaterReflectance = originalWater.WaterReflectance
@@ -40547,7 +40492,6 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 									terrain.WaterWaveSize = 0.15
 									terrain.WaterWaveSpeed = 10
 								end
-
 								for _, child in ipairs(terrain:GetChildren()) do
 									if child:IsA("Clouds") then
 										child:Destroy()
@@ -40555,65 +40499,320 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 								end
 							end
 
-							function isCharacterPart(instance2)
-								local model = instance2:FindFirstAncestorOfClass("Model")
-
-								if count < count3 then
-									local model2 = model
-
-									if model2 then
-										model2 = model:FindFirstChildOfClass("Humanoid") ~= nil
-									end
-
-									return model2
-								end
-							end
-
 							local originalColors = getgenv().ORIGINAL_COLORS
-							local count5 = 0
-							local count6 = 0
-
-							for _, descendant in ipairs(Workspace_2:GetDescendants()) do
-								if descendant:IsA("BasePart") and not isCharacterPart(descendant) then
+							if originalColors then
+								for part, col in pairs(originalColors) do
 									pcall(function()
-										if originalColors and originalColors[descendant] then
-											descendant.Color = originalColors[descendant]
-											count5 += 1
-										else
-											count6 += 1
-										end
-
-										if count < step then
-											return
-										end
-
+										if part and part.Parent then part.Color = col end
 									end)
 								end
 							end
 
-							getgenv().ORIGINAL_COLORS = nil
-							getgenv().ORIGINAL_LIGHTING = nil
-							getgenv().ORIGINAL_WATER = nil
-							getgenv().ORIGINAL_SKY = nil
-							getgenv().ORIGINAL_ATMO = nil
-							print(string.format("[Reset] DONE. %d parts restored, %d skipped. Glow and fog removed.", count5, count6))
+							if not keepSnapshot then
+								getgenv().ORIGINAL_COLORS = nil
+								getgenv().ORIGINAL_LIGHTING = nil
+								getgenv().ORIGINAL_WATER = nil
+								getgenv().ORIGINAL_SKY = nil
+								getgenv().ORIGINAL_ATMO = nil
+							end
+						end
+
+						local builtinShaderPresets = {
+							["pink.lua"] = {
+								clockTime = 17.6,
+								brightness = 2.8,
+								exposure = 0.2,
+								shadowSoftness = 0.14,
+								ambient = Color3.fromRGB(115, 65, 95),
+								outdoorAmbient = Color3.fromRGB(195, 125, 165),
+								colorShiftTop = Color3.fromRGB(255, 165, 215),
+								colorShiftBottom = Color3.fromRGB(165, 85, 140),
+								fogColor = Color3.fromRGB(255, 185, 220),
+								atmo = { density = 0.34, offset = 0.15, color = Color3.fromRGB(255, 185, 225), decay = Color3.fromRGB(205, 95, 165), glare = 0.65, haze = 2.2 },
+								cc = { brightness = 0.03, contrast = 0.16, saturation = 0.30, tint = Color3.fromRGB(255, 220, 240) },
+								bloom = { intensity = 0.65, size = 32, threshold = 0.8 },
+								sunRays = { intensity = 0.22, spread = 0.75 },
+								dof = { far = 0.22, focus = 30, radius = 35, near = 0.1 },
+								stars = 3000,
+								waterColor = Color3.fromRGB(235, 125, 185),
+							},
+							["space.lua"] = {
+								clockTime = 0.0,
+								brightness = 2.4,
+								exposure = 0.15,
+								shadowSoftness = 0.1,
+								ambient = Color3.fromRGB(22, 26, 58),
+								outdoorAmbient = Color3.fromRGB(52, 62, 125),
+								colorShiftTop = Color3.fromRGB(95, 115, 255),
+								colorShiftBottom = Color3.fromRGB(25, 20, 75),
+								fogColor = Color3.fromRGB(28, 32, 78),
+								atmo = { density = 0.28, offset = 0.1, color = Color3.fromRGB(55, 68, 155), decay = Color3.fromRGB(16, 18, 52), glare = 0.45, haze = 1.9 },
+								cc = { brightness = 0.02, contrast = 0.24, saturation = 0.32, tint = Color3.fromRGB(205, 215, 255) },
+								bloom = { intensity = 0.75, size = 36, threshold = 0.75 },
+								sunRays = { intensity = 0.08, spread = 0.4 },
+								dof = { far = 0.18, focus = 35, radius = 40, near = 0.05 },
+								stars = 5000,
+								waterColor = Color3.fromRGB(25, 45, 115),
+							},
+							["anime.lua"] = {
+								clockTime = 15.2,
+								brightness = 3.4,
+								exposure = 0.25,
+								shadowSoftness = 0.08,
+								ambient = Color3.fromRGB(75, 105, 145),
+								outdoorAmbient = Color3.fromRGB(135, 175, 225),
+								colorShiftTop = Color3.fromRGB(145, 215, 255),
+								colorShiftBottom = Color3.fromRGB(95, 145, 215),
+								fogColor = Color3.fromRGB(155, 215, 255),
+								atmo = { density = 0.24, offset = 0.2, color = Color3.fromRGB(135, 210, 255), decay = Color3.fromRGB(255, 185, 140), glare = 0.85, haze = 1.4 },
+								cc = { brightness = 0.04, contrast = 0.20, saturation = 0.48, tint = Color3.fromRGB(245, 252, 255) },
+								bloom = { intensity = 0.6, size = 28, threshold = 0.82 },
+								sunRays = { intensity = 0.25, spread = 0.85 },
+								dof = { far = 0.15, focus = 30, radius = 40, near = 0.05 },
+								clouds = { cover = 0.62, density = 0.85, color = Color3.fromRGB(255, 252, 250) },
+								stars = 1500,
+								waterColor = Color3.fromRGB(35, 175, 245),
+							},
+							["aurora.lua"] = {
+								clockTime = 21.5,
+								brightness = 2.6,
+								exposure = 0.2,
+								shadowSoftness = 0.15,
+								ambient = Color3.fromRGB(25, 85, 75),
+								outdoorAmbient = Color3.fromRGB(45, 145, 125),
+								colorShiftTop = Color3.fromRGB(55, 255, 195),
+								colorShiftBottom = Color3.fromRGB(115, 55, 225),
+								fogColor = Color3.fromRGB(45, 185, 155),
+								atmo = { density = 0.31, offset = 0.15, color = Color3.fromRGB(55, 245, 185), decay = Color3.fromRGB(125, 55, 225), glare = 0.75, haze = 2.1 },
+								cc = { brightness = 0.03, contrast = 0.22, saturation = 0.36, tint = Color3.fromRGB(210, 255, 242) },
+								bloom = { intensity = 0.8, size = 34, threshold = 0.76 },
+								sunRays = { intensity = 0.14, spread = 0.6 },
+								dof = { far = 0.2, focus = 28, radius = 35, near = 0.08 },
+								stars = 5000,
+								animatedAurora = true,
+								waterColor = Color3.fromRGB(25, 195, 165),
+							},
+							["night_sky.lua"] = {
+								clockTime = 23.2,
+								brightness = 2.2,
+								exposure = 0.12,
+								shadowSoftness = 0.18,
+								ambient = Color3.fromRGB(28, 38, 65),
+								outdoorAmbient = Color3.fromRGB(65, 88, 140),
+								colorShiftTop = Color3.fromRGB(120, 160, 255),
+								colorShiftBottom = Color3.fromRGB(20, 30, 55),
+								fogColor = Color3.fromRGB(35, 50, 88),
+								atmo = { density = 0.30, offset = 0.12, color = Color3.fromRGB(65, 92, 155), decay = Color3.fromRGB(18, 25, 52), glare = 0.5, haze = 2.0 },
+								cc = { brightness = 0.02, contrast = 0.20, saturation = 0.20, tint = Color3.fromRGB(212, 228, 255) },
+								bloom = { intensity = 0.65, size = 30, threshold = 0.78 },
+								sunRays = { intensity = 0.10, spread = 0.5 },
+								dof = { far = 0.2, focus = 30, radius = 38, near = 0.08 },
+								stars = 5000,
+								waterColor = Color3.fromRGB(22, 55, 110),
+							},
+							["aesthetic.lua"] = {
+								clockTime = 17.85,
+								brightness = 2.9,
+								exposure = 0.22,
+								shadowSoftness = 0.15,
+								ambient = Color3.fromRGB(105, 65, 85),
+								outdoorAmbient = Color3.fromRGB(195, 120, 110),
+								colorShiftTop = Color3.fromRGB(255, 150, 85),
+								colorShiftBottom = Color3.fromRGB(165, 95, 205),
+								fogColor = Color3.fromRGB(245, 155, 120),
+								atmo = { density = 0.35, offset = 0.18, color = Color3.fromRGB(255, 165, 115), decay = Color3.fromRGB(165, 75, 155), glare = 0.95, haze = 2.3 },
+								cc = { brightness = 0.03, contrast = 0.18, saturation = 0.34, tint = Color3.fromRGB(255, 230, 212) },
+								bloom = { intensity = 0.7, size = 32, threshold = 0.78 },
+								sunRays = { intensity = 0.28, spread = 0.9 },
+								dof = { far = 0.25, focus = 26, radius = 32, near = 0.12 },
+								stars = 2500,
+								waterColor = Color3.fromRGB(215, 115, 145),
+							},
+							["red_cosmos.lua"] = {
+								clockTime = 18.4,
+								brightness = 2.5,
+								exposure = 0.18,
+								shadowSoftness = 0.14,
+								ambient = Color3.fromRGB(95, 22, 32),
+								outdoorAmbient = Color3.fromRGB(165, 42, 58),
+								colorShiftTop = Color3.fromRGB(255, 55, 75),
+								colorShiftBottom = Color3.fromRGB(95, 12, 25),
+								fogColor = Color3.fromRGB(185, 32, 48),
+								atmo = { density = 0.36, offset = 0.15, color = Color3.fromRGB(235, 45, 65), decay = Color3.fromRGB(75, 10, 22), glare = 0.75, haze = 2.4 },
+								cc = { brightness = 0.02, contrast = 0.25, saturation = 0.30, tint = Color3.fromRGB(255, 200, 205) },
+								bloom = { intensity = 0.75, size = 34, threshold = 0.76 },
+								sunRays = { intensity = 0.22, spread = 0.75 },
+								dof = { far = 0.2, focus = 28, radius = 35, near = 0.1 },
+								stars = 4000,
+								waterColor = Color3.fromRGB(175, 25, 45),
+							},
+							["cyan_space.lua"] = {
+								clockTime = 20.2,
+								brightness = 2.7,
+								exposure = 0.2,
+								shadowSoftness = 0.12,
+								ambient = Color3.fromRGB(22, 75, 98),
+								outdoorAmbient = Color3.fromRGB(48, 145, 185),
+								colorShiftTop = Color3.fromRGB(55, 235, 255),
+								colorShiftBottom = Color3.fromRGB(18, 65, 135),
+								fogColor = Color3.fromRGB(38, 165, 215),
+								atmo = { density = 0.32, offset = 0.14, color = Color3.fromRGB(52, 220, 255), decay = Color3.fromRGB(16, 65, 140), glare = 0.7, haze = 2.1 },
+								cc = { brightness = 0.03, contrast = 0.22, saturation = 0.36, tint = Color3.fromRGB(208, 248, 255) },
+								bloom = { intensity = 0.78, size = 34, threshold = 0.76 },
+								sunRays = { intensity = 0.18, spread = 0.65 },
+								dof = { far = 0.2, focus = 30, radius = 36, near = 0.08 },
+								stars = 5000,
+								waterColor = Color3.fromRGB(20, 175, 225),
+							},
+						}
+
+						local function applyBuiltinShaderPreset(preset)
+							local Lighting2 = game:GetService("Lighting")
+							local Workspace_2 = game:GetService("Workspace")
+							local RunService2 = game:GetService("RunService")
+
+							pcall(function()
+								if sethiddenproperty then
+									sethiddenproperty(Lighting2, "Technology", Enum.Technology.Future)
+								else
+									Lighting2.Technology = Enum.Technology.Future
+								end
+							end)
+
+							Lighting2.GlobalShadows = true
+							Lighting2.ShadowSoftness = preset.shadowSoftness or 0.15
+							Lighting2.ClockTime = preset.clockTime or 14
+							Lighting2.Brightness = preset.brightness or 2.5
+							Lighting2.ExposureCompensation = preset.exposure or 0.15
+							Lighting2.EnvironmentDiffuseScale = 1
+							Lighting2.EnvironmentSpecularScale = 1
+							Lighting2.Ambient = preset.ambient
+							Lighting2.OutdoorAmbient = preset.outdoorAmbient
+							Lighting2.ColorShift_Top = preset.colorShiftTop
+							Lighting2.ColorShift_Bottom = preset.colorShiftBottom
+							Lighting2.FogColor = preset.fogColor
+							Lighting2.FogStart = 50
+							Lighting2.FogEnd = 4500
+
+							local sky = Instance.new("Sky")
+							sky.Name = "RiyonShaderSky"
+							local origSky = getgenv().ORIGINAL_SKY
+							if origSky then
+								sky.SkyboxBk = origSky.SkyboxBk
+								sky.SkyboxDn = origSky.SkyboxDn
+								sky.SkyboxFt = origSky.SkyboxFt
+								sky.SkyboxLf = origSky.SkyboxLf
+								sky.SkyboxRt = origSky.SkyboxRt
+								sky.SkyboxUp = origSky.SkyboxUp
+							end
+							sky.CelestialBodiesShown = true
+							sky.StarCount = preset.stars or 3000
+							sky.SunAngularSize = 14
+							sky.MoonAngularSize = 11
+							sky.Parent = Lighting2
+							table.insert(shaderCreatedInstances, sky)
+
+							local atmo = Instance.new("Atmosphere")
+							atmo.Name = "RiyonShaderAtmo"
+							atmo.Density = preset.atmo.density
+							atmo.Offset = preset.atmo.offset
+							atmo.Color = preset.atmo.color
+							atmo.Decay = preset.atmo.decay
+							atmo.Glare = preset.atmo.glare
+							atmo.Haze = preset.atmo.haze
+							atmo.Parent = Lighting2
+							table.insert(shaderCreatedInstances, atmo)
+
+							local cc = Instance.new("ColorCorrectionEffect")
+							cc.Name = "RiyonShaderCC"
+							cc.Brightness = preset.cc.brightness
+							cc.Contrast = preset.cc.contrast
+							cc.Saturation = preset.cc.saturation
+							cc.TintColor = preset.cc.tint
+							cc.Parent = Lighting2
+							table.insert(shaderCreatedInstances, cc)
+
+							local bloom = Instance.new("BloomEffect")
+							bloom.Name = "RiyonShaderBloom"
+							bloom.Intensity = preset.bloom.intensity
+							bloom.Size = preset.bloom.size
+							bloom.Threshold = preset.bloom.threshold
+							bloom.Parent = Lighting2
+							table.insert(shaderCreatedInstances, bloom)
+
+							local sunRays = Instance.new("SunRaysEffect")
+							sunRays.Name = "RiyonShaderSunRays"
+							sunRays.Intensity = preset.sunRays.intensity
+							sunRays.Spread = preset.sunRays.spread
+							sunRays.Parent = Lighting2
+							table.insert(shaderCreatedInstances, sunRays)
+
+							local dof = Instance.new("DepthOfFieldEffect")
+							dof.Name = "RiyonShaderDOF"
+							dof.FarIntensity = preset.dof.far
+							dof.FocusDistance = preset.dof.focus
+							dof.InFocusRadius = preset.dof.radius
+							dof.NearIntensity = preset.dof.near
+							dof.Parent = Lighting2
+							table.insert(shaderCreatedInstances, dof)
+
+							local terrain = Workspace_2:FindFirstChildOfClass("Terrain")
+							if terrain then
+								if preset.waterColor then
+									terrain.WaterColor = preset.waterColor
+									terrain.WaterReflectance = 1
+									terrain.WaterTransparency = 0.15
+									terrain.WaterWaveSize = 0.18
+									terrain.WaterWaveSpeed = 14
+								end
+								if preset.clouds then
+									local clouds = Instance.new("Clouds")
+									clouds.Name = "RiyonShaderClouds"
+									clouds.Cover = preset.clouds.cover
+									clouds.Density = preset.clouds.density
+									clouds.Color = preset.clouds.color
+									clouds.Parent = terrain
+									table.insert(shaderCreatedInstances, clouds)
+								end
+							end
+
+							if preset.animatedAurora then
+								local conn = RunService2.Heartbeat:Connect(function()
+									if not atmo or not atmo.Parent then return end
+									local alpha = (math.sin(os.clock() * 0.8) + 1) * 0.5
+									atmo.Color = Color3.fromRGB(45, 250, 185):Lerp(Color3.fromRGB(110, 95, 255), alpha)
+									atmo.Decay = Color3.fromRGB(125, 55, 225):Lerp(Color3.fromRGB(35, 195, 215), alpha)
+									Lighting2.ColorShift_Top = atmo.Color
+								end)
+								table.insert(shaderConnections, conn)
+							end
 						end
 
 						function applyShade(url, str3)
 							if L1.step4 < L1.step3 then
 								task.spawn(function()
-									pcall(fn16)
 									if not url then
+										pcall(fn16, false)
 										SendNotification("Riyon", "Shaders reset to default!", 2)
 										return
 									end
 
+									pcall(saveLightingSnapshotIfNeeded)
+									pcall(fn16, true)
+
+									local key = string.lower(tostring(url))
 									local ok, result = pcall(function()
-										if isfile and isfile(url) then loadstring(readfile(url))() end
+										if isfile and isfile(url) then
+											loadstring(readfile(url))()
+										elseif builtinShaderPresets[key] then
+											applyBuiltinShaderPreset(builtinShaderPresets[key])
+										else
+											applyBuiltinShaderPreset(builtinShaderPresets["aesthetic.lua"])
+										end
 									end)
 
 									if ok then
-										SendNotification("Riyon", str3 .. " shader applied!", 2)
+										SendNotification("Riyon", (str3 or "Custom") .. " shader applied!", 2)
 									else
 										SendNotification("Riyon", "Failed to load shader: " .. tostring(result), 2)
 									end
@@ -40861,6 +41060,14 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 				end
 
 				do
+					local terrainPresets = {
+						["snow.lua"] = Enum.Material.Snow,
+						["grass.lua"] = Enum.Material.LeafyGrass,
+						["water.lua"] = Enum.Material.Water,
+						["sand.lua"] = Enum.Material.Sand,
+						["lava.lua"] = Enum.Material.CrackedLava,
+					}
+
 					function applyTerrain(url, str3)
 						task.spawn(function()
 							pcall(fn16)
@@ -40870,7 +41077,24 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							end
 
 							local ok, result = pcall(function()
-								if isfile and isfile(url) then loadstring(readfile(url))() end
+								if isfile and isfile(url) then
+									loadstring(readfile(url))()
+								else
+									local mat = terrainPresets[string.lower(tostring(url))] or Enum.Material.Grass
+									local terrain = workspace:FindFirstChildOfClass("Terrain")
+									if terrain then
+										for _, part in ipairs(workspace:GetDescendants()) do
+											if part:IsA("BasePart") then
+												local pname = string.lower(part.Name)
+												if (string.find(pname, "baseplate") or string.find(pname, "floor") or string.find(pname, "ground") or (part.Size.X > 100 and part.Size.Z > 100)) and part.Size.Y < 20 then
+													pcall(function()
+														terrain:FillBlock(part.CFrame, Vector3.new(math.min(part.Size.X, 2048), math.max(part.Size.Y, 6), math.min(part.Size.Z, 2048)), mat)
+													end)
+												end
+											end
+										end
+									end
+								end
 							end)
 
 							if ok then
@@ -56756,22 +56980,15 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 						-- PORTED FROM FILE 2: Multi-ID R15/R6 Animation Fallback Loader
 						-- =====================================================================
 						WELD_ANIM_FALLBACKS = {
-							BANG_R15 = { 116235062592344, 128342454196913, 5918726674, 148840371, 4555808220, 109168916859109, 85194549268064, 10714010337, 5915714366, 3333499508, 507771019 },
-							BANG_R6 = { 116235062592344, 128342454196913, 5918726674, 148840371, 4555808220, 109168916859109, 178130996, 182436842, 180435571, 182435998 },
-							JERK_R15 = { 72042024, 698251653, 136828069054505, 5918726674 },
-							JERK_R6 = { 72042024, 136828069054505, 178130996, 148840371 },
-							GOON_R15 = { 136828069054505, 72042024, 116235062592344, 698251653, 5918726674 },
-							GOON_R6 = { 136828069054505, 72042024, 178130996, 148840371 },
-							RIZZ_R15 = { 90735295463164, 1069977950, 15392756794, 15392752812, 3333387824, 507770239 },
-							RIZZ_R6 = { 90735295463164, 180435571, 128777973, 1069977950 },
-							PAT = { 114313599861536, 114022540397953, 3344650532, 507770239 },
-							HUG = { 95247520541805, 117991975031893, 3338010159 },
-							PROPOSE = { 70639053125611, 107416091886634, 4555816777 },
-							KISS = { 81124524945738, 3576686446, 95247520541805, 117991975031893 },
-							LAWL_R15 = { 507770818, 507770239, 33796059 },
-							LAWL_R6 = { 129423131, 33796059, 180435571 },
-							SIT_R15 = { 2506281703, 2510238627, 507768375, 178130996 },
-							SIT_R6 = { 178130996, 2506281703, 180426354 },
+							BANG_R15 = { 116235062592344, 5918726674, 4555808220, 3333499508, 507771019 },
+							BANG_R6 = { 148840371, 178130996, 180435571, 182436842 },
+							GOON_R15 = { 136828069054505, 698251653, 5918726674, 507770239 },
+							GOON_R6 = { 72042024, 148840371, 178130996, 180435571 },
+							PAT = { 114313599861536, 3344650532, 507770239, 180435571 },
+							HUG = { 95247520541805, 3338010159, 4555816777, 180435571 },
+							PROPOSE = { 70639053125611, 4555816777, 3338010159, 180435571 },
+							SIT_R15 = { 2506281703, 507768375, 2510238627, 178130996 },
+							SIT_R6 = { 178130996, 180426354, 2506281703 },
 						}
 
 						function loadBestPresetAnimationTrack(animator, humanoid2, idListR15, idListR6)
@@ -56781,7 +56998,9 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							if not animator then return nil end
 							local isR6 = humanoid2 and (humanoid2.RigType == Enum.HumanoidRigType.R6)
 							local candidates = (isR6 and idListR6) or idListR15 or idListR6 or {}
-							for _, animId in ipairs(candidates) do
+							local primaryTrack = nil
+							local primaryIndex = 1
+							for idx, animId in ipairs(candidates) do
 								local ok, track = pcall(function()
 									local anim = Instance.new("Animation")
 									anim.AnimationId = "rbxassetid://" .. tostring(animId)
@@ -56792,10 +57011,36 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 									return tr
 								end)
 								if ok and track then
-									return track
+									primaryTrack = track
+									primaryIndex = idx
+									break
 								end
 							end
-							return nil
+							if primaryTrack and #candidates > primaryIndex then
+								task.spawn(function()
+									task.wait(0.35)
+									if primaryTrack and (not primaryTrack.IsPlaying or primaryTrack.Length == 0) and animator and animator.Parent and isAnyAttachActive() then
+										for i = primaryIndex + 1, #candidates do
+											local okF, fbTr = pcall(function()
+												local anim = Instance.new("Animation")
+												anim.AnimationId = "rbxassetid://" .. tostring(candidates[i])
+												local tr = animator:LoadAnimation(anim)
+												tr.Priority = Enum.AnimationPriority.Action4
+												tr.Looped = true
+												tr:Play(0.05, 1, 1)
+												return tr
+											end)
+											if okF and fbTr then
+												task.wait(0.25)
+												if fbTr.IsPlaying and fbTr.Length > 0 then
+													break
+												end
+											end
+										end
+									end
+								end)
+							end
+							return primaryTrack
 						end
 
 						-- =====================================================================
@@ -57757,125 +58002,8 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							clearAutoSelectedTarget()
 						end
 
-						-- =====================================================================
-						-- PORTED FROM FILE 2: Additional Presets (Rizz, Jerk, Kiss, Lawl, Chootlelo, Backshots, Chase)
-						-- =====================================================================
 						local extraPresetStates = {}
-						local extraPresetConfigs = {
-							Rizz = {
-								r15 = WELD_ANIM_FALLBACKS.RIZZ_R15,
-								r6 = WELD_ANIM_FALLBACKS.RIZZ_R6,
-								compute = function(refPart, tChar)
-									local baseCF = getFlatYawCFrame(refPart.CFrame)
-									local yAdj = getAnatomicalYAdjustment("Rizz", tChar, refPart)
-									return baseCF * CFrame.new(0, yAdj, -1.28) * CFrame.Angles(0, math.rad(180), 0)
-								end,
-							},
-							Jerk = {
-								r15 = WELD_ANIM_FALLBACKS.JERK_R15,
-								r6 = WELD_ANIM_FALLBACKS.JERK_R6,
-								compute = function(refPart, tChar)
-									local baseCF = getFlatYawCFrame(refPart.CFrame)
-									local yAdj = getAnatomicalYAdjustment("Jerk", tChar, refPart)
-									return baseCF * CFrame.new(0, yAdj, -1.45) * CFrame.Angles(0, math.rad(180), 0)
-								end,
-							},
-							Kiss = {
-								r15 = WELD_ANIM_FALLBACKS.KISS,
-								r6 = WELD_ANIM_FALLBACKS.KISS,
-								compute = function(refPart, tChar)
-									local baseCF = getFlatYawCFrame(refPart.CFrame)
-									local yAdj = getAnatomicalYAdjustment("Kiss", tChar, refPart)
-									return baseCF * CFrame.new(0, yAdj, -1.1) * CFrame.Angles(0, math.rad(180), 0)
-								end,
-							},
-							Lawl = {
-								r15 = WELD_ANIM_FALLBACKS.LAWL_R15,
-								r6 = WELD_ANIM_FALLBACKS.LAWL_R6,
-								compute = function(refPart, tChar)
-									local baseCF = getFlatYawCFrame(refPart.CFrame)
-									local yAdj = getAnatomicalYAdjustment("Lawl", tChar, refPart)
-									return baseCF * CFrame.new(0, yAdj, -2.4) * CFrame.Angles(0, math.rad(180), 0)
-								end,
-							},
-							Chootlelo = {
-								r15 = WELD_ANIM_FALLBACKS.BANG_R15,
-								r6 = WELD_ANIM_FALLBACKS.BANG_R6,
-								compute = function(refPart, tChar)
-									local baseCF = getFlatYawCFrame(refPart.CFrame)
-									local alpha = (math.sin((os.clock() / 0.22) * math.pi * 2) + 1) * 0.5
-									local zDist = -3.8 + alpha * 2.9
-									local yAdj = getAnatomicalYAdjustment("Chootlelo", tChar, refPart)
-									return baseCF * CFrame.new(0, 2.2 + yAdj, zDist) * CFrame.Angles(0, math.rad(180), 0)
-								end,
-							},
-							Backshots = {
-								r15 = WELD_ANIM_FALLBACKS.BANG_R15,
-								r6 = WELD_ANIM_FALLBACKS.BANG_R6,
-								compute = function(refPart, tChar)
-									local baseCF = getFlatYawCFrame(refPart.CFrame)
-									local alpha = (math.sin((os.clock() / 0.22) * math.pi * 2) + 1) * 0.5
-									local zDist = 3.2 - alpha * 2.9
-									local yAdj = getAnatomicalYAdjustment("Backshots", tChar, refPart)
-									return baseCF * CFrame.new(0, yAdj, zDist)
-								end,
-							},
-							Chase = {
-								r15 = nil,
-								r6 = nil,
-								compute = function(refPart, tChar)
-									local baseCF = getFlatYawCFrame(refPart.CFrame)
-									local yAdj = getAnatomicalYAdjustment("Chase", tChar, refPart)
-									return baseCF * CFrame.new(0, yAdj, 2.2)
-								end,
-							},
-						}
-
-						for pName, pCfg in pairs(extraPresetConfigs) do
-							extraPresetStates[pName] = { setupChar = nil, track = nil, wasDis = false, origParts = {} }
-							pCfg.cleanup = function()
-								local st = extraPresetStates[pName]
-								restoreCharacterAfterAttach(st.setupChar, st.track, st.wasDis, st.origParts)
-								st.setupChar = nil
-								st.track = nil
-								st.wasDis = false
-							end
-							pCfg.setup = function()
-								local st = extraPresetStates[pName]
-								local character2 = localPlayer_.Character or character
-								if not character2 then return false end
-								if st.setupChar == character2 and (not pCfg.r15 or (st.track and st.track.IsPlaying)) then
-									return true
-								end
-								pCfg.cleanup()
-								local c, tr, wasDis = prepareCharacterForAttach(pCfg.r15, pCfg.r6)
-								if not c then return false end
-								st.setupChar = c
-								st.track = tr
-								st.wasDis = wasDis
-								return true
-							end
-							pCfg.apply = function(isHb)
-								local tgt = AttachTargetGetters[pName] and AttachTargetGetters[pName]()
-								if tbl[pName] and tgt and humanoidRootPart then
-									local tChar, refPart, validHRP = resolveTargetParts(tgt, "torso")
-									if refPart then
-										local cf = pCfg.compute(refPart, tChar)
-										if cf then
-											return applyZeroDelayWeldCFrame(cf, validHRP, isHb), cf
-										end
-									end
-								end
-								return false, nil
-							end
-							pCfg.deactivate = function()
-								local tgt = AttachTargetGetters[pName] and AttachTargetGetters[pName]() or TargetPlayer
-								pCfg.cleanup()
-								attachRestoreCam()
-								attachSafelyLandAtTarget(tgt)
-								clearAutoSelectedTarget()
-							end
-						end
+						local extraPresetConfigs = {}
 
 						-- 10. CUSTOM ATTACH
 						customAttachSetupChar = nil
@@ -63905,13 +64033,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							billboardGui.Enabled = tbl.ShowOverheadLogo ~= false
 							local playerFromCharacter2 = L1.Players_:GetPlayerFromCharacter(character2)
 							local zIndex = playerFromCharacter2 == L1.Players_.LocalPlayer
-							local displayName = playerFromCharacter2
-
-							if displayName then
-								displayName = playerFromCharacter2.DisplayName
-							end
-
-							displayName = displayName or character2.Name
+							local displayName = "RIYON USER"
 							local str3 = "139175707588865"
 							local riyonCustomTag = nil
 
@@ -63931,10 +64053,6 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 								end
 
 								if riyonCustomTag then
-									if riyonCustomTag.customName then
-										displayName = riyonCustomTag.customName
-									end
-
 									if riyonCustomTag.backgroundId and tostring(riyonCustomTag.backgroundId) ~= "" then
 										str3 = tostring(riyonCustomTag.backgroundId)
 									end
@@ -64152,7 +64270,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 								textAnimation = riyonCustomTag.textAnimation
 							end
 
-							textAnimation = textAnimation or "none"
+							textAnimation = textAnimation or "shimmer"
 
 							if textAnimation == "shimmer" then
 								textLabel7.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -64753,15 +64871,6 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 								backpack = "Bagpack",
 								gn = "Goon",
 								goon = "Goon",
-								rizz = "Rizz",
-								jerk = "Jerk",
-								kiss = "Kiss",
-								lawl = "Lawl",
-								choot = "Chootlelo",
-								chootlelo = "Chootlelo",
-								bs = "Backshots",
-								backshots = "Backshots",
-								chase = "Chase",
 							}
 
 							if str4 == "all" or str4 == "unall" then
@@ -65730,8 +65839,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 
 							for _, ctxFeat in ipairs({
 								"Pat", "Facebang", "Hipbang", "Headsit", "Backhug", "Fronthug",
-								"Propose", "Bagpack", "Goon", "Rizz", "Jerk", "Kiss",
-								"Lawl", "Chootlelo", "Backshots", "Chase", "CustomAttach"
+								"Propose", "Bagpack", "Goon", "CustomAttach"
 							}) do
 								local featKey = ctxFeat
 								local btnLabel = (featKey == "CustomAttach") and "Custom Attach" or featKey
