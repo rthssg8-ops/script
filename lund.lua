@@ -1,4 +1,3 @@
-
 --[==[
 
                               '`":;Il!lII;,^`
@@ -2037,14 +2036,36 @@ do
 				if L1.step4 < step then
 					task.spawn(function()
 						pcall(function()
-							if L1.TextChatService.ChatVersion ~= Enum.ChatVersion.TextChatService then
-								ReplicatedStorage.DefaultChatSystemChatEvents.SayMessageRequest:FireServer(arg, "All")
-							else
-								local rbxGeneral = L1.TextChatService.TextChannels:FindFirstChild("RBXGeneral")
-
-								if rbxGeneral then
-									rbxGeneral:SendAsync(arg)
+							local msg = tostring(arg or "")
+							if msg == "" then
+								return
+							end
+							if L1.TextChatService and L1.TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
+								local cleanMsg = msg:gsub("[\r\n]+", " ")
+								if #cleanMsg > 195 then
+									cleanMsg = string.sub(cleanMsg, 1, 195)
 								end
+								local textChannels = L1.TextChatService:FindFirstChild("TextChannels")
+								local channel = textChannels and (textChannels:FindFirstChild("RBXGeneral") or textChannels:FindFirstChild("RBXSystem") or textChannels:FindFirstChildOfClass("TextChannel"))
+								if not channel then
+									for _, desc in ipairs(L1.TextChatService:GetDescendants()) do
+										if desc:IsA("TextChannel") then
+											channel = desc
+											if desc.Name == "RBXGeneral" then
+												break
+											end
+										end
+									end
+								end
+								if channel then
+									channel:SendAsync(cleanMsg)
+									return
+								end
+							end
+							local chatEvents = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
+							local sayReq = chatEvents and chatEvents:FindFirstChild("SayMessageRequest")
+							if sayReq then
+								sayReq:FireServer(msg, "All")
 							end
 						end)
 					end)
@@ -32685,16 +32706,16 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 
 											if arg and flag10 and part and typeof(sethiddenproperty) == "function" then
 												pcall(function()
-													sethiddenproperty(humanoidRootPart2, "PhysicsRepRootPart", part)
+													sethiddenproperty(humanoidRootPart2, "PhysicsRepRootPart", nil)
 													sethiddenproperty(humanoidRootPart2, "NetworkIsSleeping", false)
 												end)
 
-												humanoidRootPart2.CFrame = part.CFrame:ToObjectSpace(cframe)
-												humanoidRootPart2.AssemblyLinearVelocity = Vector3.zero
+												humanoidRootPart2.CFrame = cframe
+												humanoidRootPart2.AssemblyLinearVelocity = part.AssemblyLinearVelocity or part.Velocity or Vector3.zero
 												humanoidRootPart2.AssemblyAngularVelocity = Vector3.new(900000000, 900000000, 900000000)
 
 												pcall(function()
-													humanoidRootPart2.Velocity = Vector3.zero
+													humanoidRootPart2.Velocity = humanoidRootPart2.AssemblyLinearVelocity
 													humanoidRootPart2.RotVelocity = Vector3.new(900000000, 900000000, 900000000)
 												end)
 											else
@@ -32832,7 +32853,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 													sethiddenproperty(humanoidRootPart2, "NetworkIsSleeping", false)
 
 													if rootPart2 and flag10 then
-														sethiddenproperty(humanoidRootPart2, "PhysicsRepRootPart", rootPart2)
+														sethiddenproperty(humanoidRootPart2, "PhysicsRepRootPart", nil)
 													end
 												end
 											end)
@@ -43893,9 +43914,22 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 								chatStartBtn.Text = "ACTIVE..."
 
 								task.spawn(function()
+									local spamCycle = 0
+									local antiDupTags = { "", " .", " ..", " -", " ~", " ,", " '" }
 									while tbl.ChatSpamActive do
-										sendChat(text)
-										task.wait(n204)
+										spamCycle += 1
+										local liveText = (v6 and v6.Text ~= "" and v6.Text) or text
+										local suffix = antiDupTags[((spamCycle - 1) % #antiDupTags) + 1]
+										local outMsg = liveText
+										if suffix ~= "" and (#outMsg + #suffix) <= 195 then
+											outMsg = outMsg .. suffix
+										end
+										sendChat(outMsg)
+										local liveDelay = tonumber(v7 and v7.Text) or n204
+										if liveDelay < 0.2 then
+											liveDelay = 0.2
+										end
+										task.wait(liveDelay)
 									end
 								end)
 							end)
@@ -44099,17 +44133,19 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 									local function fn18(text, text2)
 										local text3
 
-										if text2 and text2 ~= "" and text2:lower() ~= "smart" then
-											if not (#text2 <= 2) then
+										if text2 and text2 ~= "" and text2:lower() ~= "smart" and text2 ~= "_" then
+											if #text2 >= 25 then
 												text3 = text2
 											else
-												text3 = string.rep(text2, 145)
+												local pat = (#text2 == 1) and (text2 .. "-") or text2
+												text3 = string.rep(pat, math.ceil(150 / math.max(1, #pat)))
 											end
 										else
 											text3 = fn16(tbl19, tbl20)
 										end
 
-										local str3 = "\n" .. text .. " " .. fn16(fn17(), tbl21) .. " >"
+										local sep = (L1.TextChatService and L1.TextChatService.ChatVersion == Enum.ChatVersion.TextChatService) and " " or "\n"
+										local str3 = sep .. text .. " " .. fn16(fn17(), tbl21) .. " >"
 										local flag9 = false
 
 										for _, v12 in ipairs(tbl18) do
@@ -44190,16 +44226,23 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 											task.spawn(function()
 												if flag8 then
 													local displayName = localPlayer_.DisplayName or localPlayer_.Name
-													local str3 = fn16(tbl17, tbl20)
+													local str3 = fn16(tbl19, tbl20)
 													local str4 = string.sub(str3, 1, 110)
-													sendChat(str4 .. "\n" .. string.upper(displayName) .. " ON TOP >")
+													local sep = (L1.TextChatService and L1.TextChatService.ChatVersion == Enum.ChatVersion.TextChatService) and " " or "\n"
+													sendChat(str4 .. sep .. string.upper(displayName) .. " ON TOP >")
 													task.wait(n221)
 												end
 
 												while flag8 do
-													local v11 = fn18(text, text2)
+													local liveTgt = (v8 and v8.Text ~= "" and v8.Text) or text
+													local liveSym = (v10 and v10.Text ~= "" and v10.Text) or text2
+													local v11 = fn18(liveTgt, liveSym)
 													sendChat(v11)
-													task.wait(n221)
+													local liveWait = tonumber(v9 and v9.Text) or n221
+													if liveWait < 0.2 then
+														liveWait = 0.2
+													end
+													task.wait(liveWait)
 												end
 
 												if L1.step4 < 816588632 then
@@ -49412,10 +49455,13 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 														if not character2 then
 															return
 														end
-														local character3 = player.Character
+														local character3 = (type(findPlayerCharacterAnywhere) == "function" and findPlayerCharacterAnywhere(player)) or player.Character
 
 														if character3 then
-															local humanoidRootPart2 = character3:FindFirstChild("HumanoidRootPart") or character3:FindFirstChild("Torso")
+															local humanoidRootPart2 = (type(pickTargetRef) == "function" and pickTargetRef(character3, "torso")) or character3:FindFirstChild("HumanoidRootPart") or character3:FindFirstChild("Torso")
+															if humanoidRootPart2 and type(isPartInSafeWorldBounds) == "function" and not isPartInSafeWorldBounds(humanoidRootPart2) then
+																humanoidRootPart2 = nil
+															end
 
 															if humanoidRootPart2 then
 																if flag14 then
@@ -49450,7 +49496,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 
 																	for _, descendant in ipairs(character3:GetDescendants()) do
 																		if descendant:IsA("BasePart") and not descendant:FindFirstAncestorOfClass("Accessory") then
-																			local part2 = tbl31[descendant.Name] or character2:FindFirstChild(descendant.Name)
+																			local part2 = tbl31[descendant.Name] or character2:FindFirstChild(descendant.Name) or fn35(character2, descendant.Name)
 
 																			if part2 and part2:IsA("BasePart") then
 																				part2.CFrame = n275 * (humanoidRootPart2.CFrame:Inverse() * descendant.CFrame)
@@ -49480,7 +49526,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 
 																	for _, descendant in ipairs(character3:GetDescendants()) do
 																		if descendant:IsA("BasePart") and not descendant:FindFirstAncestorOfClass("Accessory") then
-																			local part2 = tbl31[descendant.Name] or character2:FindFirstChild(descendant.Name)
+																			local part2 = tbl31[descendant.Name] or character2:FindFirstChild(descendant.Name) or fn35(character2, descendant.Name)
 
 																			if part2 and part2:IsA("BasePart") then
 																				part2.CFrame = n275 * (humanoidRootPart2.CFrame:Inverse() * descendant.CFrame)
@@ -49507,10 +49553,13 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 															if not character2 then
 																return
 															end
-															local character3 = player.Character
+															local character3 = (type(findPlayerCharacterAnywhere) == "function" and findPlayerCharacterAnywhere(player)) or player.Character
 
 															if character3 then
-																local humanoidRootPart2 = character3:FindFirstChild("HumanoidRootPart") or character3:FindFirstChild("Torso")
+																local humanoidRootPart2 = (type(pickTargetRef) == "function" and pickTargetRef(character3, "torso")) or character3:FindFirstChild("HumanoidRootPart") or character3:FindFirstChild("Torso")
+																if humanoidRootPart2 and type(isPartInSafeWorldBounds) == "function" and not isPartInSafeWorldBounds(humanoidRootPart2) then
+																	humanoidRootPart2 = nil
+																end
 
 																if humanoidRootPart2 then
 																	if flag14 then
@@ -49545,7 +49594,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 
 																		for _, descendant in ipairs(character3:GetDescendants()) do
 																			if descendant:IsA("BasePart") and not descendant:FindFirstAncestorOfClass("Accessory") then
-																				local part2 = tbl31[descendant.Name] or character2:FindFirstChild(descendant.Name)
+																				local part2 = tbl31[descendant.Name] or character2:FindFirstChild(descendant.Name) or fn35(character2, descendant.Name)
 
 																				if part2 and part2:IsA("BasePart") then
 																					part2.CFrame = n275 * (humanoidRootPart2.CFrame:Inverse() * descendant.CFrame)
@@ -49575,7 +49624,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 
 																		for _, descendant in ipairs(character3:GetDescendants()) do
 																			if descendant:IsA("BasePart") and not descendant:FindFirstAncestorOfClass("Accessory") then
-																				local part2 = tbl31[descendant.Name] or character2:FindFirstChild(descendant.Name)
+																				local part2 = tbl31[descendant.Name] or character2:FindFirstChild(descendant.Name) or fn35(character2, descendant.Name)
 
 																				if part2 and part2:IsA("BasePart") then
 																					part2.CFrame = n275 * (humanoidRootPart2.CFrame:Inverse() * descendant.CFrame)
@@ -49636,10 +49685,13 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 														if not character2 then
 															return
 														end
-														local character3 = player.Character
+														local character3 = (type(findPlayerCharacterAnywhere) == "function" and findPlayerCharacterAnywhere(player)) or player.Character
 
 														if character3 then
-															local humanoidRootPart2 = character3:FindFirstChild("HumanoidRootPart") or character3:FindFirstChild("Torso")
+															local humanoidRootPart2 = (type(pickTargetRef) == "function" and pickTargetRef(character3, "torso")) or character3:FindFirstChild("HumanoidRootPart") or character3:FindFirstChild("Torso")
+															if humanoidRootPart2 and type(isPartInSafeWorldBounds) == "function" and not isPartInSafeWorldBounds(humanoidRootPart2) then
+																humanoidRootPart2 = nil
+															end
 
 															if humanoidRootPart2 then
 																if flag14 then
@@ -49674,7 +49726,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 
 																	for _, descendant in ipairs(character3:GetDescendants()) do
 																		if descendant:IsA("BasePart") and not descendant:FindFirstAncestorOfClass("Accessory") then
-																			local part2 = tbl31[descendant.Name] or character2:FindFirstChild(descendant.Name)
+																			local part2 = tbl31[descendant.Name] or character2:FindFirstChild(descendant.Name) or fn35(character2, descendant.Name)
 
 																			if part2 and part2:IsA("BasePart") then
 																				part2.CFrame = n275 * (humanoidRootPart2.CFrame:Inverse() * descendant.CFrame)
@@ -49704,7 +49756,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 
 																	for _, descendant in ipairs(character3:GetDescendants()) do
 																		if descendant:IsA("BasePart") and not descendant:FindFirstAncestorOfClass("Accessory") then
-																			local part2 = tbl31[descendant.Name] or character2:FindFirstChild(descendant.Name)
+																			local part2 = tbl31[descendant.Name] or character2:FindFirstChild(descendant.Name) or fn35(character2, descendant.Name)
 
 																			if part2 and part2:IsA("BasePart") then
 																				part2.CFrame = n275 * (humanoidRootPart2.CFrame:Inverse() * descendant.CFrame)
@@ -49733,10 +49785,13 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 															if not character2 then
 																return
 															end
-															local character3 = player.Character
+															local character3 = (type(findPlayerCharacterAnywhere) == "function" and findPlayerCharacterAnywhere(player)) or player.Character
 
 															if character3 then
-																local humanoidRootPart2 = character3:FindFirstChild("HumanoidRootPart") or character3:FindFirstChild("Torso")
+																local humanoidRootPart2 = (type(pickTargetRef) == "function" and pickTargetRef(character3, "torso")) or character3:FindFirstChild("HumanoidRootPart") or character3:FindFirstChild("Torso")
+																if humanoidRootPart2 and type(isPartInSafeWorldBounds) == "function" and not isPartInSafeWorldBounds(humanoidRootPart2) then
+																	humanoidRootPart2 = nil
+																end
 
 																if humanoidRootPart2 then
 																	if flag14 then
@@ -49771,7 +49826,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 
 																		for _, descendant in ipairs(character3:GetDescendants()) do
 																			if descendant:IsA("BasePart") and not descendant:FindFirstAncestorOfClass("Accessory") then
-																				local part2 = tbl31[descendant.Name] or character2:FindFirstChild(descendant.Name)
+																				local part2 = tbl31[descendant.Name] or character2:FindFirstChild(descendant.Name) or fn35(character2, descendant.Name)
 
 																				if part2 and part2:IsA("BasePart") then
 																					part2.CFrame = n275 * (humanoidRootPart2.CFrame:Inverse() * descendant.CFrame)
@@ -49801,7 +49856,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 
 																		for _, descendant in ipairs(character3:GetDescendants()) do
 																			if descendant:IsA("BasePart") and not descendant:FindFirstAncestorOfClass("Accessory") then
-																				local part2 = tbl31[descendant.Name] or character2:FindFirstChild(descendant.Name)
+																				local part2 = tbl31[descendant.Name] or character2:FindFirstChild(descendant.Name) or fn35(character2, descendant.Name)
 
 																				if part2 and part2:IsA("BasePart") then
 																					part2.CFrame = n275 * (humanoidRootPart2.CFrame:Inverse() * descendant.CFrame)
@@ -54639,8 +54694,16 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 						local strk = stroke(btn, (str3 == modeName) and tbl3.accent or tbl3.divider, 1, 0)
 						modeButtons[modeName] = { btn = btn, strk = strk }
 						btn.MouseButton1Click:Connect(function()
+							local prevMode = str3
 							str3 = modeName
 							refreshModeVisuals()
+							if flag8 then
+								if str3 == "Free" and type(_G._RestoreAnimCopyFreeMode) == "function" then
+									pcall(_G._RestoreAnimCopyFreeMode)
+								elseif prevMode == "Free" and type(_G._LockAnimCopyMode) == "function" then
+									pcall(_G._LockAnimCopyMode)
+								end
+							end
 						end)
 					end
 
@@ -54848,43 +54911,365 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 						end)
 					end)
 
+					local copiedTracks = {}
+					local copiedAnimObjects = {}
+					local failedAnimCooldowns = {}
+					local lastSafeCopyCF = nil
+					local copySetupChar = nil
+
+					local crossRigPartMap = {
+						Torso = { "UpperTorso", "LowerTorso" },
+						["Right Arm"] = { "RightUpperArm", "RightLowerArm", "RightHand" },
+						["Left Arm"] = { "LeftUpperArm", "LeftLowerArm", "LeftHand" },
+						["Right Leg"] = { "RightUpperLeg", "RightLowerLeg", "RightFoot" },
+						["Left Leg"] = { "LeftUpperLeg", "LeftLowerLeg", "LeftFoot" },
+						UpperTorso = { "Torso" },
+						LowerTorso = { "Torso" },
+						RightUpperArm = { "Right Arm" },
+						LeftUpperArm = { "Left Arm" },
+						RightUpperLeg = { "Right Leg" },
+						LeftUpperLeg = { "Left Leg" },
+					}
+
+					local function findMappedTargetPart(tChar, partName)
+						if not tChar or not partName then return nil end
+						local direct = tChar:FindFirstChild(partName)
+						if direct and direct:IsA("BasePart") then
+							return direct
+						end
+						local alts = crossRigPartMap[partName]
+						if alts then
+							for _, altName in ipairs(alts) do
+								local p = tChar:FindFirstChild(altName)
+								if p and p:IsA("BasePart") then
+									return p
+								end
+							end
+						end
+						return nil
+					end
+
+					local function clearCopiedTrackCache()
+						for id, tr in pairs(copiedTracks) do
+							pcall(function()
+								tr:Stop(0)
+								tr:Destroy()
+							end)
+							copiedTracks[id] = nil
+						end
+						for id, animObj in pairs(copiedAnimObjects) do
+							pcall(function()
+								animObj:Destroy()
+							end)
+							copiedAnimObjects[id] = nil
+						end
+						table.clear(failedAnimCooldowns)
+					end
+
+					local function restoreAnimCopyCharacterPhysics(keepCopyRunning)
+						if type(clearPhysicsRep) == "function" then
+							clearPhysicsRep()
+						end
+						local character3 = localPlayer_.Character or character
+						if type(releaseWeldNoclipCache) == "function" then
+							pcall(releaseWeldNoclipCache, character3)
+						end
+						pcall(function()
+							if not (type(isAnyAttachActive) == "function" and isAnyAttachActive()) then
+								workspace.Gravity = 196.2
+							end
+							if not character3 then return end
+							local humanoid3 = character3:FindFirstChildOfClass("Humanoid")
+							local root3 = character3:FindFirstChild("HumanoidRootPart") or character3:FindFirstChild("Torso")
+							for _, desc in ipairs(character3:GetDescendants()) do
+								if desc:IsA("BasePart") then
+									desc.Anchored = false
+									desc.Massless = false
+									desc.CanTouch = true
+									desc.CanQuery = true
+									if desc.Name == "HumanoidRootPart" or desc.Name == "Torso" or desc.Name == "UpperTorso" or desc.Name == "LowerTorso" or desc.Name == "Head" then
+										desc.CanCollide = not tbl.Noclip
+									end
+								elseif not keepCopyRunning and desc:IsA("Motor6D") then
+									desc.Transform = CFrame.new()
+								end
+							end
+							if root3 then
+								local landCF = lastSafeCopyCF
+								if (not landCF or (type(isSafePlayableCF) == "function" and not isSafePlayableCF(landCF))) and LastKnownSafeCF and (type(isSafePlayableCF) ~= "function" or isSafePlayableCF(LastKnownSafeCF)) then
+									landCF = LastKnownSafeCF
+								end
+								if landCF and (type(isSafePlayableCF) ~= "function" or isSafePlayableCF(landCF)) then
+									if type(isSafePlayableCF) == "function" and not isSafePlayableCF(root3.CFrame) then
+										local _, yYaw, _ = landCF:ToEulerAnglesYXZ()
+										root3.CFrame = CFrame.new(landCF.Position + Vector3.new(0, 0.5, 0)) * CFrame.Angles(0, yYaw, 0)
+									end
+								end
+								root3.AssemblyLinearVelocity = Vector3.zero
+								root3.AssemblyAngularVelocity = Vector3.zero
+								pcall(function()
+									root3.Velocity = Vector3.zero
+									root3.RotVelocity = Vector3.zero
+								end)
+							end
+							if humanoid3 then
+								humanoid3.PlatformStand = false
+								humanoid3.Sit = false
+								humanoid3.AutoRotate = true
+								pcall(function()
+									humanoid3:ChangeState(Enum.HumanoidStateType.GettingUp)
+									humanoid3:ChangeState(Enum.HumanoidStateType.Running)
+								end)
+							end
+						end)
+					end
+
+					_G._RestoreAnimCopyFreeMode = function()
+						restoreAnimCopyCharacterPhysics(true)
+					end
+
 					local function stepAnimCopyZeroDelay(isHeartbeatStep)
 						if not flag8 or not player then return end
-						local character2 = type(findPlayerCharacterAnywhere) == "function" and findPlayerCharacterAnywhere(player) or player.Character
-						local character3 = localPlayer_.Character
-						if not character2 or not character3 then return end
-						local humanoidRootPart2 = type(pickTargetRef) == "function" and pickTargetRef(character2, "torso") or character2:FindFirstChild("HumanoidRootPart")
+						local character3 = localPlayer_.Character or character
+						if not character3 then return end
 						local humanoidRootPart3 = character3:FindFirstChild("HumanoidRootPart") or character3:FindFirstChild("Torso")
+						if not humanoidRootPart3 then return end
+						humanoidRootPart = humanoidRootPart3
 
-						if humanoidRootPart2 and humanoidRootPart3 and str3 ~= "Free" then
-							local baseRefCF = type(getFlatYawCFrame) == "function" and getFlatYawCFrame(humanoidRootPart2.CFrame) or humanoidRootPart2.CFrame
-							local targetCF
-							if str3 == "Orbit" then
-								local angle = os.clock() * 3.5
-								targetCF = baseRefCF * CFrame.new(math.cos(angle) * 3.5, 0, math.sin(angle) * 3.5)
-							else
-								targetCF = baseRefCF * (tbl17[str3] or CFrame.new(3.2, 0, 0))
+						if copySetupChar ~= character3 then
+							copySetupChar = character3
+							clearCopiedTrackCache()
+							local hum3 = character3:FindFirstChildOfClass("Humanoid")
+							local anim3 = character3:FindFirstChild("Animate")
+							if hum3 then
+								hum3.AutoRotate = (str3 == "Free")
+								hum3.Sit = false
 							end
-							if type(applyZeroDelayWeldCFrame) == "function" then
-								applyZeroDelayWeldCFrame(targetCF, character2:FindFirstChild("HumanoidRootPart"), isHeartbeatStep == true)
+							if anim3 then
+								anim3.Disabled = true
+							end
+						end
+
+						if str3 == "Free" then
+							return
+						end
+
+						local character2 = (type(findPlayerCharacterAnywhere) == "function" and findPlayerCharacterAnywhere(player)) or player.Character
+						local humanoidRootPart2 = nil
+						if character2 then
+							if type(pickTargetRef) == "function" then
+								humanoidRootPart2 = pickTargetRef(character2, "torso")
 							else
-								humanoidRootPart3.CFrame = targetCF
+								local cand = character2:FindFirstChild("HumanoidRootPart") or character2:FindFirstChild("UpperTorso") or character2:FindFirstChild("Torso")
+								if cand and cand:IsA("BasePart") and (type(isPartInSafeWorldBounds) ~= "function" or isPartInSafeWorldBounds(cand)) then
+									humanoidRootPart2 = cand
+								end
+							end
+						end
+
+						if not humanoidRootPart2 then
+							if type(checkAndFollowTargetTeleport) == "function" then
+								pcall(checkAndFollowTargetTeleport, player)
+							end
+							if lastSafeCopyCF and (type(isSafePlayableCF) ~= "function" or isSafePlayableCF(lastSafeCopyCF)) then
+								humanoidRootPart3.CFrame = lastSafeCopyCF
+								humanoidRootPart3.AssemblyLinearVelocity = Vector3.zero
+								humanoidRootPart3.AssemblyAngularVelocity = Vector3.zero
+							end
+							return
+						end
+
+						local baseRefCF = (type(getFlatYawCFrame) == "function" and getFlatYawCFrame(humanoidRootPart2.CFrame)) or humanoidRootPart2.CFrame
+						local yFloorAdj = 0
+						if tbl.AutoHeight and type(getCharacterAnatomyMetrics) == "function" and character2 then
+							local myHum = character3:FindFirstChildOfClass("Humanoid")
+							local tHum = character2:FindFirstChildOfClass("Humanoid")
+							local myRootToGround, _, _, _ = getCharacterAnatomyMetrics(character3, myHum, humanoidRootPart3)
+							local tRootToGround, _, _, tRefToRootY = getCharacterAnatomyMetrics(character2, tHum, humanoidRootPart2)
+							yFloorAdj = math.clamp(tRefToRootY + (myRootToGround - tRootToGround), -2.5, 3.0)
+						end
+
+						local alignedBaseCF = baseRefCF * CFrame.new(0, yFloorAdj, 0)
+						local targetCF
+						if str3 == "Orbit" then
+							local angle = os.clock() * 3.5
+							targetCF = alignedBaseCF * CFrame.new(math.cos(angle) * 3.5, 0, math.sin(angle) * 3.5)
+						else
+							targetCF = alignedBaseCF * (tbl17[str3] or CFrame.new(3.2, 0, 0))
+						end
+
+						if type(isSafePlayableCF) == "function" and not isSafePlayableCF(targetCF) then
+							return
+						end
+
+						lastSafeCopyCF = targetCF
+						if type(applyZeroDelayWeldCFrame) == "function" then
+							applyZeroDelayWeldCFrame(targetCF, humanoidRootPart2, isHeartbeatStep == true)
+						else
+							humanoidRootPart3.CFrame = targetCF
+							humanoidRootPart3.AssemblyLinearVelocity = Vector3.zero
+							humanoidRootPart3.AssemblyAngularVelocity = Vector3.zero
+						end
+					end
+
+					local function mirrorTargetAnimationsAndPose(isSteppedPass)
+						if not flag8 or not player then return end
+						local character2 = (type(findPlayerCharacterAnywhere) == "function" and findPlayerCharacterAnywhere(player)) or player.Character
+						local character3 = localPlayer_.Character or character
+						if not character2 or not character3 then return end
+
+						local humanoid2 = character2:FindFirstChildOfClass("Humanoid")
+						local animator = (humanoid2 and humanoid2:FindFirstChildOfClass("Animator")) or character2:FindFirstChildOfClass("AnimationController")
+						local humanoid3 = character3:FindFirstChildOfClass("Humanoid")
+						local animator2 = humanoid3 and humanoid3:FindFirstChildOfClass("Animator")
+						if not animator2 and humanoid3 then
+							pcall(function()
+								animator2 = Instance.new("Animator")
+								animator2.Parent = humanoid3
+							end)
+						end
+
+						local anyTrackActive = false
+						if animator and animator2 then
+							local targetTracksById = {}
+							local okTracks, playingList = pcall(function()
+								return animator:GetPlayingAnimationTracks()
+							end)
+							if okTracks and playingList then
+								for _, tr in ipairs(playingList) do
+									local animObj = tr and tr.Animation
+									local animId = animObj and animObj.AnimationId
+									if animId and animId ~= "" then
+										targetTracksById[animId] = tr
+									end
+								end
+							end
+
+							-- Stop any non-copied tracks playing on our animator
+							local okMyTracks, myPlayingList = pcall(function()
+								return animator2:GetPlayingAnimationTracks()
+							end)
+							if okMyTracks and myPlayingList then
+								for _, myTr in ipairs(myPlayingList) do
+									local animObj = myTr and myTr.Animation
+									local animId = animObj and animObj.AnimationId
+									if not animId or not targetTracksById[animId] then
+										pcall(function() myTr:Stop(0) end)
+									end
+								end
+							end
+
+							-- Clean up cached tracks that the target stopped playing
+							for cachedId, cachedTr in pairs(copiedTracks) do
+								if not targetTracksById[cachedId] then
+									pcall(function()
+										cachedTr:Stop(0)
+										cachedTr:Destroy()
+									end)
+									copiedTracks[cachedId] = nil
+									if copiedAnimObjects[cachedId] then
+										pcall(function() copiedAnimObjects[cachedId]:Destroy() end)
+										copiedAnimObjects[cachedId] = nil
+									end
+								end
+							end
+
+							local nowT = tick()
+							for animId, srcTrack in pairs(targetTracksById) do
+								local myTrack = copiedTracks[animId]
+								if not myTrack then
+									local cooldownUntil = failedAnimCooldowns[animId]
+									if not cooldownUntil or nowT >= cooldownUntil then
+										local okLoad, loadedTr = pcall(function()
+											local animObj = Instance.new("Animation")
+											animObj.AnimationId = animId
+											copiedAnimObjects[animId] = animObj
+											local tr = animator2:LoadAnimation(animObj)
+											tr.Priority = srcTrack.Priority or Enum.AnimationPriority.Action4
+											tr.Looped = srcTrack.Looped
+											tr:Play(0, srcTrack.WeightCurrent or 1, srcTrack.Speed or 1)
+											tr.TimePosition = srcTrack.TimePosition
+											return tr
+										end)
+										if okLoad and loadedTr then
+											copiedTracks[animId] = loadedTr
+											myTrack = loadedTr
+										else
+											failedAnimCooldowns[animId] = nowT + 3.0
+										end
+									end
+								end
+
+								if myTrack then
+									pcall(function()
+										if not myTrack.IsPlaying then
+											myTrack:Play(0, srcTrack.WeightCurrent or 1, srcTrack.Speed or 1)
+										end
+										if math.abs((myTrack.Speed or 1) - (srcTrack.Speed or 1)) > 0.01 then
+											myTrack:AdjustSpeed(srcTrack.Speed or 1)
+										end
+										if srcTrack.WeightCurrent and math.abs((myTrack.WeightCurrent or 1) - srcTrack.WeightCurrent) > 0.05 then
+											myTrack:AdjustWeight(srcTrack.WeightCurrent, 0)
+										end
+										if math.abs((myTrack.TimePosition or 0) - (srcTrack.TimePosition or 0)) > 0.04 then
+											myTrack.TimePosition = srcTrack.TimePosition
+										end
+										if (myTrack.Length or 0) > 0 then
+											anyTrackActive = true
+										end
+									end)
+								end
+							end
+						end
+
+						-- Mirror Motor6D joint poses on Stepped for procedural/reanimation/cross-rig animations
+						if isSteppedPass then
+							for _, desc in ipairs(character3:GetDescendants()) do
+								if desc:IsA("Motor6D") and desc.Part0 and desc.Part1 then
+									local tMotor = character2:FindFirstChild(desc.Name, true)
+									if tMotor and tMotor:IsA("Motor6D") and not anyTrackActive then
+										pcall(function()
+											desc.Transform = tMotor.Transform
+										end)
+									elseif not anyTrackActive then
+										local tP0 = findMappedTargetPart(character2, desc.Part0.Name)
+										local tP1 = findMappedTargetPart(character2, desc.Part1.Name)
+										if tP0 and tP1 then
+											local rel = tP0.CFrame:Inverse() * tP1.CFrame
+											pcall(function()
+												desc.Transform = (desc.C0:Inverse() * rel) * desc.C1
+											end)
+										end
+									end
+								end
 							end
 						end
 					end
 
+					_G._LockAnimCopyMode = function()
+						local character3 = localPlayer_.Character or character
+						local hum3 = character3 and character3:FindFirstChildOfClass("Humanoid")
+						if hum3 then
+							hum3.AutoRotate = false
+						end
+						stepAnimCopyZeroDelay(false)
+					end
+
 					local function fn17()
 						_G.AnimCopyActive = false
+						copySetupChar = nil
 						pcall(function() L1.RunService:UnbindFromRenderStep("CocoAnimCopyZeroDelayFirst") end)
+						pcall(function() L1.RunService:UnbindFromRenderStep("CocoAnimCopyZeroDelayPreCam") end)
 						if connection then connection:Disconnect(); connection = nil end
 						if steppedConn then steppedConn:Disconnect(); steppedConn = nil end
 						if hbConn then hbConn:Disconnect(); hbConn = nil end
-						if type(clearPhysicsRep) == "function" then
-							clearPhysicsRep()
-						end
+
+						clearCopiedTrackCache()
+						restoreAnimCopyCharacterPhysics(false)
+						lastSafeCopyCF = nil
 
 						pcall(function()
-							local character2 = localPlayer_.Character
+							local character2 = localPlayer_.Character or character
 							if not character2 then return end
 							local humanoid2 = character2:FindFirstChildOfClass("Humanoid")
 							local animator = humanoid2 and humanoid2:FindFirstChildOfClass("Animator")
@@ -54903,6 +55288,16 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 						end)
 					end
 
+					_G.StopAnimCopy = function()
+						if flag8 then
+							flag8 = false
+							fn17()
+							tween(frame16, { BackgroundColor3 = tbl3.surface }, 0.2)
+							tween(textButton7, { TextColor3 = tbl3.text }, 0.2)
+							textButton7.Text = "  Activate Copy (0.00ms)"
+						end
+					end
+
 					textButton7.MouseButton1Click:Connect(function()
 						playClick()
 						if not player then
@@ -54913,27 +55308,49 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 						_G.AnimCopyActive = flag8
 
 						if flag8 then
+							local character3 = localPlayer_.Character or character
+							local root3 = character3 and (character3:FindFirstChild("HumanoidRootPart") or character3:FindFirstChild("Torso"))
+							if root3 and (type(isSafePlayableCF) ~= "function" or isSafePlayableCF(root3.CFrame)) then
+								lastSafeCopyCF = root3.CFrame
+								LastKnownSafeCF = root3.CFrame
+							end
+
 							tween(frame16, { BackgroundColor3 = Color3.fromRGB(45, 180, 80) }, 0.2)
 							tween(textButton7, { TextColor3 = tbl3.white }, 0.2)
 							textButton7.Text = "  Stop Copy"
 							SendNotification("Anim Copy", "0.00ms Copying " .. (player.DisplayName or "?"), 2)
 
 							task.spawn(function()
-								local character2 = localPlayer_.Character
+								if _G.__BUNDLED_ZEN_API and type(_G.__BUNDLED_ZEN_API.is_animation_playing) == "function" then
+									local okP, isP = pcall(function() return _G.__BUNDLED_ZEN_API:is_animation_playing() end)
+									if okP and isP and type(_G.__BUNDLED_ZEN_API.stop_animation) == "function" then
+										pcall(function() _G.__BUNDLED_ZEN_API:stop_animation() end)
+									end
+								end
+								if str3 ~= "Free" and type(streamAndTeleportToTarget) == "function" then
+									pcall(streamAndTeleportToTarget, player, "torso", 1.5)
+								end
+								local character2 = localPlayer_.Character or character
 								local humanoid2 = character2 and character2:FindFirstChildOfClass("Humanoid")
 								local animate = character2 and character2:FindFirstChild("Animate")
-								if humanoid2 then humanoid2.AutoRotate = false end
+								if humanoid2 then humanoid2.AutoRotate = (str3 == "Free") end
 								if animate then animate.Disabled = true end
 							end)
 
 							stepAnimCopyZeroDelay(false)
 							pcall(function()
+								L1.RunService:UnbindFromRenderStep("CocoAnimCopyZeroDelayFirst")
+								L1.RunService:UnbindFromRenderStep("CocoAnimCopyZeroDelayPreCam")
 								L1.RunService:BindToRenderStep("CocoAnimCopyZeroDelayFirst", Enum.RenderPriority.First.Value, function()
+									stepAnimCopyZeroDelay(false)
+								end)
+								L1.RunService:BindToRenderStep("CocoAnimCopyZeroDelayPreCam", Enum.RenderPriority.Camera.Value - 1, function()
 									stepAnimCopyZeroDelay(false)
 								end)
 							end)
 							steppedConn = L1.RunService.Stepped:Connect(function()
 								stepAnimCopyZeroDelay(false)
+								mirrorTargetAnimationsAndPose(true)
 							end)
 							hbConn = L1.RunService.Heartbeat:Connect(function()
 								stepAnimCopyZeroDelay(true)
@@ -54945,56 +55362,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 									return
 								end
 								stepAnimCopyZeroDelay(false)
-								local character2 = player and player.Character
-								local character3 = localPlayer_.Character
-								if not character2 or not character3 then return end
-
-								local humanoid2 = character2:FindFirstChildOfClass("Humanoid")
-								local animator = humanoid2 and humanoid2:FindFirstChildOfClass("Animator")
-								local humanoid3 = character3:FindFirstChildOfClass("Humanoid")
-								local animator2 = humanoid3 and humanoid3:FindFirstChildOfClass("Animator")
-
-								if animator and animator2 then
-									local tbl19 = {}
-									for _, v9 in ipairs(animator:GetPlayingAnimationTracks() or {}) do
-										if v9.Animation and v9.Animation.AnimationId then
-											tbl19[v9.Animation.AnimationId] = v9
-										end
-									end
-									for _, v9 in ipairs(animator2:GetPlayingAnimationTracks() or {}) do
-										if v9.Animation and not tbl19[v9.Animation.AnimationId] then
-											v9:Stop(0)
-										end
-									end
-									for k, v9 in pairs(tbl19) do
-										local flag9 = false
-										for _, track in ipairs(animator2:GetPlayingAnimationTracks() or {}) do
-											if track.Animation and track.Animation.AnimationId == k then
-												flag9 = true
-												pcall(function()
-													if track.Speed ~= v9.Speed then
-														track:AdjustSpeed(v9.Speed)
-													end
-													if math.abs(track.TimePosition - v9.TimePosition) > 0.06 then
-														track.TimePosition = v9.TimePosition
-													end
-												end)
-												break
-											end
-										end
-										if not flag9 then
-											pcall(function()
-												local animation = Instance.new("Animation")
-												animation.AnimationId = k
-												local track = animator2:LoadAnimation(animation)
-												track.Priority = Enum.AnimationPriority.Action4
-												track:Play(0)
-												track:AdjustSpeed(v9.Speed)
-												track.TimePosition = v9.TimePosition
-											end)
-										end
-									end
-								end
+								mirrorTargetAnimationsAndPose(false)
 							end)
 						else
 							flag8 = false
@@ -56781,7 +57149,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							if not m then return true end
 							if localPlayer_ and m == localPlayer_.Character then return true end
 							local mName = m.Name
-							if mName == "CocaReanimation" or mName == "AngoorReanimation" or mName == "CocoVanishGhost" or mName == "ReanimationClone" then
+							if mName == "Reanimation" or mName == "CocaReanimation" or mName == "AngoorReanimation" or mName == "CocoVanishGhost" or mName == "ReanimationClone" then
 								return true
 							end
 							for _, zenApi in ipairs({ _G.__BUNDLED_ZEN_API, _G._AngoorZenApi, _G.CocaSkyDestroyer }) do
@@ -57281,28 +57649,50 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							end
 						end
 
+						function releaseWeldNoclipCache(charToRestore)
+							if weldDescConn then
+								pcall(function() weldDescConn:Disconnect() end)
+								weldDescConn = nil
+							end
+							weldCachedChar = nil
+							table.clear(weldCachedParts)
+							local c = charToRestore or localPlayer_.Character or character
+							if c then
+								for _, descendant in ipairs(c:GetDescendants()) do
+									if descendant:IsA("BasePart") then
+										descendant.Anchored = false
+										descendant.Massless = false
+										descendant.CanTouch = true
+										descendant.CanQuery = true
+										if descendant.Name == "HumanoidRootPart" or descendant.Name == "Torso" or descendant.Name == "UpperTorso" or descendant.Name == "LowerTorso" or descendant.Name == "Head" then
+											descendant.CanCollide = not tbl.Noclip
+										end
+									end
+								end
+							end
+						end
+
 						-- =====================================================================
-						-- FIXED CORE 0.00ms WELD APPLY FUNCTION:
-						-- • On Stepped / RenderStepped / RenderPriority.First (isHeartbeatStep == false):
-						--   Applies worldCFrame directly so your screen, camera, and local physics
-						--   always keep your character on the target player in world space!
-						-- • On Heartbeat (isHeartbeatStep == true):
-						--   When tbl.NoDelay is true and targetRootPart is a valid HumanoidRootPart,
-						--   binds PhysicsRepRootPart = targetRootPart and sets:
-						--   humanoidRootPart.CFrame = targetRootPart.CFrame:ToObjectSpace(worldCFrame)
-						--   so Roblox's network replicator replicates targetRootPart.CFrame * relCF = worldCFrame
-						--   with 0.00ms zero lag and ZERO double-transform teleporting to the sky/void!
+						-- FIXED CORE 0.00ms WELD APPLY FUNCTION (PURE WORLD-SPACE + VELOCITY LEAD):
+						-- Never uses ToObjectSpace / PhysicsRepRootPart which teleports the player
+						-- to world origin (0,0,0) / void when PhysicsRepRootPart is unsupported or
+						-- when Reanimation copies limbs on Heartbeat.
 						-- =====================================================================
 						function applyZeroDelayWeldCFrame(worldCFrame, targetRootPart, isHeartbeatStep)
-							if not worldCFrame or not humanoidRootPart or not isSafePlayableCF(worldCFrame) then
+							if not worldCFrame or not isSafePlayableCF(worldCFrame) then
 								return false
 							end
 							local myChar = localPlayer_.Character or character
+							local myRoot = (myChar and (myChar:FindFirstChild("HumanoidRootPart") or myChar:FindFirstChild("Torso") or myChar:FindFirstChild("UpperTorso"))) or humanoidRootPart
+							if not myRoot or not myRoot.Parent then
+								return false
+							end
+							humanoidRootPart = myRoot
 							if myChar then
 								ensureWeldNoclipCache(myChar, true)
 							end
-							if humanoidRootPart.Anchored then
-								humanoidRootPart.Anchored = false
+							if myRoot.Anchored then
+								myRoot.Anchored = false
 							end
 
 							lastAppliedWorldCFrame = worldCFrame
@@ -57312,38 +57702,41 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							local _, yYaw, _ = worldCFrame:ToEulerAnglesYXZ()
 							LastKnownSafeCF = CFrame.new(worldCFrame.Position) * CFrame.Angles(0, yYaw, 0)
 
-							local validRepRoot = (targetRootPart and targetRootPart.Name == "HumanoidRootPart" and isRefPartValid(targetRootPart, targetRootPart.Parent)) and targetRootPart or nil
-
-							if tbl.NoDelay and typeof(sethiddenproperty) == "function" and validRepRoot then
-								setPhysicsRep(validRepRoot)
-								if isHeartbeatStep then
-									-- Object-space CFrame for Roblox's PhysicsRepRootPart network replicator pass
-									local relCF = validRepRoot.CFrame:ToObjectSpace(worldCFrame)
-									humanoidRootPart.CFrame = relCF
-									humanoidRootPart.AssemblyLinearVelocity = Vector3.zero
-									humanoidRootPart.AssemblyAngularVelocity = Vector3.zero
-								else
-									-- World-space CFrame for local rendering, camera, and physics stepping
-									humanoidRootPart.CFrame = worldCFrame
-									humanoidRootPart.AssemblyLinearVelocity = validRepRoot.AssemblyLinearVelocity or Vector3.zero
-									humanoidRootPart.AssemblyAngularVelocity = validRepRoot.AssemblyAngularVelocity or Vector3.zero
-								end
-							else
-								clearPhysicsRep()
-								humanoidRootPart.CFrame = worldCFrame
-								local tVel = (targetRootPart and isPartInSafeWorldBounds(targetRootPart) and targetRootPart.AssemblyLinearVelocity) or Vector3.zero
-								local microWake = Vector3.new(0, math.sin(os.clock() * 24) * 0.03, 0)
-								local syncVel = ((tVel.Magnitude < 350) and (tVel * 0.85) or Vector3.zero) + microWake
-								humanoidRootPart.AssemblyLinearVelocity = syncVel
-								humanoidRootPart.AssemblyAngularVelocity = Vector3.zero
+							clearPhysicsRep()
+							if typeof(sethiddenproperty) == "function" then
+								pcall(function()
+									sethiddenproperty(myRoot, "NetworkIsSleeping", false)
+									sethiddenproperty(localPlayer_, "SimulationRadius", 112412400000)
+									sethiddenproperty(localPlayer_, "MaxSimulationRadius", 112412400000)
+									settings().Physics.AllowSleep = false
+								end)
 							end
 
+							local tVel = (targetRootPart and isPartInSafeWorldBounds(targetRootPart) and targetRootPart.AssemblyLinearVelocity) or Vector3.zero
+							local safeTVel = (tVel.Magnitude < 350) and tVel or Vector3.zero
+							local applyCF = worldCFrame
+							if tbl.NoDelay and isHeartbeatStep and safeTVel.Magnitude > 0.5 then
+								local leadVec = Vector3.new(safeTVel.X, 0, safeTVel.Z) * 0.015
+								if leadVec.Magnitude <= 3.5 then
+									local candidateCF = worldCFrame + leadVec
+									if isSafePlayableCF(candidateCF) then
+										applyCF = candidateCF
+									end
+								end
+							end
+
+							myRoot.CFrame = applyCF
+							local microWake = Vector3.new(0, math.sin(os.clock() * 24) * 0.03, 0)
+							local syncVel = (tbl.NoDelay and safeTVel or (safeTVel * 0.85)) + microWake
+							myRoot.AssemblyLinearVelocity = syncVel
+							myRoot.AssemblyAngularVelocity = Vector3.zero
+
 							pcall(function()
-								humanoidRootPart.Velocity = humanoidRootPart.AssemblyLinearVelocity
-								humanoidRootPart.RotVelocity = Vector3.zero
+								myRoot.Velocity = myRoot.AssemblyLinearVelocity
+								myRoot.RotVelocity = Vector3.zero
 							end)
 
-							syncAllActiveReanimRoots(worldCFrame)
+							syncAllActiveReanimRoots(applyCF)
 							return true
 						end
 
@@ -57631,6 +58024,9 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 
 						local function restoreCharacterAfterAttach(setupChar, track, wasAnimDisabled, origParts)
 							clearPhysicsRep()
+							if not isAnyAttachActive() and not _G.AnimCopyActive and type(releaseWeldNoclipCache) == "function" then
+								pcall(releaseWeldNoclipCache, setupChar)
+							end
 							if track then
 								pcall(function()
 									track:Stop(0)
@@ -58538,7 +58934,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 						do
 							local reverseHistory = {}
 							L1.RunService.Heartbeat:Connect(function()
-								if tbl.Reverse and humanoid and humanoidRootPart and not isAnyAttachActive() then
+								if tbl.Reverse and humanoid and humanoidRootPart and not isAnyAttachActive() and not _G.AnimCopyActive then
 									if not L1.UserInputService:IsKeyDown(tbl2.Reverse) and not _G.MobileReversing then
 										if #reverseHistory >= 300 then
 											table.remove(reverseHistory, 1)
@@ -58572,7 +58968,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 						end)
 
 						L1.RunService.Stepped:Connect(function()
-							if tbl.Noclip and character and not isAnyAttachActive() then
+							if tbl.Noclip and character and not isAnyAttachActive() and not _G.AnimCopyActive then
 								ensureWeldNoclipCache(character, false)
 							end
 						end)
@@ -65187,6 +65583,9 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							end
 
 							if str4 == "stop" or str4 == "reset" then
+								if _G.AnimCopyActive and type(_G.StopAnimCopy) == "function" then
+									pcall(_G.StopAnimCopy)
+								end
 								if AllPlayersWeldEnabled and type(stopAllPlayersWeldCycle) == "function" then
 									stopAllPlayersWeldCycle()
 								end
