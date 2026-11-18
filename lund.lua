@@ -1,3 +1,4 @@
+
 --[==[
 
                               '`":;Il!lII;,^`
@@ -1002,6 +1003,8 @@ do
 				ShowNotifications = true,
 				ScriptChatNotifications = true,
 				SoundFX = true,
+				ShowOverheadLogo = true,
+				OverheadTag = true,
 			}
 
 			ToggleRegistry = {}
@@ -1301,6 +1304,8 @@ do
 								ShowNotifications = true,
 								ScriptChatNotifications = true,
 								SoundFX = true,
+								ShowOverheadLogo = true,
+								OverheadTag = true,
 								FacebangEnabled = true,
 								PatEnabled = true,
 								HeadsitEnabled = true,
@@ -1380,6 +1385,8 @@ do
 									ShowNotifications = true,
 									ScriptChatNotifications = true,
 									SoundFX = true,
+									ShowOverheadLogo = true,
+									OverheadTag = true,
 									FacebangEnabled = true,
 									PatEnabled = true,
 									HeadsitEnabled = true,
@@ -2276,15 +2283,32 @@ do
 
 			mainGradient.Rotation = 90
 			imageLabel = Instance.new("ImageLabel", screenGui)
-			imageLabel.Size = UDim2.new(0, 72, 0, 48)
+			imageLabel.Size = UDim2.new(0, 84, 0, 28)
 			imageLabel.AnchorPoint = Vector2.new(0.5, 1)
 			imageLabel.Position = UDim2.new(0.5, 0, 1, -10)
 			imageLabel.BackgroundTransparency = 1
-			imageLabel.Image = "rbxassetid://139175707588865"
+			imageLabel.Image = ""
 			imageLabel.ScaleType = Enum.ScaleType.Fit
 			imageLabel.ImageTransparency = 0
 			imageLabel.Visible = false
 			imageLabel.ZIndex = 100
+			do
+				local btmLogoTxt = Instance.new("TextLabel", imageLabel)
+				btmLogoTxt.Name = "RiyonBottomText"
+				btmLogoTxt.Size = UDim2.new(1, 0, 1, 0)
+				btmLogoTxt.BackgroundTransparency = 1
+				btmLogoTxt.Text = "RIYON"
+				btmLogoTxt.Font = Enum.Font.GothamBlack
+				btmLogoTxt.TextSize = 14
+				btmLogoTxt.TextColor3 = tbl3.accent
+				btmLogoTxt.TextStrokeTransparency = 0.35
+				btmLogoTxt.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+				btmLogoTxt.ZIndex = 101
+				imageLabel:GetPropertyChangedSignal("ImageTransparency"):Connect(function()
+					btmLogoTxt.TextTransparency = imageLabel.ImageTransparency
+					btmLogoTxt.TextStrokeTransparency = math.clamp(0.35 + imageLabel.ImageTransparency * 0.65, 0, 1)
+				end)
+			end
 
 			tbl4 = {
 				isHidden = false,
@@ -2410,12 +2434,23 @@ do
 			end
 
 			titleLogo = Instance.new("ImageLabel", titleBar)
-			titleLogo.Size = UDim2.new(0, 60, 0, 16)
-			titleLogo.Position = UDim2.new(0, 12, 0.5, -8)
-			titleLogo.Image = "rbxassetid://139175707588865"
+			titleLogo.Size = UDim2.new(0, 68, 0, 18)
+			titleLogo.Position = UDim2.new(0, 12, 0.5, -9)
+			titleLogo.Image = ""
 			titleLogo.BackgroundTransparency = 1
 			titleLogo.ScaleType = Enum.ScaleType.Fit
 			titleLogo.ZIndex = 11
+			do
+				local titleLogoTxt = Instance.new("TextLabel", titleLogo)
+				titleLogoTxt.Size = UDim2.new(1, 0, 1, 0)
+				titleLogoTxt.BackgroundTransparency = 1
+				titleLogoTxt.Text = "RIYON"
+				titleLogoTxt.Font = Enum.Font.GothamBlack
+				titleLogoTxt.TextSize = 13
+				titleLogoTxt.TextColor3 = tbl3.white
+				titleLogoTxt.TextXAlignment = Enum.TextXAlignment.Left
+				titleLogoTxt.ZIndex = 12
+			end
 			topCapsule = Instance.new("ImageLabel", screenGui)
 			topCapsule.Name = "TopCapsule"
 			topCapsule.Size = UDim2.new(0, 0, 0, 40)
@@ -2846,7 +2881,7 @@ do
 				nextBlock = 97
 			end
 		elseif nextBlock == 96 then
-			L1.iterState1 = UDim2.new(0, 24, 0, 12)
+			L1.iterState1 = UDim2.new(0, 38, 0, 14)
 
 			if not L1.iterState1 then
 				nextBlock = 97
@@ -2854,13 +2889,23 @@ do
 				nextBlock = 98
 			end
 		elseif nextBlock == 97 then
-			L1.iterState1 = UDim2.new(0, 32, 0, 16)
+			L1.iterState1 = UDim2.new(0, 44, 0, 16)
 			nextBlock = 98
 		elseif nextBlock == 98 then
 			L1.iterFn1.Size = L1.iterState1
 			L1.iterFn1.ScaleType = Enum.ScaleType.Fit
-			L1.iterFn1.Image = "rbxassetid://139175707588865"
+			L1.iterFn1.Image = ""
 			L1.iterFn1.LayoutOrder = 1
+			do
+				local capLogoTxt = Instance.new("TextLabel", L1.iterFn1)
+				capLogoTxt.Size = UDim2.new(1, 0, 1, 0)
+				capLogoTxt.BackgroundTransparency = 1
+				capLogoTxt.Text = "RIYON"
+				capLogoTxt.Font = Enum.Font.GothamBlack
+				capLogoTxt.TextSize = r211 and 10 or 11
+				capLogoTxt.TextColor3 = tbl3.white
+				capLogoTxt.TextXAlignment = Enum.TextXAlignment.Center
+			end
 			L1.iterFn1 = Instance.new("TextLabel", L1.frame5)
 			L1.iterFn1.BackgroundTransparency = 1
 
@@ -3386,15 +3431,15 @@ do
 			do
 				local frame12 = Instance.new("Frame", L1.frame5)
 				frame12.BackgroundTransparency = 1
-				frame12.Size = UDim2.new(0, 60, 0, 16)
+				frame12.Size = UDim2.new(0, 78, 0, 16)
 				frame12.LayoutOrder = 3
 				miniTagLabel = Instance.new("TextLabel", frame12)
-				miniTagLabel.Size = UDim2.new(0, 30, 1, 0)
+				miniTagLabel.Size = UDim2.new(0, 50, 1, 0)
 				miniTagLabel.BackgroundTransparency = 1
-				miniTagLabel.Text = "TAGS"
+				miniTagLabel.Text = (tbl.ShowOverheadLogo ~= false) and "TAG: ON" or "TAG: OFF"
 				miniTagLabel.Font = Enum.Font.GothamBold
-				miniTagLabel.TextSize = 11
-				miniTagLabel.TextColor3 = tbl3.accent
+				miniTagLabel.TextSize = 10
+				miniTagLabel.TextColor3 = (tbl.ShowOverheadLogo ~= false) and tbl3.accent or tbl3.textDim
 				miniTagLabel.TextXAlignment = Enum.TextXAlignment.Left
 				miniTagBtn = Instance.new("TextButton", frame12)
 			end
@@ -6010,12 +6055,20 @@ do
 
 			do
 				local imageLabel5 = Instance.new("ImageLabel", L1.frame6)
-				imageLabel5.Size = UDim2.new(0, 32, 0, 16)
+				imageLabel5.Size = UDim2.new(0, 44, 0, 16)
 				imageLabel5.BackgroundTransparency = 1
-				imageLabel5.Image = "rbxassetid://139175707588865"
+				imageLabel5.Image = ""
 				imageLabel5.ScaleType = Enum.ScaleType.Fit
 				imageLabel5.ZIndex = 13
 				imageLabel5.LayoutOrder = 1
+				local minCapTxt = Instance.new("TextLabel", imageLabel5)
+				minCapTxt.Size = UDim2.new(1, 0, 1, 0)
+				minCapTxt.BackgroundTransparency = 1
+				minCapTxt.Text = "RIYON"
+				minCapTxt.Font = Enum.Font.GothamBlack
+				minCapTxt.TextSize = 11
+				minCapTxt.TextColor3 = Color3.fromRGB(255, 255, 255)
+				minCapTxt.ZIndex = 14
 			end
 
 			do
@@ -7057,21 +7110,38 @@ do
 					end
 				end)
 
-				tbl.ShowOverheadLogo = true
+				if tbl.ShowOverheadLogo == nil then
+					tbl.ShowOverheadLogo = true
+				end
 
 				function setTagVisibility(showOverheadLogo)
+					showOverheadLogo = showOverheadLogo == true
 					tbl.ShowOverheadLogo = showOverheadLogo
 					local TweenService2 = game:GetService("TweenService")
 					local tweenInfo = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 
 					if showOverheadLogo then
-						TweenService2:Create(miniTagKnob, tweenInfo, { Position = UDim2.new(1, -10, 0.5, -4) }):Play()
-						TweenService2:Create(miniTagBtn, tweenInfo, { BackgroundColor3 = tbl3.success }):Play()
-						TweenService2:Create(miniTagLabel, tweenInfo, { TextColor3 = tbl3.accent }):Play()
+						if miniTagKnob then
+							TweenService2:Create(miniTagKnob, tweenInfo, { Position = UDim2.new(1, -10, 0.5, -4) }):Play()
+						end
+						if miniTagBtn then
+							TweenService2:Create(miniTagBtn, tweenInfo, { BackgroundColor3 = tbl3.success }):Play()
+						end
+						if miniTagLabel then
+							miniTagLabel.Text = "TAG: ON"
+							TweenService2:Create(miniTagLabel, tweenInfo, { TextColor3 = tbl3.accent }):Play()
+						end
 					else
-						TweenService2:Create(miniTagKnob, tweenInfo, { Position = UDim2.new(0, 2, 0.5, -4) }):Play()
-						TweenService2:Create(miniTagBtn, tweenInfo, { BackgroundColor3 = Color3.fromRGB(60, 60, 60) }):Play()
-						TweenService2:Create(miniTagLabel, tweenInfo, { TextColor3 = tbl3.textDim }):Play()
+						if miniTagKnob then
+							TweenService2:Create(miniTagKnob, tweenInfo, { Position = UDim2.new(0, 2, 0.5, -4) }):Play()
+						end
+						if miniTagBtn then
+							TweenService2:Create(miniTagBtn, tweenInfo, { BackgroundColor3 = Color3.fromRGB(60, 60, 60) }):Play()
+						end
+						if miniTagLabel then
+							miniTagLabel.Text = "TAG: OFF"
+							TweenService2:Create(miniTagLabel, tweenInfo, { TextColor3 = tbl3.textDim }):Play()
+						end
 					end
 
 					for _, player in ipairs(L1.Players_:GetPlayers()) do
@@ -7079,16 +7149,25 @@ do
 							continue
 						end
 
-						if not player.Character:FindFirstChild("Head") then
+						local head = player.Character:FindFirstChild("Head")
+						if not head then
 							continue
 						end
 
-						local head = player.Character.Head
-
 						if head:FindFirstChild("RiyonOverhead") then
 							head.RiyonOverhead.Enabled = showOverheadLogo
+						elseif showOverheadLogo and player == L1.Players_.LocalPlayer and type(setupOverheadLogo) == "function" then
+							task.spawn(setupOverheadLogo, player.Character)
 						end
 					end
+
+					if _G.MobileButtonManager and _G.MobileButtonManager.UpdateState then
+						pcall(_G.MobileButtonManager.UpdateState, "OverheadTag")
+					end
+					if _G._SyncOverheadToggleUI then
+						pcall(_G._SyncOverheadToggleUI, showOverheadLogo)
+					end
+					task.spawn(saveSettings)
 				end
 
 				do
@@ -7491,9 +7570,20 @@ do
 			L1.iterFn1.Size = UDim2.new(0, 135, 0, 42)
 			L1.iterFn1.Position = UDim2.new(1, -150, 0.5, -21)
 			L1.iterFn1.BackgroundTransparency = 1
-			L1.iterFn1.Image = "rbxassetid://139175707588865"
+			L1.iterFn1.Image = ""
 			L1.iterFn1.ScaleType = Enum.ScaleType.Fit
 			L1.iterFn1.ZIndex = 2
+			do
+				local hdrLogoTxt = Instance.new("TextLabel", L1.iterFn1)
+				hdrLogoTxt.Size = UDim2.new(1, 0, 1, 0)
+				hdrLogoTxt.BackgroundTransparency = 1
+				hdrLogoTxt.Text = "RIYON"
+				hdrLogoTxt.Font = Enum.Font.GothamBlack
+				hdrLogoTxt.TextSize = 20
+				hdrLogoTxt.TextColor3 = tbl3.white
+				hdrLogoTxt.TextXAlignment = Enum.TextXAlignment.Right
+				hdrLogoTxt.ZIndex = 3
+			end
 
 			if L1.iterState1 then
 				nextBlock = 230
@@ -9412,14 +9502,31 @@ do
 					textButton5.ZIndex = 305
 					local imageLabel5 = Instance.new("ImageLabel", textButton5)
 					imageLabel5.Name = "LogoImg"
-					imageLabel5.Size = UDim2.new(0, 22, 0, 22)
+					imageLabel5.Size = UDim2.new(0, 28, 0, 22)
 					imageLabel5.Position = UDim2.new(0.5, 0, 0.5, 0)
 					imageLabel5.AnchorPoint = Vector2.new(0.5, 0.5)
 					imageLabel5.BackgroundTransparency = 1
-					imageLabel5.Image = "rbxassetid://139175707588865"
+					imageLabel5.Image = ""
 					imageLabel5.ScaleType = Enum.ScaleType.Fit
 					imageLabel5.ImageColor3 = Color3.fromRGB(255, 255, 255)
 					imageLabel5.ZIndex = 306
+					do
+						local pillLogoTxt = Instance.new("TextLabel", imageLabel5)
+						pillLogoTxt.Name = "LogoText"
+						pillLogoTxt.Size = UDim2.new(1, 0, 1, 0)
+						pillLogoTxt.BackgroundTransparency = 1
+						pillLogoTxt.Text = "R"
+						pillLogoTxt.Font = Enum.Font.GothamBlack
+						pillLogoTxt.TextSize = 15
+						pillLogoTxt.TextColor3 = imageLabel5.ImageColor3
+						pillLogoTxt.ZIndex = 307
+						imageLabel5:GetPropertyChangedSignal("ImageColor3"):Connect(function()
+							pillLogoTxt.TextColor3 = imageLabel5.ImageColor3
+						end)
+						imageLabel5:GetPropertyChangedSignal("ImageTransparency"):Connect(function()
+							pillLogoTxt.TextTransparency = imageLabel5.ImageTransparency
+						end)
+					end
 					local frame14 = Instance.new("Frame", textButton5)
 					frame14.Name = "ToggleDotHalo"
 					frame14.Size = UDim2.new(0, 8, 0, 8)
@@ -10051,6 +10158,24 @@ do
 			L1.tbl16.GoUndergroundEnabled = L1.tbl16.GoUnderground
 			L1.tbl16.NormalGlitchDesyncEnabled = L1.tbl16.GlitchDesync
 			L1.tbl16.ExtremeGlitchDesyncEnabled = L1.tbl16.GlitchDesync
+			L1.tbl16.OverheadTag = {
+				key = "OverheadTag",
+				title = "Tag",
+				isToggle = true,
+				isActive = function()
+					return tbl.ShowOverheadLogo ~= false
+				end,
+				action = function()
+					local nextState = not (tbl.ShowOverheadLogo ~= false)
+					if setTagVisibility then
+						setTagVisibility(nextState)
+					else
+						tbl.ShowOverheadLogo = nextState
+					end
+					SendNotification("Riyon", "Above Tag: " .. (nextState and "ON" or "OFF"), 1.5)
+				end,
+			}
+			L1.tbl16.OverheadTagEnabled = L1.tbl16.OverheadTag
 			L1.tbl16.SkyDestroyerEnabled = L1.tbl16.SkyDestroyer
 			L1.tbl16.CoverGroundEnabled = L1.tbl16.CoverGround
 			L1.tbl16.CoverSkyEnabled = L1.tbl16.CoverSky
@@ -13516,8 +13641,8 @@ do
 													if player.PlaceId then
 														imageLabel9.Image = "rbxthumb://type=Asset&id=" .. tostring(player.PlaceId) .. "&w=420&h=420"
 													else
-														imageLabel9.Image = "rbxassetid://139175707588865"
-														imageLabel9.ScaleType = Enum.ScaleType.Fit
+														imageLabel9.Image = "rbxassetid://" .. tostring(_uiBackgroundId or "72660622902200")
+														imageLabel9.ScaleType = Enum.ScaleType.Crop
 													end
 
 													corner(imageLabel9, 12)
@@ -13729,9 +13854,19 @@ do
 										local imageLabel8 = Instance.new("ImageLabel", frame21)
 										imageLabel8.Size = UDim2.new(0, 30, 0, 30)
 										imageLabel8.Position = UDim2.new(0, 12, 0, 0)
-										imageLabel8.Image = "rbxassetid://139175707588865"
+										imageLabel8.Image = ""
 										imageLabel8.ScaleType = Enum.ScaleType.Fit
-										imageLabel8.BackgroundTransparency = 1
+										imageLabel8.BackgroundColor3 = Color3.fromRGB(22, 24, 34)
+										imageLabel8.BackgroundTransparency = 0.1
+										do
+											local sysAvatarTxt = Instance.new("TextLabel", imageLabel8)
+											sysAvatarTxt.Size = UDim2.new(1, 0, 1, 0)
+											sysAvatarTxt.BackgroundTransparency = 1
+											sysAvatarTxt.Text = "R"
+											sysAvatarTxt.Font = Enum.Font.GothamBlack
+											sysAvatarTxt.TextSize = 14
+											sysAvatarTxt.TextColor3 = tbl3.white
+										end
 										local v9 = stroke(imageLabel8, Color3.fromRGB(200, 200, 200), 1, 0)
 
 										Instance.new("UIGradient", v9).Transparency = NumberSequence.new({
@@ -19814,9 +19949,19 @@ do
 								tbl28.studioLogo.Size = UDim2.new(0, 56, 0, 15)
 								tbl28.studioLogo.Position = UDim2.new(0, 12, 0.5, -8)
 								tbl28.studioLogo.BackgroundTransparency = 1
-								tbl28.studioLogo.Image = "rbxassetid://139175707588865"
+								tbl28.studioLogo.Image = ""
 								tbl28.studioLogo.ScaleType = Enum.ScaleType.Fit
 								tbl28.studioLogo.Parent = tbl28.libTopBar
+								do
+									local stLogoTxt = Instance.new("TextLabel", tbl28.studioLogo)
+									stLogoTxt.Size = UDim2.new(1, 0, 1, 0)
+									stLogoTxt.BackgroundTransparency = 1
+									stLogoTxt.Text = "RIYON"
+									stLogoTxt.Font = Enum.Font.GothamBlack
+									stLogoTxt.TextSize = 12
+									stLogoTxt.TextColor3 = Color3.fromRGB(255, 255, 255)
+									stLogoTxt.TextXAlignment = Enum.TextXAlignment.Left
+								end
 								tbl28.studioTitle = Instance.new("TextLabel")
 								tbl28.studioTitle.Size = UDim2.new(0, 80, 1, -4)
 								tbl28.studioTitle.Position = UDim2.new(0, 72, 0, 2)
@@ -40232,6 +40377,16 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 				end
 
 				do
+					createToggle(_vLighting, "Overhead Tag (Above Head)", "Turn the Riyon User tag above your head ON or OFF", "ShowOverheadLogo", 2.5, function(arg)
+						if setTagVisibility then
+							setTagVisibility(arg)
+						else
+							tbl.ShowOverheadLogo = arg
+						end
+					end)
+				end
+
+				do
 					local tbl17 = {}
 
 					createToggle(_vLighting, "Enhance Graphics", "High fidelity RTX lighting, volumetric atmosphere, shadows, and bloom", "EnhanceGraphics", 3, function(arg)
@@ -42484,8 +42639,17 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 											imageLabel5.BackgroundTransparency = 1
 
 											if userId2 == "RIYON" then
-												imageLabel5.Image = "rbxassetid://139175707588865"
+												imageLabel5.Image = ""
 												imageLabel5.ScaleType = Enum.ScaleType.Fit
+												imageLabel5.BackgroundColor3 = Color3.fromRGB(22, 24, 34)
+												imageLabel5.BackgroundTransparency = 0.1
+												local chatSysTxt = Instance.new("TextLabel", imageLabel5)
+												chatSysTxt.Size = UDim2.new(1, 0, 1, 0)
+												chatSysTxt.BackgroundTransparency = 1
+												chatSysTxt.Text = "R"
+												chatSysTxt.Font = Enum.Font.GothamBlack
+												chatSysTxt.TextSize = 14
+												chatSysTxt.TextColor3 = Color3.fromRGB(255, 255, 255)
 											else
 												imageLabel5.Image = "rbxthumb://type=AvatarHeadShot&id=" .. userId2 .. "&w=48&h=48"
 												local frame16 = Instance.new("Frame", imageLabel5)
@@ -46287,10 +46451,21 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 						tbl20.titleLogo.Size = UDim2.new(0, 76, 0, 20)
 						tbl20.titleLogo.Position = UDim2.new(0, 48, 0.5, -10)
 						tbl20.titleLogo.BackgroundTransparency = 1
-						tbl20.titleLogo.Image = "rbxassetid://139175707588865"
+						tbl20.titleLogo.Image = ""
 						tbl20.titleLogo.ScaleType = Enum.ScaleType.Fit
 						tbl20.titleLogo.ZIndex = 21
 						tbl20.titleLogo.Parent = tbl20.titleBar
+						do
+							local reanimLogoTxt = Instance.new("TextLabel", tbl20.titleLogo)
+							reanimLogoTxt.Size = UDim2.new(1, 0, 1, 0)
+							reanimLogoTxt.BackgroundTransparency = 1
+							reanimLogoTxt.Text = "RIYON"
+							reanimLogoTxt.Font = Enum.Font.GothamBlack
+							reanimLogoTxt.TextSize = 13
+							reanimLogoTxt.TextColor3 = Color3.fromRGB(255, 255, 255)
+							reanimLogoTxt.TextXAlignment = Enum.TextXAlignment.Left
+							reanimLogoTxt.ZIndex = 22
+						end
 						tbl20.toggleBtn = Instance.new("TextButton")
 						tbl20.toggleBtn.Size = UDim2.new(0, 118, 0, 26)
 						tbl20.toggleBtn.Position = UDim2.new(1, -128, 0.5, -13)
@@ -55535,6 +55710,12 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 				end
 
 				do
+					createToggle(genGrid, "Above Tag Mobile Button", "Show an on-screen Tag ON/OFF button to toggle the overhead tag anytime", "OverheadTag", 6, function(arg)
+						task.spawn(saveSettings)
+					end)
+				end
+
+				do
 					createActionButton(_miscGeneral, "Rejoin Current Game", "Disconnects and immediately reconnects you to this exact same server", 2, function()
 						local TeleportService = game:GetService("TeleportService")
 						SendNotification("Riyon", "Rejoining server...", 3)
@@ -59986,12 +60167,25 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 						uiPadding2.PaddingLeft = UDim.new(0, 12)
 						uiPadding2.PaddingRight = UDim.new(0, 12)
 						local imageLabel5 = Instance.new("ImageLabel", frame13)
-						imageLabel5.Size = UDim2.new(0, 28, 0, 14)
+						imageLabel5.Size = UDim2.new(0, 42, 0, 14)
 						imageLabel5.BackgroundTransparency = 1
-						imageLabel5.Image = "rbxassetid://139175707588865"
+						imageLabel5.Image = ""
 						imageLabel5.ScaleType = Enum.ScaleType.Fit
 						imageLabel5.ImageTransparency = 1
 						imageLabel5.LayoutOrder = 1
+						do
+							local notifLogoTxt = Instance.new("TextLabel", imageLabel5)
+							notifLogoTxt.Size = UDim2.new(1, 0, 1, 0)
+							notifLogoTxt.BackgroundTransparency = 1
+							notifLogoTxt.Text = "RIYON"
+							notifLogoTxt.Font = Enum.Font.GothamBlack
+							notifLogoTxt.TextSize = 11
+							notifLogoTxt.TextColor3 = Color3.fromRGB(255, 255, 255)
+							notifLogoTxt.TextTransparency = 1
+							imageLabel5:GetPropertyChangedSignal("ImageTransparency"):Connect(function()
+								notifLogoTxt.TextTransparency = imageLabel5.ImageTransparency
+							end)
+						end
 						local frame14 = Instance.new("Frame", frame13)
 						frame14.Size = UDim2.new(0, 1, 0, 16)
 						frame14.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
@@ -64034,7 +64228,7 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							local playerFromCharacter2 = L1.Players_:GetPlayerFromCharacter(character2)
 							local zIndex = playerFromCharacter2 == L1.Players_.LocalPlayer
 							local displayName = "RIYON USER"
-							local str3 = "139175707588865"
+							local str3 = ""
 							local riyonCustomTag = nil
 
 							if playerFromCharacter2 then
@@ -64053,7 +64247,10 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 								end
 
 								if riyonCustomTag then
-									if riyonCustomTag.backgroundId and tostring(riyonCustomTag.backgroundId) ~= "" then
+									if riyonCustomTag.customName and tostring(riyonCustomTag.customName) ~= "" then
+										displayName = tostring(riyonCustomTag.customName)
+									end
+									if riyonCustomTag.backgroundId and tostring(riyonCustomTag.backgroundId) ~= "" and tostring(riyonCustomTag.backgroundId) ~= "139175707588865" then
 										str3 = tostring(riyonCustomTag.backgroundId)
 									end
 								end
@@ -64067,12 +64264,21 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							local frame13 = Instance.new("Frame", billboardGui)
 							frame13.Size = UDim2.new(0.22, 0, 0.16, 0)
 							frame13.Position = UDim2.new(0.39, 0, 0.45, 0)
-							frame13.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
-							frame13.BackgroundTransparency = 0.15
+							frame13.BackgroundColor3 = Color3.fromRGB(14, 15, 22)
+							frame13.BackgroundTransparency = 0.12
 							frame13.BorderSizePixel = 0
 							frame13.ClipsDescendants = true
 							frame13.ZIndex = zIndex
 							Instance.new("UICorner", frame13).CornerRadius = UDim.new(0.25, 0)
+							do
+								local bgGrad = Instance.new("UIGradient", frame13)
+								bgGrad.Color = ColorSequence.new({
+									ColorSequenceKeypoint.new(0, Color3.fromRGB(28, 30, 44)),
+									ColorSequenceKeypoint.new(0.5, Color3.fromRGB(16, 17, 26)),
+									ColorSequenceKeypoint.new(1, Color3.fromRGB(10, 11, 16)),
+								})
+								bgGrad.Rotation = 90
+							end
 							local accent = tbl3.accent
 
 							if riyonCustomTag and riyonCustomTag.strokeColor then
@@ -64111,18 +64317,15 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							imageLabel5.BackgroundTransparency = 1
 							imageLabel5.ScaleType = Enum.ScaleType.Crop
 							imageLabel5.ZIndex = zIndex
-							local image
+							local image = ""
 
-							if str3 then
-								image = #tostring(str3) > 0
-
-								if image then
-									image = "rbxassetid://" .. tostring(str3)
-								end
-
-								image = image or "rbxassetid://139175707588865"
+							if str3 and #tostring(str3) > 0 then
+								image = "rbxassetid://" .. tostring(str3)
+								imageLabel5.ImageTransparency = 0
 							else
-								image = "rbxassetid://139175707588865"
+								image = "rbxassetid://" .. tostring(_uiBackgroundId or "72660622902200")
+								imageLabel5.ImageColor3 = accent
+								imageLabel5.ImageTransparency = 0.65
 							end
 
 							imageLabel5.Image = image
@@ -64177,8 +64380,8 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							end
 
 							local textLabel7 = Instance.new("TextLabel", frame13)
-							textLabel7.Size = UDim2.new(0.9, 0, 0.25, 0)
-							textLabel7.Position = UDim2.new(0.05, 0, 0.18, 0)
+							textLabel7.Size = UDim2.new(0.88, 0, 0.32, 0)
+							textLabel7.Position = UDim2.new(0.06, 0, 0.14, 0)
 							textLabel7.BackgroundTransparency = 1
 							textLabel7.Text = displayName
 							local color = Color3.fromRGB(255, 255, 255)
@@ -64422,8 +64625,8 @@ Click any clip on the bottom timeline to inspect, crop frames, adjust speed, and
 							end
 
 							local textLabel8 = Instance.new("TextLabel", frame13)
-							textLabel8.Size = UDim2.new(0.9, 0, 0.25, 0)
-							textLabel8.Position = UDim2.new(0.05, 0, 0.52, 0)
+							textLabel8.Size = UDim2.new(0.88, 0, 0.28, 0)
+							textLabel8.Position = UDim2.new(0.06, 0, 0.55, 0)
 							textLabel8.BackgroundTransparency = 1
 							local text = playerFromCharacter2
 
