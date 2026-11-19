@@ -1622,7 +1622,7 @@ local computeDynamicHeightWeld = function(myChar, myHum, myRoot, targetChar, tar
         end
         autoY = math.clamp(autoY, -2.6, 3.2)
         autoZ = math.clamp((tScaleY - 1.0) * -0.22, -0.45, 0.28)
-    elseif refMode == "head" or presetKey == "facebang" or presetKey == "headsit" then
+    elseif refMode == "head" or presetKey == "facebang" or presetKey == "headsit" or presetKey == "goon" then
         -- Head-referenced presets: adapt vertical offset to local vs target scale difference (0 when both are 1.0)
         autoY = math.clamp((tScaleY - myScaleY) * 0.85, -1.8, 2.2)
     elseif presetKey == "kiss" or presetKey == "hug" or presetKey == "headpat" then
@@ -1630,7 +1630,7 @@ local computeDynamicHeightWeld = function(myChar, myHum, myRoot, targetChar, tar
         local headDiff = (tRefToHead - myRootToHead)
         autoY = math.clamp(headDiff, -2.2, 2.6)
     else
-        -- Pelvis/Torso presets (backshots, bang, goon, jerk, chootlelo, backpack): align pelvis/torso center
+        -- Pelvis/Torso presets (backshots, backpack): align pelvis/torso center
         local pelvisDiff = tRefToRootY + ((tScaleY - myScaleY) * 0.45)
         autoY = math.clamp(pelvisDiff, -1.8, 2.2)
     end
@@ -2355,18 +2355,10 @@ WELD_PRESETS = {
                   anim15 = BANG_ANIM_ID, anim6 = BANG_ANIM_ID,
                   animFallbacks = BANG_FALLBACKS_R15, animFallbacks6 = BANG_FALLBACKS_R6,
                   osc = {distance = 2.9, period = 0.22}, refMode = "torso", label = "Bang / Backshots" },
-    bang      = { offset = CFrame.new(0, 0, 3.2),
-                  anim15 = BANG_ANIM_ID, anim6 = BANG_ANIM_ID,
-                  animFallbacks = BANG_FALLBACKS_R15, animFallbacks6 = BANG_FALLBACKS_R6,
-                  osc = {distance = 2.9, period = 0.22}, refMode = "torso", label = "Bang" },
-    goon      = { offset = CFrame.new(0, 0, -1.45) * CFrame.Angles(0, math.rad(180), 0),
+    goon      = { offset = CFrame.new(0, 0.15, -1.65) * CFrame.Angles(0, math.rad(180), 0),
                   anim15 = 136828069054505, anim6 = 136828069054505,
                   animFallbacks = GOON_FALLBACKS_R15, animFallbacks6 = GOON_FALLBACKS_R6,
-                  osc = nil, refMode = "torso", label = "Goon" },
-    jerk      = { offset = CFrame.new(0, 0, -1.45) * CFrame.Angles(0, math.rad(180), 0),
-                  anim15 = 72042024, anim6 = 72042024,
-                  animFallbacks = JERK_FALLBACKS_R15, animFallbacks6 = JERK_FALLBACKS_R6,
-                  osc = nil, refMode = "torso", label = "Jerk" },
+                  osc = nil, refMode = "head", label = "Goon (Face)" },
     headsit   = { offset = CFrame.new(0, 1.2, 0),
                   anim15 = 2506281703, anim6 = 2506281703,
                   animFallbacks = {2510238627, 507768375, 180426354},
@@ -2402,10 +2394,6 @@ WELD_PRESETS = {
                   animFallbacks = {117991975031893, 3338010159, 4940563117},
                   animFallbacks6 = {180435571, 128777973},
                   osc = nil, refMode = "torso", label = "Hug" },
-    chootlelo = { offset = CFrame.new(0, 2.2, -3.8) * CFrame.Angles(0, math.rad(180), 0),
-                  anim15 = BANG_ANIM_ID, anim6 = BANG_ANIM_ID,
-                  animFallbacks = BANG_FALLBACKS_R15, animFallbacks6 = BANG_FALLBACKS_R6,
-                  osc = {distance = 2.9, period = 0.22}, refMode = "torso", label = "Choot Lelo" },
 }
 
 -- Add "chase" preset to WELD_PRESETS so users can also use pure Follow-Everywhere mode
@@ -5915,7 +5903,7 @@ local function stepAllPlayersCycleNow(forceNext, departedName)
 
     local activeKey = (WeldIntent.presetKey and (WELD_PRESETS[WeldIntent.presetKey] or WeldIntent.presetKey == "animcopy") and WeldIntent.presetKey)
         or (LastPresetKey and (WELD_PRESETS[LastPresetKey] or LastPresetKey == "animcopy") and LastPresetKey)
-        or "bang"
+        or "backshots"
     WeldIntent.presetKey = activeKey
     LastPresetKey = activeKey
 
@@ -6020,7 +6008,7 @@ local function startAllPlayersWeldCycle(presetKeyOverride)
     local chosenKey = presetKeyOverride
         or (WeldIntent.presetKey and (WELD_PRESETS[WeldIntent.presetKey] or WeldIntent.presetKey == "animcopy") and WeldIntent.presetKey)
         or (LastPresetKey and (WELD_PRESETS[LastPresetKey] or LastPresetKey == "animcopy") and LastPresetKey)
-        or "bang"
+        or "backshots"
     WeldIntent.presetKey = chosenKey
     LastPresetKey = chosenKey
     WeldIntent.allLastSwitchTick = 0
@@ -12329,30 +12317,26 @@ local function ensureOverheadTagAnimator()
             if entry and entry.gui and entry.gui.Parent then
                 local phase = (tonumber(uid) or 0) % 17 * 0.45
                 local speedMult = entry.animSpeed or 1.0
-                -- 1. Animated living background gradient (rotation + smooth wave offset)
+                -- 1. Subtle obsidian-glass background drift
                 if entry.bgGrad then
-                    entry.bgGrad.Rotation = 16 + math.sin(t * 1.35 * speedMult + phase) * 32
-                    entry.bgGrad.Offset = Vector2.new(math.sin(t * 0.95 * speedMult + phase) * 0.24, math.cos(t * 0.7 * speedMult + phase) * 0.08)
+                    entry.bgGrad.Rotation = 12 + math.sin(t * 0.85 * speedMult + phase) * 18
+                    entry.bgGrad.Offset = Vector2.new(math.sin(t * 0.65 * speedMult + phase) * 0.16, 0)
                 end
-                -- 2. Orbiting luminous neon border gradient
+                -- 2. Smooth orbiting luminous hairline border
                 if entry.strokeGrad then
-                    entry.strokeGrad.Rotation = (t * 105 * speedMult + phase * 40) % 360
+                    entry.strokeGrad.Rotation = (t * 68 * speedMult + phase * 35) % 360
                 end
-                -- 3. Flowing top energy accent bar
-                if entry.accentGrad then
-                    entry.accentGrad.Offset = Vector2.new(math.sin(t * 2.1 * speedMult + phase) * 0.42, 0)
-                end
-                -- 4. Holographic shimmer sheen sweep across background
+                -- 3. Refined glass sheen sweep
                 if entry.shimmerFrame then
-                    local sweep = ((t * 0.58 * speedMult + phase * 0.15) % 2.4) - 0.65
-                    entry.shimmerFrame.Position = UDim2.new(sweep, 0, -0.45, 0)
+                    local sweep = ((t * 0.44 * speedMult + phase * 0.15) % 2.8) - 0.75
+                    entry.shimmerFrame.Position = UDim2.new(sweep, 0, -0.5, 0)
                 end
-                -- 5. Soft breathing outer aura glow & emblem gradient rotation
+                -- 4. Gentle breathing ambient capsule halo & circular medallion sheen
                 if entry.glowFrame then
-                    entry.glowFrame.BackgroundTransparency = 0.72 + math.sin(t * 2.6 * speedMult + phase) * 0.12
+                    entry.glowFrame.BackgroundTransparency = 0.86 + math.sin(t * 2.0 * speedMult + phase) * 0.05
                 end
                 if entry.emblemGrad then
-                    entry.emblemGrad.Rotation = (t * 65 * speedMult + phase * 25) % 360
+                    entry.emblemGrad.Rotation = (t * 45 * speedMult + phase * 25) % 360
                 end
             end
         end
@@ -12364,96 +12348,79 @@ local OVERHEAD_ROLE_THEMES = {
         icon = "👑",
         title = "COCO OWNER",
         pill = "IMMUNE",
-        animSpeed = 1.25,
+        animSpeed = 1.15,
         bgSeq = ColorSequence.new({
-            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(36, 22, 4)),
-            ColorSequenceKeypoint.new(0.45, Color3.fromRGB(86, 52, 8)),
-            ColorSequenceKeypoint.new(0.75, Color3.fromRGB(54, 30, 6)),
-            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(24, 14, 4)),
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(16, 12, 8)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(36, 24, 10)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(12, 10, 8)),
         }),
         strokeSeq = ColorSequence.new({
-            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(255, 215, 70)),
-            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 248, 196)),
-            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(255, 145, 20)),
-        }),
-        accentSeq = ColorSequence.new({
-            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(255, 165, 0)),
-            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 244, 168)),
-            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(255, 195, 40)),
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(255, 212, 82)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 248, 214)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(245, 158, 11)),
         }),
         emblemSeq = ColorSequence.new({
-            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(255, 215, 70)),
-            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(217, 119, 6)),
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(255, 215, 86)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(180, 96, 12)),
         }),
-        glowColor = Color3.fromRGB(255, 200, 45),
-        shimmerColor = Color3.fromRGB(255, 242, 180),
-        roleColor = Color3.fromRGB(255, 226, 102),
-        nameColor = Color3.fromRGB(255, 247, 224),
-        pillBg = Color3.fromRGB(255, 196, 36),
-        pillText = Color3.fromRGB(26, 15, 2),
+        glowColor = Color3.fromRGB(255, 200, 60),
+        shimmerColor = Color3.fromRGB(255, 246, 206),
+        roleColor = Color3.fromRGB(255, 224, 118),
+        nameColor = Color3.fromRGB(248, 242, 228),
+        pillBg = Color3.fromRGB(255, 200, 52),
+        pillText = Color3.fromRGB(20, 12, 4),
     },
     OWNER_NOIMM = {
         icon = "👑",
         title = "COCO OWNER",
         pill = "OPEN",
-        animSpeed = 1.15,
+        animSpeed = 1.1,
         bgSeq = ColorSequence.new({
-            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(44, 14, 10)),
-            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(96, 32, 14)),
-            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(32, 10, 12)),
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(20, 10, 10)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(44, 18, 14)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(14, 9, 10)),
         }),
         strokeSeq = ColorSequence.new({
-            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(255, 185, 36)),
-            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 105, 80)),
-            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(255, 215, 70)),
-        }),
-        accentSeq = ColorSequence.new({
-            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(255, 95, 70)),
-            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 215, 85)),
-            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(255, 95, 70)),
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(255, 185, 56)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 115, 92)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(255, 215, 86)),
         }),
         emblemSeq = ColorSequence.new({
-            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(255, 175, 40)),
-            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(235, 70, 60)),
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(255, 175, 56)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(215, 65, 55)),
         }),
-        glowColor = Color3.fromRGB(255, 130, 50),
-        shimmerColor = Color3.fromRGB(255, 210, 170),
-        roleColor = Color3.fromRGB(255, 200, 96),
-        nameColor = Color3.fromRGB(255, 236, 224),
-        pillBg = Color3.fromRGB(255, 108, 64),
+        glowColor = Color3.fromRGB(255, 126, 66),
+        shimmerColor = Color3.fromRGB(255, 220, 196),
+        roleColor = Color3.fromRGB(255, 196, 108),
+        nameColor = Color3.fromRGB(250, 236, 230),
+        pillBg = Color3.fromRGB(245, 104, 68),
         pillText = Color3.fromRGB(255, 255, 255),
     },
     PREMIUM = {
         icon = "💎",
         title = "COCO PREMIUM",
         pill = "VIP",
-        animSpeed = 1.15,
+        animSpeed = 1.1,
         bgSeq = ColorSequence.new({
-            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(6, 26, 42)),
-            ColorSequenceKeypoint.new(0.48, Color3.fromRGB(12, 62, 92)),
-            ColorSequenceKeypoint.new(0.78, Color3.fromRGB(16, 40, 86)),
-            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(7, 18, 36)),
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(8, 16, 26)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(12, 34, 52)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(8, 14, 24)),
         }),
         strokeSeq = ColorSequence.new({
             ColorSequenceKeypoint.new(0.0, Color3.fromRGB(56, 224, 255)),
-            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(186, 246, 255)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(210, 250, 255)),
             ColorSequenceKeypoint.new(1.0, Color3.fromRGB(99, 102, 241)),
-        }),
-        accentSeq = ColorSequence.new({
-            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(56, 189, 248)),
-            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(186, 248, 255)),
-            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(129, 140, 248)),
         }),
         emblemSeq = ColorSequence.new({
             ColorSequenceKeypoint.new(0.0, Color3.fromRGB(56, 224, 255)),
             ColorSequenceKeypoint.new(1.0, Color3.fromRGB(59, 130, 246)),
         }),
-        glowColor = Color3.fromRGB(56, 220, 255),
-        shimmerColor = Color3.fromRGB(186, 246, 255),
-        roleColor = Color3.fromRGB(92, 234, 255),
-        nameColor = Color3.fromRGB(224, 247, 255),
+        glowColor = Color3.fromRGB(56, 218, 255),
+        shimmerColor = Color3.fromRGB(214, 250, 255),
+        roleColor = Color3.fromRGB(118, 236, 255),
+        nameColor = Color3.fromRGB(232, 248, 255),
         pillBg = Color3.fromRGB(34, 211, 238),
-        pillText = Color3.fromRGB(4, 22, 34),
+        pillText = Color3.fromRGB(6, 20, 30),
     },
     USER = {
         icon = "⚡",
@@ -12461,30 +12428,24 @@ local OVERHEAD_ROLE_THEMES = {
         pill = "SCRIPT",
         animSpeed = 1.0,
         bgSeq = ColorSequence.new({
-            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(24, 10, 44)),
-            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(58, 22, 104)),
-            ColorSequenceKeypoint.new(0.8, Color3.fromRGB(42, 14, 72)),
-            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(18, 9, 32)),
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(12, 10, 20)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(28, 16, 46)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(10, 9, 18)),
         }),
         strokeSeq = ColorSequence.new({
             ColorSequenceKeypoint.new(0.0, Color3.fromRGB(192, 132, 252)),
             ColorSequenceKeypoint.new(0.5, Color3.fromRGB(244, 114, 182)),
             ColorSequenceKeypoint.new(1.0, Color3.fromRGB(56, 189, 248)),
         }),
-        accentSeq = ColorSequence.new({
-            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(168, 85, 247)),
-            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(244, 114, 182)),
-            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(56, 189, 248)),
-        }),
         emblemSeq = ColorSequence.new({
             ColorSequenceKeypoint.new(0.0, Color3.fromRGB(192, 132, 252)),
-            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(236, 72, 153)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(219, 68, 152)),
         }),
-        glowColor = Color3.fromRGB(180, 102, 255),
-        shimmerColor = Color3.fromRGB(238, 205, 255),
-        roleColor = Color3.fromRGB(216, 170, 255),
-        nameColor = Color3.fromRGB(240, 232, 255),
-        pillBg = Color3.fromRGB(168, 85, 247),
+        glowColor = Color3.fromRGB(178, 108, 255),
+        shimmerColor = Color3.fromRGB(242, 224, 255),
+        roleColor = Color3.fromRGB(218, 178, 255),
+        nameColor = Color3.fromRGB(240, 236, 250),
+        pillBg = Color3.fromRGB(156, 86, 242),
         pillText = Color3.fromRGB(255, 255, 255),
     },
     FROZEN = {
@@ -12493,17 +12454,12 @@ local OVERHEAD_ROLE_THEMES = {
         pill = "LOCKED",
         animSpeed = 0.85,
         bgSeq = ColorSequence.new({
-            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(7, 26, 46)),
-            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(16, 62, 102)),
-            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(8, 22, 38)),
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(8, 16, 28)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(14, 36, 58)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(8, 14, 24)),
         }),
         strokeSeq = ColorSequence.new({
             ColorSequenceKeypoint.new(0.0, Color3.fromRGB(125, 211, 252)),
-            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(224, 242, 254)),
-            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(56, 189, 248)),
-        }),
-        accentSeq = ColorSequence.new({
-            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(56, 189, 248)),
             ColorSequenceKeypoint.new(0.5, Color3.fromRGB(224, 242, 254)),
             ColorSequenceKeypoint.new(1.0, Color3.fromRGB(56, 189, 248)),
         }),
@@ -12511,41 +12467,36 @@ local OVERHEAD_ROLE_THEMES = {
             ColorSequenceKeypoint.new(0.0, Color3.fromRGB(125, 211, 252)),
             ColorSequenceKeypoint.new(1.0, Color3.fromRGB(14, 165, 233)),
         }),
-        glowColor = Color3.fromRGB(96, 210, 255),
+        glowColor = Color3.fromRGB(96, 206, 255),
         shimmerColor = Color3.fromRGB(224, 246, 255),
-        roleColor = Color3.fromRGB(147, 226, 255),
-        nameColor = Color3.fromRGB(224, 242, 254),
+        roleColor = Color3.fromRGB(156, 228, 255),
+        nameColor = Color3.fromRGB(230, 244, 254),
         pillBg = Color3.fromRGB(56, 189, 248),
-        pillText = Color3.fromRGB(4, 22, 36),
+        pillText = Color3.fromRGB(4, 20, 32),
     },
     BANNED = {
         icon = "🚫",
         title = "SCRIPT BANNED",
         pill = "LOCKED",
-        animSpeed = 1.35,
+        animSpeed = 1.25,
         bgSeq = ColorSequence.new({
-            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(44, 7, 16)),
-            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(98, 16, 36)),
-            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(32, 6, 12)),
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(22, 8, 12)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(48, 12, 22)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(16, 6, 10)),
         }),
         strokeSeq = ColorSequence.new({
             ColorSequenceKeypoint.new(0.0, Color3.fromRGB(244, 63, 94)),
-            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 164, 180)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 180, 194)),
             ColorSequenceKeypoint.new(1.0, Color3.fromRGB(225, 29, 72)),
-        }),
-        accentSeq = ColorSequence.new({
-            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(244, 63, 94)),
-            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 164, 180)),
-            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(244, 63, 94)),
         }),
         emblemSeq = ColorSequence.new({
             ColorSequenceKeypoint.new(0.0, Color3.fromRGB(251, 113, 133)),
             ColorSequenceKeypoint.new(1.0, Color3.fromRGB(190, 18, 60)),
         }),
         glowColor = Color3.fromRGB(244, 63, 94),
-        shimmerColor = Color3.fromRGB(255, 190, 200),
-        roleColor = Color3.fromRGB(255, 122, 146),
-        nameColor = Color3.fromRGB(255, 228, 234),
+        shimmerColor = Color3.fromRGB(255, 204, 214),
+        roleColor = Color3.fromRGB(255, 132, 154),
+        nameColor = Color3.fromRGB(255, 232, 238),
         pillBg = Color3.fromRGB(244, 63, 94),
         pillText = Color3.fromRGB(255, 255, 255),
     },
@@ -12602,8 +12553,8 @@ updateOverheadNameTags = function()
             if not entry or not entry.gui or not entry.gui.Parent then
                 local bbg = Instance.new("BillboardGui")
                 bbg.Name = "CocoPowderTag_" .. tostring(uid)
-                bbg.Size = UDim2.new(0, 204, 0, 44)
-                bbg.StudsOffset = Vector3.new(0, 2.55, 0)
+                bbg.Size = UDim2.new(0, 214, 0, 40)
+                bbg.StudsOffset = Vector3.new(0, 2.45, 0)
                 bbg.AlwaysOnTop = true
                 bbg.MaxDistance = 360
                 bbg.LightInfluence = 0
@@ -12611,39 +12562,39 @@ updateOverheadNameTags = function()
                 bbg.Adornee = adorneePart
                 bbg.Parent = parentContainer
 
-                -- Outer breathing aura glow
+                -- Sleek ambient capsule halo
                 local glowFrame = Instance.new("Frame")
                 glowFrame.Name = "AuraGlow"
-                glowFrame.Size = UDim2.new(1, -2, 1, -2)
-                glowFrame.Position = UDim2.new(0, 1, 0, 1)
-                glowFrame.BackgroundColor3 = Color3.fromRGB(180, 102, 255)
-                glowFrame.BackgroundTransparency = 0.76
+                glowFrame.Size = UDim2.new(1, 0, 1, 0)
+                glowFrame.Position = UDim2.new(0, 0, 0, 0)
+                glowFrame.BackgroundColor3 = Color3.fromRGB(178, 108, 255)
+                glowFrame.BackgroundTransparency = 0.86
                 glowFrame.BorderSizePixel = 0
                 glowFrame.ZIndex = 1
                 glowFrame.Parent = bbg
-                Instance.new("UICorner", glowFrame).CornerRadius = UDim.new(0, 13)
+                Instance.new("UICorner", glowFrame).CornerRadius = UDim.new(1, 0)
 
-                -- Main animated card body
+                -- Sleek Obsidian-Glass capsule card
                 local bg = Instance.new("Frame")
                 bg.Name = "TagCard"
-                bg.Size = UDim2.new(1, -8, 1, -8)
-                bg.Position = UDim2.new(0, 4, 0, 4)
+                bg.Size = UDim2.new(1, -6, 1, -6)
+                bg.Position = UDim2.new(0, 3, 0, 3)
                 bg.BackgroundColor3 = Color3.new(1, 1, 1)
-                bg.BackgroundTransparency = 0.08
+                bg.BackgroundTransparency = 0.14
                 bg.BorderSizePixel = 0
                 bg.ClipsDescendants = true
                 bg.ZIndex = 2
                 bg.Parent = bbg
-                Instance.new("UICorner", bg).CornerRadius = UDim.new(0, 11)
+                Instance.new("UICorner", bg).CornerRadius = UDim.new(1, 0)
 
                 local bgGrad = Instance.new("UIGradient")
-                bgGrad.Rotation = 16
+                bgGrad.Rotation = 12
                 bgGrad.Parent = bg
 
-                -- Orbiting neon border stroke
+                -- Thin luminous orbiting hairline stroke
                 local st = Instance.new("UIStroke")
-                st.Thickness = 1.65
-                st.Transparency = 0.08
+                st.Thickness = 1.25
+                st.Transparency = 0.18
                 st.Color = Color3.new(1, 1, 1)
                 st.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
                 st.Parent = bg
@@ -12652,14 +12603,32 @@ updateOverheadNameTags = function()
                 strokeGrad.Rotation = 0
                 strokeGrad.Parent = st
 
-                -- Animated holographic shimmer sweep across background
+                -- Subtle top-edge inner glass highlight
+                local glassHighlight = Instance.new("Frame")
+                glassHighlight.Name = "GlassHighlight"
+                glassHighlight.Size = UDim2.new(0.76, 0, 0, 1)
+                glassHighlight.Position = UDim2.new(0.12, 0, 0, 1)
+                glassHighlight.BackgroundColor3 = Color3.new(1, 1, 1)
+                glassHighlight.BackgroundTransparency = 0.78
+                glassHighlight.BorderSizePixel = 0
+                glassHighlight.ZIndex = 3
+                glassHighlight.Parent = bg
+                local hlGrad = Instance.new("UIGradient")
+                hlGrad.Transparency = NumberSequence.new({
+                    NumberSequenceKeypoint.new(0.0, 1.0),
+                    NumberSequenceKeypoint.new(0.5, 0.0),
+                    NumberSequenceKeypoint.new(1.0, 1.0),
+                })
+                hlGrad.Parent = glassHighlight
+
+                -- Soft diagonal glass sheen sweep
                 local shimmerFrame = Instance.new("Frame")
                 shimmerFrame.Name = "ShimmerSweep"
-                shimmerFrame.Size = UDim2.new(0.42, 0, 1.9, 0)
-                shimmerFrame.Position = UDim2.new(-0.6, 0, -0.45, 0)
-                shimmerFrame.Rotation = 20
+                shimmerFrame.Size = UDim2.new(0.32, 0, 2.0, 0)
+                shimmerFrame.Position = UDim2.new(-0.75, 0, -0.5, 0)
+                shimmerFrame.Rotation = 24
                 shimmerFrame.BackgroundColor3 = Color3.new(1, 1, 1)
-                shimmerFrame.BackgroundTransparency = 0.80
+                shimmerFrame.BackgroundTransparency = 0.88
                 shimmerFrame.BorderSizePixel = 0
                 shimmerFrame.ZIndex = 3
                 shimmerFrame.Parent = bg
@@ -12671,68 +12640,55 @@ updateOverheadNameTags = function()
                 })
                 shimGrad.Parent = shimmerFrame
 
-                -- Top flowing neon accent energy bar
-                local accentBar = Instance.new("Frame")
-                accentBar.Name = "AccentBar"
-                accentBar.Size = UDim2.new(1, 0, 0, 2)
-                accentBar.Position = UDim2.new(0, 0, 0, 0)
-                accentBar.BackgroundColor3 = Color3.new(1, 1, 1)
-                accentBar.BackgroundTransparency = 0.05
-                accentBar.BorderSizePixel = 0
-                accentBar.ZIndex = 4
-                accentBar.Parent = bg
-                local accentGrad = Instance.new("UIGradient")
-                accentGrad.Parent = accentBar
-
-                -- Left unique role emblem badge
+                -- Left circular glowing role medallion
                 local emblemFrame = Instance.new("Frame")
                 emblemFrame.Name = "RoleEmblem"
-                emblemFrame.Size = UDim2.new(0, 26, 0, 26)
-                emblemFrame.Position = UDim2.new(0, 6, 0.5, -13)
+                emblemFrame.Size = UDim2.new(0, 24, 0, 24)
+                emblemFrame.Position = UDim2.new(0, 6, 0.5, -12)
                 emblemFrame.BackgroundColor3 = Color3.new(1, 1, 1)
-                emblemFrame.BackgroundTransparency = 0.14
+                emblemFrame.BackgroundTransparency = 0.16
                 emblemFrame.BorderSizePixel = 0
                 emblemFrame.ZIndex = 5
                 emblemFrame.Parent = bg
-                Instance.new("UICorner", emblemFrame).CornerRadius = UDim.new(0, 8)
+                Instance.new("UICorner", emblemFrame).CornerRadius = UDim.new(1, 0)
                 local emblemGrad = Instance.new("UIGradient")
                 emblemGrad.Rotation = 45
                 emblemGrad.Parent = emblemFrame
                 local emblemStroke = Instance.new("UIStroke")
                 emblemStroke.Color = Color3.new(1, 1, 1)
-                emblemStroke.Thickness = 1.0
-                emblemStroke.Transparency = 0.55
+                emblemStroke.Thickness = 0.9
+                emblemStroke.Transparency = 0.68
                 emblemStroke.Parent = emblemFrame
 
                 local iconLbl = Instance.new("TextLabel")
                 iconLbl.Size = UDim2.new(1, 0, 1, 0)
                 iconLbl.BackgroundTransparency = 1
                 iconLbl.Font = Enum.Font.GothamBold
-                iconLbl.TextSize = 14
+                iconLbl.TextSize = 13
                 iconLbl.TextColor3 = Color3.new(1, 1, 1)
                 iconLbl.ZIndex = 6
                 iconLbl.Parent = emblemFrame
 
-                -- Status pill badge (top-right)
+                -- Compact refined status pill (top-right inside capsule)
                 local statusPill = Instance.new("TextLabel")
                 statusPill.Name = "StatusPill"
-                statusPill.Size = UDim2.new(0, 44, 0, 13)
+                statusPill.Size = UDim2.new(0, 42, 0, 13)
                 statusPill.Position = UDim2.new(1, -50, 0, 5)
-                statusPill.BackgroundColor3 = Color3.fromRGB(168, 85, 247)
-                statusPill.BackgroundTransparency = 0.08
+                statusPill.BackgroundColor3 = Color3.fromRGB(156, 86, 242)
+                statusPill.BackgroundTransparency = 0.12
                 statusPill.BorderSizePixel = 0
                 statusPill.Font = Enum.Font.GothamBlack
-                statusPill.TextSize = 7.5
+                statusPill.TextSize = 7
                 statusPill.TextColor3 = Color3.new(1, 1, 1)
                 statusPill.ZIndex = 6
                 statusPill.Parent = bg
                 Instance.new("UICorner", statusPill).CornerRadius = UDim.new(1, 0)
 
-                -- Role title label (top-left beside emblem)
+                -- Crisp role title (top row)
                 local roleLbl = Instance.new("TextLabel")
                 roleLbl.Name = "RoleTitle"
-                roleLbl.Size = UDim2.new(1, -92, 0, 14)
-                roleLbl.Position = UDim2.new(0, 38, 0, 5)
+                roleLbl.Size = UDim2.new(1, -94, 0, 13)
+                roleLbl.Position = UDim2.new(0, 36, 0, 5)
                 roleLbl.BackgroundTransparency = 1
                 roleLbl.Font = Enum.Font.GothamBlack
                 roleLbl.TextSize = 9.5
@@ -12741,28 +12697,28 @@ updateOverheadNameTags = function()
                 roleLbl.ZIndex = 6
                 roleLbl.Parent = bg
                 local roleStroke = Instance.new("UIStroke")
-                roleStroke.Color = Color3.fromRGB(8, 6, 14)
-                roleStroke.Thickness = 1.2
-                roleStroke.Transparency = 0.25
+                roleStroke.Color = Color3.fromRGB(6, 6, 12)
+                roleStroke.Thickness = 0.85
+                roleStroke.Transparency = 0.55
                 roleStroke.Parent = roleLbl
 
-                -- Player DisplayName + @Username label (bottom row)
+                -- Clean DisplayName + @Username (bottom row)
                 local nameLbl = Instance.new("TextLabel")
                 nameLbl.Name = "PlayerName"
-                nameLbl.Size = UDim2.new(1, -44, 0, 13)
-                nameLbl.Position = UDim2.new(0, 38, 0, 19)
+                nameLbl.Size = UDim2.new(1, -48, 0, 12)
+                nameLbl.Position = UDim2.new(0, 36, 0, 18)
                 nameLbl.BackgroundTransparency = 1
-                nameLbl.Font = Enum.Font.GothamSemibold
+                nameLbl.Font = Enum.Font.GothamMedium
                 nameLbl.TextSize = 8.5
                 nameLbl.TextXAlignment = Enum.TextXAlignment.Left
-                nameLbl.TextColor3 = Color3.fromRGB(238, 234, 248)
+                nameLbl.TextColor3 = Color3.fromRGB(238, 236, 248)
                 nameLbl.TextTruncate = Enum.TextTruncate.AtEnd
                 nameLbl.ZIndex = 6
                 nameLbl.Parent = bg
                 local nameStroke = Instance.new("UIStroke")
-                nameStroke.Color = Color3.fromRGB(8, 6, 14)
-                nameStroke.Thickness = 1.0
-                nameStroke.Transparency = 0.35
+                nameStroke.Color = Color3.fromRGB(6, 6, 12)
+                nameStroke.Thickness = 0.7
+                nameStroke.Transparency = 0.6
                 nameStroke.Parent = nameLbl
 
                 entry = {
@@ -12773,7 +12729,6 @@ updateOverheadNameTags = function()
                     strokeGrad = strokeGrad,
                     glowFrame = glowFrame,
                     shimmerFrame = shimmerFrame,
-                    accentGrad = accentGrad,
                     emblemGrad = emblemGrad,
                     iconLbl = iconLbl,
                     statusPill = statusPill,
@@ -12805,12 +12760,11 @@ updateOverheadNameTags = function()
                 entry.statusPill.TextColor3 = th.pillText
                 entry.bgGrad.Color = th.bgSeq
                 entry.strokeGrad.Color = th.strokeSeq
-                entry.accentGrad.Color = th.accentSeq
                 entry.emblemGrad.Color = th.emblemSeq
                 entry.glowFrame.BackgroundColor3 = th.glowColor
                 entry.shimmerFrame.BackgroundColor3 = th.shimmerColor
             end
-            local desiredName = plr.DisplayName .. " (@" .. plr.Name .. ")"
+            local desiredName = plr.DisplayName .. " · @" .. plr.Name
             if entry.lastNameText ~= desiredName then
                 entry.lastNameText = desiredName
                 entry.nameLbl.Text = desiredName
@@ -23595,7 +23549,8 @@ local function buildMainUI()
     local cocaReanimPage= createCategory("Coca Reanim",       "🦴", 8,   "Coca Reanim keyframe player, custom scripts, state anims & limb hider", "Coca Reanim")
     local skyPage       = createCategory("Coca Sky Destroyer","💥", 9,   "3D Layered Clothing & Glitch Walker Sky, Ground & Cube Matrix Destroyer", "Coca Sky")
     local emotePage     = createCategory("Emotes",            "💃", 315, "315+ searchable catalog emotes, viral dances, dog/moonwalk & custom IDs", "Emotes")
-    local weldPage      = createCategory("Weld & Troll",      "⚡", 15,  "Dynamic height-adaptive welds, jerk troll, void throws & pins", "Weld & Troll")
+    local weldPage      = createCategory("Weld & Troll",      "⚡", 13,  "Dynamic height-adaptive welds, jerk troll, void throws & pins", "Weld & Troll")
+    local loudPage      = createCategory("One Click Loud",    "🔊", 1,   "Mic Up one-click loud voice preset via remotes · Credit: Jammun Hub", "One Click Loud")
     local targetPage    = createCategory("Target",            "🎯", 1,   "Omnipresent hidden-player seeker & server-wide lock", "Target")
     local movePage      = createCategory("Performance",       "🚀", 11,  "60Hz Chrono-Rewind, WalkSpeed 500 & 4-Phase Flight", "Move & Fly")
     local antiPage      = createCategory("Privacy",           "🛡", 16,  "Defence Troll Matrix V3 & 16 multi-layer physics shields", "Anti Shield")
@@ -23631,9 +23586,9 @@ local function buildMainUI()
         { key = "coversky",     pillLabel = "CoverSky",   width = 104 },
         { key = "covercube",    pillLabel = "CubeMatrix", width = 114 },
         { key = "coverflash",   pillLabel = "SkyFlash",   width = 102 },
+        { key = "oneclickloud", pillLabel = "Loud 🔊",   width = 98  },
         { key = "headpat",   pillLabel = "Pat",       width = 82  },
         { key = "headsit",   pillLabel = "Headsit",   width = 104 },
-        { key = "bang",      pillLabel = "Bang",      width = 88  },
         { key = "goon",      pillLabel = "Goon",      width = 88  },
         { key = "facebang",  pillLabel = "Facebang",  width = 112 },
         { key = "backshots", pillLabel = "Backshots", width = 114 },
@@ -23643,7 +23598,6 @@ local function buildMainUI()
         { key = "propose",   pillLabel = "Propose",   width = 104 },
         { key = "lawl",      pillLabel = "Lawl",      width = 86  },
         { key = "hug",       pillLabel = "Hug",       width = 82  },
-        { key = "chootlelo", pillLabel = "ChootLelo", width = 112 },
         { key = "chase",     pillLabel = "ChaseTP",   width = 104 },
         { key = "fling",     pillLabel = "Fling",     width = 86  },
         { key = "voidthrow", pillLabel = "VoidThrow", width = 112 },
@@ -23777,7 +23731,7 @@ local function buildMainUI()
             else
                 local activePreset = (WeldIntent.presetKey and (WELD_PRESETS[WeldIntent.presetKey] or WeldIntent.presetKey == "animcopy") and WeldIntent.presetKey)
                     or (LastPresetKey and (WELD_PRESETS[LastPresetKey] or LastPresetKey == "animcopy") and LastPresetKey)
-                    or "bang"
+                    or "backshots"
                 if type(_G.CocoStartAllPlayersCycle) == "function" then
                     _G.CocoStartAllPlayersCycle(activePreset)
                 end
@@ -23813,6 +23767,12 @@ local function buildMainUI()
         end
         if key == "coverflash" then
             _G.SetCoverFlash(not _G._HaloCoverFlashActive)
+            return
+        end
+        if key == "oneclickloud" then
+            if type(_G.CocoApplyOneClickLoud) == "function" then
+                _G.CocoApplyOneClickLoud()
+            end
             return
         end
         if key == "jerktroll" then
@@ -24884,8 +24844,7 @@ local function buildMainUI()
 
         local QUICK_GRID_ITEMS = {
             { key = "all",       label = "All Players 🔄" },
-            { key = "bang",      label = "Bang"       },
-            { key = "goon",      label = "Goon"       },
+            { key = "goon",      label = "Goon (Face)" },
             { key = "rizz",      label = "Rizz"       },
             { key = "facebang",  label = "Face Bang"  },
             { key = "backshots", label = "Backshots"  },
@@ -24896,7 +24855,6 @@ local function buildMainUI()
             { key = "propose",   label = "Propose"    },
             { key = "lawl",      label = "Lawl"       },
             { key = "hug",       label = "Hug"        },
-            { key = "chootlelo", label = "Choot Lelo" },
             { key = "animcopy",  label = "Anim Copy"  },
             { key = "chase",     label = "Follow All" },
             { key = "vanish",    label = "Vanish 👻"  },
@@ -25455,19 +25413,17 @@ local function buildMainUI()
         createActionRow(sigGrp, 3, "Give 'Jerk Off' Backpack Tool", "Spawns equippable Jerk Troll tool in your Backpack", "Get Tool", function()
             EmoteHub:GiveJerkTool()
         end)
-        addPresetRow(sigGrp, 4, "bang",      "Bang (Universal R15/R6)", "Custom Coco Bang Animation ID (116235062592344) + pelvis lock")
-        addPresetRow(sigGrp, 5, "goon",      "Goon (Coco)",             "Custom Coco Goon Animation ID (136828069054505) + target lock")
-        addPresetRow(sigGrp, 6, "rizz",      "Rizz (Wall Rizz Pose)",   "Zero-delay Kabedon / Wall Lean (90735295463164) + auto height solver")
-        addPresetRow(sigGrp, 7, "facebang",  "Facebang",  "Head-locked oscillation with live height solver & Bang anim")
-        addPresetRow(sigGrp, 8, "backshots", "Backshots", "Pelvis-locked oscillation with scale alignment & Bang anim")
-        addPresetRow(sigGrp, 9, "headsit",   "Headsit",   "Seated lock flush on top of target head")
-        addPresetRow(sigGrp, 10, "headpat",   "Headpat",   "Gentle upper-body patting weld above target")
-        addPresetRow(sigGrp, 11, "kiss",      "Kiss",      "Front face-to-face close alignment lock")
-        addPresetRow(sigGrp, 12, "backpack",  "Backpack",  "Rear upper-back piggyback ride lock")
-        addPresetRow(sigGrp, 13, "propose",   "Propose",    "Kneeling front showcase pose lock")
-        addPresetRow(sigGrp, 14, "lawl",      "Lawl",       "Front laughing taunt lock")
-        addPresetRow(sigGrp, 15, "hug",       "Hug",        "Close torso embrace lock")
-        addPresetRow(sigGrp, 16, "chootlelo", "Choot Lelo", "Close lower-torso rapid oscillation lock & Bang anim")
+        addPresetRow(sigGrp, 4, "goon",      "Goon (Direct Face Lock)", "Custom Coco Goon Animation ID (136828069054505) locked directly in front of player face")
+        addPresetRow(sigGrp, 5, "rizz",      "Rizz (Wall Rizz Pose)",   "Zero-delay Kabedon / Wall Lean (90735295463164) + auto height solver")
+        addPresetRow(sigGrp, 6, "facebang",  "Facebang",  "Head-locked oscillation with live height solver & Bang anim")
+        addPresetRow(sigGrp, 7, "backshots", "Bang / Backshots", "Pelvis-locked oscillation with scale alignment & Bang anim")
+        addPresetRow(sigGrp, 8, "headsit",   "Headsit",   "Seated lock flush on top of target head")
+        addPresetRow(sigGrp, 9, "headpat",   "Headpat",   "Gentle upper-body patting weld above target")
+        addPresetRow(sigGrp, 10, "kiss",      "Kiss",      "Front face-to-face close alignment lock")
+        addPresetRow(sigGrp, 11, "backpack",  "Backpack",  "Rear upper-back piggyback ride lock")
+        addPresetRow(sigGrp, 12, "propose",   "Propose",    "Kneeling front showcase pose lock")
+        addPresetRow(sigGrp, 13, "lawl",      "Lawl",       "Front laughing taunt lock")
+        addPresetRow(sigGrp, 14, "hug",       "Hug",        "Close torso embrace lock")
 
         createSectionTitle(weldPage, 4, "Pursuit, Void & Time Weapons")
         local voidGrp = createGroupCard(weldPage, 5)
@@ -25706,6 +25662,357 @@ local function buildMainUI()
             customAnimBox.Text = ""
             applyCustomWeldAnim()
         end)
+    end
+
+
+    -- ═══════════════════════════════════════════════════════════════════════════
+    -- DEDICATED CATEGORY: 🔊 ONE CLICK LOUD (Mic Up Voice Preset v3.0 · Credit: Jammun Hub)
+    -- ═══════════════════════════════════════════════════════════════════════════
+    do
+        local RS = game:GetService("ReplicatedStorage")
+
+        -- Game uses these exact spellings (typos intentional)
+        local LOUD_PRESET = {
+            {
+                name = "chorus",
+                props = {
+                    { "Rate",  0 },
+                    { "Mix",   1 },
+                    { "Depth", 1 },
+                },
+            },
+            {
+                name = "distortion",
+                props = {
+                    { "Level", 1 },
+                },
+            },
+            {
+                name = "equalier", -- game spelling
+                props = {
+                    { "LowGain",  10 },
+                    { "MidGain",  10 },
+                    { "HighGain", 10 },
+                    { "MidRange", { min = 20000, max = 20000 } },
+                },
+            },
+            {
+                name = "flter", -- game spelling
+                props = {
+                    { "FilterType", 0 },
+                    { "Gain",       30 },
+                    { "Q",          0.1 },
+                },
+            },
+            {
+                name = "reverb",
+                props = {
+                    { "DecayTime",          0.1 },
+                    { "Density",            1 },
+                    { "DecayRatio",         1 },
+                    { "Diffusion",          0 },
+                    { "DryLevel",           20 },
+                    { "EarlyDelayTime",     0 },
+                    { "HighCutFrequency",   20000 },
+                    { "LateDelayTime",      0.1 },
+                    { "LowShelfFrequency",  20000 },
+                    { "LowShelfGain",       12 },
+                    { "ReferenceFrequency", 20000 },
+                },
+            },
+        }
+
+        local function getLoudRemotes()
+            local addEv = RS:FindFirstChild("event_effect_add")
+            local propEv = RS:FindFirstChild("event_effect_property")
+            return addEv, propEv
+        end
+
+        local function applyLoudPreset()
+            local addEv, propEv = getLoudRemotes()
+            if not addEv or not propEv then
+                return false, "remotes missing (event_effect_add / event_effect_property)"
+            end
+
+            local applied = {}
+            for _, fx in ipairs(LOUD_PRESET) do
+                local okAdd = pcall(function()
+                    addEv:FireServer(fx.name)
+                end)
+                if not okAdd then
+                    table.insert(applied, fx.name .. ":add_fail")
+                else
+                    task.wait(0.05)
+                    local okAll = true
+                    for _, p in ipairs(fx.props) do
+                        local ok = pcall(function()
+                            propEv:FireServer(fx.name, p[1], p[2])
+                        end)
+                        if not ok then okAll = false end
+                        task.wait(0.02)
+                    end
+                    table.insert(applied, fx.name .. (okAll and ":ok" or ":partial"))
+                end
+                task.wait(0.06)
+            end
+            return true, table.concat(applied, ", ")
+        end
+
+        -- Credit Banner Card (Jammun Hub)
+        local creditBanner = Instance.new("Frame")
+        creditBanner.Name = "JammunHubCreditBanner"
+        creditBanner.Size = UDim2.new(1, 0, 0, 74)
+        creditBanner.BackgroundColor3 = T.Card
+        creditBanner.BackgroundTransparency = 0.08
+        creditBanner.BorderSizePixel = 0
+        creditBanner.LayoutOrder = 1
+        creditBanner.ZIndex = 7
+        creditBanner.Parent = loudPage
+        Instance.new("UICorner", creditBanner).CornerRadius = UDim.new(0, 14)
+
+        local cbStroke = Instance.new("UIStroke")
+        cbStroke.Color = T.Accent2
+        cbStroke.Thickness = 1.2
+        cbStroke.Transparency = 0.35
+        cbStroke.Parent = creditBanner
+
+        local cbTitle = Instance.new("TextLabel")
+        cbTitle.Size = UDim2.new(1, -124, 0, 20)
+        cbTitle.Position = UDim2.new(0, 14, 0, 10)
+        cbTitle.BackgroundTransparency = 1
+        cbTitle.Font = Enum.Font.GothamBlack
+        cbTitle.TextSize = 13
+        cbTitle.TextColor3 = T.Text
+        cbTitle.TextXAlignment = Enum.TextXAlignment.Left
+        cbTitle.Text = "🔊 One Click Loud — Mic Up v3.0"
+        cbTitle.ZIndex = 8
+        cbTitle.Parent = creditBanner
+
+        local creditPill = Instance.new("TextLabel")
+        creditPill.Size = UDim2.new(0, 108, 0, 20)
+        creditPill.Position = UDim2.new(1, -120, 0, 10)
+        creditPill.BackgroundColor3 = T.Accent2
+        creditPill.BackgroundTransparency = 0.14
+        creditPill.BorderSizePixel = 0
+        creditPill.Font = Enum.Font.GothamBlack
+        creditPill.TextSize = 9
+        creditPill.TextColor3 = Color3.new(1, 1, 1)
+        creditPill.Text = "Credit: Jammun Hub"
+        creditPill.ZIndex = 8
+        creditPill.Parent = creditBanner
+        Instance.new("UICorner", creditPill).CornerRadius = UDim.new(1, 0)
+
+        local loudStatusLbl = Instance.new("TextLabel")
+        loudStatusLbl.Size = UDim2.new(1, -28, 0, 32)
+        loudStatusLbl.Position = UDim2.new(0, 14, 0, 34)
+        loudStatusLbl.BackgroundTransparency = 1
+        loudStatusLbl.Font = Enum.Font.GothamMedium
+        loudStatusLbl.TextSize = 10
+        loudStatusLbl.TextColor3 = T.Muted
+        loudStatusLbl.TextXAlignment = Enum.TextXAlignment.Left
+        loudStatusLbl.TextYAlignment = Enum.TextYAlignment.Top
+        loudStatusLbl.TextWrapped = true
+        loudStatusLbl.Text = "chorus · distortion · equalier · flter · reverb (via remotes — no menu needed) · Credit: Jammun Hub"
+        loudStatusLbl.ZIndex = 8
+        loudStatusLbl.Parent = creditBanner
+
+        local loudBusy = false
+        local function triggerOneClickLoud()
+            if loudBusy then
+                notify("🔊 ONE CLICK LOUD", "Already firing remotes, please wait...")
+                return
+            end
+            loudBusy = true
+            loudStatusLbl.Text = "Firing remotes (chorus · distortion · equalier · flter · reverb)..."
+            loudStatusLbl.TextColor3 = Color3.fromRGB(240, 180, 60)
+            task.spawn(function()
+                local ok, msg = applyLoudPreset()
+                loudBusy = false
+                if ok then
+                    loudStatusLbl.Text = "Done: " .. tostring(msg) .. "  ·  Credit: Jammun Hub"
+                    loudStatusLbl.TextColor3 = Color3.fromRGB(80, 220, 140)
+                    print("[MicUp v3 · Credit: Jammun Hub] " .. tostring(msg))
+                    notify("🔊 ONE CLICK LOUD", "Applied Mic Up loud preset! (Credit: Jammun Hub)")
+                    sSuccess()
+                else
+                    loudStatusLbl.Text = "Fail: " .. tostring(msg)
+                    loudStatusLbl.TextColor3 = Color3.fromRGB(230, 70, 70)
+                    notify("🔊 ONE CLICK LOUD", "Failed: " .. tostring(msg))
+                    sError()
+                end
+            end)
+        end
+        _G.CocoApplyOneClickLoud = triggerOneClickLoud
+
+        createSectionTitle(loudPage, 2, "Mic Up Voice Preset Controls (Credit: Jammun Hub)")
+        local loudGrp = createGroupCard(loudPage, 3)
+
+        addPresetRow(
+            loudGrp,
+            1,
+            "oneclickloud",
+            "Apply One Click Loud Preset",
+            "Fires chorus, distortion, equalier, flter & reverb via remotes · Tap [⦿] to pin floating Loud pill",
+            function()
+                triggerOneClickLoud()
+            end,
+            "APPLY LOUD"
+        )
+
+        -- Optional compact standalone floating panel (matches Mic Up Preset v3.0 mini window)
+        local miniLoudGui = nil
+        createActionRow(
+            loudGrp,
+            2,
+            "Standalone Floating Loud Panel",
+            "Toggle compact draggable Mic Up v3.0 overlay · Credit: Jammun Hub",
+            "Toggle UI",
+            function()
+                if miniLoudGui and miniLoudGui.Parent then
+                    miniLoudGui:Destroy()
+                    miniLoudGui = nil
+                    notify("🔊 ONE CLICK LOUD", "Closed standalone floating panel")
+                    return
+                end
+                local sg = Instance.new("ScreenGui")
+                sg.Name = "MicUpVoicePreset_JammunHub"
+                sg.ResetOnSpawn = false
+                sg.IgnoreGuiInset = true
+                sg.DisplayOrder = 120
+                pcall(function() sg.Parent = gethui and gethui() or CoreGui end)
+                if not sg.Parent then sg.Parent = LP:FindFirstChildOfClass("PlayerGui") end
+                miniLoudGui = sg
+
+                local panel = Instance.new("Frame")
+                panel.Size = UDim2.fromOffset(264, 138)
+                panel.Position = UDim2.new(0.5, -132, 0.5, -69)
+                panel.BackgroundColor3 = Color3.fromRGB(8, 8, 12)
+                panel.BorderSizePixel = 0
+                panel.Active = true
+                panel.Parent = sg
+                Instance.new("UICorner", panel).CornerRadius = UDim.new(0, 12)
+                local pStroke = Instance.new("UIStroke")
+                pStroke.Color = Color3.fromRGB(48, 48, 64)
+                pStroke.Thickness = 1.2
+                pStroke.Transparency = 0.25
+                pStroke.Parent = panel
+
+                local pTitle = Instance.new("TextLabel")
+                pTitle.BackgroundTransparency = 1
+                pTitle.Size = UDim2.new(1, -36, 0, 18)
+                pTitle.Position = UDim2.fromOffset(10, 8)
+                pTitle.Font = Enum.Font.GothamBold
+                pTitle.TextSize = 12
+                pTitle.TextColor3 = Color3.fromRGB(235, 235, 245)
+                pTitle.TextXAlignment = Enum.TextXAlignment.Left
+                pTitle.Text = "Mic Up Loud v3.0 · Jammun Hub"
+                pTitle.Parent = panel
+
+                local pClose = Instance.new("TextButton")
+                pClose.Size = UDim2.fromOffset(20, 20)
+                pClose.Position = UDim2.new(1, -26, 0, 6)
+                pClose.BackgroundTransparency = 1
+                pClose.Font = Enum.Font.GothamBold
+                pClose.TextSize = 12
+                pClose.TextColor3 = Color3.fromRGB(160, 165, 180)
+                pClose.Text = "✕"
+                pClose.Parent = panel
+                pClose.MouseButton1Click:Connect(function()
+                    if miniLoudGui then miniLoudGui:Destroy(); miniLoudGui = nil end
+                end)
+
+                local pStatus = Instance.new("TextLabel")
+                pStatus.BackgroundTransparency = 1
+                pStatus.Size = UDim2.new(1, -20, 0, 38)
+                pStatus.Position = UDim2.fromOffset(10, 30)
+                pStatus.Font = Enum.Font.Gotham
+                pStatus.TextSize = 10.5
+                pStatus.TextColor3 = Color3.fromRGB(130, 136, 154)
+                pStatus.TextXAlignment = Enum.TextXAlignment.Left
+                pStatus.TextYAlignment = Enum.TextYAlignment.Top
+                pStatus.TextWrapped = true
+                pStatus.Text = "chorus · distortion · equalier · flter · reverb\nCredit: Jammun Hub (via remotes)"
+                pStatus.Parent = panel
+
+                local pBtn = Instance.new("TextButton")
+                pBtn.Size = UDim2.new(1, -20, 0, 36)
+                pBtn.Position = UDim2.fromOffset(10, 86)
+                pBtn.BackgroundColor3 = Color3.fromRGB(248, 248, 255)
+                pBtn.BackgroundTransparency = 0.1
+                pBtn.Text = "APPLY PRESET"
+                pBtn.TextColor3 = Color3.fromRGB(8, 8, 10)
+                pBtn.Font = Enum.Font.GothamBold
+                pBtn.TextSize = 12.5
+                pBtn.BorderSizePixel = 0
+                pBtn.AutoButtonColor = false
+                pBtn.Parent = panel
+                Instance.new("UICorner", pBtn).CornerRadius = UDim.new(0, 8)
+
+                pBtn.MouseButton1Click:Connect(function()
+                    pStatus.Text = "firing remotes..."
+                    pStatus.TextColor3 = Color3.fromRGB(240, 180, 60)
+                    task.spawn(function()
+                        local ok, msg = applyLoudPreset()
+                        if ok then
+                            pStatus.Text = "done: " .. tostring(msg)
+                            pStatus.TextColor3 = Color3.fromRGB(80, 220, 140)
+                        else
+                            pStatus.Text = "fail: " .. tostring(msg)
+                            pStatus.TextColor3 = Color3.fromRGB(230, 70, 70)
+                        end
+                    end)
+                end)
+
+                local dragging, startPos, startInput
+                panel.InputBegan:Connect(function(input)
+                    if input.UserInputType == Enum.UserInputType.MouseButton1
+                        or input.UserInputType == Enum.UserInputType.Touch then
+                        dragging = true
+                        startPos = panel.Position
+                        startInput = input.Position
+                    end
+                end)
+                UIS.InputChanged:Connect(function(input)
+                    if not dragging then return end
+                    if input.UserInputType == Enum.UserInputType.MouseMovement
+                        or input.UserInputType == Enum.UserInputType.Touch then
+                        local d = input.Position - startInput
+                        panel.Position = UDim2.new(
+                            startPos.X.Scale, startPos.X.Offset + d.X,
+                            startPos.Y.Scale, startPos.Y.Offset + d.Y
+                        )
+                    end
+                end)
+                UIS.InputEnded:Connect(function(input)
+                    if input.UserInputType == Enum.UserInputType.MouseButton1
+                        or input.UserInputType == Enum.UserInputType.Touch then
+                        dragging = false
+                    end
+                end)
+            end
+        )
+
+        createActionRow(
+            loudGrp,
+            3,
+            "Check Mic Up Remotes",
+            "Verifies event_effect_add & event_effect_property exist in ReplicatedStorage",
+            "Check",
+            function()
+                local addEv, propEv = getLoudRemotes()
+                if addEv and propEv then
+                    loudStatusLbl.Text = "Remotes ready: event_effect_add & event_effect_property found · Credit: Jammun Hub"
+                    loudStatusLbl.TextColor3 = Color3.fromRGB(80, 220, 140)
+                    notify("🔊 ONE CLICK LOUD", "Both Mic Up remotes detected and ready!")
+                    sSuccess()
+                else
+                    loudStatusLbl.Text = "Remotes missing (event_effect_add / event_effect_property)"
+                    loudStatusLbl.TextColor3 = Color3.fromRGB(230, 70, 70)
+                    notify("🔊 ONE CLICK LOUD", "Mic Up remotes not found in this game")
+                    sError()
+                end
+            end
+        )
     end
 
     -- Spawn the default floating quick pills (including AnimCopy!)
@@ -31115,11 +31422,10 @@ local function buildMainUI()
 
             local massWeldPresets = {
                 { key = "facebang",  name = "Facebang" },
-                { key = "backshots", name = "Backshots" },
+                { key = "backshots", name = "Bang / Backshots" },
+                { key = "goon",      name = "Goon (Face)" },
                 { key = "rizz",      name = "Wall Rizz" },
                 { key = "headsit",   name = "Headsit" },
-                { key = "chootlelo", name = "Choot Lelo" },
-                { key = "bang",      name = "Bang" },
             }
             local massWeldIdx = 1
             createActionRow(
