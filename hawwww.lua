@@ -1630,7 +1630,7 @@ local computeDynamicHeightWeld = function(myChar, myHum, myRoot, targetChar, tar
         local headDiff = (tRefToHead - myRootToHead)
         autoY = math.clamp(headDiff, -2.2, 2.6)
     else
-        -- Pelvis/Torso presets (backshots, backpack): align pelvis/torso center
+        -- Pelvis/Torso presets (backshots, chootlelo, backpack): align pelvis/torso center
         local pelvisDiff = tRefToRootY + ((tScaleY - myScaleY) * 0.45)
         autoY = math.clamp(pelvisDiff, -1.8, 2.2)
     end
@@ -2394,6 +2394,10 @@ WELD_PRESETS = {
                   animFallbacks = {117991975031893, 3338010159, 4940563117},
                   animFallbacks6 = {180435571, 128777973},
                   osc = nil, refMode = "torso", label = "Hug" },
+    chootlelo = { offset = CFrame.new(0, 2.2, -3.8) * CFrame.Angles(0, math.rad(180), 0),
+                  anim15 = BANG_ANIM_ID, anim6 = BANG_ANIM_ID,
+                  animFallbacks = BANG_FALLBACKS_R15, animFallbacks6 = BANG_FALLBACKS_R6,
+                  osc = {distance = 2.9, period = 0.22}, refMode = "torso", label = "Choot Lelo" },
 }
 
 -- Add "chase" preset to WELD_PRESETS so users can also use pure Follow-Everywhere mode
@@ -23549,7 +23553,7 @@ local function buildMainUI()
     local cocaReanimPage= createCategory("Coca Reanim",       "🦴", 8,   "Coca Reanim keyframe player, custom scripts, state anims & limb hider", "Coca Reanim")
     local skyPage       = createCategory("Coca Sky Destroyer","💥", 9,   "3D Layered Clothing & Glitch Walker Sky, Ground & Cube Matrix Destroyer", "Coca Sky")
     local emotePage     = createCategory("Emotes",            "💃", 315, "315+ searchable catalog emotes, viral dances, dog/moonwalk & custom IDs", "Emotes")
-    local weldPage      = createCategory("Weld & Troll",      "⚡", 13,  "Dynamic height-adaptive welds, jerk troll, void throws & pins", "Weld & Troll")
+    local weldPage      = createCategory("Weld & Troll",      "⚡", 14,  "Dynamic height-adaptive welds, jerk troll, void throws & pins", "Weld & Troll")
     local loudPage      = createCategory("One Click Loud",    "🔊", 1,   "Mic Up one-click loud voice preset via remotes · Credit: Jammun Hub", "One Click Loud")
     local targetPage    = createCategory("Target",            "🎯", 1,   "Omnipresent hidden-player seeker & server-wide lock", "Target")
     local movePage      = createCategory("Performance",       "🚀", 11,  "60Hz Chrono-Rewind, WalkSpeed 500 & 4-Phase Flight", "Move & Fly")
@@ -23598,6 +23602,7 @@ local function buildMainUI()
         { key = "propose",   pillLabel = "Propose",   width = 104 },
         { key = "lawl",      pillLabel = "Lawl",      width = 86  },
         { key = "hug",       pillLabel = "Hug",       width = 82  },
+        { key = "chootlelo", pillLabel = "ChootLelo", width = 112 },
         { key = "chase",     pillLabel = "ChaseTP",   width = 104 },
         { key = "fling",     pillLabel = "Fling",     width = 86  },
         { key = "voidthrow", pillLabel = "VoidThrow", width = 112 },
@@ -24855,6 +24860,7 @@ local function buildMainUI()
             { key = "propose",   label = "Propose"    },
             { key = "lawl",      label = "Lawl"       },
             { key = "hug",       label = "Hug"        },
+            { key = "chootlelo", label = "Choot Lelo" },
             { key = "animcopy",  label = "Anim Copy"  },
             { key = "chase",     label = "Follow All" },
             { key = "vanish",    label = "Vanish 👻"  },
@@ -25417,13 +25423,14 @@ local function buildMainUI()
         addPresetRow(sigGrp, 5, "rizz",      "Rizz (Wall Rizz Pose)",   "Zero-delay Kabedon / Wall Lean (90735295463164) + auto height solver")
         addPresetRow(sigGrp, 6, "facebang",  "Facebang",  "Head-locked oscillation with live height solver & Bang anim")
         addPresetRow(sigGrp, 7, "backshots", "Bang / Backshots", "Pelvis-locked oscillation with scale alignment & Bang anim")
-        addPresetRow(sigGrp, 8, "headsit",   "Headsit",   "Seated lock flush on top of target head")
-        addPresetRow(sigGrp, 9, "headpat",   "Headpat",   "Gentle upper-body patting weld above target")
-        addPresetRow(sigGrp, 10, "kiss",      "Kiss",      "Front face-to-face close alignment lock")
-        addPresetRow(sigGrp, 11, "backpack",  "Backpack",  "Rear upper-back piggyback ride lock")
-        addPresetRow(sigGrp, 12, "propose",   "Propose",    "Kneeling front showcase pose lock")
-        addPresetRow(sigGrp, 13, "lawl",      "Lawl",       "Front laughing taunt lock")
-        addPresetRow(sigGrp, 14, "hug",       "Hug",        "Close torso embrace lock")
+        addPresetRow(sigGrp, 9, "headsit",   "Headsit",   "Seated lock flush on top of target head")
+        addPresetRow(sigGrp, 10, "headpat",   "Headpat",   "Gentle upper-body patting weld above target")
+        addPresetRow(sigGrp, 11, "kiss",      "Kiss",      "Front face-to-face close alignment lock")
+        addPresetRow(sigGrp, 12, "backpack",  "Backpack",  "Rear upper-back piggyback ride lock")
+        addPresetRow(sigGrp, 13, "propose",   "Propose",    "Kneeling front showcase pose lock")
+        addPresetRow(sigGrp, 14, "lawl",      "Lawl",       "Front laughing taunt lock")
+        addPresetRow(sigGrp, 15, "hug",       "Hug",        "Close torso embrace lock")
+        addPresetRow(sigGrp, 16, "chootlelo", "Choot Lelo", "Close lower-torso rapid oscillation lock & Bang anim")
 
         createSectionTitle(weldPage, 4, "Pursuit, Void & Time Weapons")
         local voidGrp = createGroupCard(weldPage, 5)
@@ -25669,7 +25676,7 @@ local function buildMainUI()
     -- DEDICATED CATEGORY: 🔊 ONE CLICK LOUD (Mic Up Voice Preset v3.0 · Credit: Jammun Hub)
     -- ═══════════════════════════════════════════════════════════════════════════
     do
-        local RS = game:GetService("ReplicatedStorage")
+        local RS = ReplicatedStorage or game:GetService("ReplicatedStorage")
 
         -- Game uses these exact spellings (typos intentional)
         local LOUD_PRESET = {
@@ -25762,7 +25769,7 @@ local function buildMainUI()
         local creditBanner = Instance.new("Frame")
         creditBanner.Name = "JammunHubCreditBanner"
         creditBanner.Size = UDim2.new(1, 0, 0, 74)
-        creditBanner.BackgroundColor3 = T.Card
+        creditBanner.BackgroundColor3 = T.Panel
         creditBanner.BackgroundTransparency = 0.08
         creditBanner.BorderSizePixel = 0
         creditBanner.LayoutOrder = 1
@@ -25824,19 +25831,19 @@ local function buildMainUI()
             end
             loudBusy = true
             loudStatusLbl.Text = "Firing remotes (chorus · distortion · equalier · flter · reverb)..."
-            loudStatusLbl.TextColor3 = Color3.fromRGB(240, 180, 60)
+            loudStatusLbl.TextColor3 = T.Warning
             task.spawn(function()
                 local ok, msg = applyLoudPreset()
                 loudBusy = false
                 if ok then
                     loudStatusLbl.Text = "Done: " .. tostring(msg) .. "  ·  Credit: Jammun Hub"
-                    loudStatusLbl.TextColor3 = Color3.fromRGB(80, 220, 140)
+                    loudStatusLbl.TextColor3 = T.Success
                     print("[MicUp v3 · Credit: Jammun Hub] " .. tostring(msg))
                     notify("🔊 ONE CLICK LOUD", "Applied Mic Up loud preset! (Credit: Jammun Hub)")
                     sSuccess()
                 else
                     loudStatusLbl.Text = "Fail: " .. tostring(msg)
-                    loudStatusLbl.TextColor3 = Color3.fromRGB(230, 70, 70)
+                    loudStatusLbl.TextColor3 = T.Danger
                     notify("🔊 ONE CLICK LOUD", "Failed: " .. tostring(msg))
                     sError()
                 end
@@ -25847,17 +25854,27 @@ local function buildMainUI()
         createSectionTitle(loudPage, 2, "Mic Up Voice Preset Controls (Credit: Jammun Hub)")
         local loudGrp = createGroupCard(loudPage, 3)
 
-        addPresetRow(
+        local loudRowInfo = createActionRow(
             loudGrp,
             1,
-            "oneclickloud",
             "Apply One Click Loud Preset",
             "Fires chorus, distortion, equalier, flter & reverb via remotes · Tap [⦿] to pin floating Loud pill",
+            "APPLY LOUD",
             function()
                 triggerOneClickLoud()
             end,
-            "APPLY LOUD"
+            function()
+                if toggleFloatingPill then
+                    toggleFloatingPill("oneclickloud")
+                end
+            end,
+            (ActivePills and ActivePills["oneclickloud"]) and "✓" or "⦿"
         )
+        if loudRowInfo then
+            loudRowInfo.defaultLabel = "APPLY LOUD"
+            presetActionRows["oneclickloud"] = loudRowInfo
+            if updatePinBadgeVisual then updatePinBadgeVisual("oneclickloud") end
+        end
 
         -- Optional compact standalone floating panel (matches Mic Up Preset v3.0 mini window)
         local miniLoudGui = nil
@@ -25879,7 +25896,7 @@ local function buildMainUI()
                 sg.ResetOnSpawn = false
                 sg.IgnoreGuiInset = true
                 sg.DisplayOrder = 120
-                pcall(function() sg.Parent = gethui and gethui() or CoreGui end)
+                pcall(function() sg.Parent = (gethui and gethui()) or GuiParent or game:GetService("CoreGui") end)
                 if not sg.Parent then sg.Parent = LP:FindFirstChildOfClass("PlayerGui") end
                 miniLoudGui = sg
 
@@ -26002,12 +26019,12 @@ local function buildMainUI()
                 local addEv, propEv = getLoudRemotes()
                 if addEv and propEv then
                     loudStatusLbl.Text = "Remotes ready: event_effect_add & event_effect_property found · Credit: Jammun Hub"
-                    loudStatusLbl.TextColor3 = Color3.fromRGB(80, 220, 140)
+                    loudStatusLbl.TextColor3 = T.Success
                     notify("🔊 ONE CLICK LOUD", "Both Mic Up remotes detected and ready!")
                     sSuccess()
                 else
                     loudStatusLbl.Text = "Remotes missing (event_effect_add / event_effect_property)"
-                    loudStatusLbl.TextColor3 = Color3.fromRGB(230, 70, 70)
+                    loudStatusLbl.TextColor3 = T.Danger
                     notify("🔊 ONE CLICK LOUD", "Mic Up remotes not found in this game")
                     sError()
                 end
@@ -31426,6 +31443,7 @@ local function buildMainUI()
                 { key = "goon",      name = "Goon (Face)" },
                 { key = "rizz",      name = "Wall Rizz" },
                 { key = "headsit",   name = "Headsit" },
+                { key = "chootlelo", name = "Choot Lelo" },
             }
             local massWeldIdx = 1
             createActionRow(
