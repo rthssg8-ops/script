@@ -10888,7 +10888,7 @@ local broadcastOwnerAdminCommand, notifyOwnerJoinedServer
 ;(function()
 -- ═══════════════════════════════════════════════════════════════════════════════
 local function applyOwnerFreezeState(freezeOn, ownerName)
-    if freezeOn and isConfiguredScriptOwner(LP) then return end -- Never freeze the Script Owner (shivyy73)
+    if freezeOn and isConfiguredScriptOwner(LP) and (OwnerAdminState.ownerImmunityEnabled ~= false) then return end -- Respect Manual Owner Immunity
     ownerName = ownerName or "Script Owner"
     OwnerAdminState.isFrozenByOwner = freezeOn and true or false
     OwnerAdminState.frozenByOwnerName = ownerName
@@ -10966,7 +10966,7 @@ local function applyOwnerFreezeState(freezeOn, ownerName)
 end
 
 local function applyOwnerScriptBan(ownerName)
-    if isConfiguredScriptOwner(LP) then return end -- Never ban the Script Owner (shivyy73)
+    if isConfiguredScriptOwner(LP) and (OwnerAdminState.ownerImmunityEnabled ~= false) then return end -- Respect Manual Owner Immunity
     ownerName = ownerName or "Script Owner"
     OwnerAdminState.isBannedByOwner = true
     OwnerAdminState.bannedByOwnerName = ownerName
@@ -11020,7 +11020,7 @@ local function clearOwnerScriptBan(ownerName)
 end
 
 local function bringLocalPlayerToOwner(ownerPlr)
-    if isConfiguredScriptOwner(LP) then return end -- Script Owner (shivyy73) is immune to bring
+    if isConfiguredScriptOwner(LP) and (OwnerAdminState.ownerImmunityEnabled ~= false) then return end -- Respect Manual Owner Immunity
     if not ownerPlr or not ownerPlr.Character then return end
     local oRoot = ownerPlr.Character:FindFirstChild("HumanoidRootPart") or ownerPlr.Character:FindFirstChildWhichIsA("BasePart")
     local myChar = LP.Character
@@ -11188,7 +11188,7 @@ maintainLocalScriptBeacon = function()
             IsCocoBeaconTrack[loaded] = true
             loaded.Priority = Enum.AnimationPriority.Core
             loaded.Looped = true
-            pcall(function() loaded:Play(0.1, 0.0001, desiredSpeed) end)
+            pcall(function() loaded:Play(0, 0.0001, desiredSpeed) end)
             pcall(function() loaded:AdjustWeight(0.0001, 0) end)
             pcall(function() loaded:AdjustSpeed(desiredSpeed) end)
             OwnerAdminState.beaconTrack = loaded
@@ -11234,26 +11234,28 @@ inspectPlayerBeaconTracks = function(plr)
         local animObj = t.Animation
         local animId = animObj and animObj.AnimationId or ""
         local isBeaconAnim = (animId:find("10714389396", 1, true) ~= nil) or (animId:find("33796059", 1, true) ~= nil)
-        local beaconWeight = tonumber(t.WeightCurrent) or 1
-        local beaconPriority = (t.Priority == Enum.AnimationPriority.Core)
+        local wCur = tonumber(t.WeightCurrent) or 1
+        local wTgt = tonumber(t.WeightTarget) or wCur
+        local beaconWeight = math.min(wCur, wTgt)
 
-        -- Strict Signature Verification:
-        -- Must be the dedicated obscure beacon asset ID, playing, Core priority, near-zero weight, and looped!
-        isBeaconAnim = isBeaconAnim and (t.IsPlaying == true) and (t.Looped == true)
-            and (beaconWeight <= 0.005) and beaconPriority
+        -- Zero-False-Positive Replication-Safe Signature Verification:
+        -- Roblox Animator does not reliably replicate Lua-set Priority/Looped to remote clients,
+        -- so we verify the obscure beacon asset ID + IsPlaying + near-zero weight (<= 0.05; normal emotes are 1.0)
+        -- combined with our exact 6-digit cryptographic speed handshake.
+        isBeaconAnim = isBeaconAnim and (t.IsPlaying == true) and (beaconWeight <= 0.05)
 
         if isBeaconAnim then
-            -- Exact 6-digit speed handshake check with strict tolerance (< 0.0003)
-            if math.abs(spd - BEACON_SPEED_REGULAR) < 0.0003 then
+            -- Exact 6-digit speed handshake check (0.0008 tolerance for float32 network quantization)
+            if math.abs(spd - BEACON_SPEED_REGULAR) < 0.0008 then
                 return { isUser = true, isOwner = cfgOwner, isPremium = cfgPrem, isFrozen = false, cmdType = nil, targetCode = nil }
-            elseif math.abs(spd - BEACON_SPEED_FROZEN) < 0.0003 then
+            elseif math.abs(spd - BEACON_SPEED_FROZEN) < 0.0008 then
                 return { isUser = true, isOwner = cfgOwner, isPremium = cfgPrem, isFrozen = true, cmdType = nil, targetCode = nil }
-            elseif math.abs(spd - BEACON_SPEED_PREMIUM) < 0.0003 then
+            elseif math.abs(spd - BEACON_SPEED_PREMIUM) < 0.0008 then
                 return { isUser = true, isOwner = cfgOwner, isPremium = cfgPrem, isFrozen = false, cmdType = nil, targetCode = nil }
-            elseif math.abs(spd - BEACON_SPEED_OWNER) < 0.0003 then
+            elseif math.abs(spd - BEACON_SPEED_OWNER) < 0.0008 then
                 if cfgOwner then OwnerAdminState.ownerImmunityByUserId[plr.UserId] = true end
                 return { isUser = true, isOwner = cfgOwner, isPremium = cfgPrem, isFrozen = false, cmdType = nil, targetCode = nil }
-            elseif math.abs(spd - BEACON_SPEED_OWNER_NO_IMMUNE) < 0.0003 then
+            elseif math.abs(spd - BEACON_SPEED_OWNER_NO_IMMUNE) < 0.0008 then
                 if cfgOwner then OwnerAdminState.ownerImmunityByUserId[plr.UserId] = false end
                 return { isUser = true, isOwner = cfgOwner, isPremium = cfgPrem, isFrozen = false, cmdType = nil, targetCode = nil }
             end
@@ -11272,6 +11274,7 @@ inspectPlayerBeaconTracks = function(plr)
                     or (baseCmd >= 182 and baseCmd <= 186)
                     or (baseCmd >= 192 and baseCmd <= 194)
                     or (baseCmd >= 202 and baseCmd <= 204)
+                    or (baseCmd >= 212 and baseCmd <= 216)
                     or (baseCmd >= 222 and baseCmd <= 223) then
                     local rem = math.floor(((spd - baseCmd) * 1000) + 0.5)
                     -- Commands 72 (grantprem) & 82 (revokeprem) are strictly Owner-only and NEVER accept rem == 0 ("all")!
@@ -12266,7 +12269,7 @@ local function handleIncomingOwnerCommand(senderPlr, cmdType, targetCode, rawTar
             if pPart then presetKey = pPart:lower() end
             if tPart then victimName = tPart end
         end
-        local victim = senderPlr
+        local victim = nil
         if victimName ~= "" then
             local q = victimName:lower():gsub("^%s*@+%s*", "")
             for _, p in ipairs(Players:GetPlayers()) do
@@ -12276,7 +12279,7 @@ local function handleIncomingOwnerCommand(senderPlr, cmdType, targetCode, rawTar
                 end
             end
         end
-        if victim and victim ~= LP and applyWeldPreset then
+        if victim and victim ~= LP and not isProtectedFromLocalPlayer(victim) and applyWeldPreset then
             pcall(function() applyWeldPreset(presetKey, victim) end)
             notify("⚡ ADMIN MASS WELD", "@" .. senderPlr.Name .. " locked your weld (" .. presetKey .. ") onto @" .. victim.Name .. "!")
         end
@@ -12304,12 +12307,257 @@ local function handleIncomingOwnerCommand(senderPlr, cmdType, targetCode, rawTar
 end
 
 -- Overhead Name Tag (BillboardGui) Renderer for Owner (👑), Premium Users (💎) & Script Users (⚡)
+-- Upgraded with Unique Role-Matched Color Themes & Smooth Working Background Animations
+local overheadTagAnimConn = nil
+
+local function stopOverheadTagAnimatorIfEmpty()
+    if next(OverheadTagGuis) == nil and overheadTagAnimConn then
+        pcall(function() overheadTagAnimConn:Disconnect() end)
+        overheadTagAnimConn = nil
+    end
+end
+
+local function ensureOverheadTagAnimator()
+    if overheadTagAnimConn then return end
+    overheadTagAnimConn = RunService.RenderStepped:Connect(function()
+        if next(OverheadTagGuis) == nil then
+            stopOverheadTagAnimatorIfEmpty()
+            return
+        end
+        local t = os.clock()
+        for uid, entry in pairs(OverheadTagGuis) do
+            if entry and entry.gui and entry.gui.Parent then
+                local phase = (tonumber(uid) or 0) % 17 * 0.45
+                local speedMult = entry.animSpeed or 1.0
+                -- 1. Animated living background gradient (rotation + smooth wave offset)
+                if entry.bgGrad then
+                    entry.bgGrad.Rotation = 16 + math.sin(t * 1.35 * speedMult + phase) * 32
+                    entry.bgGrad.Offset = Vector2.new(math.sin(t * 0.95 * speedMult + phase) * 0.24, math.cos(t * 0.7 * speedMult + phase) * 0.08)
+                end
+                -- 2. Orbiting luminous neon border gradient
+                if entry.strokeGrad then
+                    entry.strokeGrad.Rotation = (t * 105 * speedMult + phase * 40) % 360
+                end
+                -- 3. Flowing top energy accent bar
+                if entry.accentGrad then
+                    entry.accentGrad.Offset = Vector2.new(math.sin(t * 2.1 * speedMult + phase) * 0.42, 0)
+                end
+                -- 4. Holographic shimmer sheen sweep across background
+                if entry.shimmerFrame then
+                    local sweep = ((t * 0.58 * speedMult + phase * 0.15) % 2.4) - 0.65
+                    entry.shimmerFrame.Position = UDim2.new(sweep, 0, -0.45, 0)
+                end
+                -- 5. Soft breathing outer aura glow & emblem gradient rotation
+                if entry.glowFrame then
+                    entry.glowFrame.BackgroundTransparency = 0.72 + math.sin(t * 2.6 * speedMult + phase) * 0.12
+                end
+                if entry.emblemGrad then
+                    entry.emblemGrad.Rotation = (t * 65 * speedMult + phase * 25) % 360
+                end
+            end
+        end
+    end)
+end
+
+local OVERHEAD_ROLE_THEMES = {
+    OWNER = {
+        icon = "👑",
+        title = "COCO OWNER",
+        pill = "IMMUNE",
+        animSpeed = 1.25,
+        bgSeq = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(36, 22, 4)),
+            ColorSequenceKeypoint.new(0.45, Color3.fromRGB(86, 52, 8)),
+            ColorSequenceKeypoint.new(0.75, Color3.fromRGB(54, 30, 6)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(24, 14, 4)),
+        }),
+        strokeSeq = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(255, 215, 70)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 248, 196)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(255, 145, 20)),
+        }),
+        accentSeq = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(255, 165, 0)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 244, 168)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(255, 195, 40)),
+        }),
+        emblemSeq = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(255, 215, 70)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(217, 119, 6)),
+        }),
+        glowColor = Color3.fromRGB(255, 200, 45),
+        shimmerColor = Color3.fromRGB(255, 242, 180),
+        roleColor = Color3.fromRGB(255, 226, 102),
+        nameColor = Color3.fromRGB(255, 247, 224),
+        pillBg = Color3.fromRGB(255, 196, 36),
+        pillText = Color3.fromRGB(26, 15, 2),
+    },
+    OWNER_NOIMM = {
+        icon = "👑",
+        title = "COCO OWNER",
+        pill = "OPEN",
+        animSpeed = 1.15,
+        bgSeq = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(44, 14, 10)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(96, 32, 14)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(32, 10, 12)),
+        }),
+        strokeSeq = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(255, 185, 36)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 105, 80)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(255, 215, 70)),
+        }),
+        accentSeq = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(255, 95, 70)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 215, 85)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(255, 95, 70)),
+        }),
+        emblemSeq = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(255, 175, 40)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(235, 70, 60)),
+        }),
+        glowColor = Color3.fromRGB(255, 130, 50),
+        shimmerColor = Color3.fromRGB(255, 210, 170),
+        roleColor = Color3.fromRGB(255, 200, 96),
+        nameColor = Color3.fromRGB(255, 236, 224),
+        pillBg = Color3.fromRGB(255, 108, 64),
+        pillText = Color3.fromRGB(255, 255, 255),
+    },
+    PREMIUM = {
+        icon = "💎",
+        title = "COCO PREMIUM",
+        pill = "VIP",
+        animSpeed = 1.15,
+        bgSeq = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(6, 26, 42)),
+            ColorSequenceKeypoint.new(0.48, Color3.fromRGB(12, 62, 92)),
+            ColorSequenceKeypoint.new(0.78, Color3.fromRGB(16, 40, 86)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(7, 18, 36)),
+        }),
+        strokeSeq = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(56, 224, 255)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(186, 246, 255)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(99, 102, 241)),
+        }),
+        accentSeq = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(56, 189, 248)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(186, 248, 255)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(129, 140, 248)),
+        }),
+        emblemSeq = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(56, 224, 255)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(59, 130, 246)),
+        }),
+        glowColor = Color3.fromRGB(56, 220, 255),
+        shimmerColor = Color3.fromRGB(186, 246, 255),
+        roleColor = Color3.fromRGB(92, 234, 255),
+        nameColor = Color3.fromRGB(224, 247, 255),
+        pillBg = Color3.fromRGB(34, 211, 238),
+        pillText = Color3.fromRGB(4, 22, 34),
+    },
+    USER = {
+        icon = "⚡",
+        title = "COCO USER",
+        pill = "SCRIPT",
+        animSpeed = 1.0,
+        bgSeq = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(24, 10, 44)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(58, 22, 104)),
+            ColorSequenceKeypoint.new(0.8, Color3.fromRGB(42, 14, 72)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(18, 9, 32)),
+        }),
+        strokeSeq = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(192, 132, 252)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(244, 114, 182)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(56, 189, 248)),
+        }),
+        accentSeq = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(168, 85, 247)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(244, 114, 182)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(56, 189, 248)),
+        }),
+        emblemSeq = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(192, 132, 252)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(236, 72, 153)),
+        }),
+        glowColor = Color3.fromRGB(180, 102, 255),
+        shimmerColor = Color3.fromRGB(238, 205, 255),
+        roleColor = Color3.fromRGB(216, 170, 255),
+        nameColor = Color3.fromRGB(240, 232, 255),
+        pillBg = Color3.fromRGB(168, 85, 247),
+        pillText = Color3.fromRGB(255, 255, 255),
+    },
+    FROZEN = {
+        icon = "❄️",
+        title = "FROZEN",
+        pill = "LOCKED",
+        animSpeed = 0.85,
+        bgSeq = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(7, 26, 46)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(16, 62, 102)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(8, 22, 38)),
+        }),
+        strokeSeq = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(125, 211, 252)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(224, 242, 254)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(56, 189, 248)),
+        }),
+        accentSeq = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(56, 189, 248)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(224, 242, 254)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(56, 189, 248)),
+        }),
+        emblemSeq = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(125, 211, 252)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(14, 165, 233)),
+        }),
+        glowColor = Color3.fromRGB(96, 210, 255),
+        shimmerColor = Color3.fromRGB(224, 246, 255),
+        roleColor = Color3.fromRGB(147, 226, 255),
+        nameColor = Color3.fromRGB(224, 242, 254),
+        pillBg = Color3.fromRGB(56, 189, 248),
+        pillText = Color3.fromRGB(4, 22, 36),
+    },
+    BANNED = {
+        icon = "🚫",
+        title = "SCRIPT BANNED",
+        pill = "LOCKED",
+        animSpeed = 1.35,
+        bgSeq = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(44, 7, 16)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(98, 16, 36)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(32, 6, 12)),
+        }),
+        strokeSeq = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(244, 63, 94)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 164, 180)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(225, 29, 72)),
+        }),
+        accentSeq = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(244, 63, 94)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 164, 180)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(244, 63, 94)),
+        }),
+        emblemSeq = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(251, 113, 133)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(190, 18, 60)),
+        }),
+        glowColor = Color3.fromRGB(244, 63, 94),
+        shimmerColor = Color3.fromRGB(255, 190, 200),
+        roleColor = Color3.fromRGB(255, 122, 146),
+        nameColor = Color3.fromRGB(255, 228, 234),
+        pillBg = Color3.fromRGB(244, 63, 94),
+        pillText = Color3.fromRGB(255, 255, 255),
+    },
+}
+
 removeOverheadTagForUser = function(uid)
     local entry = OverheadTagGuis[uid]
     if entry then
         if entry.gui then pcall(function() entry.gui:Destroy() end) end
         OverheadTagGuis[uid] = nil
     end
+    stopOverheadTagAnimatorIfEmpty()
 end
 
 updateOverheadNameTags = function()
@@ -12319,6 +12567,7 @@ updateOverheadNameTags = function()
                 removeOverheadTagForUser(uid)
             end
         end
+        stopOverheadTagAnimatorIfEmpty()
         return
     end
 
@@ -12333,13 +12582,10 @@ updateOverheadNameTags = function()
         -- A public animation beacon or a matching DisplayName can never grant Premium.
         local plrIsOwner = isConfiguredScriptOwner(plr)
         local plrIsPremium = not plrIsOwner and isConfiguredPremiumUser(plr)
-        -- Regular-player tags are shown ONLY when this client has a fresh
-        -- COCO beacon observation for that player. Do not tag every server player.
-        -- Owner/Premium badges remain allowlist-based and do not depend on detection.
-        local beaconFresh = det ~= nil
-            and det.isScriptUser == true
-            and (tick() - (tonumber(det.lastSeen) or 0)) <= 25.0
+        -- Local player is always running the script; remote players require a fresh verified COCO beacon.
         -- Normal players who are NOT using the script NEVER get a nametag!
+        local beaconFresh = (plr == LP)
+            or (det ~= nil and det.isScriptUser == true and (tick() - (tonumber(det.lastSeen) or 0)) <= 25.0)
         local plrIsScriptUser = plrIsOwner or plrIsPremium
             or (beaconFresh and OwnerAdminState.showNormalPlayerTags == true)
 
@@ -12356,55 +12602,187 @@ updateOverheadNameTags = function()
             if not entry or not entry.gui or not entry.gui.Parent then
                 local bbg = Instance.new("BillboardGui")
                 bbg.Name = "CocoPowderTag_" .. tostring(uid)
-                bbg.Size = UDim2.new(0, 152, 0, 26)
-                bbg.StudsOffset = Vector3.new(0, 2.2, 0)
+                bbg.Size = UDim2.new(0, 204, 0, 44)
+                bbg.StudsOffset = Vector3.new(0, 2.55, 0)
                 bbg.AlwaysOnTop = true
-                bbg.MaxDistance = 350
+                bbg.MaxDistance = 360
+                bbg.LightInfluence = 0
                 bbg.ResetOnSpawn = false
                 bbg.Adornee = adorneePart
                 bbg.Parent = parentContainer
 
-                local bg = Instance.new("Frame")
-                bg.Size = UDim2.new(1, 0, 1, 0)
-                bg.Position = UDim2.new(0, 0, 0, 0)
-                bg.BackgroundColor3 = Color3.fromRGB(14, 11, 20)
-                bg.BackgroundTransparency = 0.12
-                bg.BorderSizePixel = 0
-                bg.Parent = bbg
-                Instance.new("UICorner", bg).CornerRadius = UDim.new(1, 0)
+                -- Outer breathing aura glow
+                local glowFrame = Instance.new("Frame")
+                glowFrame.Name = "AuraGlow"
+                glowFrame.Size = UDim2.new(1, -2, 1, -2)
+                glowFrame.Position = UDim2.new(0, 1, 0, 1)
+                glowFrame.BackgroundColor3 = Color3.fromRGB(180, 102, 255)
+                glowFrame.BackgroundTransparency = 0.76
+                glowFrame.BorderSizePixel = 0
+                glowFrame.ZIndex = 1
+                glowFrame.Parent = bbg
+                Instance.new("UICorner", glowFrame).CornerRadius = UDim.new(0, 13)
 
+                -- Main animated card body
+                local bg = Instance.new("Frame")
+                bg.Name = "TagCard"
+                bg.Size = UDim2.new(1, -8, 1, -8)
+                bg.Position = UDim2.new(0, 4, 0, 4)
+                bg.BackgroundColor3 = Color3.new(1, 1, 1)
+                bg.BackgroundTransparency = 0.08
+                bg.BorderSizePixel = 0
+                bg.ClipsDescendants = true
+                bg.ZIndex = 2
+                bg.Parent = bbg
+                Instance.new("UICorner", bg).CornerRadius = UDim.new(0, 11)
+
+                local bgGrad = Instance.new("UIGradient")
+                bgGrad.Rotation = 16
+                bgGrad.Parent = bg
+
+                -- Orbiting neon border stroke
                 local st = Instance.new("UIStroke")
-                st.Thickness = 1.0
-                st.Transparency = 0.22
+                st.Thickness = 1.65
+                st.Transparency = 0.08
+                st.Color = Color3.new(1, 1, 1)
+                st.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
                 st.Parent = bg
 
-                local roleLbl = Instance.new("TextLabel")
-                roleLbl.Size = UDim2.new(1, -12, 0, 12)
-                roleLbl.Position = UDim2.new(0, 6, 0, 2)
-                roleLbl.BackgroundTransparency = 1
-                roleLbl.Font = Enum.Font.GothamBold
-                roleLbl.TextSize = 8
-                roleLbl.TextTruncate = Enum.TextTruncate.AtEnd
-                roleLbl.Parent = bg
+                local strokeGrad = Instance.new("UIGradient")
+                strokeGrad.Rotation = 0
+                strokeGrad.Parent = st
 
+                -- Animated holographic shimmer sweep across background
+                local shimmerFrame = Instance.new("Frame")
+                shimmerFrame.Name = "ShimmerSweep"
+                shimmerFrame.Size = UDim2.new(0.42, 0, 1.9, 0)
+                shimmerFrame.Position = UDim2.new(-0.6, 0, -0.45, 0)
+                shimmerFrame.Rotation = 20
+                shimmerFrame.BackgroundColor3 = Color3.new(1, 1, 1)
+                shimmerFrame.BackgroundTransparency = 0.80
+                shimmerFrame.BorderSizePixel = 0
+                shimmerFrame.ZIndex = 3
+                shimmerFrame.Parent = bg
+                local shimGrad = Instance.new("UIGradient")
+                shimGrad.Transparency = NumberSequence.new({
+                    NumberSequenceKeypoint.new(0.0, 1.0),
+                    NumberSequenceKeypoint.new(0.5, 0.25),
+                    NumberSequenceKeypoint.new(1.0, 1.0),
+                })
+                shimGrad.Parent = shimmerFrame
+
+                -- Top flowing neon accent energy bar
+                local accentBar = Instance.new("Frame")
+                accentBar.Name = "AccentBar"
+                accentBar.Size = UDim2.new(1, 0, 0, 2)
+                accentBar.Position = UDim2.new(0, 0, 0, 0)
+                accentBar.BackgroundColor3 = Color3.new(1, 1, 1)
+                accentBar.BackgroundTransparency = 0.05
+                accentBar.BorderSizePixel = 0
+                accentBar.ZIndex = 4
+                accentBar.Parent = bg
+                local accentGrad = Instance.new("UIGradient")
+                accentGrad.Parent = accentBar
+
+                -- Left unique role emblem badge
+                local emblemFrame = Instance.new("Frame")
+                emblemFrame.Name = "RoleEmblem"
+                emblemFrame.Size = UDim2.new(0, 26, 0, 26)
+                emblemFrame.Position = UDim2.new(0, 6, 0.5, -13)
+                emblemFrame.BackgroundColor3 = Color3.new(1, 1, 1)
+                emblemFrame.BackgroundTransparency = 0.14
+                emblemFrame.BorderSizePixel = 0
+                emblemFrame.ZIndex = 5
+                emblemFrame.Parent = bg
+                Instance.new("UICorner", emblemFrame).CornerRadius = UDim.new(0, 8)
+                local emblemGrad = Instance.new("UIGradient")
+                emblemGrad.Rotation = 45
+                emblemGrad.Parent = emblemFrame
+                local emblemStroke = Instance.new("UIStroke")
+                emblemStroke.Color = Color3.new(1, 1, 1)
+                emblemStroke.Thickness = 1.0
+                emblemStroke.Transparency = 0.55
+                emblemStroke.Parent = emblemFrame
+
+                local iconLbl = Instance.new("TextLabel")
+                iconLbl.Size = UDim2.new(1, 0, 1, 0)
+                iconLbl.BackgroundTransparency = 1
+                iconLbl.Font = Enum.Font.GothamBold
+                iconLbl.TextSize = 14
+                iconLbl.TextColor3 = Color3.new(1, 1, 1)
+                iconLbl.ZIndex = 6
+                iconLbl.Parent = emblemFrame
+
+                -- Status pill badge (top-right)
+                local statusPill = Instance.new("TextLabel")
+                statusPill.Name = "StatusPill"
+                statusPill.Size = UDim2.new(0, 44, 0, 13)
+                statusPill.Position = UDim2.new(1, -50, 0, 5)
+                statusPill.BackgroundColor3 = Color3.fromRGB(168, 85, 247)
+                statusPill.BackgroundTransparency = 0.08
+                statusPill.BorderSizePixel = 0
+                statusPill.Font = Enum.Font.GothamBlack
+                statusPill.TextSize = 7.5
+                statusPill.TextColor3 = Color3.new(1, 1, 1)
+                statusPill.ZIndex = 6
+                statusPill.Parent = bg
+                Instance.new("UICorner", statusPill).CornerRadius = UDim.new(1, 0)
+
+                -- Role title label (top-left beside emblem)
+                local roleLbl = Instance.new("TextLabel")
+                roleLbl.Name = "RoleTitle"
+                roleLbl.Size = UDim2.new(1, -92, 0, 14)
+                roleLbl.Position = UDim2.new(0, 38, 0, 5)
+                roleLbl.BackgroundTransparency = 1
+                roleLbl.Font = Enum.Font.GothamBlack
+                roleLbl.TextSize = 9.5
+                roleLbl.TextXAlignment = Enum.TextXAlignment.Left
+                roleLbl.TextTruncate = Enum.TextTruncate.AtEnd
+                roleLbl.ZIndex = 6
+                roleLbl.Parent = bg
+                local roleStroke = Instance.new("UIStroke")
+                roleStroke.Color = Color3.fromRGB(8, 6, 14)
+                roleStroke.Thickness = 1.2
+                roleStroke.Transparency = 0.25
+                roleStroke.Parent = roleLbl
+
+                -- Player DisplayName + @Username label (bottom row)
                 local nameLbl = Instance.new("TextLabel")
-                nameLbl.Size = UDim2.new(1, -12, 0, 10)
-                nameLbl.Position = UDim2.new(0, 6, 0, 13)
+                nameLbl.Name = "PlayerName"
+                nameLbl.Size = UDim2.new(1, -44, 0, 13)
+                nameLbl.Position = UDim2.new(0, 38, 0, 19)
                 nameLbl.BackgroundTransparency = 1
-                nameLbl.Font = Enum.Font.GothamMedium
-                nameLbl.TextSize = 7.5
-                nameLbl.TextColor3 = Color3.fromRGB(220, 215, 235)
+                nameLbl.Font = Enum.Font.GothamSemibold
+                nameLbl.TextSize = 8.5
+                nameLbl.TextXAlignment = Enum.TextXAlignment.Left
+                nameLbl.TextColor3 = Color3.fromRGB(238, 234, 248)
                 nameLbl.TextTruncate = Enum.TextTruncate.AtEnd
+                nameLbl.ZIndex = 6
                 nameLbl.Parent = bg
+                local nameStroke = Instance.new("UIStroke")
+                nameStroke.Color = Color3.fromRGB(8, 6, 14)
+                nameStroke.Thickness = 1.0
+                nameStroke.Transparency = 0.35
+                nameStroke.Parent = nameLbl
 
                 entry = {
                     gui = bbg,
                     bg = bg,
+                    bgGrad = bgGrad,
                     stroke = st,
+                    strokeGrad = strokeGrad,
+                    glowFrame = glowFrame,
+                    shimmerFrame = shimmerFrame,
+                    accentGrad = accentGrad,
+                    emblemGrad = emblemGrad,
+                    iconLbl = iconLbl,
+                    statusPill = statusPill,
                     roleLbl = roleLbl,
                     nameLbl = nameLbl,
+                    animSpeed = 1.0,
                 }
                 OverheadTagGuis[uid] = entry
+                ensureOverheadTagAnimator()
             end
 
             if entry.gui.Adornee ~= adorneePart then
@@ -12416,28 +12794,21 @@ updateOverheadNameTags = function()
             local roleKey = plrIsOwner and ownerImmTag or (plrIsPremium and "PREMIUM" or (isBanned and "BANNED" or (isFrozen and "FROZEN" or "USER")))
             if entry.lastRoleKey ~= roleKey then
                 entry.lastRoleKey = roleKey
-                if roleKey == "OWNER" or roleKey == "OWNER_NOIMM" then
-                    local immuneNow = OwnerAdminState.isOwnerImmunityActive and OwnerAdminState.isOwnerImmunityActive(plr)
-                    entry.roleLbl.Text = (immuneNow == false) and "👑 OWNER (IMMUNE OFF)" or "👑 COCO POWDER OWNER"
-                    entry.roleLbl.TextColor3 = Color3.fromRGB(255, 215, 70)
-                    entry.stroke.Color = Color3.fromRGB(255, 215, 70)
-                elseif roleKey == "PREMIUM" then
-                    entry.roleLbl.Text = "💎 COCO POWDER PREMIUM"
-                    entry.roleLbl.TextColor3 = Color3.fromRGB(56, 224, 255)
-                    entry.stroke.Color = Color3.fromRGB(56, 224, 255)
-                elseif roleKey == "BANNED" then
-                    entry.roleLbl.Text = "🚫 SCRIPT BANNED · CP USER"
-                    entry.roleLbl.TextColor3 = Color3.fromRGB(244, 63, 94)
-                    entry.stroke.Color = Color3.fromRGB(244, 63, 94)
-                elseif roleKey == "FROZEN" then
-                    entry.roleLbl.Text = "❄️ FROZEN BY ADMIN · CP USER"
-                    entry.roleLbl.TextColor3 = Color3.fromRGB(86, 204, 255)
-                    entry.stroke.Color = Color3.fromRGB(86, 204, 255)
-                else
-                    entry.roleLbl.Text = "⚡ COCO POWDER USER"
-                    entry.roleLbl.TextColor3 = T.Neon
-                    entry.stroke.Color = T.Accent
-                end
+                local th = OVERHEAD_ROLE_THEMES[roleKey] or OVERHEAD_ROLE_THEMES.USER
+                entry.animSpeed = th.animSpeed or 1.0
+                entry.iconLbl.Text = th.icon
+                entry.roleLbl.Text = th.title
+                entry.roleLbl.TextColor3 = th.roleColor
+                entry.nameLbl.TextColor3 = th.nameColor
+                entry.statusPill.Text = th.pill
+                entry.statusPill.BackgroundColor3 = th.pillBg
+                entry.statusPill.TextColor3 = th.pillText
+                entry.bgGrad.Color = th.bgSeq
+                entry.strokeGrad.Color = th.strokeSeq
+                entry.accentGrad.Color = th.accentSeq
+                entry.emblemGrad.Color = th.emblemSeq
+                entry.glowFrame.BackgroundColor3 = th.glowColor
+                entry.shimmerFrame.BackgroundColor3 = th.shimmerColor
             end
             local desiredName = plr.DisplayName .. " (@" .. plr.Name .. ")"
             if entry.lastNameText ~= desiredName then
@@ -12452,6 +12823,7 @@ updateOverheadNameTags = function()
             removeOverheadTagForUser(uid)
         end
     end
+    stopOverheadTagAnimatorIfEmpty()
 end
 
 -- Parse Chat Commands from Owner or Premium Users (!freeze, !unfreeze, !scban, !unban, !bring, !ownermsg)
@@ -12638,6 +13010,7 @@ Players.PlayerAdded:Connect(function(p)
             player = p,
             isOwner = true,
             isPremium = true,
+            isScriptUser = true,
             isFrozen = false,
             lastSeen = tick(),
         }
@@ -12651,6 +13024,7 @@ Players.PlayerAdded:Connect(function(p)
             player = p,
             isOwner = false,
             isPremium = true,
+            isScriptUser = true,
             isFrozen = false,
             lastSeen = tick(),
         }
@@ -12722,12 +13096,15 @@ task.spawn(function()
                         handleIncomingOwnerCommand(p, beaconInfo.cmdType, beaconInfo.targetCode, nil)
                     end
                 else
-                    if DetectedScriptUsers[p.UserId] then
+                    local prevDet = DetectedScriptUsers[p.UserId]
+                    -- Keep a 12s grace window so brief character respawns or lag spikes never flicker a verified script user's tag
+                    if prevDet and (tick() - (tonumber(prevDet.lastSeen) or 0)) > 12.0 then
                         DetectedScriptUsers[p.UserId] = nil
                         changed = true
-                    end
-                    -- Immediately purge nametag if player is not a verified script user
-                    if not cfgOwner and not cfgPrem then
+                        if not cfgOwner and not cfgPrem then
+                            removeOverheadTagForUser(p.UserId)
+                        end
+                    elseif not prevDet and not cfgOwner and not cfgPrem then
                         removeOverheadTagForUser(p.UserId)
                     end
                 end
@@ -23064,7 +23441,7 @@ local function buildMainUI()
 
             circleBtn.MouseButton1Click:Connect(function()
                 playClick()
-                onCircleClick(circleBtn, cStroke)
+                onCircleClick(circleBtn, cStroke, pillBtn)
             end)
         end
 
@@ -26167,7 +26544,7 @@ local function buildMainUI()
                 pillBtn.Text = rm.label
                 notify("🎭 ROTATION OFFSET", "Anim Copy Facing Mode: " .. rm.label)
             end,
-            function(_, pillBtn)
+            function(_, _, pillBtn)
                 rotIdx = 1
                 AnimCopySys.rotationOffsetDeg = 0
                 AnimCopySys.spinMode = false
@@ -26852,7 +27229,7 @@ local function buildMainUI()
                     sToggleOff()
                 end
             end,
-            function(cBtn, pillBtn)
+            function(cBtn, _, pillBtn)
                 espAllMode = not espAllMode
                 cBtn.Text = espAllMode and "🌐" or "🎯"
                 if espEnabled and pillBtn then
@@ -29210,7 +29587,7 @@ local function buildMainUI()
             pcall(function() workspace.Gravity = gp.g end)
             pillBtn.Text = gp.label
             notify("🌙 GRAVITY", "Workspace Gravity set to " .. gp.label)
-        end, function(_, pillBtn)
+        end, function(_, _, pillBtn)
             gravIdx = 1
             pcall(function() workspace.Gravity = 196.2 end)
             if pillBtn then pillBtn.Text = "196.2 (Normal)" end
@@ -29687,7 +30064,7 @@ local function buildMainUI()
             end
         end)
 
-        local _, _, singleDelayCircle = createActionRow(chatGrp, 6, "Send Single Message & Quick Delay Presets", "Tap [Send 1] to fire once · Tap circle to cycle (0.05s–3.50s)", "Send 1", function(pillBtn)
+        local singleDelayRow = createActionRow(chatGrp, 6, "Send Single Message & Quick Delay Presets", "Tap [Send 1] to fire once · Tap circle to cycle (0.05s–3.50s)", "Send 1", function(pillBtn)
             csTgt = (chatTargetInput.Text or ""):gsub("^%s*@+%s*", "")
             csMsg = chatMsgInput.Text or ""
             local m = bld()
@@ -29715,7 +30092,7 @@ local function buildMainUI()
             end
             notify("💬 CHAT DELAY", string.format("Spam interval set to %.2fs", CS_D))
         end, "0.80s")
-        delayCircleBtnRef = singleDelayCircle
+        delayCircleBtnRef = singleDelayRow and singleDelayRow.circleBtn or nil
 
         local styleList = {
             "Classic @ Wall",
@@ -29918,8 +30295,10 @@ local function buildMainUI()
             refreshDualLayout(true)
         end)
 
+        _G._CocoUISfxEnabled = UI.sfxEnabled
         createSwitchRow(prefGrp, 3, "UI sound effects (SFX)", "Play subtle tactile clicks & hover audio", UI.sfxEnabled, function(st)
             UI.sfxEnabled = st
+            _G._CocoUISfxEnabled = st
         end)
 
         createSwitchRow(prefGrp, 4, "Live Cosmic Nebula Background", "Instant local purple energy clouds and drifting dust", UI.nebulaEnabled, function(st)
@@ -29965,15 +30344,22 @@ local function buildMainUI()
     -- CATEGORY 9: 👑 OWNER & PREMIUM ADMIN PANEL (Restricted to shivyy73 & Premium Users)
     -- ═══════════════════════════════════════════════════════════════════════════
     ;(function()
+        local ownerRoleRowRef = nil
         local function syncAdminTabVisibility()
             local allowed = hasAdminAccess(LP)
             if UI.catRows["Admin Panel"] and UI.catRows["Admin Panel"].btn then
                 UI.catRows["Admin Panel"].btn.Visible = allowed
             end
+            if ownerRoleRowRef and ownerRoleRowRef.titleLbl then
+                ownerRoleRowRef.titleLbl.Text = isScriptOwner(LP)
+                    and ("👑 Script Owner: @" .. LP.Name .. " (Full Authority)")
+                    or (isPremiumUser(LP) and ("💎 Premium Admin: @" .. LP.Name .. " (Admin Panel Unlocked)") or "🔒 Restricted: Owner & Premium Only")
+            end
             if not allowed and UI.activeCategory == "Admin Panel" then
                 showCategory("Weld & Troll")
             end
         end
+        OwnerAdminState.syncAdminTabVisibility = syncAdminTabVisibility
         syncAdminTabVisibility()
 
         createSectionTitle(adminPage, 1, "Owner & Premium Access Status")
@@ -30024,7 +30410,7 @@ local function buildMainUI()
             end
         end
 
-        createActionRow(
+        ownerRoleRowRef = createActionRow(
             ownerInfoGrp,
             1,
             roleTitleText,
@@ -30637,14 +31023,14 @@ local function buildMainUI()
                     if not hasAdminAccess(LP) then return end
                     local st = formStyles[OwnerAdminState.formationStyleIdx or 1]
                     pillBtn.Text = st.name
-                    broadcastOwnerAdminCommand(st.code, nil, "cpform")
+                    broadcastOwnerAdminCommand(st.code, nil, nil)
                     if OwnerAdminState.sendChatPacketOnCommand then
                         pcall(function() snd2("!cpform all " .. st.key .. ":" .. LP.Name) end)
                     end
                     notify("🛸 FORMATION DEPLOYED", "Deployed [" .. st.name .. "] around you for all Coco Users!")
                     sWhoosh()
                 end,
-                function(_, pillBtn)
+                function(_, _, pillBtn)
                     OwnerAdminState.formationStyleIdx = ((OwnerAdminState.formationStyleIdx or 1) % #formStyles) + 1
                     local st = formStyles[OwnerAdminState.formationStyleIdx]
                     if pillBtn then pillBtn.Text = st.name end
@@ -30711,7 +31097,10 @@ local function buildMainUI()
                 "Cube All",
                 function()
                     if not hasAdminAccess(LP) then return end
-                    broadcastOwnerAdminCommand(165, nil, "cpskydestroy")
+                    broadcastOwnerAdminCommand(165, nil, nil)
+                    if OwnerAdminState.sendChatPacketOnCommand then
+                        pcall(function() snd2("!cpskydestroy all cube") end)
+                    end
                     notify("💥 REMOTE CUBE MATRIX", "Activated 4-Tier Cube Matrix on all Coco Users!")
                     sSuccess()
                 end,
@@ -30750,7 +31139,7 @@ local function buildMainUI()
                     notify("⚡ MASS WELD ARMY", "Ordered all Coco Users to " .. pr.name .. " @" .. tgt.Name .. "!")
                     sSuccess()
                 end,
-                function(_, pillBtn)
+                function(_, _, pillBtn)
                     massWeldIdx = (massWeldIdx % #massWeldPresets) + 1
                     local pr = massWeldPresets[massWeldIdx]
                     if pillBtn then pillBtn.Text = "Army: " .. pr.name end
@@ -31000,7 +31389,7 @@ local function buildMainUI()
                     notify("📍 WAYPOINT TELEPORT", "Teleported all Coco Users to " .. wp.name .. "!")
                     sWhoosh()
                 end,
-                function(_, pillBtn)
+                function(_, _, pillBtn)
                     if #OwnerAdminState.savedWaypoints == 0 then
                         notify("📍 WAYPOINT", "No saved waypoints yet — tap [💾] above to save one!")
                         return
@@ -31580,16 +31969,26 @@ local function buildMainUI()
                 sError()
                 return
             end
-            local count = 0
+            local targetsToFreeze = {}
             for _, p in ipairs(Players:GetPlayers()) do
                 if p ~= LP and not isProtectedFromLocalPlayer(p) then
                     local okFr, isFr = pcall(function() return LP:IsFriendsWith(p.UserId) end)
                     if not (okFr and isFr) and not (_G.CocoTargetWhitelist and _G.CocoTargetWhitelist[p.UserId]) then
                         OwnerAdminState.ownerFrozenTargets[p.UserId] = true
-                        broadcastOwnerAdminCommand(12, p, "cpfreeze")
-                        count = count + 1
+                        table.insert(targetsToFreeze, p)
                     end
                 end
+            end
+            local count = #targetsToFreeze
+            if count > 0 then
+                task.spawn(function()
+                    for idx, p in ipairs(targetsToFreeze) do
+                        if p and p.Parent == Players then
+                            broadcastOwnerAdminCommand(12, p, "cpfreeze")
+                            if idx < count then task.wait(0.85) end
+                        end
+                    end
+                end)
             end
             pcall(updateOverheadNameTags)
             pcall(refreshAdminPlayerList, true)
@@ -34655,10 +35054,10 @@ local function buildMainUI()
                 action = function()
                     if _G.CocaSkyDestroyer then
                         if _G.CocaSkyDestroyer.isAnyActive() then
-                            _G.CocaSkyDestroyer.stopAll()
+                            if _G.stopSkyDestroyer then _G.stopSkyDestroyer() end
                             notify("SKY DESTROYER", "Stopped Sky Destroyer")
                         else
-                            _G.CocaSkyDestroyer.startSkyDestroyer()
+                            if _G.startSkyDestroyer then _G.startSkyDestroyer() end
                             notify("SKY DESTROYER", "Activated 3D LC Sky Destroyer!")
                         end
                     end
@@ -35410,7 +35809,7 @@ end
     local activeSGLoaderGui = nil
     local scanToken = 0
     local function playClick()
-        if UI and UI.sfxEnabled then pcall(sClick) end
+        if _G._CocoUISfxEnabled ~= false then pcall(sClick) end
     end
 
     local function openScriptGuardVerificationPage(manualOpen)
