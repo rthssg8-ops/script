@@ -919,10 +919,12 @@ do
         return ResolvedCatalogAnimCache[cleanDigits]
     end
 
-    -- Pre-warm Wall Rizz Pose (by go silent) Catalog ID 90735295463164 & Bang ID 116235062592344 for 0.00ms instant weld playback
+    -- Pre-warm Wall Rizz Pose (90735295463164), Bang (116235062592344), FF LOL (129709531895539) & FF Push Up (73630423562709) for 0.00ms instant weld playback
     task.spawn(function()
         pcall(resolveCatalogOrAnimUri, "90735295463164")
         pcall(resolveCatalogOrAnimUri, "116235062592344")
+        pcall(resolveCatalogOrAnimUri, "129709531895539")
+        pcall(resolveCatalogOrAnimUri, "73630423562709")
     end)
 
     local function tryPlayOnce(Animator, animId, hum, priority, verifyPlayable)
@@ -1622,7 +1624,7 @@ local computeDynamicHeightWeld = function(myChar, myHum, myRoot, targetChar, tar
         end
         autoY = math.clamp(autoY, -2.6, 3.2)
         autoZ = math.clamp((tScaleY - 1.0) * -0.22, -0.45, 0.28)
-    elseif refMode == "head" or presetKey == "facebang" or presetKey == "headsit" then
+    elseif refMode == "head" or presetKey == "facebang" or presetKey == "headsit" or presetKey == "goon" then
         -- Head-referenced presets: adapt vertical offset to local vs target scale difference (0 when both are 1.0)
         autoY = math.clamp((tScaleY - myScaleY) * 0.85, -1.8, 2.2)
     elseif presetKey == "kiss" or presetKey == "hug" or presetKey == "headpat" then
@@ -1630,7 +1632,7 @@ local computeDynamicHeightWeld = function(myChar, myHum, myRoot, targetChar, tar
         local headDiff = (tRefToHead - myRootToHead)
         autoY = math.clamp(headDiff, -2.2, 2.6)
     else
-        -- Pelvis/Torso presets (backshots, bang, goon, jerk, chootlelo, backpack): align pelvis/torso center
+        -- Pelvis/Torso presets (backshots, chootlelo, backpack): align pelvis/torso center
         local pelvisDiff = tRefToRootY + ((tScaleY - myScaleY) * 0.45)
         autoY = math.clamp(pelvisDiff, -1.8, 2.2)
     end
@@ -2338,9 +2340,15 @@ local JERK_FALLBACKS_R15 = { 72042024, 698251653, 136828069054505, 5918726674 }
 local JERK_FALLBACKS_R6  = { 72042024, 136828069054505, 178130996, 148840371 }
 local GOON_FALLBACKS_R15 = { 136828069054505, 72042024, 116235062592344, 698251653, 5918726674 }
 local GOON_FALLBACKS_R6  = { 136828069054505, 72042024, 178130996, 148840371 }
-local RIZZ_ANIM_ID       = 90735295463164 -- Wall Rizz Pose (by go silent) – Kabedon / Wall Lean Pose
-local RIZZ_FALLBACKS_R15 = { 90735295463164, 1069977950, 15392756794, 15392752812, 3333387824, 507770239 }
-local RIZZ_FALLBACKS_R6  = { 90735295463164, 180435571, 128777973, 1069977950 }
+local RIZZ_ANIM_ID          = 90735295463164  -- Wall Rizz Pose (by go silent) – Kabedon / Wall Lean Pose
+local RIZZ_FALLBACKS_R15    = { 90735295463164, 1069977950, 15392756794, 15392752812, 3333387824, 507770239 }
+local RIZZ_FALLBACKS_R6     = { 90735295463164, 180435571, 128777973, 1069977950 }
+local FF_LOL_ANIM_ID        = 129709531895539 -- FF LOL (Laugh) by Bryan's Cool Clothing (Roblox Catalog)
+local FF_LOL_FALLBACKS_R15  = { 129709531895539, 507770818, 507770239, 33796059, 5918726674 }
+local FF_LOL_FALLBACKS_R6   = { 129709531895539, 129423131, 33796059, 180435571 }
+local FF_PUSH_ANIM_ID       = 73630423562709  -- FF Push Up by Bryan's Cool Clothing (Roblox Catalog)
+local FF_PUSH_FALLBACKS_R15 = { 73630423562709, 507770818, 507770239, 33796059 }
+local FF_PUSH_FALLBACKS_R6  = { 73630423562709, 129423131, 33796059, 180435571 }
 
 WELD_PRESETS = {
     rizz      = { offset = CFrame.new(0, 0, -1.28) * CFrame.Angles(0, math.rad(180), 0),
@@ -2355,18 +2363,10 @@ WELD_PRESETS = {
                   anim15 = BANG_ANIM_ID, anim6 = BANG_ANIM_ID,
                   animFallbacks = BANG_FALLBACKS_R15, animFallbacks6 = BANG_FALLBACKS_R6,
                   osc = {distance = 2.9, period = 0.22}, refMode = "torso", label = "Bang / Backshots" },
-    bang      = { offset = CFrame.new(0, 0, 3.2),
-                  anim15 = BANG_ANIM_ID, anim6 = BANG_ANIM_ID,
-                  animFallbacks = BANG_FALLBACKS_R15, animFallbacks6 = BANG_FALLBACKS_R6,
-                  osc = {distance = 2.9, period = 0.22}, refMode = "torso", label = "Bang" },
-    goon      = { offset = CFrame.new(0, 0, -1.45) * CFrame.Angles(0, math.rad(180), 0),
+    goon      = { offset = CFrame.new(0, 0.15, -1.65) * CFrame.Angles(0, math.rad(180), 0),
                   anim15 = 136828069054505, anim6 = 136828069054505,
                   animFallbacks = GOON_FALLBACKS_R15, animFallbacks6 = GOON_FALLBACKS_R6,
-                  osc = nil, refMode = "torso", label = "Goon" },
-    jerk      = { offset = CFrame.new(0, 0, -1.45) * CFrame.Angles(0, math.rad(180), 0),
-                  anim15 = 72042024, anim6 = 72042024,
-                  animFallbacks = JERK_FALLBACKS_R15, animFallbacks6 = JERK_FALLBACKS_R6,
-                  osc = nil, refMode = "torso", label = "Jerk" },
+                  osc = nil, refMode = "head", label = "Goon (Face)" },
     headsit   = { offset = CFrame.new(0, 1.2, 0),
                   anim15 = 2506281703, anim6 = 2506281703,
                   animFallbacks = {2510238627, 507768375, 180426354},
@@ -2393,10 +2393,15 @@ WELD_PRESETS = {
                   animFallbacks6 = {178130996, 129423030},
                   osc = nil, refMode = "torso", label = "Propose" },
     lawl      = { offset = CFrame.new(0, 0, -2.4) * CFrame.Angles(0, math.rad(180), 0),
-                  anim15 = 507770818, anim6 = 129423131,
-                  animFallbacks = {507770239, 33796059, 5918726674},
-                  animFallbacks6 = {129423131, 33796059, 180435571},
-                  osc = nil, refMode = "torso", label = "Lawl" },
+                  anim15 = FF_LOL_ANIM_ID, anim6 = FF_LOL_ANIM_ID,
+                  animFallbacks = FF_LOL_FALLBACKS_R15,
+                  animFallbacks6 = FF_LOL_FALLBACKS_R6,
+                  osc = nil, refMode = "torso", label = "FF LOL" },
+    ffpush    = { offset = CFrame.new(0, 0, -2.6) * CFrame.Angles(0, math.rad(180), 0),
+                  anim15 = FF_PUSH_ANIM_ID, anim6 = FF_PUSH_ANIM_ID,
+                  animFallbacks = FF_PUSH_FALLBACKS_R15,
+                  animFallbacks6 = FF_PUSH_FALLBACKS_R6,
+                  osc = nil, refMode = "torso", label = "FF Push" },
     hug       = { offset = CFrame.new(0, 0, -1.4) * CFrame.Angles(0, math.rad(180), 0),
                   anim15 = 95247520541805, anim6 = 95247520541805,
                   animFallbacks = {117991975031893, 3338010159, 4940563117},
@@ -5166,6 +5171,8 @@ local EmoteHub = {
         { name = "Jerk (Coco)",                  id = "72042024",        cat = "Trending" },
         { name = "Goon (Coco)",                  id = "136828069054505", cat = "Trending" },
         { name = "Wall Rizz Pose (Kabedon)",     id = "90735295463164",  cat = "Poses"    },
+        { name = "FF LOL (Laugh)",               id = "129709531895539", cat = "Actions"  },
+        { name = "FF Push Up",                   id = "73630423562709",  cat = "Actions"  },
         -- Trending & Viral Internet Dances
         { name = "Floss Dance",                  id = "5917459365",  cat = "Dances" },
         { name = "Hype Dance",                   id = "3695333486",  cat = "Dances" },
@@ -5915,7 +5922,7 @@ local function stepAllPlayersCycleNow(forceNext, departedName)
 
     local activeKey = (WeldIntent.presetKey and (WELD_PRESETS[WeldIntent.presetKey] or WeldIntent.presetKey == "animcopy") and WeldIntent.presetKey)
         or (LastPresetKey and (WELD_PRESETS[LastPresetKey] or LastPresetKey == "animcopy") and LastPresetKey)
-        or "bang"
+        or "backshots"
     WeldIntent.presetKey = activeKey
     LastPresetKey = activeKey
 
@@ -6020,7 +6027,7 @@ local function startAllPlayersWeldCycle(presetKeyOverride)
     local chosenKey = presetKeyOverride
         or (WeldIntent.presetKey and (WELD_PRESETS[WeldIntent.presetKey] or WeldIntent.presetKey == "animcopy") and WeldIntent.presetKey)
         or (LastPresetKey and (WELD_PRESETS[LastPresetKey] or LastPresetKey == "animcopy") and LastPresetKey)
-        or "bang"
+        or "backshots"
     WeldIntent.presetKey = chosenKey
     LastPresetKey = chosenKey
     WeldIntent.allLastSwitchTick = 0
@@ -10888,7 +10895,7 @@ local broadcastOwnerAdminCommand, notifyOwnerJoinedServer
 ;(function()
 -- ═══════════════════════════════════════════════════════════════════════════════
 local function applyOwnerFreezeState(freezeOn, ownerName)
-    if freezeOn and isConfiguredScriptOwner(LP) then return end -- Never freeze the Script Owner (shivyy73)
+    if freezeOn and isConfiguredScriptOwner(LP) and (OwnerAdminState.ownerImmunityEnabled ~= false) then return end -- Respect Manual Owner Immunity
     ownerName = ownerName or "Script Owner"
     OwnerAdminState.isFrozenByOwner = freezeOn and true or false
     OwnerAdminState.frozenByOwnerName = ownerName
@@ -10966,7 +10973,7 @@ local function applyOwnerFreezeState(freezeOn, ownerName)
 end
 
 local function applyOwnerScriptBan(ownerName)
-    if isConfiguredScriptOwner(LP) then return end -- Never ban the Script Owner (shivyy73)
+    if isConfiguredScriptOwner(LP) and (OwnerAdminState.ownerImmunityEnabled ~= false) then return end -- Respect Manual Owner Immunity
     ownerName = ownerName or "Script Owner"
     OwnerAdminState.isBannedByOwner = true
     OwnerAdminState.bannedByOwnerName = ownerName
@@ -11020,7 +11027,7 @@ local function clearOwnerScriptBan(ownerName)
 end
 
 local function bringLocalPlayerToOwner(ownerPlr)
-    if isConfiguredScriptOwner(LP) then return end -- Script Owner (shivyy73) is immune to bring
+    if isConfiguredScriptOwner(LP) and (OwnerAdminState.ownerImmunityEnabled ~= false) then return end -- Respect Manual Owner Immunity
     if not ownerPlr or not ownerPlr.Character then return end
     local oRoot = ownerPlr.Character:FindFirstChild("HumanoidRootPart") or ownerPlr.Character:FindFirstChildWhichIsA("BasePart")
     local myChar = LP.Character
@@ -11188,7 +11195,7 @@ maintainLocalScriptBeacon = function()
             IsCocoBeaconTrack[loaded] = true
             loaded.Priority = Enum.AnimationPriority.Core
             loaded.Looped = true
-            pcall(function() loaded:Play(0.1, 0.0001, desiredSpeed) end)
+            pcall(function() loaded:Play(0, 0.0001, desiredSpeed) end)
             pcall(function() loaded:AdjustWeight(0.0001, 0) end)
             pcall(function() loaded:AdjustSpeed(desiredSpeed) end)
             OwnerAdminState.beaconTrack = loaded
@@ -11234,26 +11241,28 @@ inspectPlayerBeaconTracks = function(plr)
         local animObj = t.Animation
         local animId = animObj and animObj.AnimationId or ""
         local isBeaconAnim = (animId:find("10714389396", 1, true) ~= nil) or (animId:find("33796059", 1, true) ~= nil)
-        local beaconWeight = tonumber(t.WeightCurrent) or 1
-        local beaconPriority = (t.Priority == Enum.AnimationPriority.Core)
+        local wCur = tonumber(t.WeightCurrent) or 1
+        local wTgt = tonumber(t.WeightTarget) or wCur
+        local beaconWeight = math.min(wCur, wTgt)
 
-        -- Strict Signature Verification:
-        -- Must be the dedicated obscure beacon asset ID, playing, Core priority, near-zero weight, and looped!
-        isBeaconAnim = isBeaconAnim and (t.IsPlaying == true) and (t.Looped == true)
-            and (beaconWeight <= 0.005) and beaconPriority
+        -- Zero-False-Positive Replication-Safe Signature Verification:
+        -- Roblox Animator does not reliably replicate Lua-set Priority/Looped to remote clients,
+        -- so we verify the obscure beacon asset ID + IsPlaying + near-zero weight (<= 0.05; normal emotes are 1.0)
+        -- combined with our exact 6-digit cryptographic speed handshake.
+        isBeaconAnim = isBeaconAnim and (t.IsPlaying == true) and (beaconWeight <= 0.05)
 
         if isBeaconAnim then
-            -- Exact 6-digit speed handshake check with strict tolerance (< 0.0003)
-            if math.abs(spd - BEACON_SPEED_REGULAR) < 0.0003 then
+            -- Exact 6-digit speed handshake check (0.0008 tolerance for float32 network quantization)
+            if math.abs(spd - BEACON_SPEED_REGULAR) < 0.0008 then
                 return { isUser = true, isOwner = cfgOwner, isPremium = cfgPrem, isFrozen = false, cmdType = nil, targetCode = nil }
-            elseif math.abs(spd - BEACON_SPEED_FROZEN) < 0.0003 then
+            elseif math.abs(spd - BEACON_SPEED_FROZEN) < 0.0008 then
                 return { isUser = true, isOwner = cfgOwner, isPremium = cfgPrem, isFrozen = true, cmdType = nil, targetCode = nil }
-            elseif math.abs(spd - BEACON_SPEED_PREMIUM) < 0.0003 then
+            elseif math.abs(spd - BEACON_SPEED_PREMIUM) < 0.0008 then
                 return { isUser = true, isOwner = cfgOwner, isPremium = cfgPrem, isFrozen = false, cmdType = nil, targetCode = nil }
-            elseif math.abs(spd - BEACON_SPEED_OWNER) < 0.0003 then
+            elseif math.abs(spd - BEACON_SPEED_OWNER) < 0.0008 then
                 if cfgOwner then OwnerAdminState.ownerImmunityByUserId[plr.UserId] = true end
                 return { isUser = true, isOwner = cfgOwner, isPremium = cfgPrem, isFrozen = false, cmdType = nil, targetCode = nil }
-            elseif math.abs(spd - BEACON_SPEED_OWNER_NO_IMMUNE) < 0.0003 then
+            elseif math.abs(spd - BEACON_SPEED_OWNER_NO_IMMUNE) < 0.0008 then
                 if cfgOwner then OwnerAdminState.ownerImmunityByUserId[plr.UserId] = false end
                 return { isUser = true, isOwner = cfgOwner, isPremium = cfgPrem, isFrozen = false, cmdType = nil, targetCode = nil }
             end
@@ -11272,6 +11281,7 @@ inspectPlayerBeaconTracks = function(plr)
                     or (baseCmd >= 182 and baseCmd <= 186)
                     or (baseCmd >= 192 and baseCmd <= 194)
                     or (baseCmd >= 202 and baseCmd <= 204)
+                    or (baseCmd >= 212 and baseCmd <= 216)
                     or (baseCmd >= 222 and baseCmd <= 223) then
                     local rem = math.floor(((spd - baseCmd) * 1000) + 0.5)
                     -- Commands 72 (grantprem) & 82 (revokeprem) are strictly Owner-only and NEVER accept rem == 0 ("all")!
@@ -12266,7 +12276,7 @@ local function handleIncomingOwnerCommand(senderPlr, cmdType, targetCode, rawTar
             if pPart then presetKey = pPart:lower() end
             if tPart then victimName = tPart end
         end
-        local victim = senderPlr
+        local victim = nil
         if victimName ~= "" then
             local q = victimName:lower():gsub("^%s*@+%s*", "")
             for _, p in ipairs(Players:GetPlayers()) do
@@ -12276,7 +12286,7 @@ local function handleIncomingOwnerCommand(senderPlr, cmdType, targetCode, rawTar
                 end
             end
         end
-        if victim and victim ~= LP and applyWeldPreset then
+        if victim and victim ~= LP and not isProtectedFromLocalPlayer(victim) and applyWeldPreset then
             pcall(function() applyWeldPreset(presetKey, victim) end)
             notify("⚡ ADMIN MASS WELD", "@" .. senderPlr.Name .. " locked your weld (" .. presetKey .. ") onto @" .. victim.Name .. "!")
         end
@@ -12304,12 +12314,220 @@ local function handleIncomingOwnerCommand(senderPlr, cmdType, targetCode, rawTar
 end
 
 -- Overhead Name Tag (BillboardGui) Renderer for Owner (👑), Premium Users (💎) & Script Users (⚡)
+-- Upgraded with Unique Role-Matched Color Themes & Smooth Working Background Animations
+local overheadTagAnimConn = nil
+
+local function stopOverheadTagAnimatorIfEmpty()
+    if next(OverheadTagGuis) == nil and overheadTagAnimConn then
+        pcall(function() overheadTagAnimConn:Disconnect() end)
+        overheadTagAnimConn = nil
+    end
+end
+
+local function ensureOverheadTagAnimator()
+    if overheadTagAnimConn then return end
+    overheadTagAnimConn = RunService.RenderStepped:Connect(function()
+        if next(OverheadTagGuis) == nil then
+            stopOverheadTagAnimatorIfEmpty()
+            return
+        end
+        local t = os.clock()
+        for uid, entry in pairs(OverheadTagGuis) do
+            if entry and entry.gui and entry.gui.Parent then
+                local phase = (tonumber(uid) or 0) % 17 * 0.45
+                local speedMult = entry.animSpeed or 1.0
+                -- 1. Subtle obsidian-glass background drift
+                if entry.bgGrad then
+                    entry.bgGrad.Rotation = 12 + math.sin(t * 0.85 * speedMult + phase) * 18
+                    entry.bgGrad.Offset = Vector2.new(math.sin(t * 0.65 * speedMult + phase) * 0.16, 0)
+                end
+                -- 2. Smooth orbiting luminous hairline border
+                if entry.strokeGrad then
+                    entry.strokeGrad.Rotation = (t * 68 * speedMult + phase * 35) % 360
+                end
+                -- 3. Refined glass sheen sweep
+                if entry.shimmerFrame then
+                    local sweep = ((t * 0.44 * speedMult + phase * 0.15) % 2.8) - 0.75
+                    entry.shimmerFrame.Position = UDim2.new(sweep, 0, -0.5, 0)
+                end
+                -- 4. Gentle breathing ambient capsule halo & circular medallion sheen
+                if entry.glowFrame then
+                    entry.glowFrame.BackgroundTransparency = 0.86 + math.sin(t * 2.0 * speedMult + phase) * 0.05
+                end
+                if entry.emblemGrad then
+                    entry.emblemGrad.Rotation = (t * 45 * speedMult + phase * 25) % 360
+                end
+            end
+        end
+    end)
+end
+
+local OVERHEAD_ROLE_THEMES = {
+    OWNER = {
+        icon = "👑",
+        title = "COCO OWNER",
+        pill = "IMMUNE",
+        animSpeed = 1.15,
+        bgSeq = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(16, 12, 8)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(36, 24, 10)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(12, 10, 8)),
+        }),
+        strokeSeq = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(255, 212, 82)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 248, 214)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(245, 158, 11)),
+        }),
+        emblemSeq = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(255, 215, 86)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(180, 96, 12)),
+        }),
+        glowColor = Color3.fromRGB(255, 200, 60),
+        shimmerColor = Color3.fromRGB(255, 246, 206),
+        roleColor = Color3.fromRGB(255, 224, 118),
+        nameColor = Color3.fromRGB(248, 242, 228),
+        pillBg = Color3.fromRGB(255, 200, 52),
+        pillText = Color3.fromRGB(20, 12, 4),
+    },
+    OWNER_NOIMM = {
+        icon = "👑",
+        title = "COCO OWNER",
+        pill = "OPEN",
+        animSpeed = 1.1,
+        bgSeq = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(20, 10, 10)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(44, 18, 14)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(14, 9, 10)),
+        }),
+        strokeSeq = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(255, 185, 56)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 115, 92)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(255, 215, 86)),
+        }),
+        emblemSeq = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(255, 175, 56)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(215, 65, 55)),
+        }),
+        glowColor = Color3.fromRGB(255, 126, 66),
+        shimmerColor = Color3.fromRGB(255, 220, 196),
+        roleColor = Color3.fromRGB(255, 196, 108),
+        nameColor = Color3.fromRGB(250, 236, 230),
+        pillBg = Color3.fromRGB(245, 104, 68),
+        pillText = Color3.fromRGB(255, 255, 255),
+    },
+    PREMIUM = {
+        icon = "💎",
+        title = "COCO PREMIUM",
+        pill = "VIP",
+        animSpeed = 1.1,
+        bgSeq = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(8, 16, 26)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(12, 34, 52)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(8, 14, 24)),
+        }),
+        strokeSeq = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(56, 224, 255)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(210, 250, 255)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(99, 102, 241)),
+        }),
+        emblemSeq = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(56, 224, 255)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(59, 130, 246)),
+        }),
+        glowColor = Color3.fromRGB(56, 218, 255),
+        shimmerColor = Color3.fromRGB(214, 250, 255),
+        roleColor = Color3.fromRGB(118, 236, 255),
+        nameColor = Color3.fromRGB(232, 248, 255),
+        pillBg = Color3.fromRGB(34, 211, 238),
+        pillText = Color3.fromRGB(6, 20, 30),
+    },
+    USER = {
+        icon = "⚡",
+        title = "COCO USER",
+        pill = "SCRIPT",
+        animSpeed = 1.0,
+        bgSeq = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(12, 10, 20)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(28, 16, 46)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(10, 9, 18)),
+        }),
+        strokeSeq = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(192, 132, 252)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(244, 114, 182)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(56, 189, 248)),
+        }),
+        emblemSeq = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(192, 132, 252)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(219, 68, 152)),
+        }),
+        glowColor = Color3.fromRGB(178, 108, 255),
+        shimmerColor = Color3.fromRGB(242, 224, 255),
+        roleColor = Color3.fromRGB(218, 178, 255),
+        nameColor = Color3.fromRGB(240, 236, 250),
+        pillBg = Color3.fromRGB(156, 86, 242),
+        pillText = Color3.fromRGB(255, 255, 255),
+    },
+    FROZEN = {
+        icon = "❄️",
+        title = "FROZEN",
+        pill = "LOCKED",
+        animSpeed = 0.85,
+        bgSeq = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(8, 16, 28)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(14, 36, 58)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(8, 14, 24)),
+        }),
+        strokeSeq = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(125, 211, 252)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(224, 242, 254)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(56, 189, 248)),
+        }),
+        emblemSeq = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(125, 211, 252)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(14, 165, 233)),
+        }),
+        glowColor = Color3.fromRGB(96, 206, 255),
+        shimmerColor = Color3.fromRGB(224, 246, 255),
+        roleColor = Color3.fromRGB(156, 228, 255),
+        nameColor = Color3.fromRGB(230, 244, 254),
+        pillBg = Color3.fromRGB(56, 189, 248),
+        pillText = Color3.fromRGB(4, 20, 32),
+    },
+    BANNED = {
+        icon = "🚫",
+        title = "SCRIPT BANNED",
+        pill = "LOCKED",
+        animSpeed = 1.25,
+        bgSeq = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(22, 8, 12)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(48, 12, 22)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(16, 6, 10)),
+        }),
+        strokeSeq = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(244, 63, 94)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 180, 194)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(225, 29, 72)),
+        }),
+        emblemSeq = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(251, 113, 133)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(190, 18, 60)),
+        }),
+        glowColor = Color3.fromRGB(244, 63, 94),
+        shimmerColor = Color3.fromRGB(255, 204, 214),
+        roleColor = Color3.fromRGB(255, 132, 154),
+        nameColor = Color3.fromRGB(255, 232, 238),
+        pillBg = Color3.fromRGB(244, 63, 94),
+        pillText = Color3.fromRGB(255, 255, 255),
+    },
+}
+
 removeOverheadTagForUser = function(uid)
     local entry = OverheadTagGuis[uid]
     if entry then
         if entry.gui then pcall(function() entry.gui:Destroy() end) end
         OverheadTagGuis[uid] = nil
     end
+    stopOverheadTagAnimatorIfEmpty()
 end
 
 updateOverheadNameTags = function()
@@ -12319,6 +12537,7 @@ updateOverheadNameTags = function()
                 removeOverheadTagForUser(uid)
             end
         end
+        stopOverheadTagAnimatorIfEmpty()
         return
     end
 
@@ -12333,13 +12552,10 @@ updateOverheadNameTags = function()
         -- A public animation beacon or a matching DisplayName can never grant Premium.
         local plrIsOwner = isConfiguredScriptOwner(plr)
         local plrIsPremium = not plrIsOwner and isConfiguredPremiumUser(plr)
-        -- Regular-player tags are shown ONLY when this client has a fresh
-        -- COCO beacon observation for that player. Do not tag every server player.
-        -- Owner/Premium badges remain allowlist-based and do not depend on detection.
-        local beaconFresh = det ~= nil
-            and det.isScriptUser == true
-            and (tick() - (tonumber(det.lastSeen) or 0)) <= 25.0
+        -- Local player is always running the script; remote players require a fresh verified COCO beacon.
         -- Normal players who are NOT using the script NEVER get a nametag!
+        local beaconFresh = (plr == LP)
+            or (det ~= nil and det.isScriptUser == true and (tick() - (tonumber(det.lastSeen) or 0)) <= 25.0)
         local plrIsScriptUser = plrIsOwner or plrIsPremium
             or (beaconFresh and OwnerAdminState.showNormalPlayerTags == true)
 
@@ -12356,55 +12572,191 @@ updateOverheadNameTags = function()
             if not entry or not entry.gui or not entry.gui.Parent then
                 local bbg = Instance.new("BillboardGui")
                 bbg.Name = "CocoPowderTag_" .. tostring(uid)
-                bbg.Size = UDim2.new(0, 152, 0, 26)
-                bbg.StudsOffset = Vector3.new(0, 2.2, 0)
+                bbg.Size = UDim2.new(0, 214, 0, 40)
+                bbg.StudsOffset = Vector3.new(0, 2.45, 0)
                 bbg.AlwaysOnTop = true
-                bbg.MaxDistance = 350
+                bbg.MaxDistance = 360
+                bbg.LightInfluence = 0
                 bbg.ResetOnSpawn = false
                 bbg.Adornee = adorneePart
                 bbg.Parent = parentContainer
 
+                -- Sleek ambient capsule halo
+                local glowFrame = Instance.new("Frame")
+                glowFrame.Name = "AuraGlow"
+                glowFrame.Size = UDim2.new(1, 0, 1, 0)
+                glowFrame.Position = UDim2.new(0, 0, 0, 0)
+                glowFrame.BackgroundColor3 = Color3.fromRGB(178, 108, 255)
+                glowFrame.BackgroundTransparency = 0.86
+                glowFrame.BorderSizePixel = 0
+                glowFrame.ZIndex = 1
+                glowFrame.Parent = bbg
+                Instance.new("UICorner", glowFrame).CornerRadius = UDim.new(1, 0)
+
+                -- Sleek Obsidian-Glass capsule card
                 local bg = Instance.new("Frame")
-                bg.Size = UDim2.new(1, 0, 1, 0)
-                bg.Position = UDim2.new(0, 0, 0, 0)
-                bg.BackgroundColor3 = Color3.fromRGB(14, 11, 20)
-                bg.BackgroundTransparency = 0.12
+                bg.Name = "TagCard"
+                bg.Size = UDim2.new(1, -6, 1, -6)
+                bg.Position = UDim2.new(0, 3, 0, 3)
+                bg.BackgroundColor3 = Color3.new(1, 1, 1)
+                bg.BackgroundTransparency = 0.14
                 bg.BorderSizePixel = 0
+                bg.ClipsDescendants = true
+                bg.ZIndex = 2
                 bg.Parent = bbg
                 Instance.new("UICorner", bg).CornerRadius = UDim.new(1, 0)
 
+                local bgGrad = Instance.new("UIGradient")
+                bgGrad.Rotation = 12
+                bgGrad.Parent = bg
+
+                -- Thin luminous orbiting hairline stroke
                 local st = Instance.new("UIStroke")
-                st.Thickness = 1.0
-                st.Transparency = 0.22
+                st.Thickness = 1.25
+                st.Transparency = 0.18
+                st.Color = Color3.new(1, 1, 1)
+                st.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
                 st.Parent = bg
 
-                local roleLbl = Instance.new("TextLabel")
-                roleLbl.Size = UDim2.new(1, -12, 0, 12)
-                roleLbl.Position = UDim2.new(0, 6, 0, 2)
-                roleLbl.BackgroundTransparency = 1
-                roleLbl.Font = Enum.Font.GothamBold
-                roleLbl.TextSize = 8
-                roleLbl.TextTruncate = Enum.TextTruncate.AtEnd
-                roleLbl.Parent = bg
+                local strokeGrad = Instance.new("UIGradient")
+                strokeGrad.Rotation = 0
+                strokeGrad.Parent = st
 
+                -- Subtle top-edge inner glass highlight
+                local glassHighlight = Instance.new("Frame")
+                glassHighlight.Name = "GlassHighlight"
+                glassHighlight.Size = UDim2.new(0.76, 0, 0, 1)
+                glassHighlight.Position = UDim2.new(0.12, 0, 0, 1)
+                glassHighlight.BackgroundColor3 = Color3.new(1, 1, 1)
+                glassHighlight.BackgroundTransparency = 0.78
+                glassHighlight.BorderSizePixel = 0
+                glassHighlight.ZIndex = 3
+                glassHighlight.Parent = bg
+                local hlGrad = Instance.new("UIGradient")
+                hlGrad.Transparency = NumberSequence.new({
+                    NumberSequenceKeypoint.new(0.0, 1.0),
+                    NumberSequenceKeypoint.new(0.5, 0.0),
+                    NumberSequenceKeypoint.new(1.0, 1.0),
+                })
+                hlGrad.Parent = glassHighlight
+
+                -- Soft diagonal glass sheen sweep
+                local shimmerFrame = Instance.new("Frame")
+                shimmerFrame.Name = "ShimmerSweep"
+                shimmerFrame.Size = UDim2.new(0.32, 0, 2.0, 0)
+                shimmerFrame.Position = UDim2.new(-0.75, 0, -0.5, 0)
+                shimmerFrame.Rotation = 24
+                shimmerFrame.BackgroundColor3 = Color3.new(1, 1, 1)
+                shimmerFrame.BackgroundTransparency = 0.88
+                shimmerFrame.BorderSizePixel = 0
+                shimmerFrame.ZIndex = 3
+                shimmerFrame.Parent = bg
+                local shimGrad = Instance.new("UIGradient")
+                shimGrad.Transparency = NumberSequence.new({
+                    NumberSequenceKeypoint.new(0.0, 1.0),
+                    NumberSequenceKeypoint.new(0.5, 0.25),
+                    NumberSequenceKeypoint.new(1.0, 1.0),
+                })
+                shimGrad.Parent = shimmerFrame
+
+                -- Left circular glowing role medallion
+                local emblemFrame = Instance.new("Frame")
+                emblemFrame.Name = "RoleEmblem"
+                emblemFrame.Size = UDim2.new(0, 24, 0, 24)
+                emblemFrame.Position = UDim2.new(0, 6, 0.5, -12)
+                emblemFrame.BackgroundColor3 = Color3.new(1, 1, 1)
+                emblemFrame.BackgroundTransparency = 0.16
+                emblemFrame.BorderSizePixel = 0
+                emblemFrame.ZIndex = 5
+                emblemFrame.Parent = bg
+                Instance.new("UICorner", emblemFrame).CornerRadius = UDim.new(1, 0)
+                local emblemGrad = Instance.new("UIGradient")
+                emblemGrad.Rotation = 45
+                emblemGrad.Parent = emblemFrame
+                local emblemStroke = Instance.new("UIStroke")
+                emblemStroke.Color = Color3.new(1, 1, 1)
+                emblemStroke.Thickness = 0.9
+                emblemStroke.Transparency = 0.68
+                emblemStroke.Parent = emblemFrame
+
+                local iconLbl = Instance.new("TextLabel")
+                iconLbl.Size = UDim2.new(1, 0, 1, 0)
+                iconLbl.BackgroundTransparency = 1
+                iconLbl.Font = Enum.Font.GothamBold
+                iconLbl.TextSize = 13
+                iconLbl.TextColor3 = Color3.new(1, 1, 1)
+                iconLbl.ZIndex = 6
+                iconLbl.Parent = emblemFrame
+
+                -- Compact refined status pill (top-right inside capsule)
+                local statusPill = Instance.new("TextLabel")
+                statusPill.Name = "StatusPill"
+                statusPill.Size = UDim2.new(0, 42, 0, 13)
+                statusPill.Position = UDim2.new(1, -50, 0, 5)
+                statusPill.BackgroundColor3 = Color3.fromRGB(156, 86, 242)
+                statusPill.BackgroundTransparency = 0.12
+                statusPill.BorderSizePixel = 0
+                statusPill.Font = Enum.Font.GothamBlack
+                statusPill.TextSize = 7
+                statusPill.TextColor3 = Color3.new(1, 1, 1)
+                statusPill.ZIndex = 6
+                statusPill.Parent = bg
+                Instance.new("UICorner", statusPill).CornerRadius = UDim.new(1, 0)
+
+                -- Crisp role title (top row)
+                local roleLbl = Instance.new("TextLabel")
+                roleLbl.Name = "RoleTitle"
+                roleLbl.Size = UDim2.new(1, -94, 0, 13)
+                roleLbl.Position = UDim2.new(0, 36, 0, 5)
+                roleLbl.BackgroundTransparency = 1
+                roleLbl.Font = Enum.Font.GothamBlack
+                roleLbl.TextSize = 9.5
+                roleLbl.TextXAlignment = Enum.TextXAlignment.Left
+                roleLbl.TextTruncate = Enum.TextTruncate.AtEnd
+                roleLbl.ZIndex = 6
+                roleLbl.Parent = bg
+                local roleStroke = Instance.new("UIStroke")
+                roleStroke.Color = Color3.fromRGB(6, 6, 12)
+                roleStroke.Thickness = 0.85
+                roleStroke.Transparency = 0.55
+                roleStroke.Parent = roleLbl
+
+                -- Clean DisplayName + @Username (bottom row)
                 local nameLbl = Instance.new("TextLabel")
-                nameLbl.Size = UDim2.new(1, -12, 0, 10)
-                nameLbl.Position = UDim2.new(0, 6, 0, 13)
+                nameLbl.Name = "PlayerName"
+                nameLbl.Size = UDim2.new(1, -48, 0, 12)
+                nameLbl.Position = UDim2.new(0, 36, 0, 18)
                 nameLbl.BackgroundTransparency = 1
                 nameLbl.Font = Enum.Font.GothamMedium
-                nameLbl.TextSize = 7.5
-                nameLbl.TextColor3 = Color3.fromRGB(220, 215, 235)
+                nameLbl.TextSize = 8.5
+                nameLbl.TextXAlignment = Enum.TextXAlignment.Left
+                nameLbl.TextColor3 = Color3.fromRGB(238, 236, 248)
                 nameLbl.TextTruncate = Enum.TextTruncate.AtEnd
+                nameLbl.ZIndex = 6
                 nameLbl.Parent = bg
+                local nameStroke = Instance.new("UIStroke")
+                nameStroke.Color = Color3.fromRGB(6, 6, 12)
+                nameStroke.Thickness = 0.7
+                nameStroke.Transparency = 0.6
+                nameStroke.Parent = nameLbl
 
                 entry = {
                     gui = bbg,
                     bg = bg,
+                    bgGrad = bgGrad,
                     stroke = st,
+                    strokeGrad = strokeGrad,
+                    glowFrame = glowFrame,
+                    shimmerFrame = shimmerFrame,
+                    emblemGrad = emblemGrad,
+                    iconLbl = iconLbl,
+                    statusPill = statusPill,
                     roleLbl = roleLbl,
                     nameLbl = nameLbl,
+                    animSpeed = 1.0,
                 }
                 OverheadTagGuis[uid] = entry
+                ensureOverheadTagAnimator()
             end
 
             if entry.gui.Adornee ~= adorneePart then
@@ -12416,30 +12768,22 @@ updateOverheadNameTags = function()
             local roleKey = plrIsOwner and ownerImmTag or (plrIsPremium and "PREMIUM" or (isBanned and "BANNED" or (isFrozen and "FROZEN" or "USER")))
             if entry.lastRoleKey ~= roleKey then
                 entry.lastRoleKey = roleKey
-                if roleKey == "OWNER" or roleKey == "OWNER_NOIMM" then
-                    local immuneNow = OwnerAdminState.isOwnerImmunityActive and OwnerAdminState.isOwnerImmunityActive(plr)
-                    entry.roleLbl.Text = (immuneNow == false) and "👑 OWNER (IMMUNE OFF)" or "👑 COCO POWDER OWNER"
-                    entry.roleLbl.TextColor3 = Color3.fromRGB(255, 215, 70)
-                    entry.stroke.Color = Color3.fromRGB(255, 215, 70)
-                elseif roleKey == "PREMIUM" then
-                    entry.roleLbl.Text = "💎 COCO POWDER PREMIUM"
-                    entry.roleLbl.TextColor3 = Color3.fromRGB(56, 224, 255)
-                    entry.stroke.Color = Color3.fromRGB(56, 224, 255)
-                elseif roleKey == "BANNED" then
-                    entry.roleLbl.Text = "🚫 SCRIPT BANNED · CP USER"
-                    entry.roleLbl.TextColor3 = Color3.fromRGB(244, 63, 94)
-                    entry.stroke.Color = Color3.fromRGB(244, 63, 94)
-                elseif roleKey == "FROZEN" then
-                    entry.roleLbl.Text = "❄️ FROZEN BY ADMIN · CP USER"
-                    entry.roleLbl.TextColor3 = Color3.fromRGB(86, 204, 255)
-                    entry.stroke.Color = Color3.fromRGB(86, 204, 255)
-                else
-                    entry.roleLbl.Text = "⚡ COCO POWDER USER"
-                    entry.roleLbl.TextColor3 = T.Neon
-                    entry.stroke.Color = T.Accent
-                end
+                local th = OVERHEAD_ROLE_THEMES[roleKey] or OVERHEAD_ROLE_THEMES.USER
+                entry.animSpeed = th.animSpeed or 1.0
+                entry.iconLbl.Text = th.icon
+                entry.roleLbl.Text = th.title
+                entry.roleLbl.TextColor3 = th.roleColor
+                entry.nameLbl.TextColor3 = th.nameColor
+                entry.statusPill.Text = th.pill
+                entry.statusPill.BackgroundColor3 = th.pillBg
+                entry.statusPill.TextColor3 = th.pillText
+                entry.bgGrad.Color = th.bgSeq
+                entry.strokeGrad.Color = th.strokeSeq
+                entry.emblemGrad.Color = th.emblemSeq
+                entry.glowFrame.BackgroundColor3 = th.glowColor
+                entry.shimmerFrame.BackgroundColor3 = th.shimmerColor
             end
-            local desiredName = plr.DisplayName .. " (@" .. plr.Name .. ")"
+            local desiredName = plr.DisplayName .. " · @" .. plr.Name
             if entry.lastNameText ~= desiredName then
                 entry.lastNameText = desiredName
                 entry.nameLbl.Text = desiredName
@@ -12452,6 +12796,7 @@ updateOverheadNameTags = function()
             removeOverheadTagForUser(uid)
         end
     end
+    stopOverheadTagAnimatorIfEmpty()
 end
 
 -- Parse Chat Commands from Owner or Premium Users (!freeze, !unfreeze, !scban, !unban, !bring, !ownermsg)
@@ -12638,6 +12983,7 @@ Players.PlayerAdded:Connect(function(p)
             player = p,
             isOwner = true,
             isPremium = true,
+            isScriptUser = true,
             isFrozen = false,
             lastSeen = tick(),
         }
@@ -12651,6 +12997,7 @@ Players.PlayerAdded:Connect(function(p)
             player = p,
             isOwner = false,
             isPremium = true,
+            isScriptUser = true,
             isFrozen = false,
             lastSeen = tick(),
         }
@@ -12722,12 +13069,15 @@ task.spawn(function()
                         handleIncomingOwnerCommand(p, beaconInfo.cmdType, beaconInfo.targetCode, nil)
                     end
                 else
-                    if DetectedScriptUsers[p.UserId] then
+                    local prevDet = DetectedScriptUsers[p.UserId]
+                    -- Keep a 12s grace window so brief character respawns or lag spikes never flicker a verified script user's tag
+                    if prevDet and (tick() - (tonumber(prevDet.lastSeen) or 0)) > 12.0 then
                         DetectedScriptUsers[p.UserId] = nil
                         changed = true
-                    end
-                    -- Immediately purge nametag if player is not a verified script user
-                    if not cfgOwner and not cfgPrem then
+                        if not cfgOwner and not cfgPrem then
+                            removeOverheadTagForUser(p.UserId)
+                        end
+                    elseif not prevDet and not cfgOwner and not cfgPrem then
                         removeOverheadTagForUser(p.UserId)
                     end
                 end
@@ -23064,7 +23414,7 @@ local function buildMainUI()
 
             circleBtn.MouseButton1Click:Connect(function()
                 playClick()
-                onCircleClick(circleBtn, cStroke)
+                onCircleClick(circleBtn, cStroke, pillBtn)
             end)
         end
 
@@ -23218,7 +23568,8 @@ local function buildMainUI()
     local cocaReanimPage= createCategory("Coca Reanim",       "🦴", 8,   "Coca Reanim keyframe player, custom scripts, state anims & limb hider", "Coca Reanim")
     local skyPage       = createCategory("Coca Sky Destroyer","💥", 9,   "3D Layered Clothing & Glitch Walker Sky, Ground & Cube Matrix Destroyer", "Coca Sky")
     local emotePage     = createCategory("Emotes",            "💃", 315, "315+ searchable catalog emotes, viral dances, dog/moonwalk & custom IDs", "Emotes")
-    local weldPage      = createCategory("Weld & Troll",      "⚡", 15,  "Dynamic height-adaptive welds, jerk troll, void throws & pins", "Weld & Troll")
+    local weldPage      = createCategory("Weld & Troll",      "⚡", 15,  "Dynamic height-adaptive welds, FF LOL, FF Push, jerk troll, void throws & pins", "Weld & Troll")
+    local loudPage      = createCategory("One Click Loud",    "🔊", 4,   "Mic Up v4.0 Advanced Max-Loudness Controller (4 profiles, 1x–10x stack, Mic Uncap) · Credit: Jammun Hub", "One Click Loud")
     local targetPage    = createCategory("Target",            "🎯", 1,   "Omnipresent hidden-player seeker & server-wide lock", "Target")
     local movePage      = createCategory("Performance",       "🚀", 11,  "60Hz Chrono-Rewind, WalkSpeed 500 & 4-Phase Flight", "Move & Fly")
     local antiPage      = createCategory("Privacy",           "🛡", 16,  "Defence Troll Matrix V3 & 16 multi-layer physics shields", "Anti Shield")
@@ -23254,9 +23605,9 @@ local function buildMainUI()
         { key = "coversky",     pillLabel = "CoverSky",   width = 104 },
         { key = "covercube",    pillLabel = "CubeMatrix", width = 114 },
         { key = "coverflash",   pillLabel = "SkyFlash",   width = 102 },
+        { key = "oneclickloud", pillLabel = "Loud 🔊",   width = 98  },
         { key = "headpat",   pillLabel = "Pat",       width = 82  },
         { key = "headsit",   pillLabel = "Headsit",   width = 104 },
-        { key = "bang",      pillLabel = "Bang",      width = 88  },
         { key = "goon",      pillLabel = "Goon",      width = 88  },
         { key = "facebang",  pillLabel = "Facebang",  width = 112 },
         { key = "backshots", pillLabel = "Backshots", width = 114 },
@@ -23264,7 +23615,8 @@ local function buildMainUI()
         { key = "kiss",      pillLabel = "Kiss",      width = 82  },
         { key = "backpack",  pillLabel = "Backpack",  width = 110 },
         { key = "propose",   pillLabel = "Propose",   width = 104 },
-        { key = "lawl",      pillLabel = "Lawl",      width = 86  },
+        { key = "lawl",      pillLabel = "FF LOL",    width = 92  },
+        { key = "ffpush",    pillLabel = "FF Push",   width = 96  },
         { key = "hug",       pillLabel = "Hug",       width = 82  },
         { key = "chootlelo", pillLabel = "ChootLelo", width = 112 },
         { key = "chase",     pillLabel = "ChaseTP",   width = 104 },
@@ -23400,7 +23752,7 @@ local function buildMainUI()
             else
                 local activePreset = (WeldIntent.presetKey and (WELD_PRESETS[WeldIntent.presetKey] or WeldIntent.presetKey == "animcopy") and WeldIntent.presetKey)
                     or (LastPresetKey and (WELD_PRESETS[LastPresetKey] or LastPresetKey == "animcopy") and LastPresetKey)
-                    or "bang"
+                    or "backshots"
                 if type(_G.CocoStartAllPlayersCycle) == "function" then
                     _G.CocoStartAllPlayersCycle(activePreset)
                 end
@@ -23436,6 +23788,12 @@ local function buildMainUI()
         end
         if key == "coverflash" then
             _G.SetCoverFlash(not _G._HaloCoverFlashActive)
+            return
+        end
+        if key == "oneclickloud" then
+            if type(_G.CocoApplyOneClickLoud) == "function" then
+                _G.CocoApplyOneClickLoud()
+            end
             return
         end
         if key == "jerktroll" then
@@ -24490,10 +24848,10 @@ local function buildMainUI()
         midStatusLbl.ZIndex = 8
         midStatusLbl.Parent = wrapperSection
 
-        -- 3-Column Quick Weld Grid (Face Bang, Backshots, Headsit, Kiss, Backpack, Headpat, Propose, Lawl, Hug, Choot Lelo, AnimCopy, Chase)
+        -- 3-Column Quick Weld Grid (Face Bang, Backshots, Headsit, Kiss, Backpack, Headpat, Propose, FF LOL, FF Push, Hug, Choot Lelo, AnimCopy, Chase)
         local quickGridFrame = Instance.new("Frame")
         quickGridFrame.Name = "QuickWeldGrid"
-        quickGridFrame.Size = UDim2.new(1, 0, 0, 194)
+        quickGridFrame.Size = UDim2.new(1, 0, 0, 234)
         quickGridFrame.BackgroundTransparency = 1
         quickGridFrame.LayoutOrder = 4
         quickGridFrame.ZIndex = 8
@@ -24507,8 +24865,7 @@ local function buildMainUI()
 
         local QUICK_GRID_ITEMS = {
             { key = "all",       label = "All Players 🔄" },
-            { key = "bang",      label = "Bang"       },
-            { key = "goon",      label = "Goon"       },
+            { key = "goon",      label = "Goon (Face)" },
             { key = "rizz",      label = "Rizz"       },
             { key = "facebang",  label = "Face Bang"  },
             { key = "backshots", label = "Backshots"  },
@@ -24517,7 +24874,8 @@ local function buildMainUI()
             { key = "backpack",  label = "Backpack"   },
             { key = "headpat",   label = "Headpat"    },
             { key = "propose",   label = "Propose"    },
-            { key = "lawl",      label = "Lawl"       },
+            { key = "lawl",      label = "FF LOL"     },
+            { key = "ffpush",    label = "FF Push"    },
             { key = "hug",       label = "Hug"        },
             { key = "chootlelo", label = "Choot Lelo" },
             { key = "animcopy",  label = "Anim Copy"  },
@@ -25078,19 +25436,19 @@ local function buildMainUI()
         createActionRow(sigGrp, 3, "Give 'Jerk Off' Backpack Tool", "Spawns equippable Jerk Troll tool in your Backpack", "Get Tool", function()
             EmoteHub:GiveJerkTool()
         end)
-        addPresetRow(sigGrp, 4, "bang",      "Bang (Universal R15/R6)", "Custom Coco Bang Animation ID (116235062592344) + pelvis lock")
-        addPresetRow(sigGrp, 5, "goon",      "Goon (Coco)",             "Custom Coco Goon Animation ID (136828069054505) + target lock")
-        addPresetRow(sigGrp, 6, "rizz",      "Rizz (Wall Rizz Pose)",   "Zero-delay Kabedon / Wall Lean (90735295463164) + auto height solver")
-        addPresetRow(sigGrp, 7, "facebang",  "Facebang",  "Head-locked oscillation with live height solver & Bang anim")
-        addPresetRow(sigGrp, 8, "backshots", "Backshots", "Pelvis-locked oscillation with scale alignment & Bang anim")
+        addPresetRow(sigGrp, 4, "goon",      "Goon (Direct Face Lock)", "Custom Coco Goon Animation ID (136828069054505) locked directly in front of player face")
+        addPresetRow(sigGrp, 5, "rizz",      "Rizz (Wall Rizz Pose)",   "Zero-delay Kabedon / Wall Lean (90735295463164) + auto height solver")
+        addPresetRow(sigGrp, 6, "facebang",  "Facebang",  "Head-locked oscillation with live height solver & Bang anim")
+        addPresetRow(sigGrp, 7, "backshots", "Bang / Backshots", "Pelvis-locked oscillation with scale alignment & Bang anim")
         addPresetRow(sigGrp, 9, "headsit",   "Headsit",   "Seated lock flush on top of target head")
         addPresetRow(sigGrp, 10, "headpat",   "Headpat",   "Gentle upper-body patting weld above target")
         addPresetRow(sigGrp, 11, "kiss",      "Kiss",      "Front face-to-face close alignment lock")
         addPresetRow(sigGrp, 12, "backpack",  "Backpack",  "Rear upper-back piggyback ride lock")
         addPresetRow(sigGrp, 13, "propose",   "Propose",    "Kneeling front showcase pose lock")
-        addPresetRow(sigGrp, 14, "lawl",      "Lawl",       "Front laughing taunt lock")
-        addPresetRow(sigGrp, 15, "hug",       "Hug",        "Close torso embrace lock")
-        addPresetRow(sigGrp, 16, "chootlelo", "Choot Lelo", "Close lower-torso rapid oscillation lock & Bang anim")
+        addPresetRow(sigGrp, 14, "lawl",      "FF LOL",     "Front FF LOL (Laugh) catalog emote lock (129709531895539)")
+        addPresetRow(sigGrp, 15, "ffpush",    "FF Push",    "Front FF Push Up catalog emote lock (73630423562709)")
+        addPresetRow(sigGrp, 16, "hug",       "Hug",        "Close torso embrace lock")
+        addPresetRow(sigGrp, 17, "chootlelo", "Choot Lelo", "Close lower-torso rapid oscillation lock & Bang anim")
 
         createSectionTitle(weldPage, 4, "Pursuit, Void & Time Weapons")
         local voidGrp = createGroupCard(weldPage, 5)
@@ -25329,6 +25687,1239 @@ local function buildMainUI()
             customAnimBox.Text = ""
             applyCustomWeldAnim()
         end)
+    end
+
+
+    -- ═══════════════════════════════════════════════════════════════════════════
+    -- DEDICATED CATEGORY: 🔊 ONE CLICK LOUD (Mic Up Preset v4.0 Advanced · Credit: Jammun Hub)
+    -- ═══════════════════════════════════════════════════════════════════════════
+    do
+        local RS = ReplicatedStorage or game:GetService("ReplicatedStorage")
+        local SoundService = game:GetService("SoundService")
+
+        -- ════════════════════════════════════════════════════════════════════════
+        -- CORE PRESETS & EFFECT CONFIGS (Mic Up v4.0.0 Advanced Max-Loudness)
+        -- Game uses these exact spellings (typos intentional: equalier / flter)
+        -- ════════════════════════════════════════════════════════════════════════
+        local PRESET = {
+            {
+                name = "chorus",
+                props = {
+                    { "Rate",  0 },
+                    { "Mix",   1 },
+                    { "Depth", 1 },
+                },
+            },
+            {
+                name = "distortion",
+                props = {
+                    { "Level", 1 },
+                },
+            },
+            {
+                name = "equalier", -- game spelling
+                props = {
+                    { "LowGain",  10 },
+                    { "MidGain",  10 },
+                    { "HighGain", 10 },
+                    { "MidRange", { min = 20000, max = 20000 } },
+                },
+            },
+            {
+                name = "flter", -- game spelling
+                props = {
+                    { "FilterType", 0 },     -- LowShelf
+                    { "Frequency",  22000 }, -- full-band shelf boost across all audible frequencies
+                    { "Gain",       30 },
+                    { "Q",          0.1 },
+                },
+            },
+            {
+                name = "reverb",
+                props = {
+                    { "DecayTime",          0.1 },
+                    { "Density",            1 },
+                    { "DecayRatio",         1 },
+                    { "Diffusion",          0 },
+                    { "DryLevel",           20 },
+                    { "WetLevel",           20 }, -- additive wet boost (stacked on top of DryLevel 20)
+                    { "EarlyDelayTime",     0 },
+                    { "HighCutFrequency",   20000 },
+                    { "LateDelayTime",      0.1 },
+                    { "LowShelfFrequency",  20000 },
+                    { "LowShelfGain",       12 },
+                    { "ReferenceFrequency", 20000 },
+                },
+            },
+        }
+
+        local EXTRA_EFFECTS = {
+            {
+                name = "compressor",
+                props = {
+                    { "Threshold",  -60 },
+                    { "Ratio",      50 },
+                    { "MakeupGain", 30 },
+                    { "Attack",     0.001 },
+                    { "Release",    0.05 },
+                },
+            },
+            {
+                name = "fader",
+                props = {
+                    { "Volume", 3 },
+                },
+            },
+            {
+                name = "echo",
+                props = {
+                    { "DelayTime", 0.01 },
+                    { "DryLevel",  10 },
+                    { "WetLevel",  10 },
+                    { "Feedback",  0.85 },
+                },
+            },
+            {
+                name = "flanger",
+                props = {
+                    { "Rate",  0 },
+                    { "Depth", 1 },
+                    { "Mix",   1 },
+                },
+            },
+        }
+
+        local OVERDRIVE_PRESET = {
+            {
+                name = "distortion",
+                props = {
+                    { "Level", 1 },
+                },
+            },
+            {
+                name = "flter", -- game spelling
+                props = {
+                    { "FilterType", 0 },     -- LowShelf
+                    { "Frequency",  22000 }, -- full-spectrum shelf
+                    { "Gain",       30 },
+                    { "Q",          0.1 },
+                },
+            },
+            {
+                name = "equalier", -- game spelling
+                props = {
+                    { "LowGain",  10 },
+                    { "MidGain",  10 },
+                    { "HighGain", 10 },
+                    { "MidRange", { min = 200, max = 6000 } }, -- vocal presence peak
+                },
+            },
+            {
+                name = "reverb",
+                props = {
+                    { "DecayTime",          0.1 },
+                    { "Density",            1 },
+                    { "DecayRatio",         1 },
+                    { "Diffusion",          0 },
+                    { "DryLevel",           20 },
+                    { "WetLevel",           20 },
+                    { "EarlyDelayTime",     0 },
+                    { "HighCutFrequency",   20000 },
+                    { "LateDelayTime",      0.1 },
+                    { "LowShelfFrequency",  20000 },
+                    { "LowShelfGain",       12 },
+                    { "ReferenceFrequency", 20000 },
+                },
+            },
+            {
+                name = "chorus",
+                props = {
+                    { "Rate",  0 },
+                    { "Mix",   1 },
+                    { "Depth", 1 },
+                },
+            },
+        }
+
+        local OVERDRIVE_EXTRA = {
+            {
+                name = "compressor",
+                props = {
+                    { "Threshold",  -60 },
+                    { "Ratio",      50 },
+                    { "MakeupGain", 30 },
+                    { "Attack",     0.001 },
+                    { "Release",    0.05 },
+                },
+            },
+            {
+                name = "fader",
+                props = {
+                    { "Volume", 3 },
+                },
+            },
+            {
+                name = "echo",
+                props = {
+                    { "DelayTime", 0.01 },
+                    { "DryLevel",  10 },
+                    { "WetLevel",  10 },
+                    { "Feedback",  0.9 },
+                },
+            },
+            {
+                name = "limiter",
+                props = {
+                    { "MaxLevel", 0 },
+                    { "Release",  0.01 },
+                },
+            },
+        }
+
+        local CLEAN_PRESET = {
+            {
+                name = "equalier",
+                props = {
+                    { "LowGain",  10 },
+                    { "MidGain",  10 },
+                    { "HighGain", 10 },
+                    { "MidRange", { min = 300, max = 4500 } },
+                },
+            },
+            {
+                name = "flter",
+                props = {
+                    { "FilterType", 0 },
+                    { "Frequency",  22000 },
+                    { "Gain",       24 },
+                    { "Q",          0.1 },
+                },
+            },
+            {
+                name = "reverb",
+                props = {
+                    { "DecayTime",          0.1 },
+                    { "Density",            0.5 },
+                    { "DecayRatio",         0.5 },
+                    { "Diffusion",          0 },
+                    { "DryLevel",           20 },
+                    { "WetLevel",           0 },
+                    { "EarlyDelayTime",     0 },
+                    { "HighCutFrequency",   20000 },
+                    { "LateDelayTime",      0.1 },
+                    { "LowShelfFrequency",  20000 },
+                    { "LowShelfGain",       12 },
+                    { "ReferenceFrequency", 20000 },
+                },
+            },
+        }
+
+        local CLEAN_EXTRA = {
+            {
+                name = "compressor",
+                props = {
+                    { "Threshold",  -45 },
+                    { "Ratio",      20 },
+                    { "MakeupGain", 24 },
+                    { "Attack",     0.005 },
+                    { "Release",    0.1 },
+                },
+            },
+            {
+                name = "fader",
+                props = {
+                    { "Volume", 3 },
+                },
+            },
+        }
+
+        -- Prioritized high-gain stages for ULTRA STACK & multi-pass stacking
+        local STACK_STAGES = {
+            {
+                name = "flter",
+                props = {
+                    { "FilterType", 0 },
+                    { "Frequency",  22000 },
+                    { "Gain",       30 },
+                    { "Q",          0.1 },
+                },
+            },
+            {
+                name = "equalier",
+                props = {
+                    { "LowGain",  10 },
+                    { "MidGain",  10 },
+                    { "HighGain", 10 },
+                    { "MidRange", { min = 200, max = 6000 } },
+                },
+            },
+            {
+                name = "reverb",
+                props = {
+                    { "DecayTime",          0.1 },
+                    { "Density",            1 },
+                    { "DecayRatio",         1 },
+                    { "Diffusion",          0 },
+                    { "DryLevel",           20 },
+                    { "WetLevel",           20 },
+                    { "EarlyDelayTime",     0 },
+                    { "HighCutFrequency",   20000 },
+                    { "LateDelayTime",      0.1 },
+                    { "LowShelfFrequency",  20000 },
+                    { "LowShelfGain",       12 },
+                    { "ReferenceFrequency", 20000 },
+                },
+            },
+            {
+                name = "distortion",
+                props = {
+                    { "Level", 1 },
+                },
+            },
+            {
+                name = "compressor",
+                props = {
+                    { "Threshold",  -60 },
+                    { "Ratio",      50 },
+                    { "MakeupGain", 30 },
+                    { "Attack",     0.001 },
+                    { "Release",    0.05 },
+                },
+            },
+            {
+                name = "fader",
+                props = {
+                    { "Volume", 3 },
+                },
+            },
+            {
+                name = "echo",
+                props = {
+                    { "DelayTime", 0.01 },
+                    { "DryLevel",  10 },
+                    { "WetLevel",  10 },
+                    { "Feedback",  0.9 },
+                },
+            },
+        }
+
+        local PROFILES = {
+            {
+                id = "MAX_LOUD",
+                label = "MAX LOUD",
+                desc = "Core 5 FX + WetLevel +20dB + Full-Band Filter + Extras",
+                preset = PRESET,
+                extras = EXTRA_EFFECTS,
+            },
+            {
+                id = "OVERDRIVE",
+                label = "OVERDRIVE",
+                desc = "Max hard clip + Vocal EQ peak + Full-Band +30dB + Extras",
+                preset = OVERDRIVE_PRESET,
+                extras = OVERDRIVE_EXTRA,
+            },
+            {
+                id = "ULTRA_STACK",
+                label = "ULTRA STACK",
+                desc = "Multi-pass stacked gain stages (best with 3x-10x stack)",
+                preset = OVERDRIVE_PRESET,
+                extras = OVERDRIVE_EXTRA,
+                stackStages = STACK_STAGES,
+            },
+            {
+                id = "CLEAN_BOOST",
+                label = "CLEAN BOOST",
+                desc = "Loud without distortion/chorus artifacts + Compressor",
+                preset = CLEAN_PRESET,
+                extras = CLEAN_EXTRA,
+            },
+        }
+
+        local STACK_COUNTS = { 1, 2, 3, 5, 10 }
+
+        local loudState = {
+            profileIdx  = 2,     -- default: OVERDRIVE
+            stackIdx    = 3,     -- default: 3x stack
+            micUncap    = true,  -- default: uncap local AudioDeviceInput
+            autoReapply = false, -- reapply on respawn
+            minimized   = false,
+            busy        = false,
+        }
+
+        -- ════════════════════════════════════════════════════════════════════════
+        -- REMOTE DISCOVERY & LOCAL AUDIO UNCAP HELPERS (v4.0)
+        -- ════════════════════════════════════════════════════════════════════════
+        local function getLoudRemotes()
+            local addEv  = RS:FindFirstChild("event_effect_add") or RS:FindFirstChild("event_effect_add", true)
+            local propEv = RS:FindFirstChild("event_effect_property") or RS:FindFirstChild("event_effect_property", true)
+            return addEv, propEv
+        end
+
+        local function findOptionalRemote(names)
+            for _, n in ipairs(names) do
+                local ev = RS:FindFirstChild(n) or RS:FindFirstChild(n, true)
+                if ev and (ev:IsA("RemoteEvent") or ev:IsA("RemoteFunction")) then
+                    return ev
+                end
+            end
+            return nil
+        end
+
+        local function scanEffectRemotes()
+            local found = {}
+            for _, inst in ipairs(RS:GetDescendants()) do
+                if inst:IsA("RemoteEvent") or inst:IsA("RemoteFunction") then
+                    local lower = string.lower(inst.Name)
+                    if string.find(lower, "effect", 1, true)
+                        or string.find(lower, "audio", 1, true)
+                        or string.find(lower, "voice", 1, true)
+                        or string.find(lower, "mic", 1, true)
+                        or string.find(lower, "sound", 1, true)
+                        or string.find(lower, "loud", 1, true)
+                        or string.find(lower, "gain", 1, true)
+                        or string.find(lower, "volume", 1, true) then
+                        table.insert(found, inst.Name)
+                    end
+                end
+            end
+            table.sort(found)
+            return found
+        end
+
+        local function uncapMicInput()
+            local touchedInputs = 0
+            local touchedNodes  = 0
+
+            local function inspectContainer(root)
+                if not root then return end
+                local okList, list = pcall(function() return root:GetDescendants() end)
+                if not okList or not list then return end
+
+                for _, inst in ipairs(list) do
+                    if inst:IsA("AudioDeviceInput") then
+                        local belongsToMe = false
+                        pcall(function()
+                            if inst.Player == LP then
+                                belongsToMe = true
+                            end
+                        end)
+                        if belongsToMe or inst:IsDescendantOf(LP) then
+                            touchedInputs = touchedInputs + 1
+                            pcall(function() inst.Volume = 3 end)
+                            pcall(function() inst.Muted = false end)
+                            pcall(function() inst.AutomaticGainControl = false end)
+                            pcall(function() inst.NoiseSuppression = false end)
+                            pcall(function() inst.EchoCancellation = false end)
+                        end
+                    elseif inst:IsA("AudioFader") then
+                        local isMine = inst:IsDescendantOf(LP)
+                            or (LP.Character and inst:IsDescendantOf(LP.Character))
+                        if isMine then
+                            touchedNodes = touchedNodes + 1
+                            pcall(function() inst.Volume = 3 end)
+                        end
+                    elseif inst:IsA("AudioFilter") then
+                        local isMine = inst:IsDescendantOf(LP)
+                            or (LP.Character and inst:IsDescendantOf(LP.Character))
+                        if isMine then
+                            touchedNodes = touchedNodes + 1
+                            pcall(function() inst.Gain = 30 end)
+                            pcall(function() inst.Frequency = 22000 end)
+                            pcall(function() inst.Q = 0.1 end)
+                        end
+                    elseif inst:IsA("AudioEqualizer") then
+                        local isMine = inst:IsDescendantOf(LP)
+                            or (LP.Character and inst:IsDescendantOf(LP.Character))
+                        if isMine then
+                            touchedNodes = touchedNodes + 1
+                            pcall(function() inst.LowGain = 10 end)
+                            pcall(function() inst.MidGain = 10 end)
+                            pcall(function() inst.HighGain = 10 end)
+                        end
+                    end
+                end
+            end
+
+            inspectContainer(LP)
+            if LP.Character then inspectContainer(LP.Character) end
+            inspectContainer(SoundService)
+            inspectContainer(Workspace)
+
+            return touchedInputs, touchedNodes
+        end
+
+        local function applyEffectList(addEv, propEv, effectList, report)
+            for _, fx in ipairs(effectList) do
+                local okAdd = pcall(function()
+                    addEv:FireServer(fx.name)
+                end)
+                if not okAdd then
+                    table.insert(report, fx.name .. ":add_fail")
+                else
+                    task.wait(0.04)
+                    local okAll = true
+                    for _, p in ipairs(fx.props) do
+                        local ok = pcall(function()
+                            propEv:FireServer(fx.name, p[1], p[2])
+                        end)
+                        if not ok then okAll = false end
+                        task.wait(0.015)
+                    end
+                    table.insert(report, fx.name .. (okAll and ":ok" or ":partial"))
+                end
+                task.wait(0.045)
+            end
+        end
+
+        local function clearLoudEffects()
+            local clearEv = findOptionalRemote({
+                "event_effect_clear",
+                "event_effects_clear",
+                "event_effect_reset",
+                "event_effect_remove_all",
+            })
+            if clearEv then
+                local ok = pcall(function()
+                    if clearEv:IsA("RemoteEvent") then
+                        clearEv:FireServer()
+                    else
+                        clearEv:InvokeServer()
+                    end
+                end)
+                return ok, ok and ("cleared via " .. clearEv.Name) or ("failed: " .. clearEv.Name)
+            end
+
+            local removeEv = findOptionalRemote({
+                "event_effect_remove",
+                "event_effect_delete",
+            })
+            if removeEv then
+                local names = {
+                    "chorus", "distortion", "equalier", "flter", "reverb",
+                    "compressor", "fader", "echo", "flanger", "limiter",
+                }
+                local removed = 0
+                for _, n in ipairs(names) do
+                    local ok = pcall(function()
+                        if removeEv:IsA("RemoteEvent") then
+                            removeEv:FireServer(n)
+                        else
+                            removeEv:InvokeServer(n)
+                        end
+                    end)
+                    if ok then removed = removed + 1 end
+                    task.wait(0.02)
+                end
+                return true, string.format("removed %d via %s", removed, removeEv.Name)
+            end
+
+            return false, "no clear/remove remote found"
+        end
+
+        local function applyLoudPreset()
+            local addEv, propEv = getLoudRemotes()
+            if not addEv or not propEv then
+                return false, "remotes missing (event_effect_add / event_effect_property)"
+            end
+
+            local profile = PROFILES[loudState.profileIdx] or PROFILES[1]
+            local stacks  = STACK_COUNTS[loudState.stackIdx] or 1
+            local report  = {}
+
+            local micCount, nodeCount = 0, 0
+            if loudState.micUncap then
+                micCount, nodeCount = uncapMicInput()
+            end
+
+            -- Pass 1: Full selected profile + optional extras
+            applyEffectList(addEv, propEv, profile.preset, report)
+            if profile.extras then
+                applyEffectList(addEv, propEv, profile.extras, report)
+            end
+
+            -- Passes 2..N: Multi-pass gain stacking
+            if stacks > 1 then
+                local stackList = profile.stackStages or STACK_STAGES
+                for pass = 2, stacks do
+                    local passReport = {}
+                    applyEffectList(addEv, propEv, stackList, passReport)
+                    table.insert(report, string.format("stack#%d(%d)", pass, #passReport))
+                end
+            end
+
+            if loudState.micUncap then
+                local m2, n2 = uncapMicInput()
+                micCount  = math.max(micCount, m2)
+                nodeCount = math.max(nodeCount, n2)
+            end
+
+            local summary = string.format(
+                "%s %dx | mic:%d nodes:%d | %d ops",
+                profile.label, stacks, micCount, nodeCount, #report
+            )
+            return true, summary, table.concat(report, ", ")
+        end
+
+        -- ════════════════════════════════════════════════════════════════════════
+        -- CREDIT BANNER CARD (Jammun Hub · Mic Up v4.0 Advanced)
+        -- ════════════════════════════════════════════════════════════════════════
+        local creditBanner = Instance.new("Frame")
+        creditBanner.Name = "JammunHubCreditBanner"
+        creditBanner.Size = UDim2.new(1, 0, 0, 82)
+        creditBanner.BackgroundColor3 = T.Panel
+        creditBanner.BackgroundTransparency = 0.08
+        creditBanner.BorderSizePixel = 0
+        creditBanner.LayoutOrder = 1
+        creditBanner.ZIndex = 7
+        creditBanner.Parent = loudPage
+        Instance.new("UICorner", creditBanner).CornerRadius = UDim.new(0, 14)
+
+        local cbStroke = Instance.new("UIStroke")
+        cbStroke.Color = T.Accent2
+        cbStroke.Thickness = 1.2
+        cbStroke.Transparency = 0.35
+        cbStroke.Parent = creditBanner
+
+        local cbTitle = Instance.new("TextLabel")
+        cbTitle.Size = UDim2.new(1, -124, 0, 20)
+        cbTitle.Position = UDim2.new(0, 14, 0, 10)
+        cbTitle.BackgroundTransparency = 1
+        cbTitle.Font = Enum.Font.GothamBlack
+        cbTitle.TextSize = 13
+        cbTitle.TextColor3 = T.Text
+        cbTitle.TextXAlignment = Enum.TextXAlignment.Left
+        cbTitle.Text = "🔊 One Click Loud — Mic Up v4.0 Advanced"
+        cbTitle.ZIndex = 8
+        cbTitle.Parent = creditBanner
+
+        local creditPill = Instance.new("TextLabel")
+        creditPill.Size = UDim2.new(0, 108, 0, 20)
+        creditPill.Position = UDim2.new(1, -120, 0, 10)
+        creditPill.BackgroundColor3 = T.Accent2
+        creditPill.BackgroundTransparency = 0.14
+        creditPill.BorderSizePixel = 0
+        creditPill.Font = Enum.Font.GothamBlack
+        creditPill.TextSize = 9
+        creditPill.TextColor3 = Color3.new(1, 1, 1)
+        creditPill.Text = "Credit: Jammun Hub"
+        creditPill.ZIndex = 8
+        creditPill.Parent = creditBanner
+        Instance.new("UICorner", creditPill).CornerRadius = UDim.new(1, 0)
+
+        local loudStatusLbl = Instance.new("TextLabel")
+        loudStatusLbl.Size = UDim2.new(1, -28, 0, 40)
+        loudStatusLbl.Position = UDim2.new(0, 14, 0, 34)
+        loudStatusLbl.BackgroundTransparency = 1
+        loudStatusLbl.Font = Enum.Font.GothamMedium
+        loudStatusLbl.TextSize = 10
+        loudStatusLbl.TextColor3 = T.Muted
+        loudStatusLbl.TextXAlignment = Enum.TextXAlignment.Left
+        loudStatusLbl.TextYAlignment = Enum.TextYAlignment.Top
+        loudStatusLbl.TextWrapped = true
+        loudStatusLbl.Text = "Ready: OVERDRIVE · 3x Stack · Mic Uncap ON (4 profiles, 1x–10x stack, AGC/NS off) · Credit: Jammun Hub"
+        loudStatusLbl.ZIndex = 8
+        loudStatusLbl.Parent = creditBanner
+
+        -- Live sync hook table for both the main tab and the optional floating v4.0 panel
+        local loudUiHooks = {
+            setStatus = nil,
+            refreshPanel = nil,
+            profileRow = nil,
+            stackRow = nil,
+            micSwitch = nil,
+            autoSwitch = nil,
+        }
+
+        local function setLoudStatus(msg, color3)
+            loudStatusLbl.Text = tostring(msg)
+            if color3 then loudStatusLbl.TextColor3 = color3 end
+            if loudUiHooks.setStatus then
+                pcall(loudUiHooks.setStatus, tostring(msg), color3)
+            end
+        end
+
+        local function syncAllLoudControls()
+            local prof = PROFILES[loudState.profileIdx] or PROFILES[1]
+            local stk  = STACK_COUNTS[loudState.stackIdx] or 1
+            if loudUiHooks.profileRow and loudUiHooks.profileRow.pillBtn then
+                loudUiHooks.profileRow.pillBtn.Text = prof.label
+                if loudUiHooks.profileRow.subLbl then
+                    loudUiHooks.profileRow.subLbl.Text = prof.desc
+                end
+            end
+            if loudUiHooks.stackRow and loudUiHooks.stackRow.pillBtn then
+                loudUiHooks.stackRow.pillBtn.Text = tostring(stk) .. "x Stack"
+            end
+            if loudUiHooks.micSwitch and loudUiHooks.micSwitch.setState then
+                loudUiHooks.micSwitch.setState(loudState.micUncap, true)
+            end
+            if loudUiHooks.autoSwitch and loudUiHooks.autoSwitch.setState then
+                loudUiHooks.autoSwitch.setState(loudState.autoReapply, true)
+            end
+            if loudUiHooks.refreshPanel then
+                pcall(loudUiHooks.refreshPanel)
+            end
+        end
+
+        local function triggerOneClickLoud(reason)
+            if loudState.busy then
+                notify("🔊 ONE CLICK LOUD", "Already firing remotes, please wait...")
+                return
+            end
+            loudState.busy = true
+            local prof = PROFILES[loudState.profileIdx] or PROFILES[1]
+            local stk  = STACK_COUNTS[loudState.stackIdx] or 1
+            local prefix = reason and ("[" .. tostring(reason) .. "] ") or ""
+            setLoudStatus(string.format("%sApplying %s (%dx stack)...", prefix, prof.label, stk), T.Warning)
+
+            task.spawn(function()
+                local ok, summary, details = applyLoudPreset()
+                loudState.busy = false
+                if ok then
+                    setLoudStatus("Done: " .. tostring(summary) .. "  ·  Credit: Jammun Hub", T.Success)
+                    print("[MicUp v4.0 · Credit: Jammun Hub] " .. tostring(summary) .. " :: " .. tostring(details))
+                    notify("🔊 ONE CLICK LOUD", string.format("Applied %s (%dx)!", prof.label, stk))
+                    sSuccess()
+                else
+                    setLoudStatus("Fail: " .. tostring(summary), T.Danger)
+                    notify("🔊 ONE CLICK LOUD", "Failed: " .. tostring(summary))
+                    sError()
+                end
+            end)
+        end
+        _G.CocoApplyOneClickLoud = triggerOneClickLoud
+
+        -- Respawn Auto-Reapply Hook (v4.0)
+        LP.CharacterAdded:Connect(function()
+            if not loudState.autoReapply then return end
+            task.wait(1.5)
+            triggerOneClickLoud("respawn")
+        end)
+
+        -- ════════════════════════════════════════════════════════════════════════
+        -- MAIN TAB CONTROLS (One Click Loud v4.0 Advanced)
+        -- ════════════════════════════════════════════════════════════════════════
+        createSectionTitle(loudPage, 2, "Mic Up v4.0 Advanced Controls (Credit: Jammun Hub)")
+        local loudGrp = createGroupCard(loudPage, 3)
+
+        local loudRowInfo = createActionRow(
+            loudGrp,
+            1,
+            "Apply One Click Loud Preset",
+            "Fires active v4.0 profile + stack passes + Mic Uncap · Tap [⦿] to pin floating Loud pill",
+            "APPLY LOUD",
+            function()
+                triggerOneClickLoud(nil)
+            end,
+            function()
+                if toggleFloatingPill then
+                    toggleFloatingPill("oneclickloud")
+                end
+            end,
+            (ActivePills and ActivePills["oneclickloud"]) and "✓" or "⦿"
+        )
+        if loudRowInfo then
+            loudRowInfo.defaultLabel = "APPLY LOUD"
+            presetActionRows["oneclickloud"] = loudRowInfo
+            if updatePinBadgeVisual then updatePinBadgeVisual("oneclickloud") end
+        end
+
+        loudUiHooks.profileRow = createActionRow(
+            loudGrp,
+            2,
+            "Loudness Profile",
+            PROFILES[loudState.profileIdx].desc,
+            PROFILES[loudState.profileIdx].label,
+            function()
+                loudState.profileIdx = (loudState.profileIdx % #PROFILES) + 1
+                local p = PROFILES[loudState.profileIdx]
+                syncAllLoudControls()
+                setLoudStatus("Profile: " .. p.label .. " — " .. p.desc, T.Muted)
+            end
+        )
+
+        loudUiHooks.stackRow = createActionRow(
+            loudGrp,
+            3,
+            "Gain Stack Multiplier",
+            "Cycles 1x / 2x / 3x / 5x / 10x multi-pass gain stacking",
+            tostring(STACK_COUNTS[loudState.stackIdx]) .. "x Stack",
+            function()
+                loudState.stackIdx = (loudState.stackIdx % #STACK_COUNTS) + 1
+                local stk = STACK_COUNTS[loudState.stackIdx]
+                syncAllLoudControls()
+                setLoudStatus(string.format("Stack set to %dx passes · Profile: %s", stk, PROFILES[loudState.profileIdx].label), T.Muted)
+            end
+        )
+
+        loudUiHooks.micSwitch = createSwitchRow(
+            loudGrp,
+            4,
+            "Mic Uncap (Disable AGC / NS)",
+            "Uncaps AudioDeviceInput Volume=3, disables AGC/NS/EchoCancellation & boosts local audio nodes",
+            loudState.micUncap,
+            function(newVal)
+                loudState.micUncap = newVal and true or false
+                syncAllLoudControls()
+                if loudState.micUncap then
+                    local mics, nodes = uncapMicInput()
+                    setLoudStatus(string.format("Mic Uncap ON (AGC/NS off) · mics:%d nodes:%d", mics, nodes), T.Success)
+                else
+                    setLoudStatus("Mic Uncap OFF (remote effects only)", T.Muted)
+                end
+            end
+        )
+
+        loudUiHooks.autoSwitch = createSwitchRow(
+            loudGrp,
+            5,
+            "Auto-Reapply on Respawn",
+            "Automatically re-fires active loud profile 1.5s after CharacterAdded",
+            loudState.autoReapply,
+            function(newVal)
+                loudState.autoReapply = newVal and true or false
+                syncAllLoudControls()
+                setLoudStatus(loudState.autoReapply and "Auto-Reapply ON (triggers on respawn)" or "Auto-Reapply OFF", loudState.autoReapply and T.Success or T.Muted)
+            end
+        )
+
+        -- Full Standalone Floating Loud Panel (Mic Up Preset v4.0 Advanced — exact 300x278 UI)
+        local miniLoudGui = nil
+        local function openStandaloneLoudPanelV4()
+            local sg = Instance.new("ScreenGui")
+            sg.Name = "MicUpVoicePreset_JammunHub"
+            sg.ResetOnSpawn = false
+            sg.IgnoreGuiInset = true
+            sg.DisplayOrder = 120
+            pcall(function() sg.Parent = (gethui and gethui()) or GuiParent or game:GetService("CoreGui") end)
+            if not sg.Parent then sg.Parent = LP:FindFirstChildOfClass("PlayerGui") end
+            miniLoudGui = sg
+
+            local C = {
+                bg     = Color3.fromRGB(10, 10, 14),
+                card   = Color3.fromRGB(18, 18, 26),
+                cardHi = Color3.fromRGB(30, 30, 44),
+                stroke = Color3.fromRGB(52, 52, 72),
+                accent = Color3.fromRGB(248, 248, 255),
+                hot    = Color3.fromRGB(255, 86, 86),
+                warn   = Color3.fromRGB(245, 185, 65),
+                good   = Color3.fromRGB(80, 225, 145),
+                text   = Color3.fromRGB(238, 238, 248),
+                text2  = Color3.fromRGB(145, 150, 170),
+                dark   = Color3.fromRGB(8, 8, 10),
+            }
+
+            local FULL_HEIGHT = 278
+            local MINI_HEIGHT = 34
+
+            local Panel = Instance.new("Frame")
+            Panel.Size = UDim2.fromOffset(300, loudState.minimized and MINI_HEIGHT or FULL_HEIGHT)
+            Panel.Position = UDim2.new(0.5, -150, 0.5, -139)
+            Panel.BackgroundColor3 = C.bg
+            Panel.BorderSizePixel = 0
+            Panel.Active = true
+            Panel.ClipsDescendants = true
+            Panel.Parent = sg
+            Instance.new("UICorner", Panel).CornerRadius = UDim.new(0, 12)
+            local stroke = Instance.new("UIStroke")
+            stroke.Color = C.stroke
+            stroke.Thickness = 1.2
+            stroke.Transparency = 0.2
+            stroke.Parent = Panel
+
+            local TitleBar = Instance.new("Frame")
+            TitleBar.Size = UDim2.new(1, 0, 0, 32)
+            TitleBar.BackgroundColor3 = C.card
+            TitleBar.BorderSizePixel = 0
+            TitleBar.Parent = Panel
+            Instance.new("UICorner", TitleBar).CornerRadius = UDim.new(0, 12)
+
+            local Title = Instance.new("TextLabel")
+            Title.BackgroundTransparency = 1
+            Title.Size = UDim2.new(1, -60, 1, 0)
+            Title.Position = UDim2.fromOffset(10, 0)
+            Title.Font = Enum.Font.GothamBold
+            Title.TextSize = 12
+            Title.TextColor3 = C.text
+            Title.TextXAlignment = Enum.TextXAlignment.Left
+            Title.Text = "Mic Up Preset v4.0  [MAX LOUD]"
+            Title.Parent = TitleBar
+
+            local MinBtn = Instance.new("TextButton")
+            MinBtn.Size = UDim2.fromOffset(22, 22)
+            MinBtn.Position = UDim2.new(1, -50, 0, 5)
+            MinBtn.BackgroundColor3 = C.cardHi
+            MinBtn.BorderSizePixel = 0
+            MinBtn.Font = Enum.Font.GothamBold
+            MinBtn.TextSize = 13
+            MinBtn.TextColor3 = C.text
+            MinBtn.Text = loudState.minimized and "+" or "-"
+            MinBtn.AutoButtonColor = false
+            MinBtn.Parent = TitleBar
+            Instance.new("UICorner", MinBtn).CornerRadius = UDim.new(0, 6)
+
+            local CloseBtn = Instance.new("TextButton")
+            CloseBtn.Size = UDim2.fromOffset(22, 22)
+            CloseBtn.Position = UDim2.new(1, -24, 0, 5)
+            CloseBtn.BackgroundColor3 = C.cardHi
+            CloseBtn.BorderSizePixel = 0
+            CloseBtn.Font = Enum.Font.GothamBold
+            CloseBtn.TextSize = 11
+            CloseBtn.TextColor3 = C.text2
+            CloseBtn.Text = "✕"
+            CloseBtn.AutoButtonColor = false
+            CloseBtn.Parent = TitleBar
+            Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 6)
+
+            local Body = Instance.new("Frame")
+            Body.BackgroundTransparency = 1
+            Body.Size = UDim2.new(1, -20, 1, -40)
+            Body.Position = UDim2.fromOffset(10, 36)
+            Body.Visible = not loudState.minimized
+            Body.Parent = Panel
+
+            local function makeMiniLabel(text, y)
+                local lbl = Instance.new("TextLabel")
+                lbl.BackgroundTransparency = 1
+                lbl.Size = UDim2.new(1, 0, 0, 14)
+                lbl.Position = UDim2.fromOffset(0, y)
+                lbl.Font = Enum.Font.GothamBold
+                lbl.TextSize = 10
+                lbl.TextColor3 = C.text2
+                lbl.TextXAlignment = Enum.TextXAlignment.Left
+                lbl.Text = text
+                lbl.Parent = Body
+                return lbl
+            end
+
+            makeMiniLabel("LOUDNESS PROFILE", 0)
+            local ProfileRow = Instance.new("Frame")
+            ProfileRow.BackgroundTransparency = 1
+            ProfileRow.Size = UDim2.new(1, 0, 0, 24)
+            ProfileRow.Position = UDim2.fromOffset(0, 16)
+            ProfileRow.Parent = Body
+
+            local pLayout = Instance.new("UIListLayout")
+            pLayout.FillDirection = Enum.FillDirection.Horizontal
+            pLayout.Padding = UDim.new(0, 4)
+            pLayout.Parent = ProfileRow
+
+            local profileBtns = {}
+            local function refreshProfileVisuals()
+                for i, b in ipairs(profileBtns) do
+                    local active = (i == loudState.profileIdx)
+                    b.BackgroundColor3 = active and C.hot or C.card
+                    b.TextColor3 = active and C.accent or C.text2
+                end
+            end
+
+            for i, prof in ipairs(PROFILES) do
+                local b = Instance.new("TextButton")
+                b.Size = UDim2.new(0.25, -3, 1, 0)
+                b.BackgroundColor3 = C.card
+                b.BorderSizePixel = 0
+                b.Font = Enum.Font.GothamBold
+                b.TextSize = 9.5
+                b.Text = prof.label
+                b.AutoButtonColor = false
+                b.Parent = ProfileRow
+                Instance.new("UICorner", b).CornerRadius = UDim.new(0, 6)
+                profileBtns[i] = b
+                b.MouseButton1Click:Connect(function()
+                    loudState.profileIdx = i
+                    syncAllLoudControls()
+                    setLoudStatus(prof.label .. ": " .. prof.desc, C.text2)
+                end)
+            end
+
+            makeMiniLabel("GAIN STACK MULTIPLIER", 46)
+            local StackRow = Instance.new("Frame")
+            StackRow.BackgroundTransparency = 1
+            StackRow.Size = UDim2.new(1, 0, 0, 24)
+            StackRow.Position = UDim2.fromOffset(0, 62)
+            StackRow.Parent = Body
+
+            local sLayout = Instance.new("UIListLayout")
+            sLayout.FillDirection = Enum.FillDirection.Horizontal
+            sLayout.Padding = UDim.new(0, 4)
+            sLayout.Parent = StackRow
+
+            local stackBtns = {}
+            local function refreshStackVisuals()
+                for i, b in ipairs(stackBtns) do
+                    local active = (i == loudState.stackIdx)
+                    b.BackgroundColor3 = active and C.warn or C.card
+                    b.TextColor3 = active and C.dark or C.text2
+                end
+            end
+
+            for i, count in ipairs(STACK_COUNTS) do
+                local b = Instance.new("TextButton")
+                b.Size = UDim2.new(0.2, -3.2, 1, 0)
+                b.BackgroundColor3 = C.card
+                b.BorderSizePixel = 0
+                b.Font = Enum.Font.GothamBold
+                b.TextSize = 10.5
+                b.Text = tostring(count) .. "x"
+                b.AutoButtonColor = false
+                b.Parent = StackRow
+                Instance.new("UICorner", b).CornerRadius = UDim.new(0, 6)
+                stackBtns[i] = b
+                b.MouseButton1Click:Connect(function()
+                    loudState.stackIdx = i
+                    syncAllLoudControls()
+                    setLoudStatus(string.format("Stack set to %dx passes", count), C.text2)
+                end)
+            end
+
+            local ToggleRow = Instance.new("Frame")
+            ToggleRow.BackgroundTransparency = 1
+            ToggleRow.Size = UDim2.new(1, 0, 0, 26)
+            ToggleRow.Position = UDim2.fromOffset(0, 94)
+            ToggleRow.Parent = Body
+
+            local tLayout = Instance.new("UIListLayout")
+            tLayout.FillDirection = Enum.FillDirection.Horizontal
+            tLayout.Padding = UDim.new(0, 6)
+            tLayout.Parent = ToggleRow
+
+            local function makeMiniToggle(name)
+                local b = Instance.new("TextButton")
+                b.Size = UDim2.new(0.5, -3, 1, 0)
+                b.BackgroundColor3 = C.card
+                b.BorderSizePixel = 0
+                b.Font = Enum.Font.GothamBold
+                b.TextSize = 10
+                b.Text = name
+                b.AutoButtonColor = false
+                b.Parent = ToggleRow
+                Instance.new("UICorner", b).CornerRadius = UDim.new(0, 6)
+                return b
+            end
+
+            local MicBtn  = makeMiniToggle("MIC UNCAP: ON")
+            local AutoBtn = makeMiniToggle("AUTO-REAPPLY: OFF")
+
+            local function refreshToggleVisual(btn, prefix, on)
+                btn.Text = prefix .. (on and ": ON" or ": OFF")
+                btn.BackgroundColor3 = on and Color3.fromRGB(26, 60, 44) or C.card
+                btn.TextColor3 = on and C.good or C.text2
+            end
+
+            local StatusBox = Instance.new("Frame")
+            StatusBox.Size = UDim2.new(1, 0, 0, 44)
+            StatusBox.Position = UDim2.fromOffset(0, 126)
+            StatusBox.BackgroundColor3 = C.card
+            StatusBox.BorderSizePixel = 0
+            StatusBox.Parent = Body
+            Instance.new("UICorner", StatusBox).CornerRadius = UDim.new(0, 8)
+
+            local Status = Instance.new("TextLabel")
+            Status.BackgroundTransparency = 1
+            Status.Size = UDim2.new(1, -12, 1, -8)
+            Status.Position = UDim2.fromOffset(6, 4)
+            Status.Font = Enum.Font.Gotham
+            Status.TextSize = 10
+            Status.TextColor3 = C.text2
+            Status.TextXAlignment = Enum.TextXAlignment.Left
+            Status.TextYAlignment = Enum.TextYAlignment.Top
+            Status.TextWrapped = true
+            Status.Text = loudStatusLbl.Text
+            Status.Parent = StatusBox
+
+            local ApplyBtn = Instance.new("TextButton")
+            ApplyBtn.Size = UDim2.new(1, 0, 0, 34)
+            ApplyBtn.Position = UDim2.fromOffset(0, 176)
+            ApplyBtn.BackgroundColor3 = C.accent
+            ApplyBtn.BackgroundTransparency = 0.05
+            ApplyBtn.Text = "APPLY LOUD PRESET"
+            ApplyBtn.TextColor3 = C.dark
+            ApplyBtn.Font = Enum.Font.GothamBold
+            ApplyBtn.TextSize = 12.5
+            ApplyBtn.BorderSizePixel = 0
+            ApplyBtn.AutoButtonColor = false
+            ApplyBtn.Parent = Body
+            Instance.new("UICorner", ApplyBtn).CornerRadius = UDim.new(0, 8)
+
+            local UtilRow = Instance.new("Frame")
+            UtilRow.BackgroundTransparency = 1
+            UtilRow.Size = UDim2.new(1, 0, 0, 24)
+            UtilRow.Position = UDim2.fromOffset(0, 214)
+            UtilRow.Parent = Body
+
+            local uLayout = Instance.new("UIListLayout")
+            uLayout.FillDirection = Enum.FillDirection.Horizontal
+            uLayout.Padding = UDim.new(0, 6)
+            uLayout.Parent = UtilRow
+
+            local function makeUtilBtn(text)
+                local b = Instance.new("TextButton")
+                b.Size = UDim2.new(0.5, -3, 1, 0)
+                b.BackgroundColor3 = C.cardHi
+                b.BorderSizePixel = 0
+                b.Font = Enum.Font.GothamBold
+                b.TextSize = 10
+                b.TextColor3 = C.text
+                b.Text = text
+                b.AutoButtonColor = false
+                b.Parent = UtilRow
+                Instance.new("UICorner", b).CornerRadius = UDim.new(0, 6)
+                return b
+            end
+
+            local ScanBtn  = makeUtilBtn("SCAN REMOTES")
+            local ClearBtn = makeUtilBtn("CLEAR FX")
+
+            local function refreshPanelVisuals()
+                refreshProfileVisuals()
+                refreshStackVisuals()
+                refreshToggleVisual(MicBtn, "MIC UNCAP", loudState.micUncap)
+                refreshToggleVisual(AutoBtn, "AUTO-REAPPLY", loudState.autoReapply)
+            end
+            refreshPanelVisuals()
+
+            loudUiHooks.refreshPanel = refreshPanelVisuals
+            loudUiHooks.setStatus = function(txt, col)
+                if Status and Status.Parent then
+                    Status.Text = txt
+                    if col then Status.TextColor3 = col end
+                end
+            end
+
+            MicBtn.MouseButton1Click:Connect(function()
+                loudState.micUncap = not loudState.micUncap
+                syncAllLoudControls()
+                if loudState.micUncap then
+                    local mics, nodes = uncapMicInput()
+                    setLoudStatus(string.format("Mic Uncap ON (AGC/NS off) · mics:%d nodes:%d", mics, nodes), C.good)
+                else
+                    setLoudStatus("Mic Uncap OFF (remote effects only)", C.text2)
+                end
+            end)
+
+            AutoBtn.MouseButton1Click:Connect(function()
+                loudState.autoReapply = not loudState.autoReapply
+                syncAllLoudControls()
+                setLoudStatus(loudState.autoReapply and "Auto-Reapply ON (triggers on respawn)" or "Auto-Reapply OFF", loudState.autoReapply and C.good or C.text2)
+            end)
+
+            ApplyBtn.MouseButton1Click:Connect(function()
+                triggerOneClickLoud(nil)
+            end)
+
+            ScanBtn.MouseButton1Click:Connect(function()
+                local list = scanEffectRemotes()
+                if #list > 0 then
+                    local msg = "Remotes (" .. #list .. "): " .. table.concat(list, ", ")
+                    setLoudStatus(msg, C.good)
+                    print("[MicUp v4.0] Audio/Effect Remotes:", table.concat(list, ", "))
+                else
+                    setLoudStatus("No audio/effect remotes found in ReplicatedStorage", C.hot)
+                end
+            end)
+
+            ClearBtn.MouseButton1Click:Connect(function()
+                local ok, msg = clearLoudEffects()
+                setLoudStatus((ok and "Cleared: " or "Clear: ") .. tostring(msg), ok and C.warn or C.hot)
+            end)
+
+            MinBtn.MouseButton1Click:Connect(function()
+                loudState.minimized = not loudState.minimized
+                Body.Visible = not loudState.minimized
+                Panel.Size = UDim2.fromOffset(300, loudState.minimized and MINI_HEIGHT or FULL_HEIGHT)
+                MinBtn.Text = loudState.minimized and "+" or "-"
+            end)
+
+            CloseBtn.MouseButton1Click:Connect(function()
+                loudUiHooks.refreshPanel = nil
+                loudUiHooks.setStatus = nil
+                if miniLoudGui then miniLoudGui:Destroy(); miniLoudGui = nil end
+            end)
+
+            -- Draggable Panel (preserved from v4.0)
+            local dragging, startPos, startInput
+            Panel.InputBegan:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1
+                    or input.UserInputType == Enum.UserInputType.Touch then
+                    dragging = true
+                    startPos = Panel.Position
+                    startInput = input.Position
+                end
+            end)
+            UIS.InputChanged:Connect(function(input)
+                if not dragging then return end
+                if input.UserInputType == Enum.UserInputType.MouseMovement
+                    or input.UserInputType == Enum.UserInputType.Touch then
+                    local d = input.Position - startInput
+                    Panel.Position = UDim2.new(
+                        startPos.X.Scale, startPos.X.Offset + d.X,
+                        startPos.Y.Scale, startPos.Y.Offset + d.Y
+                    )
+                end
+            end)
+            UIS.InputEnded:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1
+                    or input.UserInputType == Enum.UserInputType.Touch then
+                    dragging = false
+                end
+            end)
+        end
+
+        createActionRow(
+            loudGrp,
+            6,
+            "Standalone Floating Loud Panel (v4.0)",
+            "Toggle draggable Mic Up v4.0 overlay (4 profiles, 1x–10x stack, Scan & Clear) · Credit: Jammun Hub",
+            "Toggle UI",
+            function()
+                if miniLoudGui and miniLoudGui.Parent then
+                    loudUiHooks.refreshPanel = nil
+                    loudUiHooks.setStatus = nil
+                    miniLoudGui:Destroy()
+                    miniLoudGui = nil
+                    notify("🔊 ONE CLICK LOUD", "Closed standalone v4.0 floating panel")
+                    return
+                end
+                openStandaloneLoudPanelV4()
+                notify("🔊 ONE CLICK LOUD", "Opened Mic Up v4.0 Advanced floating panel")
+            end
+        )
+
+        createActionRow(
+            loudGrp,
+            7,
+            "Scan Audio / Effect Remotes",
+            "Scans ReplicatedStorage for effect, audio, voice, mic & gain remotes",
+            "Scan",
+            function()
+                local list = scanEffectRemotes()
+                if #list > 0 then
+                    local msg = "Remotes (" .. #list .. "): " .. table.concat(list, ", ") .. " · Credit: Jammun Hub"
+                    setLoudStatus(msg, T.Success)
+                    print("[MicUp v4.0] Audio/Effect Remotes:", table.concat(list, ", "))
+                    notify("🔊 ONE CLICK LOUD", "Found " .. #list .. " audio/effect remote(s)!")
+                    sSuccess()
+                else
+                    setLoudStatus("No audio/effect remotes found in ReplicatedStorage", T.Danger)
+                    notify("🔊 ONE CLICK LOUD", "No audio/effect remotes found in this game")
+                    sError()
+                end
+            end
+        )
+
+        createActionRow(
+            loudGrp,
+            8,
+            "Clear Mic Up Effects",
+            "Clears or removes active voice effects via clear/remove remotes",
+            "Clear FX",
+            function()
+                local ok, msg = clearLoudEffects()
+                setLoudStatus((ok and "Cleared: " or "Clear: ") .. tostring(msg), ok and T.Warning or T.Danger)
+                notify("🔊 ONE CLICK LOUD", (ok and "Cleared: " or "Clear: ") .. tostring(msg))
+                if ok then sSuccess() else sError() end
+            end
+        )
     end
 
     -- Spawn the default floating quick pills (including AnimCopy!)
@@ -26167,7 +27758,7 @@ local function buildMainUI()
                 pillBtn.Text = rm.label
                 notify("🎭 ROTATION OFFSET", "Anim Copy Facing Mode: " .. rm.label)
             end,
-            function(_, pillBtn)
+            function(_, _, pillBtn)
                 rotIdx = 1
                 AnimCopySys.rotationOffsetDeg = 0
                 AnimCopySys.spinMode = false
@@ -26852,7 +28443,7 @@ local function buildMainUI()
                     sToggleOff()
                 end
             end,
-            function(cBtn, pillBtn)
+            function(cBtn, _, pillBtn)
                 espAllMode = not espAllMode
                 cBtn.Text = espAllMode and "🌐" or "🎯"
                 if espEnabled and pillBtn then
@@ -29210,7 +30801,7 @@ local function buildMainUI()
             pcall(function() workspace.Gravity = gp.g end)
             pillBtn.Text = gp.label
             notify("🌙 GRAVITY", "Workspace Gravity set to " .. gp.label)
-        end, function(_, pillBtn)
+        end, function(_, _, pillBtn)
             gravIdx = 1
             pcall(function() workspace.Gravity = 196.2 end)
             if pillBtn then pillBtn.Text = "196.2 (Normal)" end
@@ -29687,7 +31278,7 @@ local function buildMainUI()
             end
         end)
 
-        local _, _, singleDelayCircle = createActionRow(chatGrp, 6, "Send Single Message & Quick Delay Presets", "Tap [Send 1] to fire once · Tap circle to cycle (0.05s–3.50s)", "Send 1", function(pillBtn)
+        local singleDelayRow = createActionRow(chatGrp, 6, "Send Single Message & Quick Delay Presets", "Tap [Send 1] to fire once · Tap circle to cycle (0.05s–3.50s)", "Send 1", function(pillBtn)
             csTgt = (chatTargetInput.Text or ""):gsub("^%s*@+%s*", "")
             csMsg = chatMsgInput.Text or ""
             local m = bld()
@@ -29715,7 +31306,7 @@ local function buildMainUI()
             end
             notify("💬 CHAT DELAY", string.format("Spam interval set to %.2fs", CS_D))
         end, "0.80s")
-        delayCircleBtnRef = singleDelayCircle
+        delayCircleBtnRef = singleDelayRow and singleDelayRow.circleBtn or nil
 
         local styleList = {
             "Classic @ Wall",
@@ -29918,8 +31509,10 @@ local function buildMainUI()
             refreshDualLayout(true)
         end)
 
+        _G._CocoUISfxEnabled = UI.sfxEnabled
         createSwitchRow(prefGrp, 3, "UI sound effects (SFX)", "Play subtle tactile clicks & hover audio", UI.sfxEnabled, function(st)
             UI.sfxEnabled = st
+            _G._CocoUISfxEnabled = st
         end)
 
         createSwitchRow(prefGrp, 4, "Live Cosmic Nebula Background", "Instant local purple energy clouds and drifting dust", UI.nebulaEnabled, function(st)
@@ -29965,15 +31558,22 @@ local function buildMainUI()
     -- CATEGORY 9: 👑 OWNER & PREMIUM ADMIN PANEL (Restricted to shivyy73 & Premium Users)
     -- ═══════════════════════════════════════════════════════════════════════════
     ;(function()
+        local ownerRoleRowRef = nil
         local function syncAdminTabVisibility()
             local allowed = hasAdminAccess(LP)
             if UI.catRows["Admin Panel"] and UI.catRows["Admin Panel"].btn then
                 UI.catRows["Admin Panel"].btn.Visible = allowed
             end
+            if ownerRoleRowRef and ownerRoleRowRef.titleLbl then
+                ownerRoleRowRef.titleLbl.Text = isScriptOwner(LP)
+                    and ("👑 Script Owner: @" .. LP.Name .. " (Full Authority)")
+                    or (isPremiumUser(LP) and ("💎 Premium Admin: @" .. LP.Name .. " (Admin Panel Unlocked)") or "🔒 Restricted: Owner & Premium Only")
+            end
             if not allowed and UI.activeCategory == "Admin Panel" then
                 showCategory("Weld & Troll")
             end
         end
+        OwnerAdminState.syncAdminTabVisibility = syncAdminTabVisibility
         syncAdminTabVisibility()
 
         createSectionTitle(adminPage, 1, "Owner & Premium Access Status")
@@ -30024,7 +31624,7 @@ local function buildMainUI()
             end
         end
 
-        createActionRow(
+        ownerRoleRowRef = createActionRow(
             ownerInfoGrp,
             1,
             roleTitleText,
@@ -30637,14 +32237,14 @@ local function buildMainUI()
                     if not hasAdminAccess(LP) then return end
                     local st = formStyles[OwnerAdminState.formationStyleIdx or 1]
                     pillBtn.Text = st.name
-                    broadcastOwnerAdminCommand(st.code, nil, "cpform")
+                    broadcastOwnerAdminCommand(st.code, nil, nil)
                     if OwnerAdminState.sendChatPacketOnCommand then
                         pcall(function() snd2("!cpform all " .. st.key .. ":" .. LP.Name) end)
                     end
                     notify("🛸 FORMATION DEPLOYED", "Deployed [" .. st.name .. "] around you for all Coco Users!")
                     sWhoosh()
                 end,
-                function(_, pillBtn)
+                function(_, _, pillBtn)
                     OwnerAdminState.formationStyleIdx = ((OwnerAdminState.formationStyleIdx or 1) % #formStyles) + 1
                     local st = formStyles[OwnerAdminState.formationStyleIdx]
                     if pillBtn then pillBtn.Text = st.name end
@@ -30711,7 +32311,10 @@ local function buildMainUI()
                 "Cube All",
                 function()
                     if not hasAdminAccess(LP) then return end
-                    broadcastOwnerAdminCommand(165, nil, "cpskydestroy")
+                    broadcastOwnerAdminCommand(165, nil, nil)
+                    if OwnerAdminState.sendChatPacketOnCommand then
+                        pcall(function() snd2("!cpskydestroy all cube") end)
+                    end
                     notify("💥 REMOTE CUBE MATRIX", "Activated 4-Tier Cube Matrix on all Coco Users!")
                     sSuccess()
                 end,
@@ -30726,11 +32329,11 @@ local function buildMainUI()
 
             local massWeldPresets = {
                 { key = "facebang",  name = "Facebang" },
-                { key = "backshots", name = "Backshots" },
+                { key = "backshots", name = "Bang / Backshots" },
+                { key = "goon",      name = "Goon (Face)" },
                 { key = "rizz",      name = "Wall Rizz" },
                 { key = "headsit",   name = "Headsit" },
                 { key = "chootlelo", name = "Choot Lelo" },
-                { key = "bang",      name = "Bang" },
             }
             local massWeldIdx = 1
             createActionRow(
@@ -30750,7 +32353,7 @@ local function buildMainUI()
                     notify("⚡ MASS WELD ARMY", "Ordered all Coco Users to " .. pr.name .. " @" .. tgt.Name .. "!")
                     sSuccess()
                 end,
-                function(_, pillBtn)
+                function(_, _, pillBtn)
                     massWeldIdx = (massWeldIdx % #massWeldPresets) + 1
                     local pr = massWeldPresets[massWeldIdx]
                     if pillBtn then pillBtn.Text = "Army: " .. pr.name end
@@ -31000,7 +32603,7 @@ local function buildMainUI()
                     notify("📍 WAYPOINT TELEPORT", "Teleported all Coco Users to " .. wp.name .. "!")
                     sWhoosh()
                 end,
-                function(_, pillBtn)
+                function(_, _, pillBtn)
                     if #OwnerAdminState.savedWaypoints == 0 then
                         notify("📍 WAYPOINT", "No saved waypoints yet — tap [💾] above to save one!")
                         return
@@ -31580,16 +33183,26 @@ local function buildMainUI()
                 sError()
                 return
             end
-            local count = 0
+            local targetsToFreeze = {}
             for _, p in ipairs(Players:GetPlayers()) do
                 if p ~= LP and not isProtectedFromLocalPlayer(p) then
                     local okFr, isFr = pcall(function() return LP:IsFriendsWith(p.UserId) end)
                     if not (okFr and isFr) and not (_G.CocoTargetWhitelist and _G.CocoTargetWhitelist[p.UserId]) then
                         OwnerAdminState.ownerFrozenTargets[p.UserId] = true
-                        broadcastOwnerAdminCommand(12, p, "cpfreeze")
-                        count = count + 1
+                        table.insert(targetsToFreeze, p)
                     end
                 end
+            end
+            local count = #targetsToFreeze
+            if count > 0 then
+                task.spawn(function()
+                    for idx, p in ipairs(targetsToFreeze) do
+                        if p and p.Parent == Players then
+                            broadcastOwnerAdminCommand(12, p, "cpfreeze")
+                            if idx < count then task.wait(0.85) end
+                        end
+                    end
+                end)
             end
             pcall(updateOverheadNameTags)
             pcall(refreshAdminPlayerList, true)
@@ -34655,10 +36268,10 @@ local function buildMainUI()
                 action = function()
                     if _G.CocaSkyDestroyer then
                         if _G.CocaSkyDestroyer.isAnyActive() then
-                            _G.CocaSkyDestroyer.stopAll()
+                            if _G.stopSkyDestroyer then _G.stopSkyDestroyer() end
                             notify("SKY DESTROYER", "Stopped Sky Destroyer")
                         else
-                            _G.CocaSkyDestroyer.startSkyDestroyer()
+                            if _G.startSkyDestroyer then _G.startSkyDestroyer() end
                             notify("SKY DESTROYER", "Activated 3D LC Sky Destroyer!")
                         end
                     end
@@ -35410,7 +37023,7 @@ end
     local activeSGLoaderGui = nil
     local scanToken = 0
     local function playClick()
-        if UI and UI.sfxEnabled then pcall(sClick) end
+        if _G._CocoUISfxEnabled ~= false then pcall(sClick) end
     end
 
     local function openScriptGuardVerificationPage(manualOpen)
