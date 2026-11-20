@@ -927,6 +927,11 @@ do
         pcall(resolveCatalogOrAnimUri, "116235062592344")
         pcall(resolveCatalogOrAnimUri, "129709531895539")
         pcall(resolveCatalogOrAnimUri, "73630423562709")
+        -- Pre-warm Roblox Catalog Poop Emotes & Goon Emote for 0.00ms instant weld playback
+        pcall(resolveCatalogOrAnimUri, "110110691026962")
+        pcall(resolveCatalogOrAnimUri, "138645486924614")
+        pcall(resolveCatalogOrAnimUri, "81414049491981")
+        pcall(resolveCatalogOrAnimUri, "136828069054505")
     end)
 
     local function tryPlayOnce(Animator, animId, hum, priority, verifyPlayable)
@@ -1626,7 +1631,7 @@ local computeDynamicHeightWeld = function(myChar, myHum, myRoot, targetChar, tar
         end
         autoY = math.clamp(autoY, -2.6, 3.2)
         autoZ = math.clamp((tScaleY - 1.0) * -0.22, -0.45, 0.28)
-    elseif refMode == "head" or presetKey == "facebang" or presetKey == "headsit" or presetKey == "goon" then
+    elseif refMode == "head" or presetKey == "facebang" or presetKey == "headsit" or presetKey == "goon" or presetKey == "poop" then
         -- Head-referenced presets: adapt vertical offset to local vs target scale difference (0 when both are 1.0)
         autoY = math.clamp((tScaleY - myScaleY) * 0.85, -1.8, 2.2)
     elseif presetKey == "kiss" or presetKey == "hug" or presetKey == "headpat" then
@@ -2057,7 +2062,38 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
             local phase = (math.sin(clock * (2 * math.pi) / Osc.period) + 1) * 0.5
             localOffset = localOffset * CFrame.new(0, 0, -Osc.distance * phase)
         end
-        local attachCF = TargetPart.CFrame * localOffset
+        local attachCF
+        if PresetKey == "goon" then
+            -- Exact Face-to-Face Lock: stays completely upright (flat yaw) and faces target player's face eye-to-eye
+            local tHead = (TargetChar and TargetChar:FindFirstChild("Head")) or TargetPart
+            local flatHeadCF = getFlatYawCFrame(tHead.CFrame, tHead.Position)
+            local myHead = Character and Character:FindFirstChild("Head")
+            local myHeadToRootY = 1.45
+            if myHead and Root then
+                local dy = myHead.Position.Y - Root.Position.Y
+                if dy > 0.3 and dy < 4.5 then myHeadToRootY = dy end
+            end
+            local exactPos = (flatHeadCF * CFrame.new(0, -myHeadToRootY, -1.65) * customAdjust).Position
+            local faceTargetPt = Vector3.new(tHead.Position.X, exactPos.Y, tHead.Position.Z)
+            if (faceTargetPt - exactPos).Magnitude > 0.05 then
+                attachCF = CFrame.lookAt(exactPos, faceTargetPt, Vector3.yAxis)
+            else
+                attachCF = flatHeadCF * CFrame.new(0, -myHeadToRootY, -1.65) * CFrame.Angles(0, math.rad(180), 0) * customAdjust
+            end
+        elseif PresetKey == "poop" then
+            -- Directly Above & In Front of Target's Head (upright flat yaw facing the target player)
+            local tHead = (TargetChar and TargetChar:FindFirstChild("Head")) or TargetPart
+            local flatHeadCF = getFlatYawCFrame(tHead.CFrame, tHead.Position)
+            local poopPos = (flatHeadCF * CFrame.new(0, 2.35, -0.85) * customAdjust).Position
+            local lookPt = Vector3.new(tHead.Position.X, poopPos.Y, tHead.Position.Z)
+            if (lookPt - poopPos).Magnitude > 0.05 then
+                attachCF = CFrame.lookAt(poopPos, lookPt, Vector3.yAxis)
+            else
+                attachCF = flatHeadCF * CFrame.new(0, 2.35, -0.85) * CFrame.Angles(0, math.rad(180), 0) * customAdjust
+            end
+        else
+            attachCF = TargetPart.CFrame * localOffset
+        end
         Root.Anchored = false
         Root.CFrame = attachCF
         local microWake = Vector3.new(0, math.sin(clock * 24) * 0.03, 0)
@@ -2351,6 +2387,9 @@ local FF_LOL_FALLBACKS_R6   = { 129709531895539, 129423131, 33796059, 180435571 
 local FF_PUSH_ANIM_ID       = 73630423562709  -- FF Push Up by Bryan's Cool Clothing (Roblox Catalog)
 local FF_PUSH_FALLBACKS_R15 = { 73630423562709, 507770818, 507770239, 33796059 }
 local FF_PUSH_FALLBACKS_R6  = { 73630423562709, 129423131, 33796059, 180435571 }
+local POOP_ANIM_ID          = 110110691026962 -- Poop (Roblox Catalog UGC Emote by Rafaels Corp.)
+local POOP_FALLBACKS_R15    = { 110110691026962, 138645486924614, 81414049491981, 124258206625453, 71427043226496, 94631974697172, 106328211370438, 98454581014195 }
+local POOP_FALLBACKS_R6     = { 110110691026962, 138645486924614, 81414049491981, 124258206625453, 71427043226496, 178130996 }
 
 WELD_PRESETS = {
     rizz      = { offset = CFrame.new(0, 0, -1.28) * CFrame.Angles(0, math.rad(180), 0),
@@ -2365,10 +2404,14 @@ WELD_PRESETS = {
                   anim15 = BANG_ANIM_ID, anim6 = BANG_ANIM_ID,
                   animFallbacks = BANG_FALLBACKS_R15, animFallbacks6 = BANG_FALLBACKS_R6,
                   osc = {distance = 2.9, period = 0.22}, refMode = "torso", label = "Bang / Backshots" },
-    goon      = { offset = CFrame.new(0, 0.15, -1.65) * CFrame.Angles(0, math.rad(180), 0),
+    goon      = { offset = CFrame.new(0, -1.45, -1.65) * CFrame.Angles(0, math.rad(180), 0),
                   anim15 = 136828069054505, anim6 = 136828069054505,
                   animFallbacks = GOON_FALLBACKS_R15, animFallbacks6 = GOON_FALLBACKS_R6,
-                  osc = nil, refMode = "head", label = "Goon (Face)" },
+                  osc = nil, refMode = "head", label = "Goon (Exact Face)" },
+    poop      = { offset = CFrame.new(0, 2.35, -0.85) * CFrame.Angles(0, math.rad(180), 0),
+                  anim15 = POOP_ANIM_ID, anim6 = POOP_ANIM_ID,
+                  animFallbacks = POOP_FALLBACKS_R15, animFallbacks6 = POOP_FALLBACKS_R6,
+                  osc = nil, refMode = "head", label = "Poop (Above Head Front)" },
     headsit   = { offset = CFrame.new(0, 1.2, 0),
                   anim15 = 2506281703, anim6 = 2506281703,
                   animFallbacks = {2510238627, 507768375, 180426354},
@@ -5175,6 +5218,15 @@ local EmoteHub = {
         { name = "Wall Rizz Pose (Kabedon)",     id = "90735295463164",  cat = "Poses"    },
         { name = "FF LOL (Laugh)",               id = "129709531895539", cat = "Actions"  },
         { name = "FF Push Up",                   id = "73630423562709",  cat = "Actions"  },
+        -- Roblox Catalog UGC Poop Emotes Collection
+        { name = "Poop (Catalog)",               id = "110110691026962", cat = "Trending" },
+        { name = "SUPER Pooping (Catalog)",      id = "138645486924614", cat = "Trending" },
+        { name = "MEGA POOP (Catalog)",          id = "81414049491981",  cat = "Trending" },
+        { name = "Massive Poop Emote (Catalog)", id = "124258206625453", cat = "Actions"  },
+        { name = "Poop Emote (Catalog)",         id = "71427043226496",  cat = "Actions"  },
+        { name = "Mega Poop Emote (Catalog)",    id = "94631974697172",  cat = "Actions"  },
+        { name = "Mega Poop Emote v2 (Catalog)", id = "106328211370438", cat = "Actions"  },
+        { name = "Poop Sniff (Catalog)",         id = "98454581014195",  cat = "Actions"  },
         -- Trending & Viral Internet Dances
         { name = "Floss Dance",                  id = "5917459365",  cat = "Dances" },
         { name = "Hype Dance",                   id = "3695333486",  cat = "Dances" },
@@ -7244,6 +7296,9 @@ local csOn, csMode, csTgt, csMsg, csCnt, csMtd, csGen = false, "roast", "", "", 
 local csStyle = "Clean Roast"
 local csSymbolCount = 12
 local csIncludeHeader = true
+local csPack = "Classic Roasts"
+local csMultiQueueMode = false
+local csMultiQueueIdx = 0
 local snd2, bld
 do
 local CS_M = 190
@@ -7343,7 +7398,33 @@ _G.ResetCocoCustomRoasts = function()
     table.clear(_G.CocoCustomRoasts)
 end
 
-local antiTagTokens = { "", " .", " !", " ~", " -", " ..", " !" }
+local CS_PACK_WORDS = {
+    ["Classic Roasts"] = CS_W,
+    ["Savage Troll"] = {
+        "WALKING L","ZERO AURA NPC","FREE KILL","NEGATIVE IQ BOT","SKILLS NOT FOUND","AFK SIMULATION",
+        "LAG MACHINE","WIFI FROM 2005","CARDBOARD AIM","DEFAULT SKIN ENERGY","MAIN MENU WARRIOR",
+        "TUTORIAL BOSS VICTIM","UNINSTALLED SKILL","BRAIN ON AIRPLANE MODE","CERTIFIED CLOWN",
+        "LEVEL 0 GRINDER","COOKED BEYOND REPAIR","RATIO MAGNET","SPECTATOR CHAMPION","LOOT PINATA"
+    },
+    ["Desi / Hindi Troll"] = {
+        "NOOBDA PRO MAX","BOT KA BADSHAH","CHAI PI KE AA","WIFI LAG KING","BHAI TU REHNE DE",
+        "ZERO SKILL CHACHA","FREE FIRE BOT","AFK RAJA","ROBLOX KA PAPPU","TOASTER PC GAMER",
+        "PING 9999 LEGEND","FULL TIME PASS NPC","CHOTU GAMER","GALI KA NOOB","BINA MOUSE PLAYER"
+    },
+    ["Hype & Flex"] = {
+        "COCO POWDER ON TOP","UNSTOPPABLE LEGEND","INFINITE AURA","SERVER KING","10000 AURA",
+        "BUILT DIFFERENT","MAIN CHARACTER","FINAL BOSS","GOAT STATUS","UNTOUCHABLE","CROWN HOLDER"
+    },
+    ["Meme & Brainrot"] = {
+        "SKIBIDI NPC","OHIO FINAL BOSS","NEGATIVE SIGMA","COOKED CHAT","FANUM TAXED","1000 PING SIGMA",
+        "RIZZLESS WONDER","SUS BAKA BOT","GYATT LESS NPC","MEWING FAILED","DELULU CHAMPION"
+    },
+    ["Poop Troll"] = {
+        "STINKY NOOB","FLUSHED IN 4K","TOILET WARRIOR","POOP MAGNET","SMELLY BOT","SEWER KING",
+        "MEGA POOP TARGET","SKIDMARK LEGEND","PLUNGER NEEDED","CERTIFIED STINKER"
+    },
+}
+local antiTagTokens = { "", " .", " !", " ~", " -", " ..", " !!", " *", " :", " ;", " /", " +" }
 local antiTagSeq = 0
 local function sanitizeFilterSafeText(s)
     -- Collapse long consecutive symbol runs (e.g. @@@@@@ -> @@ @@ @@) and extra spaces that trigger immediate TextChatService tagging
@@ -7443,14 +7524,16 @@ local function pickEmojis()
 end
 
 local function pickNextRoastWord()
-    if #CS_W == 0 then return "NOOB" end
-    if #CS_W == 1 then return CS_W[1] end
-    local idx = math.random(1, #CS_W)
+    local pool = CS_PACK_WORDS[csPack] or CS_W
+    if #pool == 0 then pool = CS_W end
+    if #pool == 0 then return "NOOB" end
+    if #pool == 1 then return pool[1] end
+    local idx = math.random(1, #pool)
     if idx == lastWordIdx then
-        idx = (idx % #CS_W) + 1
+        idx = (idx % #pool) + 1
     end
     lastWordIdx = idx
-    return CS_W[idx]
+    return pool[idx]
 end
 
 local function resolveTargetDisplay()
@@ -7513,12 +7596,30 @@ end
 bld = function()
     local hdrPrefix = csIncludeHeader and (CS_HDR .. " | ") or ""
     local emojis = pickEmojis()
-    if csMode == "message" then
-        local cleanMsg = tostring(csMsg or ""):gsub("^%s+", ""):gsub("%s+$", "")
+    if csMode == "message" or csMultiQueueMode then
+        local rawMsg = tostring(csMsg or ""):gsub("^%s+", ""):gsub("%s+$", "")
+        local cleanMsg = rawMsg
+        if csMultiQueueMode and rawMsg ~= "" then
+            local queue = {}
+            for seg in rawMsg:gmatch("[^|;]+") do
+                local trimmed = seg:gsub("^%s+", ""):gsub("%s+$", "")
+                if trimmed ~= "" then table.insert(queue, trimmed) end
+            end
+            if #queue > 0 then
+                csMultiQueueIdx = (csMultiQueueIdx % #queue) + 1
+                cleanMsg = queue[csMultiQueueIdx]
+            end
+        end
         if cleanMsg == "" then cleanMsg = "Coco Powder on top" end
         local built
         if csStyle == "Direct / Raw" then
             built = utf8SafeTruncate(cleanMsg .. emojis, CS_M - 12)
+        elseif csStyle == "Caps Shout" then
+            built = utf8SafeTruncate(hdrPrefix .. cleanMsg:upper() .. "!!!" .. emojis, CS_M - 12)
+        elseif csStyle == "Wave / Glitch" then
+            built = utf8SafeTruncate("»» " .. cleanMsg .. " ««" .. emojis, CS_M - 12)
+        elseif csStyle == "Poop Troll" then
+            built = utf8SafeTruncate("💩 " .. cleanMsg .. " 💩" .. emojis, CS_M - 12)
         elseif csStyle == "Aesthetic Brackets" then
             built = utf8SafeTruncate("[Coco Powder] " .. cleanMsg .. emojis, CS_M - 12)
         elseif csStyle == "Clean Roast" or csSymbolCount <= 0 then
@@ -7548,6 +7649,12 @@ bld = function()
         built = utf8SafeTruncate("[Coco Powder] " .. tail .. emojis, CS_M - 12)
     elseif csStyle == "Hype / Flex" then
         built = utf8SafeTruncate("Coco Powder on top | " .. tail .. emojis, CS_M - 12)
+    elseif csStyle == "Caps Shout" then
+        built = utf8SafeTruncate(hdrPrefix .. tail:upper() .. "!!!" .. emojis, CS_M - 12)
+    elseif csStyle == "Wave / Glitch" then
+        built = utf8SafeTruncate("»» " .. tail .. " ««" .. emojis, CS_M - 12)
+    elseif csStyle == "Poop Troll" then
+        built = utf8SafeTruncate("💩 " .. tail .. " 💩" .. emojis, CS_M - 12)
     elseif csStyle == "Direct / Raw" then
         built = utf8SafeTruncate(tail .. emojis, CS_M - 12)
     else
@@ -13395,6 +13502,7 @@ local KeybindManager = {
         facebang  = Enum.KeyCode.V,
         backshots = Enum.KeyCode.B,
         headsit   = Enum.KeyCode.G,
+        poop      = Enum.KeyCode.N,
         kiss      = Enum.KeyCode.K,
         rizz      = Enum.KeyCode.L,
         headpat   = Enum.KeyCode.P,
@@ -13413,6 +13521,7 @@ local KeybindManager = {
         facebang  = Enum.KeyCode.V,
         backshots = Enum.KeyCode.B,
         headsit   = Enum.KeyCode.G,
+        poop      = Enum.KeyCode.N,
         kiss      = Enum.KeyCode.K,
         rizz      = Enum.KeyCode.L,
         headpat   = Enum.KeyCode.P,
@@ -13431,6 +13540,7 @@ local KeybindManager = {
         facebang  = true,
         backshots = true,
         headsit   = true,
+        poop      = true,
         kiss      = true,
         rizz      = true,
         headpat   = true,
@@ -13449,6 +13559,7 @@ local KeybindManager = {
         facebang  = "Facebang",
         backshots = "Backshots",
         headsit   = "Headsit",
+        poop      = "Poop (Above Head Front)",
         kiss      = "Kiss",
         rizz      = "Rizz (Wall Rizz Pose)",
         headpat   = "Headpat",
@@ -13467,6 +13578,7 @@ local KeybindManager = {
         facebang  = "Head-locked oscillation with live anatomical height solver",
         backshots = "Pelvis-locked oscillation with scale alignment",
         headsit   = "Seated lock flush on top of target head",
+        poop      = "Catalog Poop emote locked directly above & in front of target head",
         kiss      = "Front face-to-face close alignment lock",
         rizz      = "Zero-delay Kabedon / Wall Lean (90735295463164) with live height solver",
         headpat   = "Gentle upper-body patting weld above target",
@@ -23745,6 +23857,7 @@ local function buildMainUI()
         { key = "oneclickloud", pillLabel = "Loud 🔊",   width = 98  },
         { key = "headpat",   pillLabel = "Pat",       width = 82  },
         { key = "headsit",   pillLabel = "Headsit",   width = 104 },
+        { key = "poop",      pillLabel = "Poop 💩",    width = 96  },
         { key = "goon",      pillLabel = "Goon",      width = 88  },
         { key = "facebang",  pillLabel = "Facebang",  width = 112 },
         { key = "backshots", pillLabel = "Backshots", width = 114 },
@@ -24615,7 +24728,8 @@ local function buildMainUI()
                 { label = "🔄 All Players Cycle", cb = function() togglePresetOrAction("all") end },
                 { label = "🎭 Copy Anim (Side)", cb = function() togglePresetOrAction("animcopy") end },
                 { label = "Wall Rizz (Kabedon)", cb = function() togglePresetOrAction("rizz") end },
-                { label = "Goon Target (Coco)", cb = function() togglePresetOrAction("goon") end },
+                { label = "Goon Exact Face",    cb = function() togglePresetOrAction("goon") end },
+                { label = "Poop Above Head 💩", cb = function() togglePresetOrAction("poop") end },
                 { label = "Facebang Target",     cb = function() togglePresetOrAction("facebang") end },
                 { label = "Backshots Target",    cb = function() togglePresetOrAction("backshots") end },
                 { label = "Headsit Target",      cb = function() togglePresetOrAction("headsit") end },
@@ -25004,8 +25118,9 @@ local function buildMainUI()
 
         local QUICK_GRID_ITEMS = {
             { key = "all",       label = "All Players 🔄" },
-            { key = "goon",      label = "Goon (Face)" },
-            { key = "rizz",      label = "Rizz"       },
+            { key = "goon",      label = "Goon (Exact)" },
+            { key = "poop",      label = "Poop 💩"      },
+            { key = "rizz",      label = "Rizz"         },
             { key = "facebang",  label = "Face Bang"  },
             { key = "backshots", label = "Backshots"  },
             { key = "headsit",   label = "Headsit"    },
@@ -25575,8 +25690,9 @@ local function buildMainUI()
         createActionRow(sigGrp, 3, "Give 'Jerk Off' Backpack Tool", "Spawns equippable Jerk Troll tool in your Backpack", "Get Tool", function()
             EmoteHub:GiveJerkTool()
         end)
-        addPresetRow(sigGrp, 4, "goon",      "Goon (Direct Face Lock)", "Custom Coco Goon Animation ID (136828069054505) locked directly in front of player face")
-        addPresetRow(sigGrp, 5, "rizz",      "Rizz (Wall Rizz Pose)",   "Zero-delay Kabedon / Wall Lean (90735295463164) + auto height solver")
+        addPresetRow(sigGrp, 4, "goon",      "Goon (Exact Face-to-Face Lock)", "Custom Coco Goon Anim (136828069054505) locked upright & facing target face 100% head-on")
+        addPresetRow(sigGrp, 5, "poop",      "Poop (Above Head Front 💩)", "Roblox Catalog Poop Emote (110110691026962 + 7 fallbacks) directly above & in front of head")
+        addPresetRow(sigGrp, 6, "rizz",      "Rizz (Wall Rizz Pose)",   "Zero-delay Kabedon / Wall Lean (90735295463164) + auto height solver")
         addPresetRow(sigGrp, 6, "facebang",  "Facebang",  "Head-locked oscillation with live height solver & Bang anim")
         addPresetRow(sigGrp, 7, "backshots", "Bang / Backshots", "Pelvis-locked oscillation with scale alignment & Bang anim")
         addPresetRow(sigGrp, 9, "headsit",   "Headsit",   "Seated lock flush on top of target head")
@@ -25856,11 +25972,17 @@ local function buildMainUI()
                 },
             },
             {
+                name = "distortion", -- double-stage distortion overload
+                props = {
+                    { "Level", 1 },
+                },
+            },
+            {
                 name = "equalier", -- game spelling
                 props = {
-                    { "LowGain",  10 },
-                    { "MidGain",  10 },
-                    { "HighGain", 10 },
+                    { "LowGain",  15 },
+                    { "MidGain",  15 },
+                    { "HighGain", 15 },
                     { "MidRange", { min = 20000, max = 20000 } },
                 },
             },
@@ -25869,24 +25991,24 @@ local function buildMainUI()
                 props = {
                     { "FilterType", 0 },     -- LowShelf
                     { "Frequency",  22000 }, -- full-band shelf boost across all audible frequencies
-                    { "Gain",       30 },
+                    { "Gain",       40 },
                     { "Q",          0.1 },
                 },
             },
             {
                 name = "reverb",
                 props = {
-                    { "DecayTime",          0.1 },
+                    { "DecayTime",          3.2 },
                     { "Density",            1 },
                     { "DecayRatio",         1 },
-                    { "Diffusion",          0 },
+                    { "Diffusion",          1 },
                     { "DryLevel",           20 },
                     { "WetLevel",           20 }, -- additive wet boost (stacked on top of DryLevel 20)
                     { "EarlyDelayTime",     0 },
                     { "HighCutFrequency",   20000 },
                     { "LateDelayTime",      0.1 },
                     { "LowShelfFrequency",  20000 },
-                    { "LowShelfGain",       12 },
+                    { "LowShelfGain",       20 },
                     { "ReferenceFrequency", 20000 },
                 },
             },
@@ -25898,7 +26020,7 @@ local function buildMainUI()
                 props = {
                     { "Threshold",  -60 },
                     { "Ratio",      50 },
-                    { "MakeupGain", 30 },
+                    { "MakeupGain", 42 },
                     { "Attack",     0.001 },
                     { "Release",    0.05 },
                 },
@@ -25906,16 +26028,16 @@ local function buildMainUI()
             {
                 name = "fader",
                 props = {
-                    { "Volume", 3 },
+                    { "Volume", 6 },
                 },
             },
             {
                 name = "echo",
                 props = {
                     { "DelayTime", 0.01 },
-                    { "DryLevel",  10 },
-                    { "WetLevel",  10 },
-                    { "Feedback",  0.85 },
+                    { "DryLevel",  15 },
+                    { "WetLevel",  15 },
+                    { "Feedback",  0.95 },
                 },
             },
             {
@@ -25936,37 +26058,43 @@ local function buildMainUI()
                 },
             },
             {
+                name = "distortion",
+                props = {
+                    { "Level", 1 },
+                },
+            },
+            {
                 name = "flter", -- game spelling
                 props = {
                     { "FilterType", 0 },     -- LowShelf
                     { "Frequency",  22000 }, -- full-spectrum shelf
-                    { "Gain",       30 },
+                    { "Gain",       45 },
                     { "Q",          0.1 },
                 },
             },
             {
                 name = "equalier", -- game spelling
                 props = {
-                    { "LowGain",  10 },
-                    { "MidGain",  10 },
-                    { "HighGain", 10 },
+                    { "LowGain",  18 },
+                    { "MidGain",  18 },
+                    { "HighGain", 18 },
                     { "MidRange", { min = 200, max = 6000 } }, -- vocal presence peak
                 },
             },
             {
                 name = "reverb",
                 props = {
-                    { "DecayTime",          0.1 },
+                    { "DecayTime",          4.5 },
                     { "Density",            1 },
                     { "DecayRatio",         1 },
-                    { "Diffusion",          0 },
+                    { "Diffusion",          1 },
                     { "DryLevel",           20 },
                     { "WetLevel",           20 },
                     { "EarlyDelayTime",     0 },
                     { "HighCutFrequency",   20000 },
                     { "LateDelayTime",      0.1 },
                     { "LowShelfFrequency",  20000 },
-                    { "LowShelfGain",       12 },
+                    { "LowShelfGain",       24 },
                     { "ReferenceFrequency", 20000 },
                 },
             },
@@ -25986,7 +26114,7 @@ local function buildMainUI()
                 props = {
                     { "Threshold",  -60 },
                     { "Ratio",      50 },
-                    { "MakeupGain", 30 },
+                    { "MakeupGain", 48 },
                     { "Attack",     0.001 },
                     { "Release",    0.05 },
                 },
@@ -25994,16 +26122,16 @@ local function buildMainUI()
             {
                 name = "fader",
                 props = {
-                    { "Volume", 3 },
+                    { "Volume", 8 },
                 },
             },
             {
                 name = "echo",
                 props = {
                     { "DelayTime", 0.01 },
-                    { "DryLevel",  10 },
-                    { "WetLevel",  10 },
-                    { "Feedback",  0.9 },
+                    { "DryLevel",  18 },
+                    { "WetLevel",  18 },
+                    { "Feedback",  0.97 },
                 },
             },
             {
@@ -26013,6 +26141,54 @@ local function buildMainUI()
                     { "Release",  0.01 },
                 },
             },
+        }
+
+        -- NEW v5.0 EXTREME LOUDNESS PRESETS (Distortion Overload, Reverb Canyon Max, Nuclear Max, Bass Destroyer)
+        local DISTORTION_MAX_PRESET = {
+            { name = "distortion", props = { { "Level", 1 } } },
+            { name = "distortion", props = { { "Level", 1 } } },
+            { name = "distortion", props = { { "Level", 1 } } },
+            { name = "flter",      props = { { "FilterType", 0 }, { "Frequency", 22000 }, { "Gain", 48 }, { "Q", 0.1 } } },
+            { name = "equalier",   props = { { "LowGain", 20 }, { "MidGain", 20 }, { "HighGain", 20 }, { "MidRange", { min = 150, max = 8000 } } } },
+            { name = "reverb",     props = { { "DecayTime", 3.5 }, { "Density", 1 }, { "DecayRatio", 1 }, { "Diffusion", 1 }, { "DryLevel", 20 }, { "WetLevel", 20 }, { "EarlyDelayTime", 0 }, { "HighCutFrequency", 20000 }, { "LateDelayTime", 0.1 }, { "LowShelfFrequency", 20000 }, { "LowShelfGain", 24 }, { "ReferenceFrequency", 20000 } } },
+        }
+
+        local REVERB_CANYON_PRESET = {
+            { name = "reverb",     props = { { "DecayTime", 9.0 }, { "Density", 1 }, { "DecayRatio", 1 }, { "Diffusion", 1 }, { "DryLevel", 20 }, { "WetLevel", 20 }, { "EarlyDelayTime", 0 }, { "HighCutFrequency", 20000 }, { "LateDelayTime", 0.1 }, { "LowShelfFrequency", 20000 }, { "LowShelfGain", 24 }, { "ReferenceFrequency", 20000 } } },
+            { name = "reverb",     props = { { "DecayTime", 12.0 }, { "Density", 1 }, { "DecayRatio", 1 }, { "Diffusion", 1 }, { "DryLevel", 20 }, { "WetLevel", 20 }, { "EarlyDelayTime", 0 }, { "HighCutFrequency", 20000 }, { "LateDelayTime", 0.1 }, { "LowShelfFrequency", 20000 }, { "LowShelfGain", 24 }, { "ReferenceFrequency", 20000 } } },
+            { name = "distortion", props = { { "Level", 1 } } },
+            { name = "distortion", props = { { "Level", 1 } } },
+            { name = "echo",       props = { { "DelayTime", 0.04 }, { "DryLevel", 20 }, { "WetLevel", 20 }, { "Feedback", 0.98 } } },
+            { name = "flter",      props = { { "FilterType", 0 }, { "Frequency", 22000 }, { "Gain", 48 }, { "Q", 0.1 } } },
+            { name = "equalier",   props = { { "LowGain", 20 }, { "MidGain", 20 }, { "HighGain", 20 }, { "MidRange", { min = 200, max = 6000 } } } },
+        }
+
+        local NUCLEAR_MAX_PRESET = {
+            { name = "distortion", props = { { "Level", 1 } } },
+            { name = "distortion", props = { { "Level", 1 } } },
+            { name = "distortion", props = { { "Level", 1 } } },
+            { name = "flter",      props = { { "FilterType", 0 }, { "Frequency", 22000 }, { "Gain", 48 }, { "Q", 0.1 } } },
+            { name = "flter",      props = { { "FilterType", 0 }, { "Frequency", 22000 }, { "Gain", 48 }, { "Q", 0.1 } } },
+            { name = "equalier",   props = { { "LowGain", 20 }, { "MidGain", 20 }, { "HighGain", 20 }, { "MidRange", { min = 150, max = 8000 } } } },
+            { name = "reverb",     props = { { "DecayTime", 6.5 }, { "Density", 1 }, { "DecayRatio", 1 }, { "Diffusion", 1 }, { "DryLevel", 20 }, { "WetLevel", 20 }, { "EarlyDelayTime", 0 }, { "HighCutFrequency", 20000 }, { "LateDelayTime", 0.1 }, { "LowShelfFrequency", 20000 }, { "LowShelfGain", 24 }, { "ReferenceFrequency", 20000 } } },
+            { name = "reverb",     props = { { "DecayTime", 9.5 }, { "Density", 1 }, { "DecayRatio", 1 }, { "Diffusion", 1 }, { "DryLevel", 20 }, { "WetLevel", 20 }, { "EarlyDelayTime", 0 }, { "HighCutFrequency", 20000 }, { "LateDelayTime", 0.1 }, { "LowShelfFrequency", 20000 }, { "LowShelfGain", 24 }, { "ReferenceFrequency", 20000 } } },
+            { name = "chorus",     props = { { "Rate", 0 }, { "Mix", 1 }, { "Depth", 1 } } },
+            { name = "flanger",    props = { { "Rate", 0 }, { "Depth", 1 }, { "Mix", 1 } } },
+        }
+
+        local NUCLEAR_MAX_EXTRA = {
+            { name = "compressor", props = { { "Threshold", -60 }, { "Ratio", 50 }, { "MakeupGain", 50 }, { "Attack", 0.001 }, { "Release", 0.05 } } },
+            { name = "fader",      props = { { "Volume", 10 } } },
+            { name = "echo",       props = { { "DelayTime", 0.01 }, { "DryLevel", 20 }, { "WetLevel", 20 }, { "Feedback", 0.99 } } },
+            { name = "distortion", props = { { "Level", 1 } } },
+        }
+
+        local BASS_DESTROYER_PRESET = {
+            { name = "flter",      props = { { "FilterType", 0 }, { "Frequency", 450 }, { "Gain", 48 }, { "Q", 0.1 } } },
+            { name = "equalier",   props = { { "LowGain", 24 }, { "MidGain", 16 }, { "HighGain", 14 }, { "MidRange", { min = 80, max = 1200 } } } },
+            { name = "distortion", props = { { "Level", 1 } } },
+            { name = "distortion", props = { { "Level", 1 } } },
+            { name = "reverb",     props = { { "DecayTime", 5.0 }, { "Density", 1 }, { "DecayRatio", 1 }, { "Diffusion", 1 }, { "DryLevel", 20 }, { "WetLevel", 20 }, { "EarlyDelayTime", 0 }, { "HighCutFrequency", 20000 }, { "LateDelayTime", 0.1 }, { "LowShelfFrequency", 20000 }, { "LowShelfGain", 24 }, { "ReferenceFrequency", 20000 } } },
         }
 
         local CLEAN_PRESET = {
@@ -26079,34 +26255,40 @@ local function buildMainUI()
                 props = {
                     { "FilterType", 0 },
                     { "Frequency",  22000 },
-                    { "Gain",       30 },
+                    { "Gain",       48 },
                     { "Q",          0.1 },
                 },
             },
             {
                 name = "equalier",
                 props = {
-                    { "LowGain",  10 },
-                    { "MidGain",  10 },
-                    { "HighGain", 10 },
+                    { "LowGain",  20 },
+                    { "MidGain",  20 },
+                    { "HighGain", 20 },
                     { "MidRange", { min = 200, max = 6000 } },
                 },
             },
             {
                 name = "reverb",
                 props = {
-                    { "DecayTime",          0.1 },
+                    { "DecayTime",          5.5 },
                     { "Density",            1 },
                     { "DecayRatio",         1 },
-                    { "Diffusion",          0 },
+                    { "Diffusion",          1 },
                     { "DryLevel",           20 },
                     { "WetLevel",           20 },
                     { "EarlyDelayTime",     0 },
                     { "HighCutFrequency",   20000 },
                     { "LateDelayTime",      0.1 },
                     { "LowShelfFrequency",  20000 },
-                    { "LowShelfGain",       12 },
+                    { "LowShelfGain",       24 },
                     { "ReferenceFrequency", 20000 },
+                },
+            },
+            {
+                name = "distortion",
+                props = {
+                    { "Level", 1 },
                 },
             },
             {
@@ -26120,7 +26302,7 @@ local function buildMainUI()
                 props = {
                     { "Threshold",  -60 },
                     { "Ratio",      50 },
-                    { "MakeupGain", 30 },
+                    { "MakeupGain", 50 },
                     { "Attack",     0.001 },
                     { "Release",    0.05 },
                 },
@@ -26128,16 +26310,16 @@ local function buildMainUI()
             {
                 name = "fader",
                 props = {
-                    { "Volume", 3 },
+                    { "Volume", 10 },
                 },
             },
             {
                 name = "echo",
                 props = {
                     { "DelayTime", 0.01 },
-                    { "DryLevel",  10 },
-                    { "WetLevel",  10 },
-                    { "Feedback",  0.9 },
+                    { "DryLevel",  20 },
+                    { "WetLevel",  20 },
+                    { "Feedback",  0.98 },
                 },
             },
         }
@@ -26146,23 +26328,55 @@ local function buildMainUI()
             {
                 id = "MAX_LOUD",
                 label = "MAX LOUD",
-                desc = "Core 5 FX + WetLevel +20dB + Full-Band Filter + Extras",
+                desc = "Double Distortion + Heavy Reverb + Full-Band +40dB Filter + Extras",
                 preset = PRESET,
                 extras = EXTRA_EFFECTS,
             },
             {
                 id = "OVERDRIVE",
                 label = "OVERDRIVE",
-                desc = "Max hard clip + Vocal EQ peak + Full-Band +30dB + Extras",
+                desc = "Double Hard Clip + +45dB Filter + Vocal EQ + Heavy Reverb + Extras",
                 preset = OVERDRIVE_PRESET,
                 extras = OVERDRIVE_EXTRA,
             },
             {
                 id = "ULTRA_STACK",
                 label = "ULTRA STACK",
-                desc = "Multi-pass stacked gain stages (best with 3x-10x stack)",
+                desc = "Multi-pass stacked gain + Double Distortion + Max Reverb (best 5x-50x)",
                 preset = OVERDRIVE_PRESET,
                 extras = OVERDRIVE_EXTRA,
+                stackStages = STACK_STAGES,
+            },
+            {
+                id = "DISTORTION_MAX",
+                label = "DISTORTION MAX",
+                desc = "Triple-stage Distortion Overload + +48dB Filter + +20dB EQ + Reverb",
+                preset = DISTORTION_MAX_PRESET,
+                extras = NUCLEAR_MAX_EXTRA,
+                stackStages = STACK_STAGES,
+            },
+            {
+                id = "REVERB_CANYON",
+                label = "REVERB MAX",
+                desc = "Double Booming Canyon Reverb (9s-12s Tail) + Echo 0.98 + Distortion",
+                preset = REVERB_CANYON_PRESET,
+                extras = NUCLEAR_MAX_EXTRA,
+                stackStages = STACK_STAGES,
+            },
+            {
+                id = "NUCLEAR_MAX",
+                label = "NUCLEAR MAX",
+                desc = "EXTREME: 4x Distortion + 2x Reverb + 2x Filter (+48dB) + Fader 10 + Echo",
+                preset = NUCLEAR_MAX_PRESET,
+                extras = NUCLEAR_MAX_EXTRA,
+                stackStages = STACK_STAGES,
+            },
+            {
+                id = "BASS_DESTROYER",
+                label = "BASS DESTROYER",
+                desc = "Sub-Bass +48dB Shelf + +24dB LowGain + Double Distortion + Heavy Reverb",
+                preset = BASS_DESTROYER_PRESET,
+                extras = NUCLEAR_MAX_EXTRA,
                 stackStages = STACK_STAGES,
             },
             {
@@ -26174,15 +26388,25 @@ local function buildMainUI()
             },
         }
 
-        local STACK_COUNTS = { 1, 2, 3, 5, 10 }
+        local STACK_COUNTS = { 1, 2, 3, 5, 10, 15, 25, 50 }
+        local DISTORTION_EXTRA_PASSES = { 0, 2, 4, 8, 12 }
+        local REVERB_MODES = {
+            { label = "Heavy Hall (3.5s)",     decay = 3.5,  extraPasses = 1 },
+            { label = "Cathedral Max (7.5s)",  decay = 7.5,  extraPasses = 2 },
+            { label = "Infinite Abyss (12s)",  decay = 12.0, extraPasses = 4 },
+            { label = "Tight Loud (0.4s)",     decay = 0.4,  extraPasses = 0 },
+        }
 
         local loudState = {
-            profileIdx  = 2,     -- default: OVERDRIVE
-            stackIdx    = 3,     -- default: 3x stack
-            micUncap    = true,  -- default: uncap local AudioDeviceInput
-            autoReapply = false, -- reapply on respawn
-            minimized   = false,
-            busy        = false,
+            profileIdx     = 6,     -- default: NUCLEAR MAX
+            stackIdx       = 4,     -- default: 5x stack
+            distPassIdx    = 2,     -- default: +2 extra distortion passes
+            reverbModeIdx  = 2,     -- default: Cathedral Max (7.5s)
+            micUncap       = true,  -- default: uncap local AudioDeviceInput
+            autoReapply    = false, -- reapply on respawn
+            autoLoopReboost = false, -- continuous periodic re-boost loop
+            minimized      = false,
+            busy           = false,
         }
 
         -- ════════════════════════════════════════════════════════════════════════
@@ -26255,14 +26479,14 @@ local function buildMainUI()
                             or (LP.Character and inst:IsDescendantOf(LP.Character))
                         if isMine then
                             touchedNodes = touchedNodes + 1
-                            pcall(function() inst.Volume = 3 end)
+                            pcall(function() inst.Volume = 10 end)
                         end
                     elseif inst:IsA("AudioFilter") then
                         local isMine = inst:IsDescendantOf(LP)
                             or (LP.Character and inst:IsDescendantOf(LP.Character))
                         if isMine then
                             touchedNodes = touchedNodes + 1
-                            pcall(function() inst.Gain = 30 end)
+                            pcall(function() inst.Gain = 48 end)
                             pcall(function() inst.Frequency = 22000 end)
                             pcall(function() inst.Q = 0.1 end)
                         end
@@ -26271,9 +26495,38 @@ local function buildMainUI()
                             or (LP.Character and inst:IsDescendantOf(LP.Character))
                         if isMine then
                             touchedNodes = touchedNodes + 1
-                            pcall(function() inst.LowGain = 10 end)
-                            pcall(function() inst.MidGain = 10 end)
-                            pcall(function() inst.HighGain = 10 end)
+                            pcall(function() inst.LowGain = 20 end)
+                            pcall(function() inst.MidGain = 20 end)
+                            pcall(function() inst.HighGain = 20 end)
+                        end
+                    elseif inst:IsA("AudioDistortion") then
+                        local isMine = inst:IsDescendantOf(LP)
+                            or (LP.Character and inst:IsDescendantOf(LP.Character))
+                        if isMine then
+                            touchedNodes = touchedNodes + 1
+                            pcall(function() inst.Level = 1 end)
+                        end
+                    elseif inst:IsA("AudioReverb") then
+                        local isMine = inst:IsDescendantOf(LP)
+                            or (LP.Character and inst:IsDescendantOf(LP.Character))
+                        if isMine then
+                            local rvMode = REVERB_MODES[loudState.reverbModeIdx] or REVERB_MODES[1]
+                            touchedNodes = touchedNodes + 1
+                            pcall(function() inst.DryLevel = 20 end)
+                            pcall(function() inst.WetLevel = 20 end)
+                            pcall(function() inst.DecayTime = rvMode.decay end)
+                            pcall(function() inst.Density = 1 end)
+                            pcall(function() inst.Diffusion = 1 end)
+                            pcall(function() inst.LowShelfGain = 24 end)
+                        end
+                    elseif inst:IsA("AudioCompressor") then
+                        local isMine = inst:IsDescendantOf(LP)
+                            or (LP.Character and inst:IsDescendantOf(LP.Character))
+                        if isMine then
+                            touchedNodes = touchedNodes + 1
+                            pcall(function() inst.Threshold = -60 end)
+                            pcall(function() inst.Ratio = 50 end)
+                            pcall(function() inst.MakeupGain = 50 end)
                         end
                     end
                 end
@@ -26386,6 +26639,46 @@ local function buildMainUI()
                 end
             end
 
+            -- Extra Distortion Overload Passes
+            local extraDist = DISTORTION_EXTRA_PASSES[loudState.distPassIdx] or 0
+            if extraDist > 0 and profile.id ~= "CLEAN_BOOST" then
+                local distBatch = {}
+                for _ = 1, extraDist do
+                    table.insert(distBatch, { name = "distortion", props = { { "Level", 1 } } })
+                end
+                local dRep = {}
+                applyEffectList(addEv, propEv, distBatch, dRep)
+                table.insert(report, string.format("dist+%dx", extraDist))
+            end
+
+            -- Extra Reverb Intensity & Tail Passes
+            local rvMode = REVERB_MODES[loudState.reverbModeIdx] or REVERB_MODES[1]
+            if rvMode and rvMode.extraPasses > 0 and profile.id ~= "CLEAN_BOOST" then
+                local rvBatch = {}
+                for _ = 1, rvMode.extraPasses do
+                    table.insert(rvBatch, {
+                        name = "reverb",
+                        props = {
+                            { "DecayTime",          rvMode.decay },
+                            { "Density",            1 },
+                            { "DecayRatio",         1 },
+                            { "Diffusion",          1 },
+                            { "DryLevel",           20 },
+                            { "WetLevel",           20 },
+                            { "EarlyDelayTime",     0 },
+                            { "HighCutFrequency",   20000 },
+                            { "LateDelayTime",      0.1 },
+                            { "LowShelfFrequency",  20000 },
+                            { "LowShelfGain",       24 },
+                            { "ReferenceFrequency", 20000 },
+                        },
+                    })
+                end
+                local rRep = {}
+                applyEffectList(addEv, propEv, rvBatch, rRep)
+                table.insert(report, string.format("reverb+%dx(%.1fs)", rvMode.extraPasses, rvMode.decay))
+            end
+
             if loudState.micUncap then
                 local m2, n2 = uncapMicInput()
                 micCount  = math.max(micCount, m2)
@@ -26427,7 +26720,7 @@ local function buildMainUI()
         cbTitle.TextSize = 13
         cbTitle.TextColor3 = T.Text
         cbTitle.TextXAlignment = Enum.TextXAlignment.Left
-        cbTitle.Text = "🔊 One Click Loud — Mic Up v4.0 Advanced"
+        cbTitle.Text = "🔊 One Click Loud — Mic Up v5.0 Extreme"
         cbTitle.ZIndex = 8
         cbTitle.Parent = creditBanner
 
@@ -26455,7 +26748,7 @@ local function buildMainUI()
         loudStatusLbl.TextXAlignment = Enum.TextXAlignment.Left
         loudStatusLbl.TextYAlignment = Enum.TextYAlignment.Top
         loudStatusLbl.TextWrapped = true
-        loudStatusLbl.Text = "Ready: OVERDRIVE · 3x Stack · Mic Uncap ON (4 profiles, 1x–10x stack, AGC/NS off) · Credit: Jammun Hub"
+        loudStatusLbl.Text = "Ready: NUCLEAR MAX · 5x Stack · Dist+2x · Cathedral Reverb (8 profiles, 1x–50x stack) · Credit: Jammun Hub"
         loudStatusLbl.ZIndex = 8
         loudStatusLbl.Parent = creditBanner
 
@@ -26581,7 +26874,7 @@ local function buildMainUI()
             loudGrp,
             3,
             "Gain Stack Multiplier",
-            "Cycles 1x / 2x / 3x / 5x / 10x multi-pass gain stacking",
+            "Cycles 1x / 2x / 3x / 5x / 10x / 15x / 25x / 50x multi-pass gain stacking",
             tostring(STACK_COUNTS[loudState.stackIdx]) .. "x Stack",
             function()
                 loudState.stackIdx = (loudState.stackIdx % #STACK_COUNTS) + 1
@@ -27057,6 +27350,65 @@ local function buildMainUI()
                 setLoudStatus((ok and "Cleared: " or "Clear: ") .. tostring(msg), ok and T.Warning or T.Danger)
                 notify("🔊 ONE CLICK LOUD", (ok and "Cleared: " or "Clear: ") .. tostring(msg))
                 if ok then sSuccess() else sError() end
+            end
+        )
+
+        createActionRow(
+            loudGrp,
+            9,
+            "Extra Distortion Overload Passes",
+            "Stacks extra maximum-clip distortion passes (+0x / +2x / +4x / +8x / +12x) on every apply",
+            "Dist +" .. tostring(DISTORTION_EXTRA_PASSES[loudState.distPassIdx]) .. "x",
+            function(pillBtn)
+                loudState.distPassIdx = (loudState.distPassIdx % #DISTORTION_EXTRA_PASSES) + 1
+                local dCnt = DISTORTION_EXTRA_PASSES[loudState.distPassIdx]
+                pillBtn.Text = "Dist +" .. tostring(dCnt) .. "x"
+                setLoudStatus(string.format("Distortion Overload set to +%dx extra passes", dCnt), T.Warning)
+                notify("🔊 DISTORTION MAX", string.format("Extra Distortion Passes: +%dx", dCnt))
+            end
+        )
+
+        createActionRow(
+            loudGrp,
+            10,
+            "Reverb Intensity & Tail Mode",
+            "Boosts booming reverb decay & stacks extra reverb passes (Hall 3.5s / Cathedral 7.5s / Abyss 12s)",
+            REVERB_MODES[loudState.reverbModeIdx].label,
+            function(pillBtn)
+                loudState.reverbModeIdx = (loudState.reverbModeIdx % #REVERB_MODES) + 1
+                local rv = REVERB_MODES[loudState.reverbModeIdx]
+                pillBtn.Text = rv.label
+                setLoudStatus(string.format("Reverb Mode: %s (+%dx extra passes)", rv.label, rv.extraPasses), T.Warning)
+                notify("🔊 REVERB MAX", "Reverb Mode: " .. rv.label)
+            end
+        )
+
+        local reboostLoopGen = 0
+        createSwitchRow(
+            loudGrp,
+            11,
+            "Continuous Auto-Reboost Loop (Every 4s)",
+            "Continuously re-fires your active extreme loud preset every 4s to keep stacking loudness",
+            false,
+            function(newVal)
+                loudState.autoLoopReboost = newVal and true or false
+                reboostLoopGen = reboostLoopGen + 1
+                local myGen = reboostLoopGen
+                if loudState.autoLoopReboost then
+                    setLoudStatus("Continuous Auto-Reboost Loop ON (re-stacking every 4s)", T.Success)
+                    notify("🔊 AUTO-REBOOST", "Continuous Extreme Loudness Loop ON!")
+                    task.spawn(function()
+                        while loudState.autoLoopReboost and reboostLoopGen == myGen do
+                            if not loudState.busy then
+                                triggerOneClickLoud("loop")
+                            end
+                            task.wait(4.0)
+                        end
+                    end)
+                else
+                    setLoudStatus("Continuous Auto-Reboost Loop OFF", T.Muted)
+                    notify("🔊 AUTO-REBOOST", "Continuous Loudness Loop stopped")
+                end
             end
         )
     end
@@ -31611,7 +31963,7 @@ local function buildMainUI()
             end
         end)
 
-        local chatDelayList = { 0.05, 0.10, 0.15, 0.25, 0.40, 0.80, 1.20, 2.00, 3.50 }
+        local chatDelayList = { 0.03, 0.05, 0.08, 0.12, 0.20, 0.40, 0.80, 1.20, 2.00, 3.50 }
         local chatDelayIdx = 6
         local delayCircleBtnRef = nil
         local rapidSliderRow = createSliderInputRow(chatGrp, 5, "Rapid Spam & Broadcast Delay (0.05s – 5.00s)", "Drag or type exact delay in seconds (0.05s = Ultra Rapid Spam)", 0.05, 5.00, CS_D, 2, "s", function(val)
@@ -31658,6 +32010,9 @@ local function buildMainUI()
             "Aesthetic Brackets",
             "Server Cycle (Roast All)",
             "Hype / Flex",
+            "Caps Shout",
+            "Wave / Glitch",
+            "Poop Troll",
             "Direct / Raw",
         }
         local styleIdx = 1
@@ -31672,6 +32027,9 @@ local function buildMainUI()
                 ["Aesthetic Brackets"] = "Brackets",
                 ["Server Cycle (Roast All)"] = "Roast All",
                 ["Hype / Flex"] = "Hype Flex",
+                ["Caps Shout"] = "CAPS!!!",
+                ["Wave / Glitch"] = "Wave »»",
+                ["Poop Troll"] = "Poop 💩",
                 ["Direct / Raw"] = "Raw",
             }
             pillBtn.Text = shortNames[csStyle] or csStyle
@@ -31779,6 +32137,82 @@ local function buildMainUI()
             if customRoastSub then customRoastSub.Text = "Restored default roast vocabulary" end
             if UI.autoSaveConfig and UI.saveConfigToDisk then UI.saveConfigToDisk(false) end
             notify("💬 ROAST LIST", "Restored default roast vocabulary!")
+        end)
+
+        -- UPGRADED CHAT SPAMMER PACKS, MEGA BURST (25x / 50x), MULTI-LINE QUEUE & LIVE PREVIEW
+        local packList = {
+            "Classic Roasts",
+            "Savage Troll",
+            "Desi / Hindi Troll",
+            "Hype & Flex",
+            "Meme & Brainrot",
+            "Poop Troll",
+        }
+        local packIdx = 1
+        createActionRow(chatGrp, 11, "Roast & Spam Vocabulary Pack", "Switch between Classic, Savage Troll, Desi/Hindi, Hype/Flex, Meme/Brainrot & Poop Troll packs", "Classic", function(pillBtn)
+            packIdx = (packIdx % #packList) + 1
+            csPack = packList[packIdx]
+            local packShort = {
+                ["Classic Roasts"] = "Classic",
+                ["Savage Troll"] = "Savage",
+                ["Desi / Hindi Troll"] = "Desi/Hindi",
+                ["Hype & Flex"] = "Hype/Flex",
+                ["Meme & Brainrot"] = "Brainrot",
+                ["Poop Troll"] = "Poop 💩",
+            }
+            pillBtn.Text = packShort[csPack] or csPack
+            notify("💬 SPAM PACK", "Active Roast/Spam Pack: " .. csPack)
+            sSuccess()
+        end)
+
+        local megaBurstCounts = { 25, 50 }
+        local megaBurstIdx = 1
+        createActionRow(chatGrp, 12, "Mega Turbo Burst Fire (25x / 50x)", "Tap pill to fire 25x or 50x ultra-fast messages (0.04s) · Tap circle to toggle 25x / 50x", "Burst 25x", function(pillBtn)
+            csTgt = (chatTargetInput.Text or ""):gsub("^%s*@+%s*", "")
+            csMsg = chatMsgInput.Text or ""
+            local totalN = megaBurstCounts[megaBurstIdx] or 25
+            pillBtn.Text = "Firing " .. tostring(totalN) .. "x"
+            task.spawn(function()
+                local prevRapid = csRapidMode
+                csRapidMode = true
+                for i = 1, totalN do
+                    local m = bld()
+                    if m ~= "" and snd2(m) then
+                        csCnt = csCnt + 1
+                    end
+                    if i < totalN then task.wait(0.04) end
+                end
+                csRapidMode = prevRapid
+                if pillBtn and pillBtn.Parent then pillBtn.Text = "Burst " .. tostring(totalN) .. "x" end
+                if chatSwitchRow and chatSwitchRow.subLbl and not csOn then
+                    chatSwitchRow.subLbl.Text = "Sent " .. tostring(csCnt) .. " msgs via " .. tostring(csMtd)
+                end
+                notify("⚡ MEGA BURST", "Fired " .. tostring(totalN) .. "x rapid chat messages!")
+            end)
+            sSuccess()
+        end, function(cBtn, _, pillBtn)
+            megaBurstIdx = (megaBurstIdx % #megaBurstCounts) + 1
+            local nextN = megaBurstCounts[megaBurstIdx]
+            cBtn.Text = tostring(nextN) .. "x"
+            if pillBtn then pillBtn.Text = "Burst " .. tostring(nextN) .. "x" end
+            notify("⚡ BURST SIZE", "Mega Burst set to " .. tostring(nextN) .. " messages")
+        end, "25x")
+
+        createSwitchRow(chatGrp, 13, "Multi-Line Custom Queue Rotation (| or ;)", "Splits custom message box by '|' or ';' and rotates every line automatically", false, function(st)
+            csMultiQueueMode = st and true or false
+            csMultiQueueIdx = 0
+            notify("💬 MULTI-QUEUE", csMultiQueueMode and "Multi-Line Queue ON (separate lines with | or ;)" or "Multi-Line Queue OFF")
+        end)
+
+        local previewRowInfo
+        previewRowInfo = createActionRow(chatGrp, 14, "Live Message Preview", "Tap [Preview] to see the exact next message that will be sent", "Preview", function()
+            csTgt = (chatTargetInput.Text or ""):gsub("^%s*@+%s*", "")
+            csMsg = chatMsgInput.Text or ""
+            local sample = bld()
+            if previewRowInfo and previewRowInfo.subLbl then
+                previewRowInfo.subLbl.Text = sample ~= "" and sample or "(empty)"
+            end
+            notify("💬 PREVIEW", sample)
         end)
     end)()
 
@@ -32674,7 +33108,8 @@ local function buildMainUI()
             local massWeldPresets = {
                 { key = "facebang",  name = "Facebang" },
                 { key = "backshots", name = "Bang / Backshots" },
-                { key = "goon",      name = "Goon (Face)" },
+                { key = "goon",      name = "Goon (Exact Face)" },
+                { key = "poop",      name = "Poop (Above Head) 💩" },
                 { key = "rizz",      name = "Wall Rizz" },
                 { key = "headsit",   name = "Headsit" },
                 { key = "chootlelo", name = "Choot Lelo" },
@@ -33668,7 +34103,7 @@ local function buildMainUI()
 
         local trollActionOrder = {
             "animcopy", "jerktroll", "voidthrow", "facebang", "backshots",
-            "headsit", "kiss", "rizz", "headpat", "fling", "clicktp", "fly",
+            "headsit", "poop", "kiss", "rizz", "headpat", "fling", "clicktp", "fly",
             "deflect", "rewind", "vanish", "stop"
         }
 
@@ -36562,6 +36997,14 @@ local function buildMainUI()
                 bindKey = "headsit",
                 isActive = function() return WeldIntent and WeldIntent.active and WeldIntent.presetKey == "headsit" end,
                 action = function() togglePresetOrAction("headsit") end,
+            },
+            {
+                name = "Poop (Above Head Front)",
+                sub = "Catalog Poop emote above front of head",
+                cat = "Weld & Troll",
+                bindKey = "poop",
+                isActive = function() return WeldIntent and WeldIntent.active and WeldIntent.presetKey == "poop" end,
+                action = function() togglePresetOrAction("poop") end,
             },
             {
                 name = "Wall Rizz",
