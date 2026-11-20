@@ -326,6 +326,8 @@ local OwnerAdminState = {
     overheadTagsEnabled = true,
     showSelfOverheadTag = true,
     showNormalPlayerTags = true, -- Regular players receive only the normal tag; independently toggleable.
+    tapToTargetEnabled = true,   -- Tap/click any player in 3D world to target them (ON by default, toggleable OFF)
+    lastOverheadTagTapTick = 0,  -- Timestamp guard so tapping a script user's overhead tag only teleports
     sendChatPacketOnCommand = false,
     localOwnerClaim = false,
     activeCommandCode = nil,
@@ -7235,18 +7237,30 @@ promptNebulaFling = function()
 end
 end)() -- end VoidThrow internal scope
 
-local CS_D = 0.8
+local CS_D = 1.15
 local csRapidMode = false
-local csRapidDelay = 0.12
+local csRapidDelay = 0.25
 local csOn, csMode, csTgt, csMsg, csCnt, csMtd, csGen = false, "roast", "", "", 0, "-", 0
-local csStyle = "Classic @ Wall"
-local csSymbolCount = 75
+local csStyle = "Clean Roast"
+local csSymbolCount = 12
 local csIncludeHeader = true
 local snd2, bld
 do
-local CS_M = 200
-local CS_R = " TMKX MAI "
-local CS_HDR = "SCRIPT BY COCACOLA"
+local CS_M = 190
+local CS_R = " IS A "
+local CS_CONNECTORS = {
+    " is a certified ",
+    " plays like a ",
+    " moving like a ",
+    " built like a ",
+    " acting like a ",
+    " looking like a ",
+    " got outplayed like a ",
+    " fell off like a ",
+    " running on ",
+    " level 1 ",
+}
+local CS_HDR = "COCO POWDER"
 local CS_W = {
     "NOOB","ROOKIE","AMATEUR","TRAINEE","BEGINNER","SLOWPOKE","SLEEPY","CLUMSY","DORK","NERD","GEEK","DWEEB",
     "SQUISHY","WOBBLY","FUZZY","SPARKLY","GIGGLY","WIGGLY","SNAIL","TURTLE","PANDA","SLOTH","MOOSE","HAMSTER",
@@ -7261,6 +7275,9 @@ local CS_SYM = "@"
 local csCh, csLg = nil, nil
 local csCycleIdx = 0
 local lastWordIdx = 0
+local lastConnIdx = 0
+local lastBuiltMsg = ""
+local csFloodBackoffUntil = 0
 
 -- UTF-8 Safe Byte Truncator: NEVER cuts a multi-byte UTF-8 emoji or zero-width char in half!
 local function utf8SafeTruncate(s, maxBytes)
@@ -7326,13 +7343,29 @@ _G.ResetCocoCustomRoasts = function()
     table.clear(_G.CocoCustomRoasts)
 end
 
-local antiTagTokens = { " .", " ..", " !", " ·", " ~", " *", " -", " +" }
+local antiTagTokens = { "", " .", " !", " ~", " -", " ..", " !" }
 local antiTagSeq = 0
+local function sanitizeFilterSafeText(s)
+    -- Collapse long consecutive symbol runs (e.g. @@@@@@ -> @@ @@ @@) and extra spaces that trigger immediate TextChatService tagging
+    s = tostring(s or ""):gsub("[\r\n]+", " "):gsub("%s+", " "):gsub("^%s+", ""):gsub("%s+$", "")
+    s = s:gsub("([@!%?%#%*%$%%&%-_=+~%.])%1%1%1+", function(ch)
+        return ch .. ch .. " " .. ch .. ch
+    end)
+    return s
+end
 snd2 = function(tx)
     if type(tx) ~= "string" then return false end
-    tx = tx:gsub("[\r\n]+", " "):gsub("^%s+", ""):gsub("%s+$", "")
+    local isAdminCmd = tx:match("^%s*!") ~= nil
+    if isAdminCmd then
+        tx = tx:gsub("[\r\n]+", " "):gsub("^%s+", ""):gsub("%s+$", "")
+    else
+        tx = sanitizeFilterSafeText(tx)
+    end
     if tx == "" then return false end
-    if _G.CocoAntiTagBypass and not tx:match("^!") then
+    if not isAdminCmd and os.clock() < csFloodBackoffUntil then
+        task.wait(math.min(1.2, csFloodBackoffUntil - os.clock()))
+    end
+    if _G.CocoAntiTagBypass and not isAdminCmd then
         antiTagSeq = (antiTagSeq % #antiTagTokens) + 1
         local suffix = antiTagTokens[antiTagSeq]
         tx = utf8SafeTruncate(tx, CS_M - #suffix) .. suffix
@@ -7372,8 +7405,10 @@ snd2 = function(tx)
             if ok then
                 local blocked = false
                 if typeof(msgRes) == "Instance" and msgRes:IsA("TextChatMessage") then
-                    if msgRes.Status == Enum.TextChatMessageStatus.Floodchecked
-                        or msgRes.Status == Enum.TextChatMessageStatus.InvalidPrivacySettings
+                    if msgRes.Status == Enum.TextChatMessageStatus.Floodchecked then
+                        csFloodBackoffUntil = os.clock() + 1.35
+                        blocked = true
+                    elseif msgRes.Status == Enum.TextChatMessageStatus.InvalidPrivacySettings
                         or msgRes.Status == Enum.TextChatMessageStatus.InvalidTextChannelParameters then
                         blocked = true
                     end
@@ -7451,58 +7486,86 @@ local function resolveTargetDisplay()
     return nil
 end
 
+local function pickNextConnector()
+    if #CS_CONNECTORS == 0 then return CS_R end
+    local idx = math.random(1, #CS_CONNECTORS)
+    if idx == lastConnIdx then
+        idx = (idx % #CS_CONNECTORS) + 1
+    end
+    lastConnIdx = idx
+    return CS_CONNECTORS[idx]
+end
+
 local function genSymbols(maxAllowed)
-    local count = math.clamp(tonumber(csSymbolCount) or 75, 0, maxAllowed or 120)
+    local count = math.clamp(tonumber(csSymbolCount) or 12, 0, maxAllowed or 48)
     if count <= 0 then return "" end
-    return string.rep(CS_SYM, count)
+    -- Space symbols into short 2-char clusters so Roblox TextChatService does not tag consecutive '@' walls
+    local out = {}
+    local left = count
+    while left > 0 do
+        local chunk = math.min(2, left)
+        table.insert(out, string.rep(CS_SYM, chunk))
+        left = left - chunk
+    end
+    return table.concat(out, " ")
 end
 
 bld = function()
-    local hdrPrefix = csIncludeHeader and (CS_HDR .. " ") or ""
+    local hdrPrefix = csIncludeHeader and (CS_HDR .. " | ") or ""
     local emojis = pickEmojis()
     if csMode == "message" then
         local cleanMsg = tostring(csMsg or ""):gsub("^%s+", ""):gsub("%s+$", "")
-        if cleanMsg == "" then cleanMsg = "COCO POWDER ON TOP" end
+        if cleanMsg == "" then cleanMsg = "Coco Powder on top" end
+        local built
         if csStyle == "Direct / Raw" then
-            return utf8SafeTruncate(cleanMsg .. emojis, CS_M - 12)
+            built = utf8SafeTruncate(cleanMsg .. emojis, CS_M - 12)
         elseif csStyle == "Aesthetic Brackets" then
-            return utf8SafeTruncate("【👑 COCO POWDER】 ➔ " .. cleanMsg:upper() .. emojis, CS_M - 12)
+            built = utf8SafeTruncate("[Coco Powder] " .. cleanMsg .. emojis, CS_M - 12)
         elseif csStyle == "Clean Roast" or csSymbolCount <= 0 then
-            return utf8SafeTruncate(hdrPrefix .. cleanMsg:upper() .. emojis, CS_M - 12)
+            built = utf8SafeTruncate(hdrPrefix .. cleanMsg .. emojis, CS_M - 12)
         else
-            local body = hdrPrefix .. cleanMsg:upper() .. " "
+            local body = hdrPrefix .. cleanMsg .. " "
             local remSym = math.max(0, (CS_M - 14) - #body - #emojis)
             local syms = genSymbols(math.min(csSymbolCount, remSym))
-            return utf8SafeTruncate(body .. syms .. emojis, CS_M - 12)
+            built = utf8SafeTruncate(body .. syms .. emojis, CS_M - 12)
         end
+        lastBuiltMsg = built
+        return built
     end
 
     local raw = resolveTargetDisplay()
     if not raw or raw == "" then raw = csTgt end
     if not raw or raw == "" then raw = "everyone" end
     raw = tostring(raw):gsub("^%s*@+%s*", ""):gsub("^%s+", ""):gsub("%s+$", "")
-    local roastWord = pickNextRoastWord()
-    local tail = ("@" .. raw .. CS_R .. roastWord):upper()
+    local roastWord = pickNextRoastWord():lower()
+    local connector = pickNextConnector()
+    local tail = raw .. connector .. roastWord
 
+    local built
     if csStyle == "Clean Roast" then
-        return utf8SafeTruncate(hdrPrefix .. "⚡ " .. tail .. emojis, CS_M - 12)
+        built = utf8SafeTruncate(hdrPrefix .. tail .. emojis, CS_M - 12)
     elseif csStyle == "Aesthetic Brackets" then
-        return utf8SafeTruncate("【👑 COCO POWDER】 ➔ " .. tail .. emojis, CS_M - 12)
+        built = utf8SafeTruncate("[Coco Powder] " .. tail .. emojis, CS_M - 12)
     elseif csStyle == "Hype / Flex" then
-        return utf8SafeTruncate("👑 COCO POWDER ON TOP ⚡ " .. tail .. emojis, CS_M - 12)
+        built = utf8SafeTruncate("Coco Powder on top | " .. tail .. emojis, CS_M - 12)
     elseif csStyle == "Direct / Raw" then
-        return utf8SafeTruncate(tail .. emojis, CS_M - 12)
+        built = utf8SafeTruncate(tail .. emojis, CS_M - 12)
     else
         -- "Classic @ Wall" or "Server Cycle (Roast All)"
         local reserved = #hdrPrefix + 1 + #tail + #emojis + 14
         local maxSyms = math.max(0, CS_M - reserved)
         local syms = genSymbols(math.min(csSymbolCount, maxSyms))
         if syms ~= "" then
-            return utf8SafeTruncate(hdrPrefix .. syms .. " " .. tail .. emojis, CS_M - 12)
+            built = utf8SafeTruncate(hdrPrefix .. syms .. " " .. tail .. emojis, CS_M - 12)
         else
-            return utf8SafeTruncate(hdrPrefix .. tail .. emojis, CS_M - 12)
+            built = utf8SafeTruncate(hdrPrefix .. tail .. emojis, CS_M - 12)
         end
     end
+    if built == lastBuiltMsg then
+        built = utf8SafeTruncate(built .. " " .. pickNextRoastWord():lower(), CS_M - 12)
+    end
+    lastBuiltMsg = built
+    return built
 end
 
 end -- end Chat Spammer internal scope
@@ -12575,6 +12638,7 @@ updateOverheadNameTags = function()
                 bbg.Size = UDim2.new(0, 214, 0, 40)
                 bbg.StudsOffset = Vector3.new(0, 2.45, 0)
                 bbg.AlwaysOnTop = true
+                bbg.Active = (plr ~= LP)
                 bbg.MaxDistance = 360
                 bbg.LightInfluence = 0
                 bbg.ResetOnSpawn = false
@@ -12740,6 +12804,19 @@ updateOverheadNameTags = function()
                 nameStroke.Transparency = 0.6
                 nameStroke.Parent = nameLbl
 
+                -- Tap-to-Teleport overlay button for fellow script users
+                local tapTpBtn = Instance.new("TextButton")
+                tapTpBtn.Name = "TapTpBtn"
+                tapTpBtn.Size = UDim2.new(1, 0, 1, 0)
+                tapTpBtn.Position = UDim2.new(0, 0, 0, 0)
+                tapTpBtn.BackgroundTransparency = 1
+                tapTpBtn.Text = ""
+                tapTpBtn.AutoButtonColor = false
+                tapTpBtn.Active = (plr ~= LP)
+                tapTpBtn.Visible = (plr ~= LP)
+                tapTpBtn.ZIndex = 12
+                tapTpBtn.Parent = bg
+
                 entry = {
                     gui = bbg,
                     bg = bg,
@@ -12753,8 +12830,60 @@ updateOverheadNameTags = function()
                     statusPill = statusPill,
                     roleLbl = roleLbl,
                     nameLbl = nameLbl,
+                    tapBtn = tapTpBtn,
+                    targetUserId = uid,
+                    lastTapAt = 0,
                     animSpeed = 1.0,
                 }
+                tapTpBtn.Activated:Connect(function()
+                    local nowClk = os.clock()
+                    if nowClk - (entry.lastTapAt or 0) < 0.45 then return end
+                    entry.lastTapAt = nowClk
+                    OwnerAdminState.lastOverheadTagTapTick = nowClk
+
+                    local targetPlr = Players:GetPlayerByUserId(entry.targetUserId)
+                    if not targetPlr or targetPlr == LP or targetPlr.Parent ~= Players then return end
+
+                    -- Flash capsule border for instant tap feedback
+                    pcall(function()
+                        if entry.stroke and entry.stroke.Parent then entry.stroke.Thickness = 2.6 end
+                        if entry.glowFrame and entry.glowFrame.Parent then entry.glowFrame.BackgroundTransparency = 0.42 end
+                        task.delay(0.32, function()
+                            if entry.stroke and entry.stroke.Parent then entry.stroke.Thickness = 1.25 end
+                            if entry.glowFrame and entry.glowFrame.Parent then entry.glowFrame.BackgroundTransparency = 0.86 end
+                        end)
+                    end)
+
+                    task.spawn(function()
+                        local tChar, tRef = streamAndTeleportToTarget(targetPlr, "torso", 2.2, CFrame.new(3.2, 0.5, 0))
+                        local myChar = LP.Character
+                        local myRoot = myChar and (myChar:FindFirstChild("HumanoidRootPart") or myChar:FindFirstChildWhichIsA("BasePart"))
+                        if tRef and tRef.Parent and myRoot and myRoot.Parent then
+                            local uprightCF = getFlatYawCFrame(tRef.CFrame, (tRef.CFrame * CFrame.new(3.2, 0.5, 0)).Position)
+                            markIntentionalTeleport(uprightCF)
+                            myRoot.AssemblyLinearVelocity = Vector3.zero
+                            myRoot.AssemblyAngularVelocity = Vector3.zero
+                            myRoot.CFrame = uprightCF
+                            syncAllActiveReanimRoots(uprightCF, myRoot)
+                            pcall(sWhoosh)
+                            notify("⚡ TAG TELEPORT", "Teleported to script user @" .. targetPlr.Name)
+                        else
+                            local fallbackCF = getBestTargetCFrame(targetPlr)
+                            if fallbackCF and myRoot and myRoot.Parent then
+                                local destCF = getFlatYawCFrame(fallbackCF, (fallbackCF * CFrame.new(3.2, 0.5, 0)).Position)
+                                markIntentionalTeleport(destCF)
+                                myRoot.AssemblyLinearVelocity = Vector3.zero
+                                myRoot.AssemblyAngularVelocity = Vector3.zero
+                                myRoot.CFrame = destCF
+                                syncAllActiveReanimRoots(destCF, myRoot)
+                                pcall(sWhoosh)
+                                notify("⚡ TAG TELEPORT", "Teleported to script user @" .. targetPlr.Name)
+                            else
+                                notify("⚡ TAG TELEPORT", "Could not locate @" .. targetPlr.Name .. "'s character yet")
+                            end
+                        end
+                    end)
+                end)
                 OverheadTagGuis[uid] = entry
                 ensureOverheadTagAnimator()
             end
@@ -12783,7 +12912,15 @@ updateOverheadNameTags = function()
                 entry.glowFrame.BackgroundColor3 = th.glowColor
                 entry.shimmerFrame.BackgroundColor3 = th.shimmerColor
             end
-            local desiredName = plr.DisplayName .. " · @" .. plr.Name
+            local isRemoteTag = (plr ~= LP)
+            if entry.gui and entry.gui.Active ~= isRemoteTag then
+                entry.gui.Active = isRemoteTag
+            end
+            if entry.tapBtn then
+                entry.tapBtn.Visible = isRemoteTag
+                entry.tapBtn.Active = isRemoteTag
+            end
+            local desiredName = plr.DisplayName .. " · @" .. plr.Name .. (isRemoteTag and " · TP" or "")
             if entry.lastNameText ~= desiredName then
                 entry.lastNameText = desiredName
                 entry.nameLbl.Text = desiredName
@@ -24210,6 +24347,7 @@ local function buildMainUI()
                     autoHeight = V.AutoHeight,
                     overheadTags = OwnerAdminState.overheadTagsEnabled,
                     selfOverheadTag = OwnerAdminState.showSelfOverheadTag,
+                    tapToTarget = OwnerAdminState.tapToTargetEnabled ~= false,
                     keybindsMaster = KeybindManager.enabled,
                     keybindsMap = bindsMap,
                     keybindsActionEnabled = KeybindManager.actionEnabled,
@@ -24248,6 +24386,7 @@ local function buildMainUI()
                 if type(data.autoHeight) == "boolean" then V.AutoHeight = data.autoHeight end
                 if type(data.overheadTags) == "boolean" and UI.setOverheadTagsEnabled then UI.setOverheadTagsEnabled(data.overheadTags, false) end
                 if type(data.selfOverheadTag) == "boolean" and UI.setSelfOverheadTagEnabled then UI.setSelfOverheadTagEnabled(data.selfOverheadTag, false) end
+                if type(data.tapToTarget) == "boolean" and UI.setTapToTargetEnabled then UI.setTapToTargetEnabled(data.tapToTarget, false) end
                 if type(data.keybindsMaster) == "boolean" then KeybindManager:SetMasterEnabled(data.keybindsMaster, false) end
                 if type(data.keybindsMap) == "table" then
                     for act, kcName in pairs(data.keybindsMap) do
@@ -28600,6 +28739,211 @@ local function buildMainUI()
             "⏭️"
         )
 
+        -- Tap-to-Target Any Player in 3D World (ON by default, toggleable OFF)
+        ;(function()
+            local tapTargetSwitchRow = nil
+            UI.setTapToTargetEnabled = function(st, showToast)
+                local enabled = (st == true)
+                OwnerAdminState.tapToTargetEnabled = enabled
+                if tapTargetSwitchRow and tapTargetSwitchRow.setState then
+                    tapTargetSwitchRow.setState(enabled, false)
+                end
+                if UI.autoSaveConfig and UI.saveConfigToDisk then UI.saveConfigToDisk(false) end
+                if showToast ~= false then
+                    notify("🎯 TAP-TO-TARGET", enabled and "Tap any player in the world to target them (ON)" or "Tap-to-Target disabled (OFF)")
+                end
+            end
+
+            tapTargetSwitchRow = createSwitchRow(
+                intelGrp,
+                7,
+                "Tap-to-Target Player (3D World)",
+                "Tap or click any player in the world to lock/target them · ON by default",
+                OwnerAdminState.tapToTargetEnabled ~= false,
+                function(st)
+                    UI.setTapToTargetEnabled(st, true)
+                end
+            )
+
+            -- Disconnect any previous Tap-to-Target listeners on re-execution
+            if type(_G.CocoTapToTargetConns) == "table" then
+                for _, c in ipairs(_G.CocoTapToTargetConns) do
+                    pcall(function() c:Disconnect() end)
+                end
+            end
+            _G.CocoTapToTargetConns = {}
+
+            local tapStartPos = nil
+            local tapStartTime = 0
+            local tapInputRef = nil
+
+            local function isTappingInteractiveGui(pos)
+                local pg = LP:FindFirstChildOfClass("PlayerGui")
+                if not pg then return false end
+                local ok, objs = pcall(function() return pg:GetGuiObjectsAtPosition(pos.X, pos.Y) end)
+                if not ok or type(objs) ~= "table" then return false end
+                for _, obj in ipairs(objs) do
+                    if obj and obj.Visible then
+                        if obj:IsA("GuiButton") or obj:IsA("TextBox") then
+                            return true
+                        end
+                        if sg and obj:IsDescendantOf(sg) and obj.BackgroundTransparency < 0.95 then
+                            return true
+                        end
+                    end
+                end
+                return false
+            end
+
+            local function resolvePlayerFromHitInstance(inst)
+                if not inst then return nil end
+                local cur = inst
+                while cur and cur ~= workspace do
+                    if cur:IsA("Model") then
+                        local p = Players:GetPlayerFromCharacter(cur)
+                        if p and p ~= LP then return p end
+                    end
+                    cur = cur.Parent
+                end
+                -- Fallback: check custom/reanim character lookup
+                for _, p in ipairs(Players:GetPlayers()) do
+                    if p ~= LP then
+                        local ch = findPlayerCharacterAnywhere(p, true)
+                        if ch and (inst == ch or inst:IsDescendantOf(ch)) then
+                            return p
+                        end
+                    end
+                end
+                return nil
+            end
+
+            local function findTappedPlayerAtScreenPos(screenPos)
+                local cam = workspace.CurrentCamera
+                if not cam then return nil end
+                local ray = cam:ViewportPointToRay(screenPos.X, screenPos.Y)
+                local params = RaycastParams.new()
+                params.FilterType = Enum.RaycastFilterType.Exclude
+                local ignoreList = {}
+                if LP.Character then table.insert(ignoreList, LP.Character) end
+                params.FilterDescendantsInstances = ignoreList
+                local res = workspace:Raycast(ray.Origin, ray.Direction * 650, params)
+                if res and res.Instance then
+                    local hitPlr = resolvePlayerFromHitInstance(res.Instance)
+                    if hitPlr then return hitPlr end
+                end
+                -- Mobile-friendly proximity fallback: pick closest visible player torso/head within 28px of tap
+                local bestPlr = nil
+                local bestDistPx = 28
+                for _, p in ipairs(Players:GetPlayers()) do
+                    if p ~= LP then
+                        local ch = findPlayerCharacterAnywhere(p, true)
+                        local ref = ch and (ch:FindFirstChild("HumanoidRootPart") or ch:FindFirstChild("Head") or ch:FindFirstChildWhichIsA("BasePart"))
+                        if ref and ref.Parent then
+                            local vPos, onScreen = cam:WorldToViewportPoint(ref.Position)
+                            if onScreen and vPos.Z > 0 and vPos.Z <= 280 then
+                                local dPx = (Vector2.new(vPos.X, vPos.Y) - screenPos).Magnitude
+                                if dPx < bestDistPx then
+                                    bestDistPx = dPx
+                                    bestPlr = p
+                                end
+                            end
+                        end
+                    end
+                end
+                return bestPlr
+            end
+
+            local function flashTargetHighlight(plr)
+                pcall(function()
+                    local ch = findPlayerCharacterAnywhere(plr, true)
+                    if not ch then return end
+                    local oldHl = ch:FindFirstChild("CocoTapTargetHighlight")
+                    if oldHl then oldHl:Destroy() end
+                    local hl = Instance.new("Highlight")
+                    hl.Name = "CocoTapTargetHighlight"
+                    hl.FillColor = Color3.fromRGB(168, 85, 247)
+                    hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+                    hl.FillTransparency = 0.55
+                    hl.OutlineTransparency = 0.05
+                    hl.Adornee = ch
+                    hl.Parent = ch
+                    task.delay(0.85, function()
+                        if hl and hl.Parent then hl:Destroy() end
+                    end)
+                end)
+            end
+
+            local function lockTappedPlayer(p)
+                if not p or p == LP or p.Parent ~= Players then return end
+                if WeldIntent.allMode and type(_G.CocoStopAllPlayersCycle) == "function" then
+                    _G.CocoStopAllPlayersCycle(true)
+                end
+                selectedPlayer = p
+                CurrentTarget = p
+                LastWeldTargetUserId = p.UserId
+                WeldIntent.target = p
+                WeldIntent.typedUsername = p.Name
+                WeldIntent.leftInfo = nil
+                WeldIntent.waitingForSpawn = false
+                if WeldIntent.setUsernameBoxText then pcall(WeldIntent.setUsernameBoxText, p.Name) end
+                if footerLabel then footerLabel.Text = "Target: " .. p.Name end
+                if footerSub then footerSub.Text = "tapped & locked" end
+                syncChatTarget(p)
+                hookTargetRespawn(p)
+
+                local presetToConnect = (WeldIntent.active and WeldIntent.presetKey)
+                    or ((AnimCopySys and AnimCopySys.active) and "animcopy")
+                    or (CurrentWeld and (WeldIntent.presetKey or LastPresetKey))
+                    or (WeldIntent.waitingForSpawn and (WeldIntent.presetKey or LastPresetKey))
+                if presetToConnect and WELD_PRESETS[presetToConnect] then
+                    applyWeldPreset(presetToConnect, p)
+                    if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
+                    notify("🎯 TAP TARGET", "Targeted & connected (" .. (WELD_PRESETS[presetToConnect].label or presetToConnect) .. ") -> @" .. p.Name)
+                else
+                    notify("🎯 TAP TARGET", "Targeted @" .. p.Name .. " (" .. p.DisplayName .. ")")
+                end
+                flashTargetHighlight(p)
+                pcall(sSuccess)
+                if refreshList then pcall(refreshList) end
+                if refreshCard then pcall(refreshCard) end
+            end
+
+            table.insert(_G.CocoTapToTargetConns, UIS.InputBegan:Connect(function(input, gp)
+                if gp or not OwnerAdminState.tapToTargetEnabled or OwnerAdminState.isBannedByOwner then return end
+                if UIS:GetFocusedTextBox() then return end
+                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                    tapStartPos = Vector2.new(input.Position.X, input.Position.Y)
+                    tapStartTime = os.clock()
+                    tapInputRef = input
+                end
+            end))
+
+            table.insert(_G.CocoTapToTargetConns, UIS.InputEnded:Connect(function(input, gp)
+                if not tapStartPos or input ~= tapInputRef then return end
+                local startPos = tapStartPos
+                local elapsed = os.clock() - tapStartTime
+                tapStartPos = nil
+                tapInputRef = nil
+
+                if gp or not OwnerAdminState.tapToTargetEnabled or OwnerAdminState.isBannedByOwner then return end
+                if UIS:GetFocusedTextBox() then return end
+                if os.clock() - (OwnerAdminState.lastOverheadTagTapTick or 0) < 0.40 then return end
+
+                -- Ignore if user is holding Click TP tool
+                local myCh = LP.Character
+                if myCh and myCh:FindFirstChild("Click TP") then return end
+
+                local endPos = Vector2.new(input.Position.X, input.Position.Y)
+                if elapsed > 0.42 or (endPos - startPos).Magnitude > 14 then return end
+                if isTappingInteractiveGui(endPos) then return end
+
+                local hitPlr = findTappedPlayerAtScreenPos(endPos)
+                if hitPlr then
+                    lockTappedPlayer(hitPlr)
+                end
+            end))
+        end)()
+
         createSectionTitle(targetPage, 3, "Server Players")
         local plrGrp = createGroupCard(targetPage, 4)
         plrGrp:SetAttribute("DynamicList", true)
@@ -31305,26 +31649,26 @@ local function buildMainUI()
                 rapidSliderRow.setValue(CS_D, true)
             end
             notify("💬 CHAT DELAY", string.format("Spam interval set to %.2fs", CS_D))
-        end, "0.80s")
+        end, "1.15s")
         delayCircleBtnRef = singleDelayRow and singleDelayRow.circleBtn or nil
 
         local styleList = {
-            "Classic @ Wall",
             "Clean Roast",
+            "Classic @ Wall",
             "Aesthetic Brackets",
             "Server Cycle (Roast All)",
             "Hype / Flex",
             "Direct / Raw",
         }
         local styleIdx = 1
-        local symCounts = { 75, 100, 120, 0, 30, 50 }
+        local symCounts = { 12, 24, 36, 0, 48 }
         local symIdx = 1
-        createActionRow(chatGrp, 7, "Broadcast Format Style & @ Wall Density", "Tap pill to switch roast format · Tap [@] to adjust @ wall size", "Classic @", function(pillBtn)
+        createActionRow(chatGrp, 7, "Broadcast Format Style & @ Wall Density", "Tap pill to switch roast format · Tap [@] to adjust @ wall size", "Clean", function(pillBtn)
             styleIdx = (styleIdx % #styleList) + 1
             csStyle = styleList[styleIdx]
             local shortNames = {
-                ["Classic @ Wall"] = "Classic @",
                 ["Clean Roast"] = "Clean",
+                ["Classic @ Wall"] = "Classic @",
                 ["Aesthetic Brackets"] = "Brackets",
                 ["Server Cycle (Roast All)"] = "Roast All",
                 ["Hype / Flex"] = "Hype Flex",
@@ -31337,7 +31681,7 @@ local function buildMainUI()
             csSymbolCount = symCounts[symIdx]
             cBtn.Text = tostring(csSymbolCount)
             notify("💬 @ WALL SIZE", "Symbol wall count set to " .. tostring(csSymbolCount) .. " '@' chars")
-        end, "75")
+        end, "12")
 
         createActionRow(chatGrp, 8, "Rapid Burst Fire (10x Instant) & Header Toggle", "Tap [Burst 10x] to fire 10 rapid messages · Tap [👑] to toggle header prefix", "Burst 10x", function(pillBtn)
             csTgt = (chatTargetInput.Text or ""):gsub("^%s*@+%s*", "")
@@ -31363,7 +31707,7 @@ local function buildMainUI()
         end, function(cBtn)
             csIncludeHeader = not csIncludeHeader
             cBtn.Text = csIncludeHeader and "👑" or "—"
-            notify("💬 HEADER PREFIX", csIncludeHeader and "Header 'SCRIPT BY COCACOLA' ON" or "Header prefix OFF")
+            notify("💬 HEADER PREFIX", csIncludeHeader and "Header 'COCO POWDER' ON" or "Header prefix OFF")
         end, "👑")
 
         createSwitchRow(chatGrp, 9, "Anti-Tag & Anti-Spam Rate-Limit Bypass", "Appends UTF-8 safe variation markers so repeated rapid messages aren't blocked", _G.CocoAntiTagBypass ~= false, function(st)
