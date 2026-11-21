@@ -243,24 +243,12 @@ local function isR15(player)
     return hum ~= nil and hum.RigType == Enum.HumanoidRigType.R15
 end
 
-local V = { X = 0, Y = 0, Z = 1.3, RX = 0, RY = 0, RZ = 0, Speed = 1.0, AutoHeight = true, LastAutoY = 0 }
+local V = { X = 0, Y = 0, Z = 1.3, RX = 0, RY = 0, RZ = 0, Speed = 1.0, AutoHeight = true, LastAutoY = 0, SideMode = "auto", DistAdd = 0, Spin = false }
 
 local CurrentWeld         = nil
 local CurrentTarget       = nil
 local selectedPlayer      = nil
--- Assigned when the Chat tab is built; target selection only syncs this field.
-local chatTargetInput     = nil
 local PlayedAnims         = {}
-
-local function syncChatTarget(player)
-    -- Never start chat automation here; this only fills the target text field.
-    if not chatTargetInput or not chatTargetInput.Parent then return end
-    if player and player.Parent == Players then
-        chatTargetInput.Text = player.Name
-    else
-        chatTargetInput.Text = ""
-    end
-end
 
 local OriginalFPDH        = workspace.FallenPartsDestroyHeight
 if OriginalFPDH ~= OriginalFPDH or OriginalFPDH < -10000 or OriginalFPDH > 500 then
@@ -932,6 +920,8 @@ do
         pcall(resolveCatalogOrAnimUri, "138645486924614")
         pcall(resolveCatalogOrAnimUri, "81414049491981")
         pcall(resolveCatalogOrAnimUri, "136828069054505")
+        pcall(resolveCatalogOrAnimUri, "98982064034152")
+        pcall(resolveCatalogOrAnimUri, "124127012123232")
     end)
 
     local function tryPlayOnce(Animator, animId, hum, priority, verifyPlayable)
@@ -1371,9 +1361,9 @@ isRefPartValid = function(part, char)
     if not okBounds or not pos then return false end
     if char and not part:IsDescendantOf(char) then return false end
     if char and part.Name == "HumanoidRootPart" then
-        local upper = char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso")
+        local upper = char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso") or char:FindFirstChild("Head")
         local okUpper, upperPos = isPartInSafeWorldBounds(upper)
-        if okUpper and (pos - upperPos).Magnitude > 35.0 then
+        if okUpper and (pos - upperPos).Magnitude > 6.0 then
             return false
         end
     end
@@ -2013,8 +2003,9 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
             end
             adjY, adjZ = cachedRizzY, cachedRizzZ
         end
+        local spinYaw = (V.Spin and ((clock * 180) % 360) or 0)
         return CFrame.new(V.X or 0, (V.Y or 0) + adjY, ((V.Z or 1.3) - 1.3) + adjZ)
-            * CFrame.Angles(math.rad(V.RX or 0), math.rad(V.RY or 0), math.rad(V.RZ or 0))
+            * CFrame.Angles(math.rad(V.RX or 0), math.rad((V.RY or 0) + spinYaw), math.rad(V.RZ or 0))
     end
 
     local function checkAndHotSwapReanimCharacter()
@@ -2057,13 +2048,29 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
         if isLethalVoidCF(TargetPart.CFrame, tVel) then return end
 
         local customAdjust = getStaticPresetAdjust()
-        local localOffset = Offset * customAdjust
+        local sideMode = V.SideMode or "auto"
+        local distAdd  = V.DistAdd or 0
+        local effOffset = Offset
+        if sideMode == "front" then
+            local ox, oy, oz = Offset.Position.X, Offset.Position.Y, Offset.Position.Z
+            local d = math.max(0.4, math.abs(oz) + distAdd)
+            effOffset = CFrame.new(ox, oy, -d) * CFrame.Angles(0, math.rad(180), 0)
+        elseif sideMode == "back" then
+            local ox, oy, oz = Offset.Position.X, Offset.Position.Y, Offset.Position.Z
+            local d = math.max(0.4, math.abs(oz) + distAdd)
+            effOffset = CFrame.new(ox, oy, d)
+        elseif distAdd ~= 0 then
+            local oz = Offset.Position.Z
+            local signZ = (oz < 0) and -1 or 1
+            effOffset = CFrame.new(0, 0, signZ * distAdd) * Offset
+        end
+        local localOffset = effOffset * customAdjust
         if Osc and Osc.period and Osc.period > 0 then
             local phase = (math.sin(clock * (2 * math.pi) / Osc.period) + 1) * 0.5
             localOffset = localOffset * CFrame.new(0, 0, -Osc.distance * phase)
         end
         local attachCF
-        if PresetKey == "goon" then
+        if PresetKey == "goon" and sideMode == "auto" then
             -- Exact Face-to-Face Lock: stays completely upright (flat yaw) and faces target player's face eye-to-eye
             local tHead = (TargetChar and TargetChar:FindFirstChild("Head")) or TargetPart
             local flatHeadCF = getFlatYawCFrame(tHead.CFrame, tHead.Position)
@@ -2073,24 +2080,28 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
                 local dy = myHead.Position.Y - Root.Position.Y
                 if dy > 0.3 and dy < 4.5 then myHeadToRootY = dy end
             end
-            local exactPos = (flatHeadCF * CFrame.new(0, -myHeadToRootY, -1.65) * customAdjust).Position
+            local exactPos = (flatHeadCF * CFrame.new(0, -myHeadToRootY, -math.max(0.4, 1.65 + distAdd)) * customAdjust).Position
             local faceTargetPt = Vector3.new(tHead.Position.X, exactPos.Y, tHead.Position.Z)
+            local extraYaw = math.rad((V.RY or 0) + (V.Spin and ((clock * 180) % 360) or 0))
             if (faceTargetPt - exactPos).Magnitude > 0.05 then
-                attachCF = CFrame.lookAt(exactPos, faceTargetPt, Vector3.yAxis)
+                attachCF = CFrame.lookAt(exactPos, faceTargetPt, Vector3.yAxis) * CFrame.Angles(0, extraYaw, 0)
             else
-                attachCF = flatHeadCF * CFrame.new(0, -myHeadToRootY, -1.65) * CFrame.Angles(0, math.rad(180), 0) * customAdjust
+                attachCF = flatHeadCF * CFrame.new(0, -myHeadToRootY, -1.65) * CFrame.Angles(0, math.rad(180) + extraYaw, 0) * customAdjust
             end
-        elseif PresetKey == "poop" then
-            -- Directly Above & In Front of Target's Head (upright flat yaw facing the target player)
+        elseif PresetKey == "poop" and sideMode == "auto" then
+            -- Directly Above & In Front of Target's Head, facing BACKWARDS (180° away from target player)
             local tHead = (TargetChar and TargetChar:FindFirstChild("Head")) or TargetPart
             local flatHeadCF = getFlatYawCFrame(tHead.CFrame, tHead.Position)
-            local poopPos = (flatHeadCF * CFrame.new(0, 2.35, -0.85) * customAdjust).Position
+            local poopPos = (flatHeadCF * CFrame.new(0, 2.35, -math.max(0.2, 0.85 + distAdd)) * customAdjust).Position
             local lookPt = Vector3.new(tHead.Position.X, poopPos.Y, tHead.Position.Z)
+            local extraYaw = math.rad((V.RY or 0) + (V.Spin and ((clock * 180) % 360) or 0))
             if (lookPt - poopPos).Magnitude > 0.05 then
-                attachCF = CFrame.lookAt(poopPos, lookPt, Vector3.yAxis)
+                attachCF = CFrame.lookAt(poopPos, lookPt, Vector3.yAxis) * CFrame.Angles(0, math.rad(180) + extraYaw, 0)
             else
-                attachCF = flatHeadCF * CFrame.new(0, 2.35, -0.85) * CFrame.Angles(0, math.rad(180), 0) * customAdjust
+                attachCF = flatHeadCF * CFrame.new(0, 2.35, -0.85) * CFrame.Angles(0, extraYaw, 0) * customAdjust
             end
+        elseif sideMode ~= "auto" or PresetKey == "selfanim" or PresetKey == "finger" or TargetPart.Name ~= "HumanoidRootPart" then
+            attachCF = getFlatYawCFrame(TargetPart.CFrame, TargetPart.Position) * localOffset
         else
             attachCF = TargetPart.CFrame * localOffset
         end
@@ -2244,7 +2255,7 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
             return
         end
 
-        -- 3. Check if target died
+        -- 3. Check if target died (keep connected if target is using permadeath/netless reanim or a reanim clone rig!)
         if TargetHum and TargetHum.Parent and TargetHum.Health <= 0 then
             local reanimChar = TargetPlayer and findTargetReanimModel(TargetPlayer)
             if reanimChar and reanimChar ~= TargetChar then
@@ -2252,6 +2263,12 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
                 TargetHum  = reanimChar:FindFirstChildOfClass("Humanoid")
                 TargetPart = pickTargetRef(reanimChar, RefMode or "torso")
                 missingFrames = 0
+            elseif isCharacterNetlessReanimated and isCharacterNetlessReanimated(TargetChar) then
+                local liveRef = pickTargetRef(TargetChar, RefMode or "torso")
+                if liveRef and liveRef.Parent then
+                    TargetPart = liveRef
+                    missingFrames = 0
+                end
             else
                 WeldIntent.waitingForSpawn = true
                 WeldIntent.topStatusText = "target respawning · waiting"
@@ -2266,17 +2283,23 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
             end
         end
 
-        -- 4. OMNIPRESENT RE-LOCK (exact oyee hoye.lua L706–742):
-        --    If TargetPart streamed out because target teleported to a hiding spot,
-        --    entered a house/locker/vehicle, or switched character model, dynamically re-acquire or follow!
-        if not TargetPart or not TargetPart.Parent or (TargetPlayer and findPlayerCharacterAnywhere(TargetPlayer) ~= TargetChar) then
+        -- 4. OMNIPRESENT RE-LOCK (Reanim, FE Invisibility & Streaming-Aware):
+        --    Dynamically re-acquires if TargetPart streamed out, became desynced/voided (FE Invis/Reanim),
+        --    or if the target switched to a reanimation clone rig or new character model!
+        if not TargetPart or not TargetPart.Parent or (isRefPartValid and not isRefPartValid(TargetPart, TargetChar)) or (TargetPlayer and findPlayerCharacterAnywhere(TargetPlayer) ~= TargetChar) then
             if TargetPlayer then
                 local newChar = findPlayerCharacterAnywhere(TargetPlayer)
                 local newHum  = newChar and newChar:FindFirstChildOfClass("Humanoid")
-                if newHum and newHum.Health <= 0 then
-                    WeldIntent.waitingForSpawn = true
-                    Weld:Destroy(false)
-                    return
+                if newHum and newHum.Health <= 0 and not (isCharacterNetlessReanimated and isCharacterNetlessReanimated(newChar)) then
+                    local altReanim = findTargetReanimModel and findTargetReanimModel(TargetPlayer)
+                    if altReanim and altReanim.Parent then
+                        newChar = altReanim
+                        newHum = altReanim:FindFirstChildOfClass("Humanoid")
+                    else
+                        WeldIntent.waitingForSpawn = true
+                        Weld:Destroy(false)
+                        return
+                    end
                 end
                 local newPart = newChar and pickTargetRef(newChar, RefMode or "torso")
                 if newPart and newPart.Parent then
@@ -2285,7 +2308,7 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
                     TargetPart = newPart
                     missingFrames = 0
                 else
-                    -- Target is in an unstreamed hiding spot! Teleport right to their model pivot / cached location to stream them in!
+                    -- Target is in an unstreamed hiding spot or mid-reanim swap! Stream & follow their pivot/cached location!
                     missingFrames = missingFrames + 1
                     local hiddenCF = getBestTargetCFrame(TargetPlayer)
                     if hiddenCF and not isLethalVoidCF(hiddenCF) then
@@ -2297,7 +2320,8 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
                         syncAllActiveReanimRoots(destCF, Root)
                         markIntentionalTeleport(Root.CFrame)
                     end
-                    if missingFrames > 90 then
+                    if missingFrames > 240 then
+                        WeldIntent.waitingForSpawn = true
                         Weld:Destroy(false)
                     end
                     return
@@ -2310,14 +2334,28 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
             missingFrames = 0
         end
 
-        -- 5. VOID PROTECTION (exact oyee hoye.lua L746–751):
-        --    Only detach if the target is genuinely plummeting in the lethal void killzone,
-        --    NOT when they are inside underground rooms, secret bunkers, houses, or skyboxes!
+        -- 5. VOID PROTECTION (Reanim & FE-Invisibility Safe):
+        --    If TargetPart (e.g. dumped HRP) enters lethal void, first try switching to a safe live body part
+        --    or reanim clone rig before detaching!
         local tVel = TargetPart.AssemblyLinearVelocity
         if isLethalVoidCF(TargetPart.CFrame, tVel) then
-            Weld:Destroy(false)
-            notify("COCO POWDER", "Target fell into lethal Void — detached safely!")
-            return
+            local rescuePart = TargetChar and pickTargetRef(TargetChar, RefMode or "torso")
+            if (not rescuePart or rescuePart == TargetPart or isLethalVoidCF(rescuePart.CFrame, rescuePart.AssemblyLinearVelocity)) and TargetPlayer then
+                local altChar = findTargetReanimModel and findTargetReanimModel(TargetPlayer)
+                if altChar and altChar.Parent then
+                    TargetChar = altChar
+                    TargetHum = altChar:FindFirstChildOfClass("Humanoid")
+                    rescuePart = pickTargetRef(altChar, RefMode or "torso")
+                end
+            end
+            if rescuePart and rescuePart.Parent and not isLethalVoidCF(rescuePart.CFrame, rescuePart.AssemblyLinearVelocity) then
+                TargetPart = rescuePart
+                tVel = TargetPart.AssemblyLinearVelocity
+            else
+                Weld:Destroy(false)
+                notify("COCO POWDER", "Target fell into lethal Void — detached safely!")
+                return
+            end
         end
 
         -- Keep server streaming focused on the target so they can never outrun our client stream
@@ -2408,10 +2446,10 @@ WELD_PRESETS = {
                   anim15 = 136828069054505, anim6 = 136828069054505,
                   animFallbacks = GOON_FALLBACKS_R15, animFallbacks6 = GOON_FALLBACKS_R6,
                   osc = nil, refMode = "head", label = "Goon (Exact Face)" },
-    poop      = { offset = CFrame.new(0, 2.35, -0.85) * CFrame.Angles(0, math.rad(180), 0),
+    poop      = { offset = CFrame.new(0, 2.35, -0.85),
                   anim15 = POOP_ANIM_ID, anim6 = POOP_ANIM_ID,
                   animFallbacks = POOP_FALLBACKS_R15, animFallbacks6 = POOP_FALLBACKS_R6,
-                  osc = nil, refMode = "head", label = "Poop (Above Head Front)" },
+                  osc = nil, refMode = "head", label = "Poop (Backwards Above Head)" },
     headsit   = { offset = CFrame.new(0, 1.2, 0),
                   anim15 = 2506281703, anim6 = 2506281703,
                   animFallbacks = {2510238627, 507768375, 180426354},
@@ -2468,6 +2506,27 @@ WELD_PRESETS.chase = {
     refMode = "torso",
     label = "Auto-Chase (Follow)"
 }
+
+WELD_PRESETS.selfanim = {
+    offset = CFrame.new(0, 0, 2.2),
+    anim15 = 98982064034152,
+    anim6  = 98982064034152,
+    animFallbacks = { 98982064034152 },
+    animFallbacks6 = { 98982064034152 },
+    osc = nil,
+    refMode = "torso",
+    label = "Self (Backward)"
+}
+WELD_PRESETS.finger = {
+    offset = CFrame.new(0, 0, -2.35) * CFrame.Angles(0, math.rad(180), 0),
+    anim15 = 124127012123232,
+    anim6  = 124127012123232,
+    animFallbacks = { 124127012123232 },
+    animFallbacks6 = { 124127012123232 },
+    osc = nil,
+    refMode = "torso",
+    label = "Finger"
+}
 end -- end WELD_PRESETS scope
 
 -- Compute a clean, level, upright CFrame relative to a target part/character
@@ -2488,7 +2547,17 @@ findPlayerCharacterAnywhere = function(plr, skipDeepSearch)
     if not plr then return nil end
     if plr == LP then return LP.Character end
     if plr.Character and plr.Character.Parent then
-        return plr.Character
+        local c = plr.Character
+        local cHum = c:FindFirstChildOfClass("Humanoid")
+        local liveRef = pickTargetRef and pickTargetRef(c, "torso")
+        if liveRef and liveRef.Parent and (not cHum or cHum.Health > 0 or (isCharacterNetlessReanimated and isCharacterNetlessReanimated(c))) then
+            return c
+        end
+        local reanimModel = findTargetReanimModel and findTargetReanimModel(plr)
+        if reanimModel and reanimModel.Parent then
+            return reanimModel
+        end
+        return c
     end
     local reanimModel = findTargetReanimModel and findTargetReanimModel(plr)
     if reanimModel and reanimModel.Parent then
@@ -2506,34 +2575,50 @@ findPlayerCharacterAnywhere = function(plr, skipDeepSearch)
     return plr.Character
 end
 
--- Deep fallback reference part resolver (exact oyee hoye.lua L864–882: works even when HumanoidRootPart or Head is missing/renamed/seated)
+-- Deep fallback reference part resolver (Reanim, FE Invisibility, Invisible Parts & Hat-Reanim Aware)
 pickTargetRef = function(char, mode)
     if not char then return nil end
+    local function isSafePart(p)
+        return p and p:IsA("BasePart") and p.Parent and isPartInSafeWorldBounds(p)
+    end
     if mode == "head" then
         local h = char:FindFirstChild("Head") or char:FindFirstChild("head", true)
-        if h and h:IsA("BasePart") then return h end
+        if isSafePart(h) then return h end
     end
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-        or char.PrimaryPart
-        or char:FindFirstChild("UpperTorso")
-        or char:FindFirstChild("LowerTorso")
-        or char:FindFirstChild("Torso")
-        or char:FindFirstChild("Head")
-    if hrp and hrp:IsA("BasePart") then
-        -- Only bypass HumanoidRootPart if it is >35 studs desynced from Torso/UpperTorso (FE Invisibility root dump)
+    local torso = char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso") or char:FindFirstChild("LowerTorso")
+    local head  = char:FindFirstChild("Head")
+    local hrp   = char:FindFirstChild("HumanoidRootPart") or char.PrimaryPart
+    if isSafePart(hrp) then
+        -- Bypass HumanoidRootPart if FE Invisibility / Seat-Desync / Reanim detached it >6 studs from Torso or Head
         if hrp.Name == "HumanoidRootPart" then
-            local torso = char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso")
-            if torso and torso:IsA("BasePart") and (hrp.Position - torso.Position).Magnitude > 35 and not isLethalVoidCF(torso.CFrame) then
-                return torso
+            local bodyRef = (isSafePart(torso) and torso) or (isSafePart(head) and head)
+            if bodyRef and (hrp.Position - bodyRef.Position).Magnitude > 6.0 then
+                return bodyRef
             end
         end
         return hrp
     end
+    if isSafePart(torso) then return torso end
+    if isSafePart(head) then return head end
+    for _, partName in ipairs({ "UpperTorso", "Torso", "LowerTorso", "Head", "RightUpperArm", "LeftUpperArm", "Right Arm", "Left Arm" }) do
+        local p = char:FindFirstChild(partName)
+        if isSafePart(p) then return p end
+    end
     local hum = char:FindFirstChildOfClass("Humanoid")
-    if hum and hum.SeatPart and hum.SeatPart:IsA("BasePart") then
+    if hum and isSafePart(hum.SeatPart) then
         return hum.SeatPart
     end
-    return char:FindFirstChildWhichIsA("BasePart", true)
+    -- Hat / Accessory-only Reanim or Invisible-body fallback
+    for _, child in ipairs(char:GetChildren()) do
+        if child:IsA("Accessory") then
+            local h = child:FindFirstChild("Handle")
+            if isSafePart(h) then return h end
+        end
+    end
+    for _, d in ipairs(char:GetDescendants()) do
+        if isSafePart(d) then return d end
+    end
+    return hrp or torso or head or char:FindFirstChildWhichIsA("BasePart", true)
 end
 
 local function getVerifiedStreamedCFrame(plr)
@@ -3252,16 +3337,6 @@ local function resolveActiveTarget()
             return rejoined, false
         end
         return nil, false
-    end
-    -- 6. Check Chat tab target input if non-empty
-    if chatTargetInput and chatTargetInput.Parent then
-        local typed = (chatTargetInput.Text or ""):gsub("^%s*@+%s*", ""):gsub("^%s+", ""):gsub("%s+$", "")
-        if typed ~= "" then
-            local byName = findPlayerByNameOrDisplay(typed, LP)
-            if byName and byName.Parent == Players then
-                return byName, false
-            end
-        end
     end
     -- 7. Auto-Nearest Player fallback
     local nearest = getNearestPlayer(LP)
@@ -5767,7 +5842,8 @@ local function weldToTarget(target, speaker, offset, animId, osc, refMode, animF
     local fastMyHum  = fastMyChar and fastMyChar:FindFirstChildOfClass("Humanoid")
     local fastTChar  = findPlayerCharacterAnywhere(TPlayer, false)
     local fastTHum   = fastTChar and fastTChar:FindFirstChildOfClass("Humanoid")
-    local fastTRoot  = (not (fastTHum and fastTHum.Health <= 0)) and fastTChar and pickTargetRef(fastTChar, refMode or "torso") or nil
+    local fastTAliveOrReanim = (not fastTHum) or (fastTHum.Health > 0) or (isCharacterNetlessReanimated and isCharacterNetlessReanimated(fastTChar))
+    local fastTRoot  = fastTAliveOrReanim and fastTChar and pickTargetRef(fastTChar, refMode or "torso") or nil
     if fastMyChar and fastMyRoot and isLocalCharAliveOrReanimated(fastMyChar, fastMyHum) and fastTRoot and fastTRoot.Parent and not isLethalVoidCF(fastTRoot.CFrame, fastTRoot.AssemblyLinearVelocity) then
         pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
         RescueGeneration = RescueGeneration + 1
@@ -5820,7 +5896,7 @@ local function weldToTarget(target, speaker, offset, animId, osc, refMode, animF
         end
 
         local tHum = char and char:FindFirstChildOfClass("Humanoid")
-        if tHum and tHum.Health <= 0 then return end
+        if tHum and tHum.Health <= 0 and not (isCharacterNetlessReanimated and isCharacterNetlessReanimated(char)) then return end
 
         myChar = speaker and speaker.Character
         myRoot = myChar and (myChar:FindFirstChild("HumanoidRootPart") or myChar:FindFirstChildWhichIsA("BasePart"))
@@ -6043,7 +6119,6 @@ local function stepAllPlayersCycleNow(forceNext, departedName)
         CurrentTarget = nextPlr
         WeldIntent.target = nextPlr
         LastWeldTargetUserId = nextPlr.UserId
-        syncChatTarget(nextPlr)
         hookTargetRespawn(nextPlr)
 
         applyWeldPreset(activeKey, nextPlr)
@@ -7289,393 +7364,83 @@ promptNebulaFling = function()
 end
 end)() -- end VoidThrow internal scope
 
-local CS_D = 1.15
-local csRapidMode = false
-local csRapidDelay = 0.25
-local csOn, csMode, csTgt, csMsg, csCnt, csMtd, csGen = false, "roast", "", "", 0, "-", 0
-local csStyle = "Clean Roast"
-local csSymbolCount = 12
-local csIncludeHeader = true
-local csPack = "Classic Roasts"
-local csMultiQueueMode = false
-local csMultiQueueIdx = 0
-local snd2, bld
+-- Minimal chat sender helper preserved for Owner/Admin commands (Chat Spammer & Rapid Chat removed)
+local snd2
 do
-local CS_M = 190
-local CS_R = " IS A "
-local CS_CONNECTORS = {
-    " is a certified ",
-    " plays like a ",
-    " moving like a ",
-    " built like a ",
-    " acting like a ",
-    " looking like a ",
-    " got outplayed like a ",
-    " fell off like a ",
-    " running on ",
-    " level 1 ",
-}
-local CS_HDR = "COCO POWDER"
-local CS_W = {
-    "NOOB","ROOKIE","AMATEUR","TRAINEE","BEGINNER","SLOWPOKE","SLEEPY","CLUMSY","DORK","NERD","GEEK","DWEEB",
-    "SQUISHY","WOBBLY","FUZZY","SPARKLY","GIGGLY","WIGGLY","SNAIL","TURTLE","PANDA","SLOTH","MOOSE","HAMSTER",
-    "PUPPY","KITTEN","DUCKLING","PENGUIN","NARWHAL","PLATYPUS","CAPYBARA","ALPACA","RACCOON","SQUIRREL","OTTER",
-    "BEAVER","HEDGEHOG","MEERKAT","FERRET","BUNNY","CHIPMUNK","PUFFIN","TOUCAN","FLAMINGO","MANATEE","WALRUS",
-    "PELICAN","SEAGULL","PIGEON","SPARROW","ROBIN","FINCH","WREN","MAGPIE","CROW","RAVEN","STARLING","SWALLOW",
-    "MARTIN","SWIFT","DOVE","QUAIL","PHEASANT","TURKEY","DUCK","CHICKEN","ROOSTER","PARROT","MACAW","COCKATOO",
-    "BUDGIE","CANARY","BOT","NPC","CARDBOARD","POTATO","TOASTER","WIFI ROUTER","AFK STATUE","TRAINING DUMMY"
-}
-local CS_E = {"🔥","😂","💀","🗿","😭","😎","🤡","👻","👀","💯","🚨","🎯","⚡","🌊","🎪","🧠","🤖","🥶","😈","🤣","💥","✨","🙏","👑"}
-local CS_SYM = "@"
-local csCh, csLg = nil, nil
-local csCycleIdx = 0
-local lastWordIdx = 0
-local lastConnIdx = 0
-local lastBuiltMsg = ""
-local csFloodBackoffUntil = 0
+    local MAX_CHAT_BYTES = 190
+    local cachedTextChannel, cachedLegacyEvent = nil, nil
 
--- UTF-8 Safe Byte Truncator: NEVER cuts a multi-byte UTF-8 emoji or zero-width char in half!
-local function utf8SafeTruncate(s, maxBytes)
-    if type(s) ~= "string" then return "" end
-    if #s <= maxBytes then return s end
-    local cut = maxBytes
-    while cut > 0 do
-        local b = string.byte(s, cut)
-        if not b or b < 128 then
-            return s:sub(1, cut)
-        elseif b >= 192 then
-            -- Start byte of a multi-byte UTF-8 sequence; drop this incomplete char
-            return s:sub(1, cut - 1)
-        end
-        cut = cut - 1
-    end
-    return ""
-end
-
-local function gC()
-    local ok, res = pcall(function()
-        if TextChatService.ChatVersion ~= Enum.ChatVersion.TextChatService then
-            if not TextChatService:FindFirstChild("TextChannels") then return nil end
-        end
-        local inputCfg = TextChatService:FindFirstChild("ChatInputBarConfiguration")
-        if inputCfg and inputCfg.TargetTextChannel and inputCfg.TargetTextChannel:IsA("TextChannel") and inputCfg.TargetTextChannel.Name ~= "RBXSystem" then
-            return inputCfg.TargetTextChannel
-        end
-        local c = TextChatService:FindFirstChild("TextChannels")
-        if not c then return nil end
-        local gen = c:FindFirstChild("RBXGeneral") or c:FindFirstChild("General")
-        if gen and gen:IsA("TextChannel") then return gen end
-        for _, ch in ipairs(c:GetChildren()) do
-            if ch:IsA("TextChannel") and ch.Name ~= "RBXSystem" and ch.Name ~= "RBXWhisper" then
-                return ch
+    local function utf8SafeTruncate(s, maxBytes)
+        if type(s) ~= "string" then return "" end
+        if #s <= maxBytes then return s end
+        local cut = maxBytes
+        while cut > 0 do
+            local b = string.byte(s, cut)
+            if not b or b < 128 then
+                return s:sub(1, cut)
+            elseif b >= 192 then
+                return s:sub(1, cut - 1)
             end
+            cut = cut - 1
         end
-        return nil
-    end)
-    return ok and res or nil
-end
-local function gL()
-    local ok, res = pcall(function()
-        local d = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
-        if d and d:FindFirstChild("SayMessageRequest") then return d.SayMessageRequest end
-    end)
-    return ok and res or nil
-end
-_G.CocoAntiTagBypass = true
-_G.CocoCustomRoasts = _G.CocoCustomRoasts or {}
-local defaultCS_W = {}
-for _, w in ipairs(CS_W) do table.insert(defaultCS_W, w) end
-_G.AddCocoCustomRoast = function(word)
-    word = tostring(word or ""):gsub("^%s+", ""):gsub("%s+$", "")
-    if word == "" then return false end
-    table.insert(CS_W, 1, word:upper())
-    table.insert(_G.CocoCustomRoasts, word:upper())
-    return true
-end
-_G.ResetCocoCustomRoasts = function()
-    table.clear(CS_W)
-    for _, w in ipairs(defaultCS_W) do table.insert(CS_W, w) end
-    table.clear(_G.CocoCustomRoasts)
-end
+        return ""
+    end
 
-local CS_PACK_WORDS = {
-    ["Classic Roasts"] = CS_W,
-    ["Savage Troll"] = {
-        "WALKING L","ZERO AURA NPC","FREE KILL","NEGATIVE IQ BOT","SKILLS NOT FOUND","AFK SIMULATION",
-        "LAG MACHINE","WIFI FROM 2005","CARDBOARD AIM","DEFAULT SKIN ENERGY","MAIN MENU WARRIOR",
-        "TUTORIAL BOSS VICTIM","UNINSTALLED SKILL","BRAIN ON AIRPLANE MODE","CERTIFIED CLOWN",
-        "LEVEL 0 GRINDER","COOKED BEYOND REPAIR","RATIO MAGNET","SPECTATOR CHAMPION","LOOT PINATA"
-    },
-    ["Desi / Hindi Troll"] = {
-        "NOOBDA PRO MAX","BOT KA BADSHAH","CHAI PI KE AA","WIFI LAG KING","BHAI TU REHNE DE",
-        "ZERO SKILL CHACHA","FREE FIRE BOT","AFK RAJA","ROBLOX KA PAPPU","TOASTER PC GAMER",
-        "PING 9999 LEGEND","FULL TIME PASS NPC","CHOTU GAMER","GALI KA NOOB","BINA MOUSE PLAYER"
-    },
-    ["Hype & Flex"] = {
-        "COCO POWDER ON TOP","UNSTOPPABLE LEGEND","INFINITE AURA","SERVER KING","10000 AURA",
-        "BUILT DIFFERENT","MAIN CHARACTER","FINAL BOSS","GOAT STATUS","UNTOUCHABLE","CROWN HOLDER"
-    },
-    ["Meme & Brainrot"] = {
-        "SKIBIDI NPC","OHIO FINAL BOSS","NEGATIVE SIGMA","COOKED CHAT","FANUM TAXED","1000 PING SIGMA",
-        "RIZZLESS WONDER","SUS BAKA BOT","GYATT LESS NPC","MEWING FAILED","DELULU CHAMPION"
-    },
-    ["Poop Troll"] = {
-        "STINKY NOOB","FLUSHED IN 4K","TOILET WARRIOR","POOP MAGNET","SMELLY BOT","SEWER KING",
-        "MEGA POOP TARGET","SKIDMARK LEGEND","PLUNGER NEEDED","CERTIFIED STINKER"
-    },
-}
-local antiTagTokens = { "", " .", " !", " ~", " -", " ..", " !!", " *", " :", " ;", " /", " +" }
-local antiTagSeq = 0
-local function sanitizeFilterSafeText(s)
-    -- Collapse long consecutive symbol runs (e.g. @@@@@@ -> @@ @@ @@) and extra spaces that trigger immediate TextChatService tagging
-    s = tostring(s or ""):gsub("[\r\n]+", " "):gsub("%s+", " "):gsub("^%s+", ""):gsub("%s+$", "")
-    s = s:gsub("([@!%?%#%*%$%%&%-_=+~%.])%1%1%1+", function(ch)
-        return ch .. ch .. " " .. ch .. ch
-    end)
-    return s
-end
-snd2 = function(tx)
-    if type(tx) ~= "string" then return false end
-    local isAdminCmd = tx:match("^%s*!") ~= nil
-    if isAdminCmd then
+    local function getTextChannel()
+        local ok, res = pcall(function()
+            if TextChatService.ChatVersion ~= Enum.ChatVersion.TextChatService then
+                if not TextChatService:FindFirstChild("TextChannels") then return nil end
+            end
+            local inputCfg = TextChatService:FindFirstChild("ChatInputBarConfiguration")
+            if inputCfg and inputCfg.TargetTextChannel and inputCfg.TargetTextChannel:IsA("TextChannel") and inputCfg.TargetTextChannel.Name ~= "RBXSystem" then
+                return inputCfg.TargetTextChannel
+            end
+            local c = TextChatService:FindFirstChild("TextChannels")
+            if not c then return nil end
+            local gen = c:FindFirstChild("RBXGeneral") or c:FindFirstChild("General")
+            if gen and gen:IsA("TextChannel") then return gen end
+            for _, ch in ipairs(c:GetChildren()) do
+                if ch:IsA("TextChannel") and ch.Name ~= "RBXSystem" and ch.Name ~= "RBXWhisper" then
+                    return ch
+                end
+            end
+            return nil
+        end)
+        return ok and res or nil
+    end
+
+    local function getLegacySayEvent()
+        local ok, res = pcall(function()
+            local d = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
+            if d and d:FindFirstChild("SayMessageRequest") then return d.SayMessageRequest end
+        end)
+        return ok and res or nil
+    end
+
+    snd2 = function(tx)
+        if type(tx) ~= "string" then return false end
         tx = tx:gsub("[\r\n]+", " "):gsub("^%s+", ""):gsub("%s+$", "")
-    else
-        tx = sanitizeFilterSafeText(tx)
-    end
-    if tx == "" then return false end
-    if not isAdminCmd and os.clock() < csFloodBackoffUntil then
-        task.wait(math.min(1.2, csFloodBackoffUntil - os.clock()))
-    end
-    if _G.CocoAntiTagBypass and not isAdminCmd then
-        antiTagSeq = (antiTagSeq % #antiTagTokens) + 1
-        local suffix = antiTagTokens[antiTagSeq]
-        tx = utf8SafeTruncate(tx, CS_M - #suffix) .. suffix
-    else
-        tx = utf8SafeTruncate(tx, CS_M)
-    end
-    -- Zero-Delay Non-Blocking Rapid Dispatch when csRapidMode is ON so SendAsync yields never throttle rapid spam!
-    if csRapidMode and not tx:match("^!") then
-        local dispatched = false
+        if tx == "" then return false end
+        tx = utf8SafeTruncate(tx, MAX_CHAT_BYTES)
         if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService or TextChatService:FindFirstChild("TextChannels") then
-            if not csCh or not csCh.Parent or csCh.Name == "RBXSystem" then csCh = gC() end
-            if csCh then
-                local chRef = csCh
-                task.spawn(function()
-                    pcall(function() chRef:SendAsync(tx) end)
-                end)
-                csMtd = "RapidTextChat"
-                dispatched = true
+            if not cachedTextChannel or not cachedTextChannel.Parent or cachedTextChannel.Name == "RBXSystem" then
+                cachedTextChannel = getTextChannel()
+            end
+            if cachedTextChannel then
+                local ok = pcall(function() return cachedTextChannel:SendAsync(tx) end)
+                if ok then return true else cachedTextChannel = nil end
             end
         end
-        if not csLg or not csLg.Parent then csLg = gL() end
-        if csLg then
-            local lgRef = csLg
-            pcall(function() lgRef:FireServer(tx, "All") end)
-            if not dispatched then csMtd = "RapidLegacy"; dispatched = true end
+        if not cachedLegacyEvent or not cachedLegacyEvent.Parent then
+            cachedLegacyEvent = getLegacySayEvent()
         end
-        if not dispatched then
-            local okChat = pcall(function() Players:Chat(tx) end)
-            if okChat then csMtd = "RapidChat"; dispatched = true end
+        if cachedLegacyEvent then
+            local ok = pcall(function() cachedLegacyEvent:FireServer(tx, "All") end)
+            if ok then return true end
         end
-        return dispatched
+        return pcall(function() Players:Chat(tx) end)
     end
-    if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService or TextChatService:FindFirstChild("TextChannels") then
-        if not csCh or not csCh.Parent or csCh.Name == "RBXSystem" then csCh = gC() end
-        if csCh then
-            local ok, msgRes = pcall(function() return csCh:SendAsync(tx) end)
-            if ok then
-                local blocked = false
-                if typeof(msgRes) == "Instance" and msgRes:IsA("TextChatMessage") then
-                    if msgRes.Status == Enum.TextChatMessageStatus.Floodchecked then
-                        csFloodBackoffUntil = os.clock() + 1.35
-                        blocked = true
-                    elseif msgRes.Status == Enum.TextChatMessageStatus.InvalidPrivacySettings
-                        or msgRes.Status == Enum.TextChatMessageStatus.InvalidTextChannelParameters then
-                        blocked = true
-                    end
-                end
-                if not blocked then
-                    csMtd = "TextChat"
-                    return true
-                end
-            else
-                csCh = nil
-            end
-        end
-    end
-    if not csLg or not csLg.Parent then csLg = gL() end
-    if csLg then
-        local ok = pcall(function() csLg:FireServer(tx, "All") end)
-        if ok then csMtd = "Legacy"; return true end
-    end
-    local okChat = pcall(function() Players:Chat(tx) end)
-    if okChat then csMtd = "PlayersChat"; return true end
-    return false
-end
-
-local function pickEmojis()
-    if math.random() > 0.82 then return "" end
-    local count = math.random(1, 2)
-    local out = " "
-    for _ = 1, count do
-        out = out .. CS_E[math.random(1, #CS_E)]
-    end
-    return out
-end
-
-local function pickNextRoastWord()
-    local pool = CS_PACK_WORDS[csPack] or CS_W
-    if #pool == 0 then pool = CS_W end
-    if #pool == 0 then return "NOOB" end
-    if #pool == 1 then return pool[1] end
-    local idx = math.random(1, #pool)
-    if idx == lastWordIdx then
-        idx = (idx % #pool) + 1
-    end
-    lastWordIdx = idx
-    return pool[idx]
-end
-
-local function resolveTargetDisplay()
-    -- Server Cycle Mode: automatically roasts every non-owner player in the server one by one!
-    if csStyle == "Server Cycle (Roast All)" then
-        local pool = {}
-        for _, p in ipairs(Players:GetPlayers()) do
-            if p ~= LP and not isProtectedFromLocalPlayer(p) then
-                table.insert(pool, p)
-            end
-        end
-        if #pool > 0 then
-            csCycleIdx = (csCycleIdx % #pool) + 1
-            local picked = pool[csCycleIdx]
-            return (picked.DisplayName ~= "" and picked.DisplayName) or picked.Name
-        end
-    end
-    if csTgt and csTgt ~= "" then
-        local cleaned = tostring(csTgt):gsub("^%s*@+%s*", ""):gsub("^%s+", ""):gsub("%s+$", "")
-        local matched = findPlayerByNameOrDisplay(cleaned, LP)
-        if matched then
-            return (matched.DisplayName ~= "" and matched.DisplayName) or matched.Name
-        end
-    end
-    local targetPlr = resolveActiveTarget()
-    if targetPlr then
-        local ok, dn = pcall(function() return targetPlr.DisplayName end)
-        if ok and dn and dn ~= "" then return dn end
-        local ok2, nm = pcall(function() return targetPlr.Name end)
-        if ok2 and nm and nm ~= "" then return nm end
-    end
-    if csTgt and csTgt ~= "" then return (tostring(csTgt):gsub("^%s*@+%s*", "")) end
-    return nil
-end
-
-local function pickNextConnector()
-    if #CS_CONNECTORS == 0 then return CS_R end
-    local idx = math.random(1, #CS_CONNECTORS)
-    if idx == lastConnIdx then
-        idx = (idx % #CS_CONNECTORS) + 1
-    end
-    lastConnIdx = idx
-    return CS_CONNECTORS[idx]
-end
-
-local function genSymbols(maxAllowed)
-    local count = math.clamp(tonumber(csSymbolCount) or 12, 0, maxAllowed or 48)
-    if count <= 0 then return "" end
-    -- Space symbols into short 2-char clusters so Roblox TextChatService does not tag consecutive '@' walls
-    local out = {}
-    local left = count
-    while left > 0 do
-        local chunk = math.min(2, left)
-        table.insert(out, string.rep(CS_SYM, chunk))
-        left = left - chunk
-    end
-    return table.concat(out, " ")
-end
-
-bld = function()
-    local hdrPrefix = csIncludeHeader and (CS_HDR .. " | ") or ""
-    local emojis = pickEmojis()
-    if csMode == "message" or csMultiQueueMode then
-        local rawMsg = tostring(csMsg or ""):gsub("^%s+", ""):gsub("%s+$", "")
-        local cleanMsg = rawMsg
-        if csMultiQueueMode and rawMsg ~= "" then
-            local queue = {}
-            for seg in rawMsg:gmatch("[^|;]+") do
-                local trimmed = seg:gsub("^%s+", ""):gsub("%s+$", "")
-                if trimmed ~= "" then table.insert(queue, trimmed) end
-            end
-            if #queue > 0 then
-                csMultiQueueIdx = (csMultiQueueIdx % #queue) + 1
-                cleanMsg = queue[csMultiQueueIdx]
-            end
-        end
-        if cleanMsg == "" then cleanMsg = "Coco Powder on top" end
-        local built
-        if csStyle == "Direct / Raw" then
-            built = utf8SafeTruncate(cleanMsg .. emojis, CS_M - 12)
-        elseif csStyle == "Caps Shout" then
-            built = utf8SafeTruncate(hdrPrefix .. cleanMsg:upper() .. "!!!" .. emojis, CS_M - 12)
-        elseif csStyle == "Wave / Glitch" then
-            built = utf8SafeTruncate("»» " .. cleanMsg .. " ««" .. emojis, CS_M - 12)
-        elseif csStyle == "Poop Troll" then
-            built = utf8SafeTruncate("💩 " .. cleanMsg .. " 💩" .. emojis, CS_M - 12)
-        elseif csStyle == "Aesthetic Brackets" then
-            built = utf8SafeTruncate("[Coco Powder] " .. cleanMsg .. emojis, CS_M - 12)
-        elseif csStyle == "Clean Roast" or csSymbolCount <= 0 then
-            built = utf8SafeTruncate(hdrPrefix .. cleanMsg .. emojis, CS_M - 12)
-        else
-            local body = hdrPrefix .. cleanMsg .. " "
-            local remSym = math.max(0, (CS_M - 14) - #body - #emojis)
-            local syms = genSymbols(math.min(csSymbolCount, remSym))
-            built = utf8SafeTruncate(body .. syms .. emojis, CS_M - 12)
-        end
-        lastBuiltMsg = built
-        return built
-    end
-
-    local raw = resolveTargetDisplay()
-    if not raw or raw == "" then raw = csTgt end
-    if not raw or raw == "" then raw = "everyone" end
-    raw = tostring(raw):gsub("^%s*@+%s*", ""):gsub("^%s+", ""):gsub("%s+$", "")
-    local roastWord = pickNextRoastWord():lower()
-    local connector = pickNextConnector()
-    local tail = raw .. connector .. roastWord
-
-    local built
-    if csStyle == "Clean Roast" then
-        built = utf8SafeTruncate(hdrPrefix .. tail .. emojis, CS_M - 12)
-    elseif csStyle == "Aesthetic Brackets" then
-        built = utf8SafeTruncate("[Coco Powder] " .. tail .. emojis, CS_M - 12)
-    elseif csStyle == "Hype / Flex" then
-        built = utf8SafeTruncate("Coco Powder on top | " .. tail .. emojis, CS_M - 12)
-    elseif csStyle == "Caps Shout" then
-        built = utf8SafeTruncate(hdrPrefix .. tail:upper() .. "!!!" .. emojis, CS_M - 12)
-    elseif csStyle == "Wave / Glitch" then
-        built = utf8SafeTruncate("»» " .. tail .. " ««" .. emojis, CS_M - 12)
-    elseif csStyle == "Poop Troll" then
-        built = utf8SafeTruncate("💩 " .. tail .. " 💩" .. emojis, CS_M - 12)
-    elseif csStyle == "Direct / Raw" then
-        built = utf8SafeTruncate(tail .. emojis, CS_M - 12)
-    else
-        -- "Classic @ Wall" or "Server Cycle (Roast All)"
-        local reserved = #hdrPrefix + 1 + #tail + #emojis + 14
-        local maxSyms = math.max(0, CS_M - reserved)
-        local syms = genSymbols(math.min(csSymbolCount, maxSyms))
-        if syms ~= "" then
-            built = utf8SafeTruncate(hdrPrefix .. syms .. " " .. tail .. emojis, CS_M - 12)
-        else
-            built = utf8SafeTruncate(hdrPrefix .. tail .. emojis, CS_M - 12)
-        end
-    end
-    if built == lastBuiltMsg then
-        built = utf8SafeTruncate(built .. " " .. pickNextRoastWord():lower(), CS_M - 12)
-    end
-    lastBuiltMsg = built
-    return built
-end
-
-end -- end Chat Spammer internal scope
+end -- end minimal Admin chat helper
 
 -- Shared movement state (hoisted to top-level so Anti-Ragdoll, Anti-Bring, Anti-Anchor, and Move Tab cooperate seamlessly)
 moveState = {
@@ -13701,13 +13466,13 @@ end
 
 
 -- ═══════════════════════════════════════════════════════════════════════════════
--- 🦴 COCA REANIM MODULE (Embedded Keyframe Player, Custom Scripts, States & Limbs)
+-- 🦴 COCO REANIM MODULE (Embedded Keyframe Player, Custom Scripts, States & Limbs)
 -- ═══════════════════════════════════════════════════════════════════════════════
 local buildCocaReanimTab
 ;(function()
 --[[
 ================================================================================
-  CHUNK 5: COCA REANIM HUB, CUSTOM KEYFRAME PLAYER, STATE ANIMATIONS,
+  CHUNK 5: COCO REANIM HUB, CUSTOM KEYFRAME PLAYER, STATE ANIMATIONS,
            BANG REANIM LOCK, SPEED CONTROLLER, LIMB HIDER & KEYBINDS
   Deobfuscated & Reconstructed from Tesla Deo (root.73.124 .. root.75)
   100% Validated Executable Roblox Luau Script (Standalone + Hub-Embeddable)
@@ -13741,28 +13506,13 @@ local function safeResetVelocityHooks()
     end
 end
 
-local BangCharPartsCache = setmetatable({}, { __mode = "k" })
 local function safeSyncPhysicsStep(myRoot, targetRoot)
     if type(_G.syncBangPhysics) == "function" then
         pcall(_G.syncBangPhysics, myRoot, targetRoot)
     elseif myRoot and myRoot.Parent then
-        local charModel = myRoot.Parent
-        local entry = BangCharPartsCache[charModel]
-        local now = os.clock()
-        if not entry or (now - entry.t) > 1.0 then
-            local parts = {}
-            for _, part in ipairs(charModel:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    parts[#parts + 1] = part
-                end
-            end
-            entry = { t = now, parts = parts }
-            BangCharPartsCache[charModel] = entry
-        end
-        for i = 1, #entry.parts do
-            local p = entry.parts[i]
-            if p and p.Parent then
-                p.CanCollide = false
+        for _, part in ipairs(myRoot.Parent:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
             end
         end
     end
@@ -13775,7 +13525,7 @@ end
 local buildAngoorReanimTab
 buildAngoorReanimTab = function(hostContainer)
     _G.buildCocaReanimTab = buildAngoorReanimTab
-_G.buildAngoorReanimTab = buildAngoorReanimTab
+    _G.buildAngoorReanimTab = buildAngoorReanimTab
 
     -- If executed standalone without a parent container, create a draggable ScreenGui host window
     local createdStandaloneGui = false
@@ -13787,19 +13537,19 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
         end
         if not guiParent then return end
 
-        local existingGui = guiParent:FindFirstChild("CocaReanimStandalone")
+        local existingGui = guiParent:FindFirstChild("CocoReanimStandalone")
         if existingGui then
             existingGui:Destroy()
         end
 
         local screenGui = Instance.new("ScreenGui")
-        screenGui.Name = "CocaReanimStandalone"
+        screenGui.Name = "CocoReanimStandalone"
         screenGui.ResetOnSpawn = false
         screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
         screenGui.Parent = guiParent
 
         local standaloneHost = Instance.new("Frame")
-        standaloneHost.Name = "CocaStandaloneHost"
+        standaloneHost.Name = "CocoStandaloneHost"
         standaloneHost.Size = UDim2.new(0, 380, 0, 460)
         standaloneHost.Position = UDim2.new(0.5, -190, 0.5, -230)
         standaloneHost.BackgroundTransparency = 1
@@ -13861,2044 +13611,114 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
         return tw
     end
 
-    -- Helper root.73.124.3: Built-in Native Reanimation & Keyframe/Track/Procedural Engine + External Module Loader
+    -- Helper root.73.124.3: Load Reanimation Module (Local cache -> Backup GitHub -> Primary GitHub -> Safe Fallback)
     local function loadReanimModule()
-        local function createNativeReanimEngine()
-            local nativeState = {
-                reanimated = false,
-                is_processing = false,
-                real_char = nil,
-                clone_char = nil,
-                connections = {},
-                animConn = nil,
-                activeTrack = nil,
-                activeAnimObj = nil,
-                currentSpeed = 1.0,
-                flingEnabled = false,
-                flingAngle = 0,
-                playListeners = {},
-                stopListeners = {},
-                animCache = {},
-                defaultC0 = {},
-            }
-
-            local R6_R15_LIMBS = {
-                "Head", "UpperTorso", "LowerTorso",
-                "LeftUpperArm", "LeftLowerArm", "LeftHand",
-                "RightUpperArm", "RightLowerArm", "RightHand",
-                "LeftUpperLeg", "LeftLowerLeg", "LeftFoot",
-                "RightUpperLeg", "RightLowerLeg", "RightFoot",
-                "Torso", "Left Arm", "Right Arm", "Left Leg", "Right Leg",
-                "HumanoidRootPart",
-            }
-
-            local function cloneRigForNativeReanim(realChar)
-                local archMap = { [realChar] = realChar.Archivable }
-                realChar.Archivable = true
-                for _, desc in ipairs(realChar:GetDescendants()) do
-                    archMap[desc] = desc.Archivable
-                    desc.Archivable = true
-                end
-                local clone = realChar:Clone()
-                for inst, wasArch in pairs(archMap) do
-                    if inst and inst.Parent then inst.Archivable = wasArch end
-                end
-                for _, desc in ipairs(clone:GetDescendants()) do
-                    if desc:IsA("BillboardGui") or desc:IsA("SurfaceGui") or desc:IsA("Highlight") or desc:IsA("ForceField") then
-                        pcall(function() desc:Destroy() end)
-                    end
-                end
-                for _, desc in ipairs(realChar:GetDescendants()) do
-                    if desc:IsA("Motor6D") and desc.Part0 and desc.Part1 then
-                        local p1 = clone:FindFirstChild(desc.Part1.Name, true)
-                        if p1 and not p1:FindFirstChild(desc.Name) then
-                            local p0 = clone:FindFirstChild(desc.Part0.Name, true)
-                            if p0 then
-                                local m6d = Instance.new("Motor6D")
-                                m6d.Name = desc.Name
-                                m6d.Part0 = p0
-                                m6d.Part1 = p1
-                                m6d.C0 = desc.C0
-                                m6d.C1 = desc.C1
-                                m6d.Parent = p1
-                            end
-                        end
-                    end
-                end
-                clone.Name = "CocaReanimation"
-                clone.Parent = workspace
-                local cloneHum = clone:FindFirstChildOfClass("Humanoid")
-                if cloneHum then
-                    cloneHum.RequiresNeck = false
-                    cloneHum.BreakJointsOnDeath = false
-                    cloneHum.AutoRotate = true
-                end
-                return clone
-            end
-
-            local function restoreDefaultCloneJoints(cloneChar)
-                if not cloneChar then return end
-                for motor, origC0 in pairs(nativeState.defaultC0) do
-                    if motor and motor.Parent then
-                        pcall(function()
-                            motor.C0 = origC0
-                            motor.Transform = CFrame.identity
-                        end)
-                    end
-                end
-                local cloneAnim = cloneChar:FindFirstChild("Animate")
-                if cloneAnim then pcall(function() cloneAnim.Disabled = false end) end
-            end
-
-            local function stopNativeAnimationInternal(silent)
-                if nativeState.animConn then
-                    pcall(function() nativeState.animConn:Disconnect() end)
-                    nativeState.animConn = nil
-                end
-                if nativeState.activeTrack then
-                    pcall(function()
-                        nativeState.activeTrack:Stop(0.1)
-                        nativeState.activeTrack:Destroy()
-                    end)
-                    nativeState.activeTrack = nil
-                end
-                if nativeState.activeAnimObj then
-                    pcall(function() nativeState.activeAnimObj:Destroy() end)
-                    nativeState.activeAnimObj = nil
-                end
-                restoreDefaultCloneJoints(nativeState.clone_char or (LocalPlayer and LocalPlayer.Character))
-                if not silent then
-                    for _, cb in ipairs(nativeState.stopListeners) do
-                        pcall(cb)
-                    end
-                end
-                return true
-            end
-
-            local JOINT_ALIAS_TABLE = {
-                ["Left Arm"]      = { "LeftArm", "LeftUpperArm", "Left Lower Arm", "Left Hand" },
-                ["Right Arm"]     = { "RightArm", "RightUpperArm", "Right Lower Arm", "Right Hand" },
-                ["Left Leg"]      = { "LeftLeg", "LeftUpperLeg", "Left Lower Leg", "Left Foot" },
-                ["Right Leg"]     = { "RightLeg", "RightUpperLeg", "Right Lower Leg", "Right Foot" },
-                Torso             = { "UpperTorso", "LowerTorso", "HumanoidRootPart", "RootJoint" },
-                LeftUpperArm      = { "Left Arm", "LeftArm" },
-                RightUpperArm     = { "Right Arm", "RightArm" },
-                LeftUpperLeg      = { "Left Leg", "LeftLeg" },
-                RightUpperLeg     = { "Right Leg", "RightLeg" },
-                UpperTorso        = { "Torso" },
-                Head              = { "Head" },
-            }
-
-            local function detectPlaceRagdollRemote(enableFlag)
-                local pid = game.PlaceId
-                local rep = game:GetService("ReplicatedStorage")
-                if pid == 15546218972 or pid == 6884319169 then
-                    local ev = rep:FindFirstChild("event_rag")
-                    if ev then return ev, { "Ball" }, false end
-                elseif pid == 5991163185 then
-                    local rem = rep:FindFirstChild("Remotes")
-                    local phys = rem and rem:FindFirstChild("Physics")
-                    local rag = phys and phys:FindFirstChild("Ragdoll")
-                    if rag then return rag, {}, false end
-                elseif pid == 5683833663 then
-                    local ev = rep:FindFirstChild("LocalRagdollEvent")
-                    if ev then return ev, { enableFlag }, true end
-                end
-                return nil, nil, false
-            end
-
-            local function fireRagdollRemote(remoteInst, isLocalBindable, argsTbl)
-                if typeof(remoteInst) ~= "Instance" then return end
-                pcall(function()
-                    if isLocalBindable and remoteInst:IsA("BindableEvent") then
-                        remoteInst:Fire(unpack(argsTbl or {}))
-                    elseif remoteInst:IsA("RemoteEvent") then
-                        remoteInst:FireServer(unpack(argsTbl or {}))
-                    elseif remoteInst:IsA("RemoteFunction") then
-                        remoteInst:InvokeServer(unpack(argsTbl or {}))
-                    end
-                end)
-            end
-
-            local function findCloneMotorsMap(cloneChar)
-                local byPart1 = {}
-                local byName = {}
-                if not cloneChar then return byPart1, byName end
-                local function regJoint(mapTbl, key, joint)
-                    if not key then return end
-                    if not mapTbl[key] then mapTbl[key] = joint end
-                    local noSpace = key:gsub("%s+", "")
-                    if not mapTbl[noSpace] then mapTbl[noSpace] = joint end
-                end
-                for _, d in ipairs(cloneChar:GetDescendants()) do
-                    if d:IsA("JointInstance") then
-                        if d:IsA("Motor6D") or d:IsA("Motor") or d:IsA("Weld") then
-                            if not nativeState.defaultC0[d] then
-                                nativeState.defaultC0[d] = d.C0
-                            end
-                        end
-                        regJoint(byName, d.Name, d)
-                        if d.Part1 then
-                            regJoint(byPart1, d.Part1.Name, d)
-                        end
-                    elseif d:IsA("Bone") or d:IsA("AnimationConstraint") then
-                        if not nativeState.defaultC0[d] then
-                            nativeState.defaultC0[d] = d.Transform
-                        end
-                        regJoint(byName, d.Name, d)
-                        if d:IsA("AnimationConstraint") and d.Part1 then
-                            regJoint(byPart1, d.Part1.Name, d)
-                        else
-                            regJoint(byPart1, d.Name, d)
-                        end
-                    end
-                end
-                for srcKey, aliasList in pairs(JOINT_ALIAS_TABLE) do
-                    local j = byPart1[srcKey] or byName[srcKey]
-                    if j then
-                        for _, alias in ipairs(aliasList) do
-                            regJoint(byPart1, alias, j)
-                            regJoint(byName, alias, j)
-                        end
-                    end
-                end
-                return byPart1, byName
-            end
-
-            local function playKeyframeTableOnClone(kfTable, cloneChar)
-                if type(kfTable) ~= "table" then return false end
-                local frames = {}
-                -- Unwrap MortalHub dictionary-wrapped keyframe tables: { ["AnimName"] = { {Time = ..., Data = ...}, ... } }
-                local sourceTbl = kfTable
-                if type(sourceTbl.Keyframes) ~= "table" then
-                    local firstKey, firstVal = next(sourceTbl)
-                    if type(firstKey) == "string" and type(firstVal) == "table" and next(sourceTbl, firstKey) == nil then
-                        sourceTbl = firstVal
-                    end
-                end
-
-                if type(sourceTbl.Keyframes) == "table" then
-                    for t, poses in pairs(sourceTbl.Keyframes) do
-                        if type(t) == "number" and type(poses) == "table" then
-                            table.insert(frames, { time = t, poses = poses })
-                        elseif type(poses) == "table" and type(poses.Time or poses.time) == "number" and type(poses.Data or poses.Poses or poses.poses) == "table" then
-                            table.insert(frames, { time = poses.Time or poses.time, poses = poses.Data or poses.Poses or poses.poses })
-                        end
-                    end
-                else
-                    for k, v in pairs(sourceTbl) do
-                        if type(k) == "number" and type(v) == "table" then
-                            if type(v.Time or v.time) == "number" and type(v.Data or v.Poses or v.poses) == "table" then
-                                table.insert(frames, { time = v.Time or v.time, poses = v.Data or v.Poses or v.poses })
-                            elseif not v.time and not v.Time then
-                                table.insert(frames, { time = k, poses = v })
-                            end
-                        elseif type(v) == "table" and type(v.Time or v.time) == "number" and type(v.Data or v.Poses or v.poses) == "table" then
-                            table.insert(frames, { time = v.Time or v.time, poses = v.Data or v.Poses or v.poses })
-                        end
-                    end
-                end
-                if #frames == 0 then return false end
-                table.sort(frames, function(a, b) return a.time < b.time end)
-                local totalDuration = math.max(frames[#frames].time, 0.05)
-                local byPart1, byName = findCloneMotorsMap(cloneChar)
-
-                local cloneAnim = cloneChar:FindFirstChild("Animate")
-                if cloneAnim then pcall(function() cloneAnim.Disabled = true end) end
-                local cloneHum = cloneChar:FindFirstChildOfClass("Humanoid")
-                if cloneHum then
-                    for _, tr in ipairs(cloneHum:GetPlayingAnimationTracks()) do
-                        pcall(function() tr:Stop(0) end)
-                    end
-                end
-
-                local elapsed = 0
-                local cachedIdx = 1
-                local numFrames = #frames
-                nativeState.animConn = RunService.Heartbeat:Connect(function(dt)
-                    if not cloneChar or not cloneChar.Parent then
-                        stopNativeAnimationInternal(false)
-                        return
-                    end
-                    elapsed = (elapsed + dt * (nativeState.currentSpeed or 1.0)) % totalDuration
-                    if cachedIdx > numFrames or cachedIdx < 1 then cachedIdx = 1 end
-
-                    local f0, f1
-                    if frames[cachedIdx].time <= elapsed and (cachedIdx == numFrames or elapsed < frames[cachedIdx + 1].time) then
-                        f0 = frames[cachedIdx]
-                        f1 = frames[(cachedIdx == numFrames) and 1 or (cachedIdx + 1)]
-                    elseif cachedIdx < numFrames and frames[cachedIdx + 1].time <= elapsed and (cachedIdx + 1 == numFrames or elapsed < frames[cachedIdx + 2].time) then
-                        cachedIdx = cachedIdx + 1
-                        f0 = frames[cachedIdx]
-                        f1 = frames[(cachedIdx == numFrames) and 1 or (cachedIdx + 1)]
-                    else
-                        -- Binary search O(log N) keyframe lookup (from MortalHub Chunk 3)
-                        local low, high, best = 1, numFrames, 1
-                        while low <= high do
-                            local mid = math.floor((low + high) * 0.5)
-                            if frames[mid].time <= elapsed then
-                                best = mid
-                                low = mid + 1
-                            else
-                                high = mid - 1
-                            end
-                        end
-                        cachedIdx = best
-                        f0 = frames[cachedIdx]
-                        f1 = frames[(cachedIdx == numFrames) and 1 or (cachedIdx + 1)]
-                    end
-
-                    local span = f1.time - f0.time
-                    if span <= 0 then span = totalDuration end
-                    local alpha = (span > 0) and math.clamp((elapsed - f0.time) / span, 0, 1) or 0
-
-                    for partName, cf0 in pairs(f0.poses) do
-                        local cleanName = partName:gsub("%s+", "")
-                        local motor = byPart1[partName] or byPart1[cleanName] or byName[partName] or byName[cleanName]
-                        if motor and motor.Parent and typeof(cf0) == "CFrame" then
-                            local cf1 = (f1.poses and (f1.poses[partName] or f1.poses[cleanName])) or cf0
-                            local targetCF = (typeof(cf1) == "CFrame") and cf0:Lerp(cf1, alpha) or cf0
-                            local baseC0 = nativeState.defaultC0[motor]
-                            if baseC0 and (motor:IsA("Motor6D") or motor:IsA("Motor") or motor:IsA("Weld")) then
-                                motor.C0 = baseC0 * targetCF
-                            else
-                                pcall(function() motor.Transform = targetCF end)
-                            end
-                        end
-                    end
-                    if nativeState.syncFn then
-                        pcall(nativeState.syncFn, false)
-                    end
-                end)
-                return true
-            end
-
-            local function playProceduralPresetOnClone(presetName, cloneChar)
-                local byPart1, byName = findCloneMotorsMap(cloneChar)
-                local cloneAnim = cloneChar:FindFirstChild("Animate")
-                if cloneAnim then pcall(function() cloneAnim.Disabled = true end) end
-                local cloneHum = cloneChar:FindFirstChildOfClass("Humanoid")
-                if cloneHum then
-                    for _, tr in ipairs(cloneHum:GetPlayingAnimationTracks()) do
-                        pcall(function() tr:Stop(0) end)
-                    end
-                end
-
-                local lower = tostring(presetName or ""):lower()
-                local t = 0
-                local smoothedOffsets = {}
-                nativeState.animConn = RunService.RenderStepped:Connect(function(dt)
-                    if not cloneChar or not cloneChar.Parent then
-                        stopNativeAnimationInternal(false)
-                        return
-                    end
-                    local spd = nativeState.currentSpeed or 1.0
-                    t = t + dt * spd * 6.0
-                    local blendAlpha = math.clamp(dt * 24 * math.max(spd, 0.5), 0.25, 1.0)
-                    local function setPose(pName, cf)
-                        local m = byPart1[pName] or byName[pName]
-                        if m and m.Parent then
-                            local baseC0 = nativeState.defaultC0[m] or m.C0
-                            local prev = smoothedOffsets[m]
-                            local nextCF = prev and prev:Lerp(cf, blendAlpha) or cf
-                            smoothedOffsets[m] = nextCF
-                            m.C0 = baseC0 * nextCF
-                        end
-                    end
-
-                    if lower:find("overdrive") or (lower:find("turbo") and lower:find("thrust")) then
-                        local thrust = math.sin(t * 4.2) * 0.85
-                        local pitch = math.sin(t * 4.2) * math.rad(32)
-                        setPose("UpperTorso", CFrame.new(0, 0, thrust * 0.45) * CFrame.Angles(pitch, 0, 0))
-                        setPose("LowerTorso", CFrame.new(0, 0, -thrust) * CFrame.Angles(-pitch * 0.8, 0, 0))
-                        setPose("Torso", CFrame.new(0, 0, -thrust) * CFrame.Angles(pitch, 0, 0))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(88) + pitch * 0.6, 0, math.rad(-18)))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(88) + pitch * 0.6, 0, math.rad(18)))
-                        setPose("Left Arm", CFrame.Angles(math.rad(88) + pitch * 0.6, 0, math.rad(-18)))
-                        setPose("Right Arm", CFrame.Angles(math.rad(88) + pitch * 0.6, 0, math.rad(18)))
-                        setPose("Head", CFrame.Angles(-pitch * 0.7, 0, 0))
-                    elseif lower:find("bang") or lower:find("backshot") or lower:find("thrust") then
-                        local thrust = math.sin(t * 2.4) * 0.65
-                        local pitch = math.sin(t * 2.4) * math.rad(22)
-                        setPose("UpperTorso", CFrame.new(0, 0, thrust * 0.4) * CFrame.Angles(pitch, 0, 0))
-                        setPose("LowerTorso", CFrame.new(0, 0, -thrust) * CFrame.Angles(-pitch * 0.7, 0, 0))
-                        setPose("Torso", CFrame.new(0, 0, -thrust) * CFrame.Angles(pitch, 0, 0))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(75) + pitch * 0.5, 0, math.rad(-15)))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(75) + pitch * 0.5, 0, math.rad(15)))
-                        setPose("Left Arm", CFrame.Angles(math.rad(75) + pitch * 0.5, 0, math.rad(-15)))
-                        setPose("Right Arm", CFrame.Angles(math.rad(75) + pitch * 0.5, 0, math.rad(15)))
-                        setPose("Head", CFrame.Angles(-pitch * 0.6, 0, 0))
-                    elseif lower:find("floss") then
-                        local s = math.sin(t * 1.8)
-                        local c = math.cos(t * 0.9)
-                        setPose("LowerTorso", CFrame.new(s * 0.35, 0, 0) * CFrame.Angles(0, 0, math.rad(-s * 12)))
-                        setPose("UpperTorso", CFrame.Angles(0, math.rad(s * 18), math.rad(s * 10)))
-                        setPose("Torso", CFrame.new(s * 0.35, 0, 0) * CFrame.Angles(0, math.rad(s * 18), math.rad(-s * 10)))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(c > 0 and 25 or -25), 0, math.rad(-s * 55)))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(c > 0 and -25 or 25), 0, math.rad(-s * 55)))
-                        setPose("Left Arm", CFrame.Angles(math.rad(c > 0 and 25 or -25), 0, math.rad(-s * 55)))
-                        setPose("Right Arm", CFrame.Angles(math.rad(c > 0 and -25 or 25), 0, math.rad(-s * 55)))
-                    elseif lower:find("helicopter") or lower:find("beyblade") or lower:find("rotor") or lower:find("spin") then
-                        local ang = t * 4.2
-                        setPose("LowerTorso", CFrame.new(0, 1.5 + math.sin(t) * 0.4, 0) * CFrame.Angles(math.rad(85), ang, 0))
-                        setPose("Torso", CFrame.new(0, 1.5 + math.sin(t) * 0.4, 0) * CFrame.Angles(math.rad(85), ang, 0))
-                        setPose("LeftUpperArm", CFrame.Angles(0, 0, math.rad(-90)))
-                        setPose("RightUpperArm", CFrame.Angles(0, 0, math.rad(90)))
-                        setPose("Left Arm", CFrame.Angles(0, 0, math.rad(-90)))
-                        setPose("Right Arm", CFrame.Angles(0, 0, math.rad(90)))
-                    elseif lower:find("twerk") then
-                        local s = math.sin(t * 2.8)
-                        setPose("LowerTorso", CFrame.new(0, -0.5 + math.abs(s) * 0.25, 0) * CFrame.Angles(math.rad(-42 + s * 28), 0, 0))
-                        setPose("UpperTorso", CFrame.Angles(math.rad(-35 - s * 18), 0, 0))
-                        setPose("Torso", CFrame.new(0, -0.5 + math.abs(s) * 0.25, 0) * CFrame.Angles(math.rad(-40 + s * 25), 0, 0))
-                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(45), math.rad(15), math.rad(-18)))
-                        setPose("RightUpperLeg", CFrame.Angles(math.rad(45), math.rad(-15), math.rad(18)))
-                        setPose("Left Leg", CFrame.Angles(math.rad(35), 0, math.rad(-15)))
-                        setPose("Right Leg", CFrame.Angles(math.rad(35), 0, math.rad(15)))
-                    elseif lower:find("hollow purple") or lower:find("kamehameha") or lower:find("atomic") then
-                        local charge = math.sin(t * 1.4)
-                        local pulse = math.sin(t * 5.0) * 0.08
-                        setPose("LowerTorso", CFrame.new(0, 1.2 + pulse, 0) * CFrame.Angles(math.rad(-10), math.rad(charge * 20), 0))
-                        setPose("UpperTorso", CFrame.Angles(math.rad(8), math.rad(-charge * 25), 0))
-                        setPose("Torso", CFrame.new(0, 1.2 + pulse, 0) * CFrame.Angles(math.rad(-8), math.rad(charge * 20), 0))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(92 + pulse * 40), math.rad(22), math.rad(18)))
-                        setPose("LeftLowerArm", CFrame.Angles(math.rad(45), 0, 0))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(92 - pulse * 40), math.rad(-22), math.rad(-18)))
-                        setPose("RightLowerArm", CFrame.Angles(math.rad(45), 0, 0))
-                        setPose("Left Arm", CFrame.Angles(math.rad(92), math.rad(20), math.rad(15)))
-                        setPose("Right Arm", CFrame.Angles(math.rad(92), math.rad(-20), math.rad(-15)))
-                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(24), 0, math.rad(-16)))
-                        setPose("RightUpperLeg", CFrame.Angles(math.rad(-24), 0, math.rad(16)))
-                        setPose("Head", CFrame.Angles(math.rad(-8), math.rad(charge * 15), 0))
-                    elseif lower:find("ora") or lower:find("muda") or lower:find("flurry") or lower:find("barrage") then
-                        local pL = math.sin(t * 7.5)
-                        local pR = -pL
-                        setPose("LowerTorso", CFrame.new(0, -0.15, -0.25) * CFrame.Angles(math.rad(-12), math.rad(pL * 14), 0))
-                        setPose("UpperTorso", CFrame.Angles(math.rad(-14), math.rad(pR * 22), 0))
-                        setPose("Torso", CFrame.new(0, -0.15, -0.25) * CFrame.Angles(math.rad(-14), math.rad(pL * 18), 0))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(90 + pL * 35), math.rad(pL * 18), math.rad(-12)))
-                        setPose("LeftLowerArm", CFrame.Angles(math.rad(45 - pL * 45), 0, 0))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(90 + pR * 35), math.rad(pR * 18), math.rad(12)))
-                        setPose("RightLowerArm", CFrame.Angles(math.rad(45 - pR * 45), 0, 0))
-                        setPose("Left Arm", CFrame.Angles(math.rad(90 + pL * 40), 0, math.rad(-10)))
-                        setPose("Right Arm", CFrame.Angles(math.rad(90 + pR * 40), 0, math.rad(10)))
-                    elseif lower:find("dio") or lower:find("wry") or lower:find("backbend") then
-                        local s = math.sin(t * 1.6) * 0.15
-                        setPose("LowerTorso", CFrame.new(0, -0.35, 0.55) * CFrame.Angles(math.rad(52) + s, 0, 0))
-                        setPose("UpperTorso", CFrame.Angles(math.rad(38), 0, 0))
-                        setPose("Torso", CFrame.new(0, -0.35, 0.55) * CFrame.Angles(math.rad(68) + s, 0, 0))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(-35), 0, math.rad(-65 - s * 50)))
-                        setPose("LeftLowerArm", CFrame.Angles(math.rad(65), 0, 0))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(-35), 0, math.rad(65 + s * 50)))
-                        setPose("RightLowerArm", CFrame.Angles(math.rad(65), 0, 0))
-                        setPose("Left Arm", CFrame.Angles(math.rad(-35), 0, math.rad(-65)))
-                        setPose("Right Arm", CFrame.Angles(math.rad(-35), 0, math.rad(65)))
-                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(-42), 0, math.rad(-14)))
-                        setPose("RightUpperLeg", CFrame.Angles(math.rad(-42), 0, math.rad(14)))
-                        setPose("Head", CFrame.Angles(math.rad(35), 0, 0))
-                    elseif lower:find("joyboy") or lower:find("gear 5") or lower:find("luffy") then
-                        local b = math.abs(math.sin(t * 2.6))
-                        local s = math.sin(t * 2.6)
-                        setPose("LowerTorso", CFrame.new(0, 0.6 + b * 1.4, 0) * CFrame.Angles(math.rad(s * 24), math.rad(s * 18), math.rad(s * 15)))
-                        setPose("UpperTorso", CFrame.Angles(math.rad(22), 0, math.rad(-s * 18)))
-                        setPose("Torso", CFrame.new(0, 0.6 + b * 1.4, 0) * CFrame.Angles(math.rad(18 + s * 20), 0, math.rad(s * 15)))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(145), 0, math.rad(-35 - b * 25)))
-                        setPose("LeftLowerArm", CFrame.Angles(math.rad(55), 0, 0))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(145), 0, math.rad(35 + b * 25)))
-                        setPose("RightLowerArm", CFrame.Angles(math.rad(55), 0, 0))
-                        setPose("Left Arm", CFrame.Angles(math.rad(145), 0, math.rad(-40)))
-                        setPose("Right Arm", CFrame.Angles(math.rad(145), 0, math.rad(40)))
-                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(55 * b), 0, math.rad(-15)))
-                        setPose("LeftLowerLeg", CFrame.Angles(math.rad(-85 * b), 0, 0))
-                        setPose("RightUpperLeg", CFrame.Angles(math.rad(-35 * s), 0, math.rad(15)))
-                        setPose("RightLowerLeg", CFrame.Angles(math.rad(-65 * (1 - b)), 0, 0))
-                        setPose("Head", CFrame.Angles(math.rad(25), 0, math.rad(s * 15)))
-                    elseif lower:find("slickback") or lower:find("glide") then
-                        local s = math.sin(t * 2.4)
-                        local c = math.cos(t * 2.4)
-                        setPose("LowerTorso", CFrame.new(s * 0.85, 0.25 + math.abs(c) * 0.25, 0) * CFrame.Angles(math.rad(-10), math.rad(-s * 16), math.rad(s * 8)))
-                        setPose("UpperTorso", CFrame.Angles(math.rad(-8), math.rad(s * 22), 0))
-                        setPose("Torso", CFrame.new(s * 0.85, 0.25 + math.abs(c) * 0.25, 0) * CFrame.Angles(math.rad(-10), math.rad(-s * 16), 0))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(35 + c * 35), 0, math.rad(-22)))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(35 - c * 35), 0, math.rad(22)))
-                        setPose("Left Arm", CFrame.Angles(math.rad(35 + c * 35), 0, math.rad(-22)))
-                        setPose("Right Arm", CFrame.Angles(math.rad(35 - c * 35), 0, math.rad(22)))
-                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(s * 52), 0, math.rad(-8)))
-                        setPose("LeftLowerLeg", CFrame.Angles(math.rad(-65 - c * 35), 0, 0))
-                        setPose("RightUpperLeg", CFrame.Angles(math.rad(-s * 52), 0, math.rad(8)))
-                        setPose("RightLowerLeg", CFrame.Angles(math.rad(-65 + c * 35), 0, 0))
-                        setPose("Left Leg", CFrame.Angles(math.rad(s * 52), 0, 0))
-                        setPose("Right Leg", CFrame.Angles(math.rad(-s * 52), 0, 0))
-                    elseif lower:find("sturdy") or lower:find("orange justice") or lower:find("electro") then
-                        local s = math.sin(t * 3.0)
-                        local c = math.cos(t * 1.5)
-                        local drop = (c > 0) and -0.85 or -0.15
-                        setPose("LowerTorso", CFrame.new(s * 0.3, drop + math.abs(s) * 0.25, 0) * CFrame.Angles(0, math.rad(s * 24), 0))
-                        setPose("UpperTorso", CFrame.Angles(math.rad(-12), math.rad(-s * 28), math.rad(s * 12)))
-                        setPose("Torso", CFrame.new(s * 0.3, drop + math.abs(s) * 0.25, 0) * CFrame.Angles(0, math.rad(s * 24), 0))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(75 + s * 65), 0, math.rad(-32)))
-                        setPose("LeftLowerArm", CFrame.Angles(math.rad(85), 0, 0))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(75 - s * 65), 0, math.rad(32)))
-                        setPose("RightLowerArm", CFrame.Angles(math.rad(85), 0, 0))
-                        setPose("Left Arm", CFrame.Angles(math.rad(75 + s * 65), 0, math.rad(-32)))
-                        setPose("Right Arm", CFrame.Angles(math.rad(75 - s * 65), 0, math.rad(32)))
-                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(45 + s * 35), 0, math.rad(-14)))
-                        setPose("LeftLowerLeg", CFrame.Angles(math.rad(-75), 0, 0))
-                        setPose("RightUpperLeg", CFrame.Angles(math.rad(45 - s * 35), 0, math.rad(14)))
-                        setPose("RightLowerLeg", CFrame.Angles(math.rad(-75), 0, 0))
-                        setPose("Left Leg", CFrame.Angles(math.rad(35 + s * 35), 0, math.rad(-14)))
-                        setPose("Right Leg", CFrame.Angles(math.rad(35 - s * 35), 0, math.rad(14)))
-                    elseif lower:find("gigachad") or lower:find("zyzz") or lower:find("flex") or lower:find("bicep") or lower:find("arnold") then
-                        local pulse = math.sin(t * 1.4)
-                        setPose("LowerTorso", CFrame.new(0, 0.1, 0) * CFrame.Angles(0, math.rad(pulse * 18), 0))
-                        setPose("UpperTorso", CFrame.Angles(math.rad(12), math.rad(pulse * 12), 0))
-                        setPose("Torso", CFrame.Angles(math.rad(10), math.rad(pulse * 22), 0))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(15), 0, math.rad(-88)))
-                        setPose("LeftLowerArm", CFrame.Angles(math.rad(105 + math.abs(pulse) * 18), 0, 0))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(15), 0, math.rad(88)))
-                        setPose("RightLowerArm", CFrame.Angles(math.rad(105 + math.abs(pulse) * 18), 0, 0))
-                        setPose("Left Arm", CFrame.Angles(math.rad(85), 0, math.rad(-75)))
-                        setPose("Right Arm", CFrame.Angles(math.rad(85), 0, math.rad(75)))
-                        setPose("Head", CFrame.Angles(math.rad(-8), math.rad(-pulse * 14), 0))
-                    elseif lower:find("pushup") or lower:find("plank") then
-                        local p = (math.sin(t * 2.0) + 1) * 0.5
-                        setPose("LowerTorso", CFrame.new(0, -1.55 - p * 0.55, 0) * CFrame.Angles(math.rad(-82), 0, 0))
-                        setPose("UpperTorso", CFrame.Angles(math.rad(6), 0, 0))
-                        setPose("Torso", CFrame.new(0, -1.55 - p * 0.55, 0) * CFrame.Angles(math.rad(-82), 0, 0))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(85 - p * 35), 0, math.rad(-25)))
-                        setPose("LeftLowerArm", CFrame.Angles(math.rad(p * 85), 0, 0))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(85 - p * 35), 0, math.rad(25)))
-                        setPose("RightLowerArm", CFrame.Angles(math.rad(p * 85), 0, 0))
-                        setPose("Left Arm", CFrame.Angles(math.rad(85 - p * 35), 0, math.rad(-20)))
-                        setPose("Right Arm", CFrame.Angles(math.rad(85 - p * 35), 0, math.rad(20)))
-                    elseif lower:find("swim") or lower:find("freestyle") or lower:find("backstroke") then
-                        local s = math.sin(t * 2.2)
-                        local c = math.cos(t * 2.2)
-                        setPose("LowerTorso", CFrame.new(0, 1.4 + s * 0.25, 0) * CFrame.Angles(math.rad(-85), 0, math.rad(c * 14)))
-                        setPose("UpperTorso", CFrame.Angles(0, math.rad(s * 18), 0))
-                        setPose("Torso", CFrame.new(0, 1.4 + s * 0.25, 0) * CFrame.Angles(math.rad(-85), 0, math.rad(c * 14)))
-                        setPose("LeftUpperArm", CFrame.Angles(t * 2.2, 0, math.rad(-18)))
-                        setPose("RightUpperArm", CFrame.Angles(t * 2.2 + math.pi, 0, math.rad(18)))
-                        setPose("Left Arm", CFrame.Angles(t * 2.2, 0, math.rad(-18)))
-                        setPose("Right Arm", CFrame.Angles(t * 2.2 + math.pi, 0, math.rad(18)))
-                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(s * 28), 0, 0))
-                        setPose("RightUpperLeg", CFrame.Angles(math.rad(-s * 28), 0, 0))
-                        setPose("Left Leg", CFrame.Angles(math.rad(s * 28), 0, 0))
-                        setPose("Right Leg", CFrame.Angles(math.rad(-s * 28), 0, 0))
-                        setPose("Head", CFrame.Angles(math.rad(55), 0, 0))
-                    elseif lower:find("katana") or lower:find("sword") or lower:find("tanjiro") or lower:find("slash") or lower:find("scythe") then
-                        local s = math.sin(t * 2.8)
-                        local c = math.cos(t * 2.8)
-                        setPose("LowerTorso", CFrame.new(0, -0.25, 0) * CFrame.Angles(math.rad(-14), math.rad(s * 42), 0))
-                        setPose("UpperTorso", CFrame.Angles(math.rad(-10), math.rad(s * 48), math.rad(c * 15)))
-                        setPose("Torso", CFrame.new(0, -0.25, 0) * CFrame.Angles(math.rad(-14), math.rad(s * 55), 0))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(95 + c * 55), math.rad(-s * 45), math.rad(25)))
-                        setPose("RightLowerArm", CFrame.Angles(math.rad(45), 0, 0))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(75 + c * 40), math.rad(-s * 35), math.rad(-20)))
-                        setPose("Right Arm", CFrame.Angles(math.rad(95 + c * 55), 0, math.rad(25)))
-                        setPose("Left Arm", CFrame.Angles(math.rad(75 + c * 40), 0, math.rad(-20)))
-                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(32), 0, math.rad(-16)))
-                        setPose("RightUpperLeg", CFrame.Angles(math.rad(-28), 0, math.rad(16)))
-                    elseif lower:find("guitar") or lower:find("headbang") or lower:find("metal") or lower:find("rock") then
-                        local bang = math.sin(t * 3.6)
-                        local strum = math.sin(t * 7.2)
-                        setPose("LowerTorso", CFrame.new(0, -0.2, 0) * CFrame.Angles(math.rad(-10 + bang * 14), math.rad(-18), 0))
-                        setPose("UpperTorso", CFrame.Angles(math.rad(-15 + bang * 22), math.rad(-12), 0))
-                        setPose("Torso", CFrame.new(0, -0.2, 0) * CFrame.Angles(math.rad(-15 + bang * 22), math.rad(-18), 0))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(65), math.rad(25), math.rad(-35)))
-                        setPose("LeftLowerArm", CFrame.Angles(math.rad(75), 0, 0))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(45 + strum * 25), 0, math.rad(18)))
-                        setPose("RightLowerArm", CFrame.Angles(math.rad(85 + strum * 20), 0, 0))
-                        setPose("Left Arm", CFrame.Angles(math.rad(65), 0, math.rad(-35)))
-                        setPose("Right Arm", CFrame.Angles(math.rad(55 + strum * 25), 0, math.rad(18)))
-                        setPose("Head", CFrame.Angles(math.rad(bang * 38), 0, 0))
-                    elseif lower:find("kneel") or lower:find("beg") or lower:find("mercy") or lower:find("knight") or lower:find("propose") then
-                        local bob = math.sin(t * 1.8) * 0.1
-                        setPose("LowerTorso", CFrame.new(0, -1.25 + bob, 0) * CFrame.Angles(math.rad(-16), 0, 0))
-                        setPose("UpperTorso", CFrame.Angles(math.rad(-22 + bob * 45), 0, 0))
-                        setPose("Torso", CFrame.new(0, -1.25 + bob, 0) * CFrame.Angles(math.rad(-24), 0, 0))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(78 + bob * 60), math.rad(25), math.rad(15)))
-                        setPose("LeftLowerArm", CFrame.Angles(math.rad(85), 0, 0))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(78 + bob * 60), math.rad(-25), math.rad(-15)))
-                        setPose("RightLowerArm", CFrame.Angles(math.rad(85), 0, 0))
-                        setPose("Left Arm", CFrame.Angles(math.rad(85), math.rad(20), 0))
-                        setPose("Right Arm", CFrame.Angles(math.rad(85), math.rad(-20), 0))
-                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(85), 0, 0))
-                        setPose("LeftLowerLeg", CFrame.Angles(math.rad(-95), 0, 0))
-                        setPose("RightUpperLeg", CFrame.Angles(math.rad(-10), 0, 0))
-                        setPose("RightLowerLeg", CFrame.Angles(math.rad(-115), 0, 0))
-                        setPose("Left Leg", CFrame.Angles(math.rad(80), 0, 0))
-                        setPose("Right Leg", CFrame.Angles(math.rad(-75), 0, 0))
-                    elseif lower:find("salute") or lower:find("attention") then
-                        local breath = math.sin(t * 0.8) * 0.04
-                        setPose("LowerTorso", CFrame.new(0, breath, 0))
-                        setPose("UpperTorso", CFrame.Angles(math.rad(4), 0, 0))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(115), 0, math.rad(38)))
-                        setPose("RightLowerArm", CFrame.Angles(math.rad(118), 0, math.rad(-35)))
-                        setPose("Right Arm", CFrame.Angles(math.rad(135), 0, math.rad(22)))
-                        setPose("LeftUpperArm", CFrame.Angles(0, 0, math.rad(-6)))
-                        setPose("Left Arm", CFrame.Angles(0, 0, math.rad(-6)))
-                    elseif lower:find("drunk") or lower:find("stumble") or lower:find("sleepwalk") then
-                        local s = math.sin(t * 1.1)
-                        local c = math.cos(t * 0.7)
-                        setPose("LowerTorso", CFrame.new(s * 0.65, -0.15, c * 0.35) * CFrame.Angles(math.rad(c * 18), math.rad(s * 22), math.rad(-s * 20)))
-                        setPose("UpperTorso", CFrame.Angles(math.rad(s * 16), 0, math.rad(-c * 18)))
-                        setPose("Torso", CFrame.new(s * 0.65, -0.15, c * 0.35) * CFrame.Angles(math.rad(c * 18), math.rad(s * 22), math.rad(-s * 20)))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(35 + s * 25), 0, math.rad(-25 - math.abs(c) * 20)))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(35 - s * 25), 0, math.rad(25 + math.abs(c) * 20)))
-                        setPose("Left Arm", CFrame.Angles(math.rad(35 + s * 25), 0, math.rad(-25)))
-                        setPose("Right Arm", CFrame.Angles(math.rad(35 - s * 25), 0, math.rad(25)))
-                        setPose("Head", CFrame.Angles(math.rad(-18 + s * 14), 0, math.rad(c * 24)))
-                    elseif lower:find("caramell") or lower:find("bunny") or lower:find("cute") or lower:find("heart") then
-                        local s = math.sin(t * 2.8)
-                        setPose("LowerTorso", CFrame.new(s * 0.35, math.abs(s) * 0.32, 0) * CFrame.Angles(0, 0, math.rad(s * 16)))
-                        setPose("UpperTorso", CFrame.Angles(0, math.rad(s * 12), math.rad(-s * 10)))
-                        setPose("Torso", CFrame.new(s * 0.35, math.abs(s) * 0.32, 0) * CFrame.Angles(0, 0, math.rad(s * 16)))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(155), 0, math.rad(18 + s * 10)))
-                        setPose("LeftLowerArm", CFrame.Angles(math.rad(35), 0, 0))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(155), 0, math.rad(-18 + s * 10)))
-                        setPose("RightLowerArm", CFrame.Angles(math.rad(35), 0, 0))
-                        setPose("Left Arm", CFrame.Angles(math.rad(155), 0, math.rad(18 + s * 10)))
-                        setPose("Right Arm", CFrame.Angles(math.rad(155), 0, math.rad(-18 + s * 10)))
-                        setPose("Head", CFrame.Angles(0, 0, math.rad(s * 14)))
-                    elseif lower:find("throne") or lower:find("king") or lower:find("invisible car") or lower:find("toilet") or lower:find("sit") then
-                        local hover = math.sin(t * 0.9) * 0.25
-                        setPose("LowerTorso", CFrame.new(0, 0.4 + hover, 0) * CFrame.Angles(math.rad(8), 0, 0))
-                        setPose("UpperTorso", CFrame.Angles(math.rad(-6), 0, 0))
-                        setPose("Torso", CFrame.new(0, 0.4 + hover, 0) * CFrame.Angles(math.rad(6), 0, 0))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(45), 0, math.rad(-25)))
-                        setPose("LeftLowerArm", CFrame.Angles(math.rad(65), 0, 0))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(45), 0, math.rad(25)))
-                        setPose("RightLowerArm", CFrame.Angles(math.rad(65), 0, 0))
-                        setPose("Left Arm", CFrame.Angles(math.rad(55), 0, math.rad(-20)))
-                        setPose("Right Arm", CFrame.Angles(math.rad(55), 0, math.rad(20)))
-                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(88), 0, math.rad(-12)))
-                        setPose("LeftLowerLeg", CFrame.Angles(math.rad(-88), 0, 0))
-                        setPose("RightUpperLeg", CFrame.Angles(math.rad(88), 0, math.rad(12)))
-                        setPose("RightLowerLeg", CFrame.Angles(math.rad(-88), 0, 0))
-                        setPose("Left Leg", CFrame.Angles(math.rad(88), 0, math.rad(-12)))
-                        setPose("Right Leg", CFrame.Angles(math.rad(88), 0, math.rad(12)))
-                    elseif lower:find("levitat") or lower:find("float") or lower:find("ascend") or lower:find("alien") or lower:find("jesus") then
-                        local h = 2.8 + math.sin(t * 0.6) * 0.8
-                        setPose("LowerTorso", CFrame.new(0, h, 0) * CFrame.Angles(math.rad(-12), math.sin(t * 0.3) * 0.2, 0))
-                        setPose("Torso", CFrame.new(0, h, 0) * CFrame.Angles(math.rad(-12), math.sin(t * 0.3) * 0.2, 0))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(25), 0, math.rad(-55 - math.sin(t * 0.6) * 12)))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(25), 0, math.rad(55 + math.sin(t * 0.6) * 12)))
-                        setPose("Left Arm", CFrame.Angles(math.rad(25), 0, math.rad(-55)))
-                        setPose("Right Arm", CFrame.Angles(math.rad(25), 0, math.rad(55)))
-                        setPose("Head", CFrame.Angles(math.rad(22), 0, 0))
-                    elseif lower:find("headspin") or lower:find("breakdance") or lower:find("airflare") then
-                        local ang = t * 3.2
-                        setPose("LowerTorso", CFrame.new(0, 0.8, 0) * CFrame.Angles(math.rad(175), ang, 0))
-                        setPose("Torso", CFrame.new(0, 0.8, 0) * CFrame.Angles(math.rad(175), ang, 0))
-                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(25), 0, math.rad(-35)))
-                        setPose("RightUpperLeg", CFrame.Angles(math.rad(-25), 0, math.rad(35)))
-                        setPose("Left Leg", CFrame.Angles(math.rad(25), 0, math.rad(-35)))
-                        setPose("Right Leg", CFrame.Angles(math.rad(-25), 0, math.rad(35)))
-                    elseif lower:find("worm") or lower:find("crawl") or lower:find("anaconda") or lower:find("slither") then
-                        local s1 = math.sin(t * 2.0)
-                        local s2 = math.cos(t * 2.0)
-                        setPose("LowerTorso", CFrame.new(0, -1.8 + math.abs(s1) * 0.5, 0) * CFrame.Angles(math.rad(-82 + s1 * 22), 0, 0))
-                        setPose("UpperTorso", CFrame.Angles(math.rad(s2 * 28), 0, 0))
-                        setPose("Torso", CFrame.new(0, -1.8 + math.abs(s1) * 0.5, 0) * CFrame.Angles(math.rad(-82 + s1 * 22), 0, 0))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(140 + s1 * 30), 0, 0))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(140 - s1 * 30), 0, 0))
-                        setPose("Left Arm", CFrame.Angles(math.rad(140 + s1 * 30), 0, 0))
-                        setPose("Right Arm", CFrame.Angles(math.rad(140 - s1 * 30), 0, 0))
-                    elseif lower:find("glitch") or lower:find("spasm") or lower:find("seizure") or lower:find("possessed") then
-                        local gx = (math.random() - 0.5) * 1.4
-                        local gy = (math.random() - 0.5) * 1.4
-                        local gz = (math.random() - 0.5) * 1.4
-                        setPose("LowerTorso", CFrame.new(gx, gy, gz) * CFrame.Angles(gx * 3, gy * 3, gz * 3))
-                        setPose("UpperTorso", CFrame.Angles(-gx * 2, gy * 4, -gz * 2))
-                        setPose("Torso", CFrame.new(gx, gy, gz) * CFrame.Angles(gx * 3, gy * 3, gz * 3))
-                        setPose("Head", CFrame.Angles(gy * 3, gx * 4, gz * 2))
-                        setPose("LeftUpperArm", CFrame.Angles(gx * 5, 0, -math.abs(gy) * 3))
-                        setPose("RightUpperArm", CFrame.Angles(-gx * 5, 0, math.abs(gy) * 3))
-                        setPose("Left Arm", CFrame.Angles(gx * 5, 0, -math.abs(gy) * 3))
-                        setPose("Right Arm", CFrame.Angles(-gx * 5, 0, math.abs(gy) * 3))
-                    elseif lower:find("matrix") or lower:find("limbo") or lower:find("lean") then
-                        local s = math.sin(t * 1.2) * 0.15
-                        setPose("LowerTorso", CFrame.new(0, -0.65, 0.85) * CFrame.Angles(math.rad(78) + s, 0, 0))
-                        setPose("UpperTorso", CFrame.Angles(math.rad(18), 0, 0))
-                        setPose("Torso", CFrame.new(0, -0.65, 0.85) * CFrame.Angles(math.rad(82) + s, 0, 0))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(45 - s * 120), 0, math.rad(-25)))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(45 + s * 120), 0, math.rad(25)))
-                        setPose("Left Arm", CFrame.Angles(math.rad(45 - s * 120), 0, math.rad(-25)))
-                        setPose("Right Arm", CFrame.Angles(math.rad(45 + s * 120), 0, math.rad(25)))
-                    elseif lower:find("handstand") or lower:find("invert") or lower:find("planche") then
-                        local bal = math.sin(t * 1.4) * math.rad(10)
-                        local walk = math.cos(t * 2.2) * math.rad(28)
-                        setPose("LowerTorso", CFrame.new(0, 1.15, 0) * CFrame.Angles(math.rad(180) + bal, 0, 0))
-                        setPose("Torso", CFrame.new(0, 1.15, 0) * CFrame.Angles(math.rad(180) + bal, 0, 0))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(175) + walk * 0.3, 0, math.rad(-8)))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(175) - walk * 0.3, 0, math.rad(8)))
-                        setPose("Left Arm", CFrame.Angles(math.rad(175) + walk * 0.3, 0, math.rad(-8)))
-                        setPose("Right Arm", CFrame.Angles(math.rad(175) - walk * 0.3, 0, math.rad(8)))
-                        setPose("LeftUpperLeg", CFrame.Angles(walk, 0, math.rad(-14)))
-                        setPose("RightUpperLeg", CFrame.Angles(-walk, 0, math.rad(14)))
-                        setPose("LeftLowerLeg", CFrame.Angles(math.rad(-25), 0, 0))
-                        setPose("RightLowerLeg", CFrame.Angles(math.rad(-25), 0, 0))
-                    elseif lower:find("gojo") or lower:find("infinity") or lower:find("susanoo") or lower:find("god") or lower:find("monarch") or lower:find("madara") then
-                        local h = 3.4 + math.sin(t * 0.55) * 0.65
-                        local sway = math.sin(t * 0.4) * math.rad(8)
-                        setPose("LowerTorso", CFrame.new(0, h, 0) * CFrame.Angles(math.rad(-8), sway, 0))
-                        setPose("UpperTorso", CFrame.Angles(math.rad(-10), -sway * 0.5, 0))
-                        setPose("Torso", CFrame.new(0, h, 0) * CFrame.Angles(math.rad(-12), sway, 0))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(48), math.rad(25), math.rad(-42 - math.sin(t * 0.7) * 8)))
-                        setPose("LeftLowerArm", CFrame.Angles(math.rad(55), 0, 0))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(85), math.rad(-30), math.rad(18)))
-                        setPose("RightLowerArm", CFrame.Angles(math.rad(75), 0, 0))
-                        setPose("Left Arm", CFrame.Angles(math.rad(48), 0, math.rad(-42)))
-                        setPose("Right Arm", CFrame.Angles(math.rad(85), 0, math.rad(18)))
-                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(-18), 0, math.rad(-6)))
-                        setPose("LeftLowerLeg", CFrame.Angles(math.rad(-35), 0, 0))
-                        setPose("RightUpperLeg", CFrame.Angles(math.rad(28), 0, math.rad(6)))
-                        setPose("RightLowerLeg", CFrame.Angles(math.rad(-65), 0, 0))
-                        setPose("Head", CFrame.Angles(math.rad(-14 + math.sin(t * 0.5) * 5), 0, 0))
-                    elseif lower:find("sukuna") or lower:find("shrine") or lower:find("meditat") or lower:find("lotus") then
-                        local bob = math.sin(t * 0.65) * 0.35
-                        setPose("LowerTorso", CFrame.new(0, 1.4 + bob, 0) * CFrame.Angles(math.rad(-6), 0, 0))
-                        setPose("UpperTorso", CFrame.Angles(math.rad(8), math.sin(t * 0.4) * math.rad(6), 0))
-                        setPose("Torso", CFrame.new(0, 1.4 + bob, 0) * CFrame.Angles(0, 0, 0))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(55), math.rad(38), math.rad(-22)))
-                        setPose("LeftLowerArm", CFrame.Angles(math.rad(85), 0, 0))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(55), math.rad(-38), math.rad(22)))
-                        setPose("RightLowerArm", CFrame.Angles(math.rad(85), 0, 0))
-                        setPose("Left Arm", CFrame.Angles(math.rad(65), math.rad(35), math.rad(-15)))
-                        setPose("Right Arm", CFrame.Angles(math.rad(65), math.rad(-35), math.rad(15)))
-                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(78), math.rad(45), math.rad(-40)))
-                        setPose("LeftLowerLeg", CFrame.Angles(math.rad(-110), 0, 0))
-                        setPose("RightUpperLeg", CFrame.Angles(math.rad(78), math.rad(-45), math.rad(40)))
-                        setPose("RightLowerLeg", CFrame.Angles(math.rad(-110), 0, 0))
-                        setPose("Left Leg", CFrame.Angles(math.rad(80), math.rad(35), math.rad(-30)))
-                        setPose("Right Leg", CFrame.Angles(math.rad(80), math.rad(-35), math.rad(30)))
-                    elseif lower:find("hakari") or lower:find("jackpot") or lower:find("specialist") or lower:find("torture") or lower:find("distraction") or lower:find("smug") then
-                        local s = math.sin(t * 2.5)
-                        local c = math.cos(t * 2.5)
-                        setPose("LowerTorso", CFrame.new(s * 0.45, math.abs(c) * 0.4, 0) * CFrame.Angles(0, math.rad(s * 28), math.rad(-s * 14)))
-                        setPose("UpperTorso", CFrame.Angles(math.rad(c * 16), math.rad(-s * 32), math.rad(s * 12)))
-                        setPose("Torso", CFrame.new(s * 0.45, math.abs(c) * 0.4, 0) * CFrame.Angles(math.rad(c * 14), math.rad(s * 25), math.rad(-s * 12)))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(115 + s * 45), 0, math.rad(-45 - c * 25)))
-                        setPose("LeftLowerArm", CFrame.Angles(math.rad(65 + c * 35), 0, 0))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(115 - s * 45), 0, math.rad(45 - c * 25)))
-                        setPose("RightLowerArm", CFrame.Angles(math.rad(65 - c * 35), 0, 0))
-                        setPose("Left Arm", CFrame.Angles(math.rad(115 + s * 45), 0, math.rad(-45)))
-                        setPose("Right Arm", CFrame.Angles(math.rad(115 - s * 45), 0, math.rad(45)))
-                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(s * 42), 0, math.rad(-15)))
-                        setPose("LeftLowerLeg", CFrame.Angles(math.rad(-math.max(0, s) * 65), 0, 0))
-                        setPose("RightUpperLeg", CFrame.Angles(math.rad(-s * 42), 0, math.rad(15)))
-                        setPose("RightLowerLeg", CFrame.Angles(math.rad(-math.max(0, -s) * 65), 0, 0))
-                        setPose("Left Leg", CFrame.Angles(math.rad(s * 42), 0, math.rad(-15)))
-                        setPose("Right Leg", CFrame.Angles(math.rad(-s * 42), 0, math.rad(15)))
-                        setPose("Head", CFrame.Angles(math.rad(c * 14), math.rad(s * 22), math.rad(s * 10)))
-                    elseif lower:find("griddy") or lower:find("billy") or lower:find("footwork") then
-                        local s = math.sin(t * 2.8)
-                        local c = math.cos(t * 2.8)
-                        setPose("LowerTorso", CFrame.new(0, math.abs(s) * 0.38, 0) * CFrame.Angles(math.rad(-14), math.rad(s * 12), 0))
-                        setPose("UpperTorso", CFrame.Angles(math.rad(-18 + c * 10), 0, 0))
-                        setPose("Torso", CFrame.new(0, math.abs(s) * 0.38, 0) * CFrame.Angles(math.rad(-16), math.rad(s * 12), 0))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(85 + s * 55), 0, math.rad(-18)))
-                        setPose("LeftLowerArm", CFrame.Angles(math.rad(70), 0, 0))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(85 + s * 55), 0, math.rad(18)))
-                        setPose("RightLowerArm", CFrame.Angles(math.rad(70), 0, 0))
-                        setPose("Left Arm", CFrame.Angles(math.rad(85 + s * 55), 0, math.rad(-18)))
-                        setPose("Right Arm", CFrame.Angles(math.rad(85 + s * 55), 0, math.rad(18)))
-                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(c * 48), 0, math.rad(-8)))
-                        setPose("LeftLowerLeg", CFrame.Angles(math.rad(-45 - math.max(0, c) * 45), 0, 0))
-                        setPose("RightUpperLeg", CFrame.Angles(math.rad(-c * 48), 0, math.rad(8)))
-                        setPose("RightLowerLeg", CFrame.Angles(math.rad(-45 - math.max(0, -c) * 45), 0, 0))
-                        setPose("Left Leg", CFrame.Angles(math.rad(c * 48), 0, math.rad(-8)))
-                        setPose("Right Leg", CFrame.Angles(math.rad(-c * 48), 0, math.rad(8)))
-                    elseif lower:find("kazotsky") or lower:find("squat") or lower:find("russian") then
-                        local s = math.sin(t * 2.6)
-                        setPose("LowerTorso", CFrame.new(0, -1.05 + math.abs(s) * 0.22, 0))
-                        setPose("UpperTorso", CFrame.Angles(math.rad(-10), math.rad(s * 14), 0))
-                        setPose("Torso", CFrame.new(0, -1.05 + math.abs(s) * 0.22, 0) * CFrame.Angles(0, math.rad(s * 14), 0))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(78), math.rad(45), math.rad(-15)))
-                        setPose("LeftLowerArm", CFrame.Angles(math.rad(95), 0, 0))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(78), math.rad(-45), math.rad(15)))
-                        setPose("RightLowerArm", CFrame.Angles(math.rad(95), 0, 0))
-                        setPose("Left Arm", CFrame.Angles(math.rad(85), math.rad(35), 0))
-                        setPose("Right Arm", CFrame.Angles(math.rad(85), math.rad(-35), 0))
-                        local lKick = s > 0 and 88 or 65
-                        local rKick = s < 0 and 88 or 65
-                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(lKick), 0, math.rad(-10)))
-                        setPose("LeftLowerLeg", CFrame.Angles(math.rad(s > 0 and -5 or -105), 0, 0))
-                        setPose("RightUpperLeg", CFrame.Angles(math.rad(rKick), 0, math.rad(10)))
-                        setPose("RightLowerLeg", CFrame.Angles(math.rad(s < 0 and -5 or -105), 0, 0))
-                        setPose("Left Leg", CFrame.Angles(math.rad(s > 0 and 85 or 35), 0, math.rad(-10)))
-                        setPose("Right Leg", CFrame.Angles(math.rad(s < 0 and 85 or 35), 0, math.rad(10)))
-                    elseif lower:find("michael") or lower:find("smooth") or lower:find("moonwalk") then
-                        local s = math.sin(t * 2.0)
-                        local lean = lower:find("lean") and math.rad(-42) or math.rad(-8)
-                        setPose("LowerTorso", CFrame.new(0, 0, lower:find("lean") and -0.95 or 0) * CFrame.Angles(lean, 0, 0))
-                        setPose("UpperTorso", CFrame.Angles(math.rad(-6), math.rad(s * 12), 0))
-                        setPose("Torso", CFrame.new(0, 0, lower:find("lean") and -0.95 or 0) * CFrame.Angles(lean, math.rad(s * 12), 0))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(68), math.rad(-25), math.rad(12)))
-                        setPose("RightLowerArm", CFrame.Angles(math.rad(82), 0, 0))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(-s * 28), 0, math.rad(-14)))
-                        setPose("Left Arm", CFrame.Angles(math.rad(-s * 28), 0, math.rad(-14)))
-                        setPose("Right Arm", CFrame.Angles(math.rad(72), math.rad(-25), math.rad(12)))
-                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(s * 38), 0, 0))
-                        setPose("LeftLowerLeg", CFrame.Angles(math.rad(-math.max(0, -s) * 55), 0, 0))
-                        setPose("RightUpperLeg", CFrame.Angles(math.rad(-s * 38), 0, 0))
-                        setPose("RightLowerLeg", CFrame.Angles(math.rad(-math.max(0, s) * 55), 0, 0))
-                        setPose("Left Leg", CFrame.Angles(math.rad(s * 38), 0, 0))
-                        setPose("Right Leg", CFrame.Angles(math.rad(-s * 38), 0, 0))
-                        setPose("Head", CFrame.Angles(math.rad(-18), 0, 0))
-                    elseif lower:find("naruto") or lower:find("ninja") or lower:find("shinobi") or lower:find("toji") or lower:find("zenitsu") then
-                        local s = math.sin(t * 3.2)
-                        setPose("LowerTorso", CFrame.new(0, math.abs(s) * 0.25, 0) * CFrame.Angles(math.rad(-38), 0, 0))
-                        setPose("UpperTorso", CFrame.Angles(math.rad(-22), 0, 0))
-                        setPose("Torso", CFrame.new(0, math.abs(s) * 0.25, 0) * CFrame.Angles(math.rad(-48), 0, 0))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(-75 + s * 8), 0, math.rad(-18)))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(-75 - s * 8), 0, math.rad(18)))
-                        setPose("Left Arm", CFrame.Angles(math.rad(-75), 0, math.rad(-18)))
-                        setPose("Right Arm", CFrame.Angles(math.rad(-75), 0, math.rad(18)))
-                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(s * 65), 0, 0))
-                        setPose("LeftLowerLeg", CFrame.Angles(math.rad(-45), 0, 0))
-                        setPose("RightUpperLeg", CFrame.Angles(math.rad(-s * 65), 0, 0))
-                        setPose("RightLowerLeg", CFrame.Angles(math.rad(-45), 0, 0))
-                        setPose("Left Leg", CFrame.Angles(math.rad(s * 65), 0, 0))
-                        setPose("Right Leg", CFrame.Angles(math.rad(-s * 65), 0, 0))
-                        setPose("Head", CFrame.Angles(math.rad(32), 0, 0))
-                    elseif lower:find("crab") or lower:find("exorcist") or lower:find("spider") then
-                        local s = math.sin(t * 2.6)
-                        setPose("LowerTorso", CFrame.new(0, -1.1 + math.abs(s) * 0.2, 0) * CFrame.Angles(math.rad(88), 0, math.rad(s * 12)))
-                        setPose("UpperTorso", CFrame.Angles(math.rad(25), 0, 0))
-                        setPose("Torso", CFrame.new(0, -1.1 + math.abs(s) * 0.2, 0) * CFrame.Angles(math.rad(92), 0, math.rad(s * 12)))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(165 + s * 35), 0, math.rad(-25)))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(165 - s * 35), 0, math.rad(25)))
-                        setPose("Left Arm", CFrame.Angles(math.rad(165 + s * 35), 0, math.rad(-25)))
-                        setPose("Right Arm", CFrame.Angles(math.rad(165 - s * 35), 0, math.rad(25)))
-                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(-65 - s * 35), 0, math.rad(-22)))
-                        setPose("RightUpperLeg", CFrame.Angles(math.rad(-65 + s * 35), 0, math.rad(22)))
-                        setPose("Left Leg", CFrame.Angles(math.rad(-65 - s * 35), 0, math.rad(-22)))
-                        setPose("Right Leg", CFrame.Angles(math.rad(-65 + s * 35), 0, math.rad(22)))
-                        setPose("Head", CFrame.Angles(math.rad(65), math.rad(s * 45), 0))
-                    elseif lower:find("backflip") or lower:find("frontflip") or lower:find("acrobat") or lower:find("windmill") or lower:find("corkscrew") or lower:find("cartwheel") then
-                        local dir = lower:find("frontflip") and -1 or 1
-                        local flip = t * 2.6 * dir
-                        local tuck = math.sin(t * 2.6) * 0.5 + 0.5
-                        local yawSpin = lower:find("corkscrew") and (t * 2.6) or 0
-                        setPose("LowerTorso", CFrame.new(0, 1.8 + math.sin(t * 2.6) * 1.4, 0) * CFrame.Angles(flip, yawSpin, 0))
-                        setPose("Torso", CFrame.new(0, 1.8 + math.sin(t * 2.6) * 1.4, 0) * CFrame.Angles(flip, yawSpin, 0))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(110 * tuck), 0, math.rad(-25)))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(110 * tuck), 0, math.rad(25)))
-                        setPose("Left Arm", CFrame.Angles(math.rad(110 * tuck), 0, math.rad(-25)))
-                        setPose("Right Arm", CFrame.Angles(math.rad(110 * tuck), 0, math.rad(25)))
-                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(85 * tuck), 0, math.rad(-12)))
-                        setPose("LeftLowerLeg", CFrame.Angles(math.rad(-95 * tuck), 0, 0))
-                        setPose("RightUpperLeg", CFrame.Angles(math.rad(85 * tuck), 0, math.rad(12)))
-                        setPose("RightLowerLeg", CFrame.Angles(math.rad(-95 * tuck), 0, 0))
-                    elseif lower:find("split") or lower:find("gymnast") then
-                        local pulse = math.sin(t * 1.5) * 0.12
-                        setPose("LowerTorso", CFrame.new(0, -1.75 + math.abs(pulse), 0))
-                        setPose("Torso", CFrame.new(0, -1.75 + math.abs(pulse), 0))
-                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(88), 0, math.rad(-18)))
-                        setPose("RightUpperLeg", CFrame.Angles(math.rad(-88), 0, math.rad(18)))
-                        setPose("Left Leg", CFrame.Angles(math.rad(88), 0, math.rad(-18)))
-                        setPose("Right Leg", CFrame.Angles(math.rad(-88), 0, math.rad(18)))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(145), 0, math.rad(-35 - pulse * 80)))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(145), 0, math.rad(35 + pulse * 80)))
-                        setPose("Left Arm", CFrame.Angles(math.rad(145), 0, math.rad(-35)))
-                        setPose("Right Arm", CFrame.Angles(math.rad(145), 0, math.rad(35)))
-                    elseif lower:find("boxer") or lower:find("punch") or lower:find("saitama") or lower:find("fight") or lower:find("muay") or lower:find("uppercut") then
-                        local jabL = math.max(0, math.sin(t * 4.2))
-                        local jabR = math.max(0, -math.sin(t * 4.2))
-                        local weave = math.cos(t * 2.1)
-                        setPose("LowerTorso", CFrame.new(weave * 0.35, -0.25 + math.abs(weave) * 0.15, 0) * CFrame.Angles(0, math.rad((jabR - jabL) * 32), 0))
-                        setPose("UpperTorso", CFrame.Angles(math.rad(-12), math.rad((jabR - jabL) * 28), math.rad(weave * 10)))
-                        setPose("Torso", CFrame.new(weave * 0.35, -0.25, 0) * CFrame.Angles(math.rad(-12), math.rad((jabR - jabL) * 32), 0))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(88), 0, math.rad(-12 + jabL * 12)))
-                        setPose("LeftLowerArm", CFrame.Angles(math.rad(95 - jabL * 88), 0, 0))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(88), 0, math.rad(12 - jabR * 12)))
-                        setPose("RightLowerArm", CFrame.Angles(math.rad(95 - jabR * 88), 0, 0))
-                        setPose("Left Arm", CFrame.Angles(math.rad(75 + jabL * 25), 0, math.rad(-10)))
-                        setPose("Right Arm", CFrame.Angles(math.rad(75 + jabR * 25), 0, math.rad(10)))
-                    elseif lower:find("t-pose") or lower:find("tpose") or lower:find("dominance") then
-                        local spin = lower:find("spin") and (t * 2.8) or (math.sin(t * 0.8) * math.rad(15))
-                        local hover = math.sin(t * 1.2) * 0.35
-                        setPose("LowerTorso", CFrame.new(0, 0.8 + hover, 0) * CFrame.Angles(0, spin, 0))
-                        setPose("Torso", CFrame.new(0, 0.8 + hover, 0) * CFrame.Angles(0, spin, 0))
-                        setPose("LeftUpperArm", CFrame.Angles(0, 0, math.rad(-90)))
-                        setPose("LeftLowerArm", CFrame.Angles(0, 0, 0))
-                        setPose("RightUpperArm", CFrame.Angles(0, 0, math.rad(90)))
-                        setPose("RightLowerArm", CFrame.Angles(0, 0, 0))
-                        setPose("Left Arm", CFrame.Angles(0, 0, math.rad(-90)))
-                        setPose("Right Arm", CFrame.Angles(0, 0, math.rad(90)))
-                    elseif lower:find("zombie") or lower:find("thriller") then
-                        local s = math.sin(t * 1.5)
-                        setPose("LowerTorso", CFrame.new(s * 0.25, -0.2, 0) * CFrame.Angles(math.rad(-18), math.rad(s * 14), math.rad(s * 12)))
-                        setPose("UpperTorso", CFrame.Angles(math.rad(-15), 0, math.rad(-s * 10)))
-                        setPose("Torso", CFrame.new(s * 0.25, -0.2, 0) * CFrame.Angles(math.rad(-22), math.rad(s * 14), math.rad(s * 12)))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(82 + s * 10), 0, math.rad(-8)))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(82 - s * 10), 0, math.rad(8)))
-                        setPose("Left Arm", CFrame.Angles(math.rad(82 + s * 10), 0, math.rad(-8)))
-                        setPose("Right Arm", CFrame.Angles(math.rad(82 - s * 10), 0, math.rad(8)))
-                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(s * 32), 0, 0))
-                        setPose("RightUpperLeg", CFrame.Angles(math.rad(-s * 32), 0, 0))
-                        setPose("Left Leg", CFrame.Angles(math.rad(s * 32), 0, 0))
-                        setPose("Right Leg", CFrame.Angles(math.rad(-s * 32), 0, 0))
-                        setPose("Head", CFrame.Angles(math.rad(-16), 0, math.rad(24)))
-                    elseif lower:find("unlimited void") or lower:find("infinite void") then
-                        local bob = math.sin(t * 1.5) * 0.35
-                        setPose("LowerTorso", CFrame.new(0, 1.4 + bob, 0) * CFrame.Angles(math.rad(-10), 0, 0))
-                        setPose("UpperTorso", CFrame.Angles(math.rad(14), 0, 0))
-                        setPose("Torso", CFrame.new(0, 1.4 + bob, 0) * CFrame.Angles(math.rad(6), 0, 0))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(78), math.rad(24), math.rad(-14)))
-                        setPose("LeftLowerArm", CFrame.Angles(math.rad(48), 0, 0))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(78), math.rad(-24), math.rad(14)))
-                        setPose("RightLowerArm", CFrame.Angles(math.rad(48), 0, 0))
-                        setPose("Left Arm", CFrame.Angles(math.rad(78), math.rad(24), math.rad(-14)))
-                        setPose("Right Arm", CFrame.Angles(math.rad(78), math.rad(-24), math.rad(14)))
-                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(42), math.rad(20), math.rad(-18)))
-                        setPose("RightUpperLeg", CFrame.Angles(math.rad(42), math.rad(-20), math.rad(18)))
-                        setPose("Head", CFrame.Angles(math.rad(-14), 0, 0))
-                    elseif lower:find("cleave") or lower:find("dismantle") or lower:find("slash storm") then
-                        local swL = math.sin(t * 8.0)
-                        local swR = math.cos(t * 8.0)
-                        setPose("LowerTorso", CFrame.new(0, -0.2, 0) * CFrame.Angles(math.rad(-8), math.rad(swL * 22), 0))
-                        setPose("UpperTorso", CFrame.Angles(math.rad(-12), math.rad(-swL * 28), 0))
-                        setPose("Torso", CFrame.new(0, -0.2, 0) * CFrame.Angles(math.rad(-10), math.rad(swL * 24), 0))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(85 + swL * 45), math.rad(swL * 35), math.rad(-30)))
-                        setPose("LeftLowerArm", CFrame.Angles(math.rad(35), 0, 0))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(85 + swR * 45), math.rad(swR * 35), math.rad(30)))
-                        setPose("RightLowerArm", CFrame.Angles(math.rad(35), 0, 0))
-                        setPose("Left Arm", CFrame.Angles(math.rad(85 + swL * 50), 0, math.rad(-25)))
-                        setPose("Right Arm", CFrame.Angles(math.rad(85 + swR * 50), 0, math.rad(25)))
-                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(28), 0, math.rad(-12)))
-                        setPose("RightUpperLeg", CFrame.Angles(math.rad(-18), 0, math.rad(12)))
-                    elseif lower:find("godspeed") or lower:find("killua") then
-                        local jit = math.sin(t * 32.0) * 0.04
-                        setPose("LowerTorso", CFrame.new(0, -0.45 + jit, -0.35) * CFrame.Angles(math.rad(42), 0, 0))
-                        setPose("UpperTorso", CFrame.Angles(math.rad(18), 0, 0))
-                        setPose("Torso", CFrame.new(0, -0.45 + jit, -0.35) * CFrame.Angles(math.rad(48), 0, 0))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(-68), 0, math.rad(-22)))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(-68), 0, math.rad(22)))
-                        setPose("Left Arm", CFrame.Angles(math.rad(-68), 0, math.rad(-22)))
-                        setPose("Right Arm", CFrame.Angles(math.rad(-68), 0, math.rad(22)))
-                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(-35), 0, math.rad(-10)))
-                        setPose("RightUpperLeg", CFrame.Angles(math.rad(45), 0, math.rad(10)))
-                        setPose("Head", CFrame.Angles(math.rad(-32), 0, 0))
-                    elseif lower:find("judgement cut") or lower:find("vergil") then
-                        local snap = (t * 2.0 % 2.0 > 1.7) and 1 or 0
-                        local trm = (snap == 1) and math.sin(t * 40.0) * 0.05 or 0
-                        setPose("LowerTorso", CFrame.new(0, -0.25, 0) * CFrame.Angles(0, math.rad(35), 0))
-                        setPose("UpperTorso", CFrame.Angles(math.rad(-8), math.rad(-30), 0))
-                        setPose("Torso", CFrame.new(0, -0.25, 0) * CFrame.Angles(math.rad(-8), math.rad(30), 0))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(35), math.rad(25), math.rad(-18)))
-                        setPose("LeftLowerArm", CFrame.Angles(math.rad(55), 0, 0))
-                        setPose("RightUpperArm", (snap == 1) and CFrame.Angles(math.rad(95), math.rad(-45), math.rad(45)) or CFrame.Angles(math.rad(42), math.rad(-28), math.rad(22)))
-                        setPose("RightLowerArm", (snap == 1) and CFrame.Angles(math.rad(15), 0, 0) or CFrame.Angles(math.rad(85), 0, 0))
-                        setPose("Left Arm", CFrame.Angles(math.rad(35), math.rad(20), math.rad(-15)))
-                        setPose("Right Arm", (snap == 1) and CFrame.Angles(math.rad(95), 0, math.rad(40)) or CFrame.Angles(math.rad(45), 0, math.rad(20)))
-                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(25), 0, math.rad(-18)))
-                        setPose("RightUpperLeg", CFrame.Angles(math.rad(-22), 0, math.rad(18)))
-                        setPose("Head", CFrame.Angles(math.rad(-10), math.rad(-15), 0))
-                    elseif lower:find("demon back") or lower:find("baki") then
-                        local pulse = math.sin(t * 2.0) * 0.08
-                        setPose("LowerTorso", CFrame.new(0, -0.15, 0.25) * CFrame.Angles(math.rad(-25), 0, 0))
-                        setPose("UpperTorso", CFrame.Angles(math.rad(-32), 0, 0))
-                        setPose("Torso", CFrame.new(0, -0.15, 0.25) * CFrame.Angles(math.rad(-28), 0, 0))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(-22), math.rad(35), math.rad(-75 - pulse * 30)))
-                        setPose("LeftLowerArm", CFrame.Angles(math.rad(95), 0, 0))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(-22), math.rad(-35), math.rad(75 + pulse * 30)))
-                        setPose("RightLowerArm", CFrame.Angles(math.rad(95), 0, 0))
-                        setPose("Left Arm", CFrame.Angles(math.rad(-22), 0, math.rad(-85)))
-                        setPose("Right Arm", CFrame.Angles(math.rad(-22), 0, math.rad(85)))
-                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(28), 0, math.rad(-22)))
-                        setPose("RightUpperLeg", CFrame.Angles(math.rad(28), 0, math.rad(22)))
-                        setPose("Head", CFrame.Angles(math.rad(28), 0, 0))
-                    elseif lower:find("rengoku") or lower:find("9th form") then
-                        local lunge = math.sin(t * 3.5) * 0.15
-                        setPose("LowerTorso", CFrame.new(0, -0.5, -0.6 + lunge) * CFrame.Angles(math.rad(35), math.rad(-18), 0))
-                        setPose("UpperTorso", CFrame.Angles(math.rad(22), math.rad(15), 0))
-                        setPose("Torso", CFrame.new(0, -0.5, -0.6 + lunge) * CFrame.Angles(math.rad(32), math.rad(-15), 0))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(115), math.rad(28), math.rad(-18)))
-                        setPose("LeftLowerArm", CFrame.Angles(math.rad(35), 0, 0))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(125), math.rad(-22), math.rad(18)))
-                        setPose("RightLowerArm", CFrame.Angles(math.rad(25), 0, 0))
-                        setPose("Left Arm", CFrame.Angles(math.rad(115), 0, math.rad(-15)))
-                        setPose("Right Arm", CFrame.Angles(math.rad(125), 0, math.rad(15)))
-                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(55), 0, math.rad(-12)))
-                        setPose("LeftLowerLeg", CFrame.Angles(math.rad(-55), 0, 0))
-                        setPose("RightUpperLeg", CFrame.Angles(math.rad(-42), 0, math.rad(12)))
-                        setPose("Head", CFrame.Angles(math.rad(-25), math.rad(10), 0))
-                    elseif lower:find("levi") or lower:find("ackerman") then
-                        local spinAng = t * 9.5
-                        setPose("LowerTorso", CFrame.new(0, 1.8 + math.sin(t * 3.0) * 0.5, 0) * CFrame.Angles(math.rad(75), spinAng, 0))
-                        setPose("UpperTorso", CFrame.Angles(math.rad(15), 0, 0))
-                        setPose("Torso", CFrame.new(0, 1.8 + math.sin(t * 3.0) * 0.5, 0) * CFrame.Angles(math.rad(75), spinAng, 0))
-                        setPose("LeftUpperArm", CFrame.Angles(0, 0, math.rad(-95)))
-                        setPose("RightUpperArm", CFrame.Angles(0, 0, math.rad(95)))
-                        setPose("Left Arm", CFrame.Angles(0, 0, math.rad(-95)))
-                        setPose("Right Arm", CFrame.Angles(0, 0, math.rad(95)))
-                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(25), 0, math.rad(-25)))
-                        setPose("RightUpperLeg", CFrame.Angles(math.rad(25), 0, math.rad(25)))
-                    elseif lower:find("sephiroth") or lower:find("one-winged") then
-                        local flt = math.sin(t * 1.4) * 0.45
-                        setPose("LowerTorso", CFrame.new(0, 2.2 + flt, 0) * CFrame.Angles(math.rad(12), 0, 0))
-                        setPose("UpperTorso", CFrame.Angles(math.rad(-8), 0, 0))
-                        setPose("Torso", CFrame.new(0, 2.2 + flt, 0) * CFrame.Angles(math.rad(10), 0, 0))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(-15), math.rad(25), math.rad(-65)))
-                        setPose("LeftLowerArm", CFrame.Angles(math.rad(45), 0, 0))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(95), math.rad(-18), math.rad(18)))
-                        setPose("RightLowerArm", CFrame.Angles(math.rad(15), 0, 0))
-                        setPose("Left Arm", CFrame.Angles(math.rad(-15), 0, math.rad(-65)))
-                        setPose("Right Arm", CFrame.Angles(math.rad(95), 0, math.rad(18)))
-                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(18), 0, math.rad(-14)))
-                        setPose("RightUpperLeg", CFrame.Angles(math.rad(32), 0, math.rad(14)))
-                        setPose("Head", CFrame.Angles(math.rad(12), 0, 0))
-                    elseif lower:find("gilgamesh") or lower:find("gate of babylon") then
-                        local bob = math.sin(t * 1.8) * 0.25
-                        setPose("LowerTorso", CFrame.new(0, 1.8 + bob, 0) * CFrame.Angles(math.rad(-8), 0, 0))
-                        setPose("UpperTorso", CFrame.Angles(math.rad(12), 0, 0))
-                        setPose("Torso", CFrame.new(0, 1.8 + bob, 0) * CFrame.Angles(math.rad(6), 0, 0))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(52), math.rad(38), math.rad(-42)))
-                        setPose("LeftLowerArm", CFrame.Angles(math.rad(75), 0, 0))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(52), math.rad(-38), math.rad(42)))
-                        setPose("RightLowerArm", CFrame.Angles(math.rad(75), 0, 0))
-                        setPose("Left Arm", CFrame.Angles(math.rad(52), 0, math.rad(-45)))
-                        setPose("Right Arm", CFrame.Angles(math.rad(52), 0, math.rad(45)))
-                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(18), 0, math.rad(-16)))
-                        setPose("RightUpperLeg", CFrame.Angles(math.rad(18), 0, math.rad(16)))
-                        setPose("Head", CFrame.Angles(math.rad(-18), 0, 0))
-                    elseif lower:find("aizen") or lower:find("kyoka suigetsu") then
-                        local s = math.sin(t * 2.2)
-                        setPose("LowerTorso", CFrame.new(0, 0.4 + math.abs(s) * 0.15, 0) * CFrame.Angles(0, math.rad(s * 8), 0))
-                        setPose("UpperTorso", CFrame.Angles(math.rad(-4), 0, 0))
-                        setPose("Torso", CFrame.new(0, 0.4 + math.abs(s) * 0.15, 0) * CFrame.Angles(0, math.rad(s * 8), 0))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(15 + s * 18), 0, math.rad(-15)))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(88), math.rad(-22), math.rad(18)))
-                        setPose("RightLowerArm", CFrame.Angles(math.rad(95), 0, 0))
-                        setPose("Left Arm", CFrame.Angles(math.rad(15 + s * 18), 0, math.rad(-15)))
-                        setPose("Right Arm", CFrame.Angles(math.rad(88), 0, math.rad(20)))
-                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(s * 32), 0, 0))
-                        setPose("RightUpperLeg", CFrame.Angles(math.rad(-s * 32), 0, 0))
-                        setPose("Head", CFrame.Angles(math.rad(-8), math.rad(s * 6), 0))
-                    elseif lower:find("california gurls") or lower:find("snoop") then
-                        local s = math.sin(t * 2.8)
-                        local c = math.cos(t * 2.8)
-                        setPose("LowerTorso", CFrame.new(s * 0.45, 0, 0) * CFrame.Angles(0, math.rad(s * 18), math.rad(-s * 10)))
-                        setPose("UpperTorso", CFrame.Angles(math.rad(-8), math.rad(-s * 22), math.rad(s * 12)))
-                        setPose("Torso", CFrame.new(s * 0.45, 0, 0) * CFrame.Angles(0, math.rad(s * 18), math.rad(-s * 10)))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(35 + c * 32), 0, math.rad(-28)))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(35 - c * 32), 0, math.rad(28)))
-                        setPose("Left Arm", CFrame.Angles(math.rad(35 + c * 32), 0, math.rad(-28)))
-                        setPose("Right Arm", CFrame.Angles(math.rad(35 - c * 32), 0, math.rad(28)))
-                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(s * 25), 0, math.rad(-12)))
-                        setPose("RightUpperLeg", CFrame.Angles(math.rad(-s * 25), 0, math.rad(12)))
-                        setPose("Head", CFrame.Angles(math.rad(-8), math.rad(s * 14), 0))
-                    elseif lower:find("chika") or lower:find("fujiwara") then
-                        local b = math.abs(math.sin(t * 3.5))
-                        local s = math.sin(t * 3.5)
-                        setPose("LowerTorso", CFrame.new(s * 0.35, b * 0.4, 0) * CFrame.Angles(0, math.rad(s * 20), math.rad(s * 8)))
-                        setPose("UpperTorso", CFrame.Angles(math.rad(6), math.rad(-s * 18), 0))
-                        setPose("Torso", CFrame.new(s * 0.35, b * 0.4, 0) * CFrame.Angles(math.rad(6), math.rad(s * 20), 0))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(75 + s * 25), 0, math.rad(-45)))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(95), math.rad(-25), math.rad(25)))
-                        setPose("RightLowerArm", CFrame.Angles(math.rad(85), 0, 0))
-                        setPose("Left Arm", CFrame.Angles(math.rad(75 + s * 25), 0, math.rad(-45)))
-                        setPose("Right Arm", CFrame.Angles(math.rad(95), 0, math.rad(25)))
-                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(b * 35), 0, math.rad(-10)))
-                        setPose("RightUpperLeg", CFrame.Angles(math.rad(-b * 35), 0, math.rad(10)))
-                        setPose("Head", CFrame.Angles(math.rad(10), math.rad(s * 18), math.rad(s * 10)))
-                    elseif lower:find("caramelldansen ultra") or lower:find("caramell ultra") then
-                        local b = math.abs(math.sin(t * 5.0))
-                        local s = math.sin(t * 5.0)
-                        setPose("LowerTorso", CFrame.new(s * 0.35, b * 0.3, 0) * CFrame.Angles(0, 0, math.rad(s * 15)))
-                        setPose("UpperTorso", CFrame.Angles(0, 0, math.rad(-s * 18)))
-                        setPose("Torso", CFrame.new(s * 0.35, b * 0.3, 0) * CFrame.Angles(0, 0, math.rad(s * 15)))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(135), 0, math.rad(-25)))
-                        setPose("LeftLowerArm", CFrame.Angles(math.rad(95), 0, 0))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(135), 0, math.rad(25)))
-                        setPose("RightLowerArm", CFrame.Angles(math.rad(95), 0, 0))
-                        setPose("Left Arm", CFrame.Angles(math.rad(135), 0, math.rad(-25)))
-                        setPose("Right Arm", CFrame.Angles(math.rad(135), 0, math.rad(25)))
-                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(b * 30), 0, math.rad(-10)))
-                        setPose("RightUpperLeg", CFrame.Angles(math.rad(-b * 30), 0, math.rad(10)))
-                        setPose("Head", CFrame.Angles(math.rad(8), 0, math.rad(-s * 12)))
-                    elseif lower:find("gallop") or (lower:find("gangnam") and lower:find("horse")) then
-                        local b = math.abs(math.sin(t * 4.2))
-                        local s = math.sin(t * 4.2)
-                        setPose("LowerTorso", CFrame.new(0, b * 0.55, 0) * CFrame.Angles(math.rad(-14), 0, 0))
-                        setPose("UpperTorso", CFrame.Angles(math.rad(12), 0, 0))
-                        setPose("Torso", CFrame.new(0, b * 0.55, 0) * CFrame.Angles(math.rad(-8), 0, 0))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(55), math.rad(35), math.rad(-25)))
-                        setPose("LeftLowerArm", CFrame.Angles(math.rad(75), 0, 0))
-                        setPose("RightUpperArm", (s > 0) and CFrame.Angles(math.rad(55), math.rad(-35), math.rad(25)) or CFrame.Angles(math.rad(155), 0, math.rad(35)))
-                        setPose("RightLowerArm", CFrame.Angles(math.rad(65), 0, 0))
-                        setPose("Left Arm", CFrame.Angles(math.rad(55), 0, math.rad(-25)))
-                        setPose("Right Arm", (s > 0) and CFrame.Angles(math.rad(55), 0, math.rad(25)) or CFrame.Angles(math.rad(155), 0, math.rad(35)))
-                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(s > 0 and 45 or -20), 0, math.rad(-12)))
-                        setPose("RightUpperLeg", CFrame.Angles(math.rad(s <= 0 and 45 or -20), 0, math.rad(12)))
-                    elseif lower:find("macarena 360") or (lower:find("macarena") and lower:find("turn")) then
-                        local phase = math.floor(t * 1.8 % 8)
-                        local rot = math.floor(t * 0.45 % 4) * math.rad(90)
-                        setPose("LowerTorso", CFrame.new(0, 0, 0) * CFrame.Angles(0, rot, 0))
-                        setPose("UpperTorso", CFrame.Angles(math.rad(-6), 0, 0))
-                        setPose("Torso", CFrame.new(0, 0, 0) * CFrame.Angles(0, rot, 0))
-                        if phase == 0 then
-                            setPose("RightUpperArm", CFrame.Angles(math.rad(90), 0, 0))
-                        elseif phase == 1 then
-                            setPose("RightUpperArm", CFrame.Angles(math.rad(90), 0, 0))
-                            setPose("LeftUpperArm", CFrame.Angles(math.rad(90), 0, 0))
-                        elseif phase == 2 then
-                            setPose("RightUpperArm", CFrame.Angles(math.rad(90), 0, math.rad(180)))
-                            setPose("LeftUpperArm", CFrame.Angles(math.rad(90), 0, 0))
-                        elseif phase == 3 then
-                            setPose("RightUpperArm", CFrame.Angles(math.rad(90), 0, math.rad(180)))
-                            setPose("LeftUpperArm", CFrame.Angles(math.rad(90), 0, math.rad(-180)))
-                        elseif phase == 4 then
-                            setPose("RightUpperArm", CFrame.Angles(math.rad(45), math.rad(-45), 0))
-                            setPose("LeftUpperArm", CFrame.Angles(math.rad(45), math.rad(45), 0))
-                        elseif phase == 5 then
-                            setPose("RightUpperArm", CFrame.Angles(math.rad(125), math.rad(-25), 0))
-                            setPose("LeftUpperArm", CFrame.Angles(math.rad(125), math.rad(25), 0))
-                        else
-                            setPose("RightUpperArm", CFrame.Angles(math.rad(25), 0, math.rad(25)))
-                            setPose("LeftUpperArm", CFrame.Angles(math.rad(25), 0, math.rad(-25)))
-                        end
-                    elseif lower:find("crab rave") or (lower:find("crab") and lower:find("celebration")) then
-                        local snap = math.sin(t * 6.5)
-                        setPose("LowerTorso", CFrame.new(0, -0.65, 0) * CFrame.Angles(0, math.rad(snap * 18), 0))
-                        setPose("UpperTorso", CFrame.Angles(math.rad(-12), 0, 0))
-                        setPose("Torso", CFrame.new(0, -0.65, 0) * CFrame.Angles(0, math.rad(snap * 18), 0))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(75), 0, math.rad(-65 - snap * 35)))
-                        setPose("LeftLowerArm", CFrame.Angles(math.rad(95), 0, 0))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(75), 0, math.rad(65 + snap * 35)))
-                        setPose("RightLowerArm", CFrame.Angles(math.rad(95), 0, 0))
-                        setPose("Left Arm", CFrame.Angles(math.rad(75), 0, math.rad(-65 - snap * 35)))
-                        setPose("Right Arm", CFrame.Angles(math.rad(75), 0, math.rad(65 + snap * 35)))
-                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(45), 0, math.rad(-35)))
-                        setPose("RightUpperLeg", CFrame.Angles(math.rad(45), 0, math.rad(35)))
-                    elseif lower:find("hotline bling") or lower:find("drake") then
-                        local s = math.sin(t * 2.2)
-                        setPose("LowerTorso", CFrame.new(0, math.abs(s) * -0.25, 0) * CFrame.Angles(0, math.rad(s * 15), 0))
-                        setPose("UpperTorso", CFrame.Angles(math.rad(-6), math.rad(-s * 18), 0))
-                        setPose("Torso", CFrame.new(0, math.abs(s) * -0.25, 0) * CFrame.Angles(0, math.rad(s * 15), 0))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(105), math.rad(-35), math.rad(25)))
-                        setPose("RightLowerArm", CFrame.Angles(math.rad(95), 0, 0))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(25 - s * 25), 0, math.rad(-22)))
-                        setPose("Left Arm", CFrame.Angles(math.rad(25 - s * 25), 0, math.rad(-22)))
-                        setPose("Right Arm", CFrame.Angles(math.rad(105), 0, math.rad(25)))
-                        setPose("Head", CFrame.Angles(math.rad(-10), math.rad(-20), 0))
-                    elseif lower:find("phut hon") or lower:find("2 phut hon") then
-                        local s = math.sin(t * 3.4)
-                        setPose("LowerTorso", CFrame.new(s * 0.75, 0, 0) * CFrame.Angles(0, 0, math.rad(-s * 28)))
-                        setPose("UpperTorso", CFrame.Angles(0, 0, math.rad(s * 32)))
-                        setPose("Torso", CFrame.new(s * 0.75, 0, 0) * CFrame.Angles(0, 0, math.rad(-s * 28)))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(-28), 0, math.rad(-15)))
-                        setPose("LeftLowerArm", CFrame.Angles(math.rad(45), 0, 0))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(-28), 0, math.rad(15)))
-                        setPose("RightLowerArm", CFrame.Angles(math.rad(45), 0, 0))
-                        setPose("Left Arm", CFrame.Angles(math.rad(-28), 0, math.rad(-15)))
-                        setPose("Right Arm", CFrame.Angles(math.rad(-28), 0, math.rad(15)))
-                        setPose("Head", CFrame.Angles(math.rad(-6), 0, math.rad(-s * 15)))
-                    elseif lower:find("hardbass") or lower:find("gopnik") then
-                        local k = math.sin(t * 4.5)
-                        setPose("LowerTorso", CFrame.new(0, -1.2, 0) * CFrame.Angles(math.rad(18), 0, 0))
-                        setPose("UpperTorso", CFrame.Angles(math.rad(-18), 0, 0))
-                        setPose("Torso", CFrame.new(0, -1.2, 0) * CFrame.Angles(math.rad(14), 0, 0))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(45 + k * 35), 0, math.rad(-25)))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(45 - k * 35), 0, math.rad(25)))
-                        setPose("Left Arm", CFrame.Angles(math.rad(45 + k * 35), 0, math.rad(-25)))
-                        setPose("Right Arm", CFrame.Angles(math.rad(45 - k * 35), 0, math.rad(25)))
-                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(85), 0, math.rad(-18)))
-                        setPose("LeftLowerLeg", CFrame.Angles(math.rad(k > 0 and -105 or -25), 0, 0))
-                        setPose("RightUpperLeg", CFrame.Angles(math.rad(85), 0, math.rad(18)))
-                        setPose("RightLowerLeg", CFrame.Angles(math.rad(k <= 0 and -105 or -25), 0, 0))
-                    elseif lower:find("smooth criminal") or (lower:find("gravity lean") and lower:find("60")) then
-                        setPose("LowerTorso", CFrame.new(0, -0.65, -0.95) * CFrame.Angles(math.rad(58), 0, 0))
-                        setPose("UpperTorso", CFrame.Angles(0, 0, 0))
-                        setPose("Torso", CFrame.new(0, -0.65, -0.95) * CFrame.Angles(math.rad(58), 0, 0))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(-18), 0, math.rad(-15)))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(95), math.rad(-25), math.rad(18)))
-                        setPose("RightLowerArm", CFrame.Angles(math.rad(95), 0, 0))
-                        setPose("Left Arm", CFrame.Angles(math.rad(-18), 0, math.rad(-15)))
-                        setPose("Right Arm", CFrame.Angles(math.rad(95), 0, math.rad(20)))
-                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(-58), 0, math.rad(-8)))
-                        setPose("RightUpperLeg", CFrame.Angles(math.rad(-58), 0, math.rad(8)))
-                        setPose("Head", CFrame.Angles(math.rad(-25), 0, 0))
-                    elseif lower:find("capoeira") or lower:find("gingado") then
-                        local s = math.sin(t * 2.5)
-                        setPose("LowerTorso", CFrame.new(s * 0.65, -0.45, 0) * CFrame.Angles(math.rad(14), math.rad(s * 25), math.rad(-s * 15)))
-                        setPose("UpperTorso", CFrame.Angles(math.rad(-8), math.rad(-s * 22), 0))
-                        setPose("Torso", CFrame.new(s * 0.65, -0.45, 0) * CFrame.Angles(math.rad(14), math.rad(s * 25), 0))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(75 + s * 35), math.rad(s * 25), math.rad(-25)))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(75 - s * 35), math.rad(-s * 25), math.rad(25)))
-                        setPose("Left Arm", CFrame.Angles(math.rad(75 + s * 35), 0, math.rad(-25)))
-                        setPose("Right Arm", CFrame.Angles(math.rad(75 - s * 35), 0, math.rad(25)))
-                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(35 + s * 30), 0, math.rad(-18)))
-                        setPose("RightUpperLeg", CFrame.Angles(math.rad(35 - s * 30), 0, math.rad(18)))
-                    elseif lower:find("monkey vault") or (lower:find("vault") and lower:find("roll")) then
-                        local roll = t * 4.5 % (math.pi * 2)
-                        setPose("LowerTorso", CFrame.new(0, 0.4 + math.sin(roll) * 0.8, -roll * 0.5) * CFrame.Angles(roll, 0, 0))
-                        setPose("UpperTorso", CFrame.Angles(math.rad(25), 0, 0))
-                        setPose("Torso", CFrame.new(0, 0.4 + math.sin(roll) * 0.8, -roll * 0.5) * CFrame.Angles(roll, 0, 0))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(115), 0, math.rad(-25)))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(115), 0, math.rad(25)))
-                        setPose("Left Arm", CFrame.Angles(math.rad(115), 0, math.rad(-25)))
-                        setPose("Right Arm", CFrame.Angles(math.rad(115), 0, math.rad(25)))
-                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(65), 0, 0))
-                        setPose("RightUpperLeg", CFrame.Angles(math.rad(65), 0, 0))
-                    elseif lower:find("sugar ray") or lower:find("bolo punch") then
-                        local spin = t * 6.5
-                        setPose("LowerTorso", CFrame.new(0, -0.2, 0) * CFrame.Angles(0, math.rad(-25), 0))
-                        setPose("UpperTorso", CFrame.Angles(math.rad(-10), math.rad(25), 0))
-                        setPose("Torso", CFrame.new(0, -0.2, 0) * CFrame.Angles(0, math.rad(-25), 0))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(85), 0, math.rad(-18)))
-                        setPose("LeftLowerArm", CFrame.Angles(math.rad(75), 0, 0))
-                        setPose("RightUpperArm", CFrame.Angles(spin, 0, math.rad(28)))
-                        setPose("Left Arm", CFrame.Angles(math.rad(85), 0, math.rad(-18)))
-                        setPose("Right Arm", CFrame.Angles(spin, 0, math.rad(28)))
-                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(25), 0, math.rad(-12)))
-                        setPose("RightUpperLeg", CFrame.Angles(math.rad(-25), 0, math.rad(12)))
-                    elseif lower:find("spacewalk") or lower:find("zero gravity") then
-                        local d = math.sin(t * 1.2) * 0.5
-                        setPose("LowerTorso", CFrame.new(0, 1.5 + d, 0) * CFrame.Angles(math.rad(18 + d * 15), math.rad(d * 20), math.rad(d * 12)))
-                        setPose("UpperTorso", CFrame.Angles(math.rad(-8), 0, 0))
-                        setPose("Torso", CFrame.new(0, 1.5 + d, 0) * CFrame.Angles(math.rad(18 + d * 15), math.rad(d * 20), math.rad(d * 12)))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(45 + d * 30), math.rad(25), math.rad(-35)))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(45 - d * 30), math.rad(-25), math.rad(35)))
-                        setPose("Left Arm", CFrame.Angles(math.rad(45 + d * 30), 0, math.rad(-35)))
-                        setPose("Right Arm", CFrame.Angles(math.rad(45 - d * 30), 0, math.rad(35)))
-                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(22 - d * 20), 0, math.rad(-14)))
-                        setPose("RightUpperLeg", CFrame.Angles(math.rad(22 + d * 20), 0, math.rad(14)))
-                    elseif lower:find("pharaoh") or lower:find("egyptian") then
-                        local s = math.sin(t * 2.0)
-                        setPose("LowerTorso", CFrame.new(0, 0, 0) * CFrame.Angles(0, math.rad(90), 0))
-                        setPose("UpperTorso", CFrame.Angles(0, math.rad(-90), 0))
-                        setPose("Torso", CFrame.new(0, 0, 0) * CFrame.Angles(0, math.rad(90), 0))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(90), 0, math.rad(-90)))
-                        setPose("LeftLowerArm", CFrame.Angles(math.rad(90), 0, 0))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(-90), 0, math.rad(90)))
-                        setPose("RightLowerArm", CFrame.Angles(math.rad(90), 0, 0))
-                        setPose("Left Arm", CFrame.Angles(math.rad(90), 0, math.rad(-90)))
-                        setPose("Right Arm", CFrame.Angles(math.rad(-90), 0, math.rad(90)))
-                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(s * 25), 0, 0))
-                        setPose("RightUpperLeg", CFrame.Angles(math.rad(-s * 25), 0, 0))
-                        setPose("Head", CFrame.Angles(0, math.rad(90), 0))
-                    elseif lower:find("shadow wizard") or lower:find("money gang") then
-                        local vib = math.sin(t * 18.0) * 0.04
-                        setPose("LowerTorso", CFrame.new(0, 0.4 + math.sin(t * 1.5) * 0.15, 0) * CFrame.Angles(math.rad(-10), 0, 0))
-                        setPose("UpperTorso", CFrame.Angles(math.rad(12), 0, 0))
-                        setPose("Torso", CFrame.new(0, 0.4 + math.sin(t * 1.5) * 0.15, 0) * CFrame.Angles(math.rad(12), 0, 0))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(155 + vib * 40), 0, math.rad(18)))
-                        setPose("RightLowerArm", CFrame.Angles(math.rad(25), 0, 0))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(65), math.rad(35), math.rad(-35)))
-                        setPose("LeftLowerArm", CFrame.Angles(math.rad(75), 0, 0))
-                        setPose("Left Arm", CFrame.Angles(math.rad(65), 0, math.rad(-35)))
-                        setPose("Right Arm", CFrame.Angles(math.rad(155 + vib * 40), 0, math.rad(18)))
-                        setPose("Head", CFrame.Angles(math.rad(-18), 0, 0))
-                    elseif lower:find("pelvic drill") or lower:find("thrust drill") then
-                        local fastThrust = math.sin(t * 16.0) * 0.85
-                        setPose("LowerTorso", CFrame.new(0, 0, -fastThrust) * CFrame.Angles(math.rad(-fastThrust * 28), 0, 0))
-                        setPose("UpperTorso", CFrame.Angles(math.rad(fastThrust * 22), 0, 0))
-                        setPose("Torso", CFrame.new(0, 0, -fastThrust) * CFrame.Angles(math.rad(fastThrust * 25), 0, 0))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(88), 0, math.rad(-22)))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(88), 0, math.rad(22)))
-                        setPose("Left Arm", CFrame.Angles(math.rad(88), 0, math.rad(-22)))
-                        setPose("Right Arm", CFrame.Angles(math.rad(88), 0, math.rad(22)))
-                        setPose("Head", CFrame.Angles(math.rad(-fastThrust * 18), 0, 0))
-                    elseif lower:find("kickflip") or lower:find("shuvit") then
-                        local jump = math.abs(math.sin(t * 2.8)) * 1.5
-                        local flick = math.sin(t * 5.6)
-                        setPose("LowerTorso", CFrame.new(0, jump, 0) * CFrame.Angles(math.rad(-12), 0, 0))
-                        setPose("UpperTorso", CFrame.Angles(math.rad(12), 0, 0))
-                        setPose("Torso", CFrame.new(0, jump, 0) * CFrame.Angles(0, 0, 0))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(65), 0, math.rad(-45)))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(65), 0, math.rad(45)))
-                        setPose("Left Arm", CFrame.Angles(math.rad(65), 0, math.rad(-45)))
-                        setPose("Right Arm", CFrame.Angles(math.rad(65), 0, math.rad(45)))
-                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(35 + flick * 35), math.rad(-25), 0))
-                        setPose("RightUpperLeg", CFrame.Angles(math.rad(35 - flick * 35), math.rad(25), 0))
-                    elseif lower:find("sonic dash") or lower:find("speed of sound") then
-                        local roll = t * 14.0
-                        setPose("LowerTorso", CFrame.new(0, -0.65, -0.8) * CFrame.Angles(math.rad(68), 0, 0))
-                        setPose("UpperTorso", CFrame.Angles(math.rad(18), 0, 0))
-                        setPose("Torso", CFrame.new(0, -0.65, -0.8) * CFrame.Angles(math.rad(68), 0, 0))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(-75), 0, math.rad(-15)))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(-75), 0, math.rad(15)))
-                        setPose("Left Arm", CFrame.Angles(math.rad(-75), 0, math.rad(-15)))
-                        setPose("Right Arm", CFrame.Angles(math.rad(-75), 0, math.rad(15)))
-                        setPose("LeftUpperLeg", CFrame.Angles(math.sin(roll) * math.rad(55), 0, 0))
-                        setPose("RightUpperLeg", CFrame.Angles(-math.sin(roll) * math.rad(55), 0, 0))
-                        setPose("Head", CFrame.Angles(math.rad(-45), 0, 0))
-                    elseif lower:find("dog") or lower:find("puppy") or lower:find("wolf") or lower:find("quadruped") or (lower:find("cat") and not lower:find("catwalk")) then
-                        local s = math.sin(t * 3.8)
-                        local c = math.cos(t * 3.8)
-                        local wag = math.sin(t * 6.5) * 18
-                        setPose("LowerTorso", CFrame.new(0, -1.22 + math.abs(c) * 0.18, 0) * CFrame.Angles(math.rad(-78), 0, math.rad(wag * 0.35)))
-                        setPose("UpperTorso", CFrame.Angles(math.rad(-8), math.rad(-wag * 0.4), 0))
-                        setPose("Torso", CFrame.new(0, -1.22 + math.abs(c) * 0.18, 0) * CFrame.Angles(math.rad(-78), 0, math.rad(wag * 0.35)))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(80 + s * 38), 0, math.rad(-8)))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(80 - s * 38), 0, math.rad(8)))
-                        setPose("LeftLowerArm", CFrame.Angles(math.rad(22 + math.max(0, -s) * 28), 0, 0))
-                        setPose("RightLowerArm", CFrame.Angles(math.rad(22 + math.max(0, s) * 28), 0, 0))
-                        setPose("Left Arm", CFrame.Angles(math.rad(80 + s * 38), 0, math.rad(-8)))
-                        setPose("Right Arm", CFrame.Angles(math.rad(80 - s * 38), 0, math.rad(8)))
-                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(72 - s * 38), 0, math.rad(-8)))
-                        setPose("RightUpperLeg", CFrame.Angles(math.rad(72 + s * 38), 0, math.rad(8)))
-                        setPose("LeftLowerLeg", CFrame.Angles(math.rad(-35 - math.max(0, s) * 28), 0, 0))
-                        setPose("RightLowerLeg", CFrame.Angles(math.rad(-35 - math.max(0, -s) * 28), 0, 0))
-                        setPose("Left Leg", CFrame.Angles(math.rad(72 - s * 38), 0, math.rad(-8)))
-                        setPose("Right Leg", CFrame.Angles(math.rad(72 + s * 38), 0, math.rad(8)))
-                        setPose("Head", CFrame.Angles(math.rad(68 + math.sin(t * 2.5) * 6), math.rad(wag * 0.3), 0))
-                    elseif lower:find("marionette") or lower:find("jester puppet") then
-                        local j = math.sin(t * 3.8)
-                        local jerk = (math.abs(j) > 0.75) and 1 or 0
-                        setPose("LowerTorso", CFrame.new(0, 0.4 + j * 0.2, 0) * CFrame.Angles(math.rad(j * 15), 0, math.rad(j * 12)))
-                        setPose("UpperTorso", CFrame.Angles(math.rad(-18), 0, 0))
-                        setPose("Torso", CFrame.new(0, 0.4 + j * 0.2, 0) * CFrame.Angles(math.rad(j * 15), 0, math.rad(j * 12)))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(jerk * 95), 0, math.rad(-35)))
-                        setPose("LeftLowerArm", CFrame.Angles(math.rad(65), 0, 0))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad((1 - jerk) * 95), 0, math.rad(35)))
-                        setPose("RightLowerArm", CFrame.Angles(math.rad(65), 0, 0))
-                        setPose("Left Arm", CFrame.Angles(math.rad(jerk * 95), 0, math.rad(-35)))
-                        setPose("Right Arm", CFrame.Angles(math.rad((1 - jerk) * 95), 0, math.rad(35)))
-                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(j * 35), 0, math.rad(-15)))
-                        setPose("RightUpperLeg", CFrame.Angles(math.rad(-j * 35), 0, math.rad(15)))
-                        setPose("Head", CFrame.Angles(math.rad(28), math.rad(j * 25), math.rad(j * 20)))
-                    else
-                        -- Deterministic Hash Choreographer: every single named animation gets its own unique rhythm, arm/leg/torso/head angles & bounce!
-                        local h = 0
-                        for idx = 1, #lower do
-                            h = (h * 31 + string.byte(lower, idx)) % 10007
-                        end
-                        local freq = 1.4 + ((h % 19) * 0.08)
-                        local phase = (h % 13) * 0.45
-                        local s = math.sin(t * freq + phase)
-                        local c = math.cos(t * (freq * 0.5) + phase)
-                        local armBase = 45 + (h % 85)
-                        local armSpread = 18 + ((h * 3) % 52)
-                        local elbowBend = 25 + ((h * 7) % 65)
-                        local legSwing = 20 + ((h * 5) % 35)
-                        local hipSway = 0.18 + ((h % 7) * 0.05)
-                        local bounce = 0.2 + ((h % 5) * 0.07)
-                        setPose("LowerTorso", CFrame.new(c * hipSway, math.abs(s) * bounce, 0) * CFrame.Angles(0, math.rad(c * 22), math.rad(s * 10)))
-                        setPose("UpperTorso", CFrame.Angles(math.rad(s * 14), math.rad(-c * 26), math.rad(-s * 8)))
-                        setPose("Torso", CFrame.new(c * hipSway, math.abs(s) * bounce, 0) * CFrame.Angles(math.rad(s * 12), math.rad(c * 22), math.rad(s * 10)))
-                        setPose("LeftUpperArm", CFrame.Angles(math.rad(armBase + s * 48), 0, math.rad(-armSpread - math.abs(c) * 24)))
-                        setPose("LeftLowerArm", CFrame.Angles(math.rad(elbowBend + c * 28), 0, 0))
-                        setPose("RightUpperArm", CFrame.Angles(math.rad(armBase - s * 48), 0, math.rad(armSpread + math.abs(c) * 24)))
-                        setPose("RightLowerArm", CFrame.Angles(math.rad(elbowBend - c * 28), 0, 0))
-                        setPose("Left Arm", CFrame.Angles(math.rad(armBase + s * 48), 0, math.rad(-armSpread)))
-                        setPose("Right Arm", CFrame.Angles(math.rad(armBase - s * 48), 0, math.rad(armSpread)))
-                        setPose("LeftUpperLeg", CFrame.Angles(math.rad(-s * legSwing), 0, math.rad(-10)))
-                        setPose("LeftLowerLeg", CFrame.Angles(math.rad(-math.max(0, s) * 48), 0, 0))
-                        setPose("RightUpperLeg", CFrame.Angles(math.rad(s * legSwing), 0, math.rad(10)))
-                        setPose("RightLowerLeg", CFrame.Angles(math.rad(-math.max(0, -s) * 48), 0, 0))
-                        setPose("Left Leg", CFrame.Angles(math.rad(-s * legSwing), 0, math.rad(-10)))
-                        setPose("Right Leg", CFrame.Angles(math.rad(s * legSwing), 0, math.rad(10)))
-                        setPose("Head", CFrame.Angles(math.rad(-s * 12), math.rad(c * 18), math.rad(s * 6)))
-                    end
-                end)
-                return true
-            end
-
-            local nativeApi = {}
-            nativeApi._isFallback = false
-            nativeApi._isNativeEngine = true
-
-            function nativeApi.is_reanimated()
-                return nativeState.reanimated == true
-            end
-
-            function nativeApi.get_clone()
-                return nativeState.clone_char or (LocalPlayer and LocalPlayer.Character)
-            end
-
-            function nativeApi.get_real_character()
-                return nativeState.real_char or (LocalPlayer and LocalPlayer.Character)
-            end
-
-            function nativeApi.reanimate(enable)
-                if enable == nil then enable = not nativeState.reanimated end
-                if nativeState.is_processing then return false end
-                nativeState.is_processing = true
-
-                local ok, err = pcall(function()
-                    if enable then
-                        if nativeState.reanimated then return end
-                        if CocaSkyDestroyer and CocaSkyDestroyer.is_reanimated and CocaSkyDestroyer.is_reanimated() then
-                            CocaSkyDestroyer.reanimate(false)
-                        end
-                        local realChar = LocalPlayer and LocalPlayer.Character
-                        if not (realChar and realChar.Parent) then return end
-                        local realHum = realChar:FindFirstChildOfClass("Humanoid")
-                        local realHRP = realChar:FindFirstChild("HumanoidRootPart")
-                        if not (realHum and realHRP) then return end
-
-                        -- Clone BEFORE disabling states or setting PlatformStand on realHum so cloneHum never inherits a paralyzed state!
-                        local cloneChar = cloneRigForNativeReanim(realChar)
-                        local cloneHum = cloneChar:FindFirstChildOfClass("Humanoid")
-                        nativeState.real_char = realChar
-                        nativeState.clone_char = cloneChar
-                        table.clear(nativeState.defaultC0)
-                        findCloneMotorsMap(cloneChar)
-
-                        for _, desc in ipairs(cloneChar:GetDescendants()) do
-                            if desc:IsA("BasePart") then
-                                pcall(function()
-                                    desc.LocalTransparencyModifier = 0
-                                    if desc.Name ~= "HumanoidRootPart" and desc.Transparency > 0.5 then
-                                        desc.Transparency = 0
-                                    end
-                                end)
-                            end
-                        end
-
-                        for _, st in ipairs({
-                            Enum.HumanoidStateType.Dead, Enum.HumanoidStateType.FallingDown,
-                            Enum.HumanoidStateType.Ragdoll, Enum.HumanoidStateType.GettingUp,
-                        }) do
-                            pcall(function() realHum:SetStateEnabled(st, false) end)
-                        end
-                        realHum.PlatformStand = true
-                        realHum.RequiresNeck = false
-                        realHum.BreakJointsOnDeath = false
-                        realHum.AutoRotate = false
-                        pcall(function() realHum:ChangeState(Enum.HumanoidStateType.Physics) end)
-
-                        if cloneHum then
-                            pcall(function()
-                                cloneHum.PlatformStand = false
-                                cloneHum.Sit = false
-                                cloneHum.AutoRotate = true
-                                cloneHum:SetStateEnabled(Enum.HumanoidStateType.Running, true)
-                                cloneHum:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
-                                cloneHum:SetStateEnabled(Enum.HumanoidStateType.Freefall, true)
-                                cloneHum:SetStateEnabled(Enum.HumanoidStateType.Landed, true)
-                            end)
-                        end
-
-                        -- Hide realChar locally while keeping cloneChar visible to the local player
-                        for _, desc in ipairs(realChar:GetDescendants()) do
-                            if desc:IsA("BasePart") then
-                                pcall(function()
-                                    desc.CanCollide = false
-                                    desc.CanTouch = false
-                                    desc.CanQuery = false
-                                    desc.Massless = true
-                                    desc.LocalTransparencyModifier = 1
-                                end)
-                            elseif desc:IsA("Decal") then
-                                pcall(function() desc.Transparency = 1 end)
-                            end
-                        end
-
-                        local limbPairs = {}
-                        for _, limbName in ipairs(R6_R15_LIMBS) do
-                            local rPart = realChar:FindFirstChild(limbName)
-                            local fPart = cloneChar:FindFirstChild(limbName)
-                            if rPart and fPart and rPart:IsA("BasePart") and fPart:IsA("BasePart") then
-                                table.insert(limbPairs, { name = limbName, real = rPart, fake = fPart })
-                            end
-                        end
-                        for _, acc in ipairs(realChar:GetDescendants()) do
-                            if acc:IsA("Accessory") then
-                                local rHandle = acc:FindFirstChild("Handle")
-                                local cAcc = cloneChar:FindFirstChild(acc.Name)
-                                local fHandle = cAcc and cAcc:FindFirstChild("Handle")
-                                local hasWrap = acc:FindFirstChildWhichIsA("WrapLayer", true) ~= nil
-                                if rHandle and fHandle and rHandle:IsA("BasePart") and fHandle:IsA("BasePart") and not hasWrap then
-                                    for _, j in ipairs(acc:GetDescendants()) do
-                                        if j:IsA("Weld") or j:IsA("WeldConstraint") or j:IsA("Motor6D") then
-                                            pcall(function() j.Enabled = false end)
-                                        end
-                                    end
-                                    table.insert(limbPairs, { name = acc.Name, real = rHandle, fake = fHandle, isAcc = true })
-                                end
-                            end
-                        end
-
-                        local savedGuis = {}
-                        local pg = LocalPlayer:FindFirstChildWhichIsA("PlayerGui")
-                        if pg then
-                            for _, g in ipairs(pg:GetChildren()) do
-                                if g:IsA("ScreenGui") and g.ResetOnSpawn then
-                                    savedGuis[g] = true
-                                    g.ResetOnSpawn = false
-                                end
-                            end
-                        end
-
-                        LocalPlayer.Character = cloneChar
-                        if workspace.CurrentCamera and cloneHum then
-                            workspace.CurrentCamera.CameraSubject = cloneHum
-                        end
-                        for g in pairs(savedGuis) do
-                            if g and g.Parent then g.ResetOnSpawn = true end
-                        end
-
-                        local cloneAnim = cloneChar:FindFirstChild("Animate")
-                        if cloneAnim then cloneAnim.Disabled = false end
-                        if cloneHum then pcall(function() cloneHum:ChangeState(Enum.HumanoidStateType.Running) end) end
-
-                        -- Place-specific Ragdoll remote or Motor6D disable + NoCollisionConstraints (MortalHub Chunk 3)
-                        local ragRemote, ragArgs, ragLocal = detectPlaceRagdollRemote(true)
-                        if ragRemote then
-                            task.spawn(function()
-                                fireRagdollRemote(ragRemote, ragLocal, ragArgs)
-                            end)
-                        else
-                            for _, desc in ipairs(realChar:GetDescendants()) do
-                                if desc:IsA("Motor6D") then
-                                    pcall(function() desc.Enabled = false end)
-                                end
-                            end
-                        end
-                        local zeroPhysProps = PhysicalProperties.new(0.001, 0, 0, 0, 0)
-                        for idxA = 1, #limbPairs do
-                            local rA, fA = limbPairs[idxA].real, limbPairs[idxA].fake
-                            if rA and fA then
-                                pcall(function()
-                                    rA.CustomPhysicalProperties = zeroPhysProps
-                                    local ncc = Instance.new("NoCollisionConstraint")
-                                    ncc.Name = "CocaNCC_Clone"
-                                    ncc.Part0 = rA
-                                    ncc.Part1 = fA
-                                    ncc.Parent = rA
-                                end)
-                            end
-                        end
-                        local maxNcc = math.min(#limbPairs, 25)
-                        for idxA = 1, maxNcc do
-                            for idxB = idxA + 1, maxNcc do
-                                local rA, rB = limbPairs[idxA].real, limbPairs[idxB].real
-                                if rA and rB then
-                                    pcall(function()
-                                        local ncc = Instance.new("NoCollisionConstraint")
-                                        ncc.Name = "CocaNCC_Real"
-                                        ncc.Part0 = rA
-                                        ncc.Part1 = rB
-                                        ncc.Parent = rA
-                                    end)
-                                end
-                            end
-                        end
-                        local realAnim = realChar:FindFirstChild("Animate")
-                        if realAnim then pcall(function() realAnim.Disabled = true end) end
-                        for _, tr in ipairs(realHum:GetPlayingAnimationTracks()) do
-                            if not IsCocoBeaconTrack[tr] then
-                                pcall(function() tr:Stop(0) end)
-                            end
-                        end
-
-                        pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
-                        pcall(function()
-                            settings().Physics.PhysicsEnvironmentalThrottle = Enum.EnviromentalPhysicsThrottle.Disabled
-                            settings().Physics.AllowSleep = false
-                            if sethiddenproperty then
-                                sethiddenproperty(LocalPlayer, "SimulationRadius", math.huge)
-                                sethiddenproperty(LocalPlayer, "MaxSimulationRadius", math.huge)
-                            end
-                        end)
-
-                        local cloneHRP = cloneChar:FindFirstChild("HumanoidRootPart")
-                        if cloneHRP then pcall(function() LocalPlayer.ReplicationFocus = cloneHRP end) end
-
-                        local hiddenPartsTbl = _G.hiddenBodyParts
-                        local lastRealRepBound = nil
-                        local function syncRealLimbsToClone(isHeartbeat)
-                            if not (realChar and realChar.Parent and cloneChar and cloneChar.Parent) then return end
-                            local tNow = os.clock()
-                            local netlessVel = Vector3.new(0, 25.05, 0) + Vector3.new(math.sin(tNow * 30) * 0.025, 0, math.cos(tNow * 30) * 0.025)
-                            local isWeldedOrSeeking = _G.CocaBangActive or _G.CocaCopierActive or CurrentWeld ~= nil or WeldSeekingTarget or (WeldIntent and WeldIntent.active) or (AnimCopySys and AnimCopySys.active)
-                            if isHeartbeat and sethiddenproperty and realHRP and cloneHRP and realHRP.Parent and cloneHRP.Parent then
-                                if lastRealRepBound ~= cloneHRP then
-                                    lastRealRepBound = cloneHRP
-                                    pcall(sethiddenproperty, realHRP, "PhysicsRepRootPart", cloneHRP)
-                                    if InstanceHandleNew then
-                                        pcall(sethiddenproperty, realHRP, "PhysicsRepRootRef", InstanceHandleNew(cloneHRP))
-                                    end
-                                end
-                            end
-                            local doFling = (nativeState.flingEnabled == true) and not isWeldedOrSeeking
-                            if doFling then
-                                nativeState.flingAngle = (nativeState.flingAngle or 0) + 0.95
-                            end
-                            local applyVelNow = isHeartbeat or isWeldedOrSeeking
-                            for i = 1, #limbPairs do
-                                local p = limbPairs[i]
-                                local r, f = p.real, p.fake
-                                if r and f and r.Parent and f.Parent then
-                                    if r.Anchored then r.Anchored = false end
-                                    if r.CanCollide and not (doFling and p.name == "HumanoidRootPart") then
-                                        r.CanCollide = false
-                                    end
-                                    if r.CanTouch then r.CanTouch = false end
-                                    if r.CanQuery then r.CanQuery = false end
-                                    if not r.Massless then r.Massless = true end
-                                    if r.LocalTransparencyModifier < 0.99 then r.LocalTransparencyModifier = 1 end
-                                    local isHiddenLimb = hiddenPartsTbl and hiddenPartsTbl[p.name] == true
-                                    if doFling and p.name == "HumanoidRootPart" then
-                                        local ang = nativeState.flingAngle
-                                        r.CanCollide = true
-                                        r.CFrame = f.CFrame * CFrame.new(math.cos(ang) * 1.35, 0, math.sin(ang) * 1.35) * CFrame.Angles(ang, ang * 1.7, -ang)
-                                        r.AssemblyLinearVelocity = Vector3.new(95000, 95000, 95000)
-                                        r.AssemblyAngularVelocity = Vector3.new(125000, 125000, 125000)
-                                    elseif isHiddenLimb and p.name ~= "HumanoidRootPart" then
-                                        r.CFrame = f.CFrame * CFrame.new(0, -350, 0)
-                                        if applyVelNow then
-                                            r.AssemblyLinearVelocity = netlessVel
-                                            r.AssemblyAngularVelocity = Vector3.zero
-                                        end
-                                    else
-                                        r.CFrame = f.CFrame
-                                        if applyVelNow then
-                                            r.AssemblyLinearVelocity = netlessVel
-                                            r.AssemblyAngularVelocity = Vector3.zero
-                                        end
-                                    end
-                                    if isHeartbeat and sethiddenproperty then
-                                        pcall(sethiddenproperty, r, "NetworkIsSleeping", false)
-                                    end
-                                end
-                            end
-                        end
-                        nativeState.syncFn = syncRealLimbsToClone
-                        nativeApi.sync_now = function(applyVel)
-                            if nativeState.reanimated and nativeState.syncFn then
-                                nativeState.syncFn(applyVel ~= false)
-                            end
-                        end
-
-                        -- ⚡ ZERO-DELAY FRAME-0 SYNC + RENDERSTEP BINDING (0.00ms startup latency, runs right after Weld lock!)
-                        syncRealLimbsToClone(true)
-                        pcall(function()
-                            RunService:BindToRenderStep("CocaReanimZeroDelayPreCam", Enum.RenderPriority.Camera.Value, function()
-                                if not (realChar.Parent and cloneChar.Parent) then return end
-                                syncRealLimbsToClone(false)
-                            end)
-                            RunService:BindToRenderStep("CocaReanimZeroDelay", Enum.RenderPriority.Character.Value + 2, function()
-                                if not (realChar.Parent and cloneChar.Parent) then return end
-                                syncRealLimbsToClone(false)
-                            end)
-                        end)
-
-                        local prevNeckRot = nil
-                        local prevWaistRot = nil
-                        nativeState.connections.stepped = RunService.Stepped:Connect(function()
-                            if not (realChar.Parent and cloneChar.Parent) then return end
-                            if realHum.Parent then pcall(function() realHum:ChangeState(Enum.HumanoidStateType.Physics) end) end
-                            -- Real-time Coca Head & Limb Tracking + Torso/Leg/Arm Stretching (MortalHub Chunk 9)
-                            if _G._HaloHeadTrackerEnabled or _G._HaloLeftArmPointerEnabled or _G._HaloRightArmPointerEnabled or _G._HaloLimbsTorsoCamControl or _G._HaloTorsoStretcherEnabled or _G._HaloLegStretcherEnabled or _G._HaloLeftArmStretching or _G._HaloRightArmStretching then
-                                pcall(function()
-                                    local camNow = workspace.CurrentCamera
-                                    local mouse = LocalPlayer and LocalPlayer:GetMouse()
-                                    if _G._HaloHeadTrackerEnabled and camNow then
-                                        local neck = nil
-                                        for _, d in ipairs(cloneChar:GetDescendants()) do
-                                            if d:IsA("Motor6D") and (d.Name == "Neck" or (d.Part1 and d.Part1.Name == "Head")) then
-                                                neck = d; break
-                                            end
-                                        end
-                                        if neck and neck.Part0 then
-                                            local look = camNow.CFrame.LookVector
-                                            local rel = (neck.Part0.CFrame * neck.C0).Rotation:Inverse() * look
-                                            local yaw = math.clamp(math.atan2(rel.X, -rel.Z), -math.rad(75), math.rad(75))
-                                            local pitch = math.clamp(math.asin(math.clamp(rel.Y, -1, 1)), -math.rad(55), math.rad(55))
-                                            local dir = Vector3.new(math.sin(yaw) * math.cos(pitch), math.sin(pitch), -math.cos(yaw) * math.cos(pitch)).Unit
-                                            local fwd = Vector3.new(0, 0, -1)
-                                            local axis = fwd:Cross(dir)
-                                            local rotCF = (axis.Magnitude > 0.001) and CFrame.fromAxisAngle(axis.Unit, math.acos(math.clamp(fwd:Dot(dir), -1, 1))) or CFrame.identity
-                                            prevNeckRot = prevNeckRot and prevNeckRot:Lerp(rotCF, 0.18) or rotCF
-                                            neck.Transform = prevNeckRot
-                                        end
-                                    end
-                                    if (_G._HaloLeftArmPointerEnabled or _G._HaloRightArmPointerEnabled) and camNow and mouse then
-                                        local ray = camNow:ViewportPointToRay(mouse.X, mouse.Y)
-                                        local rp = RaycastParams.new()
-                                        rp.FilterType = Enum.RaycastFilterType.Exclude
-                                        rp.FilterDescendantsInstances = { cloneChar, realChar }
-                                        local hit = workspace:Raycast(ray.Origin, ray.Direction * 1000, rp)
-                                        local hitPos = (hit and hit.Position) or (ray.Origin + ray.Direction * 1000)
-                                        local function pointArm(shoulderName, elbowName, part1Name, stretchMult)
-                                            for _, d in ipairs(cloneChar:GetDescendants()) do
-                                                if d:IsA("Motor6D") and (d.Name == shoulderName or (d.Part1 and (d.Part1.Name == shoulderName or d.Part1.Name == part1Name))) and d.Part0 then
-                                                    local delta = hitPos - (d.Part0.CFrame * d.C0).Position
-                                                    if delta.Magnitude > 0.001 then
-                                                        local rel = (d.Part0.CFrame * d.C0).Rotation:Inverse() * delta.Unit
-                                                        local down = Vector3.new(0, -1, 0)
-                                                        local axis = down:Cross(rel)
-                                                        local rotCF = (axis.Magnitude > 0.001) and CFrame.fromAxisAngle(axis.Unit, math.acos(math.clamp(down:Dot(rel), -1, 1))) or CFrame.identity
-                                                        d.Transform = rotCF
-                                                        for _, e in ipairs(cloneChar:GetDescendants()) do
-                                                            if e:IsA("Motor6D") and (e.Name == elbowName or (e.Part1 and e.Part1.Name == elbowName)) then
-                                                                e.Transform = (stretchMult and stretchMult > 1) and CFrame.new(0, -(stretchMult - 1) * 1.2, 0) or CFrame.identity
-                                                                break
-                                                            end
-                                                        end
-                                                    end
-                                                    break
-                                                end
-                                            end
-                                        end
-                                        local armAmt = _G._HaloArmStretchAmount or 2.5
-                                        if _G._HaloRightArmPointerEnabled then
-                                            pointArm("RightShoulder", "RightElbow", "Right Arm", _G._HaloRightArmStretching and armAmt or 1)
-                                        end
-                                        if _G._HaloLeftArmPointerEnabled then
-                                            pointArm("LeftShoulder", "LeftElbow", "Left Arm", _G._HaloLeftArmStretching and armAmt or 1)
-                                        end
-                                    end
-                                    if _G._HaloTorsoStretcherEnabled or _G._HaloLimbsTorsoCamControl then
-                                        for _, d in ipairs(cloneChar:GetDescendants()) do
-                                            if d:IsA("Motor6D") and (d.Name == "Waist" or d.Name == "RootJoint") and d.Part0 then
-                                                local rotCF = CFrame.identity
-                                                if _G._HaloLimbsTorsoCamControl and camNow then
-                                                    local rel = (d.Part0.CFrame * d.C0).Rotation:Inverse() * camNow.CFrame.LookVector
-                                                    local yaw = math.atan2(rel.X, -rel.Z)
-                                                    local pitch = math.asin(math.clamp(rel.Y, -1, 1))
-                                                    local mode = _G._HaloLimbsTorsoCamMode
-                                                    local targetRot
-                                                    if mode == "Locked" then
-                                                        targetRot = CFrame.fromEulerAnglesYXZ(math.clamp(pitch, -math.rad(30), math.rad(30)), -math.clamp(yaw, -math.rad(45), math.rad(45)), 0)
-                                                    elseif mode == "Pitch Only" then
-                                                        targetRot = CFrame.fromEulerAnglesYXZ(pitch, 0, 0)
-                                                    else
-                                                        targetRot = CFrame.fromEulerAnglesYXZ(pitch * 2, -yaw, 0)
-                                                    end
-                                                    prevWaistRot = prevWaistRot and prevWaistRot:Lerp(targetRot, 0.2) or targetRot
-                                                    rotCF = prevWaistRot
-                                                end
-                                                local stretchY = _G._HaloTorsoStretcherEnabled and (((_G._HaloLimbsUpperTorsoHeight or 1) - 1) * 2.5) or 0
-                                                d.Transform = CFrame.new(0, stretchY, 0) * rotCF
-                                                break
-                                            end
-                                        end
-                                    end
-                                    if _G._HaloLegStretcherEnabled then
-                                        local legMult = math.clamp(_G._HaloLimbsLegHeight or 1, 0.4, 25)
-                                        local legCF = (legMult ~= 1) and CFrame.new(0, -(legMult - 1) * 1.5, 0) or CFrame.identity
-                                        for _, d in ipairs(cloneChar:GetDescendants()) do
-                                            if d:IsA("Motor6D") and (d.Name == "RightKnee" or d.Name == "LeftKnee" or (d.Part1 and (d.Part1.Name == "RightLowerLeg" or d.Part1.Name == "LeftLowerLeg" or d.Part1.Name == "Right Leg" or d.Part1.Name == "Left Leg"))) then
-                                                d.Transform = legCF
-                                            end
-                                        end
-                                        if cloneHum then cloneHum.HipHeight = 2 * legMult end
-                                    end
-                                end)
-                            end
-                            syncRealLimbsToClone(false)
-                        end)
-
-                        nativeState.connections.hb = RunService.Heartbeat:Connect(function()
-                            if not (realChar.Parent and cloneChar.Parent) then
-                                nativeApi.reanimate(false)
-                                return
-                            end
-                            syncRealLimbsToClone(true)
-                        end)
-
-                        nativeState.connections.render = RunService.RenderStepped:Connect(function()
-                            if not (realChar.Parent and cloneChar.Parent) then return end
-                            syncRealLimbsToClone(false)
-                        end)
-
-                        nativeState.reanimated = true
-                        if WeldIntent and WeldIntent.active and WeldIntent.presetKey and WeldIntent.target then
-                            task.defer(function()
-                                pcall(function() applyWeldPreset(WeldIntent.presetKey, WeldIntent.target) end)
-                            end)
-                        end
-                    else
-                        if not nativeState.reanimated then return end
-                        stopNativeAnimationInternal(true)
-                        pcall(function() RunService:UnbindFromRenderStep("CocaReanimZeroDelayPreCam") end)
-                        pcall(function() RunService:UnbindFromRenderStep("CocaReanimZeroDelay") end)
-                        for k, conn in pairs(nativeState.connections) do
-                            if conn then pcall(function() conn:Disconnect() end) end
-                            nativeState.connections[k] = nil
-                        end
-                        local clone = nativeState.clone_char
-                        local realChar = nativeState.real_char
-                        if realChar and realChar.Parent then
-                            local realHum = realChar:FindFirstChildOfClass("Humanoid")
-                            local realHRP = realChar:FindFirstChild("HumanoidRootPart")
-                            local cloneHRP = clone and clone:FindFirstChild("HumanoidRootPart")
-                            local restoreCF = (cloneHRP and cloneHRP.CFrame) or (realHRP and realHRP.CFrame)
-                            if realHRP and restoreCF then
-                                markIntentionalTeleport(restoreCF)
-                                realHRP.CFrame = restoreCF
-                                realHRP.AssemblyLinearVelocity = Vector3.zero
-                                realHRP.AssemblyAngularVelocity = Vector3.zero
-                            end
-                            local ragRemoteOff, ragArgsOff, ragLocalOff = detectPlaceRagdollRemote(false)
-                            if ragRemoteOff then
-                                task.spawn(function()
-                                    for _ = 1, 3 do
-                                        fireRagdollRemote(ragRemoteOff, ragLocalOff, ragArgsOff)
-                                        task.wait(0.05)
-                                    end
-                                end)
-                            end
-                            for _, desc in ipairs(realChar:GetDescendants()) do
-                                if desc:IsA("NoCollisionConstraint") and (desc.Name == "CocaNCC_Clone" or desc.Name == "CocaNCC_Real") then
-                                    pcall(function() desc:Destroy() end)
-                                elseif desc:IsA("Motor6D") or desc:IsA("Weld") or desc:IsA("WeldConstraint") then
-                                    pcall(function() desc.Enabled = true end)
-                                elseif desc:IsA("BasePart") then
-                                    pcall(function() desc.CustomPhysicalProperties = nil end)
-                                    pcall(function()
-                                        desc.Massless = false
-                                        desc.CanTouch = true
-                                        desc.CanQuery = true
-                                        desc.LocalTransparencyModifier = 0
-                                        desc.Transparency = (desc.Name == "HumanoidRootPart") and 1 or 0
-                                        desc.AssemblyLinearVelocity = Vector3.zero
-                                        desc.AssemblyAngularVelocity = Vector3.zero
-                                        desc.CanCollide = (desc.Name == "UpperTorso" or desc.Name == "LowerTorso" or desc.Name == "Torso")
-                                    end)
-                                elseif desc:IsA("Decal") then
-                                    pcall(function() desc.Transparency = 0 end)
-                                end
-                            end
-                            local realAnim = realChar:FindFirstChild("Animate")
-                            if realAnim then pcall(function() realAnim.Disabled = false end) end
-                            if realHum then
-                                pcall(function()
-                                    for _, st in ipairs({
-                                        Enum.HumanoidStateType.Dead, Enum.HumanoidStateType.FallingDown,
-                                        Enum.HumanoidStateType.Ragdoll, Enum.HumanoidStateType.GettingUp,
-                                    }) do
-                                        realHum:SetStateEnabled(st, true)
-                                    end
-                                    realHum.AutoRotate = true
-                                    realHum.PlatformStand = false
-                                    realHum.Sit = false
-                                    realHum.RequiresNeck = true
-                                    realHum:ChangeState(Enum.HumanoidStateType.GettingUp)
-                                    realHum:ChangeState(Enum.HumanoidStateType.Running)
-                                end)
-                            end
-                            LocalPlayer.Character = realChar
-                            if workspace.CurrentCamera and realHum then
-                                workspace.CurrentCamera.CameraSubject = realHum
-                            end
-                        end
-                        if clone and clone.Parent then pcall(function() clone:Destroy() end) end
-                        nativeState.clone_char = nil
-                        nativeState.real_char = nil
-                        nativeState.syncFn = nil
-                        nativeState.reanimated = false
-                        table.clear(nativeState.defaultC0)
-                        if WeldIntent and WeldIntent.active and WeldIntent.presetKey and WeldIntent.target then
-                            task.defer(function()
-                                pcall(function() applyWeldPreset(WeldIntent.presetKey, WeldIntent.target) end)
-                            end)
-                        end
-                    end
-                end)
-
-                nativeState.is_processing = false
-                if not ok then warn("[Coca Reanim Native] Error:", err) end
-                return nativeState.reanimated
-            end
-
-            function nativeApi.play_animation(animPath, spd)
-                nativeState.currentSpeed = tonumber(spd) or nativeState.currentSpeed or 1.0
-                if not nativeState.reanimated then
-                    nativeApi.reanimate(true)
-                end
-                stopNativeAnimationInternal(true)
-                local cloneChar = nativeApi.get_clone()
-                if not cloneChar then return "No character available" end
-                local cloneHum = cloneChar:FindFirstChildOfClass("Humanoid")
-
-                local rawStr = tostring(animPath or "")
-                -- 1. Built-in procedural preset ("builtin://Name")
-                if rawStr:sub(1, 10) == "builtin://" then
-                    local pName = rawStr:sub(11)
-                    playProceduralPresetOnClone(pName, cloneChar)
-                    for _, cb in ipairs(nativeState.playListeners) do pcall(cb, animPath) end
-                    return true
-                end
-
-                -- 2. Direct Roblox Animation Asset ID ("rbxassetid://12345" or numeric digits)
-                local assetDigits = rawStr:match("^rbxassetid://(%d+)$") or rawStr:match("^(%d+)$")
-                if assetDigits and cloneHum then
-                    local okTrack = pcall(function()
-                        local animator = cloneHum:FindFirstChildOfClass("Animator") or Instance.new("Animator", cloneHum)
-                        local animObj = Instance.new("Animation")
-                        animObj.AnimationId = "rbxassetid://" .. assetDigits
-                        local tr = animator:LoadAnimation(animObj)
-                        tr.Priority = Enum.AnimationPriority.Action4
-                        tr.Looped = true
-                        tr:Play(0.05, 1, nativeState.currentSpeed)
-                        nativeState.activeTrack = tr
-                        nativeState.activeAnimObj = animObj
-                    end)
-                    if okTrack and nativeState.activeTrack then
-                        for _, cb in ipairs(nativeState.playListeners) do pcall(cb, animPath) end
-                        return true
-                    end
-                end
-
-                -- 3. External URL or local cached file or Lua keyframe source string (MortalHub + Coca Cache)
-                local luaSource = nativeState.animCache[rawStr]
-                if not luaSource then
-                    if rawStr:sub(1, 4) == "http" then
-                        local cachePath = nil
-                        if type(isfolder) == "function" and type(makefolder) == "function" and type(isfile) == "function" and type(readfile) == "function" then
-                            pcall(function()
-                                if not isfolder("CocaAnimCache") then makefolder("CocaAnimCache") end
-                            end)
-                            local rawFile = rawStr:match("([^/]+)$") or "anim.lua"
-                            local decodedFile = rawFile:gsub("%%20", " "):gsub("%%27", "'")
-                            local safeCacheName = rawFile:gsub("%%20", "_"):gsub("%%27", "")
-                            cachePath = "CocaAnimCache/" .. safeCacheName
-                            local pandaPath = "PandaAnimCache/" .. safeCacheName
-                            for _, candidate in ipairs({
-                                cachePath,
-                                pandaPath,
-                                "Animations-main/" .. decodedFile,
-                                "Unicorns File/" .. decodedFile,
-                                decodedFile,
-                            }) do
-                                local okE, ex = pcall(isfile, candidate)
-                                if okE and ex then
-                                    local okR, content = pcall(readfile, candidate)
-                                    if okR and type(content) == "string" and #content > 10 then
-                                        luaSource = content
-                                        nativeState.animCache[rawStr] = content
-                                        break
-                                    end
-                                end
-                            end
-                        end
-                        if not luaSource then
-                            local okHttp, res = pcall(function() return game:HttpGet(rawStr) end)
-                            if okHttp and type(res) == "string" and #res > 10 then
-                                luaSource = res
-                                nativeState.animCache[rawStr] = res
-                                if cachePath and type(writefile) == "function" then
-                                    pcall(writefile, cachePath, res)
-                                end
-                            end
-                        end
-                    elseif type(isfile) == "function" and type(readfile) == "function" then
-                        local okF, ex = pcall(isfile, rawStr)
-                        if okF and ex then
-                            local okR, content = pcall(readfile, rawStr)
-                            if okR and type(content) == "string" and #content > 10 then
-                                luaSource = content
-                            end
-                        end
-                    end
-                    if not luaSource and (#rawStr > 25 and (rawStr:find("CFrame") or rawStr:find("Keyframes") or rawStr:find("return"))) then
-                        luaSource = rawStr
-                    end
-                end
-
-                if type(luaSource) == "string" and #luaSource > 10 then
-                    -- Fast MortalHub regex parser for {Time = ..., Data = { ["Part"] = CFrame.new(...) }}
-                    if luaSource:match("{Time%s*=") then
-                        local parsedFrames = {}
-                        for tMatch, dMatch in luaSource:gmatch("{Time%s*=%s*([%d%.]+),%s*Data%s*=%s*{(.-)}}") do
-                            local tVal = tonumber(tMatch)
-                            local poseData = {}
-                            for partKey, cfArgs in dMatch:gmatch('%["([^"]+)"%]%s*=%s*CFrame%.new%(([^%)]+)%)') do
-                                local nums = {}
-                                for nStr in cfArgs:gmatch("([^,%s]+)") do
-                                    nums[#nums + 1] = tonumber(nStr)
-                                end
-                                if #nums == 12 then
-                                    poseData[partKey] = CFrame.new(nums[1], nums[2], nums[3], nums[4], nums[5], nums[6], nums[7], nums[8], nums[9], nums[10], nums[11], nums[12])
-                                end
-                            end
-                            if tVal then
-                                table.insert(parsedFrames, { Time = tVal, Data = poseData })
-                            end
-                        end
-                        if #parsedFrames > 0 and playKeyframeTableOnClone(parsedFrames, cloneChar) then
-                            for _, cb in ipairs(nativeState.playListeners) do pcall(cb, animPath) end
-                            return true
-                        end
-                    end
-                    local fn = loadstring(luaSource)
+        if type(isfile) == "function" and type(readfile) == "function" then
+            local okFile, exists = pcall(isfile, "angoorreanim_module.lua")
+            if okFile and exists then
+                local okRead, content = pcall(readfile, "angoorreanim_module.lua")
+                if okRead and type(content) == "string" and #content > 50 then
+                    local fn = loadstring(content)
                     if fn then
-                        local okExec, result = pcall(fn)
-                        if okExec and type(result) == "table" then
-                            if playKeyframeTableOnClone(result, cloneChar) then
-                                for _, cb in ipairs(nativeState.playListeners) do pcall(cb, animPath) end
-                                return true
-                            end
-                        elseif okExec then
-                            for _, cb in ipairs(nativeState.playListeners) do pcall(cb, animPath) end
-                            return true
+                        local okRun, api = pcall(fn)
+                        if okRun and type(api) == "table" then
+                            return api
                         end
                     end
                 end
-
-                -- 4. Fallback to procedural motion matching the animation's name so every item plays smoothly
-                playProceduralPresetOnClone(rawStr, cloneChar)
-                for _, cb in ipairs(nativeState.playListeners) do pcall(cb, animPath) end
-                return true
             end
-
-            function nativeApi.stop_animation()
-                return stopNativeAnimationInternal(false)
-            end
-
-            function nativeApi.preload_animation(animPath)
-                local s = tostring(animPath or "")
-                if s:sub(1, 4) == "http" and not nativeState.animCache[s] then
-                    task.spawn(function()
-                        local okHttp, res = pcall(function() return game:HttpGet(s) end)
-                        if okHttp and type(res) == "string" and #res > 10 then
-                            nativeState.animCache[s] = res
-                        end
-                    end)
-                end
-            end
-
-            function nativeApi.set_animation_speed(spd)
-                nativeState.currentSpeed = tonumber(spd) or 1.0
-                if nativeState.activeTrack then
-                    pcall(function() nativeState.activeTrack:AdjustSpeed(nativeState.currentSpeed) end)
-                end
-            end
-
-            function nativeApi.on_animation_play(cb)
-                if type(cb) == "function" then table.insert(nativeState.playListeners, cb) end
-            end
-
-            function nativeApi.on_animation_stop(cb)
-                if type(cb) == "function" then table.insert(nativeState.stopListeners, cb) end
-            end
-
-            function nativeApi.set_fling(enable)
-                if enable == nil then enable = not nativeState.flingEnabled end
-                nativeState.flingEnabled = (enable == true)
-                return nativeState.flingEnabled
-            end
-
-            function nativeApi.is_fling_enabled()
-                return nativeState.flingEnabled == true
-            end
-
-            return nativeApi
         end
 
-        -- Always use the built-in self-contained Native Reanimation Engine (avoids external HttpGet freezes or stale cached modules)
-        return createNativeReanimEngine()
+        local urls = {
+            "https://raw.githubusercontent.com/teslapapa50-source/Module/refs/heads/main/Module",
+            "https://raw.githubusercontent.com/horizen-rblx/reanimsource/main/module.lua",
+        }
+        for _, url in ipairs(urls) do
+            local okHttp, src = pcall(function()
+                return game:HttpGet(url)
+            end)
+            if okHttp and type(src) == "string" and #src > 50 then
+                local fn = loadstring(src)
+                if fn then
+                    if type(writefile) == "function" then
+                        pcall(writefile, "angoorreanim_module.lua", src)
+                    end
+                    local okRun, api = pcall(fn)
+                    if okRun and type(api) == "table" then
+                        return api
+                    end
+                end
+            end
+        end
+
+        -- Safe fallback API table so UI never crashes if offline or module host is unreachable
+        local fallbackReanimated = false
+        local playListeners = {}
+        local stopListeners = {}
+        local currentSpeed = 1.0
+        return {
+            _isFallback = true,
+            is_reanimated = function()
+                return fallbackReanimated
+            end,
+            reanimate = function(state)
+                if state == nil then
+                    fallbackReanimated = not fallbackReanimated
+                else
+                    fallbackReanimated = (state == true)
+                end
+                return true
+            end,
+            play_animation = function(animPath, spd)
+                currentSpeed = spd or currentSpeed
+                for _, cb in ipairs(playListeners) do
+                    pcall(cb, animPath)
+                end
+                return true
+            end,
+            stop_animation = function()
+                for _, cb in ipairs(stopListeners) do
+                    pcall(cb)
+                end
+                return true
+            end,
+            preload_animation = function(_) end,
+            set_animation_speed = function(spd)
+                currentSpeed = spd or 1.0
+            end,
+            on_animation_play = function(cb)
+                if type(cb) == "function" then
+                    table.insert(playListeners, cb)
+                end
+            end,
+            on_animation_stop = function(cb)
+                if type(cb) == "function" then
+                    table.insert(stopListeners, cb)
+                end
+            end,
+            get_clone = function()
+                return LocalPlayer and LocalPlayer.Character
+            end,
+            get_real_character = function()
+                return LocalPlayer and LocalPlayer.Character
+            end,
+        }
     end
 
     local zenApi = _G._AngoorZenApi
-    if zenApi and (type(zenApi.reanimate) ~= "function" or zenApi._isFallback) then
+    if zenApi and type(zenApi.reanimate) ~= "function" then
         _G._AngoorZenApi = nil
         zenApi = nil
     end
     if not zenApi then
-        zenApi = loadReanimModule()
-        _G._AngoorZenApi = zenApi
-        _G.__BUNDLED_Coca_API = zenApi
-        _G.__BUNDLED_Panda_API = zenApi
+        local okMod, modRes = pcall(loadReanimModule)
+        if okMod and type(modRes) == "table" then
+            zenApi = modRes
+            _G._AngoorZenApi = zenApi
+        else
+            warn("Coco Reanim: Failed to load module.lua. Error: " .. tostring(modRes))
+            return
+        end
     end
 
     -- Animation Repository & Cache Configuration (root.73.124 @ PC 8295..8365)
@@ -16060,12 +13880,12 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
             return game:HttpGet(GITHUB_TREE_URL)
         end)
         if not ok or type(res) ~= "string" then
-            warn("[ANGOOR] Animations repo scan failed: " .. tostring(res))
+            warn("[Coco Reanim] Animations repo scan failed: " .. tostring(res))
             return
         end
         local parsed = parseGitHubTreeJson(res)
         if not parsed then
-            warn("[ANGOOR] Animations repo tree empty/invalid")
+            warn("[Coco Reanim] Animations repo tree empty/invalid")
             return
         end
         setSortedAnimations(parsed)
@@ -16074,146 +13894,10 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
         if type(populateList) == "function" then
             pcall(populateList)
         end
-        print("[ANGOOR] loaded " .. tostring(#allAnimations) .. " animations from GitHub Animations repo")
+        print("[Coco Reanim] loaded " .. tostring(#allAnimations) .. " animations from GitHub Animations repo")
     end
 
-    -- 185+ Built-In Signature Reanimations (Anime, Viral Dances, Gymnastics, Combat, Freestyle & Troll Poses)
-    local BUILTIN_REANIM_NAMES = {
-        -- Iconic Anime & Gaming Ultimate Reanimations
-        "🌌 Domain Expansion: Unlimited Void", "⚔️ Sukuna Cleave & Dismantle Storm",
-        "⚡ Killua Godspeed Lightning Dash", "🗡️ Vergil Judgement Cut End",
-        "🥋 Baki Demon Back Flex", "🔥 Rengoku 9th Form Rengoku Charge",
-        "🌪️ Levi Ackerman Beyblade Spin", "🪐 Sephiroth One-Winged Angel Descend",
-        "👑 Gilgamesh Gate of Babylon", "🌀 Aizen Kyoka Suigetsu Illusion",
-        -- Viral & Legendary Dance Reanimations
-        "🕺 California Gurls Snoop Dogg Groove", "💃 Chika Fujiwara Dance",
-        "🕺 Caramelldansen Ultra Speed", "🕺 Gangnam Style Horse Gallop",
-        "🕺 Macarena 360 Quarter-Turn", "🦀 Crab Rave Celebration",
-        "🕺 Hotline Bling Drake Sway", "💃 Phut Hon 2 Phut Hon Sway",
-        "🕺 Russian Hardbass Gopnik Squat", "🕺 Smooth Criminal Gravity Lean 60°",
-        -- Extreme Acrobatics & Martial Arts Reanimations
-        "🤸 Capoeira Gingado Flow", "🤸 Parkour Monkey Vault to Roll",
-        "🥊 Sugar Ray Leonard Bolo Punch", "🛸 Zero Gravity Spacewalk Float",
-        "👑 Ancient Egyptian Pharaoh Walk", "🧙 Shadow Wizard Money Gang Cast",
-        "🔞 Hyperspeed Pelvic Drill V3", "🛹 Kickflip to 360 Shuvit",
-        "⚡ Speed of Sound Sonic Dash", "🎭 Jester Puppet Marionette",
-        -- Anime & Domain Powers
-        "⚡ Gojo Infinity Levitate", "🟣 Gojo Hollow Purple Charge", "🩸 Sukuna Malevolent Shrine",
-        "🗡️ Sukuna World Cutting Slash", "🎰 Hakari Jackpot Fever Dance", "☁️ Gear 5 Joyboy Bounce",
-        "🦶 Gear 5 Giant Stomp", "🔥 Super Saiyan Aura Charge", "✨ Ultra Instinct Dodge Weave",
-        "🌊 Kamehameha Energy Beam", "🧛 Dio Wryyy Backbend", "👊 Jotaro Star Platinum Ora Rush",
-        "👊 Dio The World Muda Barrage", "🌀 Naruto Shinobi Sprint", "🔵 Rasengan Spin Dive",
-        "👊 Saitama Serious Punch Rush", "👁️ Uchiha Susanoo Float", "☄️ Madara Meteor Summon",
-        "🪚 Chainsaw Man Devil Rev", "🗡️ Tanjiro Hinokami Kagura Slash", "⚡ Zenitsu Thunderclap Flash",
-        "🗡️ Toji Heavenly Restriction Dash", "🌌 Cid Shadow Atomic Float", "👑 Sung Jin-Woo Monarch Arise",
-        "💚 Broly Legendary Rage", "🌸 Goku Black Scythe Pose", "⚔️ Zoro Three-Sword Slash",
-        -- Viral & TikTok Dances
-        "🐕 Dog All-Fours Quadruped Trot", "🐕 Puppy Happy Tail Wag", "🐺 Wolf Howl & Prowl", "🐈 Cat Feline Prowl",
-        "🕺 Michael Jackson 45° Lean", "🕺 Moonwalk Glide Pro", "🕺 Billie Jean Moonwalk Spin", "👟 Griddy Pro Footwork",
-        "🧊 Slickback Air Glide", "🗽 Sturdy NY Get Sturdy", "🔥 Billy Bounce Smooth",
-        "🍊 Orange Justice Turbo", "💃 Floss Dance Pro", "🤡 Take The L Troll",
-        "🕺 Default Dance Classic", "⚡ Electro Shuffle Pro", "🕺 Boogie Down Groove",
-        "🎤 Scenario K-Pop Idol", "🦵 Kazotsky Russian Squat Kick", "🕵️ Distraction Dance Henry",
-        "🎩 Smug Dance Hat Kid", "🕶️ Torture Dance JoJo", "🃏 Specialist Dance Persona",
-        "🕶️ Gangnam Horse Ride", "💃 Macarena Party", "🧟 Zombie Thriller March",
-        "🐰 CaramellDansen Hyper", "🚽 Skibidi Dop Dop Bounce", "👩‍🚀 Lethal Company Strut",
-        "🦸 Bye Bye Bye Deadpool", "💘 Cupid Shuffle Step", "🕺 Cha-Cha Slide Smooth",
-        "⚰️ Coffin Dance Carry", "💃 California Girls Sway", "💃 Hype Shoot Hop",
-        "🙌 Infinidab Turbo", "🕺 Saturday Night Disco", "💃 Belly Dance Wave",
-        "🍀 Irish Riverdance Tap", "🤠 Cotton Eye Joe Hoedown", "💃 Tango Passionate Step",
-        -- Acrobatics, B-Boy & Parkour Tricks
-        "🤸 B-Boy Windmill Flare", "🤸 Headspin Breakdance Pro", "🌪️ Airflare Tornado Spin",
-        "🤸 Backflip Acrobat Loop", "🤸 Frontflip Parkour Vault", "🌀 Corkscrew 720 Twist",
-        "🤸 Full Gymnast Split Drop", "🤸 Inverted Handstand Walk", "💪 One-Arm Planche Hold",
-        "🕶️ Matrix Bullet Dodge Lean", "🦋 Butterfly Kick Twist", "🤸 Cartwheel Combo Loop",
-        "🧱 Wallrun Air Stride", "🥋 Shaolin Hurricane Kick", "🇧🇷 Capoeira Meia Lua Sweep",
-        -- Troll, Freaky & Physics Poses
-        "🔞 Turbo Overdrive Thrust", "🔞 Bang Pro Loop", "🔞 Face Bang Rapid", "🔞 Backshots Heavy",
-        "🍑 Twerk Pro Bounce", "🚁 Apache Helicopter Rotor V2", "🌪️ Tornado Human Beyblade",
-        "🐛 Worm Crawl Floor", "🦀 Exorcist Spider Crab Walk", "🐍 Anaconda Floor Slither",
-        "🤖 Cyber Glitch Overload", "⚡ Seizure Spasm Glitch", "👻 Possessed Levitate Twitch",
-        "✝️ T-Pose Dominance Spin", "👑 Ascended God Halo Pose", "🛸 Alien Abduction Float",
-        "✨ Jesus Cross Hover", "🚗 Invisible Car Drive", "🚽 Invisible Toilet Sit",
-        "👑 King Throne Float Sit", "🧞 Magic Carpet Ride", "🧘 Floating Lotus Meditation",
-        "⚰️ Coffin Dead Lay", "🐧 Penguin Waddle Troll", "🐸 Frog Hop Bounce",
-        "🐔 Chicken Wing Flap", "🦖 T-Rex Dino Stomp", "🦍 Gorilla Chest Pound",
-        -- Combat, Martial Arts & Bodybuilding Flex
-        "🥊 Boxer Mike Tyson Weave", "🦵 Muay Thai Knee Clinch", "🥋 Karate Crane Kick",
-        "🦵 Dropkick Air Launch", "🥊 Uppercut Knockout Loop", "🗡️ Katana Quickdraw Iaijutsu",
-        "⚔️ Dual Blade Whirlwind", "🔱 Spear Thrust Flurry", "🏋️ Gigachad Flex Showcase",
-        "💪 Bodybuilder Double Biceps", "🦅 Lat Spread Pose", "🔱 Zyzz Aesthetic Pose",
-        "🏆 Arnold Classic Pose", "🏋️ Pushup Workout Grind", "🏋️ Plank Core Hold",
-        "🥊 Shadowboxing Speed Bag", "🏃 Jumping Jacks Cardio",
-        -- Instruments, Chill & Roleplay
-        "🎸 Heavy Metal Headbang", "🎸 Air Guitar Shred Solo", "🎧 DJ Turntable Drop",
-        "🎻 Violin Virtuoso Solo", "🎷 Saxophone Smooth Jazz", "🏊 Freestyle Air Swim",
-        "🏊 Backstroke Sky Swim", "🛹 Invisible Skateboard Flip", "🧎 Begging Mercy Kneel",
-        "🫡 Military Salute Attention", "🛡️ Royal Knight Kneel", "🥴 Drunk Stumble Sway",
-        "😴 Sleepwalk Zombie Drift", "🧱 Wall Lean Cool Pose", "😈 Cross-Armed Villain Laugh",
-        "💖 Heart Hands Cute Pose", "😭 Crying Sobbing Tantrum", "ベルト Victory Championship Belt",
-        "📸 Paparazzi Runway Strut",
-        -- Classic Short Names (Preserved for Saved Configs & Keybinds)
-        "Bang", "Face Bang", "Backshots", "Hard Thrust", "Twerk", "Floss Dance",
-        "Helicopter Spin", "Headspin Breakdance", "Levitating Ascend", "Worm Crawl",
-        "Default Dance", "Orange Justice", "Take The L", "billy bounce", "Griddy",
-        "California Girls", "Gangnam Style", "Macarena", "Moonwalk", "Kazotsky Kick",
-        "Distraction Dance", "Smug Dance", "Torture Dance", "Specialist Dance",
-        "Boogie Down", "Electro Shuffle", "Hype", "Swipe It", "Fresh", "Rambunctious",
-        "Tidy", "Scenario", "Laugh It Up", "Zany", "Star Power", "True Heart",
-        "Breakneck", "Infinidab", "Dab", "T-Pose", "Assert Dominance", "Float Idle",
-        "Zombie Walk", "Ninja Run", "Superhero Fly", "Sit Chill", "Lay Down", "Spinning Top", "Breakdance Pro"
-    }
-
-    -- Complete MortalHub 2,551 Reanimation Catalog (1,851 Main + 700 Unicorns) Bundled Into Coca Reanim
-    local MORTAL_MAIN_BASE     = "https://raw.githubusercontent.com/hindstar5647/reanime/main/Animations-main/"
-    local MORTAL_UNICORNS_BASE = "https://raw.githubusercontent.com/hindstar5647/reanime/main/Unicorns%20File/"
-    local MORTAL_MAIN_PACK     = [=[100 saal hai|100% Pure Love|15 MINUTES|2 arm stroke|360|5x30_1|5x30_down|7 Rings Dance|8-Bit Shuffle|9mm Go Bang!|A Bar Song|A dice|A Loving Present|A Tear In Space (Airlock)|A Tear In Space|A Vlog|A Warrior Prepares|Abracadabra|Accolades|acro_twerk_2|Act Like A Robot|Active Step|Addendum|Advanced Math|Aerostep|AFK|Ain't It Fun|Ainâ€™t It Fun|Air Guitar|Air Shredder|Airbone|Airdancer|air_hump|Alibi V2|Alibi|Alive|All About That Bass|All About The Bass two|All About The Bass|All For You|All I Want For Christmas Is You|All I Want For Christmas|All Night|all red|AllowSleep's Vibe|Altima Shuffle|Amber Dance|Ambitious|Americano|anim2|ankle_break_death|Anthony Shuffle|anthony_thrust|Anxiety|Apple Apple|Apple Dance|Apple Pen|Apple V2|Apple|APT Dance|APT V2|APT|Arabadan AtladÄ±|Arachrobatics|Arm the Pumpkin!|Arm Wiggle|Around The Clock|Ask Me|Assumptions Redux|Assumptions Whisk|Assumptions|ass_slapped|Astro Slide|Astro's carti event|At 3AM|Attraction|Automata|Aw Snap!|aware_of_it_thrust|aware_of_it_thrust_2|Awesome Strut|a_thrust|a_thrust_2|Ba Ba Ba|Back On 74|Backflip|backflip_fail|Backshots|Backstroke|back_slide|Bad Boy|bad guy|Bad Romance|Balka Ki maa|Baller|Ballerina|Ballet Montage|Balletic|Ballsy|Banana Shake|Banjo Step|Bara Bere|Baseball Bill|Bass Down Low|Bawk Bawk|bb belt|BBoom BBoom (Part 1)|BBoom BBoom (Part 2)|Be Gone|Be Happy|Be My Lover|Bean Bag|Bear Hug|Beat It|Beating Combo|Beckon|Bed Chem II|Bed Chem|Been Away|Beep Boop|Bell Ringer|Belly Dance|Belly Dancin'|Belly Spin|bend_twerk_V2|Bet|Better Than|Bhangra Boogie|Big Dawgs|Big Dick 2|big swastika (Use Inf15Thin)|Bik Dance|Bill|Billy Bounce|Bim Bam Boom|Bim Bam Toi|Bimdoll|Bird Call|Bird Surf|Birds Of A Feather|Bizcochito|Blade|Blah Blah Blah|Blastin'|Blinding Lights|Bling Bang Born|Bling|Blood Pop 2|Blood Pop|Bloomin' Bouquet|Blox Friends|Bobbin'|Bodybuilder|Bold Stance|Bombastic|Boneless|Boney Bounce|Boo'd Up Groove|Boogie Bomb|Boogie Down|Boogie Woogie|Boom!|Boop!|Boosting Ki|Boots 'N' Cats|Boppin'|Boston Breakdance|Bounce Berry|Bounce Wit' It|Bounce|bounce_twerk|Bouncy Twirl|Bouncy|Boy's A Liar|Bracelets Of Hephaestus|Brain Eater|Brass Strut|Brass Wiggle|Bratty|Break Free|Breakdance Routine|Breakdown|Breakin'|Breakneck|Breezy|Bright Moves|Bring It Around|Brite Moves|Brodyquest|Brokenhearted|broken_lay_twerk|Brooklyn Pop|Brooklyn Uprock|Bubble Shuffle|Bubblegum|Bubbles!|Buckets|Buckle Up|Buffalo Ranch|Bugi-Vugi|Build Up|Bullet Ballet|Bullet Dodge Ballet|Bulletfetti|Bumblebee|Bunny Dance|Bunny Hop (Roblox)|Bunny Hop|Bunny Party|Burpee|Business Up Front|Bust a Move|Bye Bye Bye FN|Bye Bye Bye|C R A B V I B E|Caffeinated|Cairo|Calamity|California Gurls|California Love|Camel by Camel!|Cammy Flip|Can't Take My Eyes Off You|Can't Touch This|Cancun Dance|Cannon Spike|Cap Kick|Capoeira|Car Shearer Dance|Caramelldansen 2|Caramelldansen|Cardistry|Carefree|Carlton|Carolina Step|Cartwheelin'|Caves In|Celebrate Me|Chacha|Chainsaw Dance|Challenge|Champ's Clap|Champion's Struggle|Championâ€™s Celebration|Charging Blast|Charging Up|Charleston|Chase Me Down|Check|Cheer It Mello|Cheer On|Cheer Up|Cheerful Vibe|Cheers|Cheesecake|Chef's Special|Chicken Baby|Chicken Dance|Chicken Dinner Vibe|Chicken Egg|Chicken Mama|Chicken Papa|Chicken Shuffle|Chicken Stride|Chicken Wing It|Chicken|Chikiri Bai Bai|Chimichanga!|Chronoshift|circletwerk|Clap It Mello|Clap|Classic Justice|Classy Feeling|Classy Strut|Classy|Clean Groove|Clear Out!|Click Click Flash|Click|close to you|Cluck Strut|Cmere|Collaborative Dance|Committed|Company Jig|Confused|Conga|Controller Crew|Copines|corkscrew|corkscrew_2|Cotton Candy|Courtside Flow|cowgirl|Crabby|Crackdown|Cradle|Crank That|crawl|Crazy Crazy|Crazy Feet|Crazy Yoga BlowJob|Crazyboy|Creative|Criminals|Criss Cross|Crossbounce|Crossbow Dance|Crossed Out|crouch_bounce_twerk|crouch_twerk_V2|Crown|Crowning Achievement|Cruisin'|Crushing It|Cult Classic|Culture Festival Dance|Cupid's Arrow|Cupid|Cure For Me|Cut It|Cutely Dancing|Cyberdyne Salute|Da Whip|dababy_lessgoo|Dame Tu Cosita|DAME UN GRR|DANCE B|Dance Monkey|Dance Moves|Dance Off|Dance Potion|Dance Therapy|Dance2013|Dancery|Dancin' Domino|Dancin' Shuffle 2|Dancin' Shuffle 3|Dancin' Shuffle 4|Dancin' Shuffle|Dancing Cat|Dancing Dead|Dante Dance|dap_up|Dark Side|dashie_twerk_V2|Dawn|Daydream|Daywalker's Kata|DDU-DU DDU-DU|death|Deep Cuts|Deep Dab|Deep End|Deep Explorer|Denial|Denied|Deposits|Desirable|Desperado Jam|devious_cave_dive_1|devious_cave_dive_3|devious_hand_rub|devious_hand_rub_2|Devotion|Dexter Rampage!|Dia Delicia|dick_thrust|Dificil Contrar|Dill With It|Dimensional|Dinero|dior_lay_twerk|Dip|Dirtbike Challenge|Disco (Surf Curse)|Disco Dance|Disco Fever|Disco Fievre|Disco Night|Disco Pointer|Disco|Disrespectful Dance|Distraction Dance|Diva Fever|DIVA|dive_thrust_1|dive_transition|dive_transition_thrust|diving_in|DJ Caliber|Do That Thang|Do The 'Split|Do The Flop!|Do The Move|Dog Leg|doggy_thrust_F|doggy_thrust_M|Doktorspiele|Domino|DON'T HURT EM'!|Don't Mine At Night|Don't Start Now|dont_hide_come_here|dont_hide_thrust|dont_hide_thrust_2|dont_hide_thrust_3|dont_hide_twerk|Doodle|Dosido|Double Blaster|Double Hops|Double Step|Double Tap|Double Up|double_gyat_caress|double_gyat_slap|Dougie Fresh|Down The Drain|Downtown Funk|Downtown|down_thrust|down_twerk|down_twerk_2|Dragon Stance|Dragon's Rise|Dream Feet|Dream Stance|Dreamer|Dreamy Keys|dream_2|Drip|Drippin' Flavour|dti_pose_28|Dualies T|dual_twerk_1|dual_twerk_loop|Dubstep Jumps|Dubstep Wave|Dust Your Boots Off|dwerk_3|Dxrk Walk|Dynamic Shuffle|Dynamite|d_all_in_yo_stomach|earthquake|Electro Shuffle|Electro Swing|Elegant Bow|Elegant|Elite Agent|Empress Fan Dance|Empty Out Your Pockets|Empty Pockets|Energetic Vibe|Enigmatic Killer|Enlightened|Entertainer|Entranced|erm_hi|Espresso V2|Espresso|Eu Queria Mudar|Europapa|Evan's Vibe|Evasive Maneuvers|Everybody Dance Now|Everybody Loves Me|Evil Plan (Just Go!)|Evil Plan|exes|Expressionism|extended_jerk|Extraterrestrial|Exum Shuffle|Fabulous|Falling Deep|Fanciful|Fancy Feet|Fancy Flapping|Fancy Flourishes|Fancy Footwork FN|Fancy Footwork|Fandangle|Fantasy Showoff|fart|Fast Feet|Fast Slow Disco|fast_clap|Feel Good|Feel It|Feel The Flow|Feelin Jaunty|Feelin' Hype|Feelin' Right|Feelin' Royal|Feeling|field_trip|field_trip_intro|Fight|Fighter's Moves|Figure Skating Freestyle|Finally 18|Finesse|Finger Shot|Finger Wag|Firework|First Month|Fishin|Fishy Flourish|fish_thrust|Fist Bump|Fist Pump|Fitness Stomp|Flamenco|Flapper|Flashback Breakdown|Flashbang Dance|Flexible Moves|flip|Flippin' Amazing|Flippin' Awesome|Flippin' Incredible|flip_twerk_1|Floss|Flourish|Flux|Fly Dance|Fly High|Fly To Tokyo|fly_down|fly_in|fnaf_thrust|Folk Dance|Follow the Piper|footjob|Forget Me Not|fortnite_moves|Freaky Deaky|freaky_ahh_pose|freaky_blowjob|Free Cuts|Free Flow|Freed|Freedom Wheels|Freemix|Freestylin'|Freewheelin'|Fresh|Friday Idle|Friendly|Fright Funk|Frisbee Show|Frog Dance|Frolic|From The Hip|fuck_you_2|Full Tilt|Funk Do Bounce|Funky Jig|Funky|Gamma Overload|Gangnam Style|Garry's Dance|GEEK TIME|GEEK TIMÃ‹|Gentleman's Dab|Get butt f|Get Funky|Get Gone|Get Griddy|GET JIGGY|Get Loose|Get Out of Your Mind|Get Schwifty|Get Started|Get Sturdier|Get Sturdy 2|Get Sturdy|GGUM|ghetto_twerk|Ghost Samurai|Giddy Up|gif_thrust|gif_twerk|Give head (Goofy edition)|give_shots|Giving Head|Glitter|Glorified Fresh|Gloss|Glow Out|Glowsticks|Glyphic|Gnarly|gnarly_twerk|Go Ape|Go Away|Go Do It|Go Mufasa|Go With The Flow|Go! Go! Go!|Goated|Golden|gomen_nasai|gomen_nasai_breakdance|gomen_nasai_breakdance_2|Good Game, Well Played|Good Guy|Good Luck Babe|Good Luck, Girl!|goodbye_nishiyama|Goofy Hump|Goofy twerk|goofy_thrust|goofy_thrust_2|grab_waist|Gravy Dance|grind_V2|Gritty Grinder|Groove Destroyer|Groove Jam|Groove Snaps|Groovy Acrobatic|Groovy Point|Ground Pound|Guitar Walk|Gun Maracas|Gunslinger Smokeshow|Gwen-Step|gyat_slap_2|Gymnastics|Hack n' Slash|Halloween Tricks|Hamood Habibi|Han Solo|HANA|Hand Signals|Hand-Forged|Hands Off!|Hang Loose Celebration|Hang Loose|Hang On|Happy Days|Hard Whip|Harmony|Hatchback|Havana|Head Banger|Head Tricks|Headbanger|Headlock|headpat|headpat_V2|headslide|Headstock Spin|Heart Attack|Heart Ceremony|Heart of a King|Heart-rizon|Heart|Heartbreak Shuffle|Hearts For You V2|Hearts For You|Heavy Love|Heel Click Breakdown|Heel Toe Hop|Heeseung Walk|Hellfire Dance|Hello Friend|hello_2|Here Here|Here We Go|Hero's Beacon|Hey Mama|Hey Now! Solo|Hey Pookie|Hi There|High Five|High Kicks|High Noon|High Steps|Hip Hop Hero|Hip Shop|hip_sway_thrust|hip_sway_thrust_2|hip_sway_thrust_3|Hit Harder|Hit It|Hitchhiker|hitler_salute|Holiday|Honorable Warrior|Hood Vibin'|Hooray|Hootenanny|Hoppity|Hopscotch|Hot Marat|Hot Sauce|Hot To Go!|Hotline Bling|HOTTOGO!|Houdini|House Party|Hoverin|How Sweet|How You Like That|Howl|Hug Me More|hug|Hugo Hilaire 1|Hugo Hilaire 2|Hugo Hilaire 3|Hugo Hilaire|hug_intro|huh|Hula Hoopin' Fail 2|Hula Hoopin' Fail|Hula Hoopin'|Hula|HUMBLE.|Humble|Hunter Protocol|Hurricane Hustle|Hustla|Hustle and Bop|Hydout's Vibe|Hype Hop|Hype Medley|Hype|Hyped to Death|Hypnot-Eyes|I Aint Afraid|I Declare!|I Got Dominos|I Like To Move It|I Love It|I Love You So|I Wanna Runaway|I â¤ cofi|I'll Miss You|I'm A Mystery|I'm Diamond|I'm Out|Ice Ice Baby|ice_twerk_10|ice_twerk_11|ice_twerk_12|ice_twerk_13|ice_twerk_2|ice_twerk_3|ice_twerk_6|ice_twerk_8|ice_twerk_9|IDK|IDOL|Illusive|Im Only Human|Image|im_so_ATL_vibe|In Da Party|In Ha Mood|Independence|Industry Baby|Infectious|Inferno|Infinite Dab|Infinite Shuffle|Insert Laughter Here|Intensity|Intergalactic|Internet Angel|Interstellar Bass|Interworld|Introducing..|Invader|invis|Invisible Stairs|iron_man_pose|Island Vibes|It's A Go!|It's A Vibe|It's Complicated|It's Dynamite!|It's Go Time!|It's Good|It's Ok I'm Ok|It's True|Its ok I'm ok|Its True|its youuu|Jabba Switchway|Jake Dance|Jamboree|Janam deti h wo|Jasmin|Jaywalk|Jazz Hands|Jazz Skip|Jazzy Dance|Jerking Off|Jerking with style|jerk_off_2|jerk_you_off|Jet Signals|Jiggle Jiggle|jiggy_twerk_loop|jiggy_twerk_sequence|jiggy_twerk_squat|jiggy_twerk_thrust|Jitterbug|jitter_thrust_2|Joker Stairs Dance|Jon|Joshiraku Dance|JT Coming|Jubi Slide|Jugglin'|Jump Around|Jump In The Cadillac|Jump Jets|Jump Jump|Jumping Jacks|Jumpstyle|jump_twerk|Jung Justice|Junkrat Dance|Just Because|Just Do It|Just Know|Just Shuffle|Just Wanna Dance|Katana|Kawaii Desu Ne|Kawaii Sturdy|Kawaii!|Kazotsky Kicking|Keep Calm|Keep It Mello|Keep Me Satisfied|KEEP UP!|KEHLANI|Keyed Up|Kick Ups|Kickback|Kindness Funk|Kindness Punk|Kiss It|Kiss Kiss|kiss_twerk|Knee Slapper|Knife CT|Knife T|Knife Tricks|Koi Dance|Kotonai|kream_twerk_2|kream_twerk_3|krnl_emote_capture|Lack Of Common Sense|Lag-Train|Laid Back Shuffle|Lalka Shuffle|Lambal|Lanewyre|lap dance|Larger Than Life|Laser Focused|Laser Pointer|Last Forever|Laugh it Up|laugh|laugh_thrust|laugh_thrust_2|Lavish|lay down J2|laying_twerk|lay_ride_twerk|lay_twerking|lay_twerking_transition_flip|lay_twerk_4|lay_twerk_7|lay_twerk_7_5|lay_twerk_polish|lay_twerk_sequence|lay_twerk_V2|lay_twerk_V5|Lazer Blast|Lazy Shuffle|Lean On|lean_twerk|lean_twerk_2|Leapin|Leave The Door Open|Leg Swings|Legal Reasons|Leilt Elomr|Leprechaun Hunt|Let's Get It Started|Let's Groove|Let's Swing|Lethal Amounts|Lethal Dance|Letâ€™s Get It Started|Letâ€™s Go Back|Levitate|Lezginka Spectator|Lezginka|Lia Kim|Liar|Life Of A Noob|Lights Up|Like You|Lil Bounce|Lil Monster|Lil Mower|Lil nas x panini|Lil Octane|Lil Rover|Lil Saucer|Lil Warthog|Lil' Carpet Ride|Line Dance V2|Line Dance|Line Dancin'|Linear Sides|Little Buddy Was Sick|Lively Walkin|Living Large|Llama Bell|Llama Conga|Lo-fi Headbang|Lock It Up|Loco Shake|Lofi Headbang|Look At Me|Lookin' Good|Looking Good|look_at_that_body|look_at_that_body_2|Lorax Kid|Lose Control|Love It|Love Letter|Love Me Like I Love You|Love Potions|lovely_twerk|Lovesick Girls|Low Opacity|Low|Lucid Dreams|luigi_thrust_1|luigi_thrust_2|Luke|Lunar Party|Lyrics|Ma Ma Ma|Ma-Ya-Hi|Macarena|Made You Look|maelay|maelay_2|Magnetic FN|Make Some Waves|Malevolent Mime|Mamushi|Mannrobics!|Mansion Party|Mansion Shuffle|Mantra|Marsh Walk|Marshmellow|Martial Arts Master|Mashed Potato|Mask Off|Masked Psychic|Master Of Seas|Match My Freak|Matrix Dodging|Mawashi Geri|Maximum Bounce|Maya|Mayahi|meat_slap|Melodramatic|Members Only|Memories|Meow Dance|Metamorphosis Shuffle|me_|Mi Gente|MiB Dance|Midnight Moves|Miku Live|Miku Miku Beam|Million Dollar Baby|Millionaire|Mime Time|Mina Mintip|Mind Blown|Mine|Minny Park|Mio Honda Step|Misery|missionary|mita_shake|MJThriller|Moe's Assumptions|Momoland|Monkey Mosh|Monster Mash!|Monster Mash|MONTAGEM LADRAO|Moonbounce|Moongazer|Moonlit Mystery|Motion Shuffle|Motive|motorboat|Moulaga|Move It|Mozeâ€™s Shuffle|Mr. Blue Sky|Mr. Brightside|Muffin Dance|Murderous Chase|Mwahaha|My Honest Reaction|My Idol|My Main|My Spark|My World|Nana Nana|Napal Baji|Nasty Girl|Neighborly Hang|Neo's Bullet Time|Neo's Crazy Night|Neo|Neva Play|Never Gonna|New Jack Swingin'|New Woman|Newark Dance|Nic Shuffle|nicki_walk|Night Out|Night Time Shuffle|Ninja Style|Nishiyama|Nitro Fueled|No Cure|No Limit|No Sweat|No Tears|No Turn To Lose BG|No Turn To Lose|nod_3|nope|Northumbria Shuffle|Not My Problem|nova belly shake|Now Without You|no_guidance|Nuthin But A G Thang|NYA Dance|Odd Shuffle|OG_sex_sleep|Oh My Oh My|OH NOES|Oh Shhh|Oh shoot, a rat!|Oh Who Is You|Oki Doki|Old School|Old Town|OMG I LOVE IT|OMG|On The Floor|On The Hook|on the knees eating|On Your Marks...|Onda Onda|One Dance|One Time Victory|Only One|Oops I Did It Again|Orange Justice|Out Tha' Box|Out West|Outlaw|Overdrive|Overload|Pain|Paint The Town Red|Panuma|Party Hips|Party Rock|Partyboy|Passo Bem Solto|Paws & Claws|Pay Attention!|Pay It Off|Peace Out|Peanut|peep_this_lame_ahh_nigga|Peleâ€™s Air Punch|Penguins|Perfect Score|Peter Parker|Peter's Fall|Phew!|Phoenix|Phone It In|Phonky Town|Phonky Turn|Photograph|Phut Hon|Pick It Up|Picoâ€™s Celebration|Picture Perfect|Pina Colada|Pirouette|Planetary Vibe|Play No Games|Playing With Fire|Please Please Please|Plug Walk|Point And Strut|Poker Face|Poki|POKÃ‰DANCE|polished_ice_twerk_5|poodle_afk_animating|poodle_aggressive_slap|poodle_aggressive_twerk|poodle_ass_slap|poodle_blue_shirt_guy_dance|poodle_bounce_twerk|poodle_bounce_twerk_loop|poodle_come_on_dont_hide|poodle_crouch_twerk|poodle_devious_rub|poodle_dive_female_transition|poodle_dive_in|poodle_dive_slide_in|poodle_feel_up|poodle_female_rest|poodle_flip_to_twerk_thingy|poodle_gomen_nasai_break_dance|poodle_hanging_around|poodle_hip_twerk|poodle_ice_twerk|poodle_laying_twerk_3|poodle_me_|poodle_multi_twerk|poodle_needy_twerk|poodle_normal_slap|poodle_run_slide|poodle_self_ass_slap|poodle_sgo_thrust|poodle_slap_KO|poodle_split_twerk_sequence|poodle_stop_wait_a_min|poodle_there_goes_my_baby_fall|poodle_twerk_thingy|Poof!|poop|Pop Lock|Pop Muzik|Pop Star Step|Poppy Love|Popular Vibe|Potted Groot Dance|Pour It Up|Power Step|Powered Up|Praise The Tomato|praise|Prayer in C|Present Delivery|Pretty Girl Mantra|Pretty Scene Girl!|Pride Wave|Primo Moves|Prince of Egypt|Professional|pro_twerk|Pull Up!|Pull Up|Pump It Up|Pump Me Up|Pump Up The Jam|Pumpernickel|Punched Up|Punching Practice|Puppet Dance|Pure Salt|push_ups|put_a_finger_down|PWR Punch|Quagmire Dance|Questions|Quick Bite|Quick Step|Quirk|R U Mine|Rabbit Dance|Radical|Rage Quit|Rage|Rain Check|Rakuten Point|Ralsei Duo|Ralsei|Rambunctious|Rap Monster|Rat Dance|Ratatata|Rawr|Ready For Love|Real High|Real Slim Shady|Real Slim|Reality's Master|Reanimated|Reaper's Showtime|Rebellious|Reboot Shuffle|Reciprocate|Reckless|Red Hot Shooter|Red Light|Reggae|Remember The Time|Renegade|Resonance Shuffle|Respect|Restored|Revel|reverse_cowgirl|Revolving Geometry|Rhythm Dancing|Rhythm Of Chaos|Rhythm Rider|Rhythmical|Ric Flair Shuffle|Ric Flair|Ricardo|Riches|Ride It|Ride The Pony|Ride The Vibe|ride_it|ride_it_thrust|Right Round|Rim Shot|Rising Phoenix|Road Shuffle|Roar|Robotic Moves|Robotic Style|Robotic Wobble|Rock Out!|Rock That Body|Rock, Paper, Scissors!|Rock|Rocket Rodeo|Rocket Spinner|ROCKWAVE|Rocky Road|Rodeo|Rogue-quette|Roki|Roll 'N Rock|Roll Call|Roll It Up|Roll N' Rock|Roller Vibes|Rollie|Rolly Rider|Rootin' Tootin'|rotate_twerk|Rough Dancer|Roundabout|Rowdy Rudolph|Roy Purdy|Royals|RPG!|Rude Shuffle|Rumba|Run It Down|Run It|Runaway Twerk|runaway|Running Deadman|Running Man|Rushin' Around|Russian Dance|Russian Kick|Sackin'|Sad Claps|Sahara|Sail With Me|Salsa Groove|Salute|Samba Shuffle|Samba|Samsara|San Tan|Sand Walk|Sandstorm|Sasquatchin|Sassy Dancin'|Sassy Showoff|Sassy Walk|sassy_super_grind_transition|sassy_thrust|Saturday Night Fever|Saul|Savage|Saxophoned|Say Cheese!|Say So|scared|scared_run|Scenario|Schadenfreude|scissor|Scissoring|Scootin|Scout Regiment Salute|Screw Loose|Secret Identity|See TiÌ€nh 2|See TiÌ€nh|Segway Tour|Self Head|self_ass_slap|Servomechanical|Settings Shuffle|sexy_dance|sexy_thrust|sexy_thrust_down|sexy_wiggle|sgo_thrust|Shadow Dance|Shadow Spar|Shadowbox|Shake  Slash|Shake  Split|Shake It To The Max|Shake It Up|Shamone|Shaolin Sit-Up|Shape Of You|Shape Up|Shaq Shimmy|SHARP 11|SHARP 6|Sharp Shooter|Shell|Shhh.|Shiba|Shift|Shimmer|Shimmy Wiggle|shocked|shocked_death|Shoryuken|Shout!|Show 'Em Off|Show Ya|Show You Off|Showstopper|Showtime|shrug|Shuba Duck|Shuffle Combo|Shuffle|Shum Shuffle|shy_run_to_me|shy_thrust|Side Hustle|Side Shuffle|Side Step|Side Stride|Sideways Shift|side_fuck_M|side_grab_right|side_grind1|Sigma Boy|Sign Spinner|Signature Shuffle|simple_thrust|Sit 1|Sit 2|Sit 3|Ska-Stra-Terrestrial|Skele Dance|skeleton_death_reverse|Skibidi Dop Dop|Skip|Skull Breakdance|Skull Cracker|Slalom Style|Slap Happy|Slap It|Slick|Slickback V2|Slickback|Slide Stride|slow_flip_into_thrust|Small Swastika|SMASH!|Smeeze|Smile (2)|Smile|Smitten|Smooth Criminal|Smooth Moves|Smooth Operator|Smooth Slide|Smooth Winner|Smooth|smooth_dance|Smug Victory|Smuwug Dance|Snapshot Swagger|Snare Solo|Snoop's Walk|Snoops Walk|Snoozefest|So Am I|So Fly|So Low|So Much More|Soaked|Soar Above|Social Climber|Socks|Soda Pop|Solo Tu|Sonic Surfer|sorry|SOU|Soul|Sparkler|Sparrow Run|Specialist Seto|Speedy Macarena|Spicy Start|Spider Dance|Spidey Landing|Spike It|Spin Out 2|Spin Out|Spin Records|spine_break_death|Splash Damage|split jump|split_twerk_7|split_twerk_loop_V2|split_twerk_sequence|Spongebob Shuffle|Spongebob|Spread Your Wings|Spring-Loaded|Springy|Sprinkler|Spy Shuffle|Square Up|Squash & Stretch|Squat Kick|squat_thrust|stab|Standing Bow|stand_cowgirl_F|Star Power|Stare Don't Touch|Stargazing|Starlit|Start It Up|Starting Prance|Statuesque|Stay Afloat|Stay Dance|Stay|Steady|Steamed|Step It Up|Sticky|stiff_dwerk|Still Into You|Stock Shuffle 2|Stock Shuffle 3|Stock Shuffle|Stop!|stop|Stormy|Strategy|Streets|stretch_twerk|Stride|Stronger|Strut|STUCK IN MY HEAD|Stuck|Stutter Step|Stylish Moonwalk|Sucker|suck_it_thrust|Sugar Rush|Suiii|Summoning Jitsu|Sumo Salt Throw|Sundrop Dance|Sunny Stroll|super_corkscrew|super_corkscrew_twerk|super_corkscrew_twerk_2|super_sassy_grind_thrust|Surfin' Bird|Surfs Up|Surround|Survivorsault|Susie|Swag Shuffle|Swag Surfin'|Swag Up|Swagger Strut|Swaggin'|Sway Around|Sway Stomp|Sway Sway|Sway|sway_twerk|sway_twerk_2|Sweaty|Sweet Dreams|Sweet Like Bubblegum BG|Sweet Like Bubblegum|Sweet Shot|Sweet Victory|Sweethearts|Swing My Way|Swing Rik|Swing Victory|Swing|Swipe It|Swish Swish|Switchstep|Swole Cat|Symbol Of Peace|Synth Step|T-Pose|Taco Time|Tactical Moves|Tagger's Groove|TaiChi|Tails Dance|Take a 'Bow|Take A Seat|Take It Slow|Take On Me|Take The L|take_it_V2|take_shots_2|take_shots_4|take_shots_5|take_shots_6|take_shots_7|take_shots_8|Taste|Taxi|Team Ghost|Technique|Technoz|Telekinetic Power Breakfast|Tell Your Friend|Tem|Tempest Flight|Testimony|TF Demoman|TF Engineer|TF Kazotsky Kick|TF Scout|TF Sniper|Thank You!|thank_you_thrust|That's So True|The Airplane|The Crane Kicker|The Dip|The Dogg|The Falcon|The Fire|The Flow|The Funny|The Gangnam Style|The Jig|The King|The Look|The M.D.|The Macarena|The Magic Bomb|The Masta|The Middle|The Nizmo|The Pollo Dance|The Poser|The Pressure|The Quick Style|The Renegade|The Rick Dance|The Right Choice|The Seven Seas|The Shuffle|The Silencer|The Spark|The Squabble|The Worm|there_goes_my_baby_fail|there_goes_my_baby_V2|They See Me|Thick Of It|Things She Said|Think Mark Think|think_hmm|think_hmm_2|This Is How We Do It|Thread It|Three Wise Monkeys|Thriller Dance|Thriller|throw it in a circle|thrust_twerk_sequence|Tidy|Tii|Timeless|Tina Boo|Tiniest Violin|Tippy Tap|Tiramisu|To The Beat|To The Moon|Toca Toca 2|Toca Toca|Tocked Off|Tonight|Too Fast|Took The L|Toosie Slide|Tootsee|Top Rock|Tornado Spin|Torture Dance|Tossing Racks|Total Control|Touch|Touching The Sky|Tow Truck Surfer|Towny|Tra La La|Tracer Dance|Track Star|Tragedy|Training Moves|Transylvania Groove|Traveling In Time|Travis r15|Travis Stargrab|travis_idle|Treat Yourself|Trinity's Kick|triple_kill_rub|Trippy Feet|Triumph Step|Triumphant|True Contender|True Heart|tt_thrust|Tuff Vibe|Tunak Tunak Tun|Turn Me Up|Twerk On The Floor|Twerk|twerk_8|twerk_9|twerk_sequence|twerk_sequence2|twerk_sequence_2|twerk_sequence_loop|twerk_V2|Twist and Lock|Twist|Twisty|Tyler Shuffle|U Can't C Me|underground|Unification|United Chill Dance|United Sponge|Unlock It|Uproar|Uprock|Upside Down & Inside Out|up_thrust|up_thrust_3|up_thrust_4|ur the king|Valentinaâ€™s Verve|Valentines Surprise|Valentino|Vampire Bow|Vamps|Vegetable Juice|Verve|Very Good (222)|Very Sneaky|Vibe Only|Vibe Shuffle|Vibe|vibe_idle|Vibin'|vibing|Victorian|Victorious Breakdance|Victorious Cluck|Victorious Hype|Victorious Shuffle|Victorious Split|Victorious Swimmer|Victorious|Victory Break|Victory Display|Victory Feelin'|Victory Flip|Victory Lap|Victory Masked|Victory Swag|Victory Sway|Victory Turn|Vintage Moves|Violent|Violet Lover|Virtual Insanity|Vivacious|Vogue Drop|Volnova|Volnovify|Wacky Armed|Waddle Away|Wait No Come Back|Waitin'|Wake Up|Walk The|Walkin Pretty|Walkin' Pretty|wall_hump_measure|wall_hump_thrust|wall_twerk_4|wall_twerk_V2|wall_yap|Wanna Believe It|Wanna See Me|Warm-Up|Waterworks|Wavey Motion|Waving Flow|waving|Wavy T|We Like To Move It|We Nailed It|Wedding Party|Wednesday|Well Rounded|Were Flying|Western Boogie|Western Rodeo|What It Is|What's Up Sketch (Flap)|What's Up Sketch (Point)|Whatâ€™s Real|When She Walk|Where Are You|Where Is Matt|Where Ya Going|Whip It|Whiplash|Whirlwind|Whistle Dance|White & Nerdy|White Tiger|whos_over_there_|Wicked|Widowâ€™s Pirouette|Wiggle|Wigglin' Around|Wiggly|Wilbur Dance|Wind Up|Windmill Floss|Windmill Shake|Windmill Stomp|Winner's Breakdance|Winner's Dance|Winner's Shuffle|Wipe Me Down|Witch Way|With The Rhythm|Without You|Woke Up|Woof Woof|Work It|Worker|Wrap Me In Plastic|Wrestlerâ€™s Shuffle|Wrld Revolve|Wu-Tang Is Forever|xenie thrust.lua|XO (Only If You Say Yes)|XO|XOXO|xstep|Y.M.C.A.|Yarn Ball|Yay!|Yee Haw|Yo Bunny|You Are Out!|You Fool|you should see me in a crown|You Want Me|You're A Winner|You're Awesome|Youjin Kim|Your Favorite Martian|Your Idol|you_ladies_alright|YRN|Zany|Zaya Shuffle|ZeroTwo|zesty_run|Zom-Beam|Zombie Shambles|Zombified|Zrde]=]
-    local MORTAL_UNICORNS_PACK = [=[$R19XH17|$R4S8EIZ|$R69XTS7|$R6E4232|$RBCJ2HS|$RCEUVDJ|$RDNUBM4|$REJFF9Z|$RGH2QLK (1)|$RGH2QLK|$RLVCI2U|$RPCPA20|$RPG6KMK|$RQGUW7S|$RSTJN9R|$RY17JRU|102992378294634|103092638336145|121212|1212121212121212122|1999|22222222222222222222222222222222222222222222222|24kgold|48 Dip Split Shake|48 Micheal Jackson|acelerada|Agressive Split|Aguto Magiko 3|ALEJA 1|ALEJA 2|ALEJA 3|Alibi (1)|ALL THE TIME|ANITA 1|ANITA 2|ANITA 3|ANITA 4|ANITA BJ|ANITA COW|Ariana Grande|ariana|arianascaled|Arona|Around|Asap Rocky Event|ass backflip|Astro Hurt Walk|Astro Walk'|astrojack|astros cant breathe|astros juice wrld dance|Backflip into a split|Backflip|Ballin|bang (1) (1)|bang|Batchata|Beauty Pole Free|Belly Shake|Belly|berserker|Bieber Stomp|Big Dick 2 (1)|Big Dick 2|Big Dick 5|Big Dick 6|Big Dick 7|Big Dick|Big jerk|big panini|big rodeo|bio beauty pole|Bio face delight|Bio Pole 3|bio pole beauty pole|bios yogA|Birds for some reason|Bite Me|BM 1|BM 4|Booty Bounce|BOOTY TWERK 2|Bounce Dance|Bounce When She Walk|Bouncy Around|boxing fighting stance|BOY PART SEX DANCE|BRAZIL 1|BRAZIL 2|BRAZIL 3|BRAZIL 4|BRAZIL 5|BRAZIL 6|Breakneck|bruninho ja chegou agora e festa no brasil|buisness idle|bzJ866h|C5eSkw0|Cala Boca|Cant Hold Us|cartoon sword idle|Chair Dance 2|Chanel|Cintura|city of angels|Come Here|Conga|crackhead idle|creature Idle|Cute Sit Hug|D4DVKQc|dança do hakari|Deep Chest Shake Dance (1)|Deep Going insane Glitch|Dia Delicia|Dick Riding|diginv2|Digital Walk|Dih Shaking|DIVE & GRIND BY NIKO|Dive in 1|Dive in 2|Dive in 3|Dive in 4|Dive In Thrust|dive in|Do The Flop|Dog Idle|Dolphin Dive|donnie|Dont Hide 1|Dont Hide 2|Down Thrust|Drill|Drop Down Twerk|Dubstep Wave|DUCK TWERK|Earthquake|Eat My Ass|Egirl Dance|eminem full|eminem mech|eminem scaled|Entrada 1|Entrada 2|Entrada 3|extra tuff|Face Fuck|Face Grind|Face Ride|Fall Shocked|Fast Shake|fasyest humen alive|fdfddddddddddddd|feeling cute|Fent|First Class|flash running|Flip Into Thrust|Flip Into Thust|Flip To Floor Thrust|flip up face grind|Floating idle|floating|Floor Grind|Floor Spin|floor to up (1)|floorwork v2|Fly Over Head Niko|folting|Foot Fungus|fOT7mJ5|franchise event|FREAKY 1|FREAKY 2|FREAKY HUG|FREAKY INTRO|FREAKY PALMAS|freakydancepart1|freakydancepart2|free poledance|Frog Walk|Froggy Style|fuck air|Funky Jig|Get Hard|Get Started|ghostface|GIRL PART SEX DANCE|glitched idle fr|godzilla|Gojo flot|gojo walk|Goku Transformation|gome nasai flip thrust|Ground Shocked|Gun Walk|Head Tricks|helicopter event|High Five|Hip Sway|hits backflip|hits boo twerk|hits bootywork|hits dive in|hits dropdown|hits getting exicted v2|hits getting exicted|hits groundtwerk|hits horny sex|hits huge dick|hits mj twerk|hits outground|hits pants down|hits twerk circle|hits twerk in lay|hits twerk updown|hits unzipping|hits wide twerk|holiday sclaed|Holiday|Hoshimachi|How You Like That|HUNTER IDLE|i3dS2iz|I6vlHFY|ice spice full|idk|idle 2|Idle 3|IDLE PROVE 2|IDLE PROVE|IDLE ZURO|Idle|in my head|Iron Man|jason dwerk|Jay Walk|jerk leg|Jerk Off 2|jerkoffonface|jester pee idle|juice|juicescaled|JUMP 1|JUMP 2|Kawaii Sturdy|kimk|kirk master debate event|Kiss It|knight idle|knight on one legs|Left Hand Rub|Leg kicks|leonadro|Lets go|Liar|LIKE A RIVER 1|Long Dance Idk yet|long dih offside|looseurself|Magic Mike Show|Magician Hat Idle|Make It Rain|marlon aura|marsha|Marshmellow Event|Marshmellow|Meat Slap Slow|message (1) (1)|message (1) (2)|message (10) (1) (2)|message (10) (1)|message (10) 1|message (10)|message (11)|message (12) 1|message (12) 2|message (13) 1|message (13)|message (14) (1)|message (14) 1|message (14) 3|message (14)|message (15) 1|message (15) 3|message (15)|message (16) 1|message (16)|message (17) 1|message (17) 3|message (17)|message (18) 1|message (18) 2|message (18)|message (19) 1|message (19)|message (2) (1)|message (2) (2)|message (20) 1|message (20) 2|message (20)|message (21) 1|message (21) 2|message (21)|message (22) 3|message (22)|message (23) 1|message (23) 3|message (23)|message (24) (1)|message (24) 2|message (24)|message (25) 2|message (25)|message (26) 3|message (27) 2|message (27)|message (28) 2|message (28)|message (29) 2|message (29)|message (3) (1)|message (3) (1)2|message (3) (2)|message (30) 2|message (30)|message (31)|message (32)|message (33)|message (34)|message (35)|message (36)|message (37)|message (4) 1|message (4) 3|message (4) 5|message (4)|message (5) (1) (1) 3|message (5) (1) 3|message (5) 1|message (5) 4|message (5)|message (6) 1|message (6) 7|message (6)|message (7) 1|message (7) 3|message (7)|message (8) 1|message (8) 2|message (8)|message (9) (1)|message (9) 2|message (9)|message|messagee|Michael Mayers|michaelangelo|Middle Finger|mordecai|MRM Sword Idle|My Love|naiba (1)|Nasty|NB 1|NB 2|NB 3|NB 4|NB 5|NB 6|NB 7|Neva Play|New Text Document|New Thang|Nigger Pose|NIKO - FLY OVER II|NIKO DOLPHIN DIVE TWERK|No No|Nokia|Nova backflip and spread|Nova Face Grind 2|nova flip face grind 1|nova flip face grind 2|Nova flip to spread|Nova Floor Thrust Transition|Nova FloorWork v2 (2)|Nova Hips|nova pole dive dance|Nova Sexy Twerk|Nova slippery thrust|Nova Yoga Twerk|novas daddy pole dance|Nove Glitch Dance|Nove Ice Spice|Nove Ice|Nove Slide Flip|Nuthin But A G Thang|nUUpmCW|Offer Thrust 3|Oh Who Is You|Omni Pose|One Hand Shake|One Of The Girls|OSgjl5w|Overload|owe you a leg|Pababa Trend|panini scaled|Panini|PD 4|PD 5|playboi|Plug Walk|Point 2|Point 3|pole dance 1|pole dance 2 (1)|pole dance 2|pole dance 3|Pole Dance 4|pole dance priv|Pole|Poodle dive Slide In|Pretty young thing|Pro Twerk|pweQDuF|ralph|random shit|RATATA COMPLETO|RAW PASO|Reach (2)|Remy Boys|Ring Around The Rosie|Rise Down|rizz|robot|rodeo scaled|Rodeo|RudeBoy|Run Away|Runaway Full|Runaway Twerk|RunawayTwerk.lua (1)|Running Man|Runny Dance|Sassy|Say Wow|scoobydoo|Self Dick Suck|Self Facial|Self Head 2|Self head|selfsuck|semibot|SEX 4|SEX 5|Sgo Thrust 2|Sharp Big Hand Come|Sharp Big Hand No|Sharp Body Tea|sharp corkscrew 1|sharp corkscrew 2|Sharp Do Your Own Thing|Sharp Fall Shock|Sharp Gif Disappear|Sharp Healthy Shake|Sharp Hit It|Sharp Jump|Sharp let Him Cook|Sharp Make It Jump|Sharp No Big|Sharp NOOOOOO|Sharp nuh uh|Sharp One Dance|sharp one hand slit|Sharp one hand split|Sharp Rise|Sharp Run|Sharp Shape Of You|Sharp she will|Sharp Shocked Point|Sharp Slow Drop|Sharp Slow Grind|Sharp Slow Spread|Sharp Split Shake|Sharp Strut|Sharp Tap Tap|Sharp Throw It|Sharp Throw Shake|Sharp X Bailando|Sharp You Come Here|sharp you gon|Shocked Upside Down|SHOW 1|SHOW 2|SHOW 3|SHOW 4|shredder|Sit On it|Skull Breakdance|slamdown|Slide Stride|smth idk fuck u|snoopdogfull|snoopdogscaled|sombie ide|Special Handstand|Speed|spiderman swing|spiderman|spin fly up|Splash|Split 3|Split Low|split shake|SPOILER_xtc  rvxx special move (1)|Star Boy|Stare Walk|stMNGEZ|stressedoutevent|stressedouteventscaled|Strut Shake 1|SUAVECITO PARA ABAJO REMIX|sukuna popse|Super Rise|Superhero Fly|superman flying|supersonic2|supersonic3|supersonic4|supersonicall|supersonicfixed|SwagBack|Tacta|Tag Your It|Tail Wag Happy Idle|Take It|Tap Tap|TF2 Walk|TFbNLr7|THE MOST FREAKY DANCE 2|THE MOST FREAKY DANCE|This Is Halloween|Throw It|Tiktok dance|toe standing|toji idle|Toji walking|Transitional Twrky Demon - Niko|Travis Long|travis scaled|Travis Teleport|Travis|traviscott|Trip Out|Tunak Tunak Tun|Turn Heads|tuuffffffffff|Tve0m3C|TWERK 1|TWERK 2|twerk 3|TWERK 4|Twerk 8|twerk with lay|Twerk1|TWILIGHT 1|TWILIGHT 2|Twist On Shake Longer|Tyla|Undergroud Rise|Uni Arch|Uni Split|Uni Walk (1)|Uni's 67|Uni's Arch Twerk|Uni's Ass Fat|Uni's Back Rise Up|Uni's Bad Romance|Uni's Belong To The City|Uni's Big Dick|Uni's Confident|Uni's Crazy Frog|Uni's Dick Wiggle|Uni's Dive In Bounce|Uni's Dive In Fall Back|Uni's Dive In Spin|Uni's Dive Into It|Uni's Dive Remake|Uni's Diver|Uni's Dog Run|Uni's Drowning (2)|Uni's Drowning|Uni's Drunk Idle|Uni's Drunk Walk|Uni's Eyp|Uni's Face Ride|Uni's Face Riden|Uni's Fall|Uni's Fast Squats|Uni's Feel It|Uni's Flip Back|Uni's Flip Thrust|Uni's Flip Twerk|Uni's Float Slide|Uni's Float|Uni's Floor Slide|Uni's Foreplay|Uni's Get Sucky|Uni's Gimme More|Uni's Hoppin Dih|Uni's I Just Get So Nervy|Uni's Jump In|Uni's Lizard Dance|Uni's Long Legs 1|Uni's Long Legs 2|Uni's Lookin Sexy|Uni's Lookout Idle|Uni's Middle Finger|Uni's Moon Walk|Uni's Motion|Uni's Murder On My Mind|Uni's Patty Cake (1)|Uni's pole Dance 1 (1)|Uni's pole Dance 1|Uni's Rack City|Uni's Rise Up 3|Uni's Rise Up 5|Uni's Rise Up Spin|Uni's Rise Up V2|Uni's Rise Up|Uni's sgo thrust|Uni's Shocked|Uni's Sit Hard|Uni's Slide 2|Uni's Slide|Uni's Spider|Uni's Spinner|Uni's Sucky Time|Uni's Sucky|Uni's Take Shots 1|Uni's Take Shots 10|Uni's Take Shots 2|Uni's Take Shots 3|Uni's Take Shots 4|Uni's Take Shots 5|Uni's Take Shots 6|Uni's Take Shots 7|Uni's Take Shots 8|Uni's Take Shots 9|Uni's Take You Down|Uni's Thrust|Uni's Twerk Sequence|Uni's Walk And Dive|Uni's Wanna Be Me|Uni's We Dont Care|Uni's Weeknd|Uni's Wild Thoughts|Uni's WIthout Me|Uni's Wobble|Unicorn Happy Time 3|Unicorn Happy Time|Up Thrust Glitch|Up Thrust|Upside Down Shocked|Upsidedown Face Grind|Uptown Downtown|Verdant Twerk 2|Victorious Breakdance|Walk Rub Waist|Wally's Pose|wdiib1B|weird walk|Whos Calling|With A Smile|WONDER TWERK|Wrecking Ball|Xenie arch grind V1|xenie bend twerk 2|Xenie bent over Circle|Xenie bent teabg V1|Xenie bent twerk 2|Xenie Boy lay|Xenie bussin it open|Xenie dive in V2|Xenie head down shake|Xenie hips work V1|Xenie homer simpson hips|Xenie passionate thrust V1|xenie pickup twerk 1|Xenie polished twerk V2|Xenie random hips V2|Xenie random V1|XMiSlJQ|Yappa is here|Yn514Bo|Youjin Kim|YUPISOTE|ZDXCjiU]=]
-
-    local function encodeCocaUriComponent(s)
-        return (tostring(s or ""):gsub("([^%w%-_%.!~%*'%(%)])", function(ch)
-            return string.format("%%%02X", string.byte(ch))
-        end))
-    end
-
-    local function ensureBuiltinReanimsMerged()
-        local existing = {}
-        for _, item in ipairs(allAnimations) do
-            if item and item.name then existing[tostring(item.name)] = true end
-        end
-        for _, bName in ipairs(BUILTIN_REANIM_NAMES) do
-            if not existing[bName] then
-                table.insert(allAnimations, {
-                    name = bName,
-                    path = "builtin://" .. bName,
-                    category = "Reanims",
-                })
-                existing[bName] = true
-            end
-        end
-        for mName in MORTAL_MAIN_PACK:gmatch("([^|]+)") do
-            if not existing[mName] then
-                table.insert(allAnimations, {
-                    name = mName,
-                    path = MORTAL_MAIN_BASE .. encodeCocaUriComponent(mName) .. ".lua",
-                    category = "Main",
-                })
-                existing[mName] = true
-            end
-        end
-        for uName in MORTAL_UNICORNS_PACK:gmatch("([^|]+)") do
-            if not existing[uName] then
-                table.insert(allAnimations, {
-                    name = uName,
-                    path = MORTAL_UNICORNS_BASE .. encodeCocaUriComponent(uName) .. ".lua",
-                    category = "Unicorns",
-                })
-                existing[uName] = true
-            end
-        end
-        setSortedAnimations(allAnimations)
-    end
-
+    -- Load cached animations & launch background GitHub refresh
     if #allAnimations == 0 then
         if type(isfile) == "function" and type(readfile) == "function" then
             local okExists, exists = pcall(isfile, ANIMS_CACHE_FILE)
@@ -16224,15 +13908,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                 end
             end
         end
-        ensureBuiltinReanimsMerged()
-        mergeSavedCustomAnims()
-        task.spawn(function()
-            fetchGitHubAnimationsAsync()
-            ensureBuiltinReanimsMerged()
-            if type(populateList) == "function" then pcall(populateList) end
-        end)
-    else
-        ensureBuiltinReanimsMerged()
+        task.spawn(fetchGitHubAnimationsAsync)
     end
 
     -- Helper root.73.124.11: Load user config from angoorreanim.json
@@ -16255,8 +13931,16 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
         end
     end
 
-    -- Always start with all body parts visible so stale config files never make the character invisible on launch
-    _G.hiddenBodyParts = {}
+    if type(_G.hiddenBodyParts) ~= "table" then
+        _G.hiddenBodyParts = {}
+    end
+    if type(savedConfig.hiddenLimbs) == "table" then
+        for partName, isHidden in pairs(savedConfig.hiddenLimbs) do
+            if isHidden then
+                _G.hiddenBodyParts[partName] = true
+            end
+        end
+    end
 
     if type(savedConfig.customAnims) == "table" and #savedConfig.customAnims > 0 then
         mergeSavedCustomAnims()
@@ -16278,12 +13962,10 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
         end)
     end
 
-    -- Helper root.73.124.15: Preload up to 12 favorite animations in background (only when reanimated)
+    -- Helper root.73.124.15: Preload up to 12 favorite animations in background
     task.spawn(function()
-        task.wait(4)
-        if not zenApi or zenApi._isFallback or type(zenApi.preload_animation) ~= "function" then return end
-        local okR, isR = pcall(zenApi.is_reanimated)
-        if not okR or not isR then return end
+        task.wait(2)
+        if not zenApi or type(zenApi.preload_animation) ~= "function" then return end
         local favs = savedConfig.favs or {}
         local count = 0
         for favName, isFav in pairs(favs) do
@@ -16308,18 +13990,18 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
     local activeSubTab    = "Fun"
     local listShowCount   = 100
 
-    -- If CocaReanimEmbed already exists in hostContainer, just make it visible
-    local existingEmbed = hostContainer:FindFirstChild("CocaReanimEmbed")
+    -- If ZenReanimEmbed already exists in hostContainer, just make it visible
+    local existingEmbed = hostContainer:FindFirstChild("ZenReanimEmbed")
     if existingEmbed then
         existingEmbed.Visible = true
         return
     end
 
     -- ========================================================================
-    -- UI CONSTRUCTION: CocaReanimEmbed (root.73.124 @ PC 5261..6610)
+    -- UI CONSTRUCTION: ZenReanimEmbed (root.73.124 @ PC 5261..6610)
     -- ========================================================================
     local embedFrame = Instance.new("Frame")
-    embedFrame.Name = "CocaReanimEmbed"
+    embedFrame.Name = "ZenReanimEmbed"
     embedFrame.Size = UDim2.fromScale(1, 1)
     embedFrame.Position = UDim2.new(0, 0, 0, 0)
     embedFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
@@ -16367,7 +14049,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
     creditLabel.Size = UDim2.new(0, 210, 0, 16)
     creditLabel.Position = UDim2.new(0, 12, 0, 4)
     creditLabel.BackgroundTransparency = 1
-    creditLabel.Text = "Coca Reanim · Keyframe Player, Custom Scripts & Limb Hider"
+    creditLabel.Text = "Coco Reanim · Keyframe Player, Custom Scripts & Limb Hider"
     creditLabel.TextColor3 = Theme.textMuted
     creditLabel.Font = Enum.Font.GothamMedium
     creditLabel.TextSize = 10
@@ -16379,7 +14061,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
     authorCopyBtn.Size = UDim2.new(0, 150, 0, 16)
     authorCopyBtn.Position = UDim2.new(0, 12, 0, 22)
     authorCopyBtn.BackgroundTransparency = 1
-    authorCopyBtn.Text = "Coca Reanim  (ready)"
+    authorCopyBtn.Text = "Coco Reanim  (ready)"
     authorCopyBtn.TextColor3 = Theme.accent
     authorCopyBtn.Font = Enum.Font.GothamSemibold
     authorCopyBtn.TextSize = 11
@@ -16398,31 +14080,9 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
         end)
     end)
 
-    local reanimFlingBtn = Instance.new("TextButton")
-    reanimFlingBtn.Size = UDim2.new(0, 74, 0, 26)
-    reanimFlingBtn.Position = UDim2.new(1, -198, 0.5, -13)
-    reanimFlingBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 24)
-    reanimFlingBtn.Text = "Fling: OFF"
-    reanimFlingBtn.TextColor3 = Theme.textMuted
-    reanimFlingBtn.Font = Enum.Font.GothamBold
-    reanimFlingBtn.TextSize = 9.5
-    reanimFlingBtn.ZIndex = 21
-    reanimFlingBtn.Parent = headerBar
-    addCorner(reanimFlingBtn, 100)
-    local reanimFlingStroke = addStroke(reanimFlingBtn, Theme.border, 1, 0.35)
-
-    reanimFlingBtn.MouseButton1Click:Connect(function()
-        if not zenApi or type(zenApi.set_fling) ~= "function" then return end
-        local fOn = zenApi.set_fling()
-        reanimFlingBtn.Text = fOn and "Fling: ON ⚡" or "Fling: OFF"
-        reanimFlingBtn.TextColor3 = fOn and Theme.green or Theme.textMuted
-        reanimFlingBtn.BackgroundColor3 = fOn and Color3.fromRGB(22, 38, 28) or Color3.fromRGB(20, 20, 24)
-        reanimFlingStroke.Color = fOn and Theme.green or Theme.border
-    end)
-
     local reanimToggleBtn = Instance.new("TextButton")
-    reanimToggleBtn.Size = UDim2.new(0, 108, 0, 26)
-    reanimToggleBtn.Position = UDim2.new(1, -118, 0.5, -13)
+    reanimToggleBtn.Size = UDim2.new(0, 118, 0, 26)
+    reanimToggleBtn.Position = UDim2.new(1, -128, 0.5, -13)
     reanimToggleBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 24)
     reanimToggleBtn.Text = "Enable Reanim"
     reanimToggleBtn.TextColor3 = Theme.text
@@ -16467,7 +14127,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
             end)
             if not zenApi or type(zenApi.reanimate) ~= "function" then
                 reanimToggleBtn.Text = "Module missing"
-                warn("Coca Reanim: module API not loaded")
+                warn("Coco Reanim: module API not loaded")
                 return
             end
         end
@@ -16476,27 +14136,36 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
             currentlyReanimated = zenApi.is_reanimated()
         end)
         local targetState = not currentlyReanimated
-        if not targetState and type(stopBang) == "function" then
-            pcall(stopBang)
-        end
-        local okCall, errMsg = pcall(function()
-            return zenApi.reanimate(targetState)
-        end)
-        if not okCall then
-            warn("Coca Reanim crash:", errMsg)
-        elseif type(errMsg) == "string" and errMsg ~= "Already reanimated." and errMsg ~= "" then
-            warn("Coca Reanim:", errMsg)
-        end
-        updateReanimBtnVisual()
-        if not targetState then
-            isPlayingManual = false
-            if type(updateNowPlayingUI) == "function" then
-                pcall(updateNowPlayingUI, nil)
-            end
-            if type(stopBang) == "function" then
+        reanimToggleBtn.Text = targetState and "Reanimating..." or "Disabling..."
+        reanimToggleBtn.TextColor3 = Theme.textMuted
+        task.spawn(function()
+            if not targetState and type(stopBang) == "function" then
                 pcall(stopBang)
             end
-        end
+            local okCall, errMsg = pcall(function()
+                return zenApi.reanimate(targetState)
+            end)
+            if not okCall then
+                warn("Coco Reanim crash:", errMsg)
+                reanimToggleBtn.Text = "Reanim error"
+                task.wait(1.2)
+                updateReanimBtnVisual()
+                return
+            end
+            if type(errMsg) == "string" and errMsg ~= "Already reanimated." and errMsg ~= "" then
+                warn("Coco Reanim:", errMsg)
+            end
+            updateReanimBtnVisual()
+            if not targetState then
+                isPlayingManual = false
+                if type(updateNowPlayingUI) == "function" then
+                    pcall(updateNowPlayingUI, nil)
+                end
+                if type(stopBang) == "function" then
+                    pcall(stopBang)
+                end
+            end
+        end)
     end)
 
     -- Body Container
@@ -16532,6 +14201,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
     end)
 
     headerBar.InputChanged:Connect(function(input)
+        if not createdStandaloneGui then return end
         if (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) and draggingHeader and dragStartPos and frameStartPos then
             local delta = input.Position - dragStartPos
             dragTarget.Position = UDim2.new(
@@ -16546,7 +14216,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
     -- ========================================================================
     -- SUB-TAB BAR: Fun, Bang, Favs, Custom, Binds, States, Speed, Limbs
     -- ========================================================================
-    local SUB_TABS = { "Fun", "Unicorns", "Bang", "Favs", "Custom", "Binds", "States", "Speed", "Copier", "Tracking", "Stretching", "Limbs", "Studio" }
+    local SUB_TABS = { "Fun", "Bang", "Favs", "Custom", "Binds", "States", "Speed", "Limbs" }
     local subTabButtons = {}
     local switchSubTab
 
@@ -16572,8 +14242,15 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
     })
     tabBarStrokeGrad.Rotation = 0
 
-    -- Closure root.73.124.22: Static angled gradient on SubTabBar stroke (eliminates continuous 60FPS ClipsDescendants re-tessellation lag)
-    tabBarStrokeGrad.Rotation = 35
+    -- Closure root.73.124.22: Rotating shimmer on SubTabBar stroke
+    task.spawn(function()
+        local tw = TweenService:Create(
+            tabBarStrokeGrad,
+            TweenInfo.new(5, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1),
+            { Rotation = 360 }
+        )
+        tw:Play()
+    end)
 
     local tabBarBgGrad = Instance.new("UIGradient", subTabBar)
     tabBarBgGrad.Color = ColorSequence.new({
@@ -16823,7 +14500,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
     emptyFavsLabel.Size = UDim2.new(1, 0, 0, 60)
     emptyFavsLabel.Position = UDim2.new(0, 0, 0.3, 0)
     emptyFavsLabel.BackgroundTransparency = 1
-    emptyFavsLabel.Text = "No favorite animations yet.\nClick the star icon (★) on any animation in the Coca Reanim tab!"
+    emptyFavsLabel.Text = "No favorite animations yet.\nClick the star icon (★) on any animation in the Reanims tab!"
     emptyFavsLabel.TextColor3 = Theme.textMuted
     emptyFavsLabel.Font = Enum.Font.GothamMedium
     emptyFavsLabel.TextSize = 11
@@ -16879,11 +14556,10 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
 
     -- 3. SPEED PAGE
     local speedPage = Instance.new("ScrollingFrame")
-    local statesPage = Instance.new("ScrollingFrame")
     local applyPlaybackSpeed
-    local pendingSpeedBindKey = nil
-    local speedBindButtons = {}
-    ;(function()
+    pendingSpeedBindKey = nil
+    speedBindButtons    = {}
+    do
     speedPage.Size = UDim2.new(1, 0, 1, 0)
     speedPage.BackgroundTransparency = 1
     speedPage.BorderSizePixel = 0
@@ -16970,7 +14646,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
         savedConfig.speed = currentSpeed
         saveConfig()
         speedValueLbl.Text = string.format("%.1fx", currentSpeed)
-        local alpha = math.clamp((currentSpeed - 0.1) / (5.0 - 0.1), 0, 1)
+        local alpha = math.clamp((currentSpeed - 0.1) / (3 - 0.1), 0, 1)
         sliderFill.Size = UDim2.new(alpha, 0, 1, 0)
         if zenApi and type(zenApi.set_animation_speed) == "function" then
             pcall(zenApi.set_animation_speed, currentSpeed)
@@ -16981,12 +14657,12 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
         applyPlaybackSpeed(1)
     end)
 
-    -- Closure root.73.124.35..38: Drag speed slider (full 0.1x to 5.0x range)
+    -- Closure root.73.124.35..38: Drag speed slider
     local draggingSpeedSlider = false
     local function updateSpeedFromInput(input)
         local w = math.max(sliderTrack.AbsoluteSize.X, 1)
         local relX = math.clamp(input.Position.X - sliderTrack.AbsolutePosition.X, 0, w)
-        applyPlaybackSpeed(0.1 + 4.9 * (relX / w))
+        applyPlaybackSpeed(0.1 + 2.9 * (relX / w))
     end
 
     speedSliderCard.InputBegan:Connect(function(input)
@@ -17038,14 +14714,15 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
     presetsSubLbl.TextXAlignment = Enum.TextXAlignment.Left
     presetsSubLbl.Parent = speedPresetsCard
 
-    local SPEED_PRESETS = { 0.2, 0.5, 1, 1.5, 2, 3, 5 }
+    local SPEED_PRESETS = { 0.5, 1, 1.5, 2, 3 }
     local presetsGrid = Instance.new("Frame")
     presetsGrid.Size = UDim2.new(1, -20, 0, 52)
     presetsGrid.Position = UDim2.new(0, 10, 0, 48)
     presetsGrid.BackgroundTransparency = 1
     presetsGrid.Parent = speedPresetsCard
 
-
+    local pendingSpeedBindKey = nil
+    local speedBindButtons    = {}
 
     for idx, spdVal in ipairs(SPEED_PRESETS) do
         local colScale = 1 / #SPEED_PRESETS
@@ -17096,7 +14773,11 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
         end)
     end
 
+    end -- end Speed Page local scope
+
     -- 4. STATES PAGE (Idle, Walk, Run, Jump, Fall)
+    local statesPage = Instance.new("ScrollingFrame")
+    do
     statesPage.Size = UDim2.new(1, 0, 1, 0)
     statesPage.BackgroundTransparency = 1
     statesPage.BorderSizePixel = 0
@@ -17354,9 +15035,12 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
         end)
     end
 
+    end -- end States Page local scope
+
     -- ========================================================================
     -- ADD CUSTOM ANIMATION MODAL (root.73.124 @ PC 1528..2680)
     -- ========================================================================
+    do
     addCustomModal = Instance.new("Frame")
     addCustomModal.Name = "AddCustomModal"
     addCustomModal.Size = UDim2.new(1, 0, 1, 0)
@@ -17614,15 +15298,16 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
         end
         customModalStatus.Text = "Added: " .. finalName
         customModalStatus.TextColor3 = Theme.green
-        print("[ANGOOR] custom anim saved:", finalName, (rawCode:sub(1, 4) == "http") and "(url)" or "(inline)", #rawCode, "chars")
+        print("[Coco Reanim] custom anim saved:", finalName, (rawCode:sub(1, 4) == "http") and "(url)" or "(inline)", #rawCode, "chars")
     end)
 
-    end)() -- end speed, states & custom modal scope
+    end -- end Custom Animation Modal local scope
 
     -- ========================================================================
     -- 5. LIMBS PAGE (Master Limbs Switch + 6 Individual Body Part Switches)
     -- ========================================================================
     local limbsPage = Instance.new("ScrollingFrame")
+    do
     limbsPage.Size = UDim2.new(1, 0, 1, 0)
     limbsPage.BackgroundTransparency = 1
     limbsPage.BorderSizePixel = 0
@@ -17635,7 +15320,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
     limbsPage.CanvasSize = UDim2.new(0, 0, 0, 420)
     limbsPage.Visible = false
     limbsPage.Parent = pagesHolder
-    ;(function()
+
     local limbsPad = Instance.new("UIPadding")
     limbsPad.PaddingLeft = UDim.new(0, 2)
     limbsPad.PaddingRight = UDim.new(0, 4)
@@ -17914,10 +15599,33 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
         end
     end
 
-    -- Closure root.73.124.61: Set individual limb group hidden/shown (and immediately restore visibility when shown)
+    -- Closure root.73.124.61: Set individual limb group hidden/shown (with immediate visibility restoration on unhide)
+    local function restorePartVisibilityOnModel(model, partName)
+        if not model then return end
+        local part = model:FindFirstChild(partName)
+        if part and part:IsA("BasePart") then
+            part.LocalTransparencyModifier = 0
+            part.Transparency = 0
+        end
+        if partName == "Head" then
+            for _, desc in ipairs(model:GetDescendants()) do
+                if desc:IsA("Decal") then
+                    desc.Transparency = 0
+                elseif desc:IsA("Accessory") then
+                    local handle = desc:FindFirstChild("Handle")
+                    if handle and handle:IsA("BasePart") then
+                        handle.LocalTransparencyModifier = 0
+                        handle.Transparency = 0
+                    end
+                end
+            end
+        end
+    end
+
     local function setLimbGroupHidden(group, hideBool, skipMasterUpdate, animate)
         if animate == nil then animate = true end
-        local cloneChar = (zenApi and type(zenApi.get_clone) == "function" and zenApi.get_clone()) or (LocalPlayer and LocalPlayer.Character)
+        local cloneChar = (zenApi and type(zenApi.get_clone) == "function") and select(2, pcall(zenApi.get_clone)) or nil
+        local realChar = LocalPlayer and LocalPlayer.Character or nil
         for _, partName in ipairs(group.parts) do
             if hideBool then
                 _G.hiddenBodyParts[partName] = true
@@ -17925,26 +15633,8 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
             else
                 _G.hiddenBodyParts[partName] = nil
                 savedConfig.hiddenLimbs[partName] = nil
-                if cloneChar then
-                    local part = cloneChar:FindFirstChild(partName)
-                    if part and part:IsA("BasePart") and partName ~= "HumanoidRootPart" then
-                        part.LocalTransparencyModifier = 0
-                        part.Transparency = 0
-                    end
-                    if partName == "Head" then
-                        for _, desc in ipairs(cloneChar:GetDescendants()) do
-                            if desc:IsA("Decal") then
-                                desc.Transparency = 0
-                            elseif desc:IsA("Accessory") then
-                                local handle = desc:FindFirstChild("Handle")
-                                if handle and handle:IsA("BasePart") then
-                                    handle.LocalTransparencyModifier = 0
-                                    handle.Transparency = 0
-                                end
-                            end
-                        end
-                    end
-                end
+                pcall(restorePartVisibilityOnModel, cloneChar, partName)
+                pcall(restorePartVisibilityOnModel, realChar, partName)
             end
         end
         saveConfig()
@@ -18076,52 +15766,46 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
         updateMasterLimbSwitch(false)
     end
 
-    -- Closure root.73.124.67: RenderStepped Limb Hider on Reanim Clone & Character (throttled Head accessory scan)
-    do
-        local lastHeadDescScan = 0
-        RunService.RenderStepped:Connect(function()
-            if not _G.hiddenBodyParts or next(_G.hiddenBodyParts) == nil then return end
-            local cloneChar = (zenApi and type(zenApi.get_clone) == "function" and zenApi.get_clone()) or (LocalPlayer and LocalPlayer.Character)
-            if not cloneChar then return end
+    -- Closure root.73.124.67: RenderStepped Limb Hider on Reanim Clone
+    RunService.RenderStepped:Connect(function()
+        if not zenApi or type(zenApi.get_clone) ~= "function" then return end
+        local cloneChar = zenApi.get_clone()
+        if not cloneChar then return end
+        if not _G.hiddenBodyParts or next(_G.hiddenBodyParts) == nil then return end
 
-            local now = os.clock()
-            local doFullHeadScan = (now - lastHeadDescScan) >= 0.20
-            if doFullHeadScan then lastHeadDescScan = now end
-
-            for partName, isHid in pairs(_G.hiddenBodyParts) do
-                if isHid then
-                    local part = cloneChar:FindFirstChild(partName)
-                    if part and part:IsA("BasePart") then
-                        part.LocalTransparencyModifier = 1
-                        part.Transparency = 1
-                    end
-                    if partName == "Head" and doFullHeadScan then
-                        for _, desc in ipairs(cloneChar:GetDescendants()) do
-                            if desc:IsA("Decal") then
-                                desc.Transparency = 1
-                            elseif desc:IsA("Accessory") then
-                                local handle = desc:FindFirstChild("Handle")
-                                if handle and handle:IsA("BasePart") then
-                                    handle.LocalTransparencyModifier = 1
-                                    handle.Transparency = 1
-                                end
+        for partName, isHid in pairs(_G.hiddenBodyParts) do
+            if isHid then
+                local part = cloneChar:FindFirstChild(partName)
+                if part and part:IsA("BasePart") then
+                    part.LocalTransparencyModifier = 1
+                    part.Transparency = 1
+                end
+                if partName == "Head" then
+                    for _, desc in ipairs(cloneChar:GetDescendants()) do
+                        if desc:IsA("Decal") then
+                            desc.Transparency = 1
+                        elseif desc:IsA("Accessory") then
+                            local handle = desc:FindFirstChild("Handle")
+                            if handle and handle:IsA("BasePart") then
+                                handle.LocalTransparencyModifier = 1
+                                handle.Transparency = 1
                             end
                         end
-                        local hum = cloneChar:FindFirstChildOfClass("Humanoid")
-                        if hum then
-                            hum.DisplayName = ""
-                            hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.Viewer
-                            hum.NameDisplayDistance = 100
-                            hum.HealthDisplayDistance = 100
-                        end
+                    end
+                    local hum = cloneChar:FindFirstChildOfClass("Humanoid")
+                    if hum then
+                        hum.DisplayName = ""
+                        hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.Viewer
+                        hum.NameDisplayDistance = 100
+                        hum.HealthDisplayDistance = 100
                     end
                 end
             end
-        end)
-    end
+        end
+    end)
 
     limbsPage.CanvasSize = UDim2.new(0, 0, 0, (#LIMB_GROUPS * 56) + 80)
-    end)()
+    end -- end Limbs Page local scope
 
     -- ========================================================================
     -- ANIMATION LIST POPULATOR & PLAYBACK ENGINE (root.73.124.68 .. 72)
@@ -18131,27 +15815,18 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
     local selectedAnimName   = nil
     local renderedRowMap     = {}
 
-    -- Closure root.73.124.68: Play or toggle an animation entry (auto-enables Reanimation if needed)
+    -- Closure root.73.124.68: Play or toggle an animation entry
     local function playOrToggleAnimation(animEntry)
         local reanimated = false
         if zenApi and type(zenApi.is_reanimated) == "function" then
             pcall(function() reanimated = zenApi.is_reanimated() end)
         end
-        if not reanimated and zenApi and type(zenApi.reanimate) == "function" then
-            pcall(function()
-                zenApi.reanimate(true)
-                reanimated = zenApi.is_reanimated()
-            end)
-            if type(updateReanimBtnVisual) == "function" then
-                pcall(updateReanimBtnVisual)
-            end
-        end
         if not reanimated then
-            warn("Coca Reanim: Enable Reanimation first to play animations!")
+            warn("Coco Reanim: Enable Reanimation first to play animations!")
             return
         end
         if not animEntry or not animEntry.path then
-            warn("Coca Reanim: Invalid animation entry")
+            warn("Coco Reanim: Invalid animation entry")
             return
         end
 
@@ -18169,17 +15844,15 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
         isPlayingManual = true
         selectedAnimName = animEntry.name
         nowPlayingName = animEntry.name
-
-        local playPath = animEntry.path
-        -- ⚡ ZERO-DELAY FAST PATH: Play builtin:// and rbxassetid:// animations synchronously on Frame-0 (0.00ms delay!)
-        if type(playPath) == "string" and (playPath:sub(1, 10) == "builtin://" or playPath:match("^rbxassetid://%d+$") or playPath:match("^%d+$")) then
-            zenApi.play_animation(playPath, currentSpeed)
-            updateNowPlayingUI(animEntry.name)
-            return
-        end
-
         updateNowPlayingUI("Loading " .. tostring(animEntry.name) .. "...")
+
         task.spawn(function()
+            if zenApi and type(zenApi.stop_animation) == "function" then
+                pcall(zenApi.stop_animation)
+            end
+            task.wait()
+
+            local playPath = animEntry.path
             if type(playPath) == "string" and playPath:sub(1, 4) ~= "http" and #playPath > 800 and not playPath:find("angoorreanim_cache", 1, true) then
                 if type(writefile) == "function" then
                     pcall(function()
@@ -18201,12 +15874,13 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                 end
             end
 
-            local res = zenApi.play_animation(playPath, currentSpeed)
-            if type(res) == "string" then
-                warn("Coca Reanimations Error:", res)
-                local retryRes = zenApi.play_animation(playPath, currentSpeed)
-                if type(retryRes) == "string" then
-                    warn("Coca Reanimations Error (retry):", retryRes)
+            local okPlay, res = pcall(zenApi.play_animation, playPath, currentSpeed)
+            if not okPlay or type(res) == "string" then
+                warn("Coco Reanim Error:", res)
+                task.wait(0.05)
+                local okRetry, retryRes = pcall(zenApi.play_animation, playPath, currentSpeed)
+                if not okRetry or type(retryRes) == "string" then
+                    warn("Coco Reanim Error (retry):", retryRes)
                     isPlayingManual = false
                     nowPlayingName = nil
                     selectedAnimName = nil
@@ -18220,12 +15894,8 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
         end)
     end
 
-    -- Closure root.73.124.69: Populate Fun / Favs / Custom animation list (generation-guarded so concurrent refreshes never stutter)
-    ;(function()
-    local populateListGen = 0
+    -- Closure root.73.124.69: Populate Fun / Favs / Custom animation list
     populateList = function()
-        populateListGen = populateListGen + 1
-        local myPopGen = populateListGen
         for _, child in ipairs(animListScroll:GetChildren()) do
             if child:IsA("Frame") or child:IsA("TextButton") or child:IsA("TextLabel") then
                 child:Destroy()
@@ -18244,10 +15914,6 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                 end
             elseif activeSubTab == "Custom" then
                 if isCust and (query == "" or item.name:lower():find(query, 1, true)) then
-                    table.insert(filtered, item)
-                end
-            elseif activeSubTab == "Unicorns" then
-                if item.category == "Unicorns" and (query == "" or item.name:lower():find(query, 1, true)) then
                     table.insert(filtered, item)
                 end
             else
@@ -18279,9 +15945,8 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
 
         local showCount = math.min(listShowCount, #filtered)
         for i = 1, showCount do
-            if i % 150 == 0 then
+            if i % 20 == 0 then
                 task.wait()
-                if myPopGen ~= populateListGen then return end
             end
             local animEntry = filtered[i]
             local row = Instance.new("Frame")
@@ -18336,10 +16001,6 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
             nameBtn.RichText = true
             if isCustomEntry then
                 nameBtn.Text = animEntry.name .. ' <font color="rgb(80,210,255)">[CUSTOM]</font>'
-            elseif animEntry.category == "Unicorns" then
-                nameBtn.Text = animEntry.name .. ' <font color="rgb(215,140,255)">[UNICORN]</font>'
-            elseif tostring(animEntry.path or ""):sub(1, 10) == "builtin://" then
-                nameBtn.Text = animEntry.name .. ' <font color="rgb(110,230,160)">[COCA]</font>'
             else
                 nameBtn.Text = animEntry.name
             end
@@ -18460,7 +16121,6 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
         local extraSpace = (showCount < #filtered and query == "") and 48 or 8
         animListScroll.CanvasSize = UDim2.new(0, 0, 0, math.max(showCount, 1) * (ROW_HEIGHT + 4) + extraSpace)
     end
-    end)()
 
     -- Closure root.73.124.70: Infinite scroll pagination on animListScroll
     local loadingMorePage = false
@@ -18480,10 +16140,17 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
         end
     end)
 
-    -- Closure root.73.124.71: Zero-Delay Instant Search Input Handler (0.00ms filter)
+    -- Closure root.73.124.71: Debounced search input handler
+    local searchGeneration = 0
     searchBox:GetPropertyChangedSignal("Text"):Connect(function()
+        searchGeneration = searchGeneration + 1
+        local myGen = searchGeneration
         listShowCount = 100
-        pcall(populateList)
+        task.delay(0.18, function()
+            if searchGeneration == myGen then
+                pcall(populateList)
+            end
+        end)
     end)
 
     -- Closure root.73.124.72: Refresh Binds Tab
@@ -18514,47 +16181,6 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
             return a.name:lower() < b.name:lower()
         end)
         emptyBindsLabel.Visible = (#bindEntries == 0)
-
-        if #bindEntries > 0 then
-            local clearAllRow = Instance.new("Frame")
-            clearAllRow.Size = UDim2.new(1, -6, 0, 32)
-            clearAllRow.BackgroundColor3 = Color3.fromRGB(28, 18, 28)
-            clearAllRow.BorderSizePixel = 0
-            clearAllRow.LayoutOrder = 0
-            clearAllRow.Parent = bindsPage
-            addCorner(clearAllRow, 6)
-            addStroke(clearAllRow, Theme.accent, 1, 0.35)
-
-            local clearAllLbl = Instance.new("TextLabel")
-            clearAllLbl.Size = UDim2.new(1, -110, 1, 0)
-            clearAllLbl.Position = UDim2.new(0, 12, 0, 0)
-            clearAllLbl.BackgroundTransparency = 1
-            clearAllLbl.Text = "Active Reanim Binds (" .. tostring(#bindEntries) .. ")"
-            clearAllLbl.TextColor3 = Theme.text
-            clearAllLbl.Font = Enum.Font.GothamBold
-            clearAllLbl.TextSize = 10.5
-            clearAllLbl.TextXAlignment = Enum.TextXAlignment.Left
-            clearAllLbl.Parent = clearAllRow
-
-            local clearAllBtn = Instance.new("TextButton")
-            clearAllBtn.Size = UDim2.new(0, 92, 0, 22)
-            clearAllBtn.Position = UDim2.new(1, -98, 0.5, -11)
-            clearAllBtn.BackgroundColor3 = Theme.dangerHover
-            clearAllBtn.Text = "Clear All 🗑️"
-            clearAllBtn.TextColor3 = Color3.fromRGB(255, 210, 210)
-            clearAllBtn.Font = Enum.Font.GothamBold
-            clearAllBtn.TextSize = 9.5
-            clearAllBtn.Parent = clearAllRow
-            addCorner(clearAllBtn, 4)
-            addStroke(clearAllBtn, Theme.accent, 1, 0.3)
-
-            clearAllBtn.MouseButton1Click:Connect(function()
-                savedConfig.binds = {}
-                saveConfig()
-                refreshBindsTab()
-                notify("🦴 COCA REANIM", "Cleared all Coca Reanim animation keybinds!")
-            end)
-        end
 
         for idx, entry in ipairs(bindEntries) do
             local row = Instance.new("Frame")
@@ -18638,6 +16264,9 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
     -- 6. BANG REANIMATION TAB (root.73.124 @ PC 3248..4200, closures 73..80)
     -- ========================================================================
     local bangPage = Instance.new("Frame")
+    local bangLockActive = false
+    local populateBangAnimList
+    do
     bangPage.Size = UDim2.new(1, -20, 1, -90)
     bangPage.Position = UDim2.new(0, 10, 0, 48)
     bangPage.BackgroundTransparency = 1
@@ -18645,51 +16274,18 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
     bangPage.Parent = bodyContainer
 
     local bangTargetInput = Instance.new("TextBox")
-    bangTargetInput.Size = UDim2.new(1, -86, 0, 30)
+    bangTargetInput.Size = UDim2.new(1, 0, 0, 30)
     bangTargetInput.Position = UDim2.new(0, 0, 0, 0)
     bangTargetInput.BackgroundColor3 = Theme.input
-    bangTargetInput.PlaceholderText = "Target username (blank = auto-synced locked target)..."
-    bangTargetInput.Text = (selectedPlayer and selectedPlayer.Name) or ""
+    bangTargetInput.PlaceholderText = "Target username..."
+    bangTargetInput.Text = ""
     bangTargetInput.TextColor3 = Theme.text
     bangTargetInput.Font = Enum.Font.Gotham
-    bangTargetInput.TextSize = 11.5
+    bangTargetInput.TextSize = 12
     bangTargetInput.ClearTextOnFocus = false
     bangTargetInput.Parent = bangPage
     addCorner(bangTargetInput, 8)
     addStroke(bangTargetInput, Theme.border, 1, 0.4)
-
-    local syncBangTgtBtn = Instance.new("TextButton")
-    syncBangTgtBtn.Size = UDim2.new(0, 80, 0, 30)
-    syncBangTgtBtn.Position = UDim2.new(1, -80, 0, 0)
-    syncBangTgtBtn.BackgroundColor3 = Theme.surface
-    syncBangTgtBtn.Text = "Sync 🎯"
-    syncBangTgtBtn.TextColor3 = Theme.accent
-    syncBangTgtBtn.Font = Enum.Font.GothamBold
-    syncBangTgtBtn.TextSize = 10.5
-    syncBangTgtBtn.Parent = bangPage
-    addCorner(syncBangTgtBtn, 8)
-    addStroke(syncBangTgtBtn, Theme.accent, 1, 0.35)
-
-    syncBangTgtBtn.MouseButton1Click:Connect(function()
-        local activePlr = resolveActiveTarget()
-        if activePlr and activePlr ~= LocalPlayer then
-            bangTargetInput.Text = activePlr.Name
-            notify("🦴 BANG TARGET", "Synced Bang Target to @" .. activePlr.Name)
-        else
-            bangTargetInput.Text = ""
-            notify("🦴 BANG TARGET", "Using Auto-Nearest Target")
-        end
-    end)
-
-    bangPage:GetPropertyChangedSignal("Visible"):Connect(function()
-        if bangPage.Visible and (bangTargetInput.Text == "" or not bangTargetInput:IsFocused()) then
-            if selectedPlayer and selectedPlayer.Parent == Players then
-                bangTargetInput.PlaceholderText = "Synced Locked Target: @" .. selectedPlayer.Name
-            else
-                bangTargetInput.PlaceholderText = "Target username (blank = Auto-Nearest)..."
-            end
-        end
-    end)
 
     local bangAnimSearch = Instance.new("TextBox")
     bangAnimSearch.Size = UDim2.new(1, 0, 0, 28)
@@ -18735,28 +16331,22 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
 
     local selectedBangAnim   = nil
     local lastBangTargetName = ""
-    local bangLockActive     = false
+    bangLockActive           = false
     local bangLockMode       = nil
     local bangLockConnObj    = nil
     local bangStatus         = nil
 
-    -- Closure root.73.124.73: Find player by exact or partial Name / DisplayName (never matches LocalPlayer; falls back to active target)
+    -- Closure root.73.124.73: Find player by exact or partial Name / DisplayName
     local function findTargetPlayer(queryStr)
-        local q = tostring(queryStr or ""):gsub("^%s*@+%s*", ""):gsub("^%s+", ""):gsub("%s+$", ""):lower()
-        if q == "" then
-            local fallbackPlr = resolveActiveTarget()
-            if fallbackPlr and fallbackPlr ~= LocalPlayer then
-                return fallbackPlr
-            end
-            return nil
-        end
+        if not queryStr or queryStr == "" then return nil end
+        local q = queryStr:lower()
         for _, p in ipairs(Players:GetPlayers()) do
-            if p ~= LocalPlayer and (p.Name:lower() == q or p.DisplayName:lower() == q) then
+            if p.Name:lower() == q or p.DisplayName:lower() == q then
                 return p
             end
         end
         for _, p in ipairs(Players:GetPlayers()) do
-            if p ~= LocalPlayer and (p.Name:lower():find(q, 1, true) or p.DisplayName:lower():find(q, 1, true)) then
+            if p.Name:lower():find(q, 1, true) or p.DisplayName:lower():find(q, 1, true) then
                 return p
             end
         end
@@ -18770,15 +16360,10 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
             local rootPart = charModel:FindFirstChild("HumanoidRootPart")
             local hum      = charModel:FindFirstChildWhichIsA("Humanoid")
             if rootPart then
-                if typeof(sethiddenproperty) == "function" then
-                    pcall(sethiddenproperty, rootPart, "PhysicsRepRootPart", nil)
-                    pcall(sethiddenproperty, rootPart, "PhysicsRepRootRef", nil)
-                end
                 rootPart.Anchored = false
                 rootPart.AssemblyLinearVelocity = Vector3.zero
                 rootPart.AssemblyAngularVelocity = Vector3.zero
             end
-            pcall(function() LocalPlayer.ReplicationFocus = nil end)
             if hum then
                 hum.Sit = false
                 hum.PlatformStand = false
@@ -18797,7 +16382,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                         hum.PlatformStand = false
                         hum.WalkSpeed = 16
                         hum.JumpPower = 50
-                        hum:ChangeState(Enum.HumanoidStateType.Running)
+                        hum:ChangeState(Enum.HumanoidStateType.RunningNoPhysics)
                     end
                 end)
             end
@@ -18813,8 +16398,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
             pcall(function() bangLockConnObj:Disconnect() end)
             bangLockConnObj = nil
         end
-        pcall(function() RunService:UnbindFromRenderStep("CocaBangLockPreCam") end)
-        pcall(function() RunService:UnbindFromRenderStep("CocaBangLock") end)
+        pcall(function() RunService:UnbindFromRenderStep("ZenBangLock") end)
         safeRestoreCollisions()
         safeStopAntiFling()
         safeResetVelocityHooks()
@@ -18825,23 +16409,17 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
         end)
         restoreCharacterPhysics(LocalPlayer and LocalPlayer.Character)
         pcall(function()
-            local isReanim = zenApi and type(zenApi.is_reanimated) == "function" and zenApi.is_reanimated()
-            if not isReanim and zenApi and type(zenApi.get_real_character) == "function" then
+            if zenApi and type(zenApi.get_real_character) == "function" then
                 restoreCharacterPhysics(zenApi.get_real_character())
-            elseif isReanim and type(zenApi.sync_now) == "function" then
-                zenApi.sync_now(true)
             end
         end)
         task.spawn(function()
-            for _ = 1, 6 do
+            for _ = 1, 8 do
                 task.wait(0.05)
                 restoreCharacterPhysics(LocalPlayer and LocalPlayer.Character)
                 pcall(function()
-                    local isReanim = zenApi and type(zenApi.is_reanimated) == "function" and zenApi.is_reanimated()
-                    if not isReanim and zenApi and type(zenApi.get_real_character) == "function" then
+                    if zenApi and type(zenApi.get_real_character) == "function" then
                         restoreCharacterPhysics(zenApi.get_real_character())
-                    elseif isReanim and type(zenApi.sync_now) == "function" then
-                        zenApi.sync_now(true)
                     end
                 end)
             end
@@ -18854,17 +16432,9 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
     -- Closure root.73.124.76: Start Bang Reanimation Lock ("face" or "back")
     local function startBangReanim(modeKey)
         local typed = tostring(bangTargetInput.Text or ""):gsub("^%s+", ""):gsub("%s+$", "")
-        local targetPlr = nil
-        if typed ~= "" then
-            targetPlr = findTargetPlayer(typed)
-        end
-        if not targetPlr then
-            targetPlr = resolveActiveTarget()
-        end
-        if not targetPlr and lastBangTargetName ~= "" then
-            targetPlr = findTargetPlayer(lastBangTargetName)
-        end
-        if not targetPlr or targetPlr.Parent ~= Players then
+        local queryToUse = (typed ~= "") and typed or lastBangTargetName
+        local targetPlr = findTargetPlayer(queryToUse)
+        if not targetPlr or not targetPlr.Character then
             if bangStatus then bangStatus.Text = "Invalid target" end
             return
         end
@@ -18876,62 +16446,33 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
             stopBang()
             return
         end
-        if CurrentWeld then
-            pcall(function() CurrentWeld:Destroy(true) end)
-            CurrentWeld = nil
-        end
-        if type(_G.stopCocaCopier) == "function" then
-            pcall(_G.stopCocaCopier)
-        end
         stopBang()
         bangLockActive = true
         _G.CocaBangActive = true
         _G.stopCocaBangLock = stopBang
         bangLockMode = modeKey
         lastBangTargetName = targetPlr.Name
-        pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
-        -- If target is in an unstreamed area, kick off streamAndTeleportToTarget immediately
-        local initTChar = findPlayerCharacterAnywhere(targetPlr)
-        local initTRef  = initTChar and pickTargetRef(initTChar, (modeKey == "face" or modeKey == "headsit") and "head" or "torso")
-        if not initTRef or not initTRef.Parent then
+
+        if bangStatus then
+            local prefix = (modeKey == "face") and "Face Bang → " or "Backshots → "
+            bangStatus.Text = prefix .. targetPlr.Name
+        end
+
+        local offsetY = (modeKey == "face") and 1.65 or 0
+        local offsetZ = (modeKey == "face") and -0.55 or 1.5
+        local yawDeg  = (modeKey == "face") and 180 or 0
+
+        if selectedBangAnim and selectedBangAnim.path then
             task.spawn(function()
-                pcall(function() streamAndTeleportToTarget(targetPlr, (modeKey == "face" or modeKey == "headsit") and "head" or "torso", 2.2) end)
+                pcall(function()
+                    if zenApi and type(zenApi.is_reanimated) == "function" and not zenApi.is_reanimated() then
+                        zenApi.reanimate(true)
+                        updateReanimBtnVisual()
+                    end
+                    zenApi.play_animation(selectedBangAnim.path, currentSpeed)
+                end)
             end)
         end
-
-        local modeLabels = {
-            face    = "Face Bang → ",
-            back    = "Backshots → ",
-            headsit = "Headsit → ",
-            lap     = "Lap Ride → ",
-            kiss    = "Front Kiss → ",
-            rizz    = "Wall Rizz → ",
-            orbit   = "Orbit Dance → ",
-        }
-        if bangStatus then
-            bangStatus.Text = (modeLabels[modeKey] or "Locked → ") .. targetPlr.Name
-        end
-
-        -- ⚡ ZERO-DELAY FRAME-0 REANIM & ANIMATION START
-        pcall(function()
-            if not zenApi.is_reanimated() then
-                zenApi.reanimate(true)
-                if type(updateReanimBtnVisual) == "function" then
-                    updateReanimBtnVisual()
-                end
-            end
-            local defaultAnimMap = {
-                face    = "builtin://Face Bang",
-                back    = "builtin://Backshots",
-                headsit = "builtin://Sit Chill",
-                lap     = "builtin://Twerk Pro Bounce",
-                kiss    = "builtin://Heart Hands Cute Pose",
-                rizz    = "rbxassetid://90735295463164",
-                orbit   = "builtin://⚡ Gojo Infinity Levitate",
-            }
-            local bangPath = (selectedBangAnim and selectedBangAnim.path) or defaultAnimMap[modeKey] or "builtin://Backshots"
-            zenApi.play_animation(bangPath, currentSpeed)
-        end)
 
         local function collectLocalRoots()
             local list = {}
@@ -18962,196 +16503,65 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
             return list
         end
 
-        local lastBangSafeDesiredCF = nil
-        local lastBangRepMap = setmetatable({}, { __mode = "k" })
-        local lastBangStreamTick = 0
-        local function stepLock(isPhysicsStep)
+        local function stepLock()
             if not bangLockActive then return end
-            local liveTarget = (selectedPlayer and selectedPlayer.Parent == Players and selectedPlayer)
-                or Players:FindFirstChild(lastBangTargetName)
-                or targetPlr
-            if not liveTarget or liveTarget.Parent ~= Players then
-                stopBang()
-                return
-            end
-            local liveChar = findPlayerCharacterAnywhere(liveTarget)
-            local targetRoot = liveChar and pickTargetRef(liveChar, "torso")
-            if not targetRoot or not targetRoot.Parent then
-                -- Omnipresent Re-Lock (exact oyee hoye.lua): stream to target's pivot/cached CFrame if unstreamed!
-                local hiddenCF = getBestTargetCFrame and getBestTargetCFrame(liveTarget)
-                if hiddenCF and not isLethalVoidCF(hiddenCF) then
-                    local now = tick()
-                    if now - lastBangStreamTick > 0.25 then
-                        lastBangStreamTick = now
-                        task.spawn(function()
-                            pcall(function() LocalPlayer:RequestStreamAroundAsync(hiddenCF.Position, 1) end)
+            local liveTarget = Players:FindFirstChild(lastBangTargetName) or targetPlr
+            if not liveTarget or not liveTarget.Character then return end
+            local targetRoot = liveTarget.Character:FindFirstChild("HumanoidRootPart")
+            if not targetRoot then return end
+
+            local posOffset = CFrame.new(0, offsetY, offsetZ)
+            local rotOffset = CFrame.Angles(0, math.rad(yawDeg), 0)
+            local desiredCF = (targetRoot.CFrame * posOffset) * rotOffset
+
+            for _, entry in ipairs(collectLocalRoots()) do
+                entry.root.CFrame = desiredCF
+                entry.root.AssemblyLinearVelocity = targetRoot.AssemblyLinearVelocity
+                entry.root.AssemblyAngularVelocity = Vector3.zero
+                safeSyncPhysicsStep(entry.root, targetRoot)
+                if entry.char then
+                    local hum = entry.char:FindFirstChildWhichIsA("Humanoid")
+                    if hum then
+                        pcall(function()
+                            hum.PlatformStand = true
+                            hum.AutoRotate = false
+                            hum.WalkSpeed = 0
+                            hum:ChangeState(Enum.HumanoidStateType.Physics)
                         end)
                     end
-                    for _, entry in ipairs(collectLocalRoots()) do
-                        entry.root.Anchored = false
-                        entry.root.CFrame = hiddenCF * CFrame.new(0, 0, 2)
-                        entry.root.AssemblyLinearVelocity = Vector3.zero
-                        entry.root.AssemblyAngularVelocity = Vector3.zero
-                    end
                 end
-                return
-            end
-            if isLethalVoidCF(targetRoot.CFrame, targetRoot.AssemblyLinearVelocity) then
-                stopBang()
-                return
-            end
-
-            local targetHead = pickTargetRef(liveChar, "head") or liveChar:FindFirstChild("Head")
-            local validHead = targetHead and targetHead:IsA("BasePart") and isRefPartValid(targetHead, liveChar) and ((targetHead.Position - targetRoot.Position).Magnitude <= 10)
-            local levelTargetRootCF = getFlatYawCFrame(targetRoot.CFrame, targetRoot.Position)
-            local desiredCF
-            if modeKey == "face" and validHead then
-                local dist = 0.5 + (((math.sin(tick() * 1 * 10) + 1) / 2) * 2.5)
-                local look = targetHead.CFrame.LookVector
-                local flatLook = Vector3.new(look.X, 0, look.Z)
-                if flatLook.Magnitude < 0.001 then
-                    local rLook = levelTargetRootCF.LookVector
-                    flatLook = Vector3.new(rLook.X, 0, rLook.Z)
-                end
-                local dir = (flatLook.Magnitude > 0.001) and flatLook.Unit or Vector3.new(0, 0, -1)
-                local pos = targetHead.Position + (dir * dist)
-                local hPos = Vector3.new(pos.X, targetHead.Position.Y + 1.2, pos.Z)
-                local lookAtPt = Vector3.new(targetHead.Position.X, hPos.Y, targetHead.Position.Z)
-                if (hPos - lookAtPt).Magnitude < 0.001 then
-                    desiredCF = levelTargetRootCF * CFrame.new(0, 1.65, -0.55 - dist) * CFrame.Angles(0, math.rad(180), 0)
-                else
-                    desiredCF = CFrame.lookAt(hPos, lookAtPt, Vector3.yAxis)
-                end
-            elseif modeKey == "face" then
-                desiredCF = levelTargetRootCF * CFrame.new(0, 1.65, -0.55) * CFrame.Angles(0, math.rad(180), 0)
-            elseif modeKey == "headsit" then
-                desiredCF = (validHead and getFlatYawCFrame(targetHead.CFrame, targetHead.Position) or levelTargetRootCF) * CFrame.new(0, 1.35, 0)
-            elseif modeKey == "lap" then
-                local bounceY = math.abs(math.sin(tick() * 14)) * 0.65
-                desiredCF = levelTargetRootCF * CFrame.new(0, 0.35 + bounceY, -0.85)
-            elseif modeKey == "kiss" then
-                desiredCF = levelTargetRootCF * CFrame.new(0, 0, -1.15) * CFrame.Angles(0, math.rad(180), 0)
-            elseif modeKey == "rizz" then
-                local myCh = LocalPlayer.Character
-                local myHm = myCh and myCh:FindFirstChildOfClass("Humanoid")
-                local myRt = myCh and myCh:FindFirstChild("HumanoidRootPart")
-                local rizzY, _, _, rizzZ = computeDynamicHeightWeld(myCh, myHm, myRt, liveChar, liveChar:FindFirstChildOfClass("Humanoid"), targetRoot, "torso", "rizz")
-                desiredCF = levelTargetRootCF * CFrame.new(0, rizzY, -1.28 + (rizzZ or 0)) * CFrame.Angles(0, math.rad(180), 0)
-            elseif modeKey == "orbit" then
-                local ang = tick() * 3.2
-                local orbitPos = targetRoot.Position + Vector3.new(math.cos(ang) * 3.4, 0.2, math.sin(ang) * 3.4)
-                desiredCF = CFrame.lookAt(orbitPos, Vector3.new(targetRoot.Position.X, orbitPos.Y, targetRoot.Position.Z), Vector3.yAxis)
-            else
-                local dist = 0.5 + (((math.sin(tick() * 2 * 10) + 1) / 2) * 2.0)
-                desiredCF = levelTargetRootCF * CFrame.new(0, 0, dist)
-            end
-
-            lastBangSafeDesiredCF = desiredCF
-            markIntentionalTeleport(desiredCF)
-            pcall(function() LocalPlayer.ReplicationFocus = targetRoot end)
-            if isPhysicsStep then
-                ensureTargetVisibleOnClient(liveTarget, liveChar)
-            end
-            local tNow = os.clock()
-            local tVel = targetRoot.AssemblyLinearVelocity
-            local microWake = Vector3.new(0, math.sin(tNow * 24) * 0.03, 0)
-            local syncVel = (tVel.Magnitude < 350 and (tVel * 0.85) or Vector3.zero) + microWake
-            local netlessVel = Vector3.new(0, 25.05, 0) + Vector3.new(math.sin(tNow * 30) * 0.025, 0, math.cos(tNow * 30) * 0.025)
-            local realCharRef = zenApi and type(zenApi.is_reanimated) == "function" and zenApi.is_reanimated() and type(zenApi.get_real_character) == "function" and zenApi.get_real_character() or nil
-            for _, entry in ipairs(collectLocalRoots()) do
-                local isRealRig = (realCharRef ~= nil and entry.char == realCharRef)
-                if typeof(sethiddenproperty) == "function" then
-                    if isRealRig then
-                        pcall(sethiddenproperty, entry.root, "PhysicsRepRootPart", nil)
-                        pcall(sethiddenproperty, entry.root, "PhysicsRepRootRef", nil)
-                    else
-                        pcall(sethiddenproperty, entry.root, "PhysicsRepRootPart", targetRoot)
-                        if InstanceHandleNew then
-                            pcall(sethiddenproperty, entry.root, "PhysicsRepRootRef", InstanceHandleNew(targetRoot))
-                        end
-                    end
-                    pcall(sethiddenproperty, entry.root, "NetworkIsSleeping", false)
-                end
-                entry.root.Anchored = false
-                entry.root.CFrame = desiredCF
-                entry.root.AssemblyLinearVelocity = isRealRig and netlessVel or syncVel
-                entry.root.AssemblyAngularVelocity = Vector3.zero
-                if isPhysicsStep then
-                    safeSyncPhysicsStep(entry.root, targetRoot)
-                    if entry.char and not isRealRig then
-                        local hum = entry.char:FindFirstChildWhichIsA("Humanoid")
-                        if hum then
-                            pcall(function()
-                                if not hum.PlatformStand then hum.PlatformStand = true end
-                                if hum.AutoRotate then hum.AutoRotate = false end
-                                if hum.WalkSpeed ~= 0 then hum.WalkSpeed = 0 end
-                                if hum:GetState() ~= Enum.HumanoidStateType.Physics then
-                                    hum:ChangeState(Enum.HumanoidStateType.Physics)
-                                end
-                            end)
-                        end
-                    end
-                end
-            end
-            if isPhysicsStep and zenApi and type(zenApi.sync_now) == "function" then
-                pcall(zenApi.sync_now, true)
             end
         end
 
-        stepLock(true)
-        local stepName = "CocaBangLock"
-        local preCamStepName = "CocaBangLockPreCam"
-        pcall(function() RunService:UnbindFromRenderStep(preCamStepName) end)
+        stepLock()
+        local stepName = "ZenBangLock"
         pcall(function() RunService:UnbindFromRenderStep(stepName) end)
-        local stConn = RunService.Stepped:Connect(function() stepLock(false) end)
-        local hbConn = RunService.Heartbeat:Connect(function() stepLock(true) end)
-        local rsConn = RunService.RenderStepped:Connect(function() stepLock(false) end)
+        local hbConn = RunService.Heartbeat:Connect(stepLock)
+        local rsConn = RunService.RenderStepped:Connect(stepLock)
         pcall(function()
-            RunService:BindToRenderStep(preCamStepName, Enum.RenderPriority.Camera.Value - 1, function() stepLock(false) end)
-            RunService:BindToRenderStep(stepName, Enum.RenderPriority.Character.Value + 1, function() stepLock(false) end)
+            RunService:BindToRenderStep(stepName, Enum.RenderPriority.Camera.Value + 1, stepLock)
         end)
 
         bangLockConnObj = {
             Disconnect = function()
-                pcall(function() stConn:Disconnect() end)
                 pcall(function() hbConn:Disconnect() end)
                 pcall(function() rsConn:Disconnect() end)
-                pcall(function() RunService:UnbindFromRenderStep(preCamStepName) end)
                 pcall(function() RunService:UnbindFromRenderStep(stepName) end)
-            end
+            end,
         }
     end
 
-    -- Closure root.73.124.77: Paginated & Generation-Guarded Bang Animation selector list (eliminates 1000-button single-frame freeze!)
-    local populateBangAnimList
-    ;(function()
-        local bangListShowCount = 80
-        local bangPopulateGen = 0
-        local bangButtonsMap = {}
-        populateBangAnimList = function()
-            bangPopulateGen = bangPopulateGen + 1
-            local myBangGen = bangPopulateGen
-            for _, child in ipairs(bangAnimScroll:GetChildren()) do
-                if child:IsA("TextButton") then
-                    child:Destroy()
-                end
+    -- Closure root.73.124.77: Populate Bang Animation selector list
+    populateBangAnimList = function()
+        for _, child in ipairs(bangAnimScroll:GetChildren()) do
+            if child:IsA("TextButton") then
+                child:Destroy()
             end
-            table.clear(bangButtonsMap)
-            local q = tostring(bangAnimSearch.Text or ""):lower()
-            local matched = {}
-            for _, animEntry in ipairs(allAnimations) do
-                local cat = animEntry.category or "Reanims"
-                if cat ~= "Unicorns" and (q == "" or animEntry.name:lower():find(q, 1, true)) then
-                    matched[#matched + 1] = animEntry
-                end
-            end
-            local limit = (q ~= "") and math.min(#matched, 150) or math.min(bangListShowCount, #matched)
-            for i = 1, limit do
-                if i % 25 == 0 then
-                    task.wait()
-                    if myBangGen ~= bangPopulateGen then return end
-                end
-                local animEntry = matched[i]
+        end
+        local q = tostring(bangAnimSearch.Text or ""):lower()
+        for _, animEntry in ipairs(allAnimations) do
+            local cat = animEntry.category or "Reanims"
+            if cat ~= "Unicorns" and (q == "" or animEntry.name:lower():find(q, 1, true)) then
                 local btn = Instance.new("TextButton")
                 btn.Size = UDim2.new(1, -8, 0, 26)
                 local isSel = selectedBangAnim and (selectedBangAnim.name == animEntry.name)
@@ -19164,7 +16574,6 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                 btn.AutoButtonColor = false
                 btn.Parent = bangAnimScroll
                 addCorner(btn, 6)
-                bangButtonsMap[animEntry.name] = btn
 
                 btn.MouseButton1Click:Connect(function()
                     selectedBangAnim = {
@@ -19175,50 +16584,54 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
                     if zenApi and type(zenApi.preload_animation) == "function" then
                         task.spawn(zenApi.preload_animation, animEntry.path)
                     end
-                    for eName, bInst in pairs(bangButtonsMap) do
-                        if bInst and bInst.Parent then
-                            bInst.BackgroundColor3 = (eName == animEntry.name) and Theme.surfaceHover or Theme.bgCard
-                        end
-                    end
+                    populateBangAnimList()
                 end)
             end
-            if limit < #matched then
-                local moreBtn = Instance.new("TextButton")
-                moreBtn.Size = UDim2.new(1, -8, 0, 28)
-                moreBtn.BackgroundColor3 = Theme.surface
-                moreBtn.Text = "Load more (" .. tostring(limit) .. "/" .. tostring(#matched) .. ")..."
-                moreBtn.TextColor3 = Theme.accent
-                moreBtn.Font = Enum.Font.GothamBold
-                moreBtn.TextSize = 10
-                moreBtn.AutoButtonColor = false
-                moreBtn.Parent = bangAnimScroll
-                addCorner(moreBtn, 6)
-                moreBtn.MouseButton1Click:Connect(function()
-                    bangListShowCount = bangListShowCount + 100
-                    task.defer(populateBangAnimList)
-                end)
-            end
-            bangAnimScroll.CanvasSize = UDim2.new(0, 0, 0, bangListLayout.AbsoluteContentSize.Y + 8)
         end
+        bangAnimScroll.CanvasSize = UDim2.new(0, 0, 0, bangListLayout.AbsoluteContentSize.Y + 8)
+    end
 
-        bangAnimSearch:GetPropertyChangedSignal("Text"):Connect(function()
-            bangListShowCount = 80
-            populateBangAnimList()
-        end)
-    end)()
+    task.defer(populateBangAnimList)
+    bangAnimSearch:GetPropertyChangedSignal("Text"):Connect(populateBangAnimList)
+
+    local faceBangBtn = Instance.new("TextButton")
+    faceBangBtn.Size = UDim2.new(0.48, -2, 0, 32)
+    faceBangBtn.Position = UDim2.new(0, 0, 1, -52)
+    faceBangBtn.BackgroundColor3 = Theme.surface
+    faceBangBtn.Text = "Face Bang"
+    faceBangBtn.TextColor3 = Theme.text
+    faceBangBtn.Font = Enum.Font.GothamBold
+    faceBangBtn.TextSize = 12
+    faceBangBtn.Parent = bangPage
+    addCorner(faceBangBtn, 10)
+
+    local backshotsBtn = Instance.new("TextButton")
+    backshotsBtn.Size = UDim2.new(0.48, -2, 0, 32)
+    backshotsBtn.Position = UDim2.new(0.52, 2, 1, -52)
+    backshotsBtn.BackgroundColor3 = Theme.surface
+    backshotsBtn.Text = "Backshots"
+    backshotsBtn.TextColor3 = Theme.text
+    backshotsBtn.Font = Enum.Font.GothamBold
+    backshotsBtn.TextSize = 12
+    backshotsBtn.Parent = bangPage
+    addCorner(backshotsBtn, 10)
 
     bangStatus = Instance.new("TextLabel")
     bangStatus.Size = UDim2.new(1, 0, 0, 14)
-    bangStatus.Position = UDim2.new(0, 0, 1, -14)
+    bangStatus.Position = UDim2.new(0, 0, 1, -16)
     bangStatus.BackgroundTransparency = 1
-    bangStatus.Text = "Idle — click any mode to lock (0ms) or click again to stop"
+    bangStatus.Text = "Idle — click same button to stop"
     bangStatus.TextColor3 = Theme.textMuted
     bangStatus.Font = Enum.Font.Gotham
-    bangStatus.TextSize = 9.5
+    bangStatus.TextSize = 10
     bangStatus.TextXAlignment = Enum.TextXAlignment.Left
     bangStatus.Parent = bangPage
 
+    local lastBangClickTick = 0
     local function onBangModeButton(modeKey)
+        local now = tick()
+        if (now - lastBangClickTick) < 0.2 then return end
+        lastBangClickTick = now
         if bangLockActive and bangLockMode == modeKey then
             stopBang()
             return
@@ -19226,1257 +16639,10 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
         startBangReanim(modeKey)
     end
 
-    local BANG_MODES_GRID = {
-        { key = "face",    label = "Face Bang",   col = 0, row = 0 },
-        { key = "back",    label = "Backshots",   col = 1, row = 0 },
-        { key = "headsit", label = "Headsit",     col = 2, row = 0 },
-        { key = "lap",     label = "Lap Ride",    col = 0, row = 1 },
-        { key = "kiss",    label = "Front Kiss",  col = 1, row = 1 },
-        { key = "orbit",   label = "Orbit Dance", col = 2, row = 1 },
-    }
-    for _, bm in ipairs(BANG_MODES_GRID) do
-        local mBtn = Instance.new("TextButton")
-        mBtn.Size = UDim2.new(0.32, -2, 0, 24)
-        mBtn.Position = UDim2.new(bm.col * 0.34, 0, 1, -68 + (bm.row * 27))
-        mBtn.BackgroundColor3 = Theme.surface
-        mBtn.Text = bm.label
-        mBtn.TextColor3 = Theme.text
-        mBtn.Font = Enum.Font.GothamBold
-        mBtn.TextSize = 10
-        mBtn.Parent = bangPage
-        addCorner(mBtn, 7)
-        addStroke(mBtn, Theme.divider, 1, 0.3)
-        mBtn.MouseButton1Click:Connect(function() onBangModeButton(bm.key) end)
-    end
+    faceBangBtn.MouseButton1Click:Connect(function() onBangModeButton("face") end)
+    backshotsBtn.MouseButton1Click:Connect(function() onBangModeButton("back") end)
 
-
-    -- ========================================================================
-    -- 7. COCA REANIM EXTRA PANELS (COPIER, TRACKING, STRETCHING, STUDIO & QUICK EMOTES)
-    --    (Integrated from MortalHub & Rebranded as Coca Reanim)
-    -- ========================================================================
-    local cocaExtraPanels = {
-        copierPage = nil,
-        trackingPage = nil,
-        stretchingPage = nil,
-        studioPage = nil,
-        pendingTrackBind = nil,
-        pendingStudioBind = false,
-        studioBindBtn = nil,
-        trackingCards = {},
-    }
-    savedConfig.trackingBinds = savedConfig.trackingBinds or {}
-    savedConfig.studioToggleKey = savedConfig.studioToggleKey or "K"
-
-    ;(function()
-        local function createCocaPillSwitch(parentFrame, xOffset, yOffset, initOn, onToggle)
-            local track = Instance.new("Frame")
-            track.Size = UDim2.new(0, 42, 0, 22)
-            track.Position = UDim2.new(1, xOffset or -54, 0.5, yOffset or -11)
-            track.BackgroundColor3 = initOn and Theme.accent or Color3.fromRGB(28, 28, 34)
-            track.BorderSizePixel = 0
-            track.Parent = parentFrame
-            addCorner(track, 100)
-            local st = addStroke(track, initOn and Theme.accent or Theme.border, 1, initOn and 0.1 or 0.5)
-
-            local knob = Instance.new("Frame")
-            knob.Size = UDim2.new(0, 16, 0, 16)
-            knob.Position = initOn and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8)
-            knob.BackgroundColor3 = initOn and Color3.fromRGB(10, 10, 12) or Theme.textMuted
-            knob.BorderSizePixel = 0
-            knob.Parent = track
-            addCorner(knob, 100)
-
-            local hit = Instance.new("TextButton")
-            hit.Size = UDim2.new(1, 0, 1, 0)
-            hit.BackgroundTransparency = 1
-            hit.Text = ""
-            hit.Parent = track
-
-            local isOn = (initOn == true)
-            local function setVisual(state, fireCb)
-                isOn = (state == true)
-                playTween(track, { BackgroundColor3 = isOn and Theme.accent or Color3.fromRGB(28, 28, 34) }, 0.16)
-                playTween(knob, {
-                    Position = isOn and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8),
-                    BackgroundColor3 = isOn and Color3.fromRGB(10, 10, 12) or Theme.textMuted,
-                }, 0.16)
-                st.Color = isOn and Theme.accent or Theme.border
-                st.Transparency = isOn and 0.1 or 0.5
-                if fireCb and onToggle then
-                    pcall(onToggle, isOn)
-                end
-            end
-
-            hit.MouseButton1Click:Connect(function()
-                setVisual(not isOn, true)
-            end)
-
-            return track, setVisual, function() return isOn end
-        end
-
-        -- [7A] COCA REANIM COPIER PANEL
-        ;(function()
-            local cp = Instance.new("ScrollingFrame")
-            cp.Size = UDim2.new(1, 0, 1, 0)
-            cp.BackgroundTransparency = 1
-            cp.BorderSizePixel = 0
-            cp.ScrollBarThickness = 3
-            cp.ScrollBarImageColor3 = Theme.accent
-            cp.ScrollBarImageTransparency = 0.6
-            cp.CanvasSize = UDim2.new(0, 0, 0, 590)
-            cp.Visible = false
-            cp.Parent = pagesHolder
-            cocaExtraPanels.copierPage = cp
-
-            local cpPad = Instance.new("UIPadding", cp)
-            cpPad.PaddingLeft = UDim.new(0, 2)
-            cpPad.PaddingRight = UDim.new(0, 4)
-            cpPad.PaddingTop = UDim.new(0, 2)
-            cpPad.PaddingBottom = UDim.new(0, 14)
-
-            local cpLayout = Instance.new("UIListLayout", cp)
-            cpLayout.Padding = UDim.new(0, 8)
-            cpLayout.SortOrder = Enum.SortOrder.LayoutOrder
-
-            local hdr = Instance.new("TextLabel", cp)
-            hdr.Size = UDim2.new(1, 0, 0, 16)
-            hdr.BackgroundTransparency = 1
-            hdr.Text = "COCA REANIMATION COPIER"
-            hdr.TextColor3 = Theme.textMuted
-            hdr.Font = Enum.Font.GothamBold
-            hdr.TextSize = 10
-            hdr.TextXAlignment = Enum.TextXAlignment.Left
-            hdr.LayoutOrder = 1
-
-            local copierActive = false
-            local freezeMode = false
-            local freeroamMode = false
-            local copierTarget = nil
-            local frozenPos = nil
-            local latDist = 2.0
-            local depthDist = 2.0
-            local latSide = "Left"
-            local depthSide = nil
-            local copierStepConn = nil
-            local savedCloneProps = {}
-            local setFreezeSw, setFreeroamSw
-
-            local mainCard = Instance.new("Frame", cp)
-            mainCard.Size = UDim2.new(1, 0, 0, 48)
-            mainCard.BackgroundColor3 = Theme.bgCard
-            mainCard.LayoutOrder = 2
-            addCorner(mainCard, 8)
-            addStroke(mainCard, Theme.divider, 1, 0)
-
-            local mTitle = Instance.new("TextLabel", mainCard)
-            mTitle.Size = UDim2.new(1, -70, 0, 18)
-            mTitle.Position = UDim2.new(0, 12, 0, 6)
-            mTitle.BackgroundTransparency = 1
-            mTitle.Text = "Coca Reanim Copier"
-            mTitle.TextColor3 = Theme.text
-            mTitle.Font = Enum.Font.GothamBold
-            mTitle.TextSize = 10.5
-            mTitle.TextXAlignment = Enum.TextXAlignment.Left
-
-            local mSub = Instance.new("TextLabel", mainCard)
-            mSub.Size = UDim2.new(1, -70, 0, 16)
-            mSub.Position = UDim2.new(0, 12, 0, 24)
-            mSub.BackgroundTransparency = 1
-            mSub.Text = "Mirror target player's exact pose & animations onto your Coca Reanim clone"
-            mSub.TextColor3 = Theme.textMuted
-            mSub.Font = Enum.Font.GothamMedium
-            mSub.TextSize = 9
-            mSub.TextXAlignment = Enum.TextXAlignment.Left
-
-            local targetCard = Instance.new("Frame", cp)
-            targetCard.Size = UDim2.new(1, 0, 0, 185)
-            targetCard.BackgroundColor3 = Theme.bgCard
-            targetCard.LayoutOrder = 3
-            addCorner(targetCard, 8)
-            addStroke(targetCard, Theme.divider, 1, 0)
-
-            local tHdr = Instance.new("TextLabel", targetCard)
-            tHdr.Size = UDim2.new(1, -20, 0, 16)
-            tHdr.Position = UDim2.new(0, 10, 0, 6)
-            tHdr.BackgroundTransparency = 1
-            tHdr.Text = "SELECT TARGET PLAYER"
-            tHdr.TextColor3 = Theme.accent
-            tHdr.Font = Enum.Font.GothamBold
-            tHdr.TextSize = 9.5
-            tHdr.TextXAlignment = Enum.TextXAlignment.Left
-
-            local tSearch = Instance.new("TextBox", targetCard)
-            tSearch.Size = UDim2.new(1, -20, 0, 26)
-            tSearch.Position = UDim2.new(0, 10, 0, 26)
-            tSearch.BackgroundColor3 = Theme.input
-            tSearch.PlaceholderText = "Search player by name..."
-            tSearch.PlaceholderColor3 = Theme.textMuted
-            tSearch.Text = ""
-            tSearch.TextColor3 = Theme.text
-            tSearch.Font = Enum.Font.GothamMedium
-            tSearch.TextSize = 10
-            tSearch.ClearTextOnFocus = false
-            addCorner(tSearch, 6)
-            addStroke(tSearch, Theme.divider, 1, 0.2)
-            Instance.new("UIPadding", tSearch).PaddingLeft = UDim.new(0, 8)
-
-            local tList = Instance.new("ScrollingFrame", targetCard)
-            tList.Size = UDim2.new(1, -20, 0, 120)
-            tList.Position = UDim2.new(0, 10, 0, 58)
-            tList.BackgroundColor3 = Theme.surface
-            tList.BackgroundTransparency = 0.5
-            tList.BorderSizePixel = 0
-            tList.ScrollBarThickness = 3
-            tList.ScrollBarImageColor3 = Theme.accent
-            addCorner(tList, 6)
-
-            local tListLayout = Instance.new("UIListLayout", tList)
-            tListLayout.Padding = UDim.new(0, 3)
-            tListLayout.SortOrder = Enum.SortOrder.LayoutOrder
-            tListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-                tList.CanvasSize = UDim2.new(0, 0, 0, tListLayout.AbsoluteContentSize.Y + 6)
-            end)
-
-            local freezeCard = Instance.new("Frame", cp)
-            freezeCard.Size = UDim2.new(1, 0, 0, 44)
-            freezeCard.BackgroundColor3 = Theme.bgCard
-            freezeCard.LayoutOrder = 4
-            addCorner(freezeCard, 8)
-            addStroke(freezeCard, Theme.divider, 1, 0)
-
-            local fTitle = Instance.new("TextLabel", freezeCard)
-            fTitle.Size = UDim2.new(1, -70, 0, 16)
-            fTitle.Position = UDim2.new(0, 12, 0, 6)
-            fTitle.BackgroundTransparency = 1
-            fTitle.Text = "FREEZE MODE"
-            fTitle.TextColor3 = Theme.text
-            fTitle.Font = Enum.Font.GothamBold
-            fTitle.TextSize = 10
-            fTitle.TextXAlignment = Enum.TextXAlignment.Left
-
-            local fSub = Instance.new("TextLabel", freezeCard)
-            fSub.Size = UDim2.new(1, -70, 0, 14)
-            fSub.Position = UDim2.new(0, 12, 0, 22)
-            fSub.BackgroundTransparency = 1
-            fSub.Text = "Freeze in place; spins & poses on the spot"
-            fSub.TextColor3 = Theme.textMuted
-            fSub.Font = Enum.Font.GothamMedium
-            fSub.TextSize = 8.5
-            fSub.TextXAlignment = Enum.TextXAlignment.Left
-
-            local roamCard = Instance.new("Frame", cp)
-            roamCard.Size = UDim2.new(1, 0, 0, 44)
-            roamCard.BackgroundColor3 = Theme.bgCard
-            roamCard.LayoutOrder = 5
-            addCorner(roamCard, 8)
-            addStroke(roamCard, Theme.divider, 1, 0)
-
-            local rTitle = Instance.new("TextLabel", roamCard)
-            rTitle.Size = UDim2.new(1, -70, 0, 16)
-            rTitle.Position = UDim2.new(0, 12, 0, 6)
-            rTitle.BackgroundTransparency = 1
-            rTitle.Text = "FREEROAM MODE"
-            rTitle.TextColor3 = Theme.text
-            rTitle.Font = Enum.Font.GothamBold
-            rTitle.TextSize = 10
-            rTitle.TextXAlignment = Enum.TextXAlignment.Left
-
-            local rSub = Instance.new("TextLabel", roamCard)
-            rSub.Size = UDim2.new(1, -70, 0, 14)
-            rSub.Position = UDim2.new(0, 12, 0, 22)
-            rSub.BackgroundTransparency = 1
-            rSub.Text = "Move freely (WASD) while copying target's animation"
-            rSub.TextColor3 = Theme.textMuted
-            rSub.Font = Enum.Font.GothamMedium
-            rSub.TextSize = 8.5
-            rSub.TextXAlignment = Enum.TextXAlignment.Left
-
-            local latCard = Instance.new("Frame", cp)
-            latCard.Size = UDim2.new(1, 0, 0, 66)
-            latCard.BackgroundColor3 = Theme.bgCard
-            latCard.LayoutOrder = 6
-            addCorner(latCard, 8)
-            addStroke(latCard, Theme.divider, 1, 0)
-
-            local latLbl = Instance.new("TextLabel", latCard)
-            latLbl.Size = UDim2.new(0.5, 0, 0, 16)
-            latLbl.Position = UDim2.new(0, 10, 0, 5)
-            latLbl.BackgroundTransparency = 1
-            latLbl.Text = "LATERAL OFFSET"
-            latLbl.TextColor3 = Theme.textMuted
-            latLbl.Font = Enum.Font.GothamBold
-            latLbl.TextSize = 9
-            latLbl.TextXAlignment = Enum.TextXAlignment.Left
-
-            local latValLbl = Instance.new("TextLabel", latCard)
-            latValLbl.Size = UDim2.new(0, 70, 0, 16)
-            latValLbl.Position = UDim2.new(1, -80, 0, 5)
-            latValLbl.BackgroundColor3 = Theme.surface
-            latValLbl.Text = "2.0 studs"
-            latValLbl.TextColor3 = Theme.accent
-            latValLbl.Font = Enum.Font.GothamBold
-            latValLbl.TextSize = 8.5
-            addCorner(latValLbl, 4)
-
-            local leftBtn = Instance.new("TextButton", latCard)
-            leftBtn.Position = UDim2.new(0, 10, 0, 24)
-            leftBtn.Size = UDim2.new(0.5, -14, 0, 20)
-            leftBtn.BackgroundColor3 = Theme.accent
-            leftBtn.Text = "Left"
-            leftBtn.TextColor3 = Color3.fromRGB(8, 8, 10)
-            leftBtn.Font = Enum.Font.GothamBold
-            leftBtn.TextSize = 9
-            leftBtn.AutoButtonColor = false
-            addCorner(leftBtn, 4)
-
-            local rightBtn = Instance.new("TextButton", latCard)
-            rightBtn.Position = UDim2.new(0.5, 4, 0, 24)
-            rightBtn.Size = UDim2.new(0.5, -14, 0, 20)
-            rightBtn.BackgroundColor3 = Theme.surface
-            rightBtn.Text = "Right"
-            rightBtn.TextColor3 = Theme.textDim
-            rightBtn.Font = Enum.Font.GothamBold
-            rightBtn.TextSize = 9
-            rightBtn.AutoButtonColor = false
-            addCorner(rightBtn, 4)
-
-            local latTrack = Instance.new("Frame", latCard)
-            latTrack.Position = UDim2.new(0, 10, 0, 50)
-            latTrack.Size = UDim2.new(1, -20, 0, 6)
-            latTrack.BackgroundColor3 = Theme.surface
-            addCorner(latTrack, 3)
-
-            local latFill = Instance.new("Frame", latTrack)
-            latFill.Size = UDim2.new(0.04, 0, 1, 0)
-            latFill.BackgroundColor3 = Theme.accent
-            addCorner(latFill, 3)
-
-            local depthCard = Instance.new("Frame", cp)
-            depthCard.Size = UDim2.new(1, 0, 0, 66)
-            depthCard.BackgroundColor3 = Theme.bgCard
-            depthCard.LayoutOrder = 7
-            addCorner(depthCard, 8)
-            addStroke(depthCard, Theme.divider, 1, 0)
-
-            local depthLbl = Instance.new("TextLabel", depthCard)
-            depthLbl.Size = UDim2.new(0.5, 0, 0, 16)
-            depthLbl.Position = UDim2.new(0, 10, 0, 5)
-            depthLbl.BackgroundTransparency = 1
-            depthLbl.Text = "DEPTH OFFSET"
-            depthLbl.TextColor3 = Theme.textMuted
-            depthLbl.Font = Enum.Font.GothamBold
-            depthLbl.TextSize = 9
-            depthLbl.TextXAlignment = Enum.TextXAlignment.Left
-
-            local depthValLbl = Instance.new("TextLabel", depthCard)
-            depthValLbl.Size = UDim2.new(0, 70, 0, 16)
-            depthValLbl.Position = UDim2.new(1, -80, 0, 5)
-            depthValLbl.BackgroundColor3 = Theme.surface
-            depthValLbl.Text = "2.0 studs"
-            depthValLbl.TextColor3 = Theme.accent
-            depthValLbl.Font = Enum.Font.GothamBold
-            depthValLbl.TextSize = 8.5
-            addCorner(depthValLbl, 4)
-
-            local frontBtn = Instance.new("TextButton", depthCard)
-            frontBtn.Position = UDim2.new(0, 10, 0, 24)
-            frontBtn.Size = UDim2.new(0.5, -14, 0, 20)
-            frontBtn.BackgroundColor3 = Theme.surface
-            frontBtn.Text = "Front"
-            frontBtn.TextColor3 = Theme.textDim
-            frontBtn.Font = Enum.Font.GothamBold
-            frontBtn.TextSize = 9
-            frontBtn.AutoButtonColor = false
-            addCorner(frontBtn, 4)
-
-            local backBtn = Instance.new("TextButton", depthCard)
-            backBtn.Position = UDim2.new(0.5, 4, 0, 24)
-            backBtn.Size = UDim2.new(0.5, -14, 0, 20)
-            backBtn.BackgroundColor3 = Theme.surface
-            backBtn.Text = "Back"
-            backBtn.TextColor3 = Theme.textDim
-            backBtn.Font = Enum.Font.GothamBold
-            backBtn.TextSize = 9
-            backBtn.AutoButtonColor = false
-            addCorner(backBtn, 4)
-
-            local depthTrack = Instance.new("Frame", depthCard)
-            depthTrack.Position = UDim2.new(0, 10, 0, 50)
-            depthTrack.Size = UDim2.new(1, -20, 0, 6)
-            depthTrack.BackgroundColor3 = Theme.surface
-            addCorner(depthTrack, 3)
-
-            local depthFill = Instance.new("Frame", depthTrack)
-            depthFill.Size = UDim2.new(0.04, 0, 1, 0)
-            depthFill.BackgroundColor3 = Theme.accent
-            addCorner(depthFill, 3)
-
-            local statusCard = Instance.new("Frame", cp)
-            statusCard.Size = UDim2.new(1, 0, 0, 28)
-            statusCard.BackgroundColor3 = Theme.bgCard
-            statusCard.LayoutOrder = 8
-            addCorner(statusCard, 6)
-            addStroke(statusCard, Theme.divider, 1, 0)
-
-            local statusLbl = Instance.new("TextLabel", statusCard)
-            statusLbl.BackgroundTransparency = 1
-            statusLbl.Position = UDim2.new(0, 12, 0, 0)
-            statusLbl.Size = UDim2.new(1, -20, 1, 0)
-            statusLbl.Font = Enum.Font.GothamMedium
-            statusLbl.Text = "OFF - Select a player and toggle ON"
-            statusLbl.TextColor3 = Theme.textMuted
-            statusLbl.TextSize = 8.5
-            statusLbl.TextXAlignment = Enum.TextXAlignment.Left
-
-            local copierLeftInfo = nil -- { name, displayName } kept in panel when target leaves until changed!
-            local function updateCopierStatus()
-                if not copierTarget then
-                    if copierLeftInfo then
-                        statusLbl.Text = "🚨 TARGET LEFT: @" .. copierLeftInfo.name .. " (" .. copierLeftInfo.displayName .. ") has left!"
-                        statusLbl.TextColor3 = Color3.fromRGB(244, 63, 94)
-                        return
-                    end
-                    statusLbl.Text = copierActive and "ON - Select a player from list above" or "OFF - Select a player and toggle ON"
-                    statusLbl.TextColor3 = copierActive and Theme.warning or Theme.textMuted
-                    return
-                end
-                local modeDesc = freezeMode and " [Frozen In-Place]"
-                    or (freeroamMode and " [FreeRoam]")
-                    or string.format(" (%s: %.1f%s)", latSide or "Left", latDist, depthSide and string.format(" | %s: %.1f", depthSide, depthDist) or "")
-                if copierActive then
-                    statusLbl.Text = "COPYING " .. copierTarget.Name .. modeDesc
-                    statusLbl.TextColor3 = Theme.green
-                else
-                    statusLbl.Text = "Selected: " .. copierTarget.Name .. modeDesc
-                    statusLbl.TextColor3 = Theme.accent
-                end
-            end
-
-            local function refreshSideBtns()
-                leftBtn.BackgroundColor3 = (latSide == "Left") and Theme.accent or Theme.surface
-                leftBtn.TextColor3 = (latSide == "Left") and Color3.fromRGB(8, 8, 10) or Theme.textDim
-                rightBtn.BackgroundColor3 = (latSide == "Right") and Theme.accent or Theme.surface
-                rightBtn.TextColor3 = (latSide == "Right") and Color3.fromRGB(8, 8, 10) or Theme.textDim
-                frontBtn.BackgroundColor3 = (depthSide == "Front") and Theme.accent or Theme.surface
-                frontBtn.TextColor3 = (depthSide == "Front") and Color3.fromRGB(8, 8, 10) or Theme.textDim
-                backBtn.BackgroundColor3 = (depthSide == "Back") and Theme.accent or Theme.surface
-                backBtn.TextColor3 = (depthSide == "Back") and Color3.fromRGB(8, 8, 10) or Theme.textDim
-            end
-
-            leftBtn.MouseButton1Click:Connect(function() latSide = "Left"; refreshSideBtns(); updateCopierStatus() end)
-            rightBtn.MouseButton1Click:Connect(function() latSide = "Right"; refreshSideBtns(); updateCopierStatus() end)
-            frontBtn.MouseButton1Click:Connect(function() depthSide = (depthSide == "Front") and nil or "Front"; refreshSideBtns(); updateCopierStatus() end)
-            backBtn.MouseButton1Click:Connect(function() depthSide = (depthSide == "Back") and nil or "Back"; refreshSideBtns(); updateCopierStatus() end)
-
-            local dragLat, dragDepth = false, false
-            latTrack.InputBegan:Connect(function(inp)
-                if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
-                    dragLat = true
-                    local a = math.clamp((inp.Position.X - latTrack.AbsolutePosition.X) / math.max(latTrack.AbsoluteSize.X, 1), 0, 1)
-                    latDist = math.floor(a * 500 + 0.5) / 10
-                    latFill.Size = UDim2.new(a, 0, 1, 0)
-                    latValLbl.Text = string.format("%.1f studs", latDist)
-                    updateCopierStatus()
-                end
-            end)
-            depthTrack.InputBegan:Connect(function(inp)
-                if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
-                    dragDepth = true
-                    local a = math.clamp((inp.Position.X - depthTrack.AbsolutePosition.X) / math.max(depthTrack.AbsoluteSize.X, 1), 0, 1)
-                    depthDist = math.floor(a * 500 + 0.5) / 10
-                    depthFill.Size = UDim2.new(a, 0, 1, 0)
-                    depthValLbl.Text = string.format("%.1f studs", depthDist)
-                    updateCopierStatus()
-                end
-            end)
-            UserInputService.InputEnded:Connect(function(inp)
-                if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
-                    dragLat = false; dragDepth = false
-                end
-            end)
-            UserInputService.InputChanged:Connect(function(inp)
-                if inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch then
-                    if dragLat then
-                        local a = math.clamp((inp.Position.X - latTrack.AbsolutePosition.X) / math.max(latTrack.AbsoluteSize.X, 1), 0, 1)
-                        latDist = math.floor(a * 500 + 0.5) / 10
-                        latFill.Size = UDim2.new(a, 0, 1, 0)
-                        latValLbl.Text = string.format("%.1f studs", latDist)
-                        updateCopierStatus()
-                    elseif dragDepth then
-                        local a = math.clamp((inp.Position.X - depthTrack.AbsolutePosition.X) / math.max(depthTrack.AbsoluteSize.X, 1), 0, 1)
-                        depthDist = math.floor(a * 500 + 0.5) / 10
-                        depthFill.Size = UDim2.new(a, 0, 1, 0)
-                        depthValLbl.Text = string.format("%.1f studs", depthDist)
-                        updateCopierStatus()
-                    end
-                end
-            end)
-
-            local LIMB_FALLBACKS = {
-                Torso = { "UpperTorso", "LowerTorso" },
-                ["Right Arm"] = { "RightUpperArm", "RightLowerArm", "RightHand" },
-                ["Left Arm"] = { "LeftUpperArm", "LeftLowerArm", "LeftHand" },
-                ["Right Leg"] = { "RightUpperLeg", "RightLowerLeg", "RightFoot" },
-                ["Left Leg"] = { "LeftUpperLeg", "LeftLowerLeg", "LeftFoot" },
-                UpperTorso = { "Torso" },
-                LowerTorso = { "Torso" },
-                RightUpperArm = { "Right Arm" },
-                LeftUpperArm = { "Left Arm" },
-                RightUpperLeg = { "Right Leg" },
-                LeftUpperLeg = { "Left Leg" },
-            }
-
-            local function resolveTargetLimb(tChar, limbName)
-                if not tChar then return nil end
-                local p = tChar:FindFirstChild(limbName)
-                if p and p:IsA("BasePart") then return p end
-                local alts = LIMB_FALLBACKS[limbName]
-                if alts then
-                    for _, alt in ipairs(alts) do
-                        local ap = tChar:FindFirstChild(alt)
-                        if ap and ap:IsA("BasePart") then return ap end
-                    end
-                end
-                return nil
-            end
-
-            local copierRenderConn, copierHbConn = nil, nil
-            local function stopReanimCopier()
-                _G.CocaCopierActive = false
-                pcall(function() RunService:UnbindFromRenderStep("CocaCopierZeroDelayPreCam") end)
-                pcall(function() RunService:UnbindFromRenderStep("CocaCopierZeroDelayLock") end)
-                if copierStepConn then copierStepConn:Disconnect(); copierStepConn = nil end
-                if copierRenderConn then copierRenderConn:Disconnect(); copierRenderConn = nil end
-                if copierHbConn then copierHbConn:Disconnect(); copierHbConn = nil end
-                pcall(function() LocalPlayer.ReplicationFocus = nil end)
-                local clone = zenApi and type(zenApi.get_clone) == "function" and zenApi.get_clone()
-                if clone then
-                    local cRoot = clone:FindFirstChild("HumanoidRootPart")
-                    if cRoot and typeof(sethiddenproperty) == "function" then
-                        pcall(sethiddenproperty, cRoot, "PhysicsRepRootPart", nil)
-                        pcall(sethiddenproperty, cRoot, "PhysicsRepRootRef", nil)
-                    end
-                    for inst, props in pairs(savedCloneProps) do
-                        if typeof(inst) == "Instance" and inst.Parent and inst:IsA("BasePart") then
-                            pcall(function()
-                                inst.Anchored = false
-                                inst.CanCollide = props.CanCollide
-                            end)
-                        end
-                    end
-                    local hum = clone:FindFirstChildOfClass("Humanoid")
-                    if hum and savedCloneProps.Humanoid then
-                        pcall(function()
-                            hum.PlatformStand = false
-                            hum.WalkSpeed = savedCloneProps.Humanoid.WalkSpeed
-                            hum.JumpPower = savedCloneProps.Humanoid.JumpPower
-                            hum.AutoRotate = savedCloneProps.Humanoid.AutoRotate
-                        end)
-                    end
-                end
-                table.clear(savedCloneProps)
-                frozenPos = nil
-                updateCopierStatus()
-            end
-            _G.stopCocaCopier = stopReanimCopier
-
-            local function startReanimCopier()
-                stopReanimCopier()
-                if not zenApi then return end
-                if not copierTarget or copierTarget.Parent ~= Players then
-                    copierTarget = resolveActiveTarget and resolveActiveTarget() or nil
-                end
-                if not zenApi.is_reanimated() then
-                    zenApi.reanimate(true)
-                    updateReanimBtnVisual()
-                end
-                local clone = zenApi.get_clone()
-                if not clone then return end
-                _G.CocaCopierActive = true
-                pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
-                if CurrentWeld then
-                    pcall(function() CurrentWeld:Destroy(true) end)
-                    CurrentWeld = nil
-                end
-                if type(_G.stopCocaBangLock) == "function" and bangLockActive then
-                    pcall(_G.stopCocaBangLock)
-                end
-
-                local cloneMap = {}
-                for _, d in ipairs(clone:GetDescendants()) do
-                    if d:IsA("BasePart") and not d:FindFirstAncestorOfClass("Accessory") then
-                        savedCloneProps[d] = { Anchored = d.Anchored, CanCollide = d.CanCollide }
-                        d.Anchored = false
-                        d.CanCollide = false
-                        d.CanTouch = false
-                        d.Massless = true
-                        cloneMap[d.Name] = d
-                    end
-                end
-                local hum = clone:FindFirstChildOfClass("Humanoid")
-                if hum then
-                    savedCloneProps.Humanoid = { WalkSpeed = hum.WalkSpeed, JumpPower = hum.JumpPower, AutoRotate = hum.AutoRotate }
-                    if not freeroamMode then
-                        hum.WalkSpeed = 0; hum.JumpPower = 0; hum.AutoRotate = false
-                    else
-                        hum.AutoRotate = true
-                        if hum.WalkSpeed <= 0 then hum.WalkSpeed = 16 end
-                    end
-                end
-
-                -- Stream to target if unstreamed (exact oyee hoye.lua stream-piercer)
-                if copierTarget and not freeroamMode and not freezeMode then
-                    local initTC = findPlayerCharacterAnywhere and findPlayerCharacterAnywhere(copierTarget) or copierTarget.Character
-                    local initTR = initTC and pickTargetRef and pickTargetRef(initTC, "torso")
-                    if not initTR or not initTR.Parent then
-                        task.spawn(function()
-                            pcall(function() streamAndTeleportToTarget(copierTarget, "torso", 2.2) end)
-                        end)
-                    end
-                end
-
-                local cachedTargetChar, cachedTargetLimbs, cachedCloneMotors = nil, {}, nil
-                local function stepCopierZeroDelay(isPhysicsStep)
-                    if not copierActive then return end
-                    if not copierTarget or copierTarget.Parent ~= Players then
-                        copierTarget = resolveActiveTarget and resolveActiveTarget() or nil
-                        if not copierTarget then return end
-                    end
-                    if not zenApi or not zenApi.is_reanimated() then return end
-                    local curClone = zenApi.get_clone()
-                    if not curClone then return end
-                    local cRoot = curClone:FindFirstChild("HumanoidRootPart") or curClone:FindFirstChild("Torso") or curClone:FindFirstChild("UpperTorso")
-                    local tChar = findPlayerCharacterAnywhere and findPlayerCharacterAnywhere(copierTarget) or copierTarget.Character
-                    local tRoot = tChar and ((pickTargetRef and pickTargetRef(tChar, "torso")) or tChar:FindFirstChild("HumanoidRootPart") or tChar:FindFirstChild("Torso") or tChar:FindFirstChild("UpperTorso"))
-                    if not tRoot or not tRoot.Parent then
-                        if not freeroamMode and not freezeMode and cRoot then
-                            local hiddenCF = getBestTargetCFrame and getBestTargetCFrame(copierTarget)
-                            if hiddenCF and not isLethalVoidCF(hiddenCF) then
-                                pcall(function() LocalPlayer:RequestStreamAroundAsync(hiddenCF.Position, 1) end)
-                                cRoot.CFrame = hiddenCF * CFrame.new(0, 0, 2)
-                                cRoot.AssemblyLinearVelocity = Vector3.zero
-                                cRoot.AssemblyAngularVelocity = Vector3.zero
-                            end
-                        end
-                        return
-                    end
-                    local tVel = tRoot.AssemblyLinearVelocity
-                    if not freeroamMode and isLethalVoidCF(tRoot.CFrame, tVel) then
-                        return
-                    end
-
-                    if tChar ~= cachedTargetChar then
-                        cachedTargetChar = tChar
-                        table.clear(cachedTargetLimbs)
-                        for _, tp in ipairs(tChar:GetChildren()) do
-                            if tp:IsA("BasePart") then
-                                cachedTargetLimbs[#cachedTargetLimbs + 1] = tp
-                            end
-                        end
-                    end
-
-                    if freeroamMode then
-                        if not cachedCloneMotors then
-                            cachedCloneMotors = {}
-                            for _, m in ipairs(curClone:GetDescendants()) do
-                                if m:IsA("Motor6D") and m.Part0 and m.Part1 then
-                                    cachedCloneMotors[#cachedCloneMotors + 1] = m
-                                end
-                            end
-                        end
-                        for i = 1, #cachedCloneMotors do
-                            local m = cachedCloneMotors[i]
-                            if m and m.Parent and m.Part0 and m.Part1 then
-                                local tp0 = resolveTargetLimb(tChar, m.Part0.Name)
-                                local tp1 = resolveTargetLimb(tChar, m.Part1.Name)
-                                if tp0 and tp1 then
-                                    local rel = tp0.CFrame:Inverse() * tp1.CFrame
-                                    pcall(function() m.Transform = (m.C0:Inverse() * rel) * m.C1 end)
-                                end
-                            end
-                        end
-                    else
-                        local baseCF
-                        local microWake = Vector3.new(0, math.sin(os.clock() * 24) * 0.03, 0)
-                        local syncVel = (tVel.Magnitude < 350 and (tVel * 0.85) or Vector3.zero) + microWake
-                        if freezeMode then
-                            if not frozenPos then
-                                frozenPos = (cRoot and cRoot.Position) or tRoot.Position
-                            end
-                            baseCF = CFrame.new(frozenPos) * tRoot.CFrame.Rotation
-                        else
-                            local rVec = tRoot.CFrame.RightVector
-                            local lVec = tRoot.CFrame.LookVector
-                            local latVec = (latSide == "Left" and (-rVec * latDist)) or (latSide == "Right" and (rVec * latDist)) or Vector3.zero
-                            local depVec = (depthSide == "Front" and (lVec * depthDist)) or (depthSide == "Back" and (-lVec * depthDist)) or Vector3.zero
-                            baseCF = CFrame.new(tRoot.Position + latVec + depVec) * tRoot.CFrame.Rotation
-                            if cRoot then
-                                markIntentionalTeleport(baseCF)
-                                pcall(function() LocalPlayer.ReplicationFocus = tRoot end)
-                                if typeof(sethiddenproperty) == "function" then
-                                    pcall(sethiddenproperty, cRoot, "PhysicsRepRootPart", tRoot)
-                                    if InstanceHandleNew then
-                                        pcall(sethiddenproperty, cRoot, "PhysicsRepRootRef", InstanceHandleNew(tRoot))
-                                    end
-                                    pcall(sethiddenproperty, cRoot, "NetworkIsSleeping", false)
-                                end
-                            end
-                        end
-                        local invTRoot = tRoot.CFrame:Inverse()
-                        for i = 1, #cachedTargetLimbs do
-                            local tp = cachedTargetLimbs[i]
-                            if tp and tp.Parent then
-                                local cpPart = cloneMap[tp.Name] or curClone:FindFirstChild(tp.Name)
-                                if cpPart and cpPart:IsA("BasePart") then
-                                    cpPart.Anchored = false
-                                    cpPart.CanCollide = false
-                                    cpPart.CFrame = baseCF * (invTRoot * tp.CFrame)
-                                    cpPart.AssemblyLinearVelocity = syncVel
-                                    cpPart.AssemblyAngularVelocity = Vector3.zero
-                                end
-                            end
-                        end
-                    end
-                    if zenApi and type(zenApi.sync_now) == "function" then
-                        pcall(zenApi.sync_now, isPhysicsStep)
-                    end
-                end
-
-                -- Frame-0 Immediate Zero-Delay Execution + Multi-Stage RenderStep/Stepped/Heartbeat Lock!
-                stepCopierZeroDelay(true)
-                pcall(function()
-                    RunService:BindToRenderStep("CocaCopierZeroDelayPreCam", Enum.RenderPriority.Camera.Value - 1, function() stepCopierZeroDelay(false) end)
-                    RunService:BindToRenderStep("CocaCopierZeroDelayLock", Enum.RenderPriority.Character.Value + 1, function() stepCopierZeroDelay(false) end)
-                end)
-                copierStepConn = RunService.Stepped:Connect(function() stepCopierZeroDelay(false) end)
-                copierRenderConn = RunService.RenderStepped:Connect(function() stepCopierZeroDelay(false) end)
-                copierHbConn = RunService.Heartbeat:Connect(function() stepCopierZeroDelay(true) end)
-                updateCopierStatus()
-            end
-
-            local function populateCopierPlayers()
-                for _, ch in ipairs(tList:GetChildren()) do
-                    if ch:IsA("TextButton") then ch:Destroy() end
-                end
-                local q = tostring(tSearch.Text or ""):lower()
-                if copierLeftInfo and not copierTarget then
-                    local leftBtnRow = Instance.new("TextButton", tList)
-                    leftBtnRow.LayoutOrder = 0
-                    leftBtnRow.Size = UDim2.new(1, -6, 0, 24)
-                    leftBtnRow.BackgroundColor3 = Color3.fromRGB(220, 58, 78)
-                    leftBtnRow.BackgroundTransparency = 0.15
-                    leftBtnRow.BorderSizePixel = 0
-                    leftBtnRow.Text = "  🚨 " .. copierLeftInfo.name .. " (@" .. copierLeftInfo.displayName .. ") — HAS LEFT"
-                    leftBtnRow.TextColor3 = Color3.new(1, 1, 1)
-                    leftBtnRow.Font = Enum.Font.GothamBold
-                    leftBtnRow.TextSize = 9.5
-                    leftBtnRow.TextXAlignment = Enum.TextXAlignment.Left
-                    leftBtnRow.AutoButtonColor = false
-                    addCorner(leftBtnRow, 4)
-                    leftBtnRow.MouseButton1Click:Connect(function()
-                        copierLeftInfo = nil
-                        populateCopierPlayers()
-                        updateCopierStatus()
-                    end)
-                end
-                for idx, plr in ipairs(Players:GetPlayers()) do
-                    if plr ~= LocalPlayer then
-                        local labelStr = plr.Name .. " (@" .. plr.DisplayName .. ")"
-                        if q == "" or labelStr:lower():find(q, 1, true) then
-                            local pBtn = Instance.new("TextButton", tList)
-                            local isSel = (copierTarget == plr)
-                            pBtn.LayoutOrder = idx
-                            pBtn.Size = UDim2.new(1, -6, 0, 24)
-                            pBtn.BackgroundColor3 = isSel and Theme.accent or Theme.bgCard
-                            pBtn.BackgroundTransparency = isSel and 0.15 or 0.5
-                            pBtn.BorderSizePixel = 0
-                            pBtn.Text = "  " .. labelStr
-                            pBtn.TextColor3 = isSel and Color3.fromRGB(8, 8, 10) or Theme.text
-                            pBtn.Font = Enum.Font.GothamMedium
-                            pBtn.TextSize = 9.5
-                            pBtn.TextXAlignment = Enum.TextXAlignment.Left
-                            pBtn.AutoButtonColor = false
-                            addCorner(pBtn, 4)
-                            pBtn.MouseButton1Click:Connect(function()
-                                copierTarget = plr
-                                copierLeftInfo = nil
-                                populateCopierPlayers()
-                                if copierActive then startReanimCopier() else updateCopierStatus() end
-                            end)
-                        end
-                    end
-                end
-            end
-
-            tSearch:GetPropertyChangedSignal("Text"):Connect(populateCopierPlayers)
-            Players.PlayerAdded:Connect(function(plr)
-                if copierLeftInfo and plr.Name:lower() == copierLeftInfo.name:lower() then
-                    copierTarget = plr
-                    copierLeftInfo = nil
-                end
-                task.defer(populateCopierPlayers)
-                task.defer(updateCopierStatus)
-            end)
-            Players.PlayerRemoving:Connect(function(plr)
-                if copierTarget == plr then
-                    copierLeftInfo = { name = plr.Name, displayName = plr.DisplayName or plr.Name }
-                    copierTarget = nil
-                    if copierActive then stopReanimCopier() else updateCopierStatus() end
-                end
-                task.defer(populateCopierPlayers)
-            end)
-            populateCopierPlayers()
-
-            createCocaPillSwitch(mainCard, -54, -11, false, function(st)
-                copierActive = st
-                if st then startReanimCopier() else stopReanimCopier() end
-            end)
-            local _; _, setFreezeSw = createCocaPillSwitch(freezeCard, -54, -11, false, function(st)
-                freezeMode = st
-                if st and freeroamMode then freeroamMode = false; if setFreeroamSw then setFreeroamSw(false, false) end end
-                frozenPos = nil
-                if copierActive then startReanimCopier() else updateCopierStatus() end
-            end)
-            _, setFreeroamSw = createCocaPillSwitch(roamCard, -54, -11, false, function(st)
-                freeroamMode = st
-                if st and freezeMode then freezeMode = false; frozenPos = nil; if setFreezeSw then setFreezeSw(false, false) end end
-                if copierActive then startReanimCopier() else updateCopierStatus() end
-            end)
-        end)()
-
-        -- [7B] COCA HEAD & LIMB TRACKING PANEL
-        ;(function()
-            local tp = Instance.new("ScrollingFrame")
-            tp.Size = UDim2.new(1, 0, 1, 0)
-            tp.BackgroundTransparency = 1
-            tp.BorderSizePixel = 0
-            tp.ScrollBarThickness = 3
-            tp.ScrollBarImageColor3 = Theme.accent
-            tp.ScrollBarImageTransparency = 0.6
-            tp.CanvasSize = UDim2.new(0, 0, 0, 340)
-            tp.Visible = false
-            tp.Parent = pagesHolder
-            cocaExtraPanels.trackingPage = tp
-
-            local tpPad = Instance.new("UIPadding", tp)
-            tpPad.PaddingLeft = UDim.new(0, 2); tpPad.PaddingRight = UDim.new(0, 4); tpPad.PaddingTop = UDim.new(0, 2); tpPad.PaddingBottom = UDim.new(0, 14)
-
-            local tpLayout = Instance.new("UIListLayout", tp)
-            tpLayout.Padding = UDim.new(0, 8)
-            tpLayout.SortOrder = Enum.SortOrder.LayoutOrder
-
-            local hdr = Instance.new("TextLabel", tp)
-            hdr.Size = UDim2.new(1, 0, 0, 16)
-            hdr.BackgroundTransparency = 1
-            hdr.Text = "COCA HEAD & LIMB TRACKING"
-            hdr.TextColor3 = Theme.textMuted
-            hdr.Font = Enum.Font.GothamBold
-            hdr.TextSize = 10
-            hdr.TextXAlignment = Enum.TextXAlignment.Left
-            hdr.LayoutOrder = 1
-
-            _G._HaloHeadTrackerEnabled = _G._HaloHeadTrackerEnabled or false
-            _G._HaloLeftArmPointerEnabled = _G._HaloLeftArmPointerEnabled or false
-            _G._HaloRightArmPointerEnabled = _G._HaloRightArmPointerEnabled or false
-            _G._HaloLimbsTorsoCamControl = _G._HaloLimbsTorsoCamControl or false
-            _G._HaloLimbsTorsoCamMode = _G._HaloLimbsTorsoCamMode or "Follow Camera"
-
-            local torsoCard = Instance.new("Frame", tp)
-            torsoCard.Size = UDim2.new(1, 0, 0, 72)
-            torsoCard.BackgroundColor3 = Theme.bgCard
-            torsoCard.LayoutOrder = 2
-            addCorner(torsoCard, 8)
-            addStroke(torsoCard, Theme.divider, 1, 0)
-
-            local tcTitle = Instance.new("TextLabel", torsoCard)
-            tcTitle.Size = UDim2.new(1, -70, 0, 16)
-            tcTitle.Position = UDim2.new(0, 12, 0, 6)
-            tcTitle.BackgroundTransparency = 1
-            tcTitle.Text = "Torso Camera Control"
-            tcTitle.TextColor3 = Theme.text
-            tcTitle.Font = Enum.Font.GothamBold
-            tcTitle.TextSize = 10.5
-            tcTitle.TextXAlignment = Enum.TextXAlignment.Left
-
-            local tcSub = Instance.new("TextLabel", torsoCard)
-            tcSub.Size = UDim2.new(1, -70, 0, 14)
-            tcSub.Position = UDim2.new(0, 12, 0, 22)
-            tcSub.BackgroundTransparency = 1
-            tcSub.Text = "Lean and turn body with camera look direction"
-            tcSub.TextColor3 = Theme.textMuted
-            tcSub.Font = Enum.Font.GothamMedium
-            tcSub.TextSize = 8.5
-            tcSub.TextXAlignment = Enum.TextXAlignment.Left
-
-            createCocaPillSwitch(torsoCard, -54, -20, _G._HaloLimbsTorsoCamControl, function(st)
-                _G._HaloLimbsTorsoCamControl = st
-            end)
-
-            local modeRow = Instance.new("Frame", torsoCard)
-            modeRow.Position = UDim2.new(0, 10, 0, 42)
-            modeRow.Size = UDim2.new(1, -20, 0, 22)
-            modeRow.BackgroundTransparency = 1
-
-            local modeBtns = {}
-            for idx, mName in ipairs({ "Follow Camera", "Pitch Only", "Locked" }) do
-                local mb = Instance.new("TextButton", modeRow)
-                mb.Size = UDim2.new(0.315, 0, 1, 0)
-                mb.Position = UDim2.new((idx - 1) * 0.342, 0, 0, 0)
-                local active = (_G._HaloLimbsTorsoCamMode == mName)
-                mb.BackgroundColor3 = active and Theme.accent or Theme.surface
-                mb.Text = mName
-                mb.TextColor3 = active and Color3.fromRGB(8, 8, 10) or Theme.textDim
-                mb.Font = Enum.Font.GothamBold
-                mb.TextSize = 8.5
-                addCorner(mb, 4)
-                modeBtns[mName] = mb
-                mb.MouseButton1Click:Connect(function()
-                    _G._HaloLimbsTorsoCamMode = mName
-                    for k, b in pairs(modeBtns) do
-                        local isA = (k == mName)
-                        b.BackgroundColor3 = isA and Theme.accent or Theme.surface
-                        b.TextColor3 = isA and Color3.fromRGB(8, 8, 10) or Theme.textDim
-                    end
-                end)
-            end
-
-            local function buildTrackRow(title, desc, bindKey, order, onToggle)
-                local card = Instance.new("Frame", tp)
-                card.Size = UDim2.new(1, 0, 0, 46)
-                card.BackgroundColor3 = Theme.bgCard
-                card.LayoutOrder = order
-                addCorner(card, 8)
-                addStroke(card, Theme.divider, 1, 0)
-
-                local tl = Instance.new("TextLabel", card)
-                tl.Size = UDim2.new(1, -125, 0, 16)
-                tl.Position = UDim2.new(0, 12, 0, 6)
-                tl.BackgroundTransparency = 1
-                tl.Text = title
-                tl.TextColor3 = Theme.text
-                tl.Font = Enum.Font.GothamBold
-                tl.TextSize = 10.5
-                tl.TextXAlignment = Enum.TextXAlignment.Left
-
-                local sl = Instance.new("TextLabel", card)
-                sl.Size = UDim2.new(1, -125, 0, 14)
-                sl.Position = UDim2.new(0, 12, 0, 24)
-                sl.BackgroundTransparency = 1
-                sl.Text = desc
-                sl.TextColor3 = Theme.textMuted
-                sl.Font = Enum.Font.GothamMedium
-                sl.TextSize = 8.5
-                sl.TextXAlignment = Enum.TextXAlignment.Left
-
-                local curB = savedConfig.trackingBinds[bindKey]
-                local kbBtn = Instance.new("TextButton", card)
-                kbBtn.Size = UDim2.new(0, 48, 0, 22)
-                kbBtn.Position = UDim2.new(1, -112, 0.5, -11)
-                kbBtn.BackgroundColor3 = Theme.surface
-                kbBtn.Text = curB and ("[" .. curB .. "]") or "[None]"
-                kbBtn.TextColor3 = curB and Theme.accent or Theme.textMuted
-                kbBtn.Font = Enum.Font.GothamBold
-                kbBtn.TextSize = 8.5
-                addCorner(kbBtn, 6)
-                addStroke(kbBtn, Theme.border, 1, 0.3)
-
-                kbBtn.MouseButton1Click:Connect(function()
-                    if cocaExtraPanels.pendingTrackBind == bindKey then
-                        cocaExtraPanels.pendingTrackBind = nil
-                        local b = savedConfig.trackingBinds[bindKey]
-                        kbBtn.Text = b and ("[" .. b .. "]") or "[None]"
-                        kbBtn.TextColor3 = b and Theme.accent or Theme.textMuted
-                    else
-                        cocaExtraPanels.pendingTrackBind = bindKey
-                        kbBtn.Text = "[...]"
-                        kbBtn.TextColor3 = Color3.fromRGB(255, 200, 80)
-                    end
-                end)
-
-                local _, setSw, getSw = createCocaPillSwitch(card, -54, -11, false, onToggle)
-                cocaExtraPanels.trackingCards[bindKey] = {
-                    setToggled = function(v) setSw(v, true) end,
-                    getToggled = getSw,
-                    kbBtn = kbBtn,
-                }
-            end
-
-            buildTrackRow("Head Tracker", "Head turns realistically toward camera", "HeadTracker", 3, function(v) _G._HaloHeadTrackerEnabled = v end)
-            buildTrackRow("Left Arm Pointer", "Left arm aims straight at mouse cursor", "LeftArm", 4, function(v) _G._HaloLeftArmPointerEnabled = v end)
-            buildTrackRow("Right Arm Pointer", "Right arm aims straight at mouse cursor", "RightArm", 5, function(v) _G._HaloRightArmPointerEnabled = v end)
-        end)()
-
-        -- [7C] COCA LIMB & TORSO STRETCHING PANEL
-        ;(function()
-            local sp = Instance.new("ScrollingFrame")
-            sp.Size = UDim2.new(1, 0, 1, 0)
-            sp.BackgroundTransparency = 1
-            sp.BorderSizePixel = 0
-            sp.ScrollBarThickness = 3
-            sp.ScrollBarImageColor3 = Theme.accent
-            sp.ScrollBarImageTransparency = 0.6
-            sp.CanvasSize = UDim2.new(0, 0, 0, 310)
-            sp.Visible = false
-            sp.Parent = pagesHolder
-            cocaExtraPanels.stretchingPage = sp
-
-            local spPad = Instance.new("UIPadding", sp)
-            spPad.PaddingLeft = UDim.new(0, 2); spPad.PaddingRight = UDim.new(0, 4); spPad.PaddingTop = UDim.new(0, 2); spPad.PaddingBottom = UDim.new(0, 14)
-
-            local spLayout = Instance.new("UIListLayout", sp)
-            spLayout.Padding = UDim.new(0, 8)
-            spLayout.SortOrder = Enum.SortOrder.LayoutOrder
-
-            local hdr = Instance.new("TextLabel", sp)
-            hdr.Size = UDim2.new(1, 0, 0, 16)
-            hdr.BackgroundTransparency = 1
-            hdr.Text = "COCA LIMB & TORSO STRETCHING"
-            hdr.TextColor3 = Theme.textMuted
-            hdr.Font = Enum.Font.GothamBold
-            hdr.TextSize = 10
-            hdr.TextXAlignment = Enum.TextXAlignment.Left
-            hdr.LayoutOrder = 1
-
-            _G._HaloTorsoStretcherEnabled = _G._HaloTorsoStretcherEnabled or false
-            _G._HaloLegStretcherEnabled = _G._HaloLegStretcherEnabled or false
-            _G._HaloLeftArmStretching = _G._HaloLeftArmStretching or false
-            _G._HaloRightArmStretching = _G._HaloRightArmStretching or false
-            _G._HaloLimbsUpperTorsoHeight = _G._HaloLimbsUpperTorsoHeight or 1
-            _G._HaloLimbsLegHeight = _G._HaloLimbsLegHeight or 1
-            _G._HaloArmStretchAmount = _G._HaloArmStretchAmount or 2.5
-
-            local function buildStretchCard(title, desc, defVal, minVal, maxVal, unit, order, onToggle, onSlide)
-                local card = Instance.new("Frame", sp)
-                card.Size = UDim2.new(1, 0, 0, 72)
-                card.BackgroundColor3 = Theme.bgCard
-                card.LayoutOrder = order
-                addCorner(card, 8)
-                addStroke(card, Theme.divider, 1, 0)
-
-                local tl = Instance.new("TextLabel", card)
-                tl.Size = UDim2.new(1, -70, 0, 16)
-                tl.Position = UDim2.new(0, 12, 0, 6)
-                tl.BackgroundTransparency = 1
-                tl.Text = title
-                tl.TextColor3 = Theme.text
-                tl.Font = Enum.Font.GothamBold
-                tl.TextSize = 10.5
-                tl.TextXAlignment = Enum.TextXAlignment.Left
-
-                local sl = Instance.new("TextLabel", card)
-                sl.Size = UDim2.new(1, -70, 0, 14)
-                sl.Position = UDim2.new(0, 12, 0, 22)
-                sl.BackgroundTransparency = 1
-                sl.Text = desc
-                sl.TextColor3 = Theme.textMuted
-                sl.Font = Enum.Font.GothamMedium
-                sl.TextSize = 8.5
-                sl.TextXAlignment = Enum.TextXAlignment.Left
-
-                local valBadge = Instance.new("TextLabel", card)
-                valBadge.Size = UDim2.new(0, 64, 0, 16)
-                valBadge.Position = UDim2.new(1, -128, 0, 6)
-                valBadge.BackgroundColor3 = Theme.surface
-                valBadge.Text = string.format("%.1f%s", defVal, unit)
-                valBadge.TextColor3 = Theme.accent
-                valBadge.Font = Enum.Font.GothamBold
-                valBadge.TextSize = 8.5
-                addCorner(valBadge, 4)
-
-                createCocaPillSwitch(card, -54, -20, false, onToggle)
-
-                local sTrack = Instance.new("Frame", card)
-                sTrack.Position = UDim2.new(0, 12, 0, 48)
-                sTrack.Size = UDim2.new(1, -24, 0, 6)
-                sTrack.BackgroundColor3 = Theme.surface
-                addCorner(sTrack, 3)
-
-                local initAlpha = math.clamp((defVal - minVal) / (maxVal - minVal), 0, 1)
-                local sFill = Instance.new("Frame", sTrack)
-                sFill.Size = UDim2.new(initAlpha, 0, 1, 0)
-                sFill.BackgroundColor3 = Theme.accent
-                addCorner(sFill, 3)
-
-                local dragging = false
-                local function applyPct(pct)
-                    local v = math.floor((minVal + pct * (maxVal - minVal)) * 10 + 0.5) / 10
-                    local a = math.clamp((v - minVal) / (maxVal - minVal), 0, 1)
-                    sFill.Size = UDim2.new(a, 0, 1, 0)
-                    valBadge.Text = string.format("%.1f%s", v, unit)
-                    if onSlide then onSlide(v) end
-                end
-                sTrack.InputBegan:Connect(function(inp)
-                    if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
-                        dragging = true
-                        applyPct(math.clamp((inp.Position.X - sTrack.AbsolutePosition.X) / math.max(sTrack.AbsoluteSize.X, 1), 0, 1))
-                    end
-                end)
-                UserInputService.InputEnded:Connect(function(inp)
-                    if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
-                        dragging = false
-                    end
-                end)
-                UserInputService.InputChanged:Connect(function(inp)
-                    if dragging and (inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch) then
-                        applyPct(math.clamp((inp.Position.X - sTrack.AbsolutePosition.X) / math.max(sTrack.AbsoluteSize.X, 1), 0, 1))
-                    end
-                end)
-            end
-
-            buildStretchCard("Torso Stretcher", "Scales UpperTorso height along spine", 1.0, 0.4, 25.0, "x", 2,
-                function(st) _G._HaloTorsoStretcherEnabled = st end,
-                function(v) _G._HaloLimbsUpperTorsoHeight = v end
-            )
-            buildStretchCard("Leg Stretcher", "Scales leg length and adjusts HipHeight", 1.0, 0.4, 25.0, "x", 3,
-                function(st) _G._HaloLegStretcherEnabled = st end,
-                function(v) _G._HaloLimbsLegHeight = v end
-            )
-            buildStretchCard("Arm Stretch", "Scales arm bone length toward aim direction", 2.5, 0.5, 50.0, "x", 4,
-                function(st) _G._HaloLeftArmStretching = st; _G._HaloRightArmStretching = st end,
-                function(v) _G._HaloArmStretchAmount = v end
-            )
-        end)()
-
-        -- [7D] COCA STUDIO & 33 QUICK REANIM EMOTES PANEL
-        ;(function()
-            local stp = Instance.new("ScrollingFrame")
-            stp.Size = UDim2.new(1, 0, 1, 0)
-            stp.BackgroundTransparency = 1
-            stp.BorderSizePixel = 0
-            stp.ScrollBarThickness = 3
-            stp.ScrollBarImageColor3 = Theme.accent
-            stp.ScrollBarImageTransparency = 0.6
-            stp.CanvasSize = UDim2.new(0, 0, 0, 920)
-            stp.Visible = false
-            stp.Parent = pagesHolder
-            cocaExtraPanels.studioPage = stp
-
-            local stPad = Instance.new("UIPadding", stp)
-            stPad.PaddingLeft = UDim.new(0, 2); stPad.PaddingRight = UDim.new(0, 4); stPad.PaddingTop = UDim.new(0, 2); stPad.PaddingBottom = UDim.new(0, 14)
-
-            local stLayout = Instance.new("UIListLayout", stp)
-            stLayout.Padding = UDim.new(0, 8)
-            stLayout.SortOrder = Enum.SortOrder.LayoutOrder
-            stLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-                stp.CanvasSize = UDim2.new(0, 0, 0, stLayout.AbsoluteContentSize.Y + 20)
-            end)
-
-            local hdr = Instance.new("TextLabel", stp)
-            hdr.Size = UDim2.new(1, 0, 0, 16)
-            hdr.BackgroundTransparency = 1
-            hdr.Text = "COCA REANIM STUDIO & QUICK EMOTES"
-            hdr.TextColor3 = Theme.textMuted
-            hdr.Font = Enum.Font.GothamBold
-            hdr.TextSize = 10
-            hdr.TextXAlignment = Enum.TextXAlignment.Left
-            hdr.LayoutOrder = 1
-
-            local studioCard = Instance.new("Frame", stp)
-            studioCard.Size = UDim2.new(1, 0, 0, 92)
-            studioCard.BackgroundColor3 = Theme.bgCard
-            studioCard.LayoutOrder = 2
-            addCorner(studioCard, 8)
-            addStroke(studioCard, Theme.divider, 1, 0)
-
-            local sTitle = Instance.new("TextLabel", studioCard)
-            sTitle.Size = UDim2.new(1, -110, 0, 18)
-            sTitle.Position = UDim2.new(0, 12, 0, 8)
-            sTitle.BackgroundTransparency = 1
-            sTitle.Text = "Coca Studio Timeline Sequencer"
-            sTitle.TextColor3 = Theme.text
-            sTitle.Font = Enum.Font.GothamBold
-            sTitle.TextSize = 11
-            sTitle.TextXAlignment = Enum.TextXAlignment.Left
-
-            local sSub = Instance.new("TextLabel", studioCard)
-            sSub.Size = UDim2.new(1, -110, 0, 14)
-            sSub.Position = UDim2.new(0, 12, 0, 26)
-            sSub.BackgroundTransparency = 1
-            sSub.Text = "Multi-clip sequencing, avatar scrubbing & export suite"
-            sSub.TextColor3 = Theme.textMuted
-            sSub.Font = Enum.Font.GothamMedium
-            sSub.TextSize = 8.5
-            sSub.TextXAlignment = Enum.TextXAlignment.Left
-
-            local launchBtn = Instance.new("TextButton", studioCard)
-            launchBtn.Size = UDim2.new(0.48, -8, 0, 32)
-            launchBtn.Position = UDim2.new(0, 10, 0, 48)
-            launchBtn.BackgroundColor3 = Theme.accent
-            launchBtn.Text = "LAUNCH COCA STUDIO"
-            launchBtn.TextColor3 = Color3.fromRGB(8, 8, 10)
-            launchBtn.Font = Enum.Font.GothamBold
-            launchBtn.TextSize = 9
-            addCorner(launchBtn, 6)
-
-            local wheelBtn = Instance.new("TextButton", studioCard)
-            wheelBtn.Size = UDim2.new(0.48, -8, 0, 32)
-            wheelBtn.Position = UDim2.new(0.52, -2, 0, 48)
-            wheelBtn.BackgroundColor3 = Theme.surface
-            wheelBtn.Text = "LOAD EMOTE WHEEL"
-            wheelBtn.TextColor3 = Theme.text
-            wheelBtn.Font = Enum.Font.GothamBold
-            wheelBtn.TextSize = 9
-            addCorner(wheelBtn, 6)
-            addStroke(wheelBtn, Theme.border, 1, 0.3)
-
-            launchBtn.MouseButton1Click:Connect(function()
-                task.spawn(function()
-                    pcall(function()
-                        if type(isfile) == "function" and isfile("mortalStudio.lua") then
-                            loadstring(readfile("mortalStudio.lua"))()
-                        else
-                            loadstring(game:HttpGet("https://raw.githubusercontent.com/hindstar5647/reanime/main/mortalStudio.lua"))()
-                        end
-                    end)
-                end)
-            end)
-
-            wheelBtn.MouseButton1Click:Connect(function()
-                task.spawn(function()
-                    pcall(function()
-                        loadstring(game:HttpGet("https://raw.githubusercontent.com/Pandacodes/EmoteWheel/main/Pandaemotewheel.lua"))()
-                    end)
-                end)
-            end)
-
-            local qHdr = Instance.new("TextLabel", stp)
-            qHdr.Size = UDim2.new(1, 0, 0, 18)
-            qHdr.BackgroundTransparency = 1
-            qHdr.Text = "33 QUICK REANIM EMOTES (1-CLICK PLAY)"
-            qHdr.TextColor3 = Theme.accent
-            qHdr.Font = Enum.Font.GothamBold
-            qHdr.TextSize = 9.5
-            qHdr.TextXAlignment = Enum.TextXAlignment.Left
-            qHdr.LayoutOrder = 3
-
-            local QUICK_EMOTES = {
-                "7 Rings Dance", "8-Bit Shuffle", "9mm Go Bang!", "Belly Dance", "Belly Spin",
-                "Billy Bounce", "Boston Breakdance", "Breakdance Routine", "Bunny Dance",
-                "California Gurls", "California Love", "Car Shearer Dance", "Chainsaw Dance",
-                "Chicken Dance", "Crossbow Dance", "Culture Festival Dance", "Dame Tu Cosita",
-                "Deep Dab", "Distraction Dance", "Dubstep Wave", "Electro Shuffle", "Floss",
-                "Fresh", "Gangnam Style", "Hype", "Levitate", "Macarena", "Orange Justice",
-                "T-Pose", "Take The L", "Zombie Shambles", "dababy_lessgoo", "helicopter event",
-            }
-            for idx, qName in ipairs(QUICK_EMOTES) do
-                local qBtn = Instance.new("TextButton", stp)
-                qBtn.Size = UDim2.new(1, 0, 0, 32)
-                qBtn.BackgroundColor3 = Theme.surface
-                qBtn.Text = "  ▶  " .. qName
-                qBtn.TextColor3 = Theme.text
-                qBtn.Font = Enum.Font.GothamMedium
-                qBtn.TextSize = 10.5
-                qBtn.TextXAlignment = Enum.TextXAlignment.Left
-                qBtn.LayoutOrder = 10 + idx
-                addCorner(qBtn, 6)
-                addStroke(qBtn, Theme.divider, 1, 0.4)
-                qBtn.MouseButton1Click:Connect(function()
-                    local url = MORTAL_MAIN_BASE .. encodeCocaUriComponent(qName) .. ".lua"
-                    playOrToggleAnimation({ name = qName, path = url, category = "Main" })
-                end)
-            end
-        end)()
-    end)()
+    end -- end Bang Reanimation Tab local scope
 
     -- ========================================================================
     -- SUB-TAB SWITCHER (root.73.124.81)
@@ -20498,27 +16664,19 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
             info.btn.Font = isCurrent and Enum.Font.GothamBold or Enum.Font.GothamMedium
         end
 
-        local isListTab = (tabName == "Fun" or tabName == "Unicorns" or tabName == "Favs" or tabName == "Custom")
+        local isListTab = (tabName == "Fun" or tabName == "Favs" or tabName == "Custom")
         bangPage.Visible   = (tabName == "Bang")
         listPage.Visible   = isListTab
         bindsPage.Visible  = (tabName == "Binds")
         speedPage.Visible  = (tabName == "Speed")
         statesPage.Visible = (tabName == "States")
         limbsPage.Visible  = (tabName == "Limbs")
-        if cocaExtraPanels.copierPage then cocaExtraPanels.copierPage.Visible = (tabName == "Copier") end
-        if cocaExtraPanels.trackingPage then cocaExtraPanels.trackingPage.Visible = (tabName == "Tracking") end
-        if cocaExtraPanels.stretchingPage then cocaExtraPanels.stretchingPage.Visible = (tabName == "Stretching") end
-        if cocaExtraPanels.studioPage then cocaExtraPanels.studioPage.Visible = (tabName == "Studio") end
 
         local activePage = (isListTab and listPage)
             or (tabName == "Binds" and bindsPage)
             or (tabName == "Speed" and speedPage)
             or (tabName == "States" and statesPage)
             or (tabName == "Limbs" and limbsPage)
-            or (tabName == "Copier" and cocaExtraPanels.copierPage)
-            or (tabName == "Tracking" and cocaExtraPanels.trackingPage)
-            or (tabName == "Stretching" and cocaExtraPanels.stretchingPage)
-            or (tabName == "Studio" and cocaExtraPanels.studioPage)
 
         if activePage then
             activePage.Position = UDim2.new(0, 0, 0, 6)
@@ -20536,15 +16694,9 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
             addCustomOpenBtn.Visible = true
             searchBox.Size = UDim2.new(1, -96, 0, 30)
             populateList()
-        elseif tabName == "Unicorns" then
-            listShowCount = 100
-            searchBox.PlaceholderText = "Search 700 Unicorns reanimations..."
-            addCustomOpenBtn.Visible = true
-            searchBox.Size = UDim2.new(1, -96, 0, 30)
-            populateList()
         elseif tabName == "Fun" then
             listShowCount = 100
-            searchBox.PlaceholderText = "Search 2,770+ Coca & Mortal reanimations..."
+            searchBox.PlaceholderText = "Search animations..."
             addCustomOpenBtn.Visible = true
             searchBox.Size = UDim2.new(1, -96, 0, 30)
             populateList()
@@ -20561,6 +16713,7 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
     -- STATE ANIMATIONS HEARTBEAT MONITOR (root.73.124.82)
     -- ========================================================================
     local currentAutoState = nil
+    local stateTickCounter = 0
 
     RunService.Heartbeat:Connect(function()
         if not zenApi or type(zenApi.is_reanimated) ~= "function" then return end
@@ -20569,6 +16722,9 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
         if not reanimated then return end
         if isPlayingManual or bangLockActive then return end
         if not savedConfig.states or next(savedConfig.states) == nil then return end
+
+        stateTickCounter = stateTickCounter + 1
+        if (stateTickCounter % 12) ~= 0 then return end
 
         local char = LocalPlayer and LocalPlayer.Character
         if not char then return end
@@ -20602,11 +16758,11 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
             currentAutoState = desiredState
             local stCfg = savedConfig.states[desiredState]
             if stCfg and stCfg.path then
-                zenApi.play_animation(stCfg.path, currentSpeed)
+                pcall(zenApi.play_animation, stCfg.path, currentSpeed)
                 updateNowPlayingUI("[" .. desiredState .. "] " .. tostring(stCfg.name))
             else
                 if zenApi and type(zenApi.stop_animation) == "function" then
-                    zenApi.stop_animation()
+                    pcall(zenApi.stop_animation)
                 end
                 updateNowPlayingUI(nil)
             end
@@ -20620,93 +16776,39 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
         if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
         local keyName = input.KeyCode.Name
 
-        -- 1. Assigning an animation keybind (Backspace/Escape/Delete clears bind)
+        -- 1. Assigning an animation keybind
         if pendingAnimBindObj then
-            if keyName == "Backspace" or keyName == "Escape" or keyName == "Delete" then
-                savedConfig.binds[pendingAnimBindObj.name] = nil
-                saveConfig()
-                if pendingAnimBindObj.btn then
-                    pendingAnimBindObj.btn.Text = "[+]"
-                    pendingAnimBindObj.btn.TextColor3 = Theme.textMuted
-                end
-            else
-                savedConfig.binds[pendingAnimBindObj.name] = keyName
-                saveConfig()
-                if pendingAnimBindObj.btn then
-                    pendingAnimBindObj.btn.Text = "[" .. keyName .. "]"
-                    pendingAnimBindObj.btn.TextColor3 = Theme.accent
-                end
+            savedConfig.binds[pendingAnimBindObj.name] = keyName
+            saveConfig()
+            if pendingAnimBindObj.btn then
+                pendingAnimBindObj.btn.Text = "[" .. keyName .. "]"
+                pendingAnimBindObj.btn.TextColor3 = Theme.accent
             end
             pendingAnimBindObj = nil
             return
         end
 
-        -- 1B. Assigning a Tracking keybind
-        if cocaExtraPanels.pendingTrackBind then
-            local tKey = cocaExtraPanels.pendingTrackBind
-            cocaExtraPanels.pendingTrackBind = nil
-            if keyName == "Backspace" or keyName == "Escape" or keyName == "Delete" then
-                savedConfig.trackingBinds[tKey] = nil
-            else
-                savedConfig.trackingBinds[tKey] = keyName
-            end
-            saveConfig()
-            local cardInfo = cocaExtraPanels.trackingCards[tKey]
-            if cardInfo and cardInfo.kbBtn then
-                local b = savedConfig.trackingBinds[tKey]
-                cardInfo.kbBtn.Text = b and ("[" .. b .. "]") or "[None]"
-                cardInfo.kbBtn.TextColor3 = b and Theme.accent or Theme.textMuted
-            end
-            return
-        end
-
-        -- 2. Assigning a speed preset keybind (Backspace/Escape/Delete clears bind)
+        -- 2. Assigning a speed preset keybind
         if pendingSpeedBindKey then
+            savedConfig.speedBinds[pendingSpeedBindKey] = keyName
+            saveConfig()
             local btn = speedBindButtons[pendingSpeedBindKey]
-            if keyName == "Backspace" or keyName == "Escape" or keyName == "Delete" then
-                savedConfig.speedBinds[pendingSpeedBindKey] = nil
-                saveConfig()
-                if btn then
-                    btn.Text = "[+]"
-                    btn.TextColor3 = Theme.textMuted
-                end
-            else
-                savedConfig.speedBinds[pendingSpeedBindKey] = keyName
-                saveConfig()
-                if btn then
-                    btn.Text = "[" .. keyName .. "]"
-                    btn.TextColor3 = Theme.accent
-                end
+            if btn then
+                btn.Text = "[" .. keyName .. "]"
+                btn.TextColor3 = Theme.accent
             end
             pendingSpeedBindKey = nil
             return
         end
 
-        if gameProcessed or UserInputService:GetFocusedTextBox() or (KeybindManager and not KeybindManager.enabled) then return end
+        if gameProcessed or UserInputService:GetFocusedTextBox() then return end
 
-        -- 2B. Triggering a Tracking keybind (toggles ON and OFF from single button)
-        if savedConfig.trackingBinds then
-            for tKey, boundKey in pairs(savedConfig.trackingBinds) do
-                if boundKey == keyName then
-                    local cardInfo = cocaExtraPanels.trackingCards[tKey]
-                    if cardInfo and cardInfo.setToggled and cardInfo.getToggled then
-                        cardInfo.setToggled(not cardInfo.getToggled())
-                    end
-                    return
-                end
-            end
-        end
-
-        -- 3. Triggering a speed preset keybind (toggles speed ON to preset and OFF back to 1.0x from single button)
+        -- 3. Triggering a speed preset keybind
         for spdStr, boundKey in pairs(savedConfig.speedBinds) do
             if boundKey == keyName then
                 local numSpd = tonumber(spdStr)
                 if numSpd then
-                    if math.abs((currentSpeed or 1) - numSpd) < 0.05 and math.abs(numSpd - 1) > 0.05 then
-                        applyPlaybackSpeed(1)
-                    else
-                        applyPlaybackSpeed(numSpd)
-                    end
+                    applyPlaybackSpeed(numSpd)
                 end
                 return
             end
@@ -20738,7 +16840,6 @@ _G.buildAngoorReanimTab = buildAngoorReanimTab
     end
 end
 
-_G.buildCocaReanimTab = buildAngoorReanimTab
 _G.buildAngoorReanimTab = buildAngoorReanimTab
 
 -- ============================================================================
@@ -20753,10 +16854,12 @@ task.spawn(function()
     end
 end)
 
-_G.AngoorReanimLoaded = true
+_G.buildCocaReanimTab = buildAngoorReanimTab
+_G.buildAngoorReanimTab = buildAngoorReanimTab
+_G.CocoReanimLoaded = true
 _G.CocaReanimLoaded = true
-
-    buildCocaReanimTab = buildAngoorReanimTab
+_G.AngoorReanimLoaded = true
+buildCocaReanimTab = buildAngoorReanimTab
 end)()
 
 
@@ -22854,7 +18957,7 @@ local function buildMainUI()
     quickTabBar.Parent = mainCard
 
     local qtGrid = Instance.new("UIGridLayout")
-    qtGrid.CellSize = UDim2.new(0.156, 0, 0, 26)
+    qtGrid.CellSize = UDim2.new(0.190, 0, 0, 26)
     qtGrid.CellPadding = UDim2.new(0.012, 0, 0, 0)
     qtGrid.SortOrder = Enum.SortOrder.LayoutOrder
     qtGrid.Parent = quickTabBar
@@ -22865,7 +18968,6 @@ local function buildMainUI()
         { label = "Move",   cat = "Performance"  },
         { label = "Anti",   cat = "Privacy"      },
         { label = "Emotes", cat = "Emotes"       },
-        { label = "Chat",   cat = "Logging"      },
     }
     local quickTabBtns = {}
 
@@ -23814,15 +19916,15 @@ local function buildMainUI()
     local adminPage     = createCategory("Admin Panel",       "👑", 0,   "Owner & Premium control center: freeze, ban & overhead tags", "Admin")
     local animPage      = createCategory("Animation Copy",    "🎭", 8,   "Live 1:1 target animation mirroring & 6-mode alignment", "Anim Copy")
     local animationPage = createCategory("Animation Library", "🎬", 215, "215+ Official, Dog, Moonwalk, Animal & UGC animation packs", "Anim Packs")
-    local cocaReanimPage= createCategory("Coca Reanim",       "🦴", 8,   "Coca Reanim keyframe player, custom scripts, state anims & limb hider", "Coca Reanim")
+    local cocaReanimPage= createCategory("Coca Reanim",       "🦴", 8,   "Coco Reanim keyframe player, custom scripts, state anims & limb hider", "Coco Reanim")
     local skyPage       = createCategory("Coca Sky Destroyer","💥", 9,   "3D Layered Clothing & Glitch Walker Sky, Ground & Cube Matrix Destroyer", "Coca Sky")
     local emotePage     = createCategory("Emotes",            "💃", 315, "315+ searchable catalog emotes, viral dances, dog/moonwalk & custom IDs", "Emotes")
     local weldPage      = createCategory("Weld & Troll",      "⚡", 15,  "Dynamic height-adaptive welds, FF LOL, FF Push, jerk troll, void throws & pins", "Weld & Troll")
+    local cocoChatPage  = createCategory("Coco Chat",         "💬", 3,   "Normal spam, target roast spam & Jamun roast/clan/message spam", "Coco Chat")
     local loudPage      = createCategory("One Click Loud",    "🔊", 4,   "Mic Up v4.0 Advanced Max-Loudness Controller (4 profiles, 1x–10x stack, Mic Uncap) · Credit: Jammun Hub", "One Click Loud")
     local targetPage    = createCategory("Target",            "🎯", 1,   "Omnipresent hidden-player seeker & server-wide lock", "Target")
     local movePage      = createCategory("Performance",       "🚀", 11,  "60Hz Chrono-Rewind, WalkSpeed 500 & 4-Phase Flight", "Move & Fly")
     local antiPage      = createCategory("Privacy",           "🛡", 16,  "Defence Troll Matrix V3 & 16 multi-layer physics shields", "Anti Shield")
-    local chatPage      = createCategory("Logging",           "💬", 4,   "Automated target roast engine & custom chat broadcaster", "Chat & Roast")
     local appearPage    = createCategory("Appearance",        "🎨", 7,   "Novoline color themes, cosmic nebula & layout controls", "Themes & UI")
     local toolsPage     = createCategory("Keybinds & Tools",  "⌨",  20,  "Custom PC troll hotkeys, Click TP tool & session utilities", "Keybinds")
     -- Make default category visible immediately so right card is never blank during startup
@@ -23831,7 +19933,6 @@ local function buildMainUI()
     -- Forward declarations for cross-category synchronization
     local refreshCard
     local refreshList
-    local chatStopFn
     local togglePresetOrAction
     local addFloatingPill
     local removeFloatingPill
@@ -23849,6 +19950,9 @@ local function buildMainUI()
         { key = "all",          pillLabel = "All Players 🔄", width = 118 },
         { key = "animcopy",     pillLabel = "AnimCopy",   width = 112 },
         { key = "jerktroll",    pillLabel = "JerkTroll",  width = 108 },
+        { key = "selfanim",     pillLabel = "Self",       width = 86  },
+        { key = "finger",       pillLabel = "Finger",     width = 92  },
+        { key = "sideflip",     pillLabel = "Front/Back", width = 108 },
         { key = "skydestroyer", pillLabel = "SkyDestroy", width = 114 },
         { key = "coverground",  pillLabel = "CovGround",  width = 110 },
         { key = "coversky",     pillLabel = "CoverSky",   width = 104 },
@@ -23909,6 +20013,7 @@ local function buildMainUI()
         if key == "coverflash" then return _G._HaloCoverFlashActive == true end
         if key == "animcopy" then return (AnimCopySys and AnimCopySys.active == true) end
         if key == "jerktroll" then return (EmoteHub and EmoteHub.jerkActive == true) end
+        if key == "sideflip" then return (V.SideMode == "front" or V.SideMode == "back") end
         if key == "rewind" then return RewindSys.rewinding == true end
         if key == "fly" then return (moveState and (moveState.fly == true or moveState.flyLanding == true)) end
         if key == "fling" or key == "voidthrow" then return FlingActive == true end
@@ -24049,6 +20154,19 @@ local function buildMainUI()
         if key == "jerktroll" then
             EmoteHub:StartJerk()
             syncAllActiveIndicators()
+            return
+        end
+        if key == "sideflip" then
+            if V.SideMode == "front" then
+                V.SideMode = "back"
+            elseif V.SideMode == "back" then
+                V.SideMode = "auto"
+            else
+                V.SideMode = "front"
+            end
+            if type(_G.CocoSyncSideDistBar) == "function" then pcall(_G.CocoSyncSideDistBar) end
+            syncAllActiveIndicators()
+            notify("COCO POWDER", "Troll Position: " .. string.upper(V.SideMode))
             return
         end
         if key == "vanish" then
@@ -24473,8 +20591,6 @@ local function buildMainUI()
                     nebulaEnabled = UI.nebulaEnabled ~= false,
                     uiScale = UI.uiScale or 1.0,
                     ignoreFriends = _G.CocoIgnoreFriends == true,
-                    antiTagBypass = _G.CocoAntiTagBypass ~= false,
-                    customRoasts = _G.CocoCustomRoasts or {},
                 }
                 writefile(CONFIG_FILE_NAME, HttpService:JSONEncode(payload))
             end)
@@ -24524,10 +20640,6 @@ local function buildMainUI()
                     EmoteHub.activePackName = data.activePackName
                 end
                 if type(data.ignoreFriends) == "boolean" then _G.CocoIgnoreFriends = data.ignoreFriends end
-                if type(data.antiTagBypass) == "boolean" then _G.CocoAntiTagBypass = data.antiTagBypass end
-                if type(data.customRoasts) == "table" and _G.AddCocoCustomRoast then
-                    for _, w in ipairs(data.customRoasts) do _G.AddCocoCustomRoast(w) end
-                end
                 if type(data.uiScale) == "number" then UI.uiScale = math.clamp(data.uiScale, 0.75, 1.25) end
                 if type(data.themeName) == "string" then UI.savedThemeToApply = data.themeName end
             end)
@@ -25104,7 +21216,7 @@ local function buildMainUI()
         -- 3-Column Quick Weld Grid (Face Bang, Backshots, Headsit, Kiss, Backpack, Headpat, Propose, FF LOL, FF Push, Hug, Choot Lelo, AnimCopy, Chase)
         local quickGridFrame = Instance.new("Frame")
         quickGridFrame.Name = "QuickWeldGrid"
-        quickGridFrame.Size = UDim2.new(1, 0, 0, 234)
+        quickGridFrame.Size = UDim2.new(1, 0, 0, 274)
         quickGridFrame.BackgroundTransparency = 1
         quickGridFrame.LayoutOrder = 4
         quickGridFrame.ZIndex = 8
@@ -25136,6 +21248,8 @@ local function buildMainUI()
             { key = "chase",     label = "Follow All" },
             { key = "vanish",    label = "Vanish 👻"  },
             { key = "vanishtgt", label = "Vanish Tgt" },
+            { key = "selfanim",  label = "Self"       },
+            { key = "finger",    label = "Finger"     },
         }
 
         local quickGridBtns = {}
@@ -25177,6 +21291,205 @@ local function buildMainUI()
             end)
             quickGridBtns[item.key] = { btn = gb, stroke = gStroke, dot = gDot, label = item.label }
         end
+
+
+        -- 1-Click Troll Position (Front / Back) & Distance Adjust Bar
+        ;(function()
+            local posBar = Instance.new("Frame")
+            posBar.Name = "OneClickPosDistBar"
+            posBar.Size = UDim2.new(1, 0, 0, 96)
+            posBar.BackgroundColor3 = T.BG2
+            posBar.BorderSizePixel = 0
+            posBar.LayoutOrder = 4
+            posBar.ZIndex = 8
+            posBar.Parent = wrapperSection
+            Instance.new("UICorner", posBar).CornerRadius = UDim.new(0, 9)
+            local pStroke = Instance.new("UIStroke")
+            pStroke.Color = T.Border
+            pStroke.Thickness = 1
+            pStroke.Parent = posBar
+
+            local hdrLbl = Instance.new("TextLabel")
+            hdrLbl.Size = UDim2.new(0.62, 0, 0, 18)
+            hdrLbl.Position = UDim2.new(0, 10, 0, 4)
+            hdrLbl.BackgroundTransparency = 1
+            hdrLbl.Text = "⚡ 1-Click Side, Distance & Rotate"
+            hdrLbl.TextColor3 = T.Muted
+            hdrLbl.Font = Enum.Font.GothamBold
+            hdrLbl.TextSize = 10
+            hdrLbl.TextXAlignment = Enum.TextXAlignment.Left
+            hdrLbl.ZIndex = 9
+            hdrLbl.Parent = posBar
+
+            local statusPill = Instance.new("TextLabel")
+            statusPill.Size = UDim2.new(0.36, -10, 0, 18)
+            statusPill.Position = UDim2.new(0.64, 0, 0, 4)
+            statusPill.BackgroundTransparency = 1
+            statusPill.Text = "AUTO · +0.0"
+            statusPill.TextColor3 = T.Accent
+            statusPill.Font = Enum.Font.GothamBold
+            statusPill.TextSize = 10
+            statusPill.TextXAlignment = Enum.TextXAlignment.Right
+            statusPill.ZIndex = 9
+            statusPill.Parent = posBar
+
+            local btnRow = Instance.new("Frame")
+            btnRow.Size = UDim2.new(1, -16, 0, 30)
+            btnRow.Position = UDim2.new(0, 8, 0, 26)
+            btnRow.BackgroundTransparency = 1
+            btnRow.ZIndex = 9
+            btnRow.Parent = posBar
+
+            local rowLay = Instance.new("UIListLayout")
+            rowLay.FillDirection = Enum.FillDirection.Horizontal
+            rowLay.SortOrder = Enum.SortOrder.LayoutOrder
+            rowLay.Padding = UDim.new(0, 5)
+            rowLay.Parent = btnRow
+
+            local function mkPosBtn(order, wScale, text)
+                local b = Instance.new("TextButton")
+                b.Size = UDim2.new(wScale, -4, 1, 0)
+                b.BackgroundColor3 = T.Panel
+                b.BorderSizePixel = 0
+                b.Text = text
+                b.TextColor3 = T.Text
+                b.Font = Enum.Font.GothamBold
+                b.TextSize = 10
+                b.AutoButtonColor = false
+                b.LayoutOrder = order
+                b.ZIndex = 10
+                b.Parent = btnRow
+                Instance.new("UICorner", b).CornerRadius = UDim.new(0, 7)
+                local bs = Instance.new("UIStroke")
+                bs.Color = T.Border
+                bs.Thickness = 1
+                bs.Parent = b
+                return b, bs
+            end
+
+            local frontBtn, frontStroke = mkPosBtn(1, 0.22, "⬅ Front")
+            local backBtn,  backStroke  = mkPosBtn(2, 0.22, "Back ➡")
+            local closeBtn              = mkPosBtn(3, 0.20, "Closer -")
+            local farBtn                = mkPosBtn(4, 0.20, "Farther +")
+            local resetBtn              = mkPosBtn(5, 0.16, "↺")
+
+            local rotRow = Instance.new("Frame")
+            rotRow.Size = UDim2.new(1, -16, 0, 30)
+            rotRow.Position = UDim2.new(0, 8, 0, 60)
+            rotRow.BackgroundTransparency = 1
+            rotRow.ZIndex = 9
+            rotRow.Parent = posBar
+
+            local rotLay = Instance.new("UIListLayout")
+            rotLay.FillDirection = Enum.FillDirection.Horizontal
+            rotLay.SortOrder = Enum.SortOrder.LayoutOrder
+            rotLay.Padding = UDim.new(0, 5)
+            rotLay.Parent = rotRow
+
+            local function mkRotBtn(order, wScale, text)
+                local b = Instance.new("TextButton")
+                b.Size = UDim2.new(wScale, -4, 1, 0)
+                b.BackgroundColor3 = T.Panel
+                b.BorderSizePixel = 0
+                b.Text = text
+                b.TextColor3 = T.Text
+                b.Font = Enum.Font.GothamBold
+                b.TextSize = 10
+                b.AutoButtonColor = false
+                b.LayoutOrder = order
+                b.ZIndex = 10
+                b.Parent = rotRow
+                Instance.new("UICorner", b).CornerRadius = UDim.new(0, 7)
+                local bs = Instance.new("UIStroke")
+                bs.Color = T.Border
+                bs.Thickness = 1
+                bs.Parent = b
+                return b, bs
+            end
+
+            local rotLeftBtn             = mkRotBtn(1, 0.25, "↺ -45°")
+            local rotRightBtn            = mkRotBtn(2, 0.25, "+45° ↻")
+            local rotFlipBtn             = mkRotBtn(3, 0.25, "180° Flip")
+            local spinBtn, spinStroke    = mkRotBtn(4, 0.25, "Spin: OFF")
+
+            local function syncBar()
+                local sm = V.SideMode or "auto"
+                local da = V.DistAdd or 0
+                local ry = math.floor(((V.RY or 0) % 360) + 0.5) % 360
+                statusPill.Text = string.format("%s · %+.1f · %d°", string.upper(sm), da, ry)
+                frontBtn.BackgroundColor3 = (sm == "front") and T.Accent2 or T.Panel
+                frontStroke.Color = (sm == "front") and T.Accent or T.Border
+                backBtn.BackgroundColor3 = (sm == "back") and T.Accent2 or T.Panel
+                backStroke.Color = (sm == "back") and T.Accent or T.Border
+                spinBtn.Text = V.Spin and "Spin: ON" or "Spin: OFF"
+                spinBtn.BackgroundColor3 = V.Spin and T.Accent2 or T.Panel
+                spinStroke.Color = V.Spin and T.Accent or T.Border
+            end
+            _G.CocoSyncSideDistBar = syncBar
+
+            rotLeftBtn.MouseButton1Click:Connect(function()
+                playClick()
+                V.RY = ((V.RY or 0) - 45) % 360
+                syncBar()
+            end)
+
+            rotRightBtn.MouseButton1Click:Connect(function()
+                playClick()
+                V.RY = ((V.RY or 0) + 45) % 360
+                syncBar()
+            end)
+
+            rotFlipBtn.MouseButton1Click:Connect(function()
+                playClick()
+                V.RY = ((V.RY or 0) + 180) % 360
+                syncBar()
+            end)
+
+            spinBtn.MouseButton1Click:Connect(function()
+                playClick()
+                V.Spin = not V.Spin
+                syncBar()
+            end)
+
+            frontBtn.MouseButton1Click:Connect(function()
+                playClick()
+                V.SideMode = (V.SideMode == "front") and "auto" or "front"
+                syncBar()
+                syncAllActiveIndicators()
+            end)
+
+            backBtn.MouseButton1Click:Connect(function()
+                playClick()
+                V.SideMode = (V.SideMode == "back") and "auto" or "back"
+                syncBar()
+                syncAllActiveIndicators()
+            end)
+
+            closeBtn.MouseButton1Click:Connect(function()
+                playClick()
+                V.DistAdd = math.clamp((V.DistAdd or 0) - 0.4, -2.4, 8.0)
+                syncBar()
+            end)
+
+            farBtn.MouseButton1Click:Connect(function()
+                playClick()
+                V.DistAdd = math.clamp((V.DistAdd or 0) + 0.4, -2.4, 8.0)
+                syncBar()
+            end)
+
+            resetBtn.MouseButton1Click:Connect(function()
+                playClick()
+                V.SideMode = "auto"
+                V.DistAdd = 0
+                V.RY = 0; V.RX = 0; V.RZ = 0; V.Spin = false
+                V.X = 0; V.Y = 0; V.Z = 1.3; V.LastAutoY = 0
+                syncBar()
+                syncAllActiveIndicators()
+                notify("COCO POWDER", "Troll side, distance & rotation reset to default")
+            end)
+
+            syncBar()
+        end)()
 
         -- Full-Width Red "Stop All" Button (Matches image_7b109c.png!)
         local stopAllBtn = Instance.new("TextButton")
@@ -25285,7 +21598,6 @@ local function buildMainUI()
             WeldIntent.leftInfo = nil
             WeldIntent.typedUsername = ""
             if weldUsernameBox then weldUsernameBox.Text = "" end
-            syncChatTarget(nil)
             WeldIntent.topStatusText = "disconnected · auto-nearest ready"
             WeldIntent.topStatusColor = T.Muted
             WeldIntent.midStatusText = "no target locked · auto-nearest active"
@@ -25385,7 +21697,6 @@ local function buildMainUI()
                 LastWeldTargetUserId = found.UserId
                 WeldIntent.typedUsername = found.Name
                 weldUsernameBox.Text = found.Name
-                syncChatTarget(found)
                 hookTargetRespawn(found)
                 WeldIntent.leftInfo = {
                     userId = found.UserId,
@@ -25633,7 +21944,6 @@ local function buildMainUI()
             WeldIntent.leftInfo = nil
             WeldIntent.typedUsername = ""
             if weldUsernameBox then weldUsernameBox.Text = "" end
-            syncChatTarget(nil)
             footerLabel.Text = "Auto: Nearest"
             footerSub.Text = "auto-connects to nearest"
             syncAllActiveIndicators()
@@ -25690,6 +22000,8 @@ local function buildMainUI()
         createActionRow(sigGrp, 3, "Give 'Jerk Off' Backpack Tool", "Spawns equippable Jerk Troll tool in your Backpack", "Get Tool", function()
             EmoteHub:GiveJerkTool()
         end)
+        addPresetRow(sigGrp, 3, "selfanim",  "Self (Backward)", "Backward weld lock behind target with Self animation (98982064034152)")
+        addPresetRow(sigGrp, 3, "finger",    "Finger",          "Front weld lock (spaced back) with Finger animation (124127012123232)")
         addPresetRow(sigGrp, 4, "goon",      "Goon (Exact Face-to-Face Lock)", "Custom Coco Goon Anim (136828069054505) locked upright & facing target face 100% head-on")
         addPresetRow(sigGrp, 5, "poop",      "Poop (Above Head Front 💩)", "Roblox Catalog Poop Emote (110110691026962 + 7 fallbacks) directly above & in front of head")
         addPresetRow(sigGrp, 6, "rizz",      "Rizz (Wall Rizz Pose)",   "Zero-delay Kabedon / Wall Lean (90735295463164) + auto height solver")
@@ -25725,6 +22037,7 @@ local function buildMainUI()
         local tuneGrp = createGroupCard(weldPage, 7)
 
         local speedCycle = { 0.5, 1.0, 1.8, 3.0, 4.5 }
+        addPresetRow(tuneGrp, 0, "sideflip", "1-Click Front / Back Flip", "Toggle active troll/weld between Front, Back & Auto (or pin ⦿ for floating button)")
         local speedIdx = 2
         createActionRow(tuneGrp, 1, "Animation Speed", "Cycle weld oscillation & track multiplier", "1.0x", function(pillBtn)
             speedIdx = (speedIdx % #speedCycle) + 1
@@ -29240,7 +25553,6 @@ local function buildMainUI()
                 if WeldIntent.setUsernameBoxText then pcall(WeldIntent.setUsernameBoxText, p.Name) end
                 if footerLabel then footerLabel.Text = "Target: " .. p.Name end
                 if footerSub then footerSub.Text = "tapped & locked" end
-                syncChatTarget(p)
                 hookTargetRespawn(p)
 
                 local presetToConnect = (WeldIntent.active and WeldIntent.presetKey)
@@ -29432,7 +25744,6 @@ local function buildMainUI()
                             if WeldIntent.setUsernameBoxText then pcall(WeldIntent.setUsernameBoxText, "") end
                             footerLabel.Text = "Auto: Nearest"
                             footerSub.Text = "target unlocked & disconnected"
-                            syncChatTarget(nil)
                             syncAllActiveIndicators()
                             notify("COCO POWDER", "Unlocked & disconnected from @" .. p.Name)
                         else
@@ -29449,7 +25760,6 @@ local function buildMainUI()
                             if WeldIntent.setUsernameBoxText then pcall(WeldIntent.setUsernameBoxText, p.Name) end
                             footerLabel.Text = "Target: " .. p.Name
                             footerSub.Text = "locked (tap again to disconnect)"
-                            syncChatTarget(p)
                             hookTargetRespawn(p)
                             -- Immediately connect to the newly selected target if a weld/copy/preset is active, waiting, or previously armed!
                             local presetToConnect = (WeldIntent.active and WeldIntent.presetKey)
@@ -29478,7 +25788,6 @@ local function buildMainUI()
                         WeldIntent.leftInfo = nil
                         WeldIntent.waitingForSpawn = false
                         if WeldIntent.setUsernameBoxText then pcall(WeldIntent.setUsernameBoxText, p.Name) end
-                        syncChatTarget(p)
                         task.spawn(function()
                             local _, tRef = streamAndTeleportToTarget(p, "root", 1.8, CFrame.new(3.2, 0, 0))
                             if tRef and tRef.Parent then
@@ -29525,7 +25834,6 @@ local function buildMainUI()
             WeldIntent.waitingForSpawn = false
             if WeldIntent.setUsernameBoxText then pcall(WeldIntent.setUsernameBoxText, "") end
             searchBox.Text = ""
-            syncChatTarget(nil)
             footerLabel.Text = "Auto: Nearest"
             footerSub.Text = "auto-connects to nearest"
             syncAllActiveIndicators()
@@ -29557,7 +25865,6 @@ local function buildMainUI()
                 if WeldIntent.setUsernameBoxText then pcall(WeldIntent.setUsernameBoxText, p.Name) end
                 footerLabel.Text = "Target: " .. p.Name
                 footerSub.Text = "rejoined · attaching on spawn"
-                syncChatTarget(p)
                 hookTargetRespawn(p)
                 showOwnerScreenBanner(
                     "🎯 TARGET REJOINED SERVER",
@@ -31791,432 +28098,6 @@ local function buildMainUI()
     end)()
 
     -- ═══════════════════════════════════════════════════════════════════════════
-    -- CATEGORY 6: LOGGING / CHAT & ROAST
-    -- ═══════════════════════════════════════════════════════════════════════════
-    ;(function()
-        createSectionTitle(chatPage, 1, "Target & Broadcast Configuration")
-        local chatGrp = createGroupCard(chatPage, 2)
-
-        local inputWrap = Instance.new("Frame")
-        inputWrap.Size = UDim2.new(1, 0, 0, 82)
-        inputWrap.BackgroundTransparency = 1
-        inputWrap.LayoutOrder = 1
-        inputWrap.ZIndex = 8
-        inputWrap.Parent = chatGrp
-
-        chatTargetInput = Instance.new("TextBox")
-        chatTargetInput.Size = UDim2.new(1, 0, 0, 32)
-        chatTargetInput.Position = UDim2.new(0, 0, 0, 6)
-        chatTargetInput.BackgroundColor3 = T.BG2
-        chatTargetInput.PlaceholderText = "Target name (blank = auto-nearest player)"
-        chatTargetInput.Text = ""
-        chatTargetInput.TextColor3 = T.Text
-        chatTargetInput.PlaceholderColor3 = T.Muted
-        chatTargetInput.Font = Enum.Font.Gotham
-        chatTargetInput.TextSize = 10
-        chatTargetInput.ClearTextOnFocus = false
-        chatTargetInput.ZIndex = 9
-        chatTargetInput.Parent = inputWrap
-        Instance.new("UICorner", chatTargetInput).CornerRadius = UDim.new(0, 9)
-        local ctiPad = Instance.new("UIPadding")
-        ctiPad.PaddingLeft = UDim.new(0, 10)
-        ctiPad.PaddingRight = UDim.new(0, 10)
-        ctiPad.Parent = chatTargetInput
-        syncChatTarget(selectedPlayer)
-
-        local chatMsgInput = Instance.new("TextBox")
-        chatMsgInput.Size = UDim2.new(1, 0, 0, 32)
-        chatMsgInput.Position = UDim2.new(0, 0, 0, 44)
-        chatMsgInput.BackgroundColor3 = T.BG2
-        chatMsgInput.PlaceholderText = "Custom message (used when Roast mode is OFF)..."
-        chatMsgInput.Text = ""
-        chatMsgInput.TextColor3 = T.Text
-        chatMsgInput.PlaceholderColor3 = T.Muted
-        chatMsgInput.Font = Enum.Font.Gotham
-        chatMsgInput.TextSize = 10
-        chatMsgInput.ClearTextOnFocus = false
-        chatMsgInput.ZIndex = 9
-        chatMsgInput.Parent = inputWrap
-        Instance.new("UICorner", chatMsgInput).CornerRadius = UDim.new(0, 9)
-        local cmiPad = Instance.new("UIPadding")
-        cmiPad.PaddingLeft = UDim.new(0, 10)
-        cmiPad.PaddingRight = UDim.new(0, 10)
-        cmiPad.Parent = chatMsgInput
-
-        -- Live-sync target & custom message textboxes as user types even while broadcaster is running!
-        chatTargetInput:GetPropertyChangedSignal("Text"):Connect(function()
-            csTgt = (chatTargetInput.Text or ""):gsub("^%s*@+%s*", "")
-        end)
-        chatMsgInput:GetPropertyChangedSignal("Text"):Connect(function()
-            csMsg = chatMsgInput.Text or ""
-        end)
-
-        createSwitchRow(chatGrp, 2, "Auto-Roast Generator Mode", "Generates dynamic target roasts (turn OFF for custom msg)", true, function(st)
-            csMode = st and "roast" or "message"
-        end)
-
-        local chatSwitchRow, rapidSpamSwitchRow
-        local function chatStartFn()
-            if csOn then return end
-            csTgt = (chatTargetInput.Text or ""):gsub("^%s*@+%s*", "")
-            csMsg = chatMsgInput.Text or ""
-            if csMode == "roast" and csStyle ~= "Server Cycle (Roast All)" then
-                local matched = (csTgt ~= "" and csTgt ~= nil) and findPlayerByNameOrDisplay(csTgt, LP) or nil
-                if not matched then
-                    local fallbackPlr = resolveActiveTarget()
-                    if fallbackPlr then csTgt = fallbackPlr.Name end
-                end
-                if csTgt == "" or csTgt == nil then
-                    csTgt = "everyone"
-                end
-                chatTargetInput.Text = csTgt
-            end
-            if csMode == "message" and csMsg == "" then
-                notify("COCO POWDER", "Enter a custom message first")
-                sError()
-                if chatSwitchRow then chatSwitchRow.setState(false, false) end
-                if rapidSpamSwitchRow then rapidSpamSwitchRow.setState(false, false) end
-                return
-            end
-            csOn = true
-            csGen = csGen + 1
-            csCnt = 0
-            if chatSwitchRow then chatSwitchRow.setState(true, false) end
-            local activeInterval = csRapidMode and csRapidDelay or CS_D
-            if chatSwitchRow and chatSwitchRow.subLbl then
-                chatSwitchRow.subLbl.Text = (csRapidMode and "⚡ RAPID SPAMMING · " or "Broadcasting · ") .. tostring(csStyle) .. " (" .. string.format("%.2fs", activeInterval) .. ")"
-            end
-            if rapidSpamSwitchRow and rapidSpamSwitchRow.subLbl then
-                rapidSpamSwitchRow.subLbl.Text = csRapidMode and ("⚡ Active Rapid Spammer · " .. string.format("%.2fs", csRapidDelay) .. " interval") or "Ultra-fast non-blocking chat spammer (0.05s–0.30s)"
-            end
-            local g = csGen
-            task.spawn(function()
-                while csOn and csGen == g do
-                    local liveTgt = (chatTargetInput.Text or ""):gsub("^%s*@+%s*", "")
-                    if liveTgt ~= "" then csTgt = liveTgt end
-                    csMsg = chatMsgInput.Text or ""
-                    local m = bld()
-                    if m ~= "" then
-                        if snd2(m) then
-                            csCnt = csCnt + 1
-                            if chatSwitchRow and chatSwitchRow.subLbl then
-                                chatSwitchRow.subLbl.Text = (csRapidMode and "⚡ Rapid Sent " or "Sent ") .. tostring(csCnt) .. " msgs · " .. tostring(csStyle) .. " (" .. tostring(csMtd) .. ")"
-                            end
-                            if rapidSpamSwitchRow and rapidSpamSwitchRow.subLbl and csRapidMode then
-                                rapidSpamSwitchRow.subLbl.Text = "⚡ Rapid Sent " .. tostring(csCnt) .. " msgs (" .. string.format("%.2fs", csRapidDelay) .. ")"
-                            end
-                        end
-                    end
-                    local waitTime = csRapidMode
-                        and math.clamp(tonumber(csRapidDelay) or 0.12, 0.03, 2.0)
-                        or math.clamp(tonumber(CS_D) or 0.8, 0.05, 15.0)
-                    task.wait(waitTime)
-                end
-            end)
-            sToggleOn()
-            notify("COCO POWDER", (csRapidMode and "⚡ Rapid Chat Spammer started (" or "Chat broadcaster started (") .. tostring(csStyle) .. ")")
-        end
-
-        chatStopFn = function()
-            csOn = false
-            csRapidMode = false
-            csGen = csGen + 1
-            if chatSwitchRow then
-                chatSwitchRow.setState(false, false)
-                if chatSwitchRow.subLbl then
-                    chatSwitchRow.subLbl.Text = "Idle · " .. tostring(csCnt) .. " messages sent"
-                end
-            end
-            if rapidSpamSwitchRow then
-                rapidSpamSwitchRow.setState(false, false)
-                if rapidSpamSwitchRow.subLbl then
-                    rapidSpamSwitchRow.subLbl.Text = "Ultra-fast non-blocking chat spammer (0.05s–0.30s)"
-                end
-            end
-        end
-
-        chatSwitchRow = createSwitchRow(chatGrp, 3, "Active Chat Broadcaster", "Idle · 0 messages sent", false, function(st)
-            if st then chatStartFn() else chatStopFn(); sToggleOff(); notify("COCO POWDER", "Chat broadcaster stopped") end
-        end)
-
-        rapidSpamSwitchRow = createSwitchRow(chatGrp, 4, "⚡ Rapid Chat Spammer (Ultra-Fast Zero-Delay)", "Ultra-fast non-blocking chat spammer (0.05s–0.30s)", false, function(st)
-            csRapidMode = st
-            if st then
-                if not csOn then
-                    chatStartFn()
-                else
-                    if rapidSpamSwitchRow and rapidSpamSwitchRow.subLbl then
-                        rapidSpamSwitchRow.subLbl.Text = "⚡ Active Rapid Spammer · " .. string.format("%.2fs", csRapidDelay) .. " interval"
-                    end
-                    sToggleOn()
-                    notify("⚡ RAPID CHAT SPAMMER", string.format("Rapid Spammer turbo mode ON (%.2fs interval)!", csRapidDelay))
-                end
-            else
-                if rapidSpamSwitchRow and rapidSpamSwitchRow.subLbl then
-                    rapidSpamSwitchRow.subLbl.Text = "Ultra-fast non-blocking chat spammer (0.05s–0.30s)"
-                end
-                if csOn then
-                    chatStopFn()
-                    sToggleOff()
-                    notify("⚡ RAPID CHAT SPAMMER", "Rapid Chat Spammer stopped")
-                end
-            end
-        end)
-
-        local chatDelayList = { 0.03, 0.05, 0.08, 0.12, 0.20, 0.40, 0.80, 1.20, 2.00, 3.50 }
-        local chatDelayIdx = 6
-        local delayCircleBtnRef = nil
-        local rapidSliderRow = createSliderInputRow(chatGrp, 5, "Rapid Spam & Broadcast Delay (0.05s – 5.00s)", "Drag or type exact delay in seconds (0.05s = Ultra Rapid Spam)", 0.05, 5.00, CS_D, 2, "s", function(val)
-            CS_D = math.clamp(tonumber(val) or 0.80, 0.03, 15.0)
-            csRapidDelay = math.clamp(tonumber(val) or 0.12, 0.03, 2.0)
-            if delayCircleBtnRef and delayCircleBtnRef.Parent then
-                delayCircleBtnRef.Text = string.format("%.2fs", CS_D)
-            end
-        end)
-
-        local singleDelayRow = createActionRow(chatGrp, 6, "Send Single Message & Quick Delay Presets", "Tap [Send 1] to fire once · Tap circle to cycle (0.05s–3.50s)", "Send 1", function(pillBtn)
-            csTgt = (chatTargetInput.Text or ""):gsub("^%s*@+%s*", "")
-            csMsg = chatMsgInput.Text or ""
-            local m = bld()
-            if m ~= "" and snd2(m) then
-                csCnt = csCnt + 1
-                pillBtn.Text = "Sent!"
-                if chatSwitchRow and chatSwitchRow.subLbl and not csOn then
-                    chatSwitchRow.subLbl.Text = "Sent " .. tostring(csCnt) .. " msgs via " .. tostring(csMtd)
-                end
-                sSuccess()
-                task.delay(1.0, function()
-                    if pillBtn and pillBtn.Parent then pillBtn.Text = "Send 1" end
-                end)
-            else
-                notify("COCO POWDER", "Could not send chat message")
-                sError()
-            end
-        end, function(cBtn)
-            chatDelayIdx = (chatDelayIdx % #chatDelayList) + 1
-            CS_D = chatDelayList[chatDelayIdx]
-            csRapidDelay = math.min(CS_D, 0.50)
-            cBtn.Text = string.format("%.2fs", CS_D)
-            if rapidSliderRow and rapidSliderRow.setValue then
-                rapidSliderRow.setValue(CS_D, true)
-            end
-            notify("💬 CHAT DELAY", string.format("Spam interval set to %.2fs", CS_D))
-        end, "1.15s")
-        delayCircleBtnRef = singleDelayRow and singleDelayRow.circleBtn or nil
-
-        local styleList = {
-            "Clean Roast",
-            "Classic @ Wall",
-            "Aesthetic Brackets",
-            "Server Cycle (Roast All)",
-            "Hype / Flex",
-            "Caps Shout",
-            "Wave / Glitch",
-            "Poop Troll",
-            "Direct / Raw",
-        }
-        local styleIdx = 1
-        local symCounts = { 12, 24, 36, 0, 48 }
-        local symIdx = 1
-        createActionRow(chatGrp, 7, "Broadcast Format Style & @ Wall Density", "Tap pill to switch roast format · Tap [@] to adjust @ wall size", "Clean", function(pillBtn)
-            styleIdx = (styleIdx % #styleList) + 1
-            csStyle = styleList[styleIdx]
-            local shortNames = {
-                ["Clean Roast"] = "Clean",
-                ["Classic @ Wall"] = "Classic @",
-                ["Aesthetic Brackets"] = "Brackets",
-                ["Server Cycle (Roast All)"] = "Roast All",
-                ["Hype / Flex"] = "Hype Flex",
-                ["Caps Shout"] = "CAPS!!!",
-                ["Wave / Glitch"] = "Wave »»",
-                ["Poop Troll"] = "Poop 💩",
-                ["Direct / Raw"] = "Raw",
-            }
-            pillBtn.Text = shortNames[csStyle] or csStyle
-            notify("💬 CHAT STYLE", "Chat format set to: " .. csStyle)
-        end, function(cBtn)
-            symIdx = (symIdx % #symCounts) + 1
-            csSymbolCount = symCounts[symIdx]
-            cBtn.Text = tostring(csSymbolCount)
-            notify("💬 @ WALL SIZE", "Symbol wall count set to " .. tostring(csSymbolCount) .. " '@' chars")
-        end, "12")
-
-        createActionRow(chatGrp, 8, "Rapid Burst Fire (10x Instant) & Header Toggle", "Tap [Burst 10x] to fire 10 rapid messages · Tap [👑] to toggle header prefix", "Burst 10x", function(pillBtn)
-            csTgt = (chatTargetInput.Text or ""):gsub("^%s*@+%s*", "")
-            csMsg = chatMsgInput.Text or ""
-            pillBtn.Text = "Spamming..."
-            task.spawn(function()
-                local prevRapid = csRapidMode
-                csRapidMode = true
-                for i = 1, 10 do
-                    local m = bld()
-                    if m ~= "" and snd2(m) then
-                        csCnt = csCnt + 1
-                    end
-                    if i < 10 then task.wait(0.08) end
-                end
-                csRapidMode = prevRapid
-                if pillBtn and pillBtn.Parent then pillBtn.Text = "Burst 10x" end
-                if chatSwitchRow and chatSwitchRow.subLbl and not csOn then
-                    chatSwitchRow.subLbl.Text = "Sent " .. tostring(csCnt) .. " msgs via " .. tostring(csMtd)
-                end
-            end)
-            sSuccess()
-        end, function(cBtn)
-            csIncludeHeader = not csIncludeHeader
-            cBtn.Text = csIncludeHeader and "👑" or "—"
-            notify("💬 HEADER PREFIX", csIncludeHeader and "Header 'COCO POWDER' ON" or "Header prefix OFF")
-        end, "👑")
-
-        createSwitchRow(chatGrp, 9, "Anti-Tag & Anti-Spam Rate-Limit Bypass", "Appends UTF-8 safe variation markers so repeated rapid messages aren't blocked", _G.CocoAntiTagBypass ~= false, function(st)
-            _G.CocoAntiTagBypass = st
-            if UI.autoSaveConfig and UI.saveConfigToDisk then UI.saveConfigToDisk(false) end
-            notify("💬 ANTI-RATE-LIMIT", st and "Zero-Width Anti-Duplicate Chat Bypass ON!" or "Anti-Duplicate Chat Bypass OFF")
-        end)
-
-        local customRoastRow, _, customRoastSub = createGroupRowBase(chatGrp, 10, "Custom Roast Word / Line Editor", "Add custom words to the Auto-Roast generator pool · Tap [↺] to reset", 170, 50)
-        local customRoastBox = Instance.new("TextBox")
-        customRoastBox.Size = UDim2.new(0, 96, 0, 26)
-        customRoastBox.Position = UDim2.new(1, -162, 0.5, -13)
-        customRoastBox.BackgroundColor3 = T.BG2
-        customRoastBox.PlaceholderText = "New roast word..."
-        customRoastBox.Text = ""
-        customRoastBox.TextColor3 = T.Text
-        customRoastBox.PlaceholderColor3 = T.Muted
-        customRoastBox.Font = Enum.Font.Gotham
-        customRoastBox.TextSize = 9.5
-        customRoastBox.ClearTextOnFocus = false
-        customRoastBox.ZIndex = 9
-        customRoastBox.Parent = customRoastRow
-        Instance.new("UICorner", customRoastBox).CornerRadius = UDim.new(0, 7)
-        local crStroke = Instance.new("UIStroke", customRoastBox)
-        crStroke.Color = T.Border
-        crStroke.Thickness = 1
-        crStroke.Transparency = 0.3
-
-        local addRoastBtn = Instance.new("TextButton")
-        addRoastBtn.Size = UDim2.new(0, 34, 0, 26)
-        addRoastBtn.Position = UDim2.new(1, -62, 0.5, -13)
-        addRoastBtn.BackgroundColor3 = T.Accent2
-        addRoastBtn.Text = "Add"
-        addRoastBtn.TextColor3 = Color3.new(1, 1, 1)
-        addRoastBtn.Font = Enum.Font.GothamBold
-        addRoastBtn.TextSize = 9.5
-        addRoastBtn.ZIndex = 9
-        addRoastBtn.Parent = customRoastRow
-        Instance.new("UICorner", addRoastBtn).CornerRadius = UDim.new(1, 0)
-        styleBtn(addRoastBtn, T.Accent2)
-
-        local rstRoastBtn = Instance.new("TextButton")
-        rstRoastBtn.Size = UDim2.new(0, 24, 0, 26)
-        rstRoastBtn.Position = UDim2.new(1, -24, 0.5, -13)
-        rstRoastBtn.BackgroundColor3 = T.BG2
-        rstRoastBtn.Text = "↺"
-        rstRoastBtn.TextColor3 = T.Text
-        rstRoastBtn.Font = Enum.Font.GothamBold
-        rstRoastBtn.TextSize = 10
-        rstRoastBtn.ZIndex = 9
-        rstRoastBtn.Parent = customRoastRow
-        Instance.new("UICorner", rstRoastBtn).CornerRadius = UDim.new(1, 0)
-        styleBtn(rstRoastBtn, T.BG2)
-
-        addRoastBtn.MouseButton1Click:Connect(function()
-            playClick()
-            if _G.AddCocoCustomRoast and _G.AddCocoCustomRoast(customRoastBox.Text) then
-                local added = customRoastBox.Text:upper()
-                customRoastBox.Text = ""
-                if customRoastSub then customRoastSub.Text = "Added '" .. added .. "' (" .. tostring(#(_G.CocoCustomRoasts or {})) .. " custom roasts active)" end
-                if UI.autoSaveConfig and UI.saveConfigToDisk then UI.saveConfigToDisk(false) end
-                notify("💬 ROAST ADDED", "Added '" .. added .. "' to Auto-Roast generator!")
-                sSuccess()
-            end
-        end)
-        rstRoastBtn.MouseButton1Click:Connect(function()
-            playClick()
-            if _G.ResetCocoCustomRoasts then _G.ResetCocoCustomRoasts() end
-            if customRoastSub then customRoastSub.Text = "Restored default roast vocabulary" end
-            if UI.autoSaveConfig and UI.saveConfigToDisk then UI.saveConfigToDisk(false) end
-            notify("💬 ROAST LIST", "Restored default roast vocabulary!")
-        end)
-
-        -- UPGRADED CHAT SPAMMER PACKS, MEGA BURST (25x / 50x), MULTI-LINE QUEUE & LIVE PREVIEW
-        local packList = {
-            "Classic Roasts",
-            "Savage Troll",
-            "Desi / Hindi Troll",
-            "Hype & Flex",
-            "Meme & Brainrot",
-            "Poop Troll",
-        }
-        local packIdx = 1
-        createActionRow(chatGrp, 11, "Roast & Spam Vocabulary Pack", "Switch between Classic, Savage Troll, Desi/Hindi, Hype/Flex, Meme/Brainrot & Poop Troll packs", "Classic", function(pillBtn)
-            packIdx = (packIdx % #packList) + 1
-            csPack = packList[packIdx]
-            local packShort = {
-                ["Classic Roasts"] = "Classic",
-                ["Savage Troll"] = "Savage",
-                ["Desi / Hindi Troll"] = "Desi/Hindi",
-                ["Hype & Flex"] = "Hype/Flex",
-                ["Meme & Brainrot"] = "Brainrot",
-                ["Poop Troll"] = "Poop 💩",
-            }
-            pillBtn.Text = packShort[csPack] or csPack
-            notify("💬 SPAM PACK", "Active Roast/Spam Pack: " .. csPack)
-            sSuccess()
-        end)
-
-        local megaBurstCounts = { 25, 50 }
-        local megaBurstIdx = 1
-        createActionRow(chatGrp, 12, "Mega Turbo Burst Fire (25x / 50x)", "Tap pill to fire 25x or 50x ultra-fast messages (0.04s) · Tap circle to toggle 25x / 50x", "Burst 25x", function(pillBtn)
-            csTgt = (chatTargetInput.Text or ""):gsub("^%s*@+%s*", "")
-            csMsg = chatMsgInput.Text or ""
-            local totalN = megaBurstCounts[megaBurstIdx] or 25
-            pillBtn.Text = "Firing " .. tostring(totalN) .. "x"
-            task.spawn(function()
-                local prevRapid = csRapidMode
-                csRapidMode = true
-                for i = 1, totalN do
-                    local m = bld()
-                    if m ~= "" and snd2(m) then
-                        csCnt = csCnt + 1
-                    end
-                    if i < totalN then task.wait(0.04) end
-                end
-                csRapidMode = prevRapid
-                if pillBtn and pillBtn.Parent then pillBtn.Text = "Burst " .. tostring(totalN) .. "x" end
-                if chatSwitchRow and chatSwitchRow.subLbl and not csOn then
-                    chatSwitchRow.subLbl.Text = "Sent " .. tostring(csCnt) .. " msgs via " .. tostring(csMtd)
-                end
-                notify("⚡ MEGA BURST", "Fired " .. tostring(totalN) .. "x rapid chat messages!")
-            end)
-            sSuccess()
-        end, function(cBtn, _, pillBtn)
-            megaBurstIdx = (megaBurstIdx % #megaBurstCounts) + 1
-            local nextN = megaBurstCounts[megaBurstIdx]
-            cBtn.Text = tostring(nextN) .. "x"
-            if pillBtn then pillBtn.Text = "Burst " .. tostring(nextN) .. "x" end
-            notify("⚡ BURST SIZE", "Mega Burst set to " .. tostring(nextN) .. " messages")
-        end, "25x")
-
-        createSwitchRow(chatGrp, 13, "Multi-Line Custom Queue Rotation (| or ;)", "Splits custom message box by '|' or ';' and rotates every line automatically", false, function(st)
-            csMultiQueueMode = st and true or false
-            csMultiQueueIdx = 0
-            notify("💬 MULTI-QUEUE", csMultiQueueMode and "Multi-Line Queue ON (separate lines with | or ;)" or "Multi-Line Queue OFF")
-        end)
-
-        local previewRowInfo
-        previewRowInfo = createActionRow(chatGrp, 14, "Live Message Preview", "Tap [Preview] to see the exact next message that will be sent", "Preview", function()
-            csTgt = (chatTargetInput.Text or ""):gsub("^%s*@+%s*", "")
-            csMsg = chatMsgInput.Text or ""
-            local sample = bld()
-            if previewRowInfo and previewRowInfo.subLbl then
-                previewRowInfo.subLbl.Text = sample ~= "" and sample or "(empty)"
-            end
-            notify("💬 PREVIEW", sample)
-        end)
-    end)()
-
-    -- ═══════════════════════════════════════════════════════════════════════════
     -- CATEGORY 7: APPEARANCE (Live Theme Accent Engine, Glass Mode & UI Controls)
     -- ═══════════════════════════════════════════════════════════════════════════
     ;(function()
@@ -34266,6 +30147,994 @@ local function buildMainUI()
     end)()
 
     -- ═══════════════════════════════════════════════════════════════════════════
+
+    -- ═══════════════════════════════════════════════════════════════════════════
+    -- COCO CHAT (Normal Chat Spam & Target Roast Chat Spam)
+    -- ═══════════════════════════════════════════════════════════════════════════
+    ;(function()
+        local function sendChat(msg)
+            task.spawn(function()
+                pcall(function()
+                    local tcs = game:GetService("TextChatService")
+                    if tcs.ChatVersion == Enum.ChatVersion.TextChatService then
+                        local cleanMsg = tostring(msg):gsub("[\r\n]+", " ")
+                        if #cleanMsg > 195 then cleanMsg = cleanMsg:sub(1, 195) end
+                        local channels = tcs:FindFirstChild("TextChannels")
+                        if channels then
+                            local ch = channels:FindFirstChild("RBXGeneral") or channels:FindFirstChild("RBXSystem")
+                            if not ch then
+                                for _, c in ipairs(channels:GetChildren()) do
+                                    if c:IsA("TextChannel") then ch = c; break end
+                                end
+                            end
+                            if ch then ch:SendAsync(cleanMsg); return end
+                        end
+                    end
+                end)
+                pcall(function()
+                    local tcs = game:GetService("TextChatService")
+                    if tcs.ChatVersion == Enum.ChatVersion.TextChatService then return end
+                    local rep = game:GetService("ReplicatedStorage")
+                    local ev = rep:FindFirstChild("DefaultChatSystemChatEvents")
+                    if ev then
+                        local say = ev:FindFirstChild("SayMessageRequest")
+                        if say then say:FireServer(msg, "All") end
+                    end
+                end)
+            end)
+        end
+
+        local function createCocoChatInput(parent, order, labelText, placeholder, defaultVal)
+            local wrap = Instance.new("Frame")
+            wrap.Size = UDim2.new(1, 0, 0, 56)
+            wrap.BackgroundTransparency = 1
+            wrap.LayoutOrder = order
+            wrap.ZIndex = 9
+            wrap.Parent = parent
+
+            local lbl = Instance.new("TextLabel")
+            lbl.Size = UDim2.new(1, 0, 0, 16)
+            lbl.BackgroundTransparency = 1
+            lbl.Text = labelText
+            lbl.TextColor3 = T.Muted
+            lbl.Font = Enum.Font.GothamBold
+            lbl.TextSize = 10
+            lbl.TextXAlignment = Enum.TextXAlignment.Left
+            lbl.ZIndex = 10
+            lbl.Parent = wrap
+
+            local box = Instance.new("TextBox")
+            box.Size = UDim2.new(1, 0, 0, 34)
+            box.Position = UDim2.new(0, 0, 0, 20)
+            box.BackgroundColor3 = T.BG2
+            box.BorderSizePixel = 0
+            box.Text = defaultVal or ""
+            box.PlaceholderText = placeholder or ""
+            box.TextColor3 = T.Text
+            box.PlaceholderColor3 = T.Muted
+            box.Font = Enum.Font.Gotham
+            box.TextSize = 12
+            box.ClearTextOnFocus = false
+            box.TextXAlignment = Enum.TextXAlignment.Left
+            box.ZIndex = 10
+            box.Parent = wrap
+            Instance.new("UICorner", box).CornerRadius = UDim.new(0, 8)
+            local st = Instance.new("UIStroke")
+            st.Color = T.Border
+            st.Thickness = 1
+            st.Parent = box
+            local pad = Instance.new("UIPadding")
+            pad.PaddingLeft = UDim.new(0, 10)
+            pad.PaddingRight = UDim.new(0, 10)
+            pad.Parent = box
+
+            return box
+        end
+
+        local function createCocoChatCard(order)
+            local card = createGroupCard(cocoChatPage, order)
+            local inner = Instance.new("Frame")
+            inner.Size = UDim2.new(1, 0, 0, 0)
+            inner.AutomaticSize = Enum.AutomaticSize.Y
+            inner.BackgroundTransparency = 1
+            inner.ZIndex = 8
+            inner.Parent = card
+
+            local pad = Instance.new("UIPadding")
+            pad.PaddingTop = UDim.new(0, 10)
+            pad.PaddingBottom = UDim.new(0, 10)
+            pad.PaddingLeft = UDim.new(0, 12)
+            pad.PaddingRight = UDim.new(0, 12)
+            pad.Parent = inner
+
+            local lay = Instance.new("UIListLayout")
+            lay.SortOrder = Enum.SortOrder.LayoutOrder
+            lay.Padding = UDim.new(0, 8)
+            lay.Parent = inner
+
+            return inner
+        end
+
+        local normalSpamActive = false
+        local normalSpamThread = nil
+        local roastSpamActive = false
+        local roastSpamThread = nil
+
+        -- PART 1: NORMAL CHAT SPAM
+        createSectionTitle(cocoChatPage, 1, "NORMAL CHAT SPAM")
+        local normalCard = createCocoChatCard(2)
+
+        local msgInput = createCocoChatInput(normalCard, 1, "MESSAGE", "Type your spam message here...", "")
+        local delayInput = createCocoChatInput(normalCard, 2, "DELAY (seconds)", "e.g. 1.0  (min 0.2)", "1.0")
+
+        local normalBtnRow = Instance.new("Frame")
+        normalBtnRow.Size = UDim2.new(1, 0, 0, 34)
+        normalBtnRow.BackgroundTransparency = 1
+        normalBtnRow.LayoutOrder = 3
+        normalBtnRow.ZIndex = 9
+        normalBtnRow.Parent = normalCard
+
+        local startNormalBtn = Instance.new("TextButton")
+        startNormalBtn.Size = UDim2.new(0.48, 0, 1, 0)
+        startNormalBtn.BackgroundColor3 = T.Accent2
+        startNormalBtn.BorderSizePixel = 0
+        startNormalBtn.Text = "START SPAM"
+        startNormalBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        startNormalBtn.Font = Enum.Font.GothamBold
+        startNormalBtn.TextSize = 11
+        startNormalBtn.AutoButtonColor = false
+        startNormalBtn.ZIndex = 10
+        startNormalBtn.Parent = normalBtnRow
+        Instance.new("UICorner", startNormalBtn).CornerRadius = UDim.new(0, 8)
+
+        local stopNormalBtn = Instance.new("TextButton")
+        stopNormalBtn.Size = UDim2.new(0.48, 0, 1, 0)
+        stopNormalBtn.Position = UDim2.new(0.52, 0, 0, 0)
+        stopNormalBtn.BackgroundColor3 = T.PanelLt
+        stopNormalBtn.BorderSizePixel = 0
+        stopNormalBtn.Text = "STOP SPAM"
+        stopNormalBtn.TextColor3 = T.Muted
+        stopNormalBtn.Font = Enum.Font.GothamBold
+        stopNormalBtn.TextSize = 11
+        stopNormalBtn.AutoButtonColor = false
+        stopNormalBtn.ZIndex = 10
+        stopNormalBtn.Parent = normalBtnRow
+        Instance.new("UICorner", stopNormalBtn).CornerRadius = UDim.new(0, 8)
+        local stopNormalStroke = Instance.new("UIStroke")
+        stopNormalStroke.Color = T.Border
+        stopNormalStroke.Thickness = 1
+        stopNormalStroke.Parent = stopNormalBtn
+
+        local normalStatusLbl = Instance.new("TextLabel")
+        normalStatusLbl.Size = UDim2.new(1, 0, 0, 18)
+        normalStatusLbl.BackgroundTransparency = 1
+        normalStatusLbl.Text = "Status: IDLE"
+        normalStatusLbl.TextColor3 = T.Muted
+        normalStatusLbl.Font = Enum.Font.GothamMedium
+        normalStatusLbl.TextSize = 10
+        normalStatusLbl.TextXAlignment = Enum.TextXAlignment.Left
+        normalStatusLbl.LayoutOrder = 4
+        normalStatusLbl.ZIndex = 10
+        normalStatusLbl.Parent = normalCard
+
+        local function stopNormalSpam()
+            normalSpamActive = false
+            if normalSpamThread then
+                pcall(function() task.cancel(normalSpamThread) end)
+                normalSpamThread = nil
+            end
+            startNormalBtn.BackgroundColor3 = T.Accent2
+            stopNormalBtn.BackgroundColor3 = T.PanelLt
+            stopNormalBtn.TextColor3 = T.Muted
+            normalStatusLbl.Text = "Status: IDLE"
+            normalStatusLbl.TextColor3 = T.Muted
+        end
+
+        startNormalBtn.MouseButton1Click:Connect(function()
+            local msg = msgInput.Text
+            if msg == "" then
+                normalStatusLbl.Text = "Status: Enter a message first!"
+                normalStatusLbl.TextColor3 = T.Danger
+                return
+            end
+            local d = math.max(0.2, tonumber(delayInput.Text) or 1)
+            stopNormalSpam()
+            normalSpamActive = true
+            startNormalBtn.BackgroundColor3 = T.Success
+            stopNormalBtn.BackgroundColor3 = T.Danger
+            stopNormalBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            normalStatusLbl.Text = "Status: SPAMMING  " .. string.format("%.1f", d) .. "s interval"
+            normalStatusLbl.TextColor3 = T.Success
+
+            normalSpamThread = task.spawn(function()
+                local antiDupTags = { "", " .", " ..", " -", " ~", " ,", " '" }
+                local dupIdx = 0
+                while normalSpamActive do
+                    local liveMsg = msgInput.Text
+                    local liveDelay = math.max(0.2, tonumber(delayInput.Text) or 1)
+                    if liveMsg ~= "" then
+                        dupIdx = (dupIdx % #antiDupTags) + 1
+                        local outMsg = liveMsg
+                        if #outMsg + #antiDupTags[dupIdx] <= 195 then
+                            outMsg = outMsg .. antiDupTags[dupIdx]
+                        end
+                        sendChat(outMsg)
+                    end
+                    task.wait(liveDelay)
+                end
+            end)
+        end)
+
+        stopNormalBtn.MouseButton1Click:Connect(stopNormalSpam)
+
+        -- PART 2: TARGET ROAST CHAT SPAM
+        createSectionTitle(cocoChatPage, 3, "TARGET ROAST CHAT SPAM")
+        local roastCard = createCocoChatCard(4)
+
+        local targetInput = createCocoChatInput(roastCard, 1, "TARGET NAME", "Enter target name...", "PLAYER")
+        local roastDelayInput = createCocoChatInput(roastCard, 2, "DELAY (seconds)", "e.g. 4.0  (min 0.2)", "4.0")
+        local symbolInput = createCocoChatInput(roastCard, 3, "SYMBOL STYLE", "e.g. _  or  smart", "_")
+
+        local roastBtnRow = Instance.new("Frame")
+        roastBtnRow.Size = UDim2.new(1, 0, 0, 34)
+        roastBtnRow.BackgroundTransparency = 1
+        roastBtnRow.LayoutOrder = 4
+        roastBtnRow.ZIndex = 9
+        roastBtnRow.Parent = roastCard
+
+        local startRoastBtn = Instance.new("TextButton")
+        startRoastBtn.Size = UDim2.new(0.48, 0, 1, 0)
+        startRoastBtn.BackgroundColor3 = T.Accent2
+        startRoastBtn.BorderSizePixel = 0
+        startRoastBtn.Text = "START SPAM"
+        startRoastBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        startRoastBtn.Font = Enum.Font.GothamBold
+        startRoastBtn.TextSize = 11
+        startRoastBtn.AutoButtonColor = false
+        startRoastBtn.ZIndex = 10
+        startRoastBtn.Parent = roastBtnRow
+        Instance.new("UICorner", startRoastBtn).CornerRadius = UDim.new(0, 8)
+
+        local stopRoastBtn = Instance.new("TextButton")
+        stopRoastBtn.Size = UDim2.new(0.48, 0, 1, 0)
+        stopRoastBtn.Position = UDim2.new(0.52, 0, 0, 0)
+        stopRoastBtn.BackgroundColor3 = T.PanelLt
+        stopRoastBtn.BorderSizePixel = 0
+        stopRoastBtn.Text = "STOP SPAM"
+        stopRoastBtn.TextColor3 = T.Muted
+        stopRoastBtn.Font = Enum.Font.GothamBold
+        stopRoastBtn.TextSize = 11
+        stopRoastBtn.AutoButtonColor = false
+        stopRoastBtn.ZIndex = 10
+        stopRoastBtn.Parent = roastBtnRow
+        Instance.new("UICorner", stopRoastBtn).CornerRadius = UDim.new(0, 8)
+        local stopRoastStroke = Instance.new("UIStroke")
+        stopRoastStroke.Color = T.Border
+        stopRoastStroke.Thickness = 1
+        stopRoastStroke.Parent = stopRoastBtn
+
+        local roastStatusLbl = Instance.new("TextLabel")
+        roastStatusLbl.Size = UDim2.new(1, 0, 0, 18)
+        roastStatusLbl.BackgroundTransparency = 1
+        roastStatusLbl.Text = "Status: IDLE"
+        roastStatusLbl.TextColor3 = T.Muted
+        roastStatusLbl.Font = Enum.Font.GothamMedium
+        roastStatusLbl.TextSize = 10
+        roastStatusLbl.TextXAlignment = Enum.TextXAlignment.Left
+        roastStatusLbl.LayoutOrder = 5
+        roastStatusLbl.ZIndex = 10
+        roastStatusLbl.Parent = roastCard
+
+        local tbl17 = {
+									"@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
+									"______________________________________________________________________________________________________________________________________________________________________________",
+									"@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_",
+									"````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````",
+									"-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`",
+									"P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P",
+									"0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_",
+									"Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~",
+									"Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_",
+									"I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_",
+									"D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=",
+									"Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)",
+									"~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~",
+									"G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^",
+									"T_%_V_T_%_V_T_%_V_T_%_V_T_%_V_T_%_V_T_%_V_T_%_V_T_%_V_T_%_V_T_%_V_T_%_V_T_%_V_T_%_V_T_%_V_T_%_V_T_%_V_T_%_V_T_%_V_T_%_V_T_%_V_T_%_V_T_%_V_T_%_V_T_%_V_T_%_V_T_%_V_T_%_V_T_%_V_T_%_",
+									"\"HI\"_\"HI\"_\"HI\"_\"HI\"_\"HI\"_\"HI\"_\"HI\"_\"HI\"_\"HI\"_\"HI\"_\"HI\"_\"HI\"_\"HI\"_\"HI\"_\"HI\"_\"HI\"_\"HI\"_\"HI\"_\"HI\"_\"HI\"_\"HI\"_\"HI\"_\"HI\"_\"HI\"_\"HI\"_\"HI\"_\"HI\"_\"HI\"_\"HI\"_\"HI\"_\"HI\"_\"HI\"_\"HI\"_",
+									"[forbid]_[forbid]_[forbid]_[forbid]_[forbid]_[forbid]_[forbid]_[forbid]_[forbid]_[forbid]_[forbid]_[forbid]_[forbid]_[forbid]_[forbid]_[forbid]_[forbid]_[forbid]_[forbid]",
+									"?sudo_?sudo_?sudo_?sudo_?sudo_?sudo_?sudo_?sudo_?sudo_?sudo_?sudo_?sudo_?sudo_?sudo_?sudo_?sudo_?sudo_?sudo_?sudo_?sudo_?sudo_?sudo_?sudo_",
+									"[check]+[check]+[check]+[check]+[check]+[check]+[check]+[check]+[check]+[check]+[check]+[check]+[check]+[check]+[check]+[check]+[check]+",
+									"_F_O_R_B_I_D__F_O_R_B_I_D__F_O_R_B_I_D__F_O_R_B_I_D__F_O_R_B_I_D__F_O_R_B_I_D__F_O_R_B_I_D__F_O_R_B_I_D__F_O_R_B_I_D__F_O_R_B_I_D_",
+									"` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` `",
+									"x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_",
+									"0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_",
+									"+_-_-+_-_-+_-_-+_-_-+_-_-+_-_-+_-_-+_-_-+_-_-+_-_-+_-_-+_-_-+_-_-+_-_-+_-_-+_-_-+_-_-_",
+									">_<_>_<_>_<_>_<_>_<_>_<_>_<_>_<_>_<_>_<_>_<_>_<_>_<_>_<_>_<_>_<_>_<_>_<_>_<_>_<_>_<_>_<",
+									"V_V_V_V_V_V_V_V_V_V_V_V_V_V_V_V_V_V_V_V_V_V_V_V_V_V_V_V_V_V_V_V_V_V_V_V_V_V_V_V_V_V_V_V_",
+									"///_///_///_///_///_///_///_///_///_///_///_///_///_///_///_///_///_///_///_///_///_///_",
+									"|||_|||_|||_|||_|||_|||_|||_|||_|||_|||_|||_|||_|||_|||_|||_|||_|||_|||_|||_|||_|||_|||_",
+									"===_===_===_===_===_===_===_===_===_===_===_===_===_===_===_===_===_===_===_===_===_===_",
+									"8=8=8=8=8=8=8=8=8=8=8=8=8=8=8=8=8=8=8=8=8=8=8=8=8=8=8=8=8=8=8=8=8=8=8=8=8=8=8=8=8=8=8=8=",
+									"~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~",
+									"$_$_$_$_$_$_$_$_$_$_$_$_$_$_$_$_$_$_$_$_$_$_$_$_$_$_$_$_$_$_$_$_$_$_$_$_$_$_$_$_$_$_$_$_",
+									"*:_*:_*:_*:_*:_*:_*:_*:_*:_*:_*:_*:_*:_*:_*:_*:_*:_*:_*:_*:_*:_*:_*:_*:_*:_*:_*:_*:_*:_",
+								}
+
+        local tbl18 = {
+									"€^€^€^^€€^€^€^€^€^^€€^€^€^€^€^^€€^€^€^€^€^^€€^€^€^€^€^^€€^€^€^€^€^^€€^€^€^€^€^^€€^€^",
+									"π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_",
+									"_™_©_®_™_©_®_™_©_®_™_©_®_™_©_®_™_©_®_™_©_®_™_©_®_™_©_®_™_©_®_™_©_®_™_©_®_™_©_®_™_©_®_™_©",
+									"§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~",
+									"∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_",
+									"→_→_→_→_→_→_→_→_→_→_→_→_→_→_→_→_→_→_→_→_→_→_→_→_→_→_→_→_→_→_→_→_→_→_→_→_→_→_→_→_→_→_→→→_→_",
+									"Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_",
+									"⅒_⅒_⅒_⅒_⅒_⅒_⅒_⅒_⅒_⅒_⅒_⅒_⅒_⅒_⅒_⅒_⅒_⅒_⅒_⅒_⅒_⅒_⅒_⅒_⅒_⅒_⅒_⅒_⅒_⅒_⅒_",
+									"∅__∅__∅__∅__∅__∅__∅__∅__∅__∅__∅__∅__∅__∅__∅__∅__∅__∅__∅__∅__∅__∅__∅__∅__∅__∅__∅__∅__∅__∅__∅__∅__∅__∅__∅__∅__",
+									"‰__‰__‰__‰__‰__‰__‰__‰__‰__‰__‰__‰__‰__‰__‰__‰__‰__‰__‰__‰__‰__‰__‰__",
+									"№_№_№_№_№_№_№_№_№_№_№_№_№_№_№_№_№_№_№_№_№_№_№_№_№_№_",
+									"¶_Ω_¶_Ω_¶_Ω_¶_Ω_¶_Ω_¶_Ω_¶_Ω_¶_Ω_¶_Ω_¶_Ω_¶_Ω_¶_Ω_¶_Ω_¶_Ω_¶_Ω_¶_Ω_¶_Ω_¶_Ω_¶_Ω_¶_Ω_¶_Ω_¶_Ω_¶_Ω_¶_Ω_¶_Ω_¶_Ω_¶_Ω_¶_Ω_¶_Ω_¶_Ω_¶_Ω_",
+								}
+
+        local tbl19 = {}
+        for _, v in ipairs(tbl17) do table.insert(tbl19, v) end
+        for _, v in ipairs(tbl18) do table.insert(tbl19, v) end
+
+        local lastSymIdx = 0
+        local function pickSymbolPattern(symStyle)
+            if symStyle == "smart" or symStyle == "_" or symStyle == "" then
+                local idx = math.random(1, #tbl19)
+                if idx == lastSymIdx then
+                    idx = (idx % #tbl19) + 1
+                end
+                lastSymIdx = idx
+                return tbl19[idx], (idx > #tbl17)
+            end
+            if #symStyle >= 25 then
+                return symStyle, false
+            end
+            return string.rep(symStyle, math.max(1, math.floor(150 / math.max(1, #symStyle)))), false
+        end
+
+        local function pickRoastTag()
+            local str3 = string.upper((LP and (LP.DisplayName or LP.Name)) or "COCO")
+            local tbl20 = {
+                "[TMX MEH GARAM TEL]",
+                "[TMX MEH CHILKA]",
+                "[TMX MEH PAW BHAJI]",
+                "[TMX MEH CHOLE BHATURE]",
+                "[TMX MEH MOMO]",
+                "[TMX MEH DANDA]",
+                "[TMX MEH BELAN]",
+                "[TMX MEH KADHAI]",
+                "[TMX MEH CHAMACH]",
+                "[TMX MEH JHADU]",
+                "[TMX MEH PANKHA]",
+                "[TMX MEH CHAPPAL]",
+                "[TMX MEH PADOSI]",
+                "[TMX MEH BHAINS]",
+                "[TMX MEH GADHA]",
+                "[TMX MEH BANDAR]",
+                "[TMX MEH " .. str3 .. "]",
+                "[TMX MEH " .. str3 .. " KA DANDA]",
+                "[TMX MEH MIRCHI]",
+                "[TMX MEH NIMBU]",
+            }
+            return tbl20[math.random(1, #tbl20)]
+        end
+
+        local function buildRoastMessage(tgtName, symStyle)
+            local pat, isUnicode = pickSymbolPattern(symStyle)
+            local tag = pickRoastTag()
+            local tcs = game:GetService("TextChatService")
+            local sep = (tcs.ChatVersion == Enum.ChatVersion.TextChatService) and " " or "\n"
+            local suffix = sep .. tgtName .. " " .. tag .. " >"
+            local maxTotal = isUnicode and 60 or 145
+            local budget = math.max(8, maxTotal - (#suffix + 2))
+            local prefix = pat
+            if #prefix > budget then
+                local okU, bytePos = pcall(function() return utf8.offset(prefix, budget) end)
+                if okU and bytePos and bytePos > 1 then
+                    prefix = string.sub(prefix, 1, bytePos - 1)
+                else
+                    prefix = string.sub(prefix, 1, budget)
+                end
+            end
+            return prefix .. suffix
+        end
+
+        local function stopRoastSpam()
+            roastSpamActive = false
+            if roastSpamThread then
+                pcall(function() task.cancel(roastSpamThread) end)
+                roastSpamThread = nil
+            end
+            startRoastBtn.BackgroundColor3 = T.Accent2
+            stopRoastBtn.BackgroundColor3 = T.PanelLt
+            stopRoastBtn.TextColor3 = T.Muted
+            roastStatusLbl.Text = "Status: IDLE"
+            roastStatusLbl.TextColor3 = T.Muted
+        end
+
+        startRoastBtn.MouseButton1Click:Connect(function()
+            local tgt = targetInput.Text
+            if tgt == "" then tgt = "PLAYER" end
+            local d = math.max(0.2, tonumber(roastDelayInput.Text) or 4)
+            stopRoastSpam()
+            roastSpamActive = true
+            startRoastBtn.BackgroundColor3 = T.Success
+            stopRoastBtn.BackgroundColor3 = T.Danger
+            stopRoastBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            roastStatusLbl.Text = "Status: SPAMMING -> " .. tgt .. "  (" .. string.format("%.1f", d) .. "s)"
+            roastStatusLbl.TextColor3 = T.Success
+
+            roastSpamThread = task.spawn(function()
+                local tcs = game:GetService("TextChatService")
+                local sep = (tcs.ChatVersion == Enum.ChatVersion.TextChatService) and " " or "\n"
+                local pat = tbl17[math.random(1, #tbl17)]
+                local dispName = string.upper((LP and (LP.DisplayName or LP.Name)) or "COCO")
+                sendChat(string.sub(pat, 1, 110) .. sep .. dispName .. " ON TOP >")
+                task.wait(math.max(0.2, tonumber(roastDelayInput.Text) or 4))
+                while roastSpamActive do
+                    local liveTgt = targetInput.Text
+                    if liveTgt == "" then liveTgt = "PLAYER" end
+                    local liveSym = symbolInput.Text
+                    if liveSym == "" then liveSym = "_" end
+                    local liveDelay = math.max(0.2, tonumber(roastDelayInput.Text) or 4)
+                    sendChat(buildRoastMessage(liveTgt, liveSym))
+                    task.wait(liveDelay)
+                end
+            end)
+        end)
+
+        stopRoastBtn.MouseButton1Click:Connect(stopRoastSpam)
+
+
+        -- PART 3: JAMUN CHAT SPAM (ROAST / CLAN / MESSAGE — from chat_spam.lua)
+        local jamunStopFn = nil
+        do
+            local P   = Players
+            local RPS = ReplicatedStorage
+            local TC  = TextChatService
+        local CS_D  = 5      -- delay between messages (seconds)
+        local CS_M  = 200    -- max message length
+        local CS_CL = " BETA BOL BUNDBAZZ CLAN ON TOP"
+        local CS_R  = " TMKX MAI "
+
+        local CS_W = {
+            "NOOB","ROOKIE","AMATEUR","TRAINEE","BEGINNER","SLOWPOKE","SLEEPY","CLUMSY",
+            "DORK","NERD","GEEK","DWEEB","SQUISHY","WOBBLY","FUZZY","SPARKLY","GIGGLY","WIGGLY",
+            "SNAIL","TURTLE","PANDA","SLOTH","MOOSE","HAMSTER","PUPPY","KITTEN","DUCKLING","PENGUIN",
+            "NARWHAL","PLATYPUS","CAPYBARA","ALPACA","RACCOON","SQUIRREL","OTTER","BEAVER","HEDGEHOG",
+            "MEERKAT","FERRET","BUNNY","CHIPMUNK","PUFFIN","TOUCAN","FLAMINGO","MANATEE","WALRUS",
+            "PELICAN","SEAGULL","PIGEON","SPARROW","ROBIN","FINCH","WREN","MAGPIE","CROW","RAVEN",
+            "STARLING","SWALLOW","MARTIN","SWIFT","DOVE","QUAIL","PHEASANT","TURKEY","DUCK","CHICKEN",
+            "ROOSTER","PARROT","MACAW","COCKATOO","BUDGIE","CANARY",
+        }
+
+        local CS_S = {
+            RANDOM      = {"@","#","$","%","^","&","*","!","?","~","+","=","-","_",".",",",":",";","|","/","\\","<",">","[","]","{","}","(",")"},
+            AT          = {"@"},
+            HASH        = {"#"},
+            DOLLAR      = {"$"},
+            PERCENT     = {"%"},
+            STAR        = {"*"},
+            EXCLAMATION = {"!"},
+            QUESTION    = {"?"},
+            DOT         = {"."},
+            TILDE       = {"~"},
+            BRACKETS    = {"[","]","{","}","(",")","<",">"},
+            SPECIAL     = {"@","#","$","%","&","*","!"},
+            MIXED       = {"@","#","$","%","&","*","!","?"},
+        }
+        local CS_K = {"RANDOM","AT","HASH","DOLLAR","PERCENT","STAR","EXCLAMATION","QUESTION","DOT","TILDE","BRACKETS","SPECIAL","MIXED"}
+        local CS_L = {RANDOM="Random",AT="@",HASH="#",DOLLAR="$",PERCENT="%",STAR="*",EXCLAMATION="!",QUESTION="?",DOT=".",TILDE="~",BRACKETS="Brackets",SPECIAL="Special",MIXED="Mixed"}
+
+        local CS_E = {"🔥","😂","💀","🗿","😭","😎","🤡","👻","👀","💯","🚨","😍","⚡","💔","🗣️","🧠","🤖","🥶","😈","🤣","💥","✨","🙏","😱"}
+        local CS_EMOJI_S = {
+            NONE   = {},
+            RANDOM = CS_E,
+            LAUGH  = {"😂","🤣","😂"},
+            SKULL  = {"💀","☠️","💀"},
+            FIRE   = {"🔥","🔥","🔥"},
+            PARTY  = {"🎉","✨","🥳","🥳"},
+            CRY    = {"😭","😭","😭"},
+            MIXED  = {"🔥","😂","💀","✨","💯","😎"},
+        }
+        local CS_EMOJI_K = {"NONE","RANDOM","LAUGH","SKULL","FIRE","PARTY","CRY","MIXED"}
+        local CS_EMOJI_L = {NONE="None",RANDOM="Random",LAUGH="😂 Laugh",SKULL="💀 Skull",FIRE="🔥 Fire",PARTY="🎉 Party",CRY="😭 Cry",MIXED="Mixed"}
+
+        -- ============================================================================
+        -- STATE
+        -- ============================================================================
+        local csOn    = false
+        local csMode  = "roast"   -- roast | clan | message
+        local csTgt   = ""
+        local csMsg   = ""
+        local csSym   = "AT"
+        local csEmoji = "RANDOM"
+        local csIdx   = 1
+        local csCnt   = 0
+        local csMtd   = "-"
+        local csCh    = nil
+        local csLg    = nil
+        local csGen   = 0
+
+        -- optional: set these if you resolve a Player object elsewhere
+        local sel, selDisplay, selName = nil, nil, nil
+
+        -- ============================================================================
+        -- SEND
+        -- ============================================================================
+        local function gC()
+            if TC.ChatVersion ~= Enum.ChatVersion.TextChatService then return nil end
+            local ok, res = pcall(function()
+                local c = TC:FindFirstChild("TextChannels")
+                if not c then return nil end
+                return c:FindFirstChild("RBXGeneral") or c:GetChildren()[1]
+            end)
+            return ok and res or nil
+        end
+
+        local function gL()
+            local ok, res = pcall(function()
+                local d = RPS:FindFirstChild("DefaultChatSystemChatEvents")
+                if d and d:FindFirstChild("SayMessageRequest") then
+                    return d.SayMessageRequest
+                end
+            end)
+            return ok and res or nil
+        end
+
+        local function snd2(tx)
+            if #tx > CS_M then tx = tx:sub(1, CS_M) end
+            if TC.ChatVersion == Enum.ChatVersion.TextChatService then
+                if not csCh or not csCh.Parent then csCh = gC() end
+                if csCh then
+                    local ok = pcall(function() csCh:SendAsync(tx) end)
+                    if ok then csMtd = "TextChat"; return true end
+                end
+            end
+            if not csLg then csLg = gL() end
+            if csLg then
+                local ok = pcall(function() csLg:FireServer(tx, "All") end)
+                if ok then csMtd = "Legacy"; return true end
+            end
+            return false
+        end
+
+        -- ============================================================================
+        -- BUILD
+        -- ============================================================================
+        local function gS()
+            local s = CS_S[csSym] or CS_S.RANDOM
+            if csSym == "RANDOM" then
+                local x = s[csIdx]
+                csIdx = csIdx + 1
+                if csIdx > #s then csIdx = 1 end
+                return x
+            end
+            return s[math.random(1, #s)]
+        end
+
+        local function buildSymBlock(n)
+            if n <= 0 then return "" end
+            local set = CS_S[csSym] or CS_S.RANDOM
+            if #set == 1 then
+                return set[1]:rep(n)
+            end
+            if csSym == "RANDOM" then
+                local out = table.create(n)
+                for i = 1, n do out[i] = gS() end
+                return table.concat(out)
+            end
+            local out = table.create(n)
+            for i = 1, n do out[i] = set[math.random(1, #set)] end
+            return table.concat(out)
+        end
+
+        local function resolveTargetDisplay()
+            if sel then
+                local ok, dn = pcall(function() return sel.DisplayName end)
+                if ok and dn and dn ~= "" then return dn end
+                local ok2, nm = pcall(function() return sel.Name end)
+                if ok2 and nm and nm ~= "" then return nm end
+            end
+            if selDisplay and selDisplay ~= "" then return selDisplay end
+            if selName and selName ~= "" then return selName end
+            if csTgt and csTgt ~= "" then return (tostring(csTgt):gsub("^%s*@+%s*", "")) end
+            return nil
+        end
+
+        local function pickEmojis()
+            local set = CS_EMOJI_S[csEmoji] or CS_EMOJI_S.RANDOM
+            if not set or #set == 0 or csEmoji == "NONE" then return "" end
+            if csEmoji == "RANDOM" and math.random() > 0.85 then return "" end
+            local count = math.random(1, math.min(3, #set))
+            local out = ""
+            for i = 1, count do
+                out = out .. set[math.random(1, #set)]
+            end
+            return out
+        end
+
+        local function bld()
+            local c = ""
+            if csMode == "clan" then
+                c = (csTgt .. CS_CL):upper()
+            elseif csMode == "message" then
+                c = csMsg:upper()
+            else
+                local raw = resolveTargetDisplay()
+                if (raw == nil or raw == "") and csTgt and csTgt ~= "" then raw = csTgt end
+                if raw == nil or raw == "" then raw = "everyone" end
+                raw = tostring(raw):gsub("^%s*@+%s*", "")
+                c = ("@" .. raw .. " " .. CS_R .. CS_W[math.random(1, #CS_W)]):upper()
+            end
+
+            local emojiSuffix = pickEmojis()
+            -- line 1 symbols · line 2 content · line 3 emojis
+            local MIN_SYM, MAX_SYM, nl = 16, 80, 2
+            local budget = CS_M - #emojiSuffix - nl
+            local maxContent = math.max(8, budget - MIN_SYM)
+            if #c > maxContent then c = c:sub(1, maxContent) end
+            local symCount = math.clamp(budget - #c, MIN_SYM, MAX_SYM)
+            local symLine = buildSymBlock(symCount)
+            local out = symLine .. "\n" .. c .. "\n" .. emojiSuffix
+            if #out > CS_M then
+                local room = math.max(0, CS_M - #c - #emojiSuffix - nl)
+                symLine = buildSymBlock(math.min(symCount, room))
+                if #symLine > room then symLine = symLine:sub(1, room) end
+                out = symLine .. "\n" .. c .. "\n" .. emojiSuffix
+                if #out > CS_M then out = out:sub(1, CS_M) end
+            end
+            return out
+        end
+
+        -- ============================================================================
+        -- CONTROL API
+        -- ============================================================================
+        local function start(opts)
+            opts = opts or {}
+            if csOn then return false, "already running" end
+            if opts.mode then csMode = opts.mode end
+            if opts.target then csTgt = tostring(opts.target):gsub("^%s*@+%s*", "") end
+            if opts.message then csMsg = opts.message end
+            if opts.sym and CS_S[opts.sym] then csSym = opts.sym; csIdx = 1 end
+            if opts.emoji and CS_EMOJI_S[opts.emoji] then csEmoji = opts.emoji end
+            if opts.delay then CS_D = math.max(0.5, tonumber(opts.delay) or CS_D) end
+
+            if csMode == "message" and (csMsg == nil or csMsg == "") then
+                return false, "message mode needs opts.message"
+            end
+            if csMode ~= "message" and (csTgt == nil or csTgt == "") then
+                return false, "need opts.target"
+            end
+
+            csOn = true
+            csGen = csGen + 1
+            csCnt = 0
+            local gen = csGen
+            task.spawn(function()
+                while csOn and csGen == gen do
+                    local m = bld()
+                    if m ~= "" then
+                        if snd2(m) then
+                            csCnt = csCnt + 1
+                            print(string.format("[chat-spam] #%d via %s · %s", csCnt, csMtd, csMode))
+                        else
+                            warn("[chat-spam] send failed")
+                        end
+                    end
+                    task.wait(CS_D)
+                end
+            end)
+            return true
+        end
+
+        local function stop()
+            csOn = false
+            csGen = csGen + 1
+            print("[chat-spam] stopped · sent", csCnt)
+        end
+
+        -- ============================================================================
+        -- GLOBALS
+        -- ============================================================================
+        _G.JamunChatSpam = {
+            start   = start,
+            stop    = stop,
+            isOn    = function() return csOn end,
+            count   = function() return csCnt end,
+            method  = function() return csMtd end,
+            setMode = function(m) if m == "roast" or m == "clan" or m == "message" then csMode = m end end,
+            setSym  = function(k) if CS_S[k] then csSym = k; csIdx = 1 end end,
+            setEmoji= function(k) if CS_EMOJI_S[k] then csEmoji = k end end,
+            setDelay= function(d) CS_D = math.max(0.5, tonumber(d) or CS_D) end,
+            setTarget = function(t) csTgt = tostring(t or ""):gsub("^%s*@+%s*", "") end,
+            setMessage= function(m) csMsg = tostring(m or "") end,
+            symbols = CS_K,
+            emojis  = CS_EMOJI_K,
+            -- bind a Player for roast display-name resolution
+            setPlayer = function(plr)
+                sel = plr
+                if plr then
+                    selDisplay = plr.DisplayName
+                    selName = plr.Name
+                    csTgt = plr.DisplayName
+                end
+            end,
+        }
+            jamunStopFn = stop
+
+            createSectionTitle(cocoChatPage, 5, "JAMUN CHAT SPAM (ROAST / CLAN / MESSAGE)")
+            local jamunCard = createCocoChatCard(6)
+
+            -- Mode Selector Row (ROAST | CLAN | MESSAGE)
+            local modeRow = Instance.new("Frame")
+            modeRow.Size = UDim2.new(1, 0, 0, 30)
+            modeRow.BackgroundTransparency = 1
+            modeRow.LayoutOrder = 1
+            modeRow.ZIndex = 9
+            modeRow.Parent = jamunCard
+
+            local modeLay = Instance.new("UIListLayout")
+            modeLay.FillDirection = Enum.FillDirection.Horizontal
+            modeLay.SortOrder = Enum.SortOrder.LayoutOrder
+            modeLay.Padding = UDim.new(0, 6)
+            modeLay.Parent = modeRow
+
+            local modeBtns = {}
+            local function syncModeVisual()
+                for mKey, info in pairs(modeBtns) do
+                    local on = (csMode == mKey)
+                    info.btn.BackgroundColor3 = on and T.Accent2 or T.PanelLt
+                    info.btn.TextColor3 = on and Color3.fromRGB(255, 255, 255) or T.Muted
+                    info.stroke.Color = on and T.Accent or T.Border
+                end
+            end
+
+            for idx, mDef in ipairs({ { k = "roast", t = "ROAST" }, { k = "clan", t = "CLAN" }, { k = "message", t = "MESSAGE" } }) do
+                local mb = Instance.new("TextButton")
+                mb.Size = UDim2.new(0.32, 0, 1, 0)
+                mb.BackgroundColor3 = T.PanelLt
+                mb.BorderSizePixel = 0
+                mb.Text = mDef.t
+                mb.TextColor3 = T.Muted
+                mb.Font = Enum.Font.GothamBold
+                mb.TextSize = 10
+                mb.AutoButtonColor = false
+                mb.LayoutOrder = idx
+                mb.ZIndex = 10
+                mb.Parent = modeRow
+                Instance.new("UICorner", mb).CornerRadius = UDim.new(0, 7)
+                local ms = Instance.new("UIStroke")
+                ms.Color = T.Border
+                ms.Thickness = 1
+                ms.Parent = mb
+                modeBtns[mDef.k] = { btn = mb, stroke = ms }
+                mb.MouseButton1Click:Connect(function()
+                    csMode = mDef.k
+                    syncModeVisual()
+                end)
+            end
+            syncModeVisual()
+
+            local jTargetInput = createCocoChatInput(jamunCard, 2, "TARGET / CLAN NAME", "Leave blank for active target, or type name...", "")
+            local jMsgInput    = createCocoChatInput(jamunCard, 3, "CUSTOM MESSAGE (MESSAGE MODE)", "Type message for Message mode...", "")
+            local jDelayInput  = createCocoChatInput(jamunCard, 4, "DELAY (seconds)", "e.g. 5.0  (min 0.5)", "5.0")
+
+            -- Symbol & Emoji 1-Click Cyclers
+            local styleRow = Instance.new("Frame")
+            styleRow.Size = UDim2.new(1, 0, 0, 32)
+            styleRow.BackgroundTransparency = 1
+            styleRow.LayoutOrder = 5
+            styleRow.ZIndex = 9
+            styleRow.Parent = jamunCard
+
+            local symIdx = 2 -- "AT"
+            local emoIdx = 2 -- "RANDOM"
+
+            local symBtn = Instance.new("TextButton")
+            symBtn.Size = UDim2.new(0.48, 0, 1, 0)
+            symBtn.BackgroundColor3 = T.PanelLt
+            symBtn.BorderSizePixel = 0
+            symBtn.Text = "Symbol: " .. (CS_L[csSym] or csSym)
+            symBtn.TextColor3 = T.Text
+            symBtn.Font = Enum.Font.GothamBold
+            symBtn.TextSize = 10
+            symBtn.AutoButtonColor = false
+            symBtn.ZIndex = 10
+            symBtn.Parent = styleRow
+            Instance.new("UICorner", symBtn).CornerRadius = UDim.new(0, 8)
+            local symSt = Instance.new("UIStroke")
+            symSt.Color = T.Border
+            symSt.Thickness = 1
+            symSt.Parent = symBtn
+
+            local emoBtn = Instance.new("TextButton")
+            emoBtn.Size = UDim2.new(0.48, 0, 1, 0)
+            emoBtn.Position = UDim2.new(0.52, 0, 0, 0)
+            emoBtn.BackgroundColor3 = T.PanelLt
+            emoBtn.BorderSizePixel = 0
+            emoBtn.Text = "Emoji: " .. (CS_EMOJI_L[csEmoji] or csEmoji)
+            emoBtn.TextColor3 = T.Text
+            emoBtn.Font = Enum.Font.GothamBold
+            emoBtn.TextSize = 10
+            emoBtn.AutoButtonColor = false
+            emoBtn.ZIndex = 10
+            emoBtn.Parent = styleRow
+            Instance.new("UICorner", emoBtn).CornerRadius = UDim.new(0, 8)
+            local emoSt = Instance.new("UIStroke")
+            emoSt.Color = T.Border
+            emoSt.Thickness = 1
+            emoSt.Parent = emoBtn
+
+            symBtn.MouseButton1Click:Connect(function()
+                symIdx = (symIdx % #CS_K) + 1
+                csSym = CS_K[symIdx]
+                csIdx = 1
+                symBtn.Text = "Symbol: " .. (CS_L[csSym] or csSym)
+            end)
+
+            emoBtn.MouseButton1Click:Connect(function()
+                emoIdx = (emoIdx % #CS_EMOJI_K) + 1
+                csEmoji = CS_EMOJI_K[emoIdx]
+                emoBtn.Text = "Emoji: " .. (CS_EMOJI_L[csEmoji] or csEmoji)
+            end)
+
+            -- Start / Stop Row
+            local jBtnRow = Instance.new("Frame")
+            jBtnRow.Size = UDim2.new(1, 0, 0, 34)
+            jBtnRow.BackgroundTransparency = 1
+            jBtnRow.LayoutOrder = 6
+            jBtnRow.ZIndex = 9
+            jBtnRow.Parent = jamunCard
+
+            local startJamunBtn = Instance.new("TextButton")
+            startJamunBtn.Size = UDim2.new(0.48, 0, 1, 0)
+            startJamunBtn.BackgroundColor3 = T.Accent2
+            startJamunBtn.BorderSizePixel = 0
+            startJamunBtn.Text = "START SPAM"
+            startJamunBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            startJamunBtn.Font = Enum.Font.GothamBold
+            startJamunBtn.TextSize = 11
+            startJamunBtn.AutoButtonColor = false
+            startJamunBtn.ZIndex = 10
+            startJamunBtn.Parent = jBtnRow
+            Instance.new("UICorner", startJamunBtn).CornerRadius = UDim.new(0, 8)
+
+            local stopJamunBtn = Instance.new("TextButton")
+            stopJamunBtn.Size = UDim2.new(0.48, 0, 1, 0)
+            stopJamunBtn.Position = UDim2.new(0.52, 0, 0, 0)
+            stopJamunBtn.BackgroundColor3 = T.PanelLt
+            stopJamunBtn.BorderSizePixel = 0
+            stopJamunBtn.Text = "STOP SPAM"
+            stopJamunBtn.TextColor3 = T.Muted
+            stopJamunBtn.Font = Enum.Font.GothamBold
+            stopJamunBtn.TextSize = 11
+            stopJamunBtn.AutoButtonColor = false
+            stopJamunBtn.ZIndex = 10
+            stopJamunBtn.Parent = jBtnRow
+            Instance.new("UICorner", stopJamunBtn).CornerRadius = UDim.new(0, 8)
+            local stopJStroke = Instance.new("UIStroke")
+            stopJStroke.Color = T.Border
+            stopJStroke.Thickness = 1
+            stopJStroke.Parent = stopJamunBtn
+
+            local jamunStatusLbl = Instance.new("TextLabel")
+            jamunStatusLbl.Size = UDim2.new(1, 0, 0, 18)
+            jamunStatusLbl.BackgroundTransparency = 1
+            jamunStatusLbl.Text = "Status: IDLE"
+            jamunStatusLbl.TextColor3 = T.Muted
+            jamunStatusLbl.Font = Enum.Font.GothamMedium
+            jamunStatusLbl.TextSize = 10
+            jamunStatusLbl.TextXAlignment = Enum.TextXAlignment.Left
+            jamunStatusLbl.LayoutOrder = 7
+            jamunStatusLbl.ZIndex = 10
+            jamunStatusLbl.Parent = jamunCard
+
+            local function resetJamunVisual()
+                startJamunBtn.BackgroundColor3 = T.Accent2
+                stopJamunBtn.BackgroundColor3 = T.PanelLt
+                stopJamunBtn.TextColor3 = T.Muted
+                jamunStatusLbl.Text = "Status: IDLE"
+                jamunStatusLbl.TextColor3 = T.Muted
+            end
+
+            startJamunBtn.MouseButton1Click:Connect(function()
+                stop()
+                local typedTgt = jTargetInput.Text
+                local activeTgtPlr = (type(resolveActiveTarget) == "function") and resolveActiveTarget() or nil
+                if typedTgt == "" and activeTgtPlr then
+                    _G.JamunChatSpam.setPlayer(activeTgtPlr)
+                    typedTgt = activeTgtPlr.DisplayName or activeTgtPlr.Name
+                else
+                    sel = nil; selDisplay = nil; selName = nil
+                end
+                local d = math.max(0.5, tonumber(jDelayInput.Text) or 5)
+                local okStart, errMsg = start({
+                    mode    = csMode,
+                    target  = typedTgt,
+                    message = jMsgInput.Text,
+                    sym     = csSym,
+                    emoji   = csEmoji,
+                    delay   = d,
+                })
+                if not okStart then
+                    resetJamunVisual()
+                    jamunStatusLbl.Text = "Status: " .. tostring(errMsg or "Enter target/message!")
+                    jamunStatusLbl.TextColor3 = T.Danger
+                    return
+                end
+                startJamunBtn.BackgroundColor3 = T.Success
+                stopJamunBtn.BackgroundColor3 = T.Danger
+                stopJamunBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+                jamunStatusLbl.Text = string.format("Status: SPAMMING (%s · %.1fs)", string.upper(csMode), d)
+                jamunStatusLbl.TextColor3 = T.Success
+            end)
+
+            stopJamunBtn.MouseButton1Click:Connect(function()
+                stop()
+                resetJamunVisual()
+            end)
+
+            jamunStopFn = function()
+                stop()
+                resetJamunVisual()
+            end
+
+            -- Auto-fill active Target Player name directly into both Chat Spam target boxes
+            local chatTargetSyncAlive = true
+            local lastSyncedPlr = nil
+            local lastSyncedTyped = ""
+            local function syncTargetNameIntoChatBoxes()
+                local tgtPlr = (type(resolveActiveTarget) == "function" and resolveActiveTarget())
+                    or selectedPlayer or CurrentTarget or (WeldIntent and WeldIntent.target)
+                if tgtPlr and tgtPlr:IsA("Player") then
+                    if tgtPlr ~= lastSyncedPlr then
+                        lastSyncedPlr = tgtPlr
+                        local nameToFill = (tgtPlr.DisplayName and tgtPlr.DisplayName ~= "" and tgtPlr.DisplayName) or tgtPlr.Name
+                        if targetInput and targetInput.Parent and not targetInput:IsFocused() then
+                            targetInput.Text = nameToFill
+                        end
+                        if jTargetInput and jTargetInput.Parent and not jTargetInput:IsFocused() then
+                            jTargetInput.Text = nameToFill
+                        end
+                        _G.JamunChatSpam.setPlayer(tgtPlr)
+                    end
+                elseif WeldIntent and WeldIntent.typedUsername and WeldIntent.typedUsername ~= "" and WeldIntent.typedUsername ~= lastSyncedTyped then
+                    lastSyncedTyped = WeldIntent.typedUsername
+                    if targetInput and targetInput.Parent and not targetInput:IsFocused() then
+                        targetInput.Text = lastSyncedTyped
+                    end
+                    if jTargetInput and jTargetInput.Parent and not jTargetInput:IsFocused() then
+                        jTargetInput.Text = lastSyncedTyped
+                    end
+                end
+            end
+            task.spawn(function()
+                while chatTargetSyncAlive and gui and gui.Parent do
+                    pcall(syncTargetNameIntoChatBoxes)
+                    task.wait(0.35)
+                end
+            end)
+            local prevStop = jamunStopFn
+            jamunStopFn = function()
+                if prevStop then prevStop() end
+            end
+            gui.Destroying:Connect(function()
+                chatTargetSyncAlive = false
+            end)
+        end
+
+        _G.CocoChatStopAll = function()
+            stopNormalSpam()
+            stopRoastSpam()
+            if type(jamunStopFn) == "function" then pcall(jamunStopFn) end
+        end
+    end)()
+
     -- FOOTER UNWELD, MINIMIZE, SETTINGS DIALOG & KEYBINDS
     -- ═══════════════════════════════════════════════════════════════════════════
     btnUnweld.MouseButton1Click:Connect(function()
@@ -34345,6 +31214,9 @@ local function buildMainUI()
             pcall(function() EmoteHub:StopEmote() end)
             pcall(function() EmoteHub:StopJerk() end)
         end
+        if type(_G.CocoChatStopAll) == "function" then
+            pcall(_G.CocoChatStopAll)
+        end
         for uid, _ in pairs(OverheadTagGuis) do
             removeOverheadTagForUser(uid)
         end
@@ -34353,7 +31225,6 @@ local function buildMainUI()
             OwnerAdminState.beaconTrack = nil
         end
         StateManager:Cleanup(false)
-        if chatStopFn then pcall(chatStopFn) end
         pcall(function() workspace.FallenPartsDestroyHeight = OriginalFPDH end)
         gui:Destroy()
         print("[COCO POWDER] Terminated.")
