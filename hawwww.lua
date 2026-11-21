@@ -243,7 +243,7 @@ local function isR15(player)
     return hum ~= nil and hum.RigType == Enum.HumanoidRigType.R15
 end
 
-local V = { X = 0, Y = 0, Z = 1.3, RX = 0, RY = 0, RZ = 0, Speed = 1.0, AutoHeight = true, LastAutoY = 0, SideMode = "auto", DistAdd = 0 }
+local V = { X = 0, Y = 0, Z = 1.3, RX = 0, RY = 0, RZ = 0, Speed = 1.0, AutoHeight = true, LastAutoY = 0, SideMode = "auto", DistAdd = 0, Spin = false }
 
 local CurrentWeld         = nil
 local CurrentTarget       = nil
@@ -2003,8 +2003,9 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
             end
             adjY, adjZ = cachedRizzY, cachedRizzZ
         end
+        local spinYaw = (V.Spin and ((clock * 180) % 360) or 0)
         return CFrame.new(V.X or 0, (V.Y or 0) + adjY, ((V.Z or 1.3) - 1.3) + adjZ)
-            * CFrame.Angles(math.rad(V.RX or 0), math.rad(V.RY or 0), math.rad(V.RZ or 0))
+            * CFrame.Angles(math.rad(V.RX or 0), math.rad((V.RY or 0) + spinYaw), math.rad(V.RZ or 0))
     end
 
     local function checkAndHotSwapReanimCharacter()
@@ -2081,10 +2082,11 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
             end
             local exactPos = (flatHeadCF * CFrame.new(0, -myHeadToRootY, -math.max(0.4, 1.65 + distAdd)) * customAdjust).Position
             local faceTargetPt = Vector3.new(tHead.Position.X, exactPos.Y, tHead.Position.Z)
+            local extraYaw = math.rad((V.RY or 0) + (V.Spin and ((clock * 180) % 360) or 0))
             if (faceTargetPt - exactPos).Magnitude > 0.05 then
-                attachCF = CFrame.lookAt(exactPos, faceTargetPt, Vector3.yAxis)
+                attachCF = CFrame.lookAt(exactPos, faceTargetPt, Vector3.yAxis) * CFrame.Angles(0, extraYaw, 0)
             else
-                attachCF = flatHeadCF * CFrame.new(0, -myHeadToRootY, -1.65) * CFrame.Angles(0, math.rad(180), 0) * customAdjust
+                attachCF = flatHeadCF * CFrame.new(0, -myHeadToRootY, -1.65) * CFrame.Angles(0, math.rad(180) + extraYaw, 0) * customAdjust
             end
         elseif PresetKey == "poop" and sideMode == "auto" then
             -- Directly Above & In Front of Target's Head, facing BACKWARDS (180° away from target player)
@@ -2092,10 +2094,11 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
             local flatHeadCF = getFlatYawCFrame(tHead.CFrame, tHead.Position)
             local poopPos = (flatHeadCF * CFrame.new(0, 2.35, -math.max(0.2, 0.85 + distAdd)) * customAdjust).Position
             local lookPt = Vector3.new(tHead.Position.X, poopPos.Y, tHead.Position.Z)
+            local extraYaw = math.rad((V.RY or 0) + (V.Spin and ((clock * 180) % 360) or 0))
             if (lookPt - poopPos).Magnitude > 0.05 then
-                attachCF = CFrame.lookAt(poopPos, lookPt, Vector3.yAxis) * CFrame.Angles(0, math.rad(180), 0)
+                attachCF = CFrame.lookAt(poopPos, lookPt, Vector3.yAxis) * CFrame.Angles(0, math.rad(180) + extraYaw, 0)
             else
-                attachCF = flatHeadCF * CFrame.new(0, 2.35, -0.85) * customAdjust
+                attachCF = flatHeadCF * CFrame.new(0, 2.35, -0.85) * CFrame.Angles(0, extraYaw, 0) * customAdjust
             end
         elseif sideMode ~= "auto" or PresetKey == "selfanim" or PresetKey == "finger" or TargetPart.Name ~= "HumanoidRootPart" then
             attachCF = getFlatYawCFrame(TargetPart.CFrame, TargetPart.Position) * localOffset
@@ -21294,7 +21297,7 @@ local function buildMainUI()
         ;(function()
             local posBar = Instance.new("Frame")
             posBar.Name = "OneClickPosDistBar"
-            posBar.Size = UDim2.new(1, 0, 0, 62)
+            posBar.Size = UDim2.new(1, 0, 0, 96)
             posBar.BackgroundColor3 = T.BG2
             posBar.BorderSizePixel = 0
             posBar.LayoutOrder = 4
@@ -21310,7 +21313,7 @@ local function buildMainUI()
             hdrLbl.Size = UDim2.new(0.62, 0, 0, 18)
             hdrLbl.Position = UDim2.new(0, 10, 0, 4)
             hdrLbl.BackgroundTransparency = 1
-            hdrLbl.Text = "⚡ 1-Click Troll Side & Distance"
+            hdrLbl.Text = "⚡ 1-Click Side, Distance & Rotate"
             hdrLbl.TextColor3 = T.Muted
             hdrLbl.Font = Enum.Font.GothamBold
             hdrLbl.TextSize = 10
@@ -21370,16 +21373,83 @@ local function buildMainUI()
             local farBtn                = mkPosBtn(4, 0.20, "Farther +")
             local resetBtn              = mkPosBtn(5, 0.16, "↺")
 
+            local rotRow = Instance.new("Frame")
+            rotRow.Size = UDim2.new(1, -16, 0, 30)
+            rotRow.Position = UDim2.new(0, 8, 0, 60)
+            rotRow.BackgroundTransparency = 1
+            rotRow.ZIndex = 9
+            rotRow.Parent = posBar
+
+            local rotLay = Instance.new("UIListLayout")
+            rotLay.FillDirection = Enum.FillDirection.Horizontal
+            rotLay.SortOrder = Enum.SortOrder.LayoutOrder
+            rotLay.Padding = UDim.new(0, 5)
+            rotLay.Parent = rotRow
+
+            local function mkRotBtn(order, wScale, text)
+                local b = Instance.new("TextButton")
+                b.Size = UDim2.new(wScale, -4, 1, 0)
+                b.BackgroundColor3 = T.Panel
+                b.BorderSizePixel = 0
+                b.Text = text
+                b.TextColor3 = T.Text
+                b.Font = Enum.Font.GothamBold
+                b.TextSize = 10
+                b.AutoButtonColor = false
+                b.LayoutOrder = order
+                b.ZIndex = 10
+                b.Parent = rotRow
+                Instance.new("UICorner", b).CornerRadius = UDim.new(0, 7)
+                local bs = Instance.new("UIStroke")
+                bs.Color = T.Border
+                bs.Thickness = 1
+                bs.Parent = b
+                return b, bs
+            end
+
+            local rotLeftBtn             = mkRotBtn(1, 0.25, "↺ -45°")
+            local rotRightBtn            = mkRotBtn(2, 0.25, "+45° ↻")
+            local rotFlipBtn             = mkRotBtn(3, 0.25, "180° Flip")
+            local spinBtn, spinStroke    = mkRotBtn(4, 0.25, "Spin: OFF")
+
             local function syncBar()
                 local sm = V.SideMode or "auto"
                 local da = V.DistAdd or 0
-                statusPill.Text = string.format("%s · %+.1f", string.upper(sm), da)
+                local ry = math.floor(((V.RY or 0) % 360) + 0.5) % 360
+                statusPill.Text = string.format("%s · %+.1f · %d°", string.upper(sm), da, ry)
                 frontBtn.BackgroundColor3 = (sm == "front") and T.Accent2 or T.Panel
                 frontStroke.Color = (sm == "front") and T.Accent or T.Border
                 backBtn.BackgroundColor3 = (sm == "back") and T.Accent2 or T.Panel
                 backStroke.Color = (sm == "back") and T.Accent or T.Border
+                spinBtn.Text = V.Spin and "Spin: ON" or "Spin: OFF"
+                spinBtn.BackgroundColor3 = V.Spin and T.Accent2 or T.Panel
+                spinStroke.Color = V.Spin and T.Accent or T.Border
             end
             _G.CocoSyncSideDistBar = syncBar
+
+            rotLeftBtn.MouseButton1Click:Connect(function()
+                playClick()
+                V.RY = ((V.RY or 0) - 45) % 360
+                syncBar()
+            end)
+
+            rotRightBtn.MouseButton1Click:Connect(function()
+                playClick()
+                V.RY = ((V.RY or 0) + 45) % 360
+                syncBar()
+            end)
+
+            rotFlipBtn.MouseButton1Click:Connect(function()
+                playClick()
+                V.RY = ((V.RY or 0) + 180) % 360
+                syncBar()
+            end)
+
+            spinBtn.MouseButton1Click:Connect(function()
+                playClick()
+                V.Spin = not V.Spin
+                syncBar()
+            end)
 
             frontBtn.MouseButton1Click:Connect(function()
                 playClick()
@@ -21411,10 +21481,11 @@ local function buildMainUI()
                 playClick()
                 V.SideMode = "auto"
                 V.DistAdd = 0
+                V.RY = 0; V.RX = 0; V.RZ = 0; V.Spin = false
                 V.X = 0; V.Y = 0; V.Z = 1.3; V.LastAutoY = 0
                 syncBar()
                 syncAllActiveIndicators()
-                notify("COCO POWDER", "Troll side & distance reset to default")
+                notify("COCO POWDER", "Troll side, distance & rotation reset to default")
             end)
 
             syncBar()
@@ -31012,6 +31083,49 @@ local function buildMainUI()
                 stop()
                 resetJamunVisual()
             end
+
+            -- Auto-fill active Target Player name directly into both Chat Spam target boxes
+            local chatTargetSyncAlive = true
+            local lastSyncedPlr = nil
+            local lastSyncedTyped = ""
+            local function syncTargetNameIntoChatBoxes()
+                local tgtPlr = (type(resolveActiveTarget) == "function" and resolveActiveTarget())
+                    or selectedPlayer or CurrentTarget or (WeldIntent and WeldIntent.target)
+                if tgtPlr and tgtPlr:IsA("Player") then
+                    if tgtPlr ~= lastSyncedPlr then
+                        lastSyncedPlr = tgtPlr
+                        local nameToFill = (tgtPlr.DisplayName and tgtPlr.DisplayName ~= "" and tgtPlr.DisplayName) or tgtPlr.Name
+                        if targetInput and targetInput.Parent and not targetInput:IsFocused() then
+                            targetInput.Text = nameToFill
+                        end
+                        if jTargetInput and jTargetInput.Parent and not jTargetInput:IsFocused() then
+                            jTargetInput.Text = nameToFill
+                        end
+                        _G.JamunChatSpam.setPlayer(tgtPlr)
+                    end
+                elseif WeldIntent and WeldIntent.typedUsername and WeldIntent.typedUsername ~= "" and WeldIntent.typedUsername ~= lastSyncedTyped then
+                    lastSyncedTyped = WeldIntent.typedUsername
+                    if targetInput and targetInput.Parent and not targetInput:IsFocused() then
+                        targetInput.Text = lastSyncedTyped
+                    end
+                    if jTargetInput and jTargetInput.Parent and not jTargetInput:IsFocused() then
+                        jTargetInput.Text = lastSyncedTyped
+                    end
+                end
+            end
+            task.spawn(function()
+                while chatTargetSyncAlive and gui and gui.Parent do
+                    pcall(syncTargetNameIntoChatBoxes)
+                    task.wait(0.35)
+                end
+            end)
+            local prevStop = jamunStopFn
+            jamunStopFn = function()
+                if prevStop then prevStop() end
+            end
+            gui.Destroying:Connect(function()
+                chatTargetSyncAlive = false
+            end)
         end
 
         _G.CocoChatStopAll = function()
