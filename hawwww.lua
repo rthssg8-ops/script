@@ -799,6 +799,9 @@ function StateManager:Cleanup(keepTarget, switchingWeld)
     if _G.CocaCopierActive and type(_G.stopCocaCopier) == "function" then
         pcall(_G.stopCocaCopier)
     end
+    if _G.CocoSelfTrollAnim and _G.CocoSelfTrollAnim.active and type(_G.CocoSelfTrollAnim.Stop) == "function" then
+        pcall(_G.CocoSelfTrollAnim.Stop)
+    end
     if RewindSys and RewindSys.rewinding and (RewindSys.Stop or RewindSys.StopRewind) then
         pcall(function() (RewindSys.Stop or RewindSys.StopRewind)(RewindSys) end)
     end
@@ -920,6 +923,8 @@ do
         pcall(resolveCatalogOrAnimUri, "138645486924614")
         pcall(resolveCatalogOrAnimUri, "81414049491981")
         pcall(resolveCatalogOrAnimUri, "136828069054505")
+        pcall(resolveCatalogOrAnimUri, "98982064034152")
+        pcall(resolveCatalogOrAnimUri, "124127012123232")
     end)
 
     local function tryPlayOnce(Animator, animId, hum, priority, verifyPlayable)
@@ -2456,7 +2461,108 @@ WELD_PRESETS.chase = {
     refMode = "torso",
     label = "Auto-Chase (Follow)"
 }
+
+WELD_PRESETS.finger = {
+    offset = CFrame.new(0, 0, -1.6) * CFrame.Angles(0, math.rad(180), 0),
+    anim15 = 124127012123232,
+    anim6  = 124127012123232,
+    animFallbacks = { 124127012123232 },
+    animFallbacks6 = { 124127012123232 },
+    osc = nil,
+    refMode = "torso",
+    label = "Finger"
+}
 end -- end WELD_PRESETS scope
+
+do
+    local SELF_TROLL_ANIM_ID = "98982064034152"
+    local SelfTroll = {
+        active = false,
+        track = nil,
+        animObj = nil,
+        charConn = nil,
+    }
+
+    local function playOnCharacter(char)
+        if not SelfTroll.active or not char then return end
+        local hum = char:FindFirstChildOfClass("Humanoid") or char:WaitForChild("Humanoid", 5)
+        if not hum or not SelfTroll.active then return end
+        local animator = hum:FindFirstChildOfClass("Animator")
+        if not animator then
+            animator = Instance.new("Animator")
+            animator.Parent = hum
+        end
+        if SelfTroll.track then
+            pcall(function() SelfTroll.track:Stop(0.1); SelfTroll.track:Destroy() end)
+            SelfTroll.track = nil
+        end
+        if SelfTroll.animObj then
+            pcall(function() SelfTroll.animObj:Destroy() end)
+            SelfTroll.animObj = nil
+        end
+        local resolvedUri = nil
+        if type(resolveCatalogOrAnimUri) == "function" then
+            local okRes, uri = pcall(resolveCatalogOrAnimUri, SELF_TROLL_ANIM_ID)
+            if okRes and type(uri) == "string" and uri ~= "" then
+                resolvedUri = uri
+            end
+        end
+        local anim = Instance.new("Animation")
+        anim.AnimationId = resolvedUri or ("rbxassetid://" .. SELF_TROLL_ANIM_ID)
+        SelfTroll.animObj = anim
+        local okLoad, track = pcall(function() return animator:LoadAnimation(anim) end)
+        if (not okLoad or not track) and anim.AnimationId ~= ("rbxassetid://" .. SELF_TROLL_ANIM_ID) then
+            anim.AnimationId = "rbxassetid://" .. SELF_TROLL_ANIM_ID
+            okLoad, track = pcall(function() return animator:LoadAnimation(anim) end)
+        end
+        if okLoad and track and SelfTroll.active then
+            track.Priority = Enum.AnimationPriority.Action4
+            track.Looped = true
+            pcall(function() track:Play(0.08, 1, 1) end)
+            SelfTroll.track = track
+        end
+    end
+
+    function SelfTroll.Stop()
+        SelfTroll.active = false
+        if SelfTroll.charConn then
+            pcall(function() SelfTroll.charConn:Disconnect() end)
+            SelfTroll.charConn = nil
+        end
+        if SelfTroll.track then
+            pcall(function() SelfTroll.track:Stop(0.1); SelfTroll.track:Destroy() end)
+            SelfTroll.track = nil
+        end
+        if SelfTroll.animObj then
+            pcall(function() SelfTroll.animObj:Destroy() end)
+            SelfTroll.animObj = nil
+        end
+    end
+
+    function SelfTroll.Start()
+        SelfTroll.Stop()
+        SelfTroll.active = true
+        SelfTroll.charConn = LP.CharacterAdded:Connect(function(newChar)
+            if SelfTroll.active then
+                task.wait(0.25)
+                playOnCharacter(newChar)
+            end
+        end)
+        task.spawn(function()
+            playOnCharacter(LP.Character)
+        end)
+    end
+
+    function SelfTroll.Toggle()
+        if SelfTroll.active then
+            SelfTroll.Stop()
+        else
+            SelfTroll.Start()
+        end
+    end
+
+    _G.CocoSelfTrollAnim = SelfTroll
+end
 
 -- Compute a clean, level, upright CFrame relative to a target part/character
 getFlatYawCFrame = function(cf, posOverride)
@@ -6098,6 +6204,9 @@ stopWeld = function(preserveOfflineQueue)
     end
     if AnimCopySys and AnimCopySys.active then
         pcall(function() AnimCopySys:Stop() end)
+    end
+    if _G.CocoSelfTrollAnim and _G.CocoSelfTrollAnim.active and type(_G.CocoSelfTrollAnim.Stop) == "function" then
+        pcall(_G.CocoSelfTrollAnim.Stop)
     end
     pcall(function() LP.ReplicationFocus = nil end)
     unweld(false)
@@ -19822,6 +19931,7 @@ local function buildMainUI()
     local skyPage       = createCategory("Coca Sky Destroyer","💥", 9,   "3D Layered Clothing & Glitch Walker Sky, Ground & Cube Matrix Destroyer", "Coca Sky")
     local emotePage     = createCategory("Emotes",            "💃", 315, "315+ searchable catalog emotes, viral dances, dog/moonwalk & custom IDs", "Emotes")
     local weldPage      = createCategory("Weld & Troll",      "⚡", 15,  "Dynamic height-adaptive welds, FF LOL, FF Push, jerk troll, void throws & pins", "Weld & Troll")
+    local cocoChatPage  = createCategory("Coco Chat",         "💬", 2,   "Normal chat spam & target roast chat spam", "Coco Chat")
     local loudPage      = createCategory("One Click Loud",    "🔊", 4,   "Mic Up v4.0 Advanced Max-Loudness Controller (4 profiles, 1x–10x stack, Mic Uncap) · Credit: Jammun Hub", "One Click Loud")
     local targetPage    = createCategory("Target",            "🎯", 1,   "Omnipresent hidden-player seeker & server-wide lock", "Target")
     local movePage      = createCategory("Performance",       "🚀", 11,  "60Hz Chrono-Rewind, WalkSpeed 500 & 4-Phase Flight", "Move & Fly")
@@ -19851,6 +19961,8 @@ local function buildMainUI()
         { key = "all",          pillLabel = "All Players 🔄", width = 118 },
         { key = "animcopy",     pillLabel = "AnimCopy",   width = 112 },
         { key = "jerktroll",    pillLabel = "JerkTroll",  width = 108 },
+        { key = "selfanim",     pillLabel = "Self",       width = 86  },
+        { key = "finger",       pillLabel = "Finger",     width = 92  },
         { key = "skydestroyer", pillLabel = "SkyDestroy", width = 114 },
         { key = "coverground",  pillLabel = "CovGround",  width = 110 },
         { key = "coversky",     pillLabel = "CoverSky",   width = 104 },
@@ -19911,6 +20023,7 @@ local function buildMainUI()
         if key == "coverflash" then return _G._HaloCoverFlashActive == true end
         if key == "animcopy" then return (AnimCopySys and AnimCopySys.active == true) end
         if key == "jerktroll" then return (EmoteHub and EmoteHub.jerkActive == true) end
+        if key == "selfanim" then return (_G.CocoSelfTrollAnim and _G.CocoSelfTrollAnim.active == true) end
         if key == "rewind" then return RewindSys.rewinding == true end
         if key == "fly" then return (moveState and (moveState.fly == true or moveState.flyLanding == true)) end
         if key == "fling" or key == "voidthrow" then return FlingActive == true end
@@ -20050,6 +20163,13 @@ local function buildMainUI()
         end
         if key == "jerktroll" then
             EmoteHub:StartJerk()
+            syncAllActiveIndicators()
+            return
+        end
+        if key == "selfanim" then
+            if _G.CocoSelfTrollAnim and _G.CocoSelfTrollAnim.Toggle then
+                _G.CocoSelfTrollAnim.Toggle()
+            end
             syncAllActiveIndicators()
             return
         end
@@ -21100,7 +21220,7 @@ local function buildMainUI()
         -- 3-Column Quick Weld Grid (Face Bang, Backshots, Headsit, Kiss, Backpack, Headpat, Propose, FF LOL, FF Push, Hug, Choot Lelo, AnimCopy, Chase)
         local quickGridFrame = Instance.new("Frame")
         quickGridFrame.Name = "QuickWeldGrid"
-        quickGridFrame.Size = UDim2.new(1, 0, 0, 234)
+        quickGridFrame.Size = UDim2.new(1, 0, 0, 274)
         quickGridFrame.BackgroundTransparency = 1
         quickGridFrame.LayoutOrder = 4
         quickGridFrame.ZIndex = 8
@@ -21132,6 +21252,8 @@ local function buildMainUI()
             { key = "chase",     label = "Follow All" },
             { key = "vanish",    label = "Vanish 👻"  },
             { key = "vanishtgt", label = "Vanish Tgt" },
+            { key = "selfanim",  label = "Self"       },
+            { key = "finger",    label = "Finger"     },
         }
 
         local quickGridBtns = {}
@@ -21683,6 +21805,8 @@ local function buildMainUI()
         createActionRow(sigGrp, 3, "Give 'Jerk Off' Backpack Tool", "Spawns equippable Jerk Troll tool in your Backpack", "Get Tool", function()
             EmoteHub:GiveJerkTool()
         end)
+        addPresetRow(sigGrp, 3, "selfanim",  "Self",   "Plays Self troll animation (98982064034152) on yourself (toggle ON/OFF or pin ⦿)")
+        addPresetRow(sigGrp, 3, "finger",    "Finger", "Finger troll weld lock with animation (124127012123232)")
         addPresetRow(sigGrp, 4, "goon",      "Goon (Exact Face-to-Face Lock)", "Custom Coco Goon Anim (136828069054505) locked upright & facing target face 100% head-on")
         addPresetRow(sigGrp, 5, "poop",      "Poop (Above Head Front 💩)", "Roblox Catalog Poop Emote (110110691026962 + 7 fallbacks) directly above & in front of head")
         addPresetRow(sigGrp, 6, "rizz",      "Rizz (Wall Rizz Pose)",   "Zero-delay Kabedon / Wall Lean (90735295463164) + auto height solver")
@@ -29827,6 +29951,454 @@ local function buildMainUI()
     end)()
 
     -- ═══════════════════════════════════════════════════════════════════════════
+
+    -- ═══════════════════════════════════════════════════════════════════════════
+    -- COCO CHAT (Normal Chat Spam & Target Roast Chat Spam)
+    -- ═══════════════════════════════════════════════════════════════════════════
+    ;(function()
+        local function sendChat(msg)
+            task.spawn(function()
+                pcall(function()
+                    local tcs = game:GetService("TextChatService")
+                    if tcs.ChatVersion == Enum.ChatVersion.TextChatService then
+                        local cleanMsg = tostring(msg):gsub("[\r\n]+", " ")
+                        if #cleanMsg > 195 then cleanMsg = cleanMsg:sub(1, 195) end
+                        local channels = tcs:FindFirstChild("TextChannels")
+                        if channels then
+                            local ch = channels:FindFirstChild("RBXGeneral") or channels:FindFirstChild("RBXSystem")
+                            if not ch then
+                                for _, c in ipairs(channels:GetChildren()) do
+                                    if c:IsA("TextChannel") then ch = c; break end
+                                end
+                            end
+                            if ch then ch:SendAsync(cleanMsg); return end
+                        end
+                    end
+                end)
+                pcall(function()
+                    local tcs = game:GetService("TextChatService")
+                    if tcs.ChatVersion == Enum.ChatVersion.TextChatService then return end
+                    local rep = game:GetService("ReplicatedStorage")
+                    local ev = rep:FindFirstChild("DefaultChatSystemChatEvents")
+                    if ev then
+                        local say = ev:FindFirstChild("SayMessageRequest")
+                        if say then say:FireServer(msg, "All") end
+                    end
+                end)
+            end)
+        end
+
+        local function createCocoChatInput(parent, order, labelText, placeholder, defaultVal)
+            local wrap = Instance.new("Frame")
+            wrap.Size = UDim2.new(1, 0, 0, 56)
+            wrap.BackgroundTransparency = 1
+            wrap.LayoutOrder = order
+            wrap.ZIndex = 9
+            wrap.Parent = parent
+
+            local lbl = Instance.new("TextLabel")
+            lbl.Size = UDim2.new(1, 0, 0, 16)
+            lbl.BackgroundTransparency = 1
+            lbl.Text = labelText
+            lbl.TextColor3 = T.Muted
+            lbl.Font = Enum.Font.GothamBold
+            lbl.TextSize = 10
+            lbl.TextXAlignment = Enum.TextXAlignment.Left
+            lbl.ZIndex = 10
+            lbl.Parent = wrap
+
+            local box = Instance.new("TextBox")
+            box.Size = UDim2.new(1, 0, 0, 34)
+            box.Position = UDim2.new(0, 0, 0, 20)
+            box.BackgroundColor3 = T.BG2
+            box.BorderSizePixel = 0
+            box.Text = defaultVal or ""
+            box.PlaceholderText = placeholder or ""
+            box.TextColor3 = T.Text
+            box.PlaceholderColor3 = T.Muted
+            box.Font = Enum.Font.Gotham
+            box.TextSize = 12
+            box.ClearTextOnFocus = false
+            box.TextXAlignment = Enum.TextXAlignment.Left
+            box.ZIndex = 10
+            box.Parent = wrap
+            Instance.new("UICorner", box).CornerRadius = UDim.new(0, 8)
+            local st = Instance.new("UIStroke")
+            st.Color = T.Border
+            st.Thickness = 1
+            st.Parent = box
+            local pad = Instance.new("UIPadding")
+            pad.PaddingLeft = UDim.new(0, 10)
+            pad.PaddingRight = UDim.new(0, 10)
+            pad.Parent = box
+
+            return box
+        end
+
+        local function createCocoChatCard(order)
+            local card = createGroupCard(cocoChatPage, order)
+            local inner = Instance.new("Frame")
+            inner.Size = UDim2.new(1, 0, 0, 0)
+            inner.AutomaticSize = Enum.AutomaticSize.Y
+            inner.BackgroundTransparency = 1
+            inner.ZIndex = 8
+            inner.Parent = card
+
+            local pad = Instance.new("UIPadding")
+            pad.PaddingTop = UDim.new(0, 10)
+            pad.PaddingBottom = UDim.new(0, 10)
+            pad.PaddingLeft = UDim.new(0, 12)
+            pad.PaddingRight = UDim.new(0, 12)
+            pad.Parent = inner
+
+            local lay = Instance.new("UIListLayout")
+            lay.SortOrder = Enum.SortOrder.LayoutOrder
+            lay.Padding = UDim.new(0, 8)
+            lay.Parent = inner
+
+            return inner
+        end
+
+        local normalSpamActive = false
+        local normalSpamThread = nil
+        local roastSpamActive = false
+        local roastSpamThread = nil
+
+        -- PART 1: NORMAL CHAT SPAM
+        createSectionTitle(cocoChatPage, 1, "NORMAL CHAT SPAM")
+        local normalCard = createCocoChatCard(2)
+
+        local msgInput = createCocoChatInput(normalCard, 1, "MESSAGE", "Type your spam message here...", "")
+        local delayInput = createCocoChatInput(normalCard, 2, "DELAY (seconds)", "e.g. 1.0  (min 0.2)", "1.0")
+
+        local normalBtnRow = Instance.new("Frame")
+        normalBtnRow.Size = UDim2.new(1, 0, 0, 34)
+        normalBtnRow.BackgroundTransparency = 1
+        normalBtnRow.LayoutOrder = 3
+        normalBtnRow.ZIndex = 9
+        normalBtnRow.Parent = normalCard
+
+        local startNormalBtn = Instance.new("TextButton")
+        startNormalBtn.Size = UDim2.new(0.48, 0, 1, 0)
+        startNormalBtn.BackgroundColor3 = T.Accent2
+        startNormalBtn.BorderSizePixel = 0
+        startNormalBtn.Text = "START SPAM"
+        startNormalBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        startNormalBtn.Font = Enum.Font.GothamBold
+        startNormalBtn.TextSize = 11
+        startNormalBtn.AutoButtonColor = false
+        startNormalBtn.ZIndex = 10
+        startNormalBtn.Parent = normalBtnRow
+        Instance.new("UICorner", startNormalBtn).CornerRadius = UDim.new(0, 8)
+
+        local stopNormalBtn = Instance.new("TextButton")
+        stopNormalBtn.Size = UDim2.new(0.48, 0, 1, 0)
+        stopNormalBtn.Position = UDim2.new(0.52, 0, 0, 0)
+        stopNormalBtn.BackgroundColor3 = T.PanelLt
+        stopNormalBtn.BorderSizePixel = 0
+        stopNormalBtn.Text = "STOP SPAM"
+        stopNormalBtn.TextColor3 = T.Muted
+        stopNormalBtn.Font = Enum.Font.GothamBold
+        stopNormalBtn.TextSize = 11
+        stopNormalBtn.AutoButtonColor = false
+        stopNormalBtn.ZIndex = 10
+        stopNormalBtn.Parent = normalBtnRow
+        Instance.new("UICorner", stopNormalBtn).CornerRadius = UDim.new(0, 8)
+        local stopNormalStroke = Instance.new("UIStroke")
+        stopNormalStroke.Color = T.Border
+        stopNormalStroke.Thickness = 1
+        stopNormalStroke.Parent = stopNormalBtn
+
+        local normalStatusLbl = Instance.new("TextLabel")
+        normalStatusLbl.Size = UDim2.new(1, 0, 0, 18)
+        normalStatusLbl.BackgroundTransparency = 1
+        normalStatusLbl.Text = "Status: IDLE"
+        normalStatusLbl.TextColor3 = T.Muted
+        normalStatusLbl.Font = Enum.Font.GothamMedium
+        normalStatusLbl.TextSize = 10
+        normalStatusLbl.TextXAlignment = Enum.TextXAlignment.Left
+        normalStatusLbl.LayoutOrder = 4
+        normalStatusLbl.ZIndex = 10
+        normalStatusLbl.Parent = normalCard
+
+        local function stopNormalSpam()
+            normalSpamActive = false
+            if normalSpamThread then
+                pcall(function() task.cancel(normalSpamThread) end)
+                normalSpamThread = nil
+            end
+            startNormalBtn.BackgroundColor3 = T.Accent2
+            stopNormalBtn.BackgroundColor3 = T.PanelLt
+            stopNormalBtn.TextColor3 = T.Muted
+            normalStatusLbl.Text = "Status: IDLE"
+            normalStatusLbl.TextColor3 = T.Muted
+        end
+
+        startNormalBtn.MouseButton1Click:Connect(function()
+            local msg = msgInput.Text
+            if msg == "" then
+                normalStatusLbl.Text = "Status: Enter a message first!"
+                normalStatusLbl.TextColor3 = T.Danger
+                return
+            end
+            local d = math.max(0.2, tonumber(delayInput.Text) or 1)
+            stopNormalSpam()
+            normalSpamActive = true
+            startNormalBtn.BackgroundColor3 = T.Success
+            stopNormalBtn.BackgroundColor3 = T.Danger
+            stopNormalBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            normalStatusLbl.Text = "Status: SPAMMING  " .. string.format("%.1f", d) .. "s interval"
+            normalStatusLbl.TextColor3 = T.Success
+
+            normalSpamThread = task.spawn(function()
+                local antiDupTags = { "", " .", " ..", " -", " ~", " ,", " '" }
+                local dupIdx = 0
+                while normalSpamActive do
+                    local liveMsg = msgInput.Text
+                    local liveDelay = math.max(0.2, tonumber(delayInput.Text) or 1)
+                    if liveMsg ~= "" then
+                        dupIdx = (dupIdx % #antiDupTags) + 1
+                        local outMsg = liveMsg
+                        if #outMsg + #antiDupTags[dupIdx] <= 195 then
+                            outMsg = outMsg .. antiDupTags[dupIdx]
+                        end
+                        sendChat(outMsg)
+                    end
+                    task.wait(liveDelay)
+                end
+            end)
+        end)
+
+        stopNormalBtn.MouseButton1Click:Connect(stopNormalSpam)
+
+        -- PART 2: TARGET ROAST CHAT SPAM
+        createSectionTitle(cocoChatPage, 3, "TARGET ROAST CHAT SPAM")
+        local roastCard = createCocoChatCard(4)
+
+        local targetInput = createCocoChatInput(roastCard, 1, "TARGET NAME", "Enter target name...", "PLAYER")
+        local roastDelayInput = createCocoChatInput(roastCard, 2, "DELAY (seconds)", "e.g. 4.0  (min 0.2)", "4.0")
+        local symbolInput = createCocoChatInput(roastCard, 3, "SYMBOL STYLE", "e.g. _  or  smart", "_")
+
+        local roastBtnRow = Instance.new("Frame")
+        roastBtnRow.Size = UDim2.new(1, 0, 0, 34)
+        roastBtnRow.BackgroundTransparency = 1
+        roastBtnRow.LayoutOrder = 4
+        roastBtnRow.ZIndex = 9
+        roastBtnRow.Parent = roastCard
+
+        local startRoastBtn = Instance.new("TextButton")
+        startRoastBtn.Size = UDim2.new(0.48, 0, 1, 0)
+        startRoastBtn.BackgroundColor3 = T.Accent2
+        startRoastBtn.BorderSizePixel = 0
+        startRoastBtn.Text = "START SPAM"
+        startRoastBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        startRoastBtn.Font = Enum.Font.GothamBold
+        startRoastBtn.TextSize = 11
+        startRoastBtn.AutoButtonColor = false
+        startRoastBtn.ZIndex = 10
+        startRoastBtn.Parent = roastBtnRow
+        Instance.new("UICorner", startRoastBtn).CornerRadius = UDim.new(0, 8)
+
+        local stopRoastBtn = Instance.new("TextButton")
+        stopRoastBtn.Size = UDim2.new(0.48, 0, 1, 0)
+        stopRoastBtn.Position = UDim2.new(0.52, 0, 0, 0)
+        stopRoastBtn.BackgroundColor3 = T.PanelLt
+        stopRoastBtn.BorderSizePixel = 0
+        stopRoastBtn.Text = "STOP SPAM"
+        stopRoastBtn.TextColor3 = T.Muted
+        stopRoastBtn.Font = Enum.Font.GothamBold
+        stopRoastBtn.TextSize = 11
+        stopRoastBtn.AutoButtonColor = false
+        stopRoastBtn.ZIndex = 10
+        stopRoastBtn.Parent = roastBtnRow
+        Instance.new("UICorner", stopRoastBtn).CornerRadius = UDim.new(0, 8)
+        local stopRoastStroke = Instance.new("UIStroke")
+        stopRoastStroke.Color = T.Border
+        stopRoastStroke.Thickness = 1
+        stopRoastStroke.Parent = stopRoastBtn
+
+        local roastStatusLbl = Instance.new("TextLabel")
+        roastStatusLbl.Size = UDim2.new(1, 0, 0, 18)
+        roastStatusLbl.BackgroundTransparency = 1
+        roastStatusLbl.Text = "Status: IDLE"
+        roastStatusLbl.TextColor3 = T.Muted
+        roastStatusLbl.Font = Enum.Font.GothamMedium
+        roastStatusLbl.TextSize = 10
+        roastStatusLbl.TextXAlignment = Enum.TextXAlignment.Left
+        roastStatusLbl.LayoutOrder = 5
+        roastStatusLbl.ZIndex = 10
+        roastStatusLbl.Parent = roastCard
+
+        local tbl17 = {
+									"@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
+									"______________________________________________________________________________________________________________________________________________________________________________",
+									"@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_@_",
+									"````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````",
+									"-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`-`",
+									"P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P_P",
+									"0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_0_o_",
+									"Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~Q-~",
+									"Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_Z_",
+									"I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_I_",
+									"D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=D=",
+									"Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)Q_)",
+									"~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~",
+									"G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^G^",
+									"T_%_V_T_%_V_T_%_V_T_%_V_T_%_V_T_%_V_T_%_V_T_%_V_T_%_V_T_%_V_T_%_V_T_%_V_T_%_V_T_%_V_T_%_V_T_%_V_T_%_V_T_%_V_T_%_V_T_%_V_T_%_V_T_%_V_T_%_V_T_%_V_T_%_V_T_%_V_T_%_V_T_%_V_T_%_V_T_%_",
+									"\"HI\"_\"HI\"_\"HI\"_\"HI\"_\"HI\"_\"HI\"_\"HI\"_\"HI\"_\"HI\"_\"HI\"_\"HI\"_\"HI\"_\"HI\"_\"HI\"_\"HI\"_\"HI\"_\"HI\"_\"HI\"_\"HI\"_\"HI\"_\"HI\"_\"HI\"_\"HI\"_\"HI\"_\"HI\"_\"HI\"_\"HI\"_\"HI\"_\"HI\"_\"HI\"_\"HI\"_\"HI\"_\"HI\"_",
+									"[forbid]_[forbid]_[forbid]_[forbid]_[forbid]_[forbid]_[forbid]_[forbid]_[forbid]_[forbid]_[forbid]_[forbid]_[forbid]_[forbid]_[forbid]_[forbid]_[forbid]_[forbid]_[forbid]",
+									"?sudo_?sudo_?sudo_?sudo_?sudo_?sudo_?sudo_?sudo_?sudo_?sudo_?sudo_?sudo_?sudo_?sudo_?sudo_?sudo_?sudo_?sudo_?sudo_?sudo_?sudo_?sudo_?sudo_",
+									"[check]+[check]+[check]+[check]+[check]+[check]+[check]+[check]+[check]+[check]+[check]+[check]+[check]+[check]+[check]+[check]+[check]+",
+									"_F_O_R_B_I_D__F_O_R_B_I_D__F_O_R_B_I_D__F_O_R_B_I_D__F_O_R_B_I_D__F_O_R_B_I_D__F_O_R_B_I_D__F_O_R_B_I_D__F_O_R_B_I_D__F_O_R_B_I_D_",
+									"` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` ` `",
+									"x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_x_",
+									"0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_0_",
+									"+_-_-+_-_-+_-_-+_-_-+_-_-+_-_-+_-_-+_-_-+_-_-+_-_-+_-_-+_-_-+_-_-+_-_-+_-_-+_-_-+_-_-_",
+									">_<_>_<_>_<_>_<_>_<_>_<_>_<_>_<_>_<_>_<_>_<_>_<_>_<_>_<_>_<_>_<_>_<_>_<_>_<_>_<_>_<_>_<",
+									"V_V_V_V_V_V_V_V_V_V_V_V_V_V_V_V_V_V_V_V_V_V_V_V_V_V_V_V_V_V_V_V_V_V_V_V_V_V_V_V_V_V_V_V_",
+									"///_///_///_///_///_///_///_///_///_///_///_///_///_///_///_///_///_///_///_///_///_///_",
+									"|||_|||_|||_|||_|||_|||_|||_|||_|||_|||_|||_|||_|||_|||_|||_|||_|||_|||_|||_|||_|||_|||_",
+									"===_===_===_===_===_===_===_===_===_===_===_===_===_===_===_===_===_===_===_===_===_===_",
+									"8=8=8=8=8=8=8=8=8=8=8=8=8=8=8=8=8=8=8=8=8=8=8=8=8=8=8=8=8=8=8=8=8=8=8=8=8=8=8=8=8=8=8=8=",
+									"~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~",
+									"$_$_$_$_$_$_$_$_$_$_$_$_$_$_$_$_$_$_$_$_$_$_$_$_$_$_$_$_$_$_$_$_$_$_$_$_$_$_$_$_$_$_$_$_",
+									"*:_*:_*:_*:_*:_*:_*:_*:_*:_*:_*:_*:_*:_*:_*:_*:_*:_*:_*:_*:_*:_*:_*:_*:_*:_*:_*:_*:_*:_",
+								}
+
+        local tbl18 = {
+									"€^€^€^^€€^€^€^€^€^^€€^€^€^€^€^^€€^€^€^€^€^^€€^€^€^€^€^^€€^€^€^€^€^^€€^€^€^€^€^^€€^€^",
+									"π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_π_",
+									"_™_©_®_™_©_®_™_©_®_™_©_®_™_©_®_™_©_®_™_©_®_™_©_®_™_©_®_™_©_®_™_©_®_™_©_®_™_©_®_™_©_®_™_©",
+									"§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~§~",
+									"∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_∞_",
+									"→_→_→_→_→_→_→_→_→_→_→_→_→_→_→_→_→_→_→_→_→_→_→_→_→_→_→_→_→_→_→_→_→_→_→_→_→_→_→_→_→_→_→→→_→_",
+									"Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_Ω_",
+									"⅒_⅒_⅒_⅒_⅒_⅒_⅒_⅒_⅒_⅒_⅒_⅒_⅒_⅒_⅒_⅒_⅒_⅒_⅒_⅒_⅒_⅒_⅒_⅒_⅒_⅒_⅒_⅒_⅒_⅒_⅒_",
+									"∅__∅__∅__∅__∅__∅__∅__∅__∅__∅__∅__∅__∅__∅__∅__∅__∅__∅__∅__∅__∅__∅__∅__∅__∅__∅__∅__∅__∅__∅__∅__∅__∅__∅__∅__∅__",
+									"‰__‰__‰__‰__‰__‰__‰__‰__‰__‰__‰__‰__‰__‰__‰__‰__‰__‰__‰__‰__‰__‰__‰__",
+									"№_№_№_№_№_№_№_№_№_№_№_№_№_№_№_№_№_№_№_№_№_№_№_№_№_№_",
+									"¶_Ω_¶_Ω_¶_Ω_¶_Ω_¶_Ω_¶_Ω_¶_Ω_¶_Ω_¶_Ω_¶_Ω_¶_Ω_¶_Ω_¶_Ω_¶_Ω_¶_Ω_¶_Ω_¶_Ω_¶_Ω_¶_Ω_¶_Ω_¶_Ω_¶_Ω_¶_Ω_¶_Ω_¶_Ω_¶_Ω_¶_Ω_¶_Ω_¶_Ω_¶_Ω_¶_Ω_",
+								}
+
+        local tbl19 = {}
+        for _, v in ipairs(tbl17) do table.insert(tbl19, v) end
+        for _, v in ipairs(tbl18) do table.insert(tbl19, v) end
+
+        local lastSymIdx = 0
+        local function pickSymbolPattern(symStyle)
+            if symStyle == "smart" or symStyle == "_" or symStyle == "" then
+                local idx = math.random(1, #tbl19)
+                if idx == lastSymIdx then
+                    idx = (idx % #tbl19) + 1
+                end
+                lastSymIdx = idx
+                return tbl19[idx], (idx > #tbl17)
+            end
+            if #symStyle >= 25 then
+                return symStyle, false
+            end
+            return string.rep(symStyle, math.max(1, math.floor(150 / math.max(1, #symStyle)))), false
+        end
+
+        local function pickRoastTag()
+            local str3 = string.upper((LP and (LP.DisplayName or LP.Name)) or "COCO")
+            local tbl20 = {
+                "[TMX MEH GARAM TEL]",
+                "[TMX MEH CHILKA]",
+                "[TMX MEH PAW BHAJI]",
+                "[TMX MEH CHOLE BHATURE]",
+                "[TMX MEH MOMO]",
+                "[TMX MEH DANDA]",
+                "[TMX MEH BELAN]",
+                "[TMX MEH KADHAI]",
+                "[TMX MEH CHAMACH]",
+                "[TMX MEH JHADU]",
+                "[TMX MEH PANKHA]",
+                "[TMX MEH CHAPPAL]",
+                "[TMX MEH PADOSI]",
+                "[TMX MEH BHAINS]",
+                "[TMX MEH GADHA]",
+                "[TMX MEH BANDAR]",
+                "[TMX MEH " .. str3 .. "]",
+                "[TMX MEH " .. str3 .. " KA DANDA]",
+                "[TMX MEH MIRCHI]",
+                "[TMX MEH NIMBU]",
+            }
+            return tbl20[math.random(1, #tbl20)]
+        end
+
+        local function buildRoastMessage(tgtName, symStyle)
+            local pat, isUnicode = pickSymbolPattern(symStyle)
+            local tag = pickRoastTag()
+            local tcs = game:GetService("TextChatService")
+            local sep = (tcs.ChatVersion == Enum.ChatVersion.TextChatService) and " " or "\n"
+            local suffix = sep .. tgtName .. " " .. tag .. " >"
+            local maxTotal = isUnicode and 60 or 145
+            local budget = math.max(8, maxTotal - (#suffix + 2))
+            local prefix = pat
+            if #prefix > budget then
+                local okU, bytePos = pcall(function() return utf8.offset(prefix, budget) end)
+                if okU and bytePos and bytePos > 1 then
+                    prefix = string.sub(prefix, 1, bytePos - 1)
+                else
+                    prefix = string.sub(prefix, 1, budget)
+                end
+            end
+            return prefix .. suffix
+        end
+
+        local function stopRoastSpam()
+            roastSpamActive = false
+            if roastSpamThread then
+                pcall(function() task.cancel(roastSpamThread) end)
+                roastSpamThread = nil
+            end
+            startRoastBtn.BackgroundColor3 = T.Accent2
+            stopRoastBtn.BackgroundColor3 = T.PanelLt
+            stopRoastBtn.TextColor3 = T.Muted
+            roastStatusLbl.Text = "Status: IDLE"
+            roastStatusLbl.TextColor3 = T.Muted
+        end
+
+        startRoastBtn.MouseButton1Click:Connect(function()
+            local tgt = targetInput.Text
+            if tgt == "" then tgt = "PLAYER" end
+            local d = math.max(0.2, tonumber(roastDelayInput.Text) or 4)
+            stopRoastSpam()
+            roastSpamActive = true
+            startRoastBtn.BackgroundColor3 = T.Success
+            stopRoastBtn.BackgroundColor3 = T.Danger
+            stopRoastBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            roastStatusLbl.Text = "Status: SPAMMING -> " .. tgt .. "  (" .. string.format("%.1f", d) .. "s)"
+            roastStatusLbl.TextColor3 = T.Success
+
+            roastSpamThread = task.spawn(function()
+                local tcs = game:GetService("TextChatService")
+                local sep = (tcs.ChatVersion == Enum.ChatVersion.TextChatService) and " " or "\n"
+                local pat = tbl17[math.random(1, #tbl17)]
+                local dispName = string.upper((LP and (LP.DisplayName or LP.Name)) or "COCO")
+                sendChat(string.sub(pat, 1, 110) .. sep .. dispName .. " ON TOP >")
+                task.wait(math.max(0.2, tonumber(roastDelayInput.Text) or 4))
+                while roastSpamActive do
+                    local liveTgt = targetInput.Text
+                    if liveTgt == "" then liveTgt = "PLAYER" end
+                    local liveSym = symbolInput.Text
+                    if liveSym == "" then liveSym = "_" end
+                    local liveDelay = math.max(0.2, tonumber(roastDelayInput.Text) or 4)
+                    sendChat(buildRoastMessage(liveTgt, liveSym))
+                    task.wait(liveDelay)
+                end
+            end)
+        end)
+
+        stopRoastBtn.MouseButton1Click:Connect(stopRoastSpam)
+
+        _G.CocoChatStopAll = function()
+            stopNormalSpam()
+            stopRoastSpam()
+        end
+    end)()
+
     -- FOOTER UNWELD, MINIMIZE, SETTINGS DIALOG & KEYBINDS
     -- ═══════════════════════════════════════════════════════════════════════════
     btnUnweld.MouseButton1Click:Connect(function()
@@ -29905,6 +30477,12 @@ local function buildMainUI()
         if EmoteHub then
             pcall(function() EmoteHub:StopEmote() end)
             pcall(function() EmoteHub:StopJerk() end)
+        end
+        if _G.CocoSelfTrollAnim and type(_G.CocoSelfTrollAnim.Stop) == "function" then
+            pcall(_G.CocoSelfTrollAnim.Stop)
+        end
+        if type(_G.CocoChatStopAll) == "function" then
+            pcall(_G.CocoChatStopAll)
         end
         for uid, _ in pairs(OverheadTagGuis) do
             removeOverheadTagForUser(uid)
