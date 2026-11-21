@@ -243,7 +243,7 @@ local function isR15(player)
     return hum ~= nil and hum.RigType == Enum.HumanoidRigType.R15
 end
 
-local V = { X = 0, Y = 0, Z = 1.3, RX = 0, RY = 0, RZ = 0, Speed = 1.0, AutoHeight = true, LastAutoY = 0 }
+local V = { X = 0, Y = 0, Z = 1.3, RX = 0, RY = 0, RZ = 0, Speed = 1.0, AutoHeight = true, LastAutoY = 0, SideMode = "auto", DistAdd = 0 }
 
 local CurrentWeld         = nil
 local CurrentTarget       = nil
@@ -2047,13 +2047,29 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
         if isLethalVoidCF(TargetPart.CFrame, tVel) then return end
 
         local customAdjust = getStaticPresetAdjust()
-        local localOffset = Offset * customAdjust
+        local sideMode = V.SideMode or "auto"
+        local distAdd  = V.DistAdd or 0
+        local effOffset = Offset
+        if sideMode == "front" then
+            local ox, oy, oz = Offset.Position.X, Offset.Position.Y, Offset.Position.Z
+            local d = math.max(0.4, math.abs(oz) + distAdd)
+            effOffset = CFrame.new(ox, oy, -d) * CFrame.Angles(0, math.rad(180), 0)
+        elseif sideMode == "back" then
+            local ox, oy, oz = Offset.Position.X, Offset.Position.Y, Offset.Position.Z
+            local d = math.max(0.4, math.abs(oz) + distAdd)
+            effOffset = CFrame.new(ox, oy, d)
+        elseif distAdd ~= 0 then
+            local oz = Offset.Position.Z
+            local signZ = (oz < 0) and -1 or 1
+            effOffset = CFrame.new(0, 0, signZ * distAdd) * Offset
+        end
+        local localOffset = effOffset * customAdjust
         if Osc and Osc.period and Osc.period > 0 then
             local phase = (math.sin(clock * (2 * math.pi) / Osc.period) + 1) * 0.5
             localOffset = localOffset * CFrame.new(0, 0, -Osc.distance * phase)
         end
         local attachCF
-        if PresetKey == "goon" then
+        if PresetKey == "goon" and sideMode == "auto" then
             -- Exact Face-to-Face Lock: stays completely upright (flat yaw) and faces target player's face eye-to-eye
             local tHead = (TargetChar and TargetChar:FindFirstChild("Head")) or TargetPart
             local flatHeadCF = getFlatYawCFrame(tHead.CFrame, tHead.Position)
@@ -2063,25 +2079,25 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
                 local dy = myHead.Position.Y - Root.Position.Y
                 if dy > 0.3 and dy < 4.5 then myHeadToRootY = dy end
             end
-            local exactPos = (flatHeadCF * CFrame.new(0, -myHeadToRootY, -1.65) * customAdjust).Position
+            local exactPos = (flatHeadCF * CFrame.new(0, -myHeadToRootY, -math.max(0.4, 1.65 + distAdd)) * customAdjust).Position
             local faceTargetPt = Vector3.new(tHead.Position.X, exactPos.Y, tHead.Position.Z)
             if (faceTargetPt - exactPos).Magnitude > 0.05 then
                 attachCF = CFrame.lookAt(exactPos, faceTargetPt, Vector3.yAxis)
             else
                 attachCF = flatHeadCF * CFrame.new(0, -myHeadToRootY, -1.65) * CFrame.Angles(0, math.rad(180), 0) * customAdjust
             end
-        elseif PresetKey == "poop" then
+        elseif PresetKey == "poop" and sideMode == "auto" then
             -- Directly Above & In Front of Target's Head, facing BACKWARDS (180° away from target player)
             local tHead = (TargetChar and TargetChar:FindFirstChild("Head")) or TargetPart
             local flatHeadCF = getFlatYawCFrame(tHead.CFrame, tHead.Position)
-            local poopPos = (flatHeadCF * CFrame.new(0, 2.35, -0.85) * customAdjust).Position
+            local poopPos = (flatHeadCF * CFrame.new(0, 2.35, -math.max(0.2, 0.85 + distAdd)) * customAdjust).Position
             local lookPt = Vector3.new(tHead.Position.X, poopPos.Y, tHead.Position.Z)
             if (lookPt - poopPos).Magnitude > 0.05 then
                 attachCF = CFrame.lookAt(poopPos, lookPt, Vector3.yAxis) * CFrame.Angles(0, math.rad(180), 0)
             else
                 attachCF = flatHeadCF * CFrame.new(0, 2.35, -0.85) * customAdjust
             end
-        elseif PresetKey == "selfanim" or PresetKey == "finger" or TargetPart.Name ~= "HumanoidRootPart" then
+        elseif sideMode ~= "auto" or PresetKey == "selfanim" or PresetKey == "finger" or TargetPart.Name ~= "HumanoidRootPart" then
             attachCF = getFlatYawCFrame(TargetPart.CFrame, TargetPart.Position) * localOffset
         else
             attachCF = TargetPart.CFrame * localOffset
@@ -19901,7 +19917,7 @@ local function buildMainUI()
     local skyPage       = createCategory("Coca Sky Destroyer","💥", 9,   "3D Layered Clothing & Glitch Walker Sky, Ground & Cube Matrix Destroyer", "Coca Sky")
     local emotePage     = createCategory("Emotes",            "💃", 315, "315+ searchable catalog emotes, viral dances, dog/moonwalk & custom IDs", "Emotes")
     local weldPage      = createCategory("Weld & Troll",      "⚡", 15,  "Dynamic height-adaptive welds, FF LOL, FF Push, jerk troll, void throws & pins", "Weld & Troll")
-    local cocoChatPage  = createCategory("Coco Chat",         "💬", 2,   "Normal chat spam & target roast chat spam", "Coco Chat")
+    local cocoChatPage  = createCategory("Coco Chat",         "💬", 3,   "Normal spam, target roast spam & Jamun roast/clan/message spam", "Coco Chat")
     local loudPage      = createCategory("One Click Loud",    "🔊", 4,   "Mic Up v4.0 Advanced Max-Loudness Controller (4 profiles, 1x–10x stack, Mic Uncap) · Credit: Jammun Hub", "One Click Loud")
     local targetPage    = createCategory("Target",            "🎯", 1,   "Omnipresent hidden-player seeker & server-wide lock", "Target")
     local movePage      = createCategory("Performance",       "🚀", 11,  "60Hz Chrono-Rewind, WalkSpeed 500 & 4-Phase Flight", "Move & Fly")
@@ -19933,6 +19949,7 @@ local function buildMainUI()
         { key = "jerktroll",    pillLabel = "JerkTroll",  width = 108 },
         { key = "selfanim",     pillLabel = "Self",       width = 86  },
         { key = "finger",       pillLabel = "Finger",     width = 92  },
+        { key = "sideflip",     pillLabel = "Front/Back", width = 108 },
         { key = "skydestroyer", pillLabel = "SkyDestroy", width = 114 },
         { key = "coverground",  pillLabel = "CovGround",  width = 110 },
         { key = "coversky",     pillLabel = "CoverSky",   width = 104 },
@@ -19993,6 +20010,7 @@ local function buildMainUI()
         if key == "coverflash" then return _G._HaloCoverFlashActive == true end
         if key == "animcopy" then return (AnimCopySys and AnimCopySys.active == true) end
         if key == "jerktroll" then return (EmoteHub and EmoteHub.jerkActive == true) end
+        if key == "sideflip" then return (V.SideMode == "front" or V.SideMode == "back") end
         if key == "rewind" then return RewindSys.rewinding == true end
         if key == "fly" then return (moveState and (moveState.fly == true or moveState.flyLanding == true)) end
         if key == "fling" or key == "voidthrow" then return FlingActive == true end
@@ -20133,6 +20151,19 @@ local function buildMainUI()
         if key == "jerktroll" then
             EmoteHub:StartJerk()
             syncAllActiveIndicators()
+            return
+        end
+        if key == "sideflip" then
+            if V.SideMode == "front" then
+                V.SideMode = "back"
+            elseif V.SideMode == "back" then
+                V.SideMode = "auto"
+            else
+                V.SideMode = "front"
+            end
+            if type(_G.CocoSyncSideDistBar) == "function" then pcall(_G.CocoSyncSideDistBar) end
+            syncAllActiveIndicators()
+            notify("COCO POWDER", "Troll Position: " .. string.upper(V.SideMode))
             return
         end
         if key == "vanish" then
@@ -21258,6 +21289,137 @@ local function buildMainUI()
             quickGridBtns[item.key] = { btn = gb, stroke = gStroke, dot = gDot, label = item.label }
         end
 
+
+        -- 1-Click Troll Position (Front / Back) & Distance Adjust Bar
+        ;(function()
+            local posBar = Instance.new("Frame")
+            posBar.Name = "OneClickPosDistBar"
+            posBar.Size = UDim2.new(1, 0, 0, 62)
+            posBar.BackgroundColor3 = T.BG2
+            posBar.BorderSizePixel = 0
+            posBar.LayoutOrder = 4
+            posBar.ZIndex = 8
+            posBar.Parent = wrapperSection
+            Instance.new("UICorner", posBar).CornerRadius = UDim.new(0, 9)
+            local pStroke = Instance.new("UIStroke")
+            pStroke.Color = T.Border
+            pStroke.Thickness = 1
+            pStroke.Parent = posBar
+
+            local hdrLbl = Instance.new("TextLabel")
+            hdrLbl.Size = UDim2.new(0.62, 0, 0, 18)
+            hdrLbl.Position = UDim2.new(0, 10, 0, 4)
+            hdrLbl.BackgroundTransparency = 1
+            hdrLbl.Text = "⚡ 1-Click Troll Side & Distance"
+            hdrLbl.TextColor3 = T.Muted
+            hdrLbl.Font = Enum.Font.GothamBold
+            hdrLbl.TextSize = 10
+            hdrLbl.TextXAlignment = Enum.TextXAlignment.Left
+            hdrLbl.ZIndex = 9
+            hdrLbl.Parent = posBar
+
+            local statusPill = Instance.new("TextLabel")
+            statusPill.Size = UDim2.new(0.36, -10, 0, 18)
+            statusPill.Position = UDim2.new(0.64, 0, 0, 4)
+            statusPill.BackgroundTransparency = 1
+            statusPill.Text = "AUTO · +0.0"
+            statusPill.TextColor3 = T.Accent
+            statusPill.Font = Enum.Font.GothamBold
+            statusPill.TextSize = 10
+            statusPill.TextXAlignment = Enum.TextXAlignment.Right
+            statusPill.ZIndex = 9
+            statusPill.Parent = posBar
+
+            local btnRow = Instance.new("Frame")
+            btnRow.Size = UDim2.new(1, -16, 0, 30)
+            btnRow.Position = UDim2.new(0, 8, 0, 26)
+            btnRow.BackgroundTransparency = 1
+            btnRow.ZIndex = 9
+            btnRow.Parent = posBar
+
+            local rowLay = Instance.new("UIListLayout")
+            rowLay.FillDirection = Enum.FillDirection.Horizontal
+            rowLay.SortOrder = Enum.SortOrder.LayoutOrder
+            rowLay.Padding = UDim.new(0, 5)
+            rowLay.Parent = btnRow
+
+            local function mkPosBtn(order, wScale, text)
+                local b = Instance.new("TextButton")
+                b.Size = UDim2.new(wScale, -4, 1, 0)
+                b.BackgroundColor3 = T.Panel
+                b.BorderSizePixel = 0
+                b.Text = text
+                b.TextColor3 = T.Text
+                b.Font = Enum.Font.GothamBold
+                b.TextSize = 10
+                b.AutoButtonColor = false
+                b.LayoutOrder = order
+                b.ZIndex = 10
+                b.Parent = btnRow
+                Instance.new("UICorner", b).CornerRadius = UDim.new(0, 7)
+                local bs = Instance.new("UIStroke")
+                bs.Color = T.Border
+                bs.Thickness = 1
+                bs.Parent = b
+                return b, bs
+            end
+
+            local frontBtn, frontStroke = mkPosBtn(1, 0.22, "⬅ Front")
+            local backBtn,  backStroke  = mkPosBtn(2, 0.22, "Back ➡")
+            local closeBtn              = mkPosBtn(3, 0.20, "Closer -")
+            local farBtn                = mkPosBtn(4, 0.20, "Farther +")
+            local resetBtn              = mkPosBtn(5, 0.16, "↺")
+
+            local function syncBar()
+                local sm = V.SideMode or "auto"
+                local da = V.DistAdd or 0
+                statusPill.Text = string.format("%s · %+.1f", string.upper(sm), da)
+                frontBtn.BackgroundColor3 = (sm == "front") and T.Accent2 or T.Panel
+                frontStroke.Color = (sm == "front") and T.Accent or T.Border
+                backBtn.BackgroundColor3 = (sm == "back") and T.Accent2 or T.Panel
+                backStroke.Color = (sm == "back") and T.Accent or T.Border
+            end
+            _G.CocoSyncSideDistBar = syncBar
+
+            frontBtn.MouseButton1Click:Connect(function()
+                playClick()
+                V.SideMode = (V.SideMode == "front") and "auto" or "front"
+                syncBar()
+                syncAllActiveIndicators()
+            end)
+
+            backBtn.MouseButton1Click:Connect(function()
+                playClick()
+                V.SideMode = (V.SideMode == "back") and "auto" or "back"
+                syncBar()
+                syncAllActiveIndicators()
+            end)
+
+            closeBtn.MouseButton1Click:Connect(function()
+                playClick()
+                V.DistAdd = math.clamp((V.DistAdd or 0) - 0.4, -2.4, 8.0)
+                syncBar()
+            end)
+
+            farBtn.MouseButton1Click:Connect(function()
+                playClick()
+                V.DistAdd = math.clamp((V.DistAdd or 0) + 0.4, -2.4, 8.0)
+                syncBar()
+            end)
+
+            resetBtn.MouseButton1Click:Connect(function()
+                playClick()
+                V.SideMode = "auto"
+                V.DistAdd = 0
+                V.X = 0; V.Y = 0; V.Z = 1.3; V.LastAutoY = 0
+                syncBar()
+                syncAllActiveIndicators()
+                notify("COCO POWDER", "Troll side & distance reset to default")
+            end)
+
+            syncBar()
+        end)()
+
         -- Full-Width Red "Stop All" Button (Matches image_7b109c.png!)
         local stopAllBtn = Instance.new("TextButton")
         stopAllBtn.Name = "StopAllWeldBtn"
@@ -21804,6 +21966,7 @@ local function buildMainUI()
         local tuneGrp = createGroupCard(weldPage, 7)
 
         local speedCycle = { 0.5, 1.0, 1.8, 3.0, 4.5 }
+        addPresetRow(tuneGrp, 0, "sideflip", "1-Click Front / Back Flip", "Toggle active troll/weld between Front, Back & Auto (or pin ⦿ for floating button)")
         local speedIdx = 2
         createActionRow(tuneGrp, 1, "Animation Speed", "Cycle weld oscillation & track multiplier", "1.0x", function(pillBtn)
             speedIdx = (speedIdx % #speedCycle) + 1
@@ -30355,9 +30518,506 @@ local function buildMainUI()
 
         stopRoastBtn.MouseButton1Click:Connect(stopRoastSpam)
 
+
+        -- PART 3: JAMUN CHAT SPAM (ROAST / CLAN / MESSAGE — from chat_spam.lua)
+        local jamunStopFn = nil
+        do
+            local P   = Players
+            local RPS = ReplicatedStorage
+            local TC  = TextChatService
+        local CS_D  = 5      -- delay between messages (seconds)
+        local CS_M  = 200    -- max message length
+        local CS_CL = " BETA BOL BUNDBAZZ CLAN ON TOP"
+        local CS_R  = " TMKX MAI "
+
+        local CS_W = {
+            "NOOB","ROOKIE","AMATEUR","TRAINEE","BEGINNER","SLOWPOKE","SLEEPY","CLUMSY",
+            "DORK","NERD","GEEK","DWEEB","SQUISHY","WOBBLY","FUZZY","SPARKLY","GIGGLY","WIGGLY",
+            "SNAIL","TURTLE","PANDA","SLOTH","MOOSE","HAMSTER","PUPPY","KITTEN","DUCKLING","PENGUIN",
+            "NARWHAL","PLATYPUS","CAPYBARA","ALPACA","RACCOON","SQUIRREL","OTTER","BEAVER","HEDGEHOG",
+            "MEERKAT","FERRET","BUNNY","CHIPMUNK","PUFFIN","TOUCAN","FLAMINGO","MANATEE","WALRUS",
+            "PELICAN","SEAGULL","PIGEON","SPARROW","ROBIN","FINCH","WREN","MAGPIE","CROW","RAVEN",
+            "STARLING","SWALLOW","MARTIN","SWIFT","DOVE","QUAIL","PHEASANT","TURKEY","DUCK","CHICKEN",
+            "ROOSTER","PARROT","MACAW","COCKATOO","BUDGIE","CANARY",
+        }
+
+        local CS_S = {
+            RANDOM      = {"@","#","$","%","^","&","*","!","?","~","+","=","-","_",".",",",":",";","|","/","\\","<",">","[","]","{","}","(",")"},
+            AT          = {"@"},
+            HASH        = {"#"},
+            DOLLAR      = {"$"},
+            PERCENT     = {"%"},
+            STAR        = {"*"},
+            EXCLAMATION = {"!"},
+            QUESTION    = {"?"},
+            DOT         = {"."},
+            TILDE       = {"~"},
+            BRACKETS    = {"[","]","{","}","(",")","<",">"},
+            SPECIAL     = {"@","#","$","%","&","*","!"},
+            MIXED       = {"@","#","$","%","&","*","!","?"},
+        }
+        local CS_K = {"RANDOM","AT","HASH","DOLLAR","PERCENT","STAR","EXCLAMATION","QUESTION","DOT","TILDE","BRACKETS","SPECIAL","MIXED"}
+        local CS_L = {RANDOM="Random",AT="@",HASH="#",DOLLAR="$",PERCENT="%",STAR="*",EXCLAMATION="!",QUESTION="?",DOT=".",TILDE="~",BRACKETS="Brackets",SPECIAL="Special",MIXED="Mixed"}
+
+        local CS_E = {"🔥","😂","💀","🗿","😭","😎","🤡","👻","👀","💯","🚨","😍","⚡","💔","🗣️","🧠","🤖","🥶","😈","🤣","💥","✨","🙏","😱"}
+        local CS_EMOJI_S = {
+            NONE   = {},
+            RANDOM = CS_E,
+            LAUGH  = {"😂","🤣","😂"},
+            SKULL  = {"💀","☠️","💀"},
+            FIRE   = {"🔥","🔥","🔥"},
+            PARTY  = {"🎉","✨","🥳","🥳"},
+            CRY    = {"😭","😭","😭"},
+            MIXED  = {"🔥","😂","💀","✨","💯","😎"},
+        }
+        local CS_EMOJI_K = {"NONE","RANDOM","LAUGH","SKULL","FIRE","PARTY","CRY","MIXED"}
+        local CS_EMOJI_L = {NONE="None",RANDOM="Random",LAUGH="😂 Laugh",SKULL="💀 Skull",FIRE="🔥 Fire",PARTY="🎉 Party",CRY="😭 Cry",MIXED="Mixed"}
+
+        -- ============================================================================
+        -- STATE
+        -- ============================================================================
+        local csOn    = false
+        local csMode  = "roast"   -- roast | clan | message
+        local csTgt   = ""
+        local csMsg   = ""
+        local csSym   = "AT"
+        local csEmoji = "RANDOM"
+        local csIdx   = 1
+        local csCnt   = 0
+        local csMtd   = "-"
+        local csCh    = nil
+        local csLg    = nil
+        local csGen   = 0
+
+        -- optional: set these if you resolve a Player object elsewhere
+        local sel, selDisplay, selName = nil, nil, nil
+
+        -- ============================================================================
+        -- SEND
+        -- ============================================================================
+        local function gC()
+            if TC.ChatVersion ~= Enum.ChatVersion.TextChatService then return nil end
+            local ok, res = pcall(function()
+                local c = TC:FindFirstChild("TextChannels")
+                if not c then return nil end
+                return c:FindFirstChild("RBXGeneral") or c:GetChildren()[1]
+            end)
+            return ok and res or nil
+        end
+
+        local function gL()
+            local ok, res = pcall(function()
+                local d = RPS:FindFirstChild("DefaultChatSystemChatEvents")
+                if d and d:FindFirstChild("SayMessageRequest") then
+                    return d.SayMessageRequest
+                end
+            end)
+            return ok and res or nil
+        end
+
+        local function snd2(tx)
+            if #tx > CS_M then tx = tx:sub(1, CS_M) end
+            if TC.ChatVersion == Enum.ChatVersion.TextChatService then
+                if not csCh or not csCh.Parent then csCh = gC() end
+                if csCh then
+                    local ok = pcall(function() csCh:SendAsync(tx) end)
+                    if ok then csMtd = "TextChat"; return true end
+                end
+            end
+            if not csLg then csLg = gL() end
+            if csLg then
+                local ok = pcall(function() csLg:FireServer(tx, "All") end)
+                if ok then csMtd = "Legacy"; return true end
+            end
+            return false
+        end
+
+        -- ============================================================================
+        -- BUILD
+        -- ============================================================================
+        local function gS()
+            local s = CS_S[csSym] or CS_S.RANDOM
+            if csSym == "RANDOM" then
+                local x = s[csIdx]
+                csIdx = csIdx + 1
+                if csIdx > #s then csIdx = 1 end
+                return x
+            end
+            return s[math.random(1, #s)]
+        end
+
+        local function buildSymBlock(n)
+            if n <= 0 then return "" end
+            local set = CS_S[csSym] or CS_S.RANDOM
+            if #set == 1 then
+                return set[1]:rep(n)
+            end
+            if csSym == "RANDOM" then
+                local out = table.create(n)
+                for i = 1, n do out[i] = gS() end
+                return table.concat(out)
+            end
+            local out = table.create(n)
+            for i = 1, n do out[i] = set[math.random(1, #set)] end
+            return table.concat(out)
+        end
+
+        local function resolveTargetDisplay()
+            if sel then
+                local ok, dn = pcall(function() return sel.DisplayName end)
+                if ok and dn and dn ~= "" then return dn end
+                local ok2, nm = pcall(function() return sel.Name end)
+                if ok2 and nm and nm ~= "" then return nm end
+            end
+            if selDisplay and selDisplay ~= "" then return selDisplay end
+            if selName and selName ~= "" then return selName end
+            if csTgt and csTgt ~= "" then return (tostring(csTgt):gsub("^%s*@+%s*", "")) end
+            return nil
+        end
+
+        local function pickEmojis()
+            local set = CS_EMOJI_S[csEmoji] or CS_EMOJI_S.RANDOM
+            if not set or #set == 0 or csEmoji == "NONE" then return "" end
+            if csEmoji == "RANDOM" and math.random() > 0.85 then return "" end
+            local count = math.random(1, math.min(3, #set))
+            local out = ""
+            for i = 1, count do
+                out = out .. set[math.random(1, #set)]
+            end
+            return out
+        end
+
+        local function bld()
+            local c = ""
+            if csMode == "clan" then
+                c = (csTgt .. CS_CL):upper()
+            elseif csMode == "message" then
+                c = csMsg:upper()
+            else
+                local raw = resolveTargetDisplay()
+                if (raw == nil or raw == "") and csTgt and csTgt ~= "" then raw = csTgt end
+                if raw == nil or raw == "" then raw = "everyone" end
+                raw = tostring(raw):gsub("^%s*@+%s*", "")
+                c = ("@" .. raw .. " " .. CS_R .. CS_W[math.random(1, #CS_W)]):upper()
+            end
+
+            local emojiSuffix = pickEmojis()
+            -- line 1 symbols · line 2 content · line 3 emojis
+            local MIN_SYM, MAX_SYM, nl = 16, 80, 2
+            local budget = CS_M - #emojiSuffix - nl
+            local maxContent = math.max(8, budget - MIN_SYM)
+            if #c > maxContent then c = c:sub(1, maxContent) end
+            local symCount = math.clamp(budget - #c, MIN_SYM, MAX_SYM)
+            local symLine = buildSymBlock(symCount)
+            local out = symLine .. "\n" .. c .. "\n" .. emojiSuffix
+            if #out > CS_M then
+                local room = math.max(0, CS_M - #c - #emojiSuffix - nl)
+                symLine = buildSymBlock(math.min(symCount, room))
+                if #symLine > room then symLine = symLine:sub(1, room) end
+                out = symLine .. "\n" .. c .. "\n" .. emojiSuffix
+                if #out > CS_M then out = out:sub(1, CS_M) end
+            end
+            return out
+        end
+
+        -- ============================================================================
+        -- CONTROL API
+        -- ============================================================================
+        local function start(opts)
+            opts = opts or {}
+            if csOn then return false, "already running" end
+            if opts.mode then csMode = opts.mode end
+            if opts.target then csTgt = tostring(opts.target):gsub("^%s*@+%s*", "") end
+            if opts.message then csMsg = opts.message end
+            if opts.sym and CS_S[opts.sym] then csSym = opts.sym; csIdx = 1 end
+            if opts.emoji and CS_EMOJI_S[opts.emoji] then csEmoji = opts.emoji end
+            if opts.delay then CS_D = math.max(0.5, tonumber(opts.delay) or CS_D) end
+
+            if csMode == "message" and (csMsg == nil or csMsg == "") then
+                return false, "message mode needs opts.message"
+            end
+            if csMode ~= "message" and (csTgt == nil or csTgt == "") then
+                return false, "need opts.target"
+            end
+
+            csOn = true
+            csGen = csGen + 1
+            csCnt = 0
+            local gen = csGen
+            task.spawn(function()
+                while csOn and csGen == gen do
+                    local m = bld()
+                    if m ~= "" then
+                        if snd2(m) then
+                            csCnt = csCnt + 1
+                            print(string.format("[chat-spam] #%d via %s · %s", csCnt, csMtd, csMode))
+                        else
+                            warn("[chat-spam] send failed")
+                        end
+                    end
+                    task.wait(CS_D)
+                end
+            end)
+            return true
+        end
+
+        local function stop()
+            csOn = false
+            csGen = csGen + 1
+            print("[chat-spam] stopped · sent", csCnt)
+        end
+
+        -- ============================================================================
+        -- GLOBALS
+        -- ============================================================================
+        _G.JamunChatSpam = {
+            start   = start,
+            stop    = stop,
+            isOn    = function() return csOn end,
+            count   = function() return csCnt end,
+            method  = function() return csMtd end,
+            setMode = function(m) if m == "roast" or m == "clan" or m == "message" then csMode = m end end,
+            setSym  = function(k) if CS_S[k] then csSym = k; csIdx = 1 end end,
+            setEmoji= function(k) if CS_EMOJI_S[k] then csEmoji = k end end,
+            setDelay= function(d) CS_D = math.max(0.5, tonumber(d) or CS_D) end,
+            setTarget = function(t) csTgt = tostring(t or ""):gsub("^%s*@+%s*", "") end,
+            setMessage= function(m) csMsg = tostring(m or "") end,
+            symbols = CS_K,
+            emojis  = CS_EMOJI_K,
+            -- bind a Player for roast display-name resolution
+            setPlayer = function(plr)
+                sel = plr
+                if plr then
+                    selDisplay = plr.DisplayName
+                    selName = plr.Name
+                    csTgt = plr.DisplayName
+                end
+            end,
+        }
+            jamunStopFn = stop
+
+            createSectionTitle(cocoChatPage, 5, "JAMUN CHAT SPAM (ROAST / CLAN / MESSAGE)")
+            local jamunCard = createCocoChatCard(6)
+
+            -- Mode Selector Row (ROAST | CLAN | MESSAGE)
+            local modeRow = Instance.new("Frame")
+            modeRow.Size = UDim2.new(1, 0, 0, 30)
+            modeRow.BackgroundTransparency = 1
+            modeRow.LayoutOrder = 1
+            modeRow.ZIndex = 9
+            modeRow.Parent = jamunCard
+
+            local modeLay = Instance.new("UIListLayout")
+            modeLay.FillDirection = Enum.FillDirection.Horizontal
+            modeLay.SortOrder = Enum.SortOrder.LayoutOrder
+            modeLay.Padding = UDim.new(0, 6)
+            modeLay.Parent = modeRow
+
+            local modeBtns = {}
+            local function syncModeVisual()
+                for mKey, info in pairs(modeBtns) do
+                    local on = (csMode == mKey)
+                    info.btn.BackgroundColor3 = on and T.Accent2 or T.PanelLt
+                    info.btn.TextColor3 = on and Color3.fromRGB(255, 255, 255) or T.Muted
+                    info.stroke.Color = on and T.Accent or T.Border
+                end
+            end
+
+            for idx, mDef in ipairs({ { k = "roast", t = "ROAST" }, { k = "clan", t = "CLAN" }, { k = "message", t = "MESSAGE" } }) do
+                local mb = Instance.new("TextButton")
+                mb.Size = UDim2.new(0.32, 0, 1, 0)
+                mb.BackgroundColor3 = T.PanelLt
+                mb.BorderSizePixel = 0
+                mb.Text = mDef.t
+                mb.TextColor3 = T.Muted
+                mb.Font = Enum.Font.GothamBold
+                mb.TextSize = 10
+                mb.AutoButtonColor = false
+                mb.LayoutOrder = idx
+                mb.ZIndex = 10
+                mb.Parent = modeRow
+                Instance.new("UICorner", mb).CornerRadius = UDim.new(0, 7)
+                local ms = Instance.new("UIStroke")
+                ms.Color = T.Border
+                ms.Thickness = 1
+                ms.Parent = mb
+                modeBtns[mDef.k] = { btn = mb, stroke = ms }
+                mb.MouseButton1Click:Connect(function()
+                    csMode = mDef.k
+                    syncModeVisual()
+                end)
+            end
+            syncModeVisual()
+
+            local jTargetInput = createCocoChatInput(jamunCard, 2, "TARGET / CLAN NAME", "Leave blank for active target, or type name...", "")
+            local jMsgInput    = createCocoChatInput(jamunCard, 3, "CUSTOM MESSAGE (MESSAGE MODE)", "Type message for Message mode...", "")
+            local jDelayInput  = createCocoChatInput(jamunCard, 4, "DELAY (seconds)", "e.g. 5.0  (min 0.5)", "5.0")
+
+            -- Symbol & Emoji 1-Click Cyclers
+            local styleRow = Instance.new("Frame")
+            styleRow.Size = UDim2.new(1, 0, 0, 32)
+            styleRow.BackgroundTransparency = 1
+            styleRow.LayoutOrder = 5
+            styleRow.ZIndex = 9
+            styleRow.Parent = jamunCard
+
+            local symIdx = 2 -- "AT"
+            local emoIdx = 2 -- "RANDOM"
+
+            local symBtn = Instance.new("TextButton")
+            symBtn.Size = UDim2.new(0.48, 0, 1, 0)
+            symBtn.BackgroundColor3 = T.PanelLt
+            symBtn.BorderSizePixel = 0
+            symBtn.Text = "Symbol: " .. (CS_L[csSym] or csSym)
+            symBtn.TextColor3 = T.Text
+            symBtn.Font = Enum.Font.GothamBold
+            symBtn.TextSize = 10
+            symBtn.AutoButtonColor = false
+            symBtn.ZIndex = 10
+            symBtn.Parent = styleRow
+            Instance.new("UICorner", symBtn).CornerRadius = UDim.new(0, 8)
+            local symSt = Instance.new("UIStroke")
+            symSt.Color = T.Border
+            symSt.Thickness = 1
+            symSt.Parent = symBtn
+
+            local emoBtn = Instance.new("TextButton")
+            emoBtn.Size = UDim2.new(0.48, 0, 1, 0)
+            emoBtn.Position = UDim2.new(0.52, 0, 0, 0)
+            emoBtn.BackgroundColor3 = T.PanelLt
+            emoBtn.BorderSizePixel = 0
+            emoBtn.Text = "Emoji: " .. (CS_EMOJI_L[csEmoji] or csEmoji)
+            emoBtn.TextColor3 = T.Text
+            emoBtn.Font = Enum.Font.GothamBold
+            emoBtn.TextSize = 10
+            emoBtn.AutoButtonColor = false
+            emoBtn.ZIndex = 10
+            emoBtn.Parent = styleRow
+            Instance.new("UICorner", emoBtn).CornerRadius = UDim.new(0, 8)
+            local emoSt = Instance.new("UIStroke")
+            emoSt.Color = T.Border
+            emoSt.Thickness = 1
+            emoSt.Parent = emoBtn
+
+            symBtn.MouseButton1Click:Connect(function()
+                symIdx = (symIdx % #CS_K) + 1
+                csSym = CS_K[symIdx]
+                csIdx = 1
+                symBtn.Text = "Symbol: " .. (CS_L[csSym] or csSym)
+            end)
+
+            emoBtn.MouseButton1Click:Connect(function()
+                emoIdx = (emoIdx % #CS_EMOJI_K) + 1
+                csEmoji = CS_EMOJI_K[emoIdx]
+                emoBtn.Text = "Emoji: " .. (CS_EMOJI_L[csEmoji] or csEmoji)
+            end)
+
+            -- Start / Stop Row
+            local jBtnRow = Instance.new("Frame")
+            jBtnRow.Size = UDim2.new(1, 0, 0, 34)
+            jBtnRow.BackgroundTransparency = 1
+            jBtnRow.LayoutOrder = 6
+            jBtnRow.ZIndex = 9
+            jBtnRow.Parent = jamunCard
+
+            local startJamunBtn = Instance.new("TextButton")
+            startJamunBtn.Size = UDim2.new(0.48, 0, 1, 0)
+            startJamunBtn.BackgroundColor3 = T.Accent2
+            startJamunBtn.BorderSizePixel = 0
+            startJamunBtn.Text = "START SPAM"
+            startJamunBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            startJamunBtn.Font = Enum.Font.GothamBold
+            startJamunBtn.TextSize = 11
+            startJamunBtn.AutoButtonColor = false
+            startJamunBtn.ZIndex = 10
+            startJamunBtn.Parent = jBtnRow
+            Instance.new("UICorner", startJamunBtn).CornerRadius = UDim.new(0, 8)
+
+            local stopJamunBtn = Instance.new("TextButton")
+            stopJamunBtn.Size = UDim2.new(0.48, 0, 1, 0)
+            stopJamunBtn.Position = UDim2.new(0.52, 0, 0, 0)
+            stopJamunBtn.BackgroundColor3 = T.PanelLt
+            stopJamunBtn.BorderSizePixel = 0
+            stopJamunBtn.Text = "STOP SPAM"
+            stopJamunBtn.TextColor3 = T.Muted
+            stopJamunBtn.Font = Enum.Font.GothamBold
+            stopJamunBtn.TextSize = 11
+            stopJamunBtn.AutoButtonColor = false
+            stopJamunBtn.ZIndex = 10
+            stopJamunBtn.Parent = jBtnRow
+            Instance.new("UICorner", stopJamunBtn).CornerRadius = UDim.new(0, 8)
+            local stopJStroke = Instance.new("UIStroke")
+            stopJStroke.Color = T.Border
+            stopJStroke.Thickness = 1
+            stopJStroke.Parent = stopJamunBtn
+
+            local jamunStatusLbl = Instance.new("TextLabel")
+            jamunStatusLbl.Size = UDim2.new(1, 0, 0, 18)
+            jamunStatusLbl.BackgroundTransparency = 1
+            jamunStatusLbl.Text = "Status: IDLE"
+            jamunStatusLbl.TextColor3 = T.Muted
+            jamunStatusLbl.Font = Enum.Font.GothamMedium
+            jamunStatusLbl.TextSize = 10
+            jamunStatusLbl.TextXAlignment = Enum.TextXAlignment.Left
+            jamunStatusLbl.LayoutOrder = 7
+            jamunStatusLbl.ZIndex = 10
+            jamunStatusLbl.Parent = jamunCard
+
+            local function resetJamunVisual()
+                startJamunBtn.BackgroundColor3 = T.Accent2
+                stopJamunBtn.BackgroundColor3 = T.PanelLt
+                stopJamunBtn.TextColor3 = T.Muted
+                jamunStatusLbl.Text = "Status: IDLE"
+                jamunStatusLbl.TextColor3 = T.Muted
+            end
+
+            startJamunBtn.MouseButton1Click:Connect(function()
+                stop()
+                local typedTgt = jTargetInput.Text
+                local activeTgtPlr = (type(resolveActiveTarget) == "function") and resolveActiveTarget() or nil
+                if typedTgt == "" and activeTgtPlr then
+                    _G.JamunChatSpam.setPlayer(activeTgtPlr)
+                    typedTgt = activeTgtPlr.DisplayName or activeTgtPlr.Name
+                else
+                    sel = nil; selDisplay = nil; selName = nil
+                end
+                local d = math.max(0.5, tonumber(jDelayInput.Text) or 5)
+                local okStart, errMsg = start({
+                    mode    = csMode,
+                    target  = typedTgt,
+                    message = jMsgInput.Text,
+                    sym     = csSym,
+                    emoji   = csEmoji,
+                    delay   = d,
+                })
+                if not okStart then
+                    resetJamunVisual()
+                    jamunStatusLbl.Text = "Status: " .. tostring(errMsg or "Enter target/message!")
+                    jamunStatusLbl.TextColor3 = T.Danger
+                    return
+                end
+                startJamunBtn.BackgroundColor3 = T.Success
+                stopJamunBtn.BackgroundColor3 = T.Danger
+                stopJamunBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+                jamunStatusLbl.Text = string.format("Status: SPAMMING (%s · %.1fs)", string.upper(csMode), d)
+                jamunStatusLbl.TextColor3 = T.Success
+            end)
+
+            stopJamunBtn.MouseButton1Click:Connect(function()
+                stop()
+                resetJamunVisual()
+            end)
+
+            jamunStopFn = function()
+                stop()
+                resetJamunVisual()
+            end
+        end
+
         _G.CocoChatStopAll = function()
             stopNormalSpam()
             stopRoastSpam()
+            if type(jamunStopFn) == "function" then pcall(jamunStopFn) end
         end
     end)()
 
