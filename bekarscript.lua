@@ -19920,7 +19920,7 @@ local function buildMainUI()
     local skyPage       = createCategory("Coca Sky Destroyer","💥", 9,   "3D Layered Clothing & Glitch Walker Sky, Ground & Cube Matrix Destroyer", "Coca Sky")
     local emotePage     = createCategory("Emotes",            "💃", 315, "315+ searchable catalog emotes, viral dances, dog/moonwalk & custom IDs", "Emotes")
     local weldPage      = createCategory("Weld & Troll",      "⚡", 15,  "Dynamic height-adaptive welds, FF LOL, FF Push, jerk troll, void throws & pins", "Weld & Troll")
-    local cocoChatPage  = createCategory("Coco Chat",         "💬", 3,   "Normal spam, target roast spam & Jamun roast/clan/message spam", "Coco Chat")
+    local cocoChatPage  = createCategory("Coco Chat Spam",    "💬", 3,   "Coco Chat Spam · Normal, Target Roast & Roast/Clan/Message modes", "Coco Chat Spam")
     local loudPage      = createCategory("One Click Loud",    "🔊", 4,   "Mic Up v4.0 Advanced Max-Loudness Controller (4 profiles, 1x–10x stack, Mic Uncap) · Credit: Jammun Hub", "One Click Loud")
     local targetPage    = createCategory("Target",            "🎯", 1,   "Omnipresent hidden-player seeker & server-wide lock", "Target")
     local movePage      = createCategory("Performance",       "🚀", 11,  "60Hz Chrono-Rewind, WalkSpeed 500 & 4-Phase Flight", "Move & Fly")
@@ -30149,7 +30149,7 @@ local function buildMainUI()
     -- ═══════════════════════════════════════════════════════════════════════════
 
     -- ═══════════════════════════════════════════════════════════════════════════
-    -- COCO CHAT (Normal Chat Spam & Target Roast Chat Spam)
+    -- COCO CHAT SPAM (Normal, Target Roast & Roast/Clan/Message)
     -- ═══════════════════════════════════════════════════════════════════════════
     ;(function()
         local function sendChat(msg)
@@ -30261,7 +30261,7 @@ local function buildMainUI()
         local roastSpamThread = nil
 
         -- PART 1: NORMAL CHAT SPAM
-        createSectionTitle(cocoChatPage, 1, "NORMAL CHAT SPAM")
+        createSectionTitle(cocoChatPage, 1, "COCO CHAT SPAM · NORMAL")
         local normalCard = createCocoChatCard(2)
 
         local msgInput = createCocoChatInput(normalCard, 1, "MESSAGE", "Type your spam message here...", "")
@@ -30368,7 +30368,7 @@ local function buildMainUI()
         stopNormalBtn.MouseButton1Click:Connect(stopNormalSpam)
 
         -- PART 2: TARGET ROAST CHAT SPAM
-        createSectionTitle(cocoChatPage, 3, "TARGET ROAST CHAT SPAM")
+        createSectionTitle(cocoChatPage, 3, "COCO CHAT SPAM · TARGET ROAST")
         local roastCard = createCocoChatCard(4)
 
         local targetInput = createCocoChatInput(roastCard, 1, "TARGET NAME", "Enter target name...", "PLAYER")
@@ -30590,8 +30590,8 @@ local function buildMainUI()
         stopRoastBtn.MouseButton1Click:Connect(stopRoastSpam)
 
 
-        -- PART 3: JAMUN CHAT SPAM (ROAST / CLAN / MESSAGE — from chat_spam.lua)
-        local jamunStopFn = nil
+        -- PART 3: COCO CHAT SPAM (ROAST / CLAN / MESSAGE)
+        local cocoSpam3StopFn = nil
         do
             local P   = Players
             local RPS = ReplicatedStorage
@@ -30821,9 +30821,9 @@ local function buildMainUI()
                     if m ~= "" then
                         if snd2(m) then
                             csCnt = csCnt + 1
-                            print(string.format("[chat-spam] #%d via %s · %s", csCnt, csMtd, csMode))
+                            print(string.format("[coco-chat-spam] #%d via %s · %s", csCnt, csMtd, csMode))
                         else
-                            warn("[chat-spam] send failed")
+                            warn("[coco-chat-spam] send failed")
                         end
                     end
                     task.wait(CS_D)
@@ -30835,13 +30835,13 @@ local function buildMainUI()
         local function stop()
             csOn = false
             csGen = csGen + 1
-            print("[chat-spam] stopped · sent", csCnt)
+            print("[coco-chat-spam] stopped · sent", csCnt)
         end
 
         -- ============================================================================
         -- GLOBALS
         -- ============================================================================
-        _G.JamunChatSpam = {
+        _G.CocoChatSpam = {
             start   = start,
             stop    = stop,
             isOn    = function() return csOn end,
@@ -30865,10 +30865,10 @@ local function buildMainUI()
                 end
             end,
         }
-            jamunStopFn = stop
+            cocoSpam3StopFn = stop
 
-            createSectionTitle(cocoChatPage, 5, "JAMUN CHAT SPAM (ROAST / CLAN / MESSAGE)")
-            local jamunCard = createCocoChatCard(6)
+            createSectionTitle(cocoChatPage, 5, "COCO CHAT SPAM · ROAST / CLAN / MESSAGE")
+            local cocoSpam3Card = createCocoChatCard(6)
 
             -- Mode Selector Row (ROAST | CLAN | MESSAGE)
             local modeRow = Instance.new("Frame")
@@ -30876,7 +30876,7 @@ local function buildMainUI()
             modeRow.BackgroundTransparency = 1
             modeRow.LayoutOrder = 1
             modeRow.ZIndex = 9
-            modeRow.Parent = jamunCard
+            modeRow.Parent = cocoSpam3Card
 
             local modeLay = Instance.new("UIListLayout")
             modeLay.FillDirection = Enum.FillDirection.Horizontal
@@ -30920,9 +30920,9 @@ local function buildMainUI()
             end
             syncModeVisual()
 
-            local jTargetInput = createCocoChatInput(jamunCard, 2, "TARGET / CLAN NAME", "Leave blank for active target, or type name...", "")
-            local jMsgInput    = createCocoChatInput(jamunCard, 3, "CUSTOM MESSAGE (MESSAGE MODE)", "Type message for Message mode...", "")
-            local jDelayInput  = createCocoChatInput(jamunCard, 4, "DELAY (seconds)", "e.g. 5.0  (min 0.5)", "5.0")
+            local jTargetInput = createCocoChatInput(cocoSpam3Card, 2, "TARGET / CLAN NAME", "Leave blank for active target, or type name...", "")
+            local jMsgInput    = createCocoChatInput(cocoSpam3Card, 3, "CUSTOM MESSAGE (MESSAGE MODE)", "Type message for Message mode...", "")
+            local jDelayInput  = createCocoChatInput(cocoSpam3Card, 4, "DELAY (seconds)", "e.g. 5.0  (min 0.5)", "5.0")
 
             -- Symbol & Emoji 1-Click Cyclers
             local styleRow = Instance.new("Frame")
@@ -30930,7 +30930,7 @@ local function buildMainUI()
             styleRow.BackgroundTransparency = 1
             styleRow.LayoutOrder = 5
             styleRow.ZIndex = 9
-            styleRow.Parent = jamunCard
+            styleRow.Parent = cocoSpam3Card
 
             local symIdx = 2 -- "AT"
             local emoIdx = 2 -- "RANDOM"
@@ -30989,65 +30989,65 @@ local function buildMainUI()
             jBtnRow.BackgroundTransparency = 1
             jBtnRow.LayoutOrder = 6
             jBtnRow.ZIndex = 9
-            jBtnRow.Parent = jamunCard
+            jBtnRow.Parent = cocoSpam3Card
 
-            local startJamunBtn = Instance.new("TextButton")
-            startJamunBtn.Size = UDim2.new(0.48, 0, 1, 0)
-            startJamunBtn.BackgroundColor3 = T.Accent2
-            startJamunBtn.BorderSizePixel = 0
-            startJamunBtn.Text = "START SPAM"
-            startJamunBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-            startJamunBtn.Font = Enum.Font.GothamBold
-            startJamunBtn.TextSize = 11
-            startJamunBtn.AutoButtonColor = false
-            startJamunBtn.ZIndex = 10
-            startJamunBtn.Parent = jBtnRow
-            Instance.new("UICorner", startJamunBtn).CornerRadius = UDim.new(0, 8)
+            local startCocoSpam3Btn = Instance.new("TextButton")
+            startCocoSpam3Btn.Size = UDim2.new(0.48, 0, 1, 0)
+            startCocoSpam3Btn.BackgroundColor3 = T.Accent2
+            startCocoSpam3Btn.BorderSizePixel = 0
+            startCocoSpam3Btn.Text = "START SPAM"
+            startCocoSpam3Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            startCocoSpam3Btn.Font = Enum.Font.GothamBold
+            startCocoSpam3Btn.TextSize = 11
+            startCocoSpam3Btn.AutoButtonColor = false
+            startCocoSpam3Btn.ZIndex = 10
+            startCocoSpam3Btn.Parent = jBtnRow
+            Instance.new("UICorner", startCocoSpam3Btn).CornerRadius = UDim.new(0, 8)
 
-            local stopJamunBtn = Instance.new("TextButton")
-            stopJamunBtn.Size = UDim2.new(0.48, 0, 1, 0)
-            stopJamunBtn.Position = UDim2.new(0.52, 0, 0, 0)
-            stopJamunBtn.BackgroundColor3 = T.PanelLt
-            stopJamunBtn.BorderSizePixel = 0
-            stopJamunBtn.Text = "STOP SPAM"
-            stopJamunBtn.TextColor3 = T.Muted
-            stopJamunBtn.Font = Enum.Font.GothamBold
-            stopJamunBtn.TextSize = 11
-            stopJamunBtn.AutoButtonColor = false
-            stopJamunBtn.ZIndex = 10
-            stopJamunBtn.Parent = jBtnRow
-            Instance.new("UICorner", stopJamunBtn).CornerRadius = UDim.new(0, 8)
+            local stopCocoSpam3Btn = Instance.new("TextButton")
+            stopCocoSpam3Btn.Size = UDim2.new(0.48, 0, 1, 0)
+            stopCocoSpam3Btn.Position = UDim2.new(0.52, 0, 0, 0)
+            stopCocoSpam3Btn.BackgroundColor3 = T.PanelLt
+            stopCocoSpam3Btn.BorderSizePixel = 0
+            stopCocoSpam3Btn.Text = "STOP SPAM"
+            stopCocoSpam3Btn.TextColor3 = T.Muted
+            stopCocoSpam3Btn.Font = Enum.Font.GothamBold
+            stopCocoSpam3Btn.TextSize = 11
+            stopCocoSpam3Btn.AutoButtonColor = false
+            stopCocoSpam3Btn.ZIndex = 10
+            stopCocoSpam3Btn.Parent = jBtnRow
+            Instance.new("UICorner", stopCocoSpam3Btn).CornerRadius = UDim.new(0, 8)
             local stopJStroke = Instance.new("UIStroke")
             stopJStroke.Color = T.Border
             stopJStroke.Thickness = 1
-            stopJStroke.Parent = stopJamunBtn
+            stopJStroke.Parent = stopCocoSpam3Btn
 
-            local jamunStatusLbl = Instance.new("TextLabel")
-            jamunStatusLbl.Size = UDim2.new(1, 0, 0, 18)
-            jamunStatusLbl.BackgroundTransparency = 1
-            jamunStatusLbl.Text = "Status: IDLE"
-            jamunStatusLbl.TextColor3 = T.Muted
-            jamunStatusLbl.Font = Enum.Font.GothamMedium
-            jamunStatusLbl.TextSize = 10
-            jamunStatusLbl.TextXAlignment = Enum.TextXAlignment.Left
-            jamunStatusLbl.LayoutOrder = 7
-            jamunStatusLbl.ZIndex = 10
-            jamunStatusLbl.Parent = jamunCard
+            local cocoSpam3StatusLbl = Instance.new("TextLabel")
+            cocoSpam3StatusLbl.Size = UDim2.new(1, 0, 0, 18)
+            cocoSpam3StatusLbl.BackgroundTransparency = 1
+            cocoSpam3StatusLbl.Text = "Status: IDLE"
+            cocoSpam3StatusLbl.TextColor3 = T.Muted
+            cocoSpam3StatusLbl.Font = Enum.Font.GothamMedium
+            cocoSpam3StatusLbl.TextSize = 10
+            cocoSpam3StatusLbl.TextXAlignment = Enum.TextXAlignment.Left
+            cocoSpam3StatusLbl.LayoutOrder = 7
+            cocoSpam3StatusLbl.ZIndex = 10
+            cocoSpam3StatusLbl.Parent = cocoSpam3Card
 
-            local function resetJamunVisual()
-                startJamunBtn.BackgroundColor3 = T.Accent2
-                stopJamunBtn.BackgroundColor3 = T.PanelLt
-                stopJamunBtn.TextColor3 = T.Muted
-                jamunStatusLbl.Text = "Status: IDLE"
-                jamunStatusLbl.TextColor3 = T.Muted
+            local function resetCocoSpam3Visual()
+                startCocoSpam3Btn.BackgroundColor3 = T.Accent2
+                stopCocoSpam3Btn.BackgroundColor3 = T.PanelLt
+                stopCocoSpam3Btn.TextColor3 = T.Muted
+                cocoSpam3StatusLbl.Text = "Status: IDLE"
+                cocoSpam3StatusLbl.TextColor3 = T.Muted
             end
 
-            startJamunBtn.MouseButton1Click:Connect(function()
+            startCocoSpam3Btn.MouseButton1Click:Connect(function()
                 stop()
                 local typedTgt = jTargetInput.Text
                 local activeTgtPlr = (type(resolveActiveTarget) == "function") and resolveActiveTarget() or nil
                 if typedTgt == "" and activeTgtPlr then
-                    _G.JamunChatSpam.setPlayer(activeTgtPlr)
+                    _G.CocoChatSpam.setPlayer(activeTgtPlr)
                     typedTgt = activeTgtPlr.DisplayName or activeTgtPlr.Name
                 else
                     sel = nil; selDisplay = nil; selName = nil
@@ -31062,26 +31062,26 @@ local function buildMainUI()
                     delay   = d,
                 })
                 if not okStart then
-                    resetJamunVisual()
-                    jamunStatusLbl.Text = "Status: " .. tostring(errMsg or "Enter target/message!")
-                    jamunStatusLbl.TextColor3 = T.Danger
+                    resetCocoSpam3Visual()
+                    cocoSpam3StatusLbl.Text = "Status: " .. tostring(errMsg or "Enter target/message!")
+                    cocoSpam3StatusLbl.TextColor3 = T.Danger
                     return
                 end
-                startJamunBtn.BackgroundColor3 = T.Success
-                stopJamunBtn.BackgroundColor3 = T.Danger
-                stopJamunBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-                jamunStatusLbl.Text = string.format("Status: SPAMMING (%s · %.1fs)", string.upper(csMode), d)
-                jamunStatusLbl.TextColor3 = T.Success
+                startCocoSpam3Btn.BackgroundColor3 = T.Success
+                stopCocoSpam3Btn.BackgroundColor3 = T.Danger
+                stopCocoSpam3Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+                cocoSpam3StatusLbl.Text = string.format("Status: SPAMMING (%s · %.1fs)", string.upper(csMode), d)
+                cocoSpam3StatusLbl.TextColor3 = T.Success
             end)
 
-            stopJamunBtn.MouseButton1Click:Connect(function()
+            stopCocoSpam3Btn.MouseButton1Click:Connect(function()
                 stop()
-                resetJamunVisual()
+                resetCocoSpam3Visual()
             end)
 
-            jamunStopFn = function()
+            cocoSpam3StopFn = function()
                 stop()
-                resetJamunVisual()
+                resetCocoSpam3Visual()
             end
 
             -- Auto-fill active Target Player name directly into both Chat Spam target boxes
@@ -31101,7 +31101,7 @@ local function buildMainUI()
                         if jTargetInput and jTargetInput.Parent and not jTargetInput:IsFocused() then
                             jTargetInput.Text = nameToFill
                         end
-                        _G.JamunChatSpam.setPlayer(tgtPlr)
+                        _G.CocoChatSpam.setPlayer(tgtPlr)
                     end
                 elseif WeldIntent and WeldIntent.typedUsername and WeldIntent.typedUsername ~= "" and WeldIntent.typedUsername ~= lastSyncedTyped then
                     lastSyncedTyped = WeldIntent.typedUsername
@@ -31119,8 +31119,8 @@ local function buildMainUI()
                     task.wait(0.35)
                 end
             end)
-            local prevStop = jamunStopFn
-            jamunStopFn = function()
+            local prevStop = cocoSpam3StopFn
+            cocoSpam3StopFn = function()
                 if prevStop then prevStop() end
             end
             gui.Destroying:Connect(function()
@@ -31131,7 +31131,7 @@ local function buildMainUI()
         _G.CocoChatStopAll = function()
             stopNormalSpam()
             stopRoastSpam()
-            if type(jamunStopFn) == "function" then pcall(jamunStopFn) end
+            if type(cocoSpam3StopFn) == "function" then pcall(cocoSpam3StopFn) end
         end
     end)()
 
