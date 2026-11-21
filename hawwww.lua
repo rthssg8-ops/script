@@ -799,9 +799,6 @@ function StateManager:Cleanup(keepTarget, switchingWeld)
     if _G.CocaCopierActive and type(_G.stopCocaCopier) == "function" then
         pcall(_G.stopCocaCopier)
     end
-    if _G.CocoSelfTrollAnim and _G.CocoSelfTrollAnim.active and type(_G.CocoSelfTrollAnim.Stop) == "function" then
-        pcall(_G.CocoSelfTrollAnim.Stop)
-    end
     if RewindSys and RewindSys.rewinding and (RewindSys.Stop or RewindSys.StopRewind) then
         pcall(function() (RewindSys.Stop or RewindSys.StopRewind)(RewindSys) end)
     end
@@ -1364,9 +1361,9 @@ isRefPartValid = function(part, char)
     if not okBounds or not pos then return false end
     if char and not part:IsDescendantOf(char) then return false end
     if char and part.Name == "HumanoidRootPart" then
-        local upper = char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso")
+        local upper = char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso") or char:FindFirstChild("Head")
         local okUpper, upperPos = isPartInSafeWorldBounds(upper)
-        if okUpper and (pos - upperPos).Magnitude > 35.0 then
+        if okUpper and (pos - upperPos).Magnitude > 6.0 then
             return false
         end
     end
@@ -2084,6 +2081,8 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
             else
                 attachCF = flatHeadCF * CFrame.new(0, 2.35, -0.85) * customAdjust
             end
+        elseif PresetKey == "selfanim" or PresetKey == "finger" or TargetPart.Name ~= "HumanoidRootPart" then
+            attachCF = getFlatYawCFrame(TargetPart.CFrame, TargetPart.Position) * localOffset
         else
             attachCF = TargetPart.CFrame * localOffset
         end
@@ -2237,7 +2236,7 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
             return
         end
 
-        -- 3. Check if target died
+        -- 3. Check if target died (keep connected if target is using permadeath/netless reanim or a reanim clone rig!)
         if TargetHum and TargetHum.Parent and TargetHum.Health <= 0 then
             local reanimChar = TargetPlayer and findTargetReanimModel(TargetPlayer)
             if reanimChar and reanimChar ~= TargetChar then
@@ -2245,6 +2244,12 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
                 TargetHum  = reanimChar:FindFirstChildOfClass("Humanoid")
                 TargetPart = pickTargetRef(reanimChar, RefMode or "torso")
                 missingFrames = 0
+            elseif isCharacterNetlessReanimated and isCharacterNetlessReanimated(TargetChar) then
+                local liveRef = pickTargetRef(TargetChar, RefMode or "torso")
+                if liveRef and liveRef.Parent then
+                    TargetPart = liveRef
+                    missingFrames = 0
+                end
             else
                 WeldIntent.waitingForSpawn = true
                 WeldIntent.topStatusText = "target respawning · waiting"
@@ -2259,17 +2264,23 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
             end
         end
 
-        -- 4. OMNIPRESENT RE-LOCK (exact oyee hoye.lua L706–742):
-        --    If TargetPart streamed out because target teleported to a hiding spot,
-        --    entered a house/locker/vehicle, or switched character model, dynamically re-acquire or follow!
-        if not TargetPart or not TargetPart.Parent or (TargetPlayer and findPlayerCharacterAnywhere(TargetPlayer) ~= TargetChar) then
+        -- 4. OMNIPRESENT RE-LOCK (Reanim, FE Invisibility & Streaming-Aware):
+        --    Dynamically re-acquires if TargetPart streamed out, became desynced/voided (FE Invis/Reanim),
+        --    or if the target switched to a reanimation clone rig or new character model!
+        if not TargetPart or not TargetPart.Parent or (isRefPartValid and not isRefPartValid(TargetPart, TargetChar)) or (TargetPlayer and findPlayerCharacterAnywhere(TargetPlayer) ~= TargetChar) then
             if TargetPlayer then
                 local newChar = findPlayerCharacterAnywhere(TargetPlayer)
                 local newHum  = newChar and newChar:FindFirstChildOfClass("Humanoid")
-                if newHum and newHum.Health <= 0 then
-                    WeldIntent.waitingForSpawn = true
-                    Weld:Destroy(false)
-                    return
+                if newHum and newHum.Health <= 0 and not (isCharacterNetlessReanimated and isCharacterNetlessReanimated(newChar)) then
+                    local altReanim = findTargetReanimModel and findTargetReanimModel(TargetPlayer)
+                    if altReanim and altReanim.Parent then
+                        newChar = altReanim
+                        newHum = altReanim:FindFirstChildOfClass("Humanoid")
+                    else
+                        WeldIntent.waitingForSpawn = true
+                        Weld:Destroy(false)
+                        return
+                    end
                 end
                 local newPart = newChar and pickTargetRef(newChar, RefMode or "torso")
                 if newPart and newPart.Parent then
@@ -2278,7 +2289,7 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
                     TargetPart = newPart
                     missingFrames = 0
                 else
-                    -- Target is in an unstreamed hiding spot! Teleport right to their model pivot / cached location to stream them in!
+                    -- Target is in an unstreamed hiding spot or mid-reanim swap! Stream & follow their pivot/cached location!
                     missingFrames = missingFrames + 1
                     local hiddenCF = getBestTargetCFrame(TargetPlayer)
                     if hiddenCF and not isLethalVoidCF(hiddenCF) then
@@ -2290,7 +2301,8 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
                         syncAllActiveReanimRoots(destCF, Root)
                         markIntentionalTeleport(Root.CFrame)
                     end
-                    if missingFrames > 90 then
+                    if missingFrames > 240 then
+                        WeldIntent.waitingForSpawn = true
                         Weld:Destroy(false)
                     end
                     return
@@ -2303,14 +2315,28 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
             missingFrames = 0
         end
 
-        -- 5. VOID PROTECTION (exact oyee hoye.lua L746–751):
-        --    Only detach if the target is genuinely plummeting in the lethal void killzone,
-        --    NOT when they are inside underground rooms, secret bunkers, houses, or skyboxes!
+        -- 5. VOID PROTECTION (Reanim & FE-Invisibility Safe):
+        --    If TargetPart (e.g. dumped HRP) enters lethal void, first try switching to a safe live body part
+        --    or reanim clone rig before detaching!
         local tVel = TargetPart.AssemblyLinearVelocity
         if isLethalVoidCF(TargetPart.CFrame, tVel) then
-            Weld:Destroy(false)
-            notify("COCO POWDER", "Target fell into lethal Void — detached safely!")
-            return
+            local rescuePart = TargetChar and pickTargetRef(TargetChar, RefMode or "torso")
+            if (not rescuePart or rescuePart == TargetPart or isLethalVoidCF(rescuePart.CFrame, rescuePart.AssemblyLinearVelocity)) and TargetPlayer then
+                local altChar = findTargetReanimModel and findTargetReanimModel(TargetPlayer)
+                if altChar and altChar.Parent then
+                    TargetChar = altChar
+                    TargetHum = altChar:FindFirstChildOfClass("Humanoid")
+                    rescuePart = pickTargetRef(altChar, RefMode or "torso")
+                end
+            end
+            if rescuePart and rescuePart.Parent and not isLethalVoidCF(rescuePart.CFrame, rescuePart.AssemblyLinearVelocity) then
+                TargetPart = rescuePart
+                tVel = TargetPart.AssemblyLinearVelocity
+            else
+                Weld:Destroy(false)
+                notify("COCO POWDER", "Target fell into lethal Void — detached safely!")
+                return
+            end
         end
 
         -- Keep server streaming focused on the target so they can never outrun our client stream
@@ -2462,8 +2488,18 @@ WELD_PRESETS.chase = {
     label = "Auto-Chase (Follow)"
 }
 
+WELD_PRESETS.selfanim = {
+    offset = CFrame.new(0, 0, 2.2),
+    anim15 = 98982064034152,
+    anim6  = 98982064034152,
+    animFallbacks = { 98982064034152 },
+    animFallbacks6 = { 98982064034152 },
+    osc = nil,
+    refMode = "torso",
+    label = "Self (Backward)"
+}
 WELD_PRESETS.finger = {
-    offset = CFrame.new(0, 0, -1.6) * CFrame.Angles(0, math.rad(180), 0),
+    offset = CFrame.new(0, 0, -2.35) * CFrame.Angles(0, math.rad(180), 0),
     anim15 = 124127012123232,
     anim6  = 124127012123232,
     animFallbacks = { 124127012123232 },
@@ -2473,96 +2509,6 @@ WELD_PRESETS.finger = {
     label = "Finger"
 }
 end -- end WELD_PRESETS scope
-
-do
-    local SELF_TROLL_ANIM_ID = "98982064034152"
-    local SelfTroll = {
-        active = false,
-        track = nil,
-        animObj = nil,
-        charConn = nil,
-    }
-
-    local function playOnCharacter(char)
-        if not SelfTroll.active or not char then return end
-        local hum = char:FindFirstChildOfClass("Humanoid") or char:WaitForChild("Humanoid", 5)
-        if not hum or not SelfTroll.active then return end
-        local animator = hum:FindFirstChildOfClass("Animator")
-        if not animator then
-            animator = Instance.new("Animator")
-            animator.Parent = hum
-        end
-        if SelfTroll.track then
-            pcall(function() SelfTroll.track:Stop(0.1); SelfTroll.track:Destroy() end)
-            SelfTroll.track = nil
-        end
-        if SelfTroll.animObj then
-            pcall(function() SelfTroll.animObj:Destroy() end)
-            SelfTroll.animObj = nil
-        end
-        local resolvedUri = nil
-        if type(resolveCatalogOrAnimUri) == "function" then
-            local okRes, uri = pcall(resolveCatalogOrAnimUri, SELF_TROLL_ANIM_ID)
-            if okRes and type(uri) == "string" and uri ~= "" then
-                resolvedUri = uri
-            end
-        end
-        local anim = Instance.new("Animation")
-        anim.AnimationId = resolvedUri or ("rbxassetid://" .. SELF_TROLL_ANIM_ID)
-        SelfTroll.animObj = anim
-        local okLoad, track = pcall(function() return animator:LoadAnimation(anim) end)
-        if (not okLoad or not track) and anim.AnimationId ~= ("rbxassetid://" .. SELF_TROLL_ANIM_ID) then
-            anim.AnimationId = "rbxassetid://" .. SELF_TROLL_ANIM_ID
-            okLoad, track = pcall(function() return animator:LoadAnimation(anim) end)
-        end
-        if okLoad and track and SelfTroll.active then
-            track.Priority = Enum.AnimationPriority.Action4
-            track.Looped = true
-            pcall(function() track:Play(0.08, 1, 1) end)
-            SelfTroll.track = track
-        end
-    end
-
-    function SelfTroll.Stop()
-        SelfTroll.active = false
-        if SelfTroll.charConn then
-            pcall(function() SelfTroll.charConn:Disconnect() end)
-            SelfTroll.charConn = nil
-        end
-        if SelfTroll.track then
-            pcall(function() SelfTroll.track:Stop(0.1); SelfTroll.track:Destroy() end)
-            SelfTroll.track = nil
-        end
-        if SelfTroll.animObj then
-            pcall(function() SelfTroll.animObj:Destroy() end)
-            SelfTroll.animObj = nil
-        end
-    end
-
-    function SelfTroll.Start()
-        SelfTroll.Stop()
-        SelfTroll.active = true
-        SelfTroll.charConn = LP.CharacterAdded:Connect(function(newChar)
-            if SelfTroll.active then
-                task.wait(0.25)
-                playOnCharacter(newChar)
-            end
-        end)
-        task.spawn(function()
-            playOnCharacter(LP.Character)
-        end)
-    end
-
-    function SelfTroll.Toggle()
-        if SelfTroll.active then
-            SelfTroll.Stop()
-        else
-            SelfTroll.Start()
-        end
-    end
-
-    _G.CocoSelfTrollAnim = SelfTroll
-end
 
 -- Compute a clean, level, upright CFrame relative to a target part/character
 getFlatYawCFrame = function(cf, posOverride)
@@ -2582,7 +2528,17 @@ findPlayerCharacterAnywhere = function(plr, skipDeepSearch)
     if not plr then return nil end
     if plr == LP then return LP.Character end
     if plr.Character and plr.Character.Parent then
-        return plr.Character
+        local c = plr.Character
+        local cHum = c:FindFirstChildOfClass("Humanoid")
+        local liveRef = pickTargetRef and pickTargetRef(c, "torso")
+        if liveRef and liveRef.Parent and (not cHum or cHum.Health > 0 or (isCharacterNetlessReanimated and isCharacterNetlessReanimated(c))) then
+            return c
+        end
+        local reanimModel = findTargetReanimModel and findTargetReanimModel(plr)
+        if reanimModel and reanimModel.Parent then
+            return reanimModel
+        end
+        return c
     end
     local reanimModel = findTargetReanimModel and findTargetReanimModel(plr)
     if reanimModel and reanimModel.Parent then
@@ -2600,34 +2556,50 @@ findPlayerCharacterAnywhere = function(plr, skipDeepSearch)
     return plr.Character
 end
 
--- Deep fallback reference part resolver (exact oyee hoye.lua L864–882: works even when HumanoidRootPart or Head is missing/renamed/seated)
+-- Deep fallback reference part resolver (Reanim, FE Invisibility, Invisible Parts & Hat-Reanim Aware)
 pickTargetRef = function(char, mode)
     if not char then return nil end
+    local function isSafePart(p)
+        return p and p:IsA("BasePart") and p.Parent and isPartInSafeWorldBounds(p)
+    end
     if mode == "head" then
         local h = char:FindFirstChild("Head") or char:FindFirstChild("head", true)
-        if h and h:IsA("BasePart") then return h end
+        if isSafePart(h) then return h end
     end
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-        or char.PrimaryPart
-        or char:FindFirstChild("UpperTorso")
-        or char:FindFirstChild("LowerTorso")
-        or char:FindFirstChild("Torso")
-        or char:FindFirstChild("Head")
-    if hrp and hrp:IsA("BasePart") then
-        -- Only bypass HumanoidRootPart if it is >35 studs desynced from Torso/UpperTorso (FE Invisibility root dump)
+    local torso = char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso") or char:FindFirstChild("LowerTorso")
+    local head  = char:FindFirstChild("Head")
+    local hrp   = char:FindFirstChild("HumanoidRootPart") or char.PrimaryPart
+    if isSafePart(hrp) then
+        -- Bypass HumanoidRootPart if FE Invisibility / Seat-Desync / Reanim detached it >6 studs from Torso or Head
         if hrp.Name == "HumanoidRootPart" then
-            local torso = char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso")
-            if torso and torso:IsA("BasePart") and (hrp.Position - torso.Position).Magnitude > 35 and not isLethalVoidCF(torso.CFrame) then
-                return torso
+            local bodyRef = (isSafePart(torso) and torso) or (isSafePart(head) and head)
+            if bodyRef and (hrp.Position - bodyRef.Position).Magnitude > 6.0 then
+                return bodyRef
             end
         end
         return hrp
     end
+    if isSafePart(torso) then return torso end
+    if isSafePart(head) then return head end
+    for _, partName in ipairs({ "UpperTorso", "Torso", "LowerTorso", "Head", "RightUpperArm", "LeftUpperArm", "Right Arm", "Left Arm" }) do
+        local p = char:FindFirstChild(partName)
+        if isSafePart(p) then return p end
+    end
     local hum = char:FindFirstChildOfClass("Humanoid")
-    if hum and hum.SeatPart and hum.SeatPart:IsA("BasePart") then
+    if hum and isSafePart(hum.SeatPart) then
         return hum.SeatPart
     end
-    return char:FindFirstChildWhichIsA("BasePart", true)
+    -- Hat / Accessory-only Reanim or Invisible-body fallback
+    for _, child in ipairs(char:GetChildren()) do
+        if child:IsA("Accessory") then
+            local h = child:FindFirstChild("Handle")
+            if isSafePart(h) then return h end
+        end
+    end
+    for _, d in ipairs(char:GetDescendants()) do
+        if isSafePart(d) then return d end
+    end
+    return hrp or torso or head or char:FindFirstChildWhichIsA("BasePart", true)
 end
 
 local function getVerifiedStreamedCFrame(plr)
@@ -5851,7 +5823,8 @@ local function weldToTarget(target, speaker, offset, animId, osc, refMode, animF
     local fastMyHum  = fastMyChar and fastMyChar:FindFirstChildOfClass("Humanoid")
     local fastTChar  = findPlayerCharacterAnywhere(TPlayer, false)
     local fastTHum   = fastTChar and fastTChar:FindFirstChildOfClass("Humanoid")
-    local fastTRoot  = (not (fastTHum and fastTHum.Health <= 0)) and fastTChar and pickTargetRef(fastTChar, refMode or "torso") or nil
+    local fastTAliveOrReanim = (not fastTHum) or (fastTHum.Health > 0) or (isCharacterNetlessReanimated and isCharacterNetlessReanimated(fastTChar))
+    local fastTRoot  = fastTAliveOrReanim and fastTChar and pickTargetRef(fastTChar, refMode or "torso") or nil
     if fastMyChar and fastMyRoot and isLocalCharAliveOrReanimated(fastMyChar, fastMyHum) and fastTRoot and fastTRoot.Parent and not isLethalVoidCF(fastTRoot.CFrame, fastTRoot.AssemblyLinearVelocity) then
         pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
         RescueGeneration = RescueGeneration + 1
@@ -5904,7 +5877,7 @@ local function weldToTarget(target, speaker, offset, animId, osc, refMode, animF
         end
 
         local tHum = char and char:FindFirstChildOfClass("Humanoid")
-        if tHum and tHum.Health <= 0 then return end
+        if tHum and tHum.Health <= 0 and not (isCharacterNetlessReanimated and isCharacterNetlessReanimated(char)) then return end
 
         myChar = speaker and speaker.Character
         myRoot = myChar and (myChar:FindFirstChild("HumanoidRootPart") or myChar:FindFirstChildWhichIsA("BasePart"))
@@ -6204,9 +6177,6 @@ stopWeld = function(preserveOfflineQueue)
     end
     if AnimCopySys and AnimCopySys.active then
         pcall(function() AnimCopySys:Stop() end)
-    end
-    if _G.CocoSelfTrollAnim and _G.CocoSelfTrollAnim.active and type(_G.CocoSelfTrollAnim.Stop) == "function" then
-        pcall(_G.CocoSelfTrollAnim.Stop)
     end
     pcall(function() LP.ReplicationFocus = nil end)
     unweld(false)
@@ -20023,7 +19993,6 @@ local function buildMainUI()
         if key == "coverflash" then return _G._HaloCoverFlashActive == true end
         if key == "animcopy" then return (AnimCopySys and AnimCopySys.active == true) end
         if key == "jerktroll" then return (EmoteHub and EmoteHub.jerkActive == true) end
-        if key == "selfanim" then return (_G.CocoSelfTrollAnim and _G.CocoSelfTrollAnim.active == true) end
         if key == "rewind" then return RewindSys.rewinding == true end
         if key == "fly" then return (moveState and (moveState.fly == true or moveState.flyLanding == true)) end
         if key == "fling" or key == "voidthrow" then return FlingActive == true end
@@ -20163,13 +20132,6 @@ local function buildMainUI()
         end
         if key == "jerktroll" then
             EmoteHub:StartJerk()
-            syncAllActiveIndicators()
-            return
-        end
-        if key == "selfanim" then
-            if _G.CocoSelfTrollAnim and _G.CocoSelfTrollAnim.Toggle then
-                _G.CocoSelfTrollAnim.Toggle()
-            end
             syncAllActiveIndicators()
             return
         end
@@ -21805,8 +21767,8 @@ local function buildMainUI()
         createActionRow(sigGrp, 3, "Give 'Jerk Off' Backpack Tool", "Spawns equippable Jerk Troll tool in your Backpack", "Get Tool", function()
             EmoteHub:GiveJerkTool()
         end)
-        addPresetRow(sigGrp, 3, "selfanim",  "Self",   "Plays Self troll animation (98982064034152) on yourself (toggle ON/OFF or pin ⦿)")
-        addPresetRow(sigGrp, 3, "finger",    "Finger", "Finger troll weld lock with animation (124127012123232)")
+        addPresetRow(sigGrp, 3, "selfanim",  "Self (Backward)", "Backward weld lock behind target with Self animation (98982064034152)")
+        addPresetRow(sigGrp, 3, "finger",    "Finger",          "Front weld lock (spaced back) with Finger animation (124127012123232)")
         addPresetRow(sigGrp, 4, "goon",      "Goon (Exact Face-to-Face Lock)", "Custom Coco Goon Anim (136828069054505) locked upright & facing target face 100% head-on")
         addPresetRow(sigGrp, 5, "poop",      "Poop (Above Head Front 💩)", "Roblox Catalog Poop Emote (110110691026962 + 7 fallbacks) directly above & in front of head")
         addPresetRow(sigGrp, 6, "rizz",      "Rizz (Wall Rizz Pose)",   "Zero-delay Kabedon / Wall Lean (90735295463164) + auto height solver")
@@ -30477,9 +30439,6 @@ local function buildMainUI()
         if EmoteHub then
             pcall(function() EmoteHub:StopEmote() end)
             pcall(function() EmoteHub:StopJerk() end)
-        end
-        if _G.CocoSelfTrollAnim and type(_G.CocoSelfTrollAnim.Stop) == "function" then
-            pcall(_G.CocoSelfTrollAnim.Stop)
         end
         if type(_G.CocoChatStopAll) == "function" then
             pcall(_G.CocoChatStopAll)
