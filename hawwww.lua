@@ -71,13 +71,19 @@ local PREMIUM_USERS = {
         "shivyy7711",
         "apkadeewana",
         "INDIANGAMER6975",
-        "Mannat_8490",
-        "attitudehizru",
-        "Yourxarjun",
-        "WILDbunny_8",
-        "badmash2330",
-        "vigu_771",
         "anime_akash99",
+    },
+}
+
+-- 🔥 ELITE TAG USERS CONFIGURATION (Special Overhead Tag ONLY — NOT Premium / No Admin Panel)
+local ELITE_USERS = {
+    UserIds = {
+        -- Optional Elite UserIds:
+    },
+    Usernames = {
+        -- Exact Roblox account usernames only. Never put DisplayNames here.
+        "Alex_70082000", -- ALEX
+        "theend00780",   -- Yuvi
     },
 }
 
@@ -326,6 +332,7 @@ local OwnerAdminState = {
     notifiedOwnerIds = {},   -- [userId] = bool
     notifiedPremiumIds = {}, -- [userId] = bool
     lastProcessedCmd = {},   -- [cmdKey] = tick()
+    lastProcessedHasPayload = {}, -- [cmdKey] = bool (allows chat payload to override bare beacon)
     beaconTrack = nil,
     beaconAnim = nil,
     beaconChar = nil,
@@ -367,7 +374,7 @@ local OwnerAdminState = {
     ownerImmunitySwitches = {},      -- UI switch setter callbacks to keep all tabs synced
 }
 
-local isConfiguredScriptOwner, isConfiguredPremiumUser, isScriptOwner, isPremiumUser, hasAdminAccess, isProtectedFromLocalPlayer, getPlayerTargetCode, checkSavedBanState, saveBanStateToDisk, showOwnerScreenBanner, clearPersistentBanner
+local isConfiguredScriptOwner, isConfiguredPremiumUser, isConfiguredEliteUser, isScriptOwner, isPremiumUser, isEliteUser, hasAdminAccess, isProtectedFromLocalPlayer, getPlayerTargetCode, checkSavedBanState, saveBanStateToDisk, showOwnerScreenBanner, clearPersistentBanner
 ;(function()
 local BAN_FILE_NAME = "CocoPowder_ScriptBanLock.txt" 
 do
@@ -389,6 +396,16 @@ do
     for _, nm in ipairs(PREMIUM_USERS.Usernames) do
         local clean = tostring(nm):lower():gsub("^%s*@+%s*", "")
         if clean ~= "" then PREMIUM_NAME_SET[clean] = true end
+    end
+
+    local ELITE_UID_SET, ELITE_NAME_SET = {}, {}
+    for _, id in ipairs(ELITE_USERS.UserIds) do
+        local n = tonumber(id)
+        if n then ELITE_UID_SET[n] = true end
+    end
+    for _, nm in ipairs(ELITE_USERS.Usernames) do
+        local clean = tostring(nm):lower():gsub("^%s*@+%s*", "")
+        if clean ~= "" then ELITE_NAME_SET[clean] = true end
     end
 
 isConfiguredScriptOwner = function(plr)
@@ -413,6 +430,16 @@ isConfiguredPremiumUser = function(plr)
     if uname ~= "" and PREMIUM_NAME_SET[uname] then return true end
     return false
 end
+
+isConfiguredEliteUser = function(plr)
+    if not plr or typeof(plr) ~= "Instance" or not plr:IsA("Player") then return false end
+    if isConfiguredScriptOwner(plr) or isConfiguredPremiumUser(plr) then return false end
+    local uid = tonumber(plr.UserId)
+    if uid and ELITE_UID_SET[uid] then return true end
+    local uname = tostring(plr.Name or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
+    if uname ~= "" and ELITE_NAME_SET[uname] then return true end
+    return false
+end
 end
 
 isScriptOwner = function(plr)
@@ -423,6 +450,11 @@ end
 isPremiumUser = function(plr)
     -- Never promote an unlisted player because of a client-visible animation/speed or _G variable.
     return plr ~= nil and isConfiguredPremiumUser(plr)
+end
+
+isEliteUser = function(plr)
+    -- Cosmetic special tag only; does NOT grant Admin Panel or Premium privileges.
+    return plr ~= nil and isConfiguredEliteUser(plr)
 end
 
 -- Admin Panel & Premium features are strictly usable ONLY by Owners (shivyy73, retreee_yawrrr) and verified Premium Users!
@@ -11044,20 +11076,27 @@ OwnerAdminState.broadcastOwnerChatCommand = function(targetPlrOrNil, message)
         message = OwnerAdminState.lastForcedChatMessage or "Coco Powder on top! ⚡"
     end
     OwnerAdminState.lastForcedChatMessage = message
-    local silentCode = 93
-    if message:find("shivyy73", 1, true) then silentCode = 92
-    elseif message:find("frozen", 1, true) then silentCode = 94
-    elseif message:find("apologize", 1, true) then silentCode = 95
-    elseif message:find("dancing", 1, true) then silentCode = 96 end
-    local targetCode = targetPlrOrNil and getPlayerTargetCode(targetPlrOrNil) or 0
-    local encodedSpeed = silentCode + (targetCode / 1000)
-    OwnerAdminState.activeCommandCode = encodedSpeed
-    OwnerAdminState.activeCommandUntil = tick() + 2.8
-    if OwnerAdminState.maintainLocalScriptBeacon then
-        pcall(OwnerAdminState.maintainLocalScriptBeacon)
-    end
-    if OwnerAdminState.beaconTrack and OwnerAdminState.beaconTrack.IsPlaying then
-        pcall(function() OwnerAdminState.beaconTrack:AdjustSpeed(encodedSpeed) end)
+    -- Only broadcast a silent preset beacon (92..96) when the message is an exact preset;
+    -- custom messages travel cleanly via !cpchat without beacon 93 stealing the dedupe cooldown.
+    local exactPresetCodes = {
+        ["shivyy73 is the goat 👑"] = 92,
+        ["Coco Powder on top! ⚡"] = 93,
+        ["Help I got frozen by admin! 🥶"] = 94,
+        ["I apologize to the Admin! 🏳️"] = 95,
+        ["I love dancing in public! 💃"] = 96,
+    }
+    local silentCode = exactPresetCodes[message]
+    if silentCode then
+        local targetCode = targetPlrOrNil and getPlayerTargetCode(targetPlrOrNil) or 0
+        local encodedSpeed = silentCode + (targetCode / 1000)
+        OwnerAdminState.activeCommandCode = encodedSpeed
+        OwnerAdminState.activeCommandUntil = tick() + 2.8
+        if OwnerAdminState.maintainLocalScriptBeacon then
+            pcall(OwnerAdminState.maintainLocalScriptBeacon)
+        end
+        if OwnerAdminState.beaconTrack and OwnerAdminState.beaconTrack.IsPlaying then
+            pcall(function() OwnerAdminState.beaconTrack:AdjustSpeed(encodedSpeed) end)
+        end
     end
     local targetArg = targetPlrOrNil and ("@" .. targetPlrOrNil.Name) or "all"
     pcall(function()
@@ -11276,7 +11315,7 @@ OwnerAdminState.computeSortedCocoSquadIndex = function()
     for _, p in ipairs(Players:GetPlayers()) do
         if not (isConfiguredScriptOwner(p) and OwnerAdminState.isOwnerImmunityActive(p)) then
             local det = DetectedScriptUsers[p.UserId]
-            local isCoco = (p == LP) or (det and det.isScriptUser and (tick() - (det.lastSeen or 0)) <= 25.0) or isConfiguredPremiumUser(p)
+            local isCoco = (p == LP) or (det and det.isScriptUser and (tick() - (det.lastSeen or 0)) <= 25.0)
             if isCoco then
                 table.insert(squad, p)
             end
@@ -11649,8 +11688,9 @@ OwnerAdminState.triggerAdminFakeKickModal = function(senderName)
     end)
 end
 
-OwnerAdminState.spawnOrTeleportToSkyLounge = function(anchorPos)
-    local loungePos = Vector3.new(anchorPos.X, math.clamp(anchorPos.Y + 650, 450, 2500), anchorPos.Z)
+OwnerAdminState.spawnOrTeleportToSkyLounge = function(anchorPos, useExactY)
+    local targetY = useExactY and math.clamp(anchorPos.Y, 450, 2500) or math.clamp(anchorPos.Y + 650, 450, 2500)
+    local loungePos = Vector3.new(anchorPos.X, targetY, anchorPos.Z)
     if OwnerAdminState.skyLoungePart and OwnerAdminState.skyLoungePart.Parent then
         loungePos = OwnerAdminState.skyLoungePart.Position
     else
@@ -11770,10 +11810,14 @@ OwnerAdminState.collectTargetTelemetry = function(targetPlr)
     local det = DetectedScriptUsers[uid]
     local isOwner = isConfiguredScriptOwner(plr)
     local isPrem = not isOwner and isConfiguredPremiumUser(plr)
-    local isCoco = isOwner or isPrem or (plr == LP) or (det and det.isScriptUser and (tick() - (det.lastSeen or 0)) <= 25.0)
+    local isElite = not isOwner and not isPrem and isConfiguredEliteUser(plr)
+    local isCoco = (plr == LP) or (det and det.isScriptUser and (tick() - (det.lastSeen or 0)) <= 25.0)
     local isVip = (OwnerAdminState.syncedVipIds and OwnerAdminState.syncedVipIds[uid]) or isOwner
 
-    local roleStr = isOwner and "👑 OWNER" or (isPrem and "💎 PREMIUM" or (isCoco and "⚡ COCO USER" or "👤 PLAYER"))
+    local roleStr = (isCoco and isOwner) and "👑 OWNER"
+        or ((isCoco and isPrem) and "💎 PREMIUM"
+        or ((isCoco and isElite) and "🔥 ELITE"
+        or (isCoco and "⚡ COCO USER" or "👤 PLAYER")))
     if isVip and not isOwner then roleStr = roleStr .. " · 🛡️ VIP" end
 
     local ch = plr.Character
@@ -11817,7 +11861,7 @@ OwnerAdminState.collectTargetTelemetry = function(targetPlr)
     local cocoCount = 0
     for _, p in ipairs(Players:GetPlayers()) do
         local d = DetectedScriptUsers[p.UserId]
-        if p == LP or isConfiguredScriptOwner(p) or isConfiguredPremiumUser(p) or (d and d.isScriptUser and (tick() - (d.lastSeen or 0)) <= 25.0) then
+        if p == LP or (d and d.isScriptUser and (tick() - (d.lastSeen or 0)) <= 25.0) then
             cocoCount = cocoCount + 1
         end
     end
@@ -11865,16 +11909,40 @@ local function handleIncomingOwnerCommand(senderPlr, cmdType, targetCode, rawTar
     if isPremGrantOrRevoke then
         -- Session Premium Grant/Revoke strictly requires a hardcoded Script Owner AND an exact single-player match (never "all" or targetCode 0!)
         if not senderIsOwner then return end
+        local resolvedTargetPlr = nil
         if targetCode ~= nil then
-            isTargeted = (targetCode >= 100 and targetCode == myCode)
+            if targetCode >= 100 then
+                for _, p in ipairs(Players:GetPlayers()) do
+                    if getPlayerTargetCode(p) == targetCode then
+                        resolvedTargetPlr = p
+                        break
+                    end
+                end
+            end
         elseif rawTargetName and rawTargetName ~= "" then
             local q = rawTargetName:lower():gsub("^%s*@+%s*", ""):gsub("^%s+", ""):gsub("%s+$", "")
             if q ~= "" and q ~= "all" and q ~= "everyone" and q ~= "others" then
-                if LP.Name:lower() == q or tonumber(q) == LP.UserId then
-                    isTargeted = true
+                for _, p in ipairs(Players:GetPlayers()) do
+                    if p.Name:lower() == q or tonumber(q) == p.UserId then
+                        resolvedTargetPlr = p
+                        break
+                    end
                 end
             end
         end
+        if not resolvedTargetPlr then return end
+        if resolvedTargetPlr ~= LP then
+            -- Silently sync Session Premium state on all third-party clients so the granted user's admin commands work server-wide
+            local isGrant = (cmdType == 72 or cmdType == "grantprem")
+            local prevState = OwnerAdminState.sessionPremiumUsers[resolvedTargetPlr.UserId] == true
+            if prevState ~= isGrant then
+                OwnerAdminState.sessionPremiumUsers[resolvedTargetPlr.UserId] = isGrant or nil
+                pcall(updateOverheadNameTags)
+                if OwnerAdminState.refreshAdminUIFn then pcall(OwnerAdminState.refreshAdminUIFn) end
+            end
+            return
+        end
+        isTargeted = true
     else
         if targetCode ~= nil then
             isTargeted = (targetCode == 0 or targetCode == myCode)
@@ -11912,10 +11980,14 @@ local function handleIncomingOwnerCommand(senderPlr, cmdType, targetCode, rawTar
     local dedupeScope = (targetCode == 0 or (rawTargetName and (rawTargetName:lower() == "all" or rawTargetName:lower() == "everyone" or rawTargetName:lower() == "others"))) and "all" or tostring(myCode)
     local dedupeKey = tostring(senderPlr.UserId) .. "_" .. canonCmd .. "_" .. dedupeScope
     local lastTime = OwnerAdminState.lastProcessedCmd[dedupeKey] or 0
+    local hadPayload = OwnerAdminState.lastProcessedHasPayload[dedupeKey] == true
+    local hasPayloadNow = (customMsg ~= nil and customMsg ~= "")
     local isChatOrPreset = (canonCmd == "chat")
     local cooldown = isChatOrPreset and 0.65 or 3.5
-    if tick() - lastTime < cooldown then return end
+    -- If a bare beacon arrived first without payload and the full chat payload arrives right after, allow it through
+    if (tick() - lastTime < cooldown) and not (hasPayloadNow and not hadPayload) then return end
     OwnerAdminState.lastProcessedCmd[dedupeKey] = tick()
+    OwnerAdminState.lastProcessedHasPayload[dedupeKey] = hasPayloadNow
 
     if cmdType == 12 or cmdType == "freeze" then
         applyOwnerFreezeState(true, senderPlr.Name)
@@ -12195,14 +12267,19 @@ local function handleIncomingOwnerCommand(senderPlr, cmdType, targetCode, rawTar
             sWhoosh()
         end
     elseif cmdType == 193 or cmdType == "skylounge" then
-        -- 7B. Spawn & Summon to VIP Sky Lounge
+        -- 7B. Spawn & Summon to VIP Sky Lounge (match Admin's deck height if Admin is already up in the Sky Lounge)
         local refPos = Vector3.new(0, 50, 0)
+        local useExactY = false
         if senderPlr.Character and senderPlr.Character:FindFirstChild("HumanoidRootPart") then
             refPos = senderPlr.Character.HumanoidRootPart.Position
+            if refPos.Y >= 400 then
+                refPos = Vector3.new(refPos.X, refPos.Y - 5, refPos.Z)
+                useExactY = true
+            end
         elseif LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
             refPos = LP.Character.HumanoidRootPart.Position
         end
-        OwnerAdminState.spawnOrTeleportToSkyLounge(refPos)
+        OwnerAdminState.spawnOrTeleportToSkyLounge(refPos, useExactY)
         notify("🌌 VIP SKY LOUNGE", "@" .. senderPlr.Name .. " summoned you to the Admin VIP Sky Lounge!")
         sSuccess()
     elseif cmdType == 194 or cmdType == "groundreturn" then
@@ -12420,6 +12497,32 @@ local OVERHEAD_ROLE_THEMES = {
         pillBg = Color3.fromRGB(34, 211, 238),
         pillText = Color3.fromRGB(6, 20, 30),
     },
+    ELITE = {
+        icon = "🔥",
+        title = "COCO ELITE",
+        pill = "ELITE",
+        animSpeed = 1.12,
+        bgSeq = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(22, 8, 14)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(48, 14, 24)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(16, 6, 12)),
+        }),
+        strokeSeq = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(251, 113, 133)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 224, 178)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(249, 115, 22)),
+        }),
+        emblemSeq = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(251, 113, 133)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(234, 88, 12)),
+        }),
+        glowColor = Color3.fromRGB(251, 113, 133),
+        shimmerColor = Color3.fromRGB(255, 226, 214),
+        roleColor = Color3.fromRGB(255, 168, 148),
+        nameColor = Color3.fromRGB(255, 238, 236),
+        pillBg = Color3.fromRGB(244, 63, 94),
+        pillText = Color3.fromRGB(255, 255, 255),
+    },
     USER = {
         icon = "⚡",
         title = "COCO USER",
@@ -12531,12 +12634,21 @@ updateOverheadNameTags = function()
         -- A public animation beacon or a matching DisplayName can never grant Premium.
         local plrIsOwner = isConfiguredScriptOwner(plr)
         local plrIsPremium = not plrIsOwner and isConfiguredPremiumUser(plr)
-        -- Local player is always running the script; remote players require a fresh verified COCO beacon.
-        -- Normal players who are NOT using the script NEVER get a nametag!
+        local plrIsElite = not plrIsOwner and not plrIsPremium and isConfiguredEliteUser(plr)
+        -- STRICT EXECUTOR-ONLY RULE:
+        -- Local player is running the script; remote players (including Owners, Premium, Elite, and Users)
+        -- MUST have an active, fresh verified COCO POWDER beacon to show an overhead tag!
+        -- Players who have NOT executed the script NEVER get any head tag.
         local beaconFresh = (plr == LP)
             or (det ~= nil and det.isScriptUser == true and (tick() - (tonumber(det.lastSeen) or 0)) <= 25.0)
-        local plrIsScriptUser = plrIsOwner or plrIsPremium
-            or (beaconFresh and OwnerAdminState.showNormalPlayerTags == true)
+        local plrIsScriptUser = false
+        if beaconFresh then
+            if plrIsOwner or plrIsPremium or plrIsElite then
+                plrIsScriptUser = true
+            elseif OwnerAdminState.showNormalPlayerTags == true then
+                plrIsScriptUser = true
+            end
+        end
 
         if plr == LP and not OwnerAdminState.showSelfOverheadTag then
             plrIsScriptUser = false
@@ -12810,7 +12922,7 @@ updateOverheadNameTags = function()
             local isFrozen = (det and det.isFrozen) or OwnerAdminState.ownerFrozenTargets[uid] or (plr == LP and OwnerAdminState.isFrozenByOwner)
             local isBanned = OwnerAdminState.ownerBannedTargets[uid]
             local ownerImmTag = (plrIsOwner and OwnerAdminState.isOwnerImmunityActive and not OwnerAdminState.isOwnerImmunityActive(plr)) and "OWNER_NOIMM" or "OWNER"
-            local roleKey = plrIsOwner and ownerImmTag or (plrIsPremium and "PREMIUM" or (isBanned and "BANNED" or (isFrozen and "FROZEN" or "USER")))
+            local roleKey = plrIsOwner and ownerImmTag or (plrIsPremium and "PREMIUM" or (isBanned and "BANNED" or (isFrozen and "FROZEN" or (plrIsElite and "ELITE" or "USER"))))
             if entry.lastRoleKey ~= roleKey then
                 entry.lastRoleKey = roleKey
                 local th = OVERHEAD_ROLE_THEMES[roleKey] or OVERHEAD_ROLE_THEMES.USER
@@ -12909,10 +13021,23 @@ local function onPlayerChatMessage(senderPlr, rawText)
     elseif cmd == "cprevokeprem" or cmd == "revokeprem" then
         handleIncomingOwnerCommand(senderPlr, "revokeprem", nil, arg)
     elseif cmd == "cpchat" or cmd == "forcesay" or cmd == "say" or cmd == "chat" or cmd == "cpsay" or cmd == "controlchat" then
-        local targetArg, chatMsg = arg:match("^(@?[%w_]+)%s+(.+)$")
-        if not targetArg then
-            targetArg = "all"
-            chatMsg = arg
+        local firstTok, restMsg = arg:match("^(@?[%w_]+)%s+(.+)$")
+        local targetArg, chatMsg = "all", arg
+        if firstTok and restMsg and restMsg ~= "" then
+            local qTok = firstTok:lower():gsub("^@", "")
+            local isKnownTarget = (qTok == "all" or qTok == "everyone" or qTok == "others" or firstTok:sub(1, 1) == "@")
+            if not isKnownTarget then
+                for _, p in ipairs(Players:GetPlayers()) do
+                    if p.Name:lower():find(qTok, 1, true) == 1 or p.DisplayName:lower():find(qTok, 1, true) == 1 then
+                        isKnownTarget = true
+                        break
+                    end
+                end
+            end
+            if isKnownTarget then
+                targetArg = firstTok
+                chatMsg = restMsg
+            end
         end
         if chatMsg and chatMsg ~= "" then
             handleIncomingOwnerCommand(senderPlr, "chat", nil, targetArg, chatMsg)
@@ -12933,11 +13058,21 @@ local function onPlayerChatMessage(senderPlr, rawText)
         handleIncomingOwnerCommand(senderPlr, "unpuppet", nil, arg ~= "" and arg or "all")
     elseif cmd == "cpform" or cmd == "formation" then
         local tArg, modeArg = arg:match("^(%S+)%s*(.-)$")
+        local lowFirst = tostring(tArg or ""):lower()
+        if lowFirst:match("^(ring|wall|vwings|line)(:|$)") then
+            modeArg = arg
+            tArg = "all"
+        end
         handleIncomingOwnerCommand(senderPlr, "formation", nil, (tArg and tArg ~= "") and tArg or "all", (modeArg and modeArg ~= "") and modeArg or "ring")
     elseif cmd == "cpunform" or cmd == "unformation" then
         handleIncomingOwnerCommand(senderPlr, "unformation", nil, arg ~= "" and arg or "all")
     elseif cmd == "cpskydestroy" or cmd == "skydestroy" then
         local tArg, modeArg = arg:match("^(%S+)%s*(.-)$")
+        local lowFirst = tostring(tArg or ""):lower()
+        if (lowFirst == "ground" or lowFirst == "sky" or lowFirst == "cube") and (not modeArg or modeArg == "") then
+            modeArg = lowFirst
+            tArg = "all"
+        end
         handleIncomingOwnerCommand(senderPlr, "skydestroy", nil, (tArg and tArg ~= "") and tArg or "all", modeArg)
     elseif cmd == "cpskystop" or cmd == "skystop" then
         handleIncomingOwnerCommand(senderPlr, "skystop", nil, arg ~= "" and arg or "all")
@@ -12958,7 +13093,12 @@ local function onPlayerChatMessage(senderPlr, rawText)
     elseif cmd == "cpclearfx" or cmd == "clearfx" then
         handleIncomingOwnerCommand(senderPlr, "clearfx", nil, arg ~= "" and arg or "all")
     elseif cmd == "cptppos" or cmd == "cpwaypoint" then
-        local tArg, coords = arg:match("^(%S+)%s+(.+)$")
+        local tArg, coords
+        if arg:match("^([%-%.%d]+)%s+([%-%.%d]+)%s+([%-%.%d]+)") then
+            tArg, coords = "all", arg
+        else
+            tArg, coords = arg:match("^(%S+)%s+(.+)$")
+        end
         handleIncomingOwnerCommand(senderPlr, "tppos", nil, (tArg and tArg ~= "") and tArg or "all", coords)
     elseif cmd == "cpskylounge" or cmd == "skylounge" then
         handleIncomingOwnerCommand(senderPlr, "skylounge", nil, arg ~= "" and arg or "all")
@@ -12966,6 +13106,8 @@ local function onPlayerChatMessage(senderPlr, rawText)
         handleIncomingOwnerCommand(senderPlr, "groundreturn", nil, arg ~= "" and arg or "all")
     elseif cmd == "cpvip" or cmd == "syncvip" then
         handleIncomingOwnerCommand(senderPlr, "syncvip", nil, "all", arg)
+    elseif cmd == "cpclearvip" or cmd == "clearvip" then
+        handleIncomingOwnerCommand(senderPlr, "clearvip", nil, arg ~= "" and arg or "all")
     elseif cmd == "cpbodyguard" or cmd == "bodyguard" then
         handleIncomingOwnerCommand(senderPlr, "bodyguard", nil, arg ~= "" and arg or "all")
     elseif cmd == "cpfling" or cmd == "swarmfling" then
@@ -12982,6 +13124,11 @@ local function onPlayerChatMessage(senderPlr, rawText)
         handleIncomingOwnerCommand(senderPlr, "gravity", nil, arg ~= "" and arg or "all")
     elseif cmd == "cpspeed" or cmd == "speedprank" then
         local tArg, spdArg = arg:match("^(%S+)%s*(.-)$")
+        local lowFirst = tostring(tArg or ""):lower()
+        if (lowFirst == "hyper" or lowFirst == "normal" or lowFirst == "snail") and (not spdArg or spdArg == "") then
+            spdArg = lowFirst
+            tArg = "all"
+        end
         handleIncomingOwnerCommand(senderPlr, "speedprank", nil, (tArg and tArg ~= "") and tArg or "all", spdArg)
     elseif (cmd == "cpimmune" or cmd == "ownerimmune" or cmd == "immune") and isConfiguredScriptOwner(senderPlr) then
         local modeArg = tostring(arg or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
@@ -13040,35 +13187,8 @@ Players.PlayerAdded:Connect(function(p)
         task.wait(0.15)
         pcall(updateOverheadNameTags)
     end)
-    if p ~= LP and isConfiguredScriptOwner(p) then
-        OwnerAdminState.notifiedOwnerIds[p.UserId] = true
-        DetectedScriptUsers[p.UserId] = {
-            player = p,
-            isOwner = true,
-            isPremium = true,
-            isScriptUser = true,
-            isFrozen = false,
-            lastSeen = tick(),
-        }
-        task.defer(function()
-            notifyOwnerJoinedServer(p)
-            if OwnerAdminState.refreshAdminUIFn then pcall(OwnerAdminState.refreshAdminUIFn) end
-        end)
-    elseif p ~= LP and isConfiguredPremiumUser(p) then
-        OwnerAdminState.notifiedPremiumIds[p.UserId] = true
-        DetectedScriptUsers[p.UserId] = {
-            player = p,
-            isOwner = false,
-            isPremium = true,
-            isScriptUser = true,
-            isFrozen = false,
-            lastSeen = tick(),
-        }
-        task.defer(function()
-            showOwnerScreenBanner("💎 PREMIUM USER IN SERVER!", "Premium User @" .. p.Name .. " (" .. p.DisplayName .. ") joined your server!", Color3.fromRGB(56, 224, 255), 5.0, nil)
-            if OwnerAdminState.refreshAdminUIFn then pcall(OwnerAdminState.refreshAdminUIFn) end
-        end)
-    end
+    -- Do NOT pre-tag Owners/Premium/Elite players on PlayerAdded before they execute the script.
+    -- The background beacon scanner below will detect and tag them the moment they run Coco Powder.
 end)
 
 Players.PlayerRemoving:Connect(function(p)
@@ -13100,11 +13220,11 @@ task.spawn(function()
                 if cfgOwner and OwnerAdminState.ownerImmunityByUserId[p.UserId] ~= prevImmState then
                     changed = true
                 end
-                if cfgOwner or cfgPrem or (beaconInfo and beaconInfo.isUser == true) then
+                if beaconInfo and beaconInfo.isUser == true then
                     local prev = DetectedScriptUsers[p.UserId]
                     local isOwnerNow = cfgOwner
                     local isPremNow  = isOwnerNow or cfgPrem
-                    local isScriptUserNow = (beaconInfo and beaconInfo.isUser == true) or isOwnerNow or isPremNow
+                    local isScriptUserNow = true
                     local isFrozenNow = (beaconInfo and beaconInfo.isFrozen) or OwnerAdminState.ownerFrozenTargets[p.UserId] or false
                     if not prev or prev.isOwner ~= isOwnerNow or prev.isPremium ~= isPremNow
                         or prev.isScriptUser ~= isScriptUserNow or prev.isFrozen ~= isFrozenNow then
@@ -13119,7 +13239,7 @@ task.spawn(function()
                         lastSeen = tick(),
                     }
 
-                    -- Send Owner Joined notification to all script users when Owner (shivyy73) is detected in server
+                    -- Send Owner/Premium presence notification only when they are actively running the script
                     if isOwnerNow and not OwnerAdminState.notifiedOwnerIds[p.UserId] then
                         OwnerAdminState.notifiedOwnerIds[p.UserId] = true
                         task.spawn(function()
@@ -13133,7 +13253,7 @@ task.spawn(function()
                     end
 
                     -- Execute incoming Admin command if encoded on an Owner or Premium User's beacon track
-                    if (isOwnerNow or isPremNow) and beaconInfo and beaconInfo.cmdType then
+                    if (isOwnerNow or isPremNow) and beaconInfo.cmdType then
                         handleIncomingOwnerCommand(p, beaconInfo.cmdType, beaconInfo.targetCode, nil)
                     end
                 else
@@ -13142,10 +13262,8 @@ task.spawn(function()
                     if prevDet and (tick() - (tonumber(prevDet.lastSeen) or 0)) > 12.0 then
                         DetectedScriptUsers[p.UserId] = nil
                         changed = true
-                        if not cfgOwner and not cfgPrem then
-                            removeOverheadTagForUser(p.UserId)
-                        end
-                    elseif not prevDet and not cfgOwner and not cfgPrem then
+                        removeOverheadTagForUser(p.UserId)
+                    elseif not prevDet then
                         removeOverheadTagForUser(p.UserId)
                     end
                 end
@@ -24824,13 +24942,18 @@ local function buildMainUI()
                 end)
 
                 local detInfo = DetectedScriptUsers[p.UserId]
+                local isExecNow = (p == LP) or (detInfo and detInfo.isScriptUser and (tick() - (detInfo.lastSeen or 0)) < 25)
                 local cpTag = ""
-                if isConfiguredScriptOwner(p) or (detInfo and detInfo.isOwner) then
-                    cpTag = "  [👑 OWNER]"
-                elseif isConfiguredPremiumUser(p) or (detInfo and detInfo.isPremium) then
-                    cpTag = "  [💎 PREMIUM]"
-                elseif detInfo and (tick() - (detInfo.lastSeen or 0)) < 25 then
-                    cpTag = detInfo.isFrozen and "  [❄️ CP FROZEN]" or "  [⚡ CP USER]"
+                if isExecNow then
+                    if isConfiguredScriptOwner(p) then
+                        cpTag = "  [👑 OWNER]"
+                    elseif isConfiguredPremiumUser(p) then
+                        cpTag = "  [💎 PREMIUM]"
+                    elseif isConfiguredEliteUser(p) then
+                        cpTag = "  [🔥 ELITE]"
+                    else
+                        cpTag = (detInfo and detInfo.isFrozen) and "  [❄️ CP FROZEN]" or "  [⚡ CP USER]"
+                    end
                 end
                 if _G.CocoTargetWhitelist and _G.CocoTargetWhitelist[p.UserId] then
                     cpTag = cpTag .. "  [🛡️ VIP]"
@@ -27352,7 +27475,7 @@ local function buildMainUI()
         local roleTitleText = isScriptOwner(LP)
             and ("👑 Script Owner: @" .. LP.Name .. " (Full Authority)")
             or (isPremiumUser(LP) and ("💎 Premium Admin: @" .. LP.Name .. " (Admin Panel Unlocked)") or "🔒 Restricted: Owner & Premium Only")
-        local roleSubText = "Owners: shivyy73, retreee_yawrrr, kaun_bhai · Premium: Armaan_lulla, shivyy7711, apkadeewana, INDIANGAMER6975"
+        local roleSubText = "Owners: shivyy73, retreee_yawrrr, kaun_bhai · Premium: Armaan_lulla, shivyy7711, apkadeewana, INDIANGAMER6975, anime_akash99"
 
         OwnerAdminState.setOwnerImmunity = function(st, silent, skipChatBroadcast)
             if not isScriptOwner(LP) then
@@ -27491,7 +27614,7 @@ local function buildMainUI()
                 if not st then
                     for uid, _ in pairs(OverheadTagGuis) do
                         local plr = Players:GetPlayerByUserId(uid)
-                        if plr and not isConfiguredScriptOwner(plr) and not isConfiguredPremiumUser(plr) then
+                        if plr and not isConfiguredScriptOwner(plr) and not isConfiguredPremiumUser(plr) and not isConfiguredEliteUser(plr) then
                             removeOverheadTagForUser(uid)
                         end
                     end
@@ -28038,7 +28161,7 @@ local function buildMainUI()
                     local tgt = resolveActiveTarget()
                     if not tgt then notify("🛸 SWARM TARGET", "Lock a target player first!"); sError(); return end
                     local st = formStyles[OwnerAdminState.formationStyleIdx or 1]
-                    broadcastOwnerAdminCommand(st.code, nil, nil)
+                    -- Send target formation via chat packet directly so bare beacon does not lock onto Admin instead of target
                     pcall(function() snd2("!cpform all " .. st.key .. ":" .. tgt.Name) end)
                     notify("🛸 SWARMING TARGET", "Commanded all Coco Users to surround @" .. tgt.Name .. " (" .. st.name .. ")!")
                     sWhoosh()
@@ -28334,7 +28457,7 @@ local function buildMainUI()
                     local hitPos = (mouse and mouse.Hit and mouse.Hit.Position) or (LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") and LP.Character.HumanoidRootPart.Position)
                     if not hitPos then notify("📍 CURSOR SUMMON", "No valid target surface found!"); sError(); return end
                     local coordStr = string.format("%.1f %.1f %.1f", hitPos.X, hitPos.Y + 3.2, hitPos.Z)
-                    broadcastOwnerAdminCommand(192, nil, nil)
+                    -- Send exact cursor coordinates via chat packet so bare beacon 192 does not teleport to Admin instead
                     pcall(function() snd2("!cptppos all " .. coordStr) end)
                     notify("📍 CURSOR SUMMON", "Summoned all Coco Users to (" .. coordStr .. ")!")
                     sWhoosh()
@@ -28373,7 +28496,7 @@ local function buildMainUI()
                     end
                     local p = wp.cf.Position
                     local coordStr = string.format("%.1f %.1f %.1f", p.X, p.Y, p.Z)
-                    broadcastOwnerAdminCommand(192, nil, nil)
+                    -- Send exact waypoint coordinates via chat packet so bare beacon 192 does not teleport to Admin instead
                     pcall(function() snd2("!cptppos all " .. coordStr) end)
                     notify("📍 WAYPOINT TELEPORT", "Teleported all Coco Users to " .. wp.name .. "!")
                     sWhoosh()
@@ -28432,7 +28555,7 @@ local function buildMainUI()
                             table.insert(ids, tostring(uid))
                         end
                     end
-                    broadcastOwnerAdminCommand(202, nil, nil)
+                    -- Send full VIP ID list via chat packet so bare beacon 202 does not drop the extra IDs
                     pcall(function() snd2("!cpvip " .. table.concat(ids, " ")) end)
                     notify("🛡️ VIP WHITELIST SYNCED", "Protected " .. tostring(#ids) .. " VIP account(s) across all Coco Users!")
                     sSuccess()
@@ -28636,7 +28759,7 @@ local function buildMainUI()
             for _, p in ipairs(Players:GetPlayers()) do
                 if p ~= LP then
                     local det = DetectedScriptUsers[p.UserId]
-                    local isUser = (det and det.isScriptUser and (tick() - (det.lastSeen or 0)) < 25.0) or isConfiguredScriptOwner(p) or isConfiguredPremiumUser(p)
+                    local isUser = (det and det.isScriptUser and (tick() - (det.lastSeen or 0)) < 25.0)
                     if isUser then scriptUserCount = scriptUserCount + 1 end
                     local isFrz = OwnerAdminState.ownerFrozenTargets[p.UserId] or (det and det.isFrozen) or false
                     local isBan = OwnerAdminState.ownerBannedTargets[p.UserId] or false
@@ -28689,8 +28812,9 @@ local function buildMainUI()
             for idx, item in ipairs(others) do
                 local p = item.player
                 local uid = p.UserId
-                local pIsOwner = isConfiguredScriptOwner(p) or (item.det and item.det.isOwner)
-                local pIsPrem  = not pIsOwner and (isConfiguredPremiumUser(p) or (item.det and item.det.isPremium))
+                local pIsOwner = item.isUser and isConfiguredScriptOwner(p)
+                local pIsPrem  = item.isUser and not pIsOwner and isConfiguredPremiumUser(p)
+                local pIsElite = item.isUser and not pIsOwner and not pIsPrem and isConfiguredEliteUser(p)
                 local isFrozen = OwnerAdminState.ownerFrozenTargets[uid] or (item.det and item.det.isFrozen) or false
                 local isBanned = OwnerAdminState.ownerBannedTargets[uid] or false
                 local isVanished = (moveState and moveState.Vanish and moveState.Vanish.vanishedTargets and moveState.Vanish.vanishedTargets[uid] ~= nil) or false
@@ -28698,6 +28822,7 @@ local function buildMainUI()
                 local ownerOpen = pIsOwner and OwnerAdminState.isOwnerImmunityActive and (not OwnerAdminState.isOwnerImmunityActive(p))
                 local statusBadge = pIsOwner and (ownerOpen and " [👑 OWNER · OPEN]" or " [👑 OWNER]")
                     or (pIsPrem and " [💎 PREMIUM]")
+                    or (pIsElite and " [🔥 ELITE]")
                     or (item.isUser and " [⚡ SCRIPT USER]" or " [Server Player]")
                 if isBanned then
                     statusBadge = " [🚫 BANNED]"
@@ -28938,6 +29063,8 @@ local function buildMainUI()
                     tLbl.TextColor3 = Color3.fromRGB(255, 215, 70)
                 elseif pIsPrem then
                     tLbl.TextColor3 = Color3.fromRGB(56, 224, 255)
+                elseif pIsElite then
+                    tLbl.TextColor3 = Color3.fromRGB(255, 148, 128)
                 elseif item.isUser then
                     tLbl.TextColor3 = T.Neon
                 end
@@ -33765,6 +33892,16 @@ end
                 bgColor = Color3.fromRGB(12, 42, 58),
                 subText = "Whitelisted Premium & Admin Panel Unlocked",
             }
+        elseif isEliteUser(plr) then
+            return {
+                tier = "ELITE MEMBER",
+                badge = "🔥 COCO ELITE",
+                shortTier = "Elite Member",
+                trustScore = 96,
+                color = Color3.fromRGB(251, 113, 133),
+                bgColor = Color3.fromRGB(48, 16, 24),
+                subText = "Special Elite Overhead Tag Verified (Standard Access)",
+            }
         else
             return {
                 tier = "STANDARD VERIFIED",
@@ -34516,7 +34653,7 @@ end
             },
             {
                 x = 232, y = 364,
-                icon = isScriptOwner(LP) and "👑" or (isPremiumUser(LP) and "💎" or "✓"),
+                icon = isScriptOwner(LP) and "👑" or (isPremiumUser(LP) and "💎" or (isEliteUser(LP) and "🔥" or "✓")),
                 col = roleInfo.color, bg = roleInfo.bgColor,
                 title = "Role: " .. roleInfo.shortTier,
                 sub = "@" .. tostring(LP and LP.Name or "User") .. " verified",
