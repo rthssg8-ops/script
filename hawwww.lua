@@ -13649,7 +13649,7 @@ local buildCocaReanimTab
 ;(function()
 --[[
 ================================================================================
-  CHUNK 5: COCO REANIM HUB, CUSTOM KEYFRAME PLAYER, STATE ANIMATIONS,
+  CHUNK 5: ZEN REANIMATIONS HUB, CUSTOM KEYFRAME PLAYER, STATE ANIMATIONS,
            BANG REANIM LOCK, SPEED CONTROLLER, LIMB HIDER & KEYBINDS
   Deobfuscated & Reconstructed from Tesla Deo (root.73.124 .. root.75)
   100% Validated Executable Roblox Luau Script (Standalone + Hub-Embeddable)
@@ -13695,13 +13695,3135 @@ local function safeSyncPhysicsStep(myRoot, targetRoot)
     end
 end
 
+
+-- ============================================================================
+-- ADVANCED REANIM EXTENSIONS:
+--   1. LIMB STRETCH & FORMATIONS ENGINE (Sky Pillar, Sky Reach, Forward Line,
+--      Mega Wingspan, Snake Trail, Orbit Ring, Helix Spiral, Spider Giant, Custom)
+--   2. ADVANCED FX ENGINE (Ghost Afterimage, Hover Levitation, Pose Freeze,
+--      Noodle/Spaghetti Wobble, Glitch Aura, Target Limb Orbit, Anti-Void Stabilizer)
+-- Encapsulated outside buildAngoorReanimTab to keep local counts well under Luau's 200-local limit.
+-- ============================================================================
+
+
+-- ============================================================================
+-- BUILT-IN PROCEDURAL ANIMATION ENGINE (20 Animations + Recorded Clip Player)
+-- Ensures Fun, Bang, Favs, Custom, States & Binds are ALWAYS filled & working
+-- even if remote GitHub repos are offline or rate-limited.
+-- ============================================================================
+local BUILTIN_PROC_ANIMS = {
+    { name = "Default Dance [Built-In]",    path = "proc://DefaultDance",    category = "Reanims" },
+    { name = "Griddy Groove [Built-In]",    path = "proc://Griddy",          category = "Reanims" },
+    { name = "T-Pose Float [Built-In]",     path = "proc://TPoseFloat",      category = "Reanims" },
+    { name = "Helicopter Spin [Built-In]",  path = "proc://HelicopterDance", category = "Reanims" },
+    { name = "Backflip Loop [Built-In]",    path = "proc://BackflipLoop",    category = "Reanims" },
+    { name = "Headspin Break [Built-In]",   path = "proc://Headspin",        category = "Reanims" },
+    { name = "Wave Groove [Built-In]",      path = "proc://WaveGroove",      category = "Reanims" },
+    { name = "Naruto Sprint [Built-In]",    path = "proc://NarutoRun",       category = "Reanims" },
+    { name = "Zombie Shamble [Built-In]",   path = "proc://ZombieWalk",      category = "Reanims" },
+    { name = "Robot Pop [Built-In]",        path = "proc://RobotDance",      category = "Reanims" },
+    { name = "Karate Kata [Built-In]",      path = "proc://KarateKata",      category = "Reanims" },
+    { name = "Power Charge [Built-In]",     path = "proc://SuperCharge",     category = "Reanims" },
+    { name = "Chill Sit [Built-In]",        path = "proc://ChillSit",        category = "Reanims" },
+    { name = "Salute Stand [Built-In]",     path = "proc://Salute",          category = "Reanims" },
+    { name = "Moonwalk Glide [Built-In]",   path = "proc://Moonwalk",        category = "Reanims" },
+    { name = "Levitate Idle [Built-In]",    path = "proc://LevitateIdle",    category = "Reanims" },
+    { name = "Jump Tuck Flip [Built-In]",   path = "proc://JumpFlip",        category = "Reanims" },
+    { name = "SkyDive Fall [Built-In]",     path = "proc://SkyDiveFall",     category = "Reanims" },
+    { name = "Vibe Bounce [Built-In]",      path = "proc://VibeBounce",      category = "Reanims" },
+    { name = "Spin Kick [Built-In]",        path = "proc://SpinKick",        category = "Reanims" },
+}
+
+local function createProceduralAnimEngine(zenApiRef)
+    local activeProcId   = nil
+    local activeRecClip  = nil
+    local procSpeed      = 1.0
+    local procClock      = 0
+    local savedRecClips  = {}
+    local origC0Cache    = setmetatable({}, { __mode = "k" })
+
+    local function getRig()
+        if zenApiRef and type(zenApiRef.is_reanimated) == "function" and type(zenApiRef.get_clone) == "function" then
+            local okRe, isRe = pcall(zenApiRef.is_reanimated)
+            if okRe and isRe then
+                local okCl, cl = pcall(zenApiRef.get_clone)
+                if okCl and cl and cl.Parent then return cl end
+            end
+        end
+        return LocalPlayer and LocalPlayer.Character
+    end
+
+    local function getMotors(rig)
+        local map = {}
+        if not rig then return map end
+        for _, d in ipairs(rig:GetDescendants()) do
+            if d:IsA("Motor6D") then
+                if not origC0Cache[d] then origC0Cache[d] = d.C0 end
+                map[d.Name] = d
+            end
+        end
+        return map
+    end
+
+    local function resetMotors(rig)
+        rig = rig or getRig()
+        if not rig then return end
+        for _, d in ipairs(rig:GetDescendants()) do
+            if d:IsA("Motor6D") and origC0Cache[d] then
+                pcall(function()
+                    d.C0 = origC0Cache[d]
+                    d.Transform = CFrame.new()
+                end)
+            end
+        end
+    end
+
+    local function applyJointOffset(motors, names, offsetCF)
+        for _, jName in ipairs(names) do
+            local m = motors[jName]
+            if m and origC0Cache[m] then
+                m.Transform = CFrame.new()
+                m.C0 = origC0Cache[m] * offsetCF
+            end
+        end
+    end
+
+    local function stepProc(dt)
+        if not activeProcId and not activeRecClip then return end
+        local rig = getRig()
+        if not rig then return end
+        local root = rig:FindFirstChild("HumanoidRootPart")
+        if not root then return end
+
+        procClock = procClock + (dt or 0.016) * procSpeed
+        local t = procClock
+
+        -- Play saved recorded clip (rec://)
+        if activeRecClip and #activeRecClip >= 2 then
+            local idx = (math.floor(t * 20) % #activeRecClip) + 1
+            local snap = activeRecClip[idx]
+            if snap then
+                local cfMap = { [root] = root.CFrame }
+                for _, d in ipairs(rig:GetDescendants()) do
+                    if d:IsA("Motor6D") and d.Part1 and snap[d.Part1.Name] and d.Part0 then
+                        local targetCF = root.CFrame * snap[d.Part1.Name]
+                        cfMap[d.Part1] = targetCF
+                        local p0CF = cfMap[d.Part0] or d.Part0.CFrame
+                        d.Transform = CFrame.new()
+                        d.C0 = p0CF:ToObjectSpace(targetCF) * d.C1
+                    end
+                end
+            end
+            return
+        end
+
+        local m = getMotors(rig)
+        local rootJoints = { "RootJoint", "Root" }
+        local neckJoints = { "Neck" }
+        local lArmJoints = { "Left Shoulder", "LeftShoulder" }
+        local rArmJoints = { "Right Shoulder", "RightShoulder" }
+        local lLegJoints = { "Left Hip", "LeftHip" }
+        local rLegJoints = { "Right Hip", "RightHip" }
+
+        local id = activeProcId
+        if id == "DefaultDance" then
+            local b = math.sin(t * 7.5)
+            local c = math.cos(t * 3.75)
+            applyJointOffset(m, rootJoints, CFrame.new(0, math.abs(b) * 0.35, 0) * CFrame.Angles(0, c * 0.25, b * 0.1))
+            applyJointOffset(m, lArmJoints, CFrame.Angles(math.rad(65 + b * 45), 0, math.rad(-25 + c * 30)))
+            applyJointOffset(m, rArmJoints, CFrame.Angles(math.rad(65 - b * 45), 0, math.rad(25 + c * 30)))
+            applyJointOffset(m, lLegJoints, CFrame.Angles(math.rad(b * 35), 0, math.rad(-10)))
+            applyJointOffset(m, rLegJoints, CFrame.Angles(math.rad(-b * 35), 0, math.rad(10)))
+        elseif id == "Griddy" then
+            local s = math.sin(t * 8.5)
+            applyJointOffset(m, rootJoints, CFrame.new(0, math.abs(s) * 0.4, 0) * CFrame.Angles(math.rad(15), 0, s * 0.15))
+            applyJointOffset(m, lArmJoints, CFrame.Angles(math.rad(80 * s), 0, math.rad(-20)))
+            applyJointOffset(m, rArmJoints, CFrame.Angles(math.rad(-80 * s), 0, math.rad(20)))
+            applyJointOffset(m, lLegJoints, CFrame.Angles(math.rad(45 * s), 0, 0))
+            applyJointOffset(m, rLegJoints, CFrame.Angles(math.rad(-45 * s), 0, 0))
+        elseif id == "TPoseFloat" then
+            applyJointOffset(m, rootJoints, CFrame.new(0, 1.5 + math.sin(t * 2.5) * 0.45, 0))
+            applyJointOffset(m, lArmJoints, CFrame.Angles(0, 0, math.rad(-90)))
+            applyJointOffset(m, rArmJoints, CFrame.Angles(0, 0, math.rad(90)))
+            applyJointOffset(m, lLegJoints, CFrame.Angles(math.rad(6), 0, 0))
+            applyJointOffset(m, rLegJoints, CFrame.Angles(math.rad(-6), 0, 0))
+        elseif id == "HelicopterDance" then
+            applyJointOffset(m, rootJoints, CFrame.new(0, 1.2 + math.sin(t * 4) * 0.4, 0) * CFrame.Angles(0, t * 10, 0))
+            applyJointOffset(m, lArmJoints, CFrame.Angles(0, 0, math.rad(-90)))
+            applyJointOffset(m, rArmJoints, CFrame.Angles(0, 0, math.rad(90)))
+        elseif id == "BackflipLoop" then
+            applyJointOffset(m, rootJoints, CFrame.new(0, 2.0 + math.abs(math.sin(t * 3)) * 2.0, 0) * CFrame.Angles(t * 6, 0, 0))
+            applyJointOffset(m, lArmJoints, CFrame.Angles(math.rad(120), 0, 0))
+            applyJointOffset(m, rArmJoints, CFrame.Angles(math.rad(120), 0, 0))
+            applyJointOffset(m, lLegJoints, CFrame.Angles(math.rad(-55), 0, 0))
+            applyJointOffset(m, rLegJoints, CFrame.Angles(math.rad(-55), 0, 0))
+        elseif id == "Headspin" then
+            applyJointOffset(m, rootJoints, CFrame.new(0, -0.4, 0) * CFrame.Angles(math.rad(180), t * 9, 0))
+            applyJointOffset(m, lLegJoints, CFrame.Angles(0, 0, math.rad(-35)))
+            applyJointOffset(m, rLegJoints, CFrame.Angles(0, 0, math.rad(35)))
+        elseif id == "WaveGroove" then
+            local w = math.sin(t * 5)
+            applyJointOffset(m, rootJoints, CFrame.new(w * 0.4, math.abs(w) * 0.25, 0) * CFrame.Angles(0, w * 0.3, w * 0.15))
+            applyJointOffset(m, lArmJoints, CFrame.Angles(math.rad(110 + w * 40), 0, math.rad(-45)))
+            applyJointOffset(m, rArmJoints, CFrame.Angles(math.rad(110 - w * 40), 0, math.rad(45)))
+            applyJointOffset(m, neckJoints, CFrame.Angles(0, w * 0.4, 0))
+        elseif id == "NarutoRun" then
+            local s = math.sin(t * 12)
+            applyJointOffset(m, rootJoints, CFrame.Angles(math.rad(38), 0, 0))
+            applyJointOffset(m, neckJoints, CFrame.Angles(math.rad(-30), 0, 0))
+            applyJointOffset(m, lArmJoints, CFrame.Angles(math.rad(-75), 0, math.rad(-15)))
+            applyJointOffset(m, rArmJoints, CFrame.Angles(math.rad(-75), 0, math.rad(15)))
+            applyJointOffset(m, lLegJoints, CFrame.Angles(math.rad(55 * s), 0, 0))
+            applyJointOffset(m, rLegJoints, CFrame.Angles(math.rad(-55 * s), 0, 0))
+        elseif id == "ZombieWalk" then
+            local s = math.sin(t * 4.5)
+            applyJointOffset(m, rootJoints, CFrame.Angles(math.rad(12), 0, s * 0.14))
+            applyJointOffset(m, lArmJoints, CFrame.Angles(math.rad(90 + s * 10), 0, math.rad(-8)))
+            applyJointOffset(m, rArmJoints, CFrame.Angles(math.rad(90 - s * 10), 0, math.rad(8)))
+            applyJointOffset(m, lLegJoints, CFrame.Angles(math.rad(32 * s), 0, 0))
+            applyJointOffset(m, rLegJoints, CFrame.Angles(math.rad(-32 * s), 0, 0))
+        elseif id == "RobotDance" then
+            local step = math.floor(t * 4) % 4
+            local a = (step == 0 and 90) or (step == 1 and 45) or (step == 2 and 135) or 0
+            applyJointOffset(m, lArmJoints, CFrame.Angles(math.rad(a), 0, math.rad(-20)))
+            applyJointOffset(m, rArmJoints, CFrame.Angles(math.rad(135 - a), 0, math.rad(20)))
+            applyJointOffset(m, neckJoints, CFrame.Angles(0, math.rad((step - 1.5) * 25), 0))
+        elseif id == "KarateKata" then
+            local k = math.sin(t * 7)
+            applyJointOffset(m, rootJoints, CFrame.Angles(0, k * 0.5, 0))
+            applyJointOffset(m, rArmJoints, CFrame.Angles(math.rad(95 + k * 45), 0, math.rad(10)))
+            applyJointOffset(m, lArmJoints, CFrame.Angles(math.rad(50 - k * 35), 0, math.rad(-25)))
+            applyJointOffset(m, rLegJoints, CFrame.Angles(math.rad(math.max(0, k) * 75), 0, 0))
+        elseif id == "SuperCharge" then
+            local j = math.sin(t * 28) * 0.08
+            applyJointOffset(m, rootJoints, CFrame.new(j, 0.35 + math.abs(j), 0) * CFrame.Angles(math.rad(-12), 0, 0))
+            applyJointOffset(m, lArmJoints, CFrame.Angles(math.rad(35), 0, math.rad(-42)))
+            applyJointOffset(m, rArmJoints, CFrame.Angles(math.rad(35), 0, math.rad(42)))
+            applyJointOffset(m, lLegJoints, CFrame.Angles(math.rad(-15), 0, math.rad(-18)))
+            applyJointOffset(m, rLegJoints, CFrame.Angles(math.rad(-15), 0, math.rad(18)))
+        elseif id == "ChillSit" then
+            applyJointOffset(m, rootJoints, CFrame.new(0, -1.0, 0) * CFrame.Angles(math.rad(-12), 0, 0))
+            applyJointOffset(m, lLegJoints, CFrame.Angles(math.rad(85), 0, math.rad(-12)))
+            applyJointOffset(m, rLegJoints, CFrame.Angles(math.rad(85), 0, math.rad(12)))
+            applyJointOffset(m, lArmJoints, CFrame.Angles(math.rad(-25), 0, math.rad(-15)))
+            applyJointOffset(m, rArmJoints, CFrame.Angles(math.rad(-25), 0, math.rad(15)))
+        elseif id == "Salute" then
+            applyJointOffset(m, rArmJoints, CFrame.Angles(math.rad(140), 0, math.rad(-22)))
+            applyJointOffset(m, lArmJoints, CFrame.Angles(0, 0, math.rad(-6)))
+        elseif id == "Moonwalk" then
+            local s = math.sin(t * 6)
+            applyJointOffset(m, rootJoints, CFrame.new(0, math.abs(s) * 0.15, 0) * CFrame.Angles(math.rad(-10), 0, 0))
+            applyJointOffset(m, lLegJoints, CFrame.Angles(math.rad(-42 * s), 0, 0))
+            applyJointOffset(m, rLegJoints, CFrame.Angles(math.rad(42 * s), 0, 0))
+            applyJointOffset(m, lArmJoints, CFrame.Angles(math.rad(30 * s), 0, math.rad(-12)))
+            applyJointOffset(m, rArmJoints, CFrame.Angles(math.rad(-30 * s), 0, math.rad(12)))
+        elseif id == "LevitateIdle" then
+            local bob = math.sin(t * 2.2) * 0.45
+            applyJointOffset(m, rootJoints, CFrame.new(0, 1.4 + bob, 0) * CFrame.Angles(math.rad(-6), 0, 0))
+            applyJointOffset(m, lArmJoints, CFrame.Angles(math.rad(15), 0, math.rad(-24 + bob * 10)))
+            applyJointOffset(m, rArmJoints, CFrame.Angles(math.rad(15), 0, math.rad(24 - bob * 10)))
+            applyJointOffset(m, lLegJoints, CFrame.Angles(math.rad(-18), 0, 0))
+            applyJointOffset(m, rLegJoints, CFrame.Angles(math.rad(-8), 0, 0))
+        elseif id == "JumpFlip" then
+            applyJointOffset(m, rootJoints, CFrame.Angles(t * 7, 0, 0))
+            applyJointOffset(m, lLegJoints, CFrame.Angles(math.rad(-45), 0, 0))
+            applyJointOffset(m, rLegJoints, CFrame.Angles(math.rad(-45), 0, 0))
+        elseif id == "SkyDiveFall" then
+            local w = math.sin(t * 6) * 0.15
+            applyJointOffset(m, rootJoints, CFrame.Angles(math.rad(78), 0, w))
+            applyJointOffset(m, lArmJoints, CFrame.Angles(math.rad(25), 0, math.rad(-65)))
+            applyJointOffset(m, rArmJoints, CFrame.Angles(math.rad(25), 0, math.rad(65)))
+            applyJointOffset(m, lLegJoints, CFrame.Angles(math.rad(-20), 0, math.rad(-18)))
+            applyJointOffset(m, rLegJoints, CFrame.Angles(math.rad(-20), 0, math.rad(18)))
+        elseif id == "VibeBounce" then
+            local b = math.abs(math.sin(t * 6.5))
+            applyJointOffset(m, rootJoints, CFrame.new(0, b * 0.4, 0))
+            applyJointOffset(m, neckJoints, CFrame.Angles(math.rad(-18 * b), 0, 0))
+            applyJointOffset(m, lArmJoints, CFrame.Angles(math.rad(45 + b * 25), 0, math.rad(-20)))
+            applyJointOffset(m, rArmJoints, CFrame.Angles(math.rad(45 + b * 25), 0, math.rad(20)))
+        elseif id == "SpinKick" then
+            applyJointOffset(m, rootJoints, CFrame.Angles(0, t * 9, math.rad(15)))
+            applyJointOffset(m, rLegJoints, CFrame.Angles(math.rad(85), 0, math.rad(20)))
+            applyJointOffset(m, lArmJoints, CFrame.Angles(math.rad(40), 0, math.rad(-45)))
+            applyJointOffset(m, rArmJoints, CFrame.Angles(math.rad(40), 0, math.rad(45)))
+        end
+    end
+
+    local PROC_STEP = "AngoorZenBuiltInProcStep"
+    pcall(function() RunService:UnbindFromRenderStep(PROC_STEP) end)
+    pcall(function()
+        RunService:BindToRenderStep(PROC_STEP, Enum.RenderPriority.Camera.Value + 2, stepProc)
+    end)
+
+    return {
+        isHandledPath = function(p)
+            return type(p) == "string" and (p:sub(1, 7) == "proc://" or p:sub(1, 6) == "rec://")
+        end,
+        play = function(path, spd)
+            procSpeed = tonumber(spd) or procSpeed or 1.0
+            procClock = 0
+            if type(path) == "string" and path:sub(1, 7) == "proc://" then
+                activeRecClip = nil
+                activeProcId = path:sub(8)
+                return true
+            elseif type(path) == "string" and path:sub(1, 6) == "rec://" then
+                local clipKey = path:sub(7)
+                activeProcId = nil
+                activeRecClip = savedRecClips[clipKey]
+                return activeRecClip ~= nil
+            end
+            return false
+        end,
+        stop = function()
+            if activeProcId or activeRecClip then
+                activeProcId = nil
+                activeRecClip = nil
+                resetMotors(getRig())
+            end
+        end,
+        setSpeed = function(spd)
+            procSpeed = tonumber(spd) or 1.0
+        end,
+        registerRecClip = function(key, frames)
+            local copy = {}
+            for i, f in ipairs(frames) do
+                local fc = {}
+                for k, v in pairs(f) do fc[k] = v end
+                copy[i] = fc
+            end
+            savedRecClips[key] = copy
+        end,
+    }
+end
+
+local function createAdvancedSlider(parentFrame, ctx, labelText, minVal, maxVal, initVal, fmtStr, yPos, onChange)
+    local Theme = ctx.Theme
+    local addCorner = ctx.addCorner
+    local addStroke = ctx.addStroke
+
+    local wrap = Instance.new("Frame")
+    wrap.Size = UDim2.new(1, -20, 0, 36)
+    wrap.Position = UDim2.new(0, 10, 0, yPos)
+    wrap.BackgroundTransparency = 1
+    wrap.Parent = parentFrame
+
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(1, -56, 0, 16)
+    lbl.Position = UDim2.new(0, 0, 0, 0)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = labelText
+    lbl.TextColor3 = Theme.text
+    lbl.Font = Enum.Font.GothamSemibold
+    lbl.TextSize = 10
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.Parent = wrap
+
+    local valLbl = Instance.new("TextLabel")
+    valLbl.Size = UDim2.new(0, 52, 0, 16)
+    valLbl.Position = UDim2.new(1, -52, 0, 0)
+    valLbl.BackgroundColor3 = Theme.input
+    valLbl.Text = string.format(fmtStr, initVal)
+    valLbl.TextColor3 = Theme.accent
+    valLbl.Font = Enum.Font.GothamBold
+    valLbl.TextSize = 9.5
+    valLbl.Parent = wrap
+    addCorner(valLbl, 4)
+    addStroke(valLbl, Theme.divider, 1, 0)
+
+    local track = Instance.new("Frame")
+    track.Size = UDim2.new(1, 0, 0, 6)
+    track.Position = UDim2.new(0, 0, 0, 24)
+    track.BackgroundColor3 = Theme.surface
+    track.BorderSizePixel = 0
+    track.Parent = wrap
+    addCorner(track, 3)
+
+    local initAlpha = math.clamp((initVal - minVal) / math.max(maxVal - minVal, 0.0001), 0, 1)
+    local fill = Instance.new("Frame")
+    fill.Size = UDim2.new(initAlpha, 0, 1, 0)
+    fill.BackgroundColor3 = Theme.accent
+    fill.BorderSizePixel = 0
+    fill.Parent = track
+    addCorner(fill, 3)
+
+    local knob = Instance.new("Frame")
+    knob.Size = UDim2.new(0, 12, 0, 12)
+    knob.Position = UDim2.new(1, -6, 0.5, -6)
+    knob.BackgroundColor3 = Theme.text
+    knob.BorderSizePixel = 0
+    knob.Parent = fill
+    addCorner(knob, 6)
+
+    local dragging = false
+    local function setVal(v, triggerCb)
+        local clamped = math.clamp(v, minVal, maxVal)
+        local rounded = math.floor(clamped * 10 + 0.5) / 10
+        local alpha = math.clamp((rounded - minVal) / math.max(maxVal - minVal, 0.0001), 0, 1)
+        fill.Size = UDim2.new(alpha, 0, 1, 0)
+        valLbl.Text = string.format(fmtStr, rounded)
+        if triggerCb and onChange then
+            onChange(rounded)
+        end
+    end
+
+    local function updateFromInput(input)
+        local w = math.max(track.AbsoluteSize.X, 1)
+        local relX = math.clamp(input.Position.X - track.AbsolutePosition.X, 0, w)
+        local v = minVal + (maxVal - minVal) * (relX / w)
+        setVal(v, true)
+    end
+
+    local hitArea = Instance.new("TextButton")
+    hitArea.Size = UDim2.new(1, 0, 0, 20)
+    hitArea.Position = UDim2.new(0, 0, 0, 16)
+    hitArea.BackgroundTransparency = 1
+    hitArea.Text = ""
+    hitArea.ZIndex = 6
+    hitArea.Parent = wrap
+
+    hitArea.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            updateFromInput(input)
+        end
+    end)
+
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            updateFromInput(input)
+        end
+    end)
+
+    return {
+        frame = wrap,
+        setVal = setVal,
+    }
+end
+
+local function buildStretchAndFxModules(ctx)
+    local Theme                  = ctx.Theme
+    local addCorner              = ctx.addCorner
+    local addStroke              = ctx.addStroke
+    local playTween              = ctx.playTween
+    local zenApi                 = ctx.zenApi
+    local savedConfig            = ctx.savedConfig
+    local saveConfig             = ctx.saveConfig
+    local pagesHolder            = ctx.pagesHolder
+    local findTargetPlayer       = ctx.findTargetPlayer
+    local createLimbToggleSwitch = ctx.createLimbToggleSwitch
+    local setSwitchVisual        = ctx.setSwitchVisual
+    local stopBangFn             = ctx.stopBang
+
+    -- Default Stretch & FX config initialization
+    savedConfig.stretch = type(savedConfig.stretch) == "table" and savedConfig.stretch or {}
+    local stCfg = savedConfig.stretch
+    if stCfg.enabled == nil then stCfg.enabled = false end
+    if type(stCfg.mode) ~= "string" then stCfg.mode = "Sky Pillar" end
+    if type(stCfg.length) ~= "number" then stCfg.length = 24 end
+    if type(stCfg.skyHeight) ~= "number" then stCfg.skyHeight = 0 end
+    if type(stCfg.motionSpeed) ~= "number" then stCfg.motionSpeed = 2.0 end
+    if type(stCfg.spinSpeed) ~= "number" then stCfg.spinSpeed = 0 end
+    if stCfg.visualStretch == nil then stCfg.visualStretch = true end
+    if stCfg.wavePulse == nil then stCfg.wavePulse = false end
+    if stCfg.keepRootGrounded == nil then stCfg.keepRootGrounded = true end
+    if type(stCfg.enabledLimbs) ~= "table" then
+        stCfg.enabledLimbs = {
+            ["Head"]      = true,
+            ["Torso"]     = true,
+            ["Left Arm"]  = true,
+            ["Right Arm"] = true,
+            ["Left Leg"]  = true,
+            ["Right Leg"] = true,
+        }
+    end
+    if type(stCfg.customOffsets) ~= "table" then
+        stCfg.customOffsets = {}
+    end
+
+    savedConfig.fx = type(savedConfig.fx) == "table" and savedConfig.fx or {}
+    local fxCfg = savedConfig.fx
+    if fxCfg.afterimageEnabled == nil then fxCfg.afterimageEnabled = false end
+    if type(fxCfg.afterimageRate) ~= "number" then fxCfg.afterimageRate = 0.12 end
+    if type(fxCfg.afterimageFade) ~= "number" then fxCfg.afterimageFade = 0.6 end
+    if fxCfg.hoverEnabled == nil then fxCfg.hoverEnabled = false end
+    if type(fxCfg.hoverHeight) ~= "number" then fxCfg.hoverHeight = 4.5 end
+    if fxCfg.poseFreezeEnabled == nil then fxCfg.poseFreezeEnabled = false end
+    if fxCfg.noodleEnabled == nil then fxCfg.noodleEnabled = false end
+    if type(fxCfg.noodleIntensity) ~= "number" then fxCfg.noodleIntensity = 1.5 end
+    if fxCfg.glitchEnabled == nil then fxCfg.glitchEnabled = false end
+    if type(fxCfg.glitchIntensity) ~= "number" then fxCfg.glitchIntensity = 1.0 end
+    if fxCfg.targetOrbitEnabled == nil then fxCfg.targetOrbitEnabled = false end
+    if type(fxCfg.targetOrbitName) ~= "string" then fxCfg.targetOrbitName = "" end
+    if type(fxCfg.targetOrbitRadius) ~= "number" then fxCfg.targetOrbitRadius = 7 end
+    if type(fxCfg.targetOrbitMode) ~= "string" then fxCfg.targetOrbitMode = "Orbit" end
+    if fxCfg.antiVoidEnabled == nil then fxCfg.antiVoidEnabled = true end
+
+    local LIMB_ORDER = { "Torso", "Head", "Left Arm", "Right Arm", "Left Leg", "Right Leg" }
+    local LIMB_PART_MAP = {
+        ["Head"]      = { "Head" },
+        ["Torso"]     = { "Torso", "UpperTorso", "LowerTorso" },
+        ["Left Arm"]  = { "Left Arm", "LeftUpperArm", "LeftLowerArm", "LeftHand" },
+        ["Right Arm"] = { "Right Arm", "RightUpperArm", "RightLowerArm", "RightHand" },
+        ["Left Leg"]  = { "Left Leg", "LeftUpperLeg", "LeftLowerLeg", "LeftFoot" },
+        ["Right Leg"] = { "Right Leg", "RightUpperLeg", "RightLowerLeg", "RightFoot" },
+    }
+
+    for _, limbId in ipairs(LIMB_ORDER) do
+        if stCfg.enabledLimbs[limbId] == nil then
+            stCfg.enabledLimbs[limbId] = true
+        end
+        if type(stCfg.customOffsets[limbId]) ~= "table" then
+            stCfg.customOffsets[limbId] = { x = 0, y = 0, z = 0, scale = 1 }
+        end
+    end
+
+    -- Weak-keyed original rig cache so resetting restores every joint, size & mesh cleanly
+    local origMotorCache = setmetatable({}, { __mode = "k" })
+    local origPartCache  = setmetatable({}, { __mode = "k" })
+    local trailHistory   = {}
+    local frozenRelCF    = {}
+    local lastRigRef     = nil
+    local lastAfterimageTick = 0
+    local runtimeClock   = 0
+
+    local function getActiveRig()
+        if zenApi and type(zenApi.is_reanimated) == "function" and type(zenApi.get_clone) == "function" then
+            local okRe, isRe = pcall(zenApi.is_reanimated)
+            if okRe and isRe then
+                local okCl, cl = pcall(zenApi.get_clone)
+                if okCl and cl and cl.Parent then
+                    return cl
+                end
+            end
+        end
+        return LocalPlayer and LocalPlayer.Character
+    end
+
+    local function cacheRigOriginals(rig)
+        if not rig then return end
+        for _, desc in ipairs(rig:GetDescendants()) do
+            if desc:IsA("Motor6D") and not origMotorCache[desc] then
+                origMotorCache[desc] = {
+                    C0 = desc.C0,
+                    C1 = desc.C1,
+                }
+            elseif desc:IsA("BasePart") and not origPartCache[desc] then
+                local existingMesh = desc:FindFirstChildOfClass("SpecialMesh")
+                origPartCache[desc] = {
+                    Size = desc.Size,
+                    Mesh = existingMesh,
+                    MeshScale = existingMesh and existingMesh.Scale or nil,
+                }
+            end
+        end
+    end
+
+    local function restorePartMesh(part)
+        if not part or not part.Parent then return end
+        local helper = part:FindFirstChild("_AngoorStretchMesh")
+        if helper then
+            pcall(function() helper:Destroy() end)
+        end
+        local cached = origPartCache[part]
+        if cached and cached.Mesh and cached.Mesh.Parent and cached.MeshScale then
+            pcall(function() cached.Mesh.Scale = cached.MeshScale end)
+        end
+    end
+
+    local function applyPartVisualStretch(part, scaleVec)
+        if not part or not part.Parent then return end
+        cacheRigOriginals(part.Parent)
+        local cached = origPartCache[part]
+        local existingMesh = part:FindFirstChildOfClass("SpecialMesh")
+        if existingMesh and existingMesh.Name ~= "_AngoorStretchMesh" then
+            local baseScale = (cached and cached.MeshScale) or Vector3.new(1, 1, 1)
+            existingMesh.Scale = Vector3.new(
+                baseScale.X * scaleVec.X,
+                baseScale.Y * scaleVec.Y,
+                baseScale.Z * scaleVec.Z
+            )
+        else
+            local helper = part:FindFirstChild("_AngoorStretchMesh")
+            if not helper then
+                helper = Instance.new("SpecialMesh")
+                helper.Name = "_AngoorStretchMesh"
+                helper.MeshType = Enum.MeshType.Brick
+                helper.Parent = part
+            end
+            helper.Scale = scaleVec
+        end
+    end
+
+    local function restoreRigVisuals(rig)
+        rig = rig or getActiveRig()
+        if not rig then return end
+        for _, desc in ipairs(rig:GetDescendants()) do
+            if desc:IsA("Motor6D") then
+                local orig = origMotorCache[desc]
+                if orig then
+                    pcall(function()
+                        desc.C0 = orig.C0
+                        desc.C1 = orig.C1
+                        desc.Transform = CFrame.new()
+                    end)
+                end
+            elseif desc:IsA("BasePart") then
+                restorePartMesh(desc)
+            end
+        end
+    end
+
+    local function getMotorForPart(rig, part)
+        for _, desc in ipairs(rig:GetDescendants()) do
+            if desc:IsA("Motor6D") and desc.Part1 == part then
+                return desc
+            end
+        end
+        return nil
+    end
+
+    local function placeLimbPart(rig, part, targetCF, computedCFMap)
+        if not part or not part.Parent then return end
+        computedCFMap[part] = targetCF
+        local motor = getMotorForPart(rig, part)
+        if motor and motor.Part0 then
+            local p0CF = computedCFMap[motor.Part0] or motor.Part0.CFrame
+            motor.Transform = CFrame.new()
+            motor.C0 = p0CF:ToObjectSpace(targetCF) * motor.C1
+        else
+            part.CFrame = targetCF
+            pcall(function()
+                part.AssemblyLinearVelocity = Vector3.zero
+                part.AssemblyAngularVelocity = Vector3.zero
+            end)
+        end
+    end
+
+    local function getPartsForLimbGroup(rig, limbId)
+        local names = LIMB_PART_MAP[limbId] or {}
+        local found = {}
+        for _, pName in ipairs(names) do
+            local p = rig:FindFirstChild(pName)
+            if p and p:IsA("BasePart") then
+                table.insert(found, p)
+            end
+        end
+        return found
+    end
+
+    -- ========================================================================
+    -- BUILD STRETCH PAGE UI
+    -- ========================================================================
+    local stretchPage = Instance.new("ScrollingFrame")
+    stretchPage.Name = "StretchPage"
+    stretchPage.Size = UDim2.new(1, 0, 1, 0)
+    stretchPage.BackgroundTransparency = 1
+    stretchPage.BorderSizePixel = 0
+    stretchPage.ScrollBarThickness = 3
+    stretchPage.ScrollBarImageColor3 = Theme.accent
+    stretchPage.ScrollBarImageTransparency = 0.6
+    pcall(function()
+        stretchPage.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    end)
+    stretchPage.CanvasSize = UDim2.new(0, 0, 0, 680)
+    stretchPage.Visible = false
+    stretchPage.Parent = pagesHolder
+
+    local stPad = Instance.new("UIPadding")
+    stPad.PaddingLeft = UDim.new(0, 2)
+    stPad.PaddingRight = UDim.new(0, 4)
+    stPad.PaddingTop = UDim.new(0, 2)
+    stPad.PaddingBottom = UDim.new(0, 14)
+    stPad.Parent = stretchPage
+
+    local stLayout = Instance.new("UIListLayout")
+    stLayout.Padding = UDim.new(0, 8)
+    stLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    stLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        stretchPage.CanvasSize = UDim2.new(0, 0, 0, stLayout.AbsoluteContentSize.Y + 28)
+    end)
+    stLayout.Parent = stretchPage
+
+    local stHeaderLbl = Instance.new("TextLabel")
+    stHeaderLbl.Size = UDim2.new(1, 0, 0, 16)
+    stHeaderLbl.BackgroundTransparency = 1
+    stHeaderLbl.Text = "LIMB STRETCH & FORMATIONS"
+    stHeaderLbl.TextColor3 = Theme.textMuted
+    stHeaderLbl.Font = Enum.Font.GothamBold
+    stHeaderLbl.TextSize = 10
+    stHeaderLbl.TextXAlignment = Enum.TextXAlignment.Left
+    stHeaderLbl.LayoutOrder = 1
+    stHeaderLbl.Parent = stretchPage
+
+    -- Master Stretch Switch Card
+    local stMasterCard = Instance.new("Frame")
+    stMasterCard.Size = UDim2.new(1, 0, 0, 46)
+    stMasterCard.BackgroundColor3 = Theme.surface
+    stMasterCard.BorderSizePixel = 0
+    stMasterCard.LayoutOrder = 2
+    stMasterCard.Parent = stretchPage
+    addCorner(stMasterCard, 10)
+    addStroke(stMasterCard, Color3.fromRGB(255, 255, 255), 1, 0.88)
+
+    local stMasterTitle = Instance.new("TextLabel")
+    stMasterTitle.Size = UDim2.new(1, -135, 0, 18)
+    stMasterTitle.Position = UDim2.new(0, 12, 0, 6)
+    stMasterTitle.BackgroundTransparency = 1
+    stMasterTitle.Text = "Limb Stretch Engine"
+    stMasterTitle.TextColor3 = Color3.fromRGB(245, 245, 250)
+    stMasterTitle.Font = Enum.Font.GothamBold
+    stMasterTitle.TextSize = 11
+    stMasterTitle.TextXAlignment = Enum.TextXAlignment.Left
+    stMasterTitle.Parent = stMasterCard
+
+    local stMasterSub = Instance.new("TextLabel")
+    stMasterSub.Size = UDim2.new(1, -135, 0, 14)
+    stMasterSub.Position = UDim2.new(0, 12, 0, 24)
+    stMasterSub.BackgroundTransparency = 1
+    stMasterSub.Text = "Mode: " .. tostring(stCfg.mode)
+    stMasterSub.TextColor3 = Theme.textMuted
+    stMasterSub.Font = Enum.Font.Gotham
+    stMasterSub.TextSize = 9
+    stMasterSub.TextXAlignment = Enum.TextXAlignment.Left
+    stMasterSub.Parent = stMasterCard
+
+    local stResetBtn = Instance.new("TextButton")
+    stResetBtn.Size = UDim2.new(0, 50, 0, 22)
+    stResetBtn.Position = UDim2.new(1, -112, 0.5, -11)
+    stResetBtn.BackgroundColor3 = Theme.bgCard
+    stResetBtn.Text = "Reset"
+    stResetBtn.TextColor3 = Theme.textMuted
+    stResetBtn.Font = Enum.Font.GothamBold
+    stResetBtn.TextSize = 9.5
+    stResetBtn.ZIndex = 7
+    stResetBtn.Parent = stMasterCard
+    addCorner(stResetBtn, 6)
+    addStroke(stResetBtn, Theme.divider, 1, 0.3)
+
+    local stMasterTrack, stMasterKnob, stMasterGlow = createLimbToggleSwitch(stMasterCard, -54, -11)
+    setSwitchVisual(stMasterTrack, stMasterKnob, stMasterGlow, stCfg.enabled, false)
+
+    local stMasterHit = Instance.new("TextButton")
+    stMasterHit.Size = UDim2.new(0, 54, 1, 0)
+    stMasterHit.Position = UDim2.new(1, -56, 0, 0)
+    stMasterHit.BackgroundTransparency = 1
+    stMasterHit.Text = ""
+    stMasterHit.ZIndex = 6
+    stMasterHit.Parent = stMasterCard
+
+    local function setStretchEnabled(newState, animate)
+        stCfg.enabled = (newState == true)
+        saveConfig()
+        setSwitchVisual(stMasterTrack, stMasterKnob, stMasterGlow, stCfg.enabled, animate ~= false)
+        if not stCfg.enabled then
+            restoreRigVisuals(getActiveRig())
+        end
+    end
+
+    stMasterHit.MouseButton1Click:Connect(function()
+        setStretchEnabled(not stCfg.enabled, true)
+    end)
+
+    stResetBtn.MouseButton1Click:Connect(function()
+        stCfg.enabled = false
+        stCfg.length = 24
+        stCfg.skyHeight = 0
+        stCfg.motionSpeed = 2.0
+        stCfg.spinSpeed = 0
+        stCfg.wavePulse = false
+        for _, lId in ipairs(LIMB_ORDER) do
+            stCfg.enabledLimbs[lId] = true
+            stCfg.customOffsets[lId] = { x = 0, y = 0, z = 0, scale = 1 }
+        end
+        saveConfig()
+        setSwitchVisual(stMasterTrack, stMasterKnob, stMasterGlow, false, true)
+        restoreRigVisuals(getActiveRig())
+    end)
+
+    -- Formation Presets Grid Card
+    local FORMATIONS = {
+        "Sky Pillar", "Sky Reach", "Forward Line",
+        "Mega Wingspan", "Snake Trail", "Orbit Ring",
+        "Helix Spiral", "Spider Giant", "Custom",
+    }
+
+    local presetsCard = Instance.new("Frame")
+    presetsCard.Size = UDim2.new(1, 0, 0, 118)
+    presetsCard.BackgroundColor3 = Theme.bgCard
+    presetsCard.BorderSizePixel = 0
+    presetsCard.LayoutOrder = 3
+    presetsCard.Parent = stretchPage
+    addCorner(presetsCard, 8)
+    addStroke(presetsCard, Theme.divider, 1, 0)
+
+    local presetsTitle = Instance.new("TextLabel")
+    presetsTitle.Size = UDim2.new(1, -20, 0, 18)
+    presetsTitle.Position = UDim2.new(0, 10, 0, 6)
+    presetsTitle.BackgroundTransparency = 1
+    presetsTitle.Text = "FORMATION PRESETS (TAP TO ACTIVATE)"
+    presetsTitle.TextColor3 = Theme.textMuted
+    presetsTitle.Font = Enum.Font.GothamBold
+    presetsTitle.TextSize = 9.5
+    presetsTitle.TextXAlignment = Enum.TextXAlignment.Left
+    presetsTitle.Parent = presetsCard
+
+    local formationButtons = {}
+    local customCardRef = nil
+
+    local function updateFormationButtonsUI()
+        stMasterSub.Text = "Mode: " .. tostring(stCfg.mode)
+        for name, btn in pairs(formationButtons) do
+            local active = (stCfg.mode == name)
+            btn.BackgroundColor3 = active and Theme.accent or Theme.surface
+            btn.TextColor3 = active and Color3.fromRGB(8, 8, 10) or Theme.text
+            btn.Font = active and Enum.Font.GothamBold or Enum.Font.GothamMedium
+        end
+        if customCardRef then
+            customCardRef.Visible = (stCfg.mode == "Custom")
+        end
+    end
+
+    for idx, fName in ipairs(FORMATIONS) do
+        local row = math.floor((idx - 1) / 3)
+        local col = (idx - 1) % 3
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(1 / 3, -10, 0, 24)
+        btn.Position = UDim2.new(col / 3, 7, 0, 28 + row * 28)
+        btn.BackgroundColor3 = Theme.surface
+        btn.Text = fName
+        btn.TextColor3 = Theme.text
+        btn.Font = Enum.Font.GothamMedium
+        btn.TextSize = 9.5
+        btn.TextTruncate = Enum.TextTruncate.AtEnd
+        btn.Parent = presetsCard
+        addCorner(btn, 6)
+        addStroke(btn, Theme.divider, 1, 0.3)
+
+        formationButtons[fName] = btn
+        btn.MouseButton1Click:Connect(function()
+            stCfg.mode = fName
+            if not stCfg.enabled then
+                setStretchEnabled(true, true)
+            else
+                saveConfig()
+            end
+            updateFormationButtonsUI()
+        end)
+    end
+
+    -- Stretch Tuning Sliders Card
+    local tuningCard = Instance.new("Frame")
+    tuningCard.Size = UDim2.new(1, 0, 0, 206)
+    tuningCard.BackgroundColor3 = Theme.bgCard
+    tuningCard.BorderSizePixel = 0
+    tuningCard.LayoutOrder = 4
+    tuningCard.Parent = stretchPage
+    addCorner(tuningCard, 8)
+    addStroke(tuningCard, Theme.divider, 1, 0)
+
+    local tuningTitle = Instance.new("TextLabel")
+    tuningTitle.Size = UDim2.new(1, -20, 0, 18)
+    tuningTitle.Position = UDim2.new(0, 10, 0, 6)
+    tuningTitle.BackgroundTransparency = 1
+    tuningTitle.Text = "LENGTH, SKY ALTITUDE & MOTION"
+    tuningTitle.TextColor3 = Theme.textMuted
+    tuningTitle.Font = Enum.Font.GothamBold
+    tuningTitle.TextSize = 9.5
+    tuningTitle.TextXAlignment = Enum.TextXAlignment.Left
+    tuningTitle.Parent = tuningCard
+
+    local lenSlider = createAdvancedSlider(tuningCard, ctx, "Stretch Length / Line Distance", 2, 120, stCfg.length, "%.0f st", 26, function(v)
+        stCfg.length = v
+        saveConfig()
+    end)
+
+    -- Quick mega length preset pills
+    local QUICK_LENS = { 10, 25, 50, 100 }
+    for idx, qVal in ipairs(QUICK_LENS) do
+        local qb = Instance.new("TextButton")
+        qb.Size = UDim2.new(0.25, -8, 0, 20)
+        qb.Position = UDim2.new((idx - 1) * 0.25, 6, 0, 64)
+        qb.BackgroundColor3 = Theme.surface
+        qb.Text = tostring(qVal) .. " st"
+        qb.TextColor3 = Theme.accent
+        qb.Font = Enum.Font.GothamBold
+        qb.TextSize = 9
+        qb.Parent = tuningCard
+        addCorner(qb, 4)
+        addStroke(qb, Theme.divider, 1, 0.3)
+        qb.MouseButton1Click:Connect(function()
+            lenSlider.setVal(qVal, true)
+        end)
+    end
+
+    createAdvancedSlider(tuningCard, ctx, "Sky Height Offset (+Y)", -20, 150, stCfg.skyHeight, "%.0f st", 90, function(v)
+        stCfg.skyHeight = v
+        saveConfig()
+    end)
+
+    createAdvancedSlider(tuningCard, ctx, "Orbit / Wave Motion Speed", 0.1, 10, stCfg.motionSpeed, "%.1fx", 128, function(v)
+        stCfg.motionSpeed = v
+        saveConfig()
+    end)
+
+    createAdvancedSlider(tuningCard, ctx, "Limb Axial Spin Speed", 0, 20, stCfg.spinSpeed, "%.1f", 166, function(v)
+        stCfg.spinSpeed = v
+        saveConfig()
+    end)
+
+    -- Modifiers Card (Visual Mesh Stretch, Wave Pulse, Keep Grounded)
+    local modsCard = Instance.new("Frame")
+    modsCard.Size = UDim2.new(1, 0, 0, 118)
+    modsCard.BackgroundColor3 = Theme.bgCard
+    modsCard.BorderSizePixel = 0
+    modsCard.LayoutOrder = 5
+    modsCard.Parent = stretchPage
+    addCorner(modsCard, 8)
+    addStroke(modsCard, Theme.divider, 1, 0)
+
+    local MOD_TOGGLES = {
+        { key = "visualStretch",    title = "Visual Mesh Stretch", sub = "Elongates limb meshes seamlessly along the line/sky" },
+        { key = "wavePulse",        title = "Wave / Pulse Ripple", sub = "Adds smooth sinusoidal wave motion to stretched limbs" },
+        { key = "keepRootGrounded", title = "Keep Body Grounded",  sub = "Keeps your torso controllable while limbs stretch far" },
+    }
+
+    for idx, mt in ipairs(MOD_TOGGLES) do
+        local row = Instance.new("Frame")
+        row.Size = UDim2.new(1, -16, 0, 34)
+        row.Position = UDim2.new(0, 8, 0, 6 + (idx - 1) * 36)
+        row.BackgroundTransparency = 1
+        row.Parent = modsCard
+
+        local tLbl = Instance.new("TextLabel")
+        tLbl.Size = UDim2.new(1, -60, 0, 16)
+        tLbl.Position = UDim2.new(0, 4, 0, 2)
+        tLbl.BackgroundTransparency = 1
+        tLbl.Text = mt.title
+        tLbl.TextColor3 = Theme.text
+        tLbl.Font = Enum.Font.GothamBold
+        tLbl.TextSize = 10
+        tLbl.TextXAlignment = Enum.TextXAlignment.Left
+        tLbl.Parent = row
+
+        local sLbl = Instance.new("TextLabel")
+        sLbl.Size = UDim2.new(1, -60, 0, 14)
+        sLbl.Position = UDim2.new(0, 4, 0, 18)
+        sLbl.BackgroundTransparency = 1
+        sLbl.Text = mt.sub
+        sLbl.TextColor3 = Theme.textMuted
+        sLbl.Font = Enum.Font.Gotham
+        sLbl.TextSize = 8.5
+        sLbl.TextXAlignment = Enum.TextXAlignment.Left
+        sLbl.TextTruncate = Enum.TextTruncate.AtEnd
+        sLbl.Parent = row
+
+        local trk, knb, glw = createLimbToggleSwitch(row, -48, -11)
+        setSwitchVisual(trk, knb, glw, stCfg[mt.key] == true, false)
+
+        local hit = Instance.new("TextButton")
+        hit.Size = UDim2.new(1, 0, 1, 0)
+        hit.BackgroundTransparency = 1
+        hit.Text = ""
+        hit.ZIndex = 5
+        hit.Parent = row
+
+        hit.MouseButton1Click:Connect(function()
+            stCfg[mt.key] = not stCfg[mt.key]
+            saveConfig()
+            setSwitchVisual(trk, knb, glw, stCfg[mt.key] == true, true)
+            if mt.key == "visualStretch" and not stCfg.visualStretch then
+                local rig = getActiveRig()
+                if rig then
+                    for _, d in ipairs(rig:GetDescendants()) do
+                        if d:IsA("BasePart") then restorePartMesh(d) end
+                    end
+                end
+            end
+        end)
+    end
+
+    -- Active Limbs Filter Card
+    local limbFilterCard = Instance.new("Frame")
+    limbFilterCard.Size = UDim2.new(1, 0, 0, 86)
+    limbFilterCard.BackgroundColor3 = Theme.bgCard
+    limbFilterCard.BorderSizePixel = 0
+    limbFilterCard.LayoutOrder = 6
+    limbFilterCard.Parent = stretchPage
+    addCorner(limbFilterCard, 8)
+    addStroke(limbFilterCard, Theme.divider, 1, 0)
+
+    local lfTitle = Instance.new("TextLabel")
+    lfTitle.Size = UDim2.new(1, -20, 0, 18)
+    lfTitle.Position = UDim2.new(0, 10, 0, 6)
+    lfTitle.BackgroundTransparency = 1
+    lfTitle.Text = "AFFECTED LIMBS (TOGGLE ON/OFF)"
+    lfTitle.TextColor3 = Theme.textMuted
+    lfTitle.Font = Enum.Font.GothamBold
+    lfTitle.TextSize = 9.5
+    lfTitle.TextXAlignment = Enum.TextXAlignment.Left
+    lfTitle.Parent = limbFilterCard
+
+    for idx, limbId in ipairs(LIMB_ORDER) do
+        local row = math.floor((idx - 1) / 3)
+        local col = (idx - 1) % 3
+        local lb = Instance.new("TextButton")
+        lb.Size = UDim2.new(1 / 3, -10, 0, 24)
+        lb.Position = UDim2.new(col / 3, 7, 0, 28 + row * 28)
+        local isOn = (stCfg.enabledLimbs[limbId] ~= false)
+        lb.BackgroundColor3 = isOn and Color3.fromRGB(24, 48, 34) or Theme.surface
+        lb.Text = limbId
+        lb.TextColor3 = isOn and Theme.green or Theme.textMuted
+        lb.Font = Enum.Font.GothamBold
+        lb.TextSize = 9.5
+        lb.Parent = limbFilterCard
+        addCorner(lb, 6)
+        addStroke(lb, Theme.divider, 1, 0.3)
+
+        lb.MouseButton1Click:Connect(function()
+            local nextState = not (stCfg.enabledLimbs[limbId] ~= false)
+            stCfg.enabledLimbs[limbId] = nextState
+            saveConfig()
+            lb.BackgroundColor3 = nextState and Color3.fromRGB(24, 48, 34) or Theme.surface
+            lb.TextColor3 = nextState and Theme.green or Theme.textMuted
+            if not nextState then
+                local rig = getActiveRig()
+                if rig then
+                    for _, p in ipairs(getPartsForLimbGroup(rig, limbId)) do
+                        restorePartMesh(p)
+                        local m = getMotorForPart(rig, p)
+                        if m and origMotorCache[m] then
+                            m.C0 = origMotorCache[m].C0
+                            m.C1 = origMotorCache[m].C1
+                        end
+                    end
+                end
+            end
+        end)
+    end
+
+    -- Custom Per-Limb Offset Card (Visible when Mode == "Custom")
+    local customCard = Instance.new("Frame")
+    customCard.Size = UDim2.new(1, 0, 0, 212)
+    customCard.BackgroundColor3 = Theme.bgCard
+    customCard.BorderSizePixel = 0
+    customCard.LayoutOrder = 7
+    customCard.Visible = (stCfg.mode == "Custom")
+    customCard.Parent = stretchPage
+    addCorner(customCard, 8)
+    addStroke(customCard, Theme.divider, 1, 0)
+    customCardRef = customCard
+
+    local selectedCustomLimb = "Right Arm"
+    local custLimbBtn = Instance.new("TextButton")
+    custLimbBtn.Size = UDim2.new(1, -20, 0, 24)
+    custLimbBtn.Position = UDim2.new(0, 10, 0, 8)
+    custLimbBtn.BackgroundColor3 = Theme.surface
+    custLimbBtn.Text = "Editing Limb: " .. selectedCustomLimb .. "  (tap to cycle)"
+    custLimbBtn.TextColor3 = Theme.accent
+    custLimbBtn.Font = Enum.Font.GothamBold
+    custLimbBtn.TextSize = 10
+    custLimbBtn.Parent = customCard
+    addCorner(custLimbBtn, 6)
+    addStroke(custLimbBtn, Theme.divider, 1, 0.3)
+
+    local cxSlider, cySlider, czSlider, csSlider
+    local function syncCustomSliders()
+        local c = stCfg.customOffsets[selectedCustomLimb] or { x = 0, y = 0, z = 0, scale = 1 }
+        custLimbBtn.Text = "Editing Limb: " .. selectedCustomLimb .. "  (tap to cycle)"
+        if cxSlider then cxSlider.setVal(c.x or 0, false) end
+        if cySlider then cySlider.setVal(c.y or 0, false) end
+        if czSlider then czSlider.setVal(c.z or 0, false) end
+        if csSlider then csSlider.setVal(c.scale or 1, false) end
+    end
+
+    cxSlider = createAdvancedSlider(customCard, ctx, "Offset X (Left / Right)", -50, 50, 0, "%.1f", 38, function(v)
+        stCfg.customOffsets[selectedCustomLimb].x = v
+        saveConfig()
+    end)
+    cySlider = createAdvancedSlider(customCard, ctx, "Offset Y (Down / Sky)", -20, 120, 0, "%.1f", 78, function(v)
+        stCfg.customOffsets[selectedCustomLimb].y = v
+        saveConfig()
+    end)
+    czSlider = createAdvancedSlider(customCard, ctx, "Offset Z (Forward / Back)", -50, 50, 0, "%.1f", 118, function(v)
+        stCfg.customOffsets[selectedCustomLimb].z = v
+        saveConfig()
+    end)
+    csSlider = createAdvancedSlider(customCard, ctx, "Visual Stretch Scale", 0.5, 25, 1, "%.1fx", 158, function(v)
+        stCfg.customOffsets[selectedCustomLimb].scale = v
+        saveConfig()
+    end)
+
+    custLimbBtn.MouseButton1Click:Connect(function()
+        local curIdx = 1
+        for i, lId in ipairs(LIMB_ORDER) do
+            if lId == selectedCustomLimb then curIdx = i break end
+        end
+        selectedCustomLimb = LIMB_ORDER[(curIdx % #LIMB_ORDER) + 1]
+        syncCustomSliders()
+    end)
+
+    updateFormationButtonsUI()
+    syncCustomSliders()
+
+    -- ========================================================================
+    -- BUILD ADVANCED FX PAGE UI
+    -- ========================================================================
+    local fxPage = Instance.new("ScrollingFrame")
+    fxPage.Name = "FXPage"
+    fxPage.Size = UDim2.new(1, 0, 1, 0)
+    fxPage.BackgroundTransparency = 1
+    fxPage.BorderSizePixel = 0
+    fxPage.ScrollBarThickness = 3
+    fxPage.ScrollBarImageColor3 = Theme.accent
+    fxPage.ScrollBarImageTransparency = 0.6
+    pcall(function()
+        fxPage.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    end)
+    fxPage.CanvasSize = UDim2.new(0, 0, 0, 620)
+    fxPage.Visible = false
+    fxPage.Parent = pagesHolder
+
+    local fxPad = Instance.new("UIPadding")
+    fxPad.PaddingLeft = UDim.new(0, 2)
+    fxPad.PaddingRight = UDim.new(0, 4)
+    fxPad.PaddingTop = UDim.new(0, 2)
+    fxPad.PaddingBottom = UDim.new(0, 14)
+    fxPad.Parent = fxPage
+
+    local fxLayout = Instance.new("UIListLayout")
+    fxLayout.Padding = UDim.new(0, 8)
+    fxLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    fxLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        fxPage.CanvasSize = UDim2.new(0, 0, 0, fxLayout.AbsoluteContentSize.Y + 28)
+    end)
+    fxLayout.Parent = fxPage
+
+    local fxHeaderLbl = Instance.new("TextLabel")
+    fxHeaderLbl.Size = UDim2.new(1, 0, 0, 16)
+    fxHeaderLbl.BackgroundTransparency = 1
+    fxHeaderLbl.Text = "ADVANCED REANIM FX & TOOLS"
+    fxHeaderLbl.TextColor3 = Theme.textMuted
+    fxHeaderLbl.Font = Enum.Font.GothamBold
+    fxHeaderLbl.TextSize = 10
+    fxHeaderLbl.TextXAlignment = Enum.TextXAlignment.Left
+    fxHeaderLbl.LayoutOrder = 1
+    fxHeaderLbl.Parent = fxPage
+
+    local fxSwitchSyncList = {}
+
+    local function addFxToggleCard(orderIdx, cfgKey, titleText, descText, onToggle)
+        local card = Instance.new("Frame")
+        card.Size = UDim2.new(1, 0, 0, 44)
+        card.BackgroundColor3 = Theme.surface
+        card.BorderSizePixel = 0
+        card.LayoutOrder = orderIdx
+        card.Parent = fxPage
+        addCorner(card, 10)
+        addStroke(card, Color3.fromRGB(255, 255, 255), 1, 0.9)
+
+        local tLbl = Instance.new("TextLabel")
+        tLbl.Size = UDim2.new(1, -72, 0, 18)
+        tLbl.Position = UDim2.new(0, 12, 0, 5)
+        tLbl.BackgroundTransparency = 1
+        tLbl.Text = titleText
+        tLbl.TextColor3 = Color3.fromRGB(240, 240, 248)
+        tLbl.Font = Enum.Font.GothamBold
+        tLbl.TextSize = 10.5
+        tLbl.TextXAlignment = Enum.TextXAlignment.Left
+        tLbl.Parent = card
+
+        local dLbl = Instance.new("TextLabel")
+        dLbl.Size = UDim2.new(1, -72, 0, 15)
+        dLbl.Position = UDim2.new(0, 12, 0, 23)
+        dLbl.BackgroundTransparency = 1
+        dLbl.Text = descText
+        dLbl.TextColor3 = Theme.textMuted
+        dLbl.Font = Enum.Font.Gotham
+        dLbl.TextSize = 8.5
+        dLbl.TextXAlignment = Enum.TextXAlignment.Left
+        dLbl.TextTruncate = Enum.TextTruncate.AtEnd
+        dLbl.Parent = card
+
+        local trk, knb, glw = createLimbToggleSwitch(card, -54, -11)
+        setSwitchVisual(trk, knb, glw, fxCfg[cfgKey] == true, false)
+
+        local hit = Instance.new("TextButton")
+        hit.Size = UDim2.new(1, 0, 1, 0)
+        hit.BackgroundTransparency = 1
+        hit.Text = ""
+        hit.ZIndex = 5
+        hit.Parent = card
+
+        hit.MouseEnter:Connect(function()
+            playTween(card, { BackgroundColor3 = Theme.surfaceHover }, 0.18)
+        end)
+        hit.MouseLeave:Connect(function()
+            playTween(card, { BackgroundColor3 = Theme.surface }, 0.18)
+        end)
+
+        local function setIt(val, anim)
+            fxCfg[cfgKey] = (val == true)
+            saveConfig()
+            setSwitchVisual(trk, knb, glw, fxCfg[cfgKey], anim ~= false)
+            if onToggle then onToggle(fxCfg[cfgKey]) end
+        end
+
+        hit.MouseButton1Click:Connect(function()
+            setIt(not fxCfg[cfgKey], true)
+        end)
+
+        table.insert(fxSwitchSyncList, function()
+            setSwitchVisual(trk, knb, glw, fxCfg[cfgKey] == true, false)
+        end)
+        return card
+    end
+
+    addFxToggleCard(2, "afterimageEnabled", "Ghost Afterimage Trail", "Spawns fading neon pose clones behind your reanim rig")
+    addFxToggleCard(3, "hoverEnabled", "Hover Levitation", "Smoothly floats your rig in mid-air with gentle bobbing")
+    addFxToggleCard(4, "poseFreezeEnabled", "Pose Freeze (Statue Mode)", "Locks your current limb pose in place while you move", function(isOn)
+        table.clear(frozenRelCF)
+        if isOn then
+            local rig = getActiveRig()
+            local root = rig and rig:FindFirstChild("HumanoidRootPart")
+            if rig and root then
+                for _, limbId in ipairs(LIMB_ORDER) do
+                    for _, p in ipairs(getPartsForLimbGroup(rig, limbId)) do
+                        frozenRelCF[p] = root.CFrame:ToObjectSpace(p.CFrame)
+                    end
+                end
+            end
+        else
+            restoreRigVisuals(getActiveRig())
+        end
+    end)
+    addFxToggleCard(5, "noodleEnabled", "Noodle / Spaghetti Wobble", "Adds springy ragdoll-style wobble to limbs as you move")
+    addFxToggleCard(6, "glitchEnabled", "Cyber Glitch Aura", "Rapid hologram micro-teleport jitter across your limbs")
+    addFxToggleCard(7, "antiVoidEnabled", "Anti-Void & Limb Stabilizer", "Prevents sky-stretched or detached limbs from voiding/flinging")
+
+    -- Target Player Limb Orbit Card
+    local orbitCard = Instance.new("Frame")
+    orbitCard.Size = UDim2.new(1, 0, 0, 134)
+    orbitCard.BackgroundColor3 = Theme.bgCard
+    orbitCard.BorderSizePixel = 0
+    orbitCard.LayoutOrder = 8
+    orbitCard.Parent = fxPage
+    addCorner(orbitCard, 8)
+    addStroke(orbitCard, Theme.divider, 1, 0)
+
+    local orbitTitle = Instance.new("TextLabel")
+    orbitTitle.Size = UDim2.new(1, -70, 0, 18)
+    orbitTitle.Position = UDim2.new(0, 10, 0, 8)
+    orbitTitle.BackgroundTransparency = 1
+    orbitTitle.Text = "TARGET PLAYER LIMB ORBIT"
+    orbitTitle.TextColor3 = Theme.textMuted
+    orbitTitle.Font = Enum.Font.GothamBold
+    orbitTitle.TextSize = 9.5
+    orbitTitle.TextXAlignment = Enum.TextXAlignment.Left
+    orbitTitle.Parent = orbitCard
+
+    local orbTrk, orbKnb, orbGlw = createLimbToggleSwitch(orbitCard, -54, -52)
+    setSwitchVisual(orbTrk, orbKnb, orbGlw, fxCfg.targetOrbitEnabled == true, false)
+
+    local orbToggleHit = Instance.new("TextButton")
+    orbToggleHit.Size = UDim2.new(0, 52, 0, 28)
+    orbToggleHit.Position = UDim2.new(1, -56, 0, 4)
+    orbToggleHit.BackgroundTransparency = 1
+    orbToggleHit.Text = ""
+    orbToggleHit.ZIndex = 6
+    orbToggleHit.Parent = orbitCard
+
+    orbToggleHit.MouseButton1Click:Connect(function()
+        fxCfg.targetOrbitEnabled = not fxCfg.targetOrbitEnabled
+        saveConfig()
+        setSwitchVisual(orbTrk, orbKnb, orbGlw, fxCfg.targetOrbitEnabled, true)
+        if not fxCfg.targetOrbitEnabled then
+            restoreRigVisuals(getActiveRig())
+        end
+    end)
+
+    local orbitTargetBox = Instance.new("TextBox")
+    orbitTargetBox.Size = UDim2.new(1, -20, 0, 26)
+    orbitTargetBox.Position = UDim2.new(0, 10, 0, 32)
+    orbitTargetBox.BackgroundColor3 = Theme.input
+    orbitTargetBox.PlaceholderText = "Target username (orbit / sky cage / line)..."
+    orbitTargetBox.PlaceholderColor3 = Theme.textMuted
+    orbitTargetBox.Text = fxCfg.targetOrbitName or ""
+    orbitTargetBox.TextColor3 = Theme.text
+    orbitTargetBox.Font = Enum.Font.GothamMedium
+    orbitTargetBox.TextSize = 10.5
+    orbitTargetBox.ClearTextOnFocus = false
+    orbitTargetBox.Parent = orbitCard
+    addCorner(orbitTargetBox, 6)
+    addStroke(orbitTargetBox, Theme.divider, 1, 0.3)
+
+    orbitTargetBox:GetPropertyChangedSignal("Text"):Connect(function()
+        fxCfg.targetOrbitName = orbitTargetBox.Text
+        saveConfig()
+    end)
+
+    local ORBIT_MODES = { "Orbit", "Sky Cage", "Line Follow" }
+    local orbitModeBtns = {}
+    local function refreshOrbitModeBtns()
+        for _, mName in ipairs(ORBIT_MODES) do
+            local b = orbitModeBtns[mName]
+            if b then
+                local act = (fxCfg.targetOrbitMode == mName)
+                b.BackgroundColor3 = act and Theme.accent or Theme.surface
+                b.TextColor3 = act and Color3.fromRGB(8, 8, 10) or Theme.text
+            end
+        end
+    end
+
+    for idx, mName in ipairs(ORBIT_MODES) do
+        local mb = Instance.new("TextButton")
+        mb.Size = UDim2.new(1 / 3, -10, 0, 22)
+        mb.Position = UDim2.new((idx - 1) / 3, 7, 0, 64)
+        mb.BackgroundColor3 = Theme.surface
+        mb.Text = mName
+        mb.TextColor3 = Theme.text
+        mb.Font = Enum.Font.GothamBold
+        mb.TextSize = 9.5
+        mb.Parent = orbitCard
+        addCorner(mb, 5)
+        addStroke(mb, Theme.divider, 1, 0.3)
+        orbitModeBtns[mName] = mb
+        mb.MouseButton1Click:Connect(function()
+            fxCfg.targetOrbitMode = mName
+            saveConfig()
+            refreshOrbitModeBtns()
+        end)
+    end
+    refreshOrbitModeBtns()
+
+    createAdvancedSlider(orbitCard, ctx, "Orbit / Cage Radius", 2, 35, fxCfg.targetOrbitRadius, "%.0f st", 92, function(v)
+        fxCfg.targetOrbitRadius = v
+        saveConfig()
+    end)
+
+    -- FX Intensity Sliders Card
+    local fxSlidersCard = Instance.new("Frame")
+    fxSlidersCard.Size = UDim2.new(1, 0, 0, 128)
+    fxSlidersCard.BackgroundColor3 = Theme.bgCard
+    fxSlidersCard.BorderSizePixel = 0
+    fxSlidersCard.LayoutOrder = 9
+    fxSlidersCard.Parent = fxPage
+    addCorner(fxSlidersCard, 8)
+    addStroke(fxSlidersCard, Theme.divider, 1, 0)
+
+    createAdvancedSlider(fxSlidersCard, ctx, "Hover Height", 1, 25, fxCfg.hoverHeight, "%.1f st", 8, function(v)
+        fxCfg.hoverHeight = v
+        saveConfig()
+    end)
+    createAdvancedSlider(fxSlidersCard, ctx, "Noodle Wobble Intensity", 0.2, 5, fxCfg.noodleIntensity, "%.1fx", 46, function(v)
+        fxCfg.noodleIntensity = v
+        saveConfig()
+    end)
+    createAdvancedSlider(fxSlidersCard, ctx, "Glitch Aura Intensity", 0.2, 5, fxCfg.glitchIntensity, "%.1fx", 84, function(v)
+        fxCfg.glitchIntensity = v
+        saveConfig()
+    end)
+
+    -- Panic Reset Everything Button
+    local panicResetBtn = Instance.new("TextButton")
+    panicResetBtn.Size = UDim2.new(1, 0, 0, 32)
+    panicResetBtn.BackgroundColor3 = Theme.dangerHover
+    panicResetBtn.Text = "Reset All Stretch, FX & Limb Joints"
+    panicResetBtn.TextColor3 = Theme.danger
+    panicResetBtn.Font = Enum.Font.GothamBold
+    panicResetBtn.TextSize = 10.5
+    panicResetBtn.LayoutOrder = 10
+    panicResetBtn.Parent = fxPage
+    addCorner(panicResetBtn, 8)
+    addStroke(panicResetBtn, Theme.dangerDim, 1, 0.3)
+
+    local function stopAllAdvanced()
+        stCfg.enabled = false
+        fxCfg.afterimageEnabled = false
+        fxCfg.hoverEnabled = false
+        fxCfg.poseFreezeEnabled = false
+        fxCfg.noodleEnabled = false
+        fxCfg.glitchEnabled = false
+        fxCfg.targetOrbitEnabled = false
+        saveConfig()
+        setSwitchVisual(stMasterTrack, stMasterKnob, stMasterGlow, false, true)
+        setSwitchVisual(orbTrk, orbKnb, orbGlw, false, true)
+        for _, fn in ipairs(fxSwitchSyncList) do pcall(fn) end
+        table.clear(frozenRelCF)
+        restoreRigVisuals(getActiveRig())
+    end
+
+    panicResetBtn.MouseButton1Click:Connect(function()
+        stopAllAdvanced()
+        if type(stopBangFn) == "function" then pcall(stopBangFn) end
+    end)
+
+    -- ========================================================================
+    -- GHOST AFTERIMAGE SPAWNER
+    -- ========================================================================
+    local function spawnAfterimageGhost(rig)
+        if not rig then return end
+        local folder = workspace:FindFirstChild("_AngoorGhostTrails")
+        if not folder then
+            folder = Instance.new("Folder")
+            folder.Name = "_AngoorGhostTrails"
+            folder.Parent = workspace
+        end
+        local ghostModel = Instance.new("Model")
+        ghostModel.Name = "GhostSnap"
+        ghostModel.Parent = folder
+
+        local fadeDur = math.clamp(fxCfg.afterimageFade or 0.6, 0.2, 2.5)
+        for _, limbId in ipairs(LIMB_ORDER) do
+            for _, srcPart in ipairs(getPartsForLimbGroup(rig, limbId)) do
+                if srcPart.Transparency < 0.95 then
+                    local clone = Instance.new("Part")
+                    clone.Name = srcPart.Name
+                    clone.Size = srcPart.Size
+                    clone.CFrame = srcPart.CFrame
+                    clone.Anchored = true
+                    clone.CanCollide = false
+                    clone.CanTouch = false
+                    clone.CanQuery = false
+                    clone.CastShadow = false
+                    clone.Material = Enum.Material.Neon
+                    clone.Color = Theme.accent
+                    clone.Transparency = 0.55
+                    clone.Parent = ghostModel
+
+                    local srcMesh = srcPart:FindFirstChildOfClass("SpecialMesh")
+                    if srcMesh then
+                        local m = srcMesh:Clone()
+                        m.Parent = clone
+                    end
+                    playTween(clone, { Transparency = 1 }, fadeDur, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+                end
+            end
+        end
+        task.delay(fadeDur + 0.05, function()
+            if ghostModel and ghostModel.Parent then
+                pcall(function() ghostModel:Destroy() end)
+            end
+        end)
+    end
+
+    -- ========================================================================
+    -- REAL-TIME STEP ENGINE (Runs after Zen Reanim animation step)
+    -- ========================================================================
+    local function stepStretchAndFx(dt)
+        runtimeClock = runtimeClock + (dt or 0.016)
+        local rig = getActiveRig()
+        if not rig then return end
+
+        if rig ~= lastRigRef then
+            lastRigRef = rig
+            table.clear(trailHistory)
+            table.clear(frozenRelCF)
+            cacheRigOriginals(rig)
+        end
+
+        local root = rig:FindFirstChild("HumanoidRootPart")
+        if not root then return end
+
+        -- Record movement trail for Snake Trail formation
+        if #trailHistory == 0 or (trailHistory[1].Position - root.Position).Magnitude > 0.35 then
+            table.insert(trailHistory, 1, root.CFrame)
+            if #trailHistory > 120 then
+                table.remove(trailHistory)
+            end
+        end
+
+        -- 1. Anti-Void & Stabilizer
+        if fxCfg.antiVoidEnabled then
+            local destroyY = workspace.FallenPartsDestroyHeight or -500
+            if root.Position.Y < (destroyY + 25) then
+                root.CFrame = CFrame.new(root.Position.X, destroyY + 60, root.Position.Z)
+                root.AssemblyLinearVelocity = Vector3.zero
+            end
+        end
+
+        -- 2. Ghost Afterimage Trail
+        if fxCfg.afterimageEnabled then
+            local now = tick()
+            if (now - lastAfterimageTick) >= (fxCfg.afterimageRate or 0.12) then
+                lastAfterimageTick = now
+                pcall(spawnAfterimageGhost, rig)
+            end
+        end
+
+        -- 3. Hover Levitation
+        local hoverOffsetY = 0
+        if fxCfg.hoverEnabled then
+            local bob = math.sin(runtimeClock * 2.6) * 0.75
+            hoverOffsetY = (fxCfg.hoverHeight or 4.5) + bob
+            local hum = rig:FindFirstChildOfClass("Humanoid")
+            if hum then
+                hum.HipHeight = math.max(0, hoverOffsetY)
+            end
+        else
+            local hum = rig:FindFirstChildOfClass("Humanoid")
+            if hum and hum.HipHeight > 2.2 then
+                hum.HipHeight = 0
+            end
+        end
+
+        local anyLimbOverride = stCfg.enabled or fxCfg.poseFreezeEnabled or fxCfg.noodleEnabled or fxCfg.glitchEnabled or fxCfg.targetOrbitEnabled
+        if not anyLimbOverride then return end
+
+        cacheRigOriginals(rig)
+        local computedCF = { [root] = root.CFrame }
+        local activeLimbs = {}
+        for _, limbId in ipairs(LIMB_ORDER) do
+            if stCfg.enabledLimbs[limbId] ~= false then
+                if not (stCfg.keepRootGrounded and limbId == "Torso" and stCfg.mode ~= "Custom") then
+                    table.insert(activeLimbs, limbId)
+                end
+            end
+        end
+
+        local L = stCfg.length or 24
+        local skyH = stCfg.skyHeight or 0
+        local spd = stCfg.motionSpeed or 2.0
+        local spinAng = (stCfg.spinSpeed or 0) * runtimeClock
+        local spinRot = (stCfg.spinSpeed and stCfg.spinSpeed > 0) and CFrame.Angles(0, spinAng, 0) or CFrame.new()
+
+        -- 4. Target Player Limb Orbit (overrides stretch positions if enabled & target found)
+        local orbitTargetRoot = nil
+        if fxCfg.targetOrbitEnabled and fxCfg.targetOrbitName ~= "" then
+            local plr = findTargetPlayer(fxCfg.targetOrbitName)
+            if plr and plr.Character then
+                orbitTargetRoot = plr.Character:FindFirstChild("HumanoidRootPart")
+            end
+        end
+
+        if orbitTargetRoot then
+            local rad = fxCfg.targetOrbitRadius or 7
+            local count = math.max(#activeLimbs, 1)
+            for idx, limbId in ipairs(activeLimbs) do
+                local parts = getPartsForLimbGroup(rig, limbId)
+                local angle = (runtimeClock * spd) + ((idx - 1) * (math.pi * 2 / count))
+                local targetCF
+                if fxCfg.targetOrbitMode == "Sky Cage" then
+                    local yStack = 3 + (idx - 1) * (L / count)
+                    targetCF = CFrame.new(orbitTargetRoot.Position + Vector3.new(math.cos(angle) * rad, yStack, math.sin(angle) * rad)) * spinRot
+                elseif fxCfg.targetOrbitMode == "Line Follow" then
+                    local linePos = orbitTargetRoot.CFrame * CFrame.new(0, 2 + skyH, rad + (idx - 1) * (L / count))
+                    targetCF = linePos * spinRot
+                else
+                    targetCF = CFrame.new(orbitTargetRoot.Position + Vector3.new(math.cos(angle) * rad, 1.5 + math.sin(angle * 2) * 1.5, math.sin(angle) * rad)) * spinRot
+                end
+                for pIdx, p in ipairs(parts) do
+                    local segCF = targetCF * CFrame.new(0, -(pIdx - 1) * 0.9, 0)
+                    placeLimbPart(rig, p, segCF, computedCF)
+                    if stCfg.visualStretch then
+                        applyPartVisualStretch(p, Vector3.new(1, math.clamp(L / (count * 2), 1, 14), 1))
+                    else
+                        restorePartMesh(p)
+                    end
+                end
+            end
+            return
+        end
+
+        -- 5. Stretch & Formations Engine
+        if stCfg.enabled then
+            local mode = stCfg.mode or "Sky Pillar"
+            local count = math.max(#activeLimbs, 1)
+            local rootCF = root.CFrame
+
+            if mode == "Sky Pillar" then
+                local stepY = math.max(L / count, 2.2)
+                for idx, limbId in ipairs(activeLimbs) do
+                    local parts = getPartsForLimbGroup(rig, limbId)
+                    local waveX = stCfg.wavePulse and (math.sin(runtimeClock * spd * 2 + idx * 0.7) * 2.5) or 0
+                    local waveZ = stCfg.wavePulse and (math.cos(runtimeClock * spd * 2 + idx * 0.7) * 2.5) or 0
+                    local basePos = rootCF.Position + Vector3.new(waveX, 3.5 + skyH + (idx - 1) * stepY, waveZ)
+                    local limbCF = CFrame.new(basePos) * (rootCF - rootCF.Position) * spinRot
+                    for pIdx, p in ipairs(parts) do
+                        local segCF = limbCF * CFrame.new(0, (pIdx - 1) * (stepY / math.max(#parts, 1)), 0)
+                        placeLimbPart(rig, p, segCF, computedCF)
+                        if stCfg.visualStretch then
+                            applyPartVisualStretch(p, Vector3.new(1, math.clamp(stepY / 1.8, 1, 25), 1))
+                        else
+                            restorePartMesh(p)
+                        end
+                    end
+                end
+
+            elseif mode == "Sky Reach" then
+                local reachLimbs = { ["Left Arm"] = -1.5, ["Right Arm"] = 1.5, ["Head"] = 0 }
+                for limbId, xOff in pairs(reachLimbs) do
+                    if stCfg.enabledLimbs[limbId] ~= false then
+                        local parts = getPartsForLimbGroup(rig, limbId)
+                        local sway = stCfg.wavePulse and (math.sin(runtimeClock * spd * 2 + xOff) * 2.0) or 0
+                        local totalH = L + skyH
+                        for pIdx, p in ipairs(parts) do
+                            local frac = pIdx / math.max(#parts, 1)
+                            local targetPos = rootCF.Position + (rootCF.RightVector * (xOff + sway)) + Vector3.new(0, 2 + totalH * frac, 0)
+                            local targetCF = CFrame.new(targetPos) * (rootCF - rootCF.Position) * spinRot
+                            placeLimbPart(rig, p, targetCF, computedCF)
+                            if stCfg.visualStretch then
+                                applyPartVisualStretch(p, Vector3.new(1, math.clamp((totalH / math.max(#parts, 1)) / 1.8, 1, 35), 1))
+                            else
+                                restorePartMesh(p)
+                            end
+                        end
+                    end
+                end
+
+            elseif mode == "Forward Line" then
+                local stepZ = math.max(L / count, 2.2)
+                for idx, limbId in ipairs(activeLimbs) do
+                    local parts = getPartsForLimbGroup(rig, limbId)
+                    local waveY = stCfg.wavePulse and (math.sin(runtimeClock * spd * 2.2 + idx * 0.8) * 2.0) or 0
+                    local dist = 2.5 + (idx - 1) * stepZ
+                    local limbCF = rootCF * CFrame.new(0, skyH + waveY, -dist) * CFrame.Angles(math.rad(90), 0, 0) * spinRot
+                    for pIdx, p in ipairs(parts) do
+                        local segCF = limbCF * CFrame.new(0, (pIdx - 1) * (stepZ / math.max(#parts, 1)), 0)
+                        placeLimbPart(rig, p, segCF, computedCF)
+                        if stCfg.visualStretch then
+                            applyPartVisualStretch(p, Vector3.new(1, math.clamp(stepZ / 1.8, 1, 25), 1))
+                        else
+                            restorePartMesh(p)
+                        end
+                    end
+                end
+
+            elseif mode == "Mega Wingspan" then
+                local wingSpecs = {
+                    ["Left Arm"]  = { dir = -1, y = 0.6 },
+                    ["Right Arm"] = { dir = 1,  y = 0.6 },
+                    ["Left Leg"]  = { dir = -1, y = -1.2 },
+                    ["Right Leg"] = { dir = 1,  y = -1.2 },
+                }
+                for limbId, spec in pairs(wingSpecs) do
+                    if stCfg.enabledLimbs[limbId] ~= false then
+                        local parts = getPartsForLimbGroup(rig, limbId)
+                        local flap = stCfg.wavePulse and (math.sin(runtimeClock * spd * 2.5) * 3.0) or 0
+                        for pIdx, p in ipairs(parts) do
+                            local frac = pIdx / math.max(#parts, 1)
+                            local xDist = spec.dir * (2 + L * frac * 0.5)
+                            local targetCF = rootCF * CFrame.new(xDist, spec.y + skyH + flap * frac, 0) * CFrame.Angles(0, 0, math.rad(spec.dir * 90)) * spinRot
+                            placeLimbPart(rig, p, targetCF, computedCF)
+                            if stCfg.visualStretch then
+                                applyPartVisualStretch(p, Vector3.new(1, math.clamp((L * 0.5 / math.max(#parts, 1)) / 1.8, 1, 30), 1))
+                            else
+                                restorePartMesh(p)
+                            end
+                        end
+                    end
+                end
+
+            elseif mode == "Snake Trail" then
+                local histLen = #trailHistory
+                for idx, limbId in ipairs(activeLimbs) do
+                    local parts = getPartsForLimbGroup(rig, limbId)
+                    local sampleIdx = math.clamp(math.floor(idx * math.max(L / 10, 2)), 1, math.max(histLen, 1))
+                    local histCF = trailHistory[sampleIdx] or (rootCF * CFrame.new(0, 0, idx * 2.5))
+                    local waveX = stCfg.wavePulse and (math.sin(runtimeClock * spd * 3 + idx) * 1.5) or 0
+                    local limbCF = histCF * CFrame.new(waveX, skyH, 0) * spinRot
+                    for pIdx, p in ipairs(parts) do
+                        placeLimbPart(rig, p, limbCF * CFrame.new(0, 0, (pIdx - 1) * 0.8), computedCF)
+                        if stCfg.visualStretch then
+                            applyPartVisualStretch(p, Vector3.new(1, 1, math.clamp(L / 12, 1, 12)))
+                        else
+                            restorePartMesh(p)
+                        end
+                    end
+                end
+
+            elseif mode == "Orbit Ring" then
+                local radius = math.max(L * 0.35, 3)
+                for idx, limbId in ipairs(activeLimbs) do
+                    local parts = getPartsForLimbGroup(rig, limbId)
+                    local ang = (runtimeClock * spd) + ((idx - 1) * (math.pi * 2 / count))
+                    local waveY = stCfg.wavePulse and (math.sin(ang * 2) * 2.5) or 0
+                    local pos = rootCF.Position + Vector3.new(math.cos(ang) * radius, 1 + skyH + waveY, math.sin(ang) * radius)
+                    local limbCF = CFrame.lookAt(pos, rootCF.Position + Vector3.new(0, 1 + skyH, 0)) * spinRot
+                    for pIdx, p in ipairs(parts) do
+                        placeLimbPart(rig, p, limbCF * CFrame.new(0, (pIdx - 1) * 0.9, 0), computedCF)
+                        restorePartMesh(p)
+                    end
+                end
+
+            elseif mode == "Helix Spiral" then
+                local radius = math.clamp(L * 0.18, 2.5, 16)
+                local stepY = math.max(L / count, 2.2)
+                for idx, limbId in ipairs(activeLimbs) do
+                    local parts = getPartsForLimbGroup(rig, limbId)
+                    local ang = (runtimeClock * spd * 1.5) + (idx * 1.1)
+                    local pos = rootCF.Position + Vector3.new(math.cos(ang) * radius, 2 + skyH + (idx - 1) * stepY, math.sin(ang) * radius)
+                    local limbCF = CFrame.new(pos) * CFrame.Angles(0, -ang, 0) * spinRot
+                    for pIdx, p in ipairs(parts) do
+                        placeLimbPart(rig, p, limbCF * CFrame.new(0, (pIdx - 1) * 1.0, 0), computedCF)
+                        if stCfg.visualStretch then
+                            applyPartVisualStretch(p, Vector3.new(1, math.clamp(stepY / 2.2, 1, 16), 1))
+                        else
+                            restorePartMesh(p)
+                        end
+                    end
+                end
+
+            elseif mode == "Spider Giant" then
+                local velMag = Vector2.new(root.AssemblyLinearVelocity.X, root.AssemblyLinearVelocity.Z).Magnitude
+                local stride = math.sin(runtimeClock * (spd * 2 + velMag * 0.25)) * math.min(velMag * 0.25 + 1.5, 5)
+                local giantScale = math.clamp(L / 10, 1.5, 12)
+                local spiderOffsets = {
+                    ["Head"]      = Vector3.new(0, 3.2 * giantScale * 0.4 + skyH, -1.2),
+                    ["Left Arm"]  = Vector3.new(-3.2 * giantScale * 0.4, 1.0 + skyH, -stride),
+                    ["Right Arm"] = Vector3.new(3.2 * giantScale * 0.4, 1.0 + skyH, stride),
+                    ["Left Leg"]  = Vector3.new(-2.4 * giantScale * 0.4, -1.5 + skyH, stride),
+                    ["Right Leg"] = Vector3.new(2.4 * giantScale * 0.4, -1.5 + skyH, -stride),
+                }
+                for limbId, off in pairs(spiderOffsets) do
+                    if stCfg.enabledLimbs[limbId] ~= false then
+                        local parts = getPartsForLimbGroup(rig, limbId)
+                        for pIdx, p in ipairs(parts) do
+                            local targetCF = rootCF * CFrame.new(off.X, off.Y - (pIdx - 1) * 0.9, off.Z) * spinRot
+                            placeLimbPart(rig, p, targetCF, computedCF)
+                            if stCfg.visualStretch then
+                                applyPartVisualStretch(p, Vector3.new(1, math.clamp(giantScale * 0.7, 1, 10), 1))
+                            else
+                                restorePartMesh(p)
+                            end
+                        end
+                    end
+                end
+
+            elseif mode == "Custom" then
+                for _, limbId in ipairs(LIMB_ORDER) do
+                    if stCfg.enabledLimbs[limbId] ~= false then
+                        local c = stCfg.customOffsets[limbId]
+                        if c and ((c.x or 0) ~= 0 or (c.y or 0) ~= 0 or (c.z or 0) ~= 0 or (c.scale or 1) ~= 1) then
+                            local parts = getPartsForLimbGroup(rig, limbId)
+                            for pIdx, p in ipairs(parts) do
+                                local targetCF = rootCF * CFrame.new(c.x or 0, (c.y or 0) + skyH + (pIdx - 1) * 0.9, c.z or 0) * spinRot
+                                placeLimbPart(rig, p, targetCF, computedCF)
+                                if (c.scale or 1) ~= 1 then
+                                    applyPartVisualStretch(p, Vector3.new(1, c.scale, 1))
+                                else
+                                    restorePartMesh(p)
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+
+        -- 6. Pose Freeze (Statue Mode)
+        if fxCfg.poseFreezeEnabled and next(frozenRelCF) ~= nil then
+            for part, relCF in pairs(frozenRelCF) do
+                if part and part.Parent then
+                    placeLimbPart(rig, part, root.CFrame * relCF, computedCF)
+                end
+            end
+        end
+
+        -- 7. Noodle / Spaghetti Wobble
+        if fxCfg.noodleEnabled then
+            local inten = fxCfg.noodleIntensity or 1.5
+            local vel = root.AssemblyLinearVelocity
+            for idx, limbId in ipairs(LIMB_ORDER) do
+                if limbId ~= "Torso" then
+                    for _, p in ipairs(getPartsForLimbGroup(rig, limbId)) do
+                        local baseCF = computedCF[p] or p.CFrame
+                        local wobX = math.sin(runtimeClock * 8 + idx * 1.4) * 0.35 * inten
+                        local wobY = math.cos(runtimeClock * 6.5 + idx * 1.1) * 0.25 * inten - math.clamp(vel.Y * 0.02, -1.5, 1.5)
+                        local wobRot = CFrame.Angles(
+                            math.sin(runtimeClock * 7 + idx) * 0.45 * inten,
+                            0,
+                            math.cos(runtimeClock * 7 + idx) * 0.45 * inten
+                        )
+                        placeLimbPart(rig, p, baseCF * CFrame.new(wobX, wobY, 0) * wobRot, computedCF)
+                    end
+                end
+            end
+        end
+
+        -- 8. Cyber Glitch Aura
+        if fxCfg.glitchEnabled then
+            local gInt = fxCfg.glitchIntensity or 1.0
+            for _, limbId in ipairs(LIMB_ORDER) do
+                if math.random() < 0.45 then
+                    for _, p in ipairs(getPartsForLimbGroup(rig, limbId)) do
+                        local baseCF = computedCF[p] or p.CFrame
+                        local jx = (math.random() - 0.5) * 1.4 * gInt
+                        local jy = (math.random() - 0.5) * 1.4 * gInt
+                        local jz = (math.random() - 0.5) * 1.4 * gInt
+                        placeLimbPart(rig, p, baseCF * CFrame.new(jx, jy, jz), computedCF)
+                    end
+                end
+            end
+        end
+    end
+
+    local STEP_BIND_NAME = "AngoorZenStretchFXStep"
+    pcall(function() RunService:UnbindFromRenderStep(STEP_BIND_NAME) end)
+    pcall(function()
+        RunService:BindToRenderStep(STEP_BIND_NAME, Enum.RenderPriority.Camera.Value + 3, stepStretchAndFx)
+    end)
+
+    local controller = {
+        stretchPage     = stretchPage,
+        fxPage          = fxPage,
+        stopAll         = stopAllAdvanced,
+        restoreVisuals  = restoreRigVisuals,
+        setMode         = function(modeName)
+            stCfg.mode = modeName
+            setStretchEnabled(true, true)
+            updateFormationButtonsUI()
+        end,
+    }
+    _G._AngoorZenStretch = controller
+    return controller
+end
+
+
+-- ============================================================================
+-- ULTRA REANIM EXTENSIONS:
+--   1. MORPHS TAB (12 Procedural Rig Formations: Angel Wings, Halo Crown,
+--      Helicopter, Centipede, Vortex Tornado, Shield Dome, Starburst,
+--      X-Titan, Lance Arm, Sky Cannons, Meditation Float, Pendulum)
+--   2. HATS TAB (Accessory Animator: Halo Ring, Orbit Sphere, Sky Tower,
+--      Wing Fan, Comet Trail, Waist Shield)
+--   3. STUDIO TAB (Pose Recorder + Reverse/Ping-Pong Looper + Export to Custom,
+--      Player Pose Mimic/Mirror, BPM Rhythm Bounce, Movement Banking, Movement Tuning)
+-- ============================================================================
+
+local function buildUltraReanimModules(ctx)
+    local Theme                  = ctx.Theme
+    local addCorner              = ctx.addCorner
+    local addStroke              = ctx.addStroke
+    local playTween              = ctx.playTween
+    local zenApi                 = ctx.zenApi
+    local savedConfig            = ctx.savedConfig
+    local saveConfig             = ctx.saveConfig
+    local pagesHolder            = ctx.pagesHolder
+    local findTargetPlayer       = ctx.findTargetPlayer
+    local createLimbToggleSwitch = ctx.createLimbToggleSwitch
+    local setSwitchVisual        = ctx.setSwitchVisual
+    local allAnimations          = ctx.allAnimations
+    local refreshAnimList        = ctx.refreshAnimList
+
+    -- Persist configs cleanly
+    savedConfig.morphs = type(savedConfig.morphs) == "table" and savedConfig.morphs or {}
+    local mCfg = savedConfig.morphs
+    if mCfg.enabled == nil then mCfg.enabled = false end
+    if type(mCfg.mode) ~= "string" then mCfg.mode = "Angel Wings" end
+    if type(mCfg.scale) ~= "number" then mCfg.scale = 12 end
+    if type(mCfg.speed) ~= "number" then mCfg.speed = 2.5 end
+    if type(mCfg.altitude) ~= "number" then mCfg.altitude = 0 end
+    if mCfg.stretchMesh == nil then mCfg.stretchMesh = true end
+
+    savedConfig.hats = type(savedConfig.hats) == "table" and savedConfig.hats or {}
+    local hCfg = savedConfig.hats
+    if hCfg.enabled == nil then hCfg.enabled = false end
+    if type(hCfg.mode) ~= "string" then hCfg.mode = "Halo Ring" end
+    if type(hCfg.radius) ~= "number" then hCfg.radius = 5 end
+    if type(hCfg.height) ~= "number" then hCfg.height = 4 end
+    if type(hCfg.speed) ~= "number" then hCfg.speed = 2.5 end
+
+    savedConfig.studio = type(savedConfig.studio) == "table" and savedConfig.studio or {}
+    local sCfg = savedConfig.studio
+    if sCfg.mimicEnabled == nil then sCfg.mimicEnabled = false end
+    if type(sCfg.mimicTarget) ~= "string" then sCfg.mimicTarget = "" end
+    if sCfg.mimicMirror == nil then sCfg.mimicMirror = false end
+    if sCfg.bpmEnabled == nil then sCfg.bpmEnabled = false end
+    if type(sCfg.bpm) ~= "number" then sCfg.bpm = 128 end
+    if type(sCfg.bpmAmp) ~= "number" then sCfg.bpmAmp = 1.0 end
+    if sCfg.leanEnabled == nil then sCfg.leanEnabled = false end
+    if type(sCfg.leanStrength) ~= "number" then sCfg.leanStrength = 1.0 end
+    if sCfg.recReverse == nil then sCfg.recReverse = false end
+    if sCfg.recPingPong == nil then sCfg.recPingPong = false end
+    if type(sCfg.recSpeed) ~= "number" then sCfg.recSpeed = 1.0 end
+
+    local LIMB_ORDER = { "Torso", "Head", "Left Arm", "Right Arm", "Left Leg", "Right Leg" }
+    local LIMB_PART_MAP = {
+        ["Head"]      = { "Head" },
+        ["Torso"]     = { "Torso", "UpperTorso", "LowerTorso" },
+        ["Left Arm"]  = { "Left Arm", "LeftUpperArm", "LeftLowerArm", "LeftHand" },
+        ["Right Arm"] = { "Right Arm", "RightUpperArm", "RightLowerArm", "RightHand" },
+        ["Left Leg"]  = { "Left Leg", "LeftUpperLeg", "LeftLowerLeg", "LeftFoot" },
+        ["Right Leg"] = { "Right Leg", "RightUpperLeg", "RightLowerLeg", "RightFoot" },
+    }
+
+    local origMotors   = setmetatable({}, { __mode = "k" })
+    local origWelds    = setmetatable({}, { __mode = "k" })
+    local origMeshes   = setmetatable({}, { __mode = "k" })
+    local hatTrailHist = {}
+    local ultraClock   = 0
+
+    -- Recorder state
+    local recordedFrames = {}
+    local isRecording    = false
+    local isPlayingRec   = false
+    local recSampleAccum = 0
+    local recPlayCursor  = 1
+    local recPlayDir     = 1
+
+    local function getActiveRig()
+        if zenApi and type(zenApi.is_reanimated) == "function" and type(zenApi.get_clone) == "function" then
+            local okRe, isRe = pcall(zenApi.is_reanimated)
+            if okRe and isRe then
+                local okCl, cl = pcall(zenApi.get_clone)
+                if okCl and cl and cl.Parent then
+                    return cl
+                end
+            end
+        end
+        return LocalPlayer and LocalPlayer.Character
+    end
+
+    local function cacheRig(rig)
+        if not rig then return end
+        for _, d in ipairs(rig:GetDescendants()) do
+            if d:IsA("Motor6D") and not origMotors[d] then
+                origMotors[d] = { C0 = d.C0, C1 = d.C1 }
+            elseif d:IsA("Weld") and not origWelds[d] then
+                origWelds[d] = { C0 = d.C0, C1 = d.C1 }
+            elseif d:IsA("BasePart") and not origMeshes[d] then
+                local sm = d:FindFirstChildOfClass("SpecialMesh")
+                origMeshes[d] = { Mesh = sm, Scale = sm and sm.Scale or nil }
+            end
+        end
+    end
+
+    local function clearPartStretch(part)
+        if not part or not part.Parent then return end
+        local h = part:FindFirstChild("_AngoorMorphMesh")
+        if h then pcall(function() h:Destroy() end) end
+        local c = origMeshes[part]
+        if c and c.Mesh and c.Mesh.Parent and c.Scale then
+            pcall(function() c.Mesh.Scale = c.Scale end)
+        end
+    end
+
+    local function setPartStretch(part, scaleVec)
+        if not part or not part.Parent then return end
+        local existing = part:FindFirstChildOfClass("SpecialMesh")
+        if existing and existing.Name ~= "_AngoorMorphMesh" then
+            local base = (origMeshes[part] and origMeshes[part].Scale) or Vector3.new(1, 1, 1)
+            existing.Scale = Vector3.new(base.X * scaleVec.X, base.Y * scaleVec.Y, base.Z * scaleVec.Z)
+        else
+            local helper = part:FindFirstChild("_AngoorMorphMesh")
+            if not helper then
+                helper = Instance.new("SpecialMesh")
+                helper.Name = "_AngoorMorphMesh"
+                helper.MeshType = Enum.MeshType.Brick
+                helper.Parent = part
+            end
+            helper.Scale = scaleVec
+        end
+    end
+
+    local function restoreUltraRig(rig)
+        rig = rig or getActiveRig()
+        if not rig then return end
+        for _, d in ipairs(rig:GetDescendants()) do
+            if d:IsA("Motor6D") and origMotors[d] then
+                pcall(function()
+                    d.C0 = origMotors[d].C0
+                    d.C1 = origMotors[d].C1
+                    d.Transform = CFrame.new()
+                end)
+            elseif d:IsA("Weld") and origWelds[d] then
+                pcall(function()
+                    d.C0 = origWelds[d].C0
+                    d.C1 = origWelds[d].C1
+                end)
+            elseif d:IsA("BasePart") then
+                clearPartStretch(d)
+            end
+        end
+    end
+
+    local function getPartsOfGroup(rig, limbId)
+        local out = {}
+        for _, pName in ipairs(LIMB_PART_MAP[limbId] or {}) do
+            local p = rig:FindFirstChild(pName)
+            if p and p:IsA("BasePart") then
+                table.insert(out, p)
+            end
+        end
+        return out
+    end
+
+    local function getMotorOf(rig, part)
+        for _, d in ipairs(rig:GetDescendants()) do
+            if d:IsA("Motor6D") and d.Part1 == part then
+                return d
+            end
+        end
+        return nil
+    end
+
+    local function moveLimb(rig, part, targetCF, cfMap)
+        if not part or not part.Parent then return end
+        cfMap[part] = targetCF
+        local m = getMotorOf(rig, part)
+        if m and m.Part0 then
+            local p0CF = cfMap[m.Part0] or m.Part0.CFrame
+            m.Transform = CFrame.new()
+            m.C0 = p0CF:ToObjectSpace(targetCF) * m.C1
+        else
+            part.CFrame = targetCF
+        end
+    end
+
+    local function collectAccessories(rig)
+        local list = {}
+        if not rig then return list end
+        for _, child in ipairs(rig:GetChildren()) do
+            if child:IsA("Accessory") then
+                local handle = child:FindFirstChild("Handle")
+                if handle and handle:IsA("BasePart") then
+                    local weld = handle:FindFirstChildOfClass("Weld") or handle:FindFirstChild("AccessoryWeld")
+                    table.insert(list, { acc = child, handle = handle, weld = weld })
+                end
+            end
+        end
+        return list
+    end
+
+    -- ========================================================================
+    -- PAGE 1: MORPHS TAB
+    -- ========================================================================
+    local morphsPage = Instance.new("ScrollingFrame")
+    morphsPage.Name = "MorphsPage"
+    morphsPage.Size = UDim2.new(1, 0, 1, 0)
+    morphsPage.BackgroundTransparency = 1
+    morphsPage.BorderSizePixel = 0
+    morphsPage.ScrollBarThickness = 3
+    morphsPage.ScrollBarImageColor3 = Theme.accent
+    morphsPage.ScrollBarImageTransparency = 0.6
+    pcall(function() morphsPage.AutomaticCanvasSize = Enum.AutomaticSize.Y end)
+    morphsPage.CanvasSize = UDim2.new(0, 0, 0, 560)
+    morphsPage.Visible = false
+    morphsPage.Parent = pagesHolder
+
+    local mPad = Instance.new("UIPadding", morphsPage)
+    mPad.PaddingLeft = UDim.new(0, 2)
+    mPad.PaddingRight = UDim.new(0, 4)
+    mPad.PaddingTop = UDim.new(0, 2)
+    mPad.PaddingBottom = UDim.new(0, 14)
+
+    local mLayout = Instance.new("UIListLayout", morphsPage)
+    mLayout.Padding = UDim.new(0, 8)
+    mLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    mLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        morphsPage.CanvasSize = UDim2.new(0, 0, 0, mLayout.AbsoluteContentSize.Y + 28)
+    end)
+
+    local mMasterTrack, mMasterKnob, mMasterGlow
+    do
+        local hdr = Instance.new("TextLabel", morphsPage)
+        hdr.Size = UDim2.new(1, 0, 0, 16)
+        hdr.BackgroundTransparency = 1
+        hdr.Text = "PROCEDURAL RIG MORPHS (12 MODES)"
+        hdr.TextColor3 = Theme.textMuted
+        hdr.Font = Enum.Font.GothamBold
+        hdr.TextSize = 10
+        hdr.TextXAlignment = Enum.TextXAlignment.Left
+        hdr.LayoutOrder = 1
+
+        local masterCard = Instance.new("Frame", morphsPage)
+        masterCard.Size = UDim2.new(1, 0, 0, 46)
+        masterCard.BackgroundColor3 = Theme.surface
+        masterCard.BorderSizePixel = 0
+        masterCard.LayoutOrder = 2
+        addCorner(masterCard, 10)
+        addStroke(masterCard, Color3.fromRGB(255, 255, 255), 1, 0.88)
+
+        local mTitle = Instance.new("TextLabel", masterCard)
+        mTitle.Size = UDim2.new(1, -120, 0, 18)
+        mTitle.Position = UDim2.new(0, 12, 0, 6)
+        mTitle.BackgroundTransparency = 1
+        mTitle.Text = "Morph Engine"
+        mTitle.TextColor3 = Color3.fromRGB(245, 245, 250)
+        mTitle.Font = Enum.Font.GothamBold
+        mTitle.TextSize = 11
+        mTitle.TextXAlignment = Enum.TextXAlignment.Left
+
+        local mSub = Instance.new("TextLabel", masterCard)
+        mSub.Size = UDim2.new(1, -120, 0, 14)
+        mSub.Position = UDim2.new(0, 12, 0, 24)
+        mSub.BackgroundTransparency = 1
+        mSub.Text = "Active: " .. tostring(mCfg.mode)
+        mSub.TextColor3 = Theme.textMuted
+        mSub.Font = Enum.Font.Gotham
+        mSub.TextSize = 9
+        mSub.TextXAlignment = Enum.TextXAlignment.Left
+
+        mMasterTrack, mMasterKnob, mMasterGlow = createLimbToggleSwitch(masterCard, -54, -11)
+        setSwitchVisual(mMasterTrack, mMasterKnob, mMasterGlow, mCfg.enabled == true, false)
+
+        local mHit = Instance.new("TextButton", masterCard)
+        mHit.Size = UDim2.new(1, 0, 1, 0)
+        mHit.BackgroundTransparency = 1
+        mHit.Text = ""
+        mHit.ZIndex = 6
+
+        local function setMorphOn(onVal)
+            mCfg.enabled = (onVal == true)
+            saveConfig()
+            setSwitchVisual(mMasterTrack, mMasterKnob, mMasterGlow, mCfg.enabled, true)
+            if not mCfg.enabled then
+                restoreUltraRig(getActiveRig())
+            end
+        end
+        mHit.MouseButton1Click:Connect(function() setMorphOn(not mCfg.enabled) end)
+
+        -- 12 Morph Presets Grid (4 rows x 3 cols)
+        local MORPH_MODES = {
+            "Angel Wings", "Halo Crown", "Helicopter",
+            "Centipede", "Vortex Tornado", "Shield Dome",
+            "Starburst", "X-Titan", "Lance Arm",
+            "Sky Cannons", "Meditation", "Pendulum",
+        }
+        local gridCard = Instance.new("Frame", morphsPage)
+        gridCard.Size = UDim2.new(1, 0, 0, 146)
+        gridCard.BackgroundColor3 = Theme.bgCard
+        gridCard.BorderSizePixel = 0
+        gridCard.LayoutOrder = 3
+        addCorner(gridCard, 8)
+        addStroke(gridCard, Theme.divider, 1, 0)
+
+        local gTitle = Instance.new("TextLabel", gridCard)
+        gTitle.Size = UDim2.new(1, -20, 0, 18)
+        gTitle.Position = UDim2.new(0, 10, 0, 6)
+        gTitle.BackgroundTransparency = 1
+        gTitle.Text = "SELECT MORPH FORMATION"
+        gTitle.TextColor3 = Theme.textMuted
+        gTitle.Font = Enum.Font.GothamBold
+        gTitle.TextSize = 9.5
+        gTitle.TextXAlignment = Enum.TextXAlignment.Left
+
+        local morphBtns = {}
+        local function refreshMorphBtns()
+            mSub.Text = "Active: " .. tostring(mCfg.mode)
+            for name, b in pairs(morphBtns) do
+                local act = (mCfg.mode == name)
+                b.BackgroundColor3 = act and Theme.accent or Theme.surface
+                b.TextColor3 = act and Color3.fromRGB(8, 8, 10) or Theme.text
+                b.Font = act and Enum.Font.GothamBold or Enum.Font.GothamMedium
+            end
+        end
+
+        for idx, name in ipairs(MORPH_MODES) do
+            local r = math.floor((idx - 1) / 3)
+            local c = (idx - 1) % 3
+            local b = Instance.new("TextButton", gridCard)
+            b.Size = UDim2.new(1 / 3, -10, 0, 24)
+            b.Position = UDim2.new(c / 3, 7, 0, 28 + r * 28)
+            b.BackgroundColor3 = Theme.surface
+            b.Text = name
+            b.TextColor3 = Theme.text
+            b.Font = Enum.Font.GothamMedium
+            b.TextSize = 9.5
+            b.TextTruncate = Enum.TextTruncate.AtEnd
+            addCorner(b, 6)
+            addStroke(b, Theme.divider, 1, 0.3)
+            morphBtns[name] = b
+            b.MouseButton1Click:Connect(function()
+                mCfg.mode = name
+                setMorphOn(true)
+                refreshMorphBtns()
+            end)
+        end
+        refreshMorphBtns()
+
+        -- Morph Sliders + Mesh Stretch Toggle
+        local tuneCard = Instance.new("Frame", morphsPage)
+        tuneCard.Size = UDim2.new(1, 0, 0, 168)
+        tuneCard.BackgroundColor3 = Theme.bgCard
+        tuneCard.BorderSizePixel = 0
+        tuneCard.LayoutOrder = 4
+        addCorner(tuneCard, 8)
+        addStroke(tuneCard, Theme.divider, 1, 0)
+
+        createAdvancedSlider(tuneCard, ctx, "Morph Size / Reach", 2, 60, mCfg.scale, "%.0f st", 8, function(v)
+            mCfg.scale = v
+            saveConfig()
+        end)
+        createAdvancedSlider(tuneCard, ctx, "Animation Speed", 0.2, 12, mCfg.speed, "%.1fx", 48, function(v)
+            mCfg.speed = v
+            saveConfig()
+        end)
+        createAdvancedSlider(tuneCard, ctx, "Altitude Offset (+Y)", -10, 80, mCfg.altitude, "%.0f st", 88, function(v)
+            mCfg.altitude = v
+            saveConfig()
+        end)
+
+        local meshRow = Instance.new("Frame", tuneCard)
+        meshRow.Size = UDim2.new(1, -20, 0, 28)
+        meshRow.Position = UDim2.new(0, 10, 0, 132)
+        meshRow.BackgroundTransparency = 1
+        local ml = Instance.new("TextLabel", meshRow)
+        ml.Size = UDim2.new(1, -60, 1, 0)
+        ml.BackgroundTransparency = 1
+        ml.Text = "Stretch Limb Meshes for Wings / Lance"
+        ml.TextColor3 = Theme.text
+        ml.Font = Enum.Font.GothamSemibold
+        ml.TextSize = 10
+        ml.TextXAlignment = Enum.TextXAlignment.Left
+
+        local smT, smK, smG = createLimbToggleSwitch(meshRow, -46, -11)
+        setSwitchVisual(smT, smK, smG, mCfg.stretchMesh == true, false)
+        local smHit = Instance.new("TextButton", meshRow)
+        smHit.Size = UDim2.new(1, 0, 1, 0)
+        smHit.BackgroundTransparency = 1
+        smHit.Text = ""
+        smHit.ZIndex = 6
+        smHit.MouseButton1Click:Connect(function()
+            mCfg.stretchMesh = not mCfg.stretchMesh
+            saveConfig()
+            setSwitchVisual(smT, smK, smG, mCfg.stretchMesh, true)
+            if not mCfg.stretchMesh then
+                local rig = getActiveRig()
+                if rig then
+                    for _, d in ipairs(rig:GetDescendants()) do
+                        if d:IsA("BasePart") then clearPartStretch(d) end
+                    end
+                end
+            end
+        end)
+    end
+
+    -- ========================================================================
+    -- PAGE 2: HATS / ACCESSORY ANIMATOR TAB
+    -- ========================================================================
+    local hatsPage = Instance.new("ScrollingFrame")
+    hatsPage.Name = "HatsPage"
+    hatsPage.Size = UDim2.new(1, 0, 1, 0)
+    hatsPage.BackgroundTransparency = 1
+    hatsPage.BorderSizePixel = 0
+    hatsPage.ScrollBarThickness = 3
+    hatsPage.ScrollBarImageColor3 = Theme.accent
+    hatsPage.ScrollBarImageTransparency = 0.6
+    pcall(function() hatsPage.AutomaticCanvasSize = Enum.AutomaticSize.Y end)
+    hatsPage.CanvasSize = UDim2.new(0, 0, 0, 420)
+    hatsPage.Visible = false
+    hatsPage.Parent = pagesHolder
+
+    local hPad = Instance.new("UIPadding", hatsPage)
+    hPad.PaddingLeft = UDim.new(0, 2)
+    hPad.PaddingRight = UDim.new(0, 4)
+    hPad.PaddingTop = UDim.new(0, 2)
+    hPad.PaddingBottom = UDim.new(0, 14)
+
+    local hLayout = Instance.new("UIListLayout", hatsPage)
+    hLayout.Padding = UDim.new(0, 8)
+    hLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    hLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        hatsPage.CanvasSize = UDim2.new(0, 0, 0, hLayout.AbsoluteContentSize.Y + 28)
+    end)
+
+    local hMasterTrack, hMasterKnob, hMasterGlow, hatCountLbl
+    do
+        local hdr = Instance.new("TextLabel", hatsPage)
+        hdr.Size = UDim2.new(1, 0, 0, 16)
+        hdr.BackgroundTransparency = 1
+        hdr.Text = "ACCESSORY & HAT ANIMATOR"
+        hdr.TextColor3 = Theme.textMuted
+        hdr.Font = Enum.Font.GothamBold
+        hdr.TextSize = 10
+        hdr.TextXAlignment = Enum.TextXAlignment.Left
+        hdr.LayoutOrder = 1
+
+        local masterCard = Instance.new("Frame", hatsPage)
+        masterCard.Size = UDim2.new(1, 0, 0, 46)
+        masterCard.BackgroundColor3 = Theme.surface
+        masterCard.BorderSizePixel = 0
+        masterCard.LayoutOrder = 2
+        addCorner(masterCard, 10)
+        addStroke(masterCard, Color3.fromRGB(255, 255, 255), 1, 0.88)
+
+        local hTitle = Instance.new("TextLabel", masterCard)
+        hTitle.Size = UDim2.new(1, -120, 0, 18)
+        hTitle.Position = UDim2.new(0, 12, 0, 6)
+        hTitle.BackgroundTransparency = 1
+        hTitle.Text = "Hat Animator"
+        hTitle.TextColor3 = Color3.fromRGB(245, 245, 250)
+        hTitle.Font = Enum.Font.GothamBold
+        hTitle.TextSize = 11
+        hTitle.TextXAlignment = Enum.TextXAlignment.Left
+
+        hatCountLbl = Instance.new("TextLabel", masterCard)
+        hatCountLbl.Size = UDim2.new(1, -120, 0, 14)
+        hatCountLbl.Position = UDim2.new(0, 12, 0, 24)
+        hatCountLbl.BackgroundTransparency = 1
+        hatCountLbl.Text = "Detected accessories: 0"
+        hatCountLbl.TextColor3 = Theme.textMuted
+        hatCountLbl.Font = Enum.Font.Gotham
+        hatCountLbl.TextSize = 9
+        hatCountLbl.TextXAlignment = Enum.TextXAlignment.Left
+
+        hMasterTrack, hMasterKnob, hMasterGlow = createLimbToggleSwitch(masterCard, -54, -11)
+        setSwitchVisual(hMasterTrack, hMasterKnob, hMasterGlow, hCfg.enabled == true, false)
+
+        local hHit = Instance.new("TextButton", masterCard)
+        hHit.Size = UDim2.new(1, 0, 1, 0)
+        hHit.BackgroundTransparency = 1
+        hHit.Text = ""
+        hHit.ZIndex = 6
+
+        local function setHatsOn(onVal)
+            hCfg.enabled = (onVal == true)
+            saveConfig()
+            setSwitchVisual(hMasterTrack, hMasterKnob, hMasterGlow, hCfg.enabled, true)
+            if not hCfg.enabled then
+                restoreUltraRig(getActiveRig())
+            end
+        end
+        hHit.MouseButton1Click:Connect(function() setHatsOn(not hCfg.enabled) end)
+
+        local HAT_MODES = { "Halo Ring", "Orbit Sphere", "Sky Tower", "Wing Fan", "Comet Trail", "Waist Shield" }
+        local gridCard = Instance.new("Frame", hatsPage)
+        gridCard.Size = UDim2.new(1, 0, 0, 90)
+        gridCard.BackgroundColor3 = Theme.bgCard
+        gridCard.BorderSizePixel = 0
+        gridCard.LayoutOrder = 3
+        addCorner(gridCard, 8)
+        addStroke(gridCard, Theme.divider, 1, 0)
+
+        local gt = Instance.new("TextLabel", gridCard)
+        gt.Size = UDim2.new(1, -20, 0, 18)
+        gt.Position = UDim2.new(0, 10, 0, 6)
+        gt.BackgroundTransparency = 1
+        gt.Text = "ACCESSORY FORMATION"
+        gt.TextColor3 = Theme.textMuted
+        gt.Font = Enum.Font.GothamBold
+        gt.TextSize = 9.5
+        gt.TextXAlignment = Enum.TextXAlignment.Left
+
+        local hatBtns = {}
+        local function refreshHatBtns()
+            for name, b in pairs(hatBtns) do
+                local act = (hCfg.mode == name)
+                b.BackgroundColor3 = act and Theme.accent or Theme.surface
+                b.TextColor3 = act and Color3.fromRGB(8, 8, 10) or Theme.text
+                b.Font = act and Enum.Font.GothamBold or Enum.Font.GothamMedium
+            end
+        end
+
+        for idx, name in ipairs(HAT_MODES) do
+            local r = math.floor((idx - 1) / 3)
+            local c = (idx - 1) % 3
+            local b = Instance.new("TextButton", gridCard)
+            b.Size = UDim2.new(1 / 3, -10, 0, 24)
+            b.Position = UDim2.new(c / 3, 7, 0, 28 + r * 28)
+            b.BackgroundColor3 = Theme.surface
+            b.Text = name
+            b.TextColor3 = Theme.text
+            b.Font = Enum.Font.GothamMedium
+            b.TextSize = 9.5
+            addCorner(b, 6)
+            addStroke(b, Theme.divider, 1, 0.3)
+            hatBtns[name] = b
+            b.MouseButton1Click:Connect(function()
+                hCfg.mode = name
+                setHatsOn(true)
+                refreshHatBtns()
+            end)
+        end
+        refreshHatBtns()
+
+        local hTune = Instance.new("Frame", hatsPage)
+        hTune.Size = UDim2.new(1, 0, 0, 128)
+        hTune.BackgroundColor3 = Theme.bgCard
+        hTune.BorderSizePixel = 0
+        hTune.LayoutOrder = 4
+        addCorner(hTune, 8)
+        addStroke(hTune, Theme.divider, 1, 0)
+
+        createAdvancedSlider(hTune, ctx, "Radius / Line Spacing", 1, 35, hCfg.radius, "%.1f st", 8, function(v)
+            hCfg.radius = v
+            saveConfig()
+        end)
+        createAdvancedSlider(hTune, ctx, "Height Offset (+Y)", -5, 60, hCfg.height, "%.1f st", 48, function(v)
+            hCfg.height = v
+            saveConfig()
+        end)
+        createAdvancedSlider(hTune, ctx, "Orbit / Flap Speed", 0.2, 12, hCfg.speed, "%.1fx", 88, function(v)
+            hCfg.speed = v
+            saveConfig()
+        end)
+    end
+
+    -- ========================================================================
+    -- PAGE 3: STUDIO TAB (Recorder, Player Mimic, BPM Bounce, Movement Lean)
+    -- ========================================================================
+    local studioPage = Instance.new("ScrollingFrame")
+    studioPage.Name = "StudioPage"
+    studioPage.Size = UDim2.new(1, 0, 1, 0)
+    studioPage.BackgroundTransparency = 1
+    studioPage.BorderSizePixel = 0
+    studioPage.ScrollBarThickness = 3
+    studioPage.ScrollBarImageColor3 = Theme.accent
+    studioPage.ScrollBarImageTransparency = 0.6
+    pcall(function() studioPage.AutomaticCanvasSize = Enum.AutomaticSize.Y end)
+    studioPage.CanvasSize = UDim2.new(0, 0, 0, 580)
+    studioPage.Visible = false
+    studioPage.Parent = pagesHolder
+
+    local sPad = Instance.new("UIPadding", studioPage)
+    sPad.PaddingLeft = UDim.new(0, 2)
+    sPad.PaddingRight = UDim.new(0, 4)
+    sPad.PaddingTop = UDim.new(0, 2)
+    sPad.PaddingBottom = UDim.new(0, 14)
+
+    local sLayout = Instance.new("UIListLayout", studioPage)
+    sLayout.Padding = UDim.new(0, 8)
+    sLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    sLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        studioPage.CanvasSize = UDim2.new(0, 0, 0, sLayout.AbsoluteContentSize.Y + 28)
+    end)
+
+    local recStatusLbl
+    do
+        local hdr = Instance.new("TextLabel", studioPage)
+        hdr.Size = UDim2.new(1, 0, 0, 16)
+        hdr.BackgroundTransparency = 1
+        hdr.Text = "REANIM STUDIO: RECORDER, MIMIC & RHYTHM"
+        hdr.TextColor3 = Theme.textMuted
+        hdr.Font = Enum.Font.GothamBold
+        hdr.TextSize = 10
+        hdr.TextXAlignment = Enum.TextXAlignment.Left
+        hdr.LayoutOrder = 1
+
+        -- 1. Keyframe Pose Recorder Card
+        local recCard = Instance.new("Frame", studioPage)
+        recCard.Size = UDim2.new(1, 0, 0, 162)
+        recCard.BackgroundColor3 = Theme.bgCard
+        recCard.BorderSizePixel = 0
+        recCard.LayoutOrder = 2
+        addCorner(recCard, 8)
+        addStroke(recCard, Theme.divider, 1, 0)
+
+        local recTitle = Instance.new("TextLabel", recCard)
+        recTitle.Size = UDim2.new(1, -20, 0, 18)
+        recTitle.Position = UDim2.new(0, 10, 0, 6)
+        recTitle.BackgroundTransparency = 1
+        recTitle.Text = "KEYFRAME POSE RECORDER & LOOPER"
+        recTitle.TextColor3 = Theme.textMuted
+        recTitle.Font = Enum.Font.GothamBold
+        recTitle.TextSize = 9.5
+        recTitle.TextXAlignment = Enum.TextXAlignment.Left
+
+        recStatusLbl = Instance.new("TextLabel", recCard)
+        recStatusLbl.Size = UDim2.new(1, -20, 0, 14)
+        recStatusLbl.Position = UDim2.new(0, 10, 0, 24)
+        recStatusLbl.BackgroundTransparency = 1
+        recStatusLbl.Text = "Idle — 0 frames captured (max 300)"
+        recStatusLbl.TextColor3 = Theme.text
+        recStatusLbl.Font = Enum.Font.Gotham
+        recStatusLbl.TextSize = 9.5
+        recStatusLbl.TextXAlignment = Enum.TextXAlignment.Left
+
+        local recBtn = Instance.new("TextButton", recCard)
+        recBtn.Size = UDim2.new(1 / 3, -10, 0, 26)
+        recBtn.Position = UDim2.new(0, 8, 0, 44)
+        recBtn.BackgroundColor3 = Theme.surface
+        recBtn.Text = "● Record"
+        recBtn.TextColor3 = Theme.danger
+        recBtn.Font = Enum.Font.GothamBold
+        recBtn.TextSize = 10
+        addCorner(recBtn, 6)
+        addStroke(recBtn, Theme.divider, 1, 0.3)
+
+        local playRecBtn = Instance.new("TextButton", recCard)
+        playRecBtn.Size = UDim2.new(1 / 3, -10, 0, 26)
+        playRecBtn.Position = UDim2.new(1 / 3, 5, 0, 44)
+        playRecBtn.BackgroundColor3 = Theme.surface
+        playRecBtn.Text = "▶ Play Loop"
+        playRecBtn.TextColor3 = Theme.green
+        playRecBtn.Font = Enum.Font.GothamBold
+        playRecBtn.TextSize = 10
+        addCorner(playRecBtn, 6)
+        addStroke(playRecBtn, Theme.divider, 1, 0.3)
+
+        local revBtn = Instance.new("TextButton", recCard)
+        revBtn.Size = UDim2.new(1 / 3, -10, 0, 26)
+        revBtn.Position = UDim2.new(2 / 3, 2, 0, 44)
+        revBtn.BackgroundColor3 = sCfg.recPingPong and Theme.accent or Theme.surface
+        revBtn.Text = sCfg.recPingPong and "⇄ PingPong" or (sCfg.recReverse and "◀ Reverse" or "▶ Forward")
+        revBtn.TextColor3 = sCfg.recPingPong and Color3.fromRGB(8, 8, 10) or Theme.text
+        revBtn.Font = Enum.Font.GothamBold
+        revBtn.TextSize = 9.5
+        addCorner(revBtn, 6)
+        addStroke(revBtn, Theme.divider, 1, 0.3)
+
+        recBtn.MouseButton1Click:Connect(function()
+            if isRecording then
+                isRecording = false
+                recBtn.Text = "● Record"
+                recBtn.BackgroundColor3 = Theme.surface
+                recStatusLbl.Text = "Captured " .. tostring(#recordedFrames) .. " frames — ready to play"
+            else
+                isPlayingRec = false
+                playRecBtn.Text = "▶ Play Loop"
+                table.clear(recordedFrames)
+                recSampleAccum = 0
+                isRecording = true
+                recBtn.Text = "■ Stop Rec"
+                recBtn.BackgroundColor3 = Theme.dangerHover
+                recStatusLbl.Text = "Recording live poses..."
+            end
+        end)
+
+        playRecBtn.MouseButton1Click:Connect(function()
+            if isPlayingRec then
+                isPlayingRec = false
+                playRecBtn.Text = "▶ Play Loop"
+                restoreUltraRig(getActiveRig())
+                recStatusLbl.Text = "Stopped (" .. tostring(#recordedFrames) .. " frames saved)"
+            else
+                if #recordedFrames < 2 then
+                    recStatusLbl.Text = "Record at least 2 frames first!"
+                    return
+                end
+                isRecording = false
+                recBtn.Text = "● Record"
+                recBtn.BackgroundColor3 = Theme.surface
+                recPlayCursor = sCfg.recReverse and #recordedFrames or 1
+                recPlayDir = sCfg.recReverse and -1 or 1
+                isPlayingRec = true
+                playRecBtn.Text = "■ Stop Loop"
+                recStatusLbl.Text = "Playing " .. tostring(#recordedFrames) .. " recorded frames"
+            end
+        end)
+
+        revBtn.MouseButton1Click:Connect(function()
+            if not sCfg.recReverse and not sCfg.recPingPong then
+                sCfg.recReverse = true
+                sCfg.recPingPong = false
+                revBtn.Text = "◀ Reverse"
+                revBtn.BackgroundColor3 = Theme.surface
+                revBtn.TextColor3 = Theme.accent
+            elseif sCfg.recReverse then
+                sCfg.recReverse = false
+                sCfg.recPingPong = true
+                revBtn.Text = "⇄ PingPong"
+                revBtn.BackgroundColor3 = Theme.accent
+                revBtn.TextColor3 = Color3.fromRGB(8, 8, 10)
+            else
+                sCfg.recReverse = false
+                sCfg.recPingPong = false
+                revBtn.Text = "▶ Forward"
+                revBtn.BackgroundColor3 = Theme.surface
+                revBtn.TextColor3 = Theme.text
+            end
+            saveConfig()
+        end)
+
+        createAdvancedSlider(recCard, ctx, "Recorder Playback Speed", 0.2, 4, sCfg.recSpeed, "%.1fx", 78, function(v)
+            sCfg.recSpeed = v
+            saveConfig()
+        end)
+
+        local exportRecBtn = Instance.new("TextButton", recCard)
+        exportRecBtn.Size = UDim2.new(1, -16, 0, 24)
+        exportRecBtn.Position = UDim2.new(0, 8, 0, 126)
+        exportRecBtn.BackgroundColor3 = Color3.fromRGB(24, 44, 32)
+        exportRecBtn.Text = "+ Save Recorded Clip to Custom Tab"
+        exportRecBtn.TextColor3 = Theme.green
+        exportRecBtn.Font = Enum.Font.GothamBold
+        exportRecBtn.TextSize = 9.5
+        addCorner(exportRecBtn, 6)
+        addStroke(exportRecBtn, Color3.fromRGB(40, 110, 65), 1, 0.35)
+        exportRecBtn.MouseButton1Click:Connect(function()
+            if #recordedFrames < 2 then
+                recStatusLbl.Text = "Record at least 2 frames before saving!"
+                return
+            end
+            local clipId = "Clip_" .. tostring(math.floor(tick()) % 10000)
+            local clipName = "Recorded " .. clipId
+            if ctx.procEngine and type(ctx.procEngine.registerRecClip) == "function" then
+                ctx.procEngine.registerRecClip(clipId, recordedFrames)
+            end
+            local entryPath = "rec://" .. clipId
+            savedConfig.customAnims = savedConfig.customAnims or {}
+            table.insert(savedConfig.customAnims, { name = clipName, script = entryPath })
+            table.insert(allAnimations, { name = clipName, path = entryPath, category = "Custom", isCustom = true })
+            saveConfig()
+            if type(refreshAnimList) == "function" then pcall(refreshAnimList) end
+            recStatusLbl.Text = "Saved '" .. clipName .. "' to Custom tab!"
+        end)
+
+        -- 2. Live Player Pose Mimic / Mirror Card
+        local mimicCard = Instance.new("Frame", studioPage)
+        mimicCard.Size = UDim2.new(1, 0, 0, 96)
+        mimicCard.BackgroundColor3 = Theme.bgCard
+        mimicCard.BorderSizePixel = 0
+        mimicCard.LayoutOrder = 3
+        addCorner(mimicCard, 8)
+        addStroke(mimicCard, Theme.divider, 1, 0)
+
+        local mTitle = Instance.new("TextLabel", mimicCard)
+        mTitle.Size = UDim2.new(1, -70, 0, 18)
+        mTitle.Position = UDim2.new(0, 10, 0, 8)
+        mTitle.BackgroundTransparency = 1
+        mTitle.Text = "LIVE PLAYER POSE MIMIC"
+        mTitle.TextColor3 = Theme.textMuted
+        mTitle.Font = Enum.Font.GothamBold
+        mTitle.TextSize = 9.5
+        mTitle.TextXAlignment = Enum.TextXAlignment.Left
+
+        local mmT, mmK, mmG = createLimbToggleSwitch(mimicCard, -54, -34)
+        setSwitchVisual(mmT, mmK, mmG, sCfg.mimicEnabled == true, false)
+        local mmHit = Instance.new("TextButton", mimicCard)
+        mmHit.Size = UDim2.new(0, 52, 0, 26)
+        mmHit.Position = UDim2.new(1, -56, 0, 4)
+        mmHit.BackgroundTransparency = 1
+        mmHit.Text = ""
+        mmHit.ZIndex = 6
+        mmHit.MouseButton1Click:Connect(function()
+            sCfg.mimicEnabled = not sCfg.mimicEnabled
+            saveConfig()
+            setSwitchVisual(mmT, mmK, mmG, sCfg.mimicEnabled, true)
+            if not sCfg.mimicEnabled then restoreUltraRig(getActiveRig()) end
+        end)
+
+        local mimicBox = Instance.new("TextBox", mimicCard)
+        mimicBox.Size = UDim2.new(1, -20, 0, 26)
+        mimicBox.Position = UDim2.new(0, 10, 0, 32)
+        mimicBox.BackgroundColor3 = Theme.input
+        mimicBox.PlaceholderText = "Target username to copy poses from..."
+        mimicBox.PlaceholderColor3 = Theme.textMuted
+        mimicBox.Text = sCfg.mimicTarget or ""
+        mimicBox.TextColor3 = Theme.text
+        mimicBox.Font = Enum.Font.GothamMedium
+        mimicBox.TextSize = 10.5
+        mimicBox.ClearTextOnFocus = false
+        addCorner(mimicBox, 6)
+        addStroke(mimicBox, Theme.divider, 1, 0.3)
+        mimicBox:GetPropertyChangedSignal("Text"):Connect(function()
+            sCfg.mimicTarget = mimicBox.Text
+            saveConfig()
+        end)
+
+        local flipBtn = Instance.new("TextButton", mimicCard)
+        flipBtn.Size = UDim2.new(1, -20, 0, 22)
+        flipBtn.Position = UDim2.new(0, 10, 0, 64)
+        flipBtn.BackgroundColor3 = sCfg.mimicMirror and Theme.accent or Theme.surface
+        flipBtn.Text = sCfg.mimicMirror and "Mirror Flip: ON (Left ↔ Right)" or "Mirror Flip: OFF (Exact Copy)"
+        flipBtn.TextColor3 = sCfg.mimicMirror and Color3.fromRGB(8, 8, 10) or Theme.text
+        flipBtn.Font = Enum.Font.GothamBold
+        flipBtn.TextSize = 9.5
+        addCorner(flipBtn, 5)
+        addStroke(flipBtn, Theme.divider, 1, 0.3)
+        flipBtn.MouseButton1Click:Connect(function()
+            sCfg.mimicMirror = not sCfg.mimicMirror
+            saveConfig()
+            flipBtn.BackgroundColor3 = sCfg.mimicMirror and Theme.accent or Theme.surface
+            flipBtn.Text = sCfg.mimicMirror and "Mirror Flip: ON (Left ↔ Right)" or "Mirror Flip: OFF (Exact Copy)"
+            flipBtn.TextColor3 = sCfg.mimicMirror and Color3.fromRGB(8, 8, 10) or Theme.text
+        end)
+
+        -- 3. BPM Rhythm Bounce & Movement Lean Card
+        local beatCard = Instance.new("Frame", studioPage)
+        beatCard.Size = UDim2.new(1, 0, 0, 168)
+        beatCard.BackgroundColor3 = Theme.bgCard
+        beatCard.BorderSizePixel = 0
+        beatCard.LayoutOrder = 4
+        addCorner(beatCard, 8)
+        addStroke(beatCard, Theme.divider, 1, 0)
+
+        local bLbl = Instance.new("TextLabel", beatCard)
+        bLbl.Size = UDim2.new(1, -70, 0, 18)
+        bLbl.Position = UDim2.new(0, 10, 0, 8)
+        bLbl.BackgroundTransparency = 1
+        bLbl.Text = "BPM RHYTHM BOUNCE (HEAD & BODY)"
+        bLbl.TextColor3 = Theme.textMuted
+        bLbl.Font = Enum.Font.GothamBold
+        bLbl.TextSize = 9.5
+        bLbl.TextXAlignment = Enum.TextXAlignment.Left
+
+        local bmT, bmK, bmG = createLimbToggleSwitch(beatCard, -54, -70)
+        setSwitchVisual(bmT, bmK, bmG, sCfg.bpmEnabled == true, false)
+        local bmHit = Instance.new("TextButton", beatCard)
+        bmHit.Size = UDim2.new(0, 52, 0, 26)
+        bmHit.Position = UDim2.new(1, -56, 0, 4)
+        bmHit.BackgroundTransparency = 1
+        bmHit.Text = ""
+        bmHit.ZIndex = 6
+        bmHit.MouseButton1Click:Connect(function()
+            sCfg.bpmEnabled = not sCfg.bpmEnabled
+            saveConfig()
+            setSwitchVisual(bmT, bmK, bmG, sCfg.bpmEnabled, true)
+            if not sCfg.bpmEnabled then restoreUltraRig(getActiveRig()) end
+        end)
+
+        createAdvancedSlider(beatCard, ctx, "Tempo (BPM)", 60, 200, sCfg.bpm, "%.0f BPM", 30, function(v)
+            sCfg.bpm = v
+            saveConfig()
+        end)
+        createAdvancedSlider(beatCard, ctx, "Bounce Intensity", 0.2, 3, sCfg.bpmAmp, "%.1fx", 70, function(v)
+            sCfg.bpmAmp = v
+            saveConfig()
+        end)
+
+        -- Movement Banking / Lean row
+        local leanRow = Instance.new("Frame", beatCard)
+        leanRow.Size = UDim2.new(1, -20, 0, 44)
+        leanRow.Position = UDim2.new(0, 10, 0, 114)
+        leanRow.BackgroundTransparency = 1
+        local lnT = Instance.new("TextLabel", leanRow)
+        lnT.Size = UDim2.new(1, -60, 0, 18)
+        lnT.Position = UDim2.new(0, 0, 0, 2)
+        lnT.BackgroundTransparency = 1
+        lnT.Text = "Dynamic Movement Lean / Banking"
+        lnT.TextColor3 = Theme.text
+        lnT.Font = Enum.Font.GothamBold
+        lnT.TextSize = 10
+        lnT.TextXAlignment = Enum.TextXAlignment.Left
+
+        local lnS = Instance.new("TextLabel", leanRow)
+        lnS.Size = UDim2.new(1, -60, 0, 14)
+        lnS.Position = UDim2.new(0, 0, 0, 20)
+        lnS.BackgroundTransparency = 1
+        lnS.Text = "Tilts torso smoothly into run direction & turns"
+        lnS.TextColor3 = Theme.textMuted
+        lnS.Font = Enum.Font.Gotham
+        lnS.TextSize = 8.5
+        lnS.TextXAlignment = Enum.TextXAlignment.Left
+
+        local lT, lK, lG = createLimbToggleSwitch(leanRow, -46, -11)
+        setSwitchVisual(lT, lK, lG, sCfg.leanEnabled == true, false)
+        local lHit = Instance.new("TextButton", leanRow)
+        lHit.Size = UDim2.new(1, 0, 1, 0)
+        lHit.BackgroundTransparency = 1
+        lHit.Text = ""
+        lHit.ZIndex = 6
+        lHit.MouseButton1Click:Connect(function()
+            sCfg.leanEnabled = not sCfg.leanEnabled
+            saveConfig()
+            setSwitchVisual(lT, lK, lG, sCfg.leanEnabled, true)
+            if not sCfg.leanEnabled then restoreUltraRig(getActiveRig()) end
+        end)
+
+        -- 4. Movement Speed & Jump Controls Card
+        local moveCard = Instance.new("Frame", studioPage)
+        moveCard.Size = UDim2.new(1, 0, 0, 118)
+        moveCard.BackgroundColor3 = Theme.bgCard
+        moveCard.BorderSizePixel = 0
+        moveCard.LayoutOrder = 5
+        addCorner(moveCard, 8)
+        addStroke(moveCard, Theme.divider, 1, 0)
+
+        local wsSlider = createAdvancedSlider(moveCard, ctx, "WalkSpeed", 4, 120, 16, "%.0f", 8, function(v)
+            local r = getActiveRig()
+            local h = r and r:FindFirstChildOfClass("Humanoid")
+            if h then h.WalkSpeed = v end
+            local lc = LocalPlayer and LocalPlayer.Character
+            local lh = lc and lc:FindFirstChildOfClass("Humanoid")
+            if lh then lh.WalkSpeed = v end
+        end)
+        local jpSlider = createAdvancedSlider(moveCard, ctx, "JumpPower", 10, 200, 50, "%.0f", 48, function(v)
+            local r = getActiveRig()
+            local h = r and r:FindFirstChildOfClass("Humanoid")
+            if h then h.UseJumpPower = true; h.JumpPower = v end
+            local lc = LocalPlayer and LocalPlayer.Character
+            local lh = lc and lc:FindFirstChildOfClass("Humanoid")
+            if lh then lh.UseJumpPower = true; lh.JumpPower = v end
+        end)
+
+        local rstMove = Instance.new("TextButton", moveCard)
+        rstMove.Size = UDim2.new(1, -20, 0, 22)
+        rstMove.Position = UDim2.new(0, 10, 0, 88)
+        rstMove.BackgroundColor3 = Theme.surface
+        rstMove.Text = "Reset WalkSpeed (16) & JumpPower (50)"
+        rstMove.TextColor3 = Theme.textMuted
+        rstMove.Font = Enum.Font.GothamBold
+        rstMove.TextSize = 9.5
+        addCorner(rstMove, 5)
+        addStroke(rstMove, Theme.divider, 1, 0.3)
+        rstMove.MouseButton1Click:Connect(function()
+            wsSlider.setVal(16, true)
+            jpSlider.setVal(50, true)
+        end)
+    end
+
+    -- ========================================================================
+    -- REAL-TIME STEP LOOP FOR MORPHS, HATS & STUDIO
+    -- ========================================================================
+    local function stepUltra(dt)
+        dt = dt or 0.016
+        ultraClock = ultraClock + dt
+        local rig = getActiveRig()
+        if not rig then return end
+        local root = rig:FindFirstChild("HumanoidRootPart")
+        if not root then return end
+
+        cacheRig(rig)
+        local cfMap = { [root] = root.CFrame }
+
+        -- Update hat trail history
+        if #hatTrailHist == 0 or (hatTrailHist[1].Position - root.Position).Magnitude > 0.3 then
+            table.insert(hatTrailHist, 1, root.CFrame)
+            if #hatTrailHist > 90 then table.remove(hatTrailHist) end
+        end
+
+        -- 1. Pose Recording (20 FPS)
+        if isRecording then
+            recSampleAccum = recSampleAccum + dt
+            if recSampleAccum >= 0.05 then
+                recSampleAccum = 0
+                local snap = {}
+                for _, limbId in ipairs(LIMB_ORDER) do
+                    for _, p in ipairs(getPartsOfGroup(rig, limbId)) do
+                        snap[p.Name] = root.CFrame:ToObjectSpace(p.CFrame)
+                    end
+                end
+                table.insert(recordedFrames, snap)
+                if recStatusLbl then
+                    recStatusLbl.Text = "Recording... " .. tostring(#recordedFrames) .. "/300 frames"
+                end
+                if #recordedFrames >= 300 then
+                    isRecording = false
+                    if recStatusLbl then
+                        recStatusLbl.Text = "Max 300 frames captured — ready to play!"
+                    end
+                end
+            end
+        end
+
+        -- 2. Recorded Pose Playback
+        if isPlayingRec and #recordedFrames >= 2 then
+            recPlayCursor = recPlayCursor + (dt * 20 * (sCfg.recSpeed or 1.0) * recPlayDir)
+            if sCfg.recPingPong then
+                if recPlayCursor >= #recordedFrames then
+                    recPlayCursor = #recordedFrames
+                    recPlayDir = -1
+                elseif recPlayCursor <= 1 then
+                    recPlayCursor = 1
+                    recPlayDir = 1
+                end
+            else
+                if recPlayCursor > #recordedFrames then
+                    recPlayCursor = 1
+                elseif recPlayCursor < 1 then
+                    recPlayCursor = #recordedFrames
+                end
+            end
+            local frameIdx = math.clamp(math.floor(recPlayCursor), 1, #recordedFrames)
+            local snap = recordedFrames[frameIdx]
+            if snap then
+                for pName, relCF in pairs(snap) do
+                    local p = rig:FindFirstChild(pName)
+                    if p and p:IsA("BasePart") then
+                        moveLimb(rig, p, root.CFrame * relCF, cfMap)
+                    end
+                end
+            end
+        end
+
+        -- 3. Player Pose Mimic
+        if sCfg.mimicEnabled and sCfg.mimicTarget ~= "" then
+            local targetPlr = findTargetPlayer(sCfg.mimicTarget)
+            local tChar = targetPlr and targetPlr.Character
+            local tRoot = tChar and tChar:FindFirstChild("HumanoidRootPart")
+            if tChar and tRoot then
+                local mirrorSwap = {
+                    ["Left Arm"] = "Right Arm", ["Right Arm"] = "Left Arm",
+                    ["Left Leg"] = "Right Leg", ["Right Leg"] = "Left Leg",
+                }
+                for _, limbId in ipairs(LIMB_ORDER) do
+                    local srcLimbId = (sCfg.mimicMirror and mirrorSwap[limbId]) or limbId
+                    local srcParts = getPartsOfGroup(tChar, srcLimbId)
+                    local dstParts = getPartsOfGroup(rig, limbId)
+                    for i, dstP in ipairs(dstParts) do
+                        local srcP = srcParts[i] or srcParts[1]
+                        if srcP then
+                            local rel = tRoot.CFrame:ToObjectSpace(srcP.CFrame)
+                            if sCfg.mimicMirror then
+                                local pos = rel.Position
+                                local rx, ry, rz = rel:ToEulerAnglesXYZ()
+                                rel = CFrame.new(-pos.X, pos.Y, pos.Z) * CFrame.Angles(rx, -ry, -rz)
+                            end
+                            moveLimb(rig, dstP, root.CFrame * rel, cfMap)
+                        end
+                    end
+                end
+            end
+        end
+
+        -- 4. Procedural Rig Morphs (12 Modes)
+        if mCfg.enabled then
+            local mode = mCfg.mode
+            local S = mCfg.scale or 12
+            local spd = mCfg.speed or 2.5
+            local alt = mCfg.altitude or 0
+            local rootCF = root.CFrame
+            local limbs = { "Head", "Left Arm", "Right Arm", "Left Leg", "Right Leg" }
+
+            if mode == "Angel Wings" then
+                local flap = math.sin(ultraClock * spd * 3) * 0.65
+                local wingMap = {
+                    ["Left Arm"]  = { side = -1, y = 1.6, z = 1.4, ang = flap },
+                    ["Right Arm"] = { side = 1,  y = 1.6, z = 1.4, ang = -flap },
+                    ["Left Leg"]  = { side = -1, y = 0.2, z = 1.8, ang = flap * 0.8 },
+                    ["Right Leg"] = { side = 1,  y = 0.2, z = 1.8, ang = -flap * 0.8 },
+                }
+                for limbId, w in pairs(wingMap) do
+                    for idx, p in ipairs(getPartsOfGroup(rig, limbId)) do
+                        local cf = rootCF * CFrame.new(w.side * (S * 0.35 + idx * 0.8), w.y + alt, w.z) * CFrame.Angles(0, w.ang, math.rad(w.side * 72))
+                        moveLimb(rig, p, cf, cfMap)
+                        if mCfg.stretchMesh then setPartStretch(p, Vector3.new(1, math.clamp(S * 0.35, 1.5, 16), 0.5)) else clearPartStretch(p) end
+                    end
+                end
+
+            elseif mode == "Halo Crown" then
+                local rad = math.max(S * 0.35, 2.5)
+                for idx, limbId in ipairs(limbs) do
+                    local a = ultraClock * spd + (idx - 1) * (math.pi * 2 / #limbs)
+                    local pos = rootCF.Position + Vector3.new(math.cos(a) * rad, 5.5 + alt, math.sin(a) * rad)
+                    local cf = CFrame.new(pos) * CFrame.Angles(math.rad(90), a, 0)
+                    for _, p in ipairs(getPartsOfGroup(rig, limbId)) do
+                        moveLimb(rig, p, cf, cfMap)
+                        clearPartStretch(p)
+                    end
+                end
+
+            elseif mode == "Helicopter" then
+                local spin = ultraClock * spd * 8
+                for _, limbId in ipairs({ "Left Arm", "Right Arm" }) do
+                    local dir = (limbId == "Left Arm") and -1 or 1
+                    for _, p in ipairs(getPartsOfGroup(rig, limbId)) do
+                        local cf = rootCF * CFrame.new(0, 4.2 + alt, 0) * CFrame.Angles(0, spin, 0) * CFrame.new(dir * S * 0.35, 0, 0) * CFrame.Angles(0, 0, math.rad(90))
+                        moveLimb(rig, p, cf, cfMap)
+                        if mCfg.stretchMesh then setPartStretch(p, Vector3.new(1, math.clamp(S * 0.45, 2, 18), 0.6)) else clearPartStretch(p) end
+                    end
+                end
+
+            elseif mode == "Centipede" then
+                for idx, limbId in ipairs(limbs) do
+                    local sway = math.sin(ultraClock * spd * 4 - idx * 0.9) * 2.2
+                    local cf = rootCF * CFrame.new(sway, -1.6 + alt, 2.5 + idx * (S * 0.25)) * CFrame.Angles(math.rad(90), 0, 0)
+                    for _, p in ipairs(getPartsOfGroup(rig, limbId)) do
+                        moveLimb(rig, p, cf, cfMap)
+                        clearPartStretch(p)
+                    end
+                end
+
+            elseif mode == "Vortex Tornado" then
+                for idx, limbId in ipairs(limbs) do
+                    local frac = idx / #limbs
+                    local rad = 2 + frac * (S * 0.65)
+                    local ang = ultraClock * spd * 4 + idx * 1.4
+                    local pos = rootCF.Position + Vector3.new(math.cos(ang) * rad, alt + frac * S, math.sin(ang) * rad)
+                    local cf = CFrame.new(pos) * CFrame.Angles(ang, ang * 0.7, 0)
+                    for _, p in ipairs(getPartsOfGroup(rig, limbId)) do
+                        moveLimb(rig, p, cf, cfMap)
+                        clearPartStretch(p)
+                    end
+                end
+
+            elseif mode == "Shield Dome" then
+                local rad = math.max(S * 0.4, 3.5)
+                for idx, limbId in ipairs(limbs) do
+                    local theta = ultraClock * spd * 1.8 + idx * 1.25
+                    local phi = math.sin(ultraClock * spd + idx) * 1.1
+                    local pos = rootCF.Position + Vector3.new(math.cos(theta) * math.cos(phi) * rad, 1 + alt + math.sin(phi) * rad, math.sin(theta) * math.cos(phi) * rad)
+                    local cf = CFrame.lookAt(pos, rootCF.Position + Vector3.new(0, 1 + alt, 0))
+                    for _, p in ipairs(getPartsOfGroup(rig, limbId)) do
+                        moveLimb(rig, p, cf, cfMap)
+                        if mCfg.stretchMesh then setPartStretch(p, Vector3.new(2.2, 2.2, 0.4)) else clearPartStretch(p) end
+                    end
+                end
+
+            elseif mode == "Starburst" then
+                local pulse = 0.5 + 0.5 * math.sin(ultraClock * spd * 3)
+                local dirs = {
+                    ["Head"]      = Vector3.new(0, 1, 0),
+                    ["Left Arm"]  = Vector3.new(-1, 0.6, 0).Unit,
+                    ["Right Arm"] = Vector3.new(1, 0.6, 0).Unit,
+                    ["Left Leg"]  = Vector3.new(-0.8, -0.7, 0.4).Unit,
+                    ["Right Leg"] = Vector3.new(0.8, -0.7, -0.4).Unit,
+                }
+                for limbId, dVec in pairs(dirs) do
+                    local dist = 2 + pulse * S
+                    local pos = rootCF.Position + (rootCF:VectorToWorldSpace(dVec) * dist) + Vector3.new(0, alt, 0)
+                    local cf = CFrame.lookAt(pos, rootCF.Position) * CFrame.Angles(math.rad(90), 0, 0)
+                    for _, p in ipairs(getPartsOfGroup(rig, limbId)) do
+                        moveLimb(rig, p, cf, cfMap)
+                        if mCfg.stretchMesh then setPartStretch(p, Vector3.new(1, math.clamp(dist * 0.35, 1, 14), 1)) else clearPartStretch(p) end
+                    end
+                end
+
+            elseif mode == "X-Titan" then
+                local xMap = {
+                    ["Head"]      = { pos = Vector3.new(0, S * 0.55, 0), rot = CFrame.new() },
+                    ["Left Arm"]  = { pos = Vector3.new(-S * 0.45, S * 0.35, 0), rot = CFrame.Angles(0, 0, math.rad(-45)) },
+                    ["Right Arm"] = { pos = Vector3.new(S * 0.45, S * 0.35, 0), rot = CFrame.Angles(0, 0, math.rad(45)) },
+                    ["Left Leg"]  = { pos = Vector3.new(-S * 0.35, -S * 0.3, 0), rot = CFrame.Angles(0, 0, math.rad(35)) },
+                    ["Right Leg"] = { pos = Vector3.new(S * 0.35, -S * 0.3, 0), rot = CFrame.Angles(0, 0, math.rad(-35)) },
+                }
+                for limbId, spec in pairs(xMap) do
+                    for _, p in ipairs(getPartsOfGroup(rig, limbId)) do
+                        moveLimb(rig, p, rootCF * CFrame.new(spec.pos + Vector3.new(0, alt + 4, 0)) * spec.rot, cfMap)
+                        if mCfg.stretchMesh then setPartStretch(p, Vector3.new(1.5, math.clamp(S * 0.4, 2, 16), 1.5)) else clearPartStretch(p) end
+                    end
+                end
+
+            elseif mode == "Lance Arm" then
+                for _, p in ipairs(getPartsOfGroup(rig, "Right Arm")) do
+                    local cf = rootCF * CFrame.new(1.6, 0.4 + alt, -(S * 0.45)) * CFrame.Angles(math.rad(90), 0, 0)
+                    moveLimb(rig, p, cf, cfMap)
+                    if mCfg.stretchMesh then setPartStretch(p, Vector3.new(0.8, math.clamp(S * 0.65, 2, 26), 0.8)) else clearPartStretch(p) end
+                end
+                for _, p in ipairs(getPartsOfGroup(rig, "Left Arm")) do
+                    moveLimb(rig, p, rootCF * CFrame.new(-1.8, 0.2 + alt, 1.4) * CFrame.Angles(math.rad(-35), 0, math.rad(-20)), cfMap)
+                end
+
+            elseif mode == "Sky Cannons" then
+                local recoil = math.abs(math.sin(ultraClock * spd * 4)) * 2.0
+                for _, limbId in ipairs({ "Left Arm", "Right Arm" }) do
+                    local dir = (limbId == "Left Arm") and -1 or 1
+                    for _, p in ipairs(getPartsOfGroup(rig, limbId)) do
+                        local cf = rootCF * CFrame.new(dir * 2.2, 2.5 + S * 0.3 - recoil + alt, -(S * 0.25)) * CFrame.Angles(math.rad(38), 0, 0)
+                        moveLimb(rig, p, cf, cfMap)
+                        if mCfg.stretchMesh then setPartStretch(p, Vector3.new(1.2, math.clamp(S * 0.5, 2, 20), 1.2)) else clearPartStretch(p) end
+                    end
+                end
+
+            elseif mode == "Meditation" then
+                local bob = math.sin(ultraClock * spd * 1.5) * 0.7
+                local medMap = {
+                    ["Left Arm"]  = rootCF * CFrame.new(-2.4, 0.5 + bob + alt, -0.8) * CFrame.Angles(math.rad(60), 0, math.rad(-25)),
+                    ["Right Arm"] = rootCF * CFrame.new(2.4, 0.5 + bob + alt, -0.8) * CFrame.Angles(math.rad(60), 0, math.rad(25)),
+                    ["Left Leg"]  = rootCF * CFrame.new(-0.9, -1.2 + bob + alt, -0.6) * CFrame.Angles(math.rad(80), math.rad(35), 0),
+                    ["Right Leg"] = rootCF * CFrame.new(0.9, -1.2 + bob + alt, -0.6) * CFrame.Angles(math.rad(80), math.rad(-35), 0),
+                }
+                for limbId, cf in pairs(medMap) do
+                    for _, p in ipairs(getPartsOfGroup(rig, limbId)) do
+                        moveLimb(rig, p, cf, cfMap)
+                        clearPartStretch(p)
+                    end
+                end
+
+            elseif mode == "Pendulum" then
+                local swing = math.sin(ultraClock * spd * 2.2) * 1.15
+                for idx, limbId in ipairs(limbs) do
+                    local phase = (idx % 2 == 0) and swing or -swing
+                    local armLen = math.max(S * 0.45, 3)
+                    local pos = rootCF.Position + Vector3.new(math.sin(phase) * armLen, 3 + alt - math.cos(phase) * armLen * 0.5, (idx - 3) * 1.6)
+                    local cf = CFrame.new(pos) * CFrame.Angles(0, 0, -phase)
+                    for _, p in ipairs(getPartsOfGroup(rig, limbId)) do
+                        moveLimb(rig, p, cf, cfMap)
+                        clearPartStretch(p)
+                    end
+                end
+            end
+        end
+
+        -- 5. Accessory / Hat Animator
+        local accs = collectAccessories(rig)
+        if hatCountLbl then
+            hatCountLbl.Text = "Detected accessories: " .. tostring(#accs)
+        end
+        if hCfg.enabled and #accs > 0 then
+            local rad = hCfg.radius or 5
+            local hOff = hCfg.height or 4
+            local hSpd = hCfg.speed or 2.5
+            local mode = hCfg.mode or "Halo Ring"
+            for idx, item in ipairs(accs) do
+                local targetCF = root.CFrame
+                if mode == "Halo Ring" then
+                    local a = ultraClock * hSpd + (idx - 1) * (math.pi * 2 / #accs)
+                    targetCF = CFrame.new(root.Position + Vector3.new(math.cos(a) * rad, hOff + 3, math.sin(a) * rad)) * CFrame.Angles(0, -a, 0)
+                elseif mode == "Orbit Sphere" then
+                    local a = ultraClock * hSpd * 1.3 + idx * 1.7
+                    local b = ultraClock * hSpd * 0.9 + idx * 2.3
+                    targetCF = CFrame.new(root.Position + Vector3.new(math.cos(a) * rad, hOff + math.sin(b) * rad * 0.6, math.sin(a) * rad)) * CFrame.Angles(a, b, 0)
+                elseif mode == "Sky Tower" then
+                    targetCF = CFrame.new(root.Position + Vector3.new(0, hOff + 3 + (idx - 1) * math.max(rad * 0.6, 1.8), 0)) * CFrame.Angles(0, ultraClock * hSpd, 0)
+                elseif mode == "Wing Fan" then
+                    local side = (idx % 2 == 0) and 1 or -1
+                    local tier = math.ceil(idx / 2)
+                    local flap = math.sin(ultraClock * hSpd * 3) * 0.5
+                    targetCF = root.CFrame * CFrame.new(side * (1.5 + tier * (rad * 0.35)), hOff + tier * 0.7, 1.6 + math.abs(flap) * tier * 0.5) * CFrame.Angles(0, side * flap, 0)
+                elseif mode == "Comet Trail" then
+                    local sIdx = math.clamp(idx * 5, 1, math.max(#hatTrailHist, 1))
+                    local hCF = hatTrailHist[sIdx] or root.CFrame
+                    targetCF = hCF * CFrame.new(0, hOff, 0) * CFrame.Angles(0, ultraClock * hSpd, 0)
+                elseif mode == "Waist Shield" then
+                    local a = ultraClock * hSpd * 2 + (idx - 1) * (math.pi * 2 / #accs)
+                    targetCF = CFrame.new(root.Position + Vector3.new(math.cos(a) * rad, hOff - 1.5, math.sin(a) * rad)) * CFrame.Angles(0, -a, 0)
+                end
+
+                if item.weld and item.weld.Part0 then
+                    item.weld.C0 = item.weld.Part0.CFrame:ToObjectSpace(targetCF) * item.weld.C1
+                else
+                    item.handle.CFrame = targetCF
+                end
+            end
+        end
+
+        -- 6. BPM Rhythm Bounce
+        if sCfg.bpmEnabled then
+            local hz = (sCfg.bpm or 128) / 60
+            local beat = math.abs(math.sin(ultraClock * math.pi * hz))
+            local amp = sCfg.bpmAmp or 1.0
+            for _, p in ipairs(getPartsOfGroup(rig, "Head")) do
+                local base = cfMap[p] or p.CFrame
+                moveLimb(rig, p, base * CFrame.new(0, beat * 0.45 * amp, 0) * CFrame.Angles(math.rad(-14 * beat * amp), 0, 0), cfMap)
+            end
+        end
+
+        -- 7. Dynamic Movement Lean / Banking
+        if sCfg.leanEnabled then
+            local localVel = root.CFrame:VectorToObjectSpace(root.AssemblyLinearVelocity)
+            local pitch = math.clamp(localVel.Z * 0.018, -0.45, 0.45) * (sCfg.leanStrength or 1.0)
+            local roll  = math.clamp(-localVel.X * 0.022, -0.45, 0.45) * (sCfg.leanStrength or 1.0)
+            for _, p in ipairs(getPartsOfGroup(rig, "Torso")) do
+                local base = cfMap[p] or p.CFrame
+                moveLimb(rig, p, base * CFrame.Angles(pitch, 0, roll), cfMap)
+            end
+        end
+    end
+
+    local ULTRA_STEP_NAME = "AngoorZenUltraStep"
+    pcall(function() RunService:UnbindFromRenderStep(ULTRA_STEP_NAME) end)
+    pcall(function()
+        RunService:BindToRenderStep(ULTRA_STEP_NAME, Enum.RenderPriority.Camera.Value + 4, stepUltra)
+    end)
+
+    local controller = {
+        morphsPage  = morphsPage,
+        hatsPage    = hatsPage,
+        studioPage  = studioPage,
+        restoreRig  = restoreUltraRig,
+        stopAll     = function()
+            mCfg.enabled = false
+            hCfg.enabled = false
+            sCfg.mimicEnabled = false
+            sCfg.bpmEnabled = false
+            sCfg.leanEnabled = false
+            isRecording = false
+            isPlayingRec = false
+            saveConfig()
+            if mMasterTrack then setSwitchVisual(mMasterTrack, mMasterKnob, mMasterGlow, false, true) end
+            if hMasterTrack then setSwitchVisual(hMasterTrack, hMasterKnob, hMasterGlow, false, true) end
+            restoreUltraRig(getActiveRig())
+        end,
+    }
+    _G._AngoorZenUltra = controller
+    return controller
+end
+
 -- ============================================================================
 -- MAIN BUILDER: buildAngoorReanimTab(hostContainer)
 -- Exact reconstruction of root.73.124 and all 84 child closures (root.73.124.0 .. 84)
 -- ============================================================================
 local buildAngoorReanimTab
 buildAngoorReanimTab = function(hostContainer)
-    _G.buildCocaReanimTab = buildAngoorReanimTab
     _G.buildAngoorReanimTab = buildAngoorReanimTab
 
     -- If executed standalone without a parent container, create a draggable ScreenGui host window
@@ -13714,19 +16836,19 @@ buildAngoorReanimTab = function(hostContainer)
         end
         if not guiParent then return end
 
-        local existingGui = guiParent:FindFirstChild("CocoReanimStandalone")
+        local existingGui = guiParent:FindFirstChild("AngoorZenReanimStandalone")
         if existingGui then
             existingGui:Destroy()
         end
 
         local screenGui = Instance.new("ScreenGui")
-        screenGui.Name = "CocoReanimStandalone"
+        screenGui.Name = "AngoorZenReanimStandalone"
         screenGui.ResetOnSpawn = false
         screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
         screenGui.Parent = guiParent
 
         local standaloneHost = Instance.new("Frame")
-        standaloneHost.Name = "CocoStandaloneHost"
+        standaloneHost.Name = "ZenStandaloneHost"
         standaloneHost.Size = UDim2.new(0, 380, 0, 460)
         standaloneHost.Position = UDim2.new(0.5, -190, 0.5, -230)
         standaloneHost.BackgroundTransparency = 1
@@ -13893,12 +17015,15 @@ buildAngoorReanimTab = function(hostContainer)
             zenApi = modRes
             _G._AngoorZenApi = zenApi
         else
-            warn("Coco Reanim: Failed to load module.lua. Error: " .. tostring(modRes))
+            warn("Zen Reanimations: Failed to load module.lua. Error: " .. tostring(modRes))
             return
         end
     end
 
-    -- Animation Repository & Cache Configuration (root.73.124 @ PC 8295..8365)
+    -- Built-in 20-animation procedural engine (works online & offline)
+    local procEngine = createProceduralAnimEngine(zenApi)
+
+        -- Animation Repository & Cache Configuration (root.73.124 @ PC 8295..8365)
     local allAnimations = type(_G._AngoorZenAnims) == "table" and _G._AngoorZenAnims or {}
     local GITHUB_TREE_URL  = "https://api.github.com/repos/teslapapa50-source/Animations/git/trees/main?recursive=1"
     local RAW_ANIMS_BASE   = "https://raw.githubusercontent.com/teslapapa50-source/Animations/main/"
@@ -14008,10 +17133,32 @@ buildAngoorReanimTab = function(hostContainer)
         speedBinds  = {},
         customAnims = {},
         hiddenLimbs = {},
+        stretch     = {},
+        fx          = {},
+        morphs      = {},
+        hats        = {},
+        studio      = {},
     }
 
-    -- Helper root.73.124.8: Merge customAnims from savedConfig into allAnimations
+    -- Helper root.73.124.8: Merge built-in procedural anims + customAnims into allAnimations
     local function mergeSavedCustomAnims()
+        do
+            local seen = {}
+            for _, item in ipairs(allAnimations) do
+                if item and item.name then seen[tostring(item.name)] = true end
+            end
+            for _, bAnim in ipairs(BUILTIN_PROC_ANIMS) do
+                if not seen[bAnim.name] then
+                    table.insert(allAnimations, {
+                        name     = bAnim.name,
+                        path     = bAnim.path,
+                        category = bAnim.category,
+                        isCustom = false,
+                    })
+                    seen[bAnim.name] = true
+                end
+            end
+        end
         if not savedConfig or not savedConfig.customAnims then return end
         local existing = {}
         for _, item in ipairs(allAnimations) do
@@ -14057,12 +17204,12 @@ buildAngoorReanimTab = function(hostContainer)
             return game:HttpGet(GITHUB_TREE_URL)
         end)
         if not ok or type(res) ~= "string" then
-            warn("[Coco Reanim] Animations repo scan failed: " .. tostring(res))
+            warn("[ANGOOR] Animations repo scan failed: " .. tostring(res))
             return
         end
         local parsed = parseGitHubTreeJson(res)
         if not parsed then
-            warn("[Coco Reanim] Animations repo tree empty/invalid")
+            warn("[ANGOOR] Animations repo tree empty/invalid")
             return
         end
         setSortedAnimations(parsed)
@@ -14071,7 +17218,7 @@ buildAngoorReanimTab = function(hostContainer)
         if type(populateList) == "function" then
             pcall(populateList)
         end
-        print("[Coco Reanim] loaded " .. tostring(#allAnimations) .. " animations from GitHub Animations repo")
+        print("[ANGOOR] loaded " .. tostring(#allAnimations) .. " animations from GitHub Animations repo")
     end
 
     -- Load cached animations & launch background GitHub refresh
@@ -14103,6 +17250,11 @@ buildAngoorReanimTab = function(hostContainer)
                     if type(decoded.speedBinds) == "table" then savedConfig.speedBinds = decoded.speedBinds end
                     if type(decoded.customAnims) == "table" then savedConfig.customAnims = decoded.customAnims end
                     if type(decoded.hiddenLimbs) == "table" then savedConfig.hiddenLimbs = decoded.hiddenLimbs end
+                    if type(decoded.stretch) == "table" then savedConfig.stretch = decoded.stretch end
+                    if type(decoded.fx) == "table" then savedConfig.fx = decoded.fx end
+                    if type(decoded.morphs) == "table" then savedConfig.morphs = decoded.morphs end
+                    if type(decoded.hats) == "table" then savedConfig.hats = decoded.hats end
+                    if type(decoded.studio) == "table" then savedConfig.studio = decoded.studio end
                 end
             end)
         end
@@ -14119,9 +17271,29 @@ buildAngoorReanimTab = function(hostContainer)
         end
     end
 
-    if type(savedConfig.customAnims) == "table" and #savedConfig.customAnims > 0 then
-        mergeSavedCustomAnims()
+    -- Seed starter entries on first launch so Favs, Custom, and States are never blank
+    if next(savedConfig.favs) == nil then
+        savedConfig.favs["Default Dance [Built-In]"] = true
+        savedConfig.favs["Griddy Groove [Built-In]"] = true
+        savedConfig.favs["T-Pose Float [Built-In]"]  = true
+        savedConfig.favs["Helicopter Spin [Built-In]"] = true
     end
+    if type(savedConfig.customAnims) ~= "table" or #savedConfig.customAnims == 0 then
+        savedConfig.customAnims = {
+            { name = "Custom Power Charge", script = "proc://SuperCharge" },
+            { name = "Custom Vibe Bounce",  script = "proc://VibeBounce" },
+        }
+    end
+    if next(savedConfig.states) == nil then
+        savedConfig.states = {
+            Idle = { name = "Levitate Idle [Built-In]", path = "proc://LevitateIdle" },
+            Walk = { name = "Moonwalk Glide [Built-In]", path = "proc://Moonwalk" },
+            Run  = { name = "Naruto Sprint [Built-In]",  path = "proc://NarutoRun" },
+            Jump = { name = "Jump Tuck Flip [Built-In]", path = "proc://JumpFlip" },
+            Fall = { name = "SkyDive Fall [Built-In]",   path = "proc://SkyDiveFall" },
+        }
+    end
+    mergeSavedCustomAnims()
 
     -- Helper root.73.124.13: Global refresh hook _G._AngoorZenRefreshList
     _G._AngoorZenRefreshList = function()
@@ -14226,7 +17398,7 @@ buildAngoorReanimTab = function(hostContainer)
     creditLabel.Size = UDim2.new(0, 210, 0, 16)
     creditLabel.Position = UDim2.new(0, 12, 0, 4)
     creditLabel.BackgroundTransparency = 1
-    creditLabel.Text = "Coco Reanim · Keyframe Player, Custom Scripts & Limb Hider"
+    creditLabel.Text = "Reanim by Zen  all the credit goes to him!  its his work."
     creditLabel.TextColor3 = Theme.textMuted
     creditLabel.Font = Enum.Font.GothamMedium
     creditLabel.TextSize = 10
@@ -14238,7 +17410,7 @@ buildAngoorReanimTab = function(hostContainer)
     authorCopyBtn.Size = UDim2.new(0, 150, 0, 16)
     authorCopyBtn.Position = UDim2.new(0, 12, 0, 22)
     authorCopyBtn.BackgroundTransparency = 1
-    authorCopyBtn.Text = "Coco Reanim  (ready)"
+    authorCopyBtn.Text = "hor1zxn.  (tap copy)"
     authorCopyBtn.TextColor3 = Theme.accent
     authorCopyBtn.Font = Enum.Font.GothamSemibold
     authorCopyBtn.TextSize = 11
@@ -14304,7 +17476,7 @@ buildAngoorReanimTab = function(hostContainer)
             end)
             if not zenApi or type(zenApi.reanimate) ~= "function" then
                 reanimToggleBtn.Text = "Module missing"
-                warn("Coco Reanim: module API not loaded")
+                warn("Zen Reanimations: module API not loaded")
                 return
             end
         end
@@ -14323,14 +17495,14 @@ buildAngoorReanimTab = function(hostContainer)
                 return zenApi.reanimate(targetState)
             end)
             if not okCall then
-                warn("Coco Reanim crash:", errMsg)
+                warn("Zen Reanimations crash:", errMsg)
                 reanimToggleBtn.Text = "Reanim error"
                 task.wait(1.2)
                 updateReanimBtnVisual()
                 return
             end
             if type(errMsg) == "string" and errMsg ~= "Already reanimated." and errMsg ~= "" then
-                warn("Coco Reanim:", errMsg)
+                warn("Zen Reanimations:", errMsg)
             end
             updateReanimBtnVisual()
             if not targetState then
@@ -14340,6 +17512,12 @@ buildAngoorReanimTab = function(hostContainer)
                 end
                 if type(stopBang) == "function" then
                     pcall(stopBang)
+                end
+                if _G._AngoorZenStretch and type(_G._AngoorZenStretch.restoreVisuals) == "function" then
+                    pcall(_G._AngoorZenStretch.restoreVisuals)
+                end
+                if _G._AngoorZenUltra and type(_G._AngoorZenUltra.restoreRig) == "function" then
+                    pcall(_G._AngoorZenUltra.restoreRig)
                 end
             end
         end)
@@ -14364,7 +17542,6 @@ buildAngoorReanimTab = function(hostContainer)
     local dragTarget     = createdStandaloneGui and hostContainer or embedFrame
 
     headerBar.InputBegan:Connect(function(input)
-        if not createdStandaloneGui then return end
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             draggingHeader = true
             dragStartPos = input.Position
@@ -14378,7 +17555,6 @@ buildAngoorReanimTab = function(hostContainer)
     end)
 
     headerBar.InputChanged:Connect(function(input)
-        if not createdStandaloneGui then return end
         if (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) and draggingHeader and dragStartPos and frameStartPos then
             local delta = input.Position - dragStartPos
             dragTarget.Position = UDim2.new(
@@ -14393,7 +17569,7 @@ buildAngoorReanimTab = function(hostContainer)
     -- ========================================================================
     -- SUB-TAB BAR: Fun, Bang, Favs, Custom, Binds, States, Speed, Limbs
     -- ========================================================================
-    local SUB_TABS = { "Fun", "Bang", "Favs", "Custom", "Binds", "States", "Speed", "Limbs" }
+    local SUB_TABS = { "Fun", "Bang", "Favs", "Custom", "Binds", "States", "Speed", "Limbs", "Stretch", "Morphs", "Hats", "Studio", "FX" }
     local subTabButtons = {}
     local switchSubTab
 
@@ -14505,6 +17681,15 @@ buildAngoorReanimTab = function(hostContainer)
         tabScroll.CanvasSize = UDim2.new(0, math.max(tabListLayout.AbsoluteContentSize.X + 16, 1), 0, 0)
     end)
 
+    -- Smooth mouse-wheel horizontal scrolling on top SubTabBar
+    tabScroll.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseWheel then
+            local maxScroll = math.max(0, tabScroll.CanvasSize.X.Offset - tabScroll.AbsoluteSize.X)
+            local nextX = math.clamp(tabScroll.CanvasPosition.X - (input.Position.Z * 48), 0, maxScroll)
+            tabScroll.CanvasPosition = Vector2.new(nextX, 0)
+        end
+    end)
+
     -- ========================================================================
     -- BOTTOM NOW-PLAYING BAR (root.73.124 @ PC 8572..9076)
     -- ========================================================================
@@ -14586,6 +17771,7 @@ buildAngoorReanimTab = function(hostContainer)
         if zenApi and type(zenApi.stop_animation) == "function" then
             pcall(zenApi.stop_animation)
         end
+        pcall(procEngine.stop)
         updateNowPlayingUI(nil)
     end)
 
@@ -14731,12 +17917,79 @@ buildAngoorReanimTab = function(hostContainer)
     emptyBindsLabel.Visible = false
     emptyBindsLabel.Parent = bindsPage
 
+    -- Quick Action Hotkeys Card (always visible in Binds tab)
+    local quickActionCard = Instance.new("Frame")
+    quickActionCard.Name = "QuickActionBindsCard"
+    quickActionCard.Size = UDim2.new(1, -6, 0, 136)
+    quickActionCard.BackgroundColor3 = Theme.bgCard
+    quickActionCard.BorderSizePixel = 0
+    quickActionCard.LayoutOrder = 0
+    quickActionCard.Parent = bindsPage
+    addCorner(quickActionCard, 8)
+    addStroke(quickActionCard, Theme.divider, 1, 0)
+
+    local qaTitle = Instance.new("TextLabel", quickActionCard)
+    qaTitle.Size = UDim2.new(1, -16, 0, 18)
+    qaTitle.Position = UDim2.new(0, 8, 0, 6)
+    qaTitle.BackgroundTransparency = 1
+    qaTitle.Text = "QUICK REANIM ACTION HOTKEYS"
+    qaTitle.TextColor3 = Theme.textMuted
+    qaTitle.Font = Enum.Font.GothamBold
+    qaTitle.TextSize = 9.5
+    qaTitle.TextXAlignment = Enum.TextXAlignment.Left
+
+    local QA_ITEMS = {
+        { id = "SkyPillar",   label = "Sky Pillar Stretch", defaultKey = "Z" },
+        { id = "ForwardLine", label = "Single Line Forward", defaultKey = "X" },
+        { id = "AngelWings",  label = "Angel Wings Morph",  defaultKey = "C" },
+        { id = "ResetAll",    label = "Reset All Limbs",    defaultKey = "V" },
+    }
+    savedConfig.quickBinds = type(savedConfig.quickBinds) == "table" and savedConfig.quickBinds or {}
+    for idx, qa in ipairs(QA_ITEMS) do
+        if not savedConfig.quickBinds[qa.id] then
+            savedConfig.quickBinds[qa.id] = qa.defaultKey
+        end
+        local row = Instance.new("Frame", quickActionCard)
+        row.Size = UDim2.new(1, -16, 0, 24)
+        row.Position = UDim2.new(0, 8, 0, 26 + (idx - 1) * 26)
+        row.BackgroundTransparency = 1
+
+        local lbl = Instance.new("TextLabel", row)
+        lbl.Size = UDim2.new(1, -60, 1, 0)
+        lbl.BackgroundTransparency = 1
+        lbl.Text = qa.label
+        lbl.TextColor3 = Theme.text
+        lbl.Font = Enum.Font.GothamMedium
+        lbl.TextSize = 10
+        lbl.TextXAlignment = Enum.TextXAlignment.Left
+
+        local kBtn = Instance.new("TextButton", row)
+        kBtn.Size = UDim2.new(0, 50, 0, 20)
+        kBtn.Position = UDim2.new(1, -50, 0.5, -10)
+        kBtn.BackgroundColor3 = Theme.surface
+        kBtn.Text = "[" .. tostring(savedConfig.quickBinds[qa.id]) .. "]"
+        kBtn.TextColor3 = Theme.accent
+        kBtn.Font = Enum.Font.GothamBold
+        kBtn.TextSize = 9.5
+        addCorner(kBtn, 4)
+        addStroke(kBtn, Theme.divider, 1, 0.3)
+        kBtn.MouseButton1Click:Connect(function()
+            if qa.id == "SkyPillar" and _G._AngoorZenStretch then
+                _G._AngoorZenStretch.setMode("Sky Pillar")
+            elseif qa.id == "ForwardLine" and _G._AngoorZenStretch then
+                _G._AngoorZenStretch.setMode("Forward Line")
+            elseif qa.id == "AngelWings" and _G._AngoorZenUltra then
+                savedConfig.morphs.mode = "Angel Wings"
+                savedConfig.morphs.enabled = true
+            elseif qa.id == "ResetAll" then
+                if _G._AngoorZenStretch then pcall(_G._AngoorZenStretch.stopAll) end
+                if _G._AngoorZenUltra then pcall(_G._AngoorZenUltra.stopAll) end
+            end
+        end)
+    end
+
     -- 3. SPEED PAGE
     local speedPage = Instance.new("ScrollingFrame")
-    local applyPlaybackSpeed
-    pendingSpeedBindKey = nil
-    speedBindButtons    = {}
-    do
     speedPage.Size = UDim2.new(1, 0, 1, 0)
     speedPage.BackgroundTransparency = 1
     speedPage.BorderSizePixel = 0
@@ -14750,6 +18003,9 @@ buildAngoorReanimTab = function(hostContainer)
     speedLayout.Padding = UDim.new(0, 10)
     speedLayout.SortOrder = Enum.SortOrder.LayoutOrder
     speedLayout.Parent = speedPage
+    speedLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        speedPage.CanvasSize = UDim2.new(0, 0, 0, speedLayout.AbsoluteContentSize.Y + 24)
+    end)
 
     local speedSliderCard = Instance.new("Frame")
     speedSliderCard.Size = UDim2.new(1, 0, 0, 78)
@@ -14817,7 +18073,7 @@ buildAngoorReanimTab = function(hostContainer)
     addStroke(resetSpeedBtn, Theme.divider, 1, 0)
 
     -- Closure root.73.124.33: Apply playback speed
-    applyPlaybackSpeed = function(val)
+    local function applyPlaybackSpeed(val)
         local rounded = math.clamp(math.floor(val * 10) / 10, 0.1, 5)
         currentSpeed = rounded
         savedConfig.speed = currentSpeed
@@ -14828,6 +18084,7 @@ buildAngoorReanimTab = function(hostContainer)
         if zenApi and type(zenApi.set_animation_speed) == "function" then
             pcall(zenApi.set_animation_speed, currentSpeed)
         end
+        pcall(procEngine.setSpeed, currentSpeed)
     end
 
     resetSpeedBtn.MouseButton1Click:Connect(function()
@@ -14950,11 +18207,8 @@ buildAngoorReanimTab = function(hostContainer)
         end)
     end
 
-    end -- end Speed Page local scope
-
     -- 4. STATES PAGE (Idle, Walk, Run, Jump, Fall)
     local statesPage = Instance.new("ScrollingFrame")
-    do
     statesPage.Size = UDim2.new(1, 0, 1, 0)
     statesPage.BackgroundTransparency = 1
     statesPage.BorderSizePixel = 0
@@ -14968,6 +18222,9 @@ buildAngoorReanimTab = function(hostContainer)
     statesLayout.Padding = UDim.new(0, 8)
     statesLayout.SortOrder = Enum.SortOrder.LayoutOrder
     statesLayout.Parent = statesPage
+    statesLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        statesPage.CanvasSize = UDim2.new(0, 0, 0, statesLayout.AbsoluteContentSize.Y + 24)
+    end)
 
     local statesTitleLbl = Instance.new("TextLabel")
     statesTitleLbl.Size = UDim2.new(1, 0, 0, 18)
@@ -15212,12 +18469,9 @@ buildAngoorReanimTab = function(hostContainer)
         end)
     end
 
-    end -- end States Page local scope
-
     -- ========================================================================
     -- ADD CUSTOM ANIMATION MODAL (root.73.124 @ PC 1528..2680)
     -- ========================================================================
-    do
     addCustomModal = Instance.new("Frame")
     addCustomModal.Name = "AddCustomModal"
     addCustomModal.Size = UDim2.new(1, 0, 1, 0)
@@ -15475,16 +18729,13 @@ buildAngoorReanimTab = function(hostContainer)
         end
         customModalStatus.Text = "Added: " .. finalName
         customModalStatus.TextColor3 = Theme.green
-        print("[Coco Reanim] custom anim saved:", finalName, (rawCode:sub(1, 4) == "http") and "(url)" or "(inline)", #rawCode, "chars")
+        print("[ANGOOR] custom anim saved:", finalName, (rawCode:sub(1, 4) == "http") and "(url)" or "(inline)", #rawCode, "chars")
     end)
-
-    end -- end Custom Animation Modal local scope
 
     -- ========================================================================
     -- 5. LIMBS PAGE (Master Limbs Switch + 6 Individual Body Part Switches)
     -- ========================================================================
     local limbsPage = Instance.new("ScrollingFrame")
-    do
     limbsPage.Size = UDim2.new(1, 0, 1, 0)
     limbsPage.BackgroundTransparency = 1
     limbsPage.BorderSizePixel = 0
@@ -15509,6 +18760,9 @@ buildAngoorReanimTab = function(hostContainer)
     limbsLayout.Padding = UDim.new(0, 8)
     limbsLayout.SortOrder = Enum.SortOrder.LayoutOrder
     limbsLayout.Parent = limbsPage
+    limbsLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        limbsPage.CanvasSize = UDim2.new(0, 0, 0, limbsLayout.AbsoluteContentSize.Y + 24)
+    end)
 
     local limbsTitleLbl = Instance.new("TextLabel")
     limbsTitleLbl.Size = UDim2.new(1, 0, 0, 16)
@@ -15776,33 +19030,9 @@ buildAngoorReanimTab = function(hostContainer)
         end
     end
 
-    -- Closure root.73.124.61: Set individual limb group hidden/shown (with immediate visibility restoration on unhide)
-    local function restorePartVisibilityOnModel(model, partName)
-        if not model then return end
-        local part = model:FindFirstChild(partName)
-        if part and part:IsA("BasePart") then
-            part.LocalTransparencyModifier = 0
-            part.Transparency = 0
-        end
-        if partName == "Head" then
-            for _, desc in ipairs(model:GetDescendants()) do
-                if desc:IsA("Decal") then
-                    desc.Transparency = 0
-                elseif desc:IsA("Accessory") then
-                    local handle = desc:FindFirstChild("Handle")
-                    if handle and handle:IsA("BasePart") then
-                        handle.LocalTransparencyModifier = 0
-                        handle.Transparency = 0
-                    end
-                end
-            end
-        end
-    end
-
+    -- Closure root.73.124.61: Set individual limb group hidden/shown
     local function setLimbGroupHidden(group, hideBool, skipMasterUpdate, animate)
         if animate == nil then animate = true end
-        local cloneChar = (zenApi and type(zenApi.get_clone) == "function") and select(2, pcall(zenApi.get_clone)) or nil
-        local realChar = LocalPlayer and LocalPlayer.Character or nil
         for _, partName in ipairs(group.parts) do
             if hideBool then
                 _G.hiddenBodyParts[partName] = true
@@ -15810,8 +19040,6 @@ buildAngoorReanimTab = function(hostContainer)
             else
                 _G.hiddenBodyParts[partName] = nil
                 savedConfig.hiddenLimbs[partName] = nil
-                pcall(restorePartVisibilityOnModel, cloneChar, partName)
-                pcall(restorePartVisibilityOnModel, realChar, partName)
             end
         end
         saveConfig()
@@ -15982,7 +19210,6 @@ buildAngoorReanimTab = function(hostContainer)
     end)
 
     limbsPage.CanvasSize = UDim2.new(0, 0, 0, (#LIMB_GROUPS * 56) + 80)
-    end -- end Limbs Page local scope
 
     -- ========================================================================
     -- ANIMATION LIST POPULATOR & PLAYBACK ENGINE (root.73.124.68 .. 72)
@@ -15994,16 +19221,17 @@ buildAngoorReanimTab = function(hostContainer)
 
     -- Closure root.73.124.68: Play or toggle an animation entry
     local function playOrToggleAnimation(animEntry)
+        local isProcAnim = animEntry and procEngine.isHandledPath(animEntry.path)
         local reanimated = false
         if zenApi and type(zenApi.is_reanimated) == "function" then
             pcall(function() reanimated = zenApi.is_reanimated() end)
         end
-        if not reanimated then
-            warn("Coco Reanim: Enable Reanimation first to play animations!")
+        if not reanimated and not isProcAnim then
+            warn("Zen Reanimations: Enable Reanimation first to play animations!")
             return
         end
         if not animEntry or not animEntry.path then
-            warn("Coco Reanim: Invalid animation entry")
+            warn("Zen Reanimations: Invalid animation entry")
             return
         end
 
@@ -16013,6 +19241,7 @@ buildAngoorReanimTab = function(hostContainer)
             if zenApi and type(zenApi.stop_animation) == "function" then
                 pcall(zenApi.stop_animation)
             end
+            pcall(procEngine.stop)
             selectedAnimName = nil
             updateNowPlayingUI(nil)
             return
@@ -16051,13 +19280,21 @@ buildAngoorReanimTab = function(hostContainer)
                 end
             end
 
-            local okPlay, res = pcall(zenApi.play_animation, playPath, currentSpeed)
-            if not okPlay or type(res) == "string" then
-                warn("Coco Reanim Error:", res)
+            pcall(procEngine.stop)
+            if procEngine.isHandledPath(playPath) then
+                procEngine.play(playPath, currentSpeed)
+                nowPlayingName = animEntry.name
+                selectedAnimName = animEntry.name
+                updateNowPlayingUI(animEntry.name)
+                return
+            end
+            local res = zenApi.play_animation(playPath, currentSpeed)
+            if type(res) == "string" then
+                warn("Zen Reanimations Error:", res)
                 task.wait(0.05)
-                local okRetry, retryRes = pcall(zenApi.play_animation, playPath, currentSpeed)
-                if not okRetry or type(retryRes) == "string" then
-                    warn("Coco Reanim Error (retry):", retryRes)
+                local retryRes = zenApi.play_animation(playPath, currentSpeed)
+                if type(retryRes) == "string" then
+                    warn("Zen Reanimations Error (retry):", retryRes)
                     isPlayingManual = false
                     nowPlayingName = nil
                     selectedAnimName = nil
@@ -16333,7 +19570,7 @@ buildAngoorReanimTab = function(hostContainer)
     -- Closure root.73.124.72: Refresh Binds Tab
     refreshBindsTab = function()
         for _, child in ipairs(bindsPage:GetChildren()) do
-            if child:IsA("Frame") then
+            if child:IsA("Frame") and child.Name ~= "QuickActionBindsCard" then
                 child:Destroy()
             end
         end
@@ -16357,7 +19594,7 @@ buildAngoorReanimTab = function(hostContainer)
         table.sort(bindEntries, function(a, b)
             return a.name:lower() < b.name:lower()
         end)
-        emptyBindsLabel.Visible = (#bindEntries == 0)
+        emptyBindsLabel.Visible = false
 
         for idx, entry in ipairs(bindEntries) do
             local row = Instance.new("Frame")
@@ -16434,16 +19671,13 @@ buildAngoorReanimTab = function(hostContainer)
             end)
         end
 
-        bindsPage.CanvasSize = UDim2.new(0, 0, 0, 26 + (#bindEntries * 42))
+        bindsPage.CanvasSize = UDim2.new(0, 0, 0, 190 + (#bindEntries * 42))
     end
 
     -- ========================================================================
     -- 6. BANG REANIMATION TAB (root.73.124 @ PC 3248..4200, closures 73..80)
     -- ========================================================================
     local bangPage = Instance.new("Frame")
-    local bangLockActive = false
-    local populateBangAnimList
-    do
     bangPage.Size = UDim2.new(1, -20, 1, -90)
     bangPage.Position = UDim2.new(0, 10, 0, 48)
     bangPage.BackgroundTransparency = 1
@@ -16508,7 +19742,7 @@ buildAngoorReanimTab = function(hostContainer)
 
     local selectedBangAnim   = nil
     local lastBangTargetName = ""
-    bangLockActive           = false
+    local bangLockActive     = false
     local bangLockMode       = nil
     local bangLockConnObj    = nil
     local bangStatus         = nil
@@ -16569,7 +19803,6 @@ buildAngoorReanimTab = function(hostContainer)
     -- Closure root.73.124.75: Stop Bang Reanimation Lock
     stopBang = function()
         bangLockActive = false
-        _G.CocaBangActive = false
         bangLockMode = nil
         if bangLockConnObj then
             pcall(function() bangLockConnObj:Disconnect() end)
@@ -16608,22 +19841,11 @@ buildAngoorReanimTab = function(hostContainer)
 
     -- Closure root.73.124.76: Start Bang Reanimation Lock ("face" or "back")
     local function startBangReanim(modeKey)
-        if OwnerAdminState.isFrozenByOwner or OwnerAdminState.isBannedByOwner then
-            notify("👑 ADMIN LOCK", "You are currently frozen/locked by an Admin!")
-            sError()
-            return
-        end
         local typed = tostring(bangTargetInput.Text or ""):gsub("^%s+", ""):gsub("%s+$", "")
         local queryToUse = (typed ~= "") and typed or lastBangTargetName
         local targetPlr = findTargetPlayer(queryToUse)
         if not targetPlr or not targetPlr.Character then
             if bangStatus then bangStatus.Text = "Invalid target" end
-            return
-        end
-        if isProtectedFromLocalPlayer(targetPlr) then
-            if bangStatus then bangStatus.Text = "Protected Owner" end
-            notify("👑 IMMUNITY", "Cannot target the Coco Powder Script Owner!")
-            sError()
             return
         end
         if not LocalPlayer or not LocalPlayer.Character then
@@ -16636,8 +19858,6 @@ buildAngoorReanimTab = function(hostContainer)
         end
         stopBang()
         bangLockActive = true
-        _G.CocaBangActive = true
-        _G.stopCocaBangLock = stopBang
         bangLockMode = modeKey
         lastBangTargetName = targetPlr.Name
 
@@ -16653,7 +19873,7 @@ buildAngoorReanimTab = function(hostContainer)
         if selectedBangAnim and selectedBangAnim.path then
             task.spawn(function()
                 pcall(function()
-                    if zenApi and type(zenApi.is_reanimated) == "function" and not zenApi.is_reanimated() then
+                    if not zenApi.is_reanimated() then
                         zenApi.reanimate(true)
                         updateReanimBtnVisual()
                     end
@@ -16740,6 +19960,7 @@ buildAngoorReanimTab = function(hostContainer)
     end
 
     -- Closure root.73.124.77: Populate Bang Animation selector list
+    local populateBangAnimList
     populateBangAnimList = function()
         for _, child in ipairs(bangAnimScroll:GetChildren()) do
             if child:IsA("TextButton") then
@@ -16830,7 +20051,40 @@ buildAngoorReanimTab = function(hostContainer)
     faceBangBtn.MouseButton1Click:Connect(function() onBangModeButton("face") end)
     backshotsBtn.MouseButton1Click:Connect(function() onBangModeButton("back") end)
 
-    end -- end Bang Reanimation Tab local scope
+    -- ========================================================================
+    -- 7. ADVANCED STRETCH & FX MODULES (Limb Stretch, Sky Pillar, Single Line, FX)
+    -- ========================================================================
+    local advStretchFx = buildStretchAndFxModules({
+        Theme                  = Theme,
+        addCorner              = addCorner,
+        addStroke              = addStroke,
+        playTween              = playTween,
+        zenApi                 = zenApi,
+        savedConfig            = savedConfig,
+        saveConfig             = saveConfig,
+        pagesHolder            = pagesHolder,
+        findTargetPlayer       = findTargetPlayer,
+        createLimbToggleSwitch = createLimbToggleSwitch,
+        setSwitchVisual        = setSwitchVisual,
+        stopBang               = stopBang,
+    })
+
+    local advUltra = buildUltraReanimModules({
+        Theme                  = Theme,
+        addCorner              = addCorner,
+        addStroke              = addStroke,
+        playTween              = playTween,
+        zenApi                 = zenApi,
+        savedConfig            = savedConfig,
+        saveConfig             = saveConfig,
+        pagesHolder            = pagesHolder,
+        findTargetPlayer       = findTargetPlayer,
+        createLimbToggleSwitch = createLimbToggleSwitch,
+        setSwitchVisual        = setSwitchVisual,
+        allAnimations          = allAnimations,
+        refreshAnimList        = populateList,
+        procEngine             = procEngine,
+    })
 
     -- ========================================================================
     -- SUB-TAB SWITCHER (root.73.124.81)
@@ -16859,12 +20113,22 @@ buildAngoorReanimTab = function(hostContainer)
         speedPage.Visible  = (tabName == "Speed")
         statesPage.Visible = (tabName == "States")
         limbsPage.Visible  = (tabName == "Limbs")
+        advStretchFx.stretchPage.Visible = (tabName == "Stretch")
+        advStretchFx.fxPage.Visible      = (tabName == "FX")
+        advUltra.morphsPage.Visible      = (tabName == "Morphs")
+        advUltra.hatsPage.Visible        = (tabName == "Hats")
+        advUltra.studioPage.Visible      = (tabName == "Studio")
 
         local activePage = (isListTab and listPage)
             or (tabName == "Binds" and bindsPage)
             or (tabName == "Speed" and speedPage)
             or (tabName == "States" and statesPage)
             or (tabName == "Limbs" and limbsPage)
+            or (tabName == "Stretch" and advStretchFx.stretchPage)
+            or (tabName == "Morphs" and advUltra.morphsPage)
+            or (tabName == "Hats" and advUltra.hatsPage)
+            or (tabName == "Studio" and advUltra.studioPage)
+            or (tabName == "FX" and advStretchFx.fxPage)
 
         if activePage then
             activePage.Position = UDim2.new(0, 0, 0, 6)
@@ -16946,11 +20210,17 @@ buildAngoorReanimTab = function(hostContainer)
             currentAutoState = desiredState
             local stCfg = savedConfig.states[desiredState]
             if stCfg and stCfg.path then
-                pcall(zenApi.play_animation, stCfg.path, currentSpeed)
+                if procEngine.isHandledPath(stCfg.path) then
+                    procEngine.play(stCfg.path, currentSpeed)
+                else
+                    pcall(procEngine.stop)
+                    zenApi.play_animation(stCfg.path, currentSpeed)
+                end
                 updateNowPlayingUI("[" .. desiredState .. "] " .. tostring(stCfg.name))
             else
+                pcall(procEngine.stop)
                 if zenApi and type(zenApi.stop_animation) == "function" then
-                    pcall(zenApi.stop_animation)
+                    zenApi.stop_animation()
                 end
                 updateNowPlayingUI(nil)
             end
@@ -16989,7 +20259,7 @@ buildAngoorReanimTab = function(hostContainer)
             return
         end
 
-        if gameProcessed or UserInputService:GetFocusedTextBox() then return end
+        if gameProcessed then return end
 
         -- 3. Triggering a speed preset keybind
         for spdStr, boundKey in pairs(savedConfig.speedBinds) do
@@ -17002,7 +20272,27 @@ buildAngoorReanimTab = function(hostContainer)
             end
         end
 
-        -- 4. Triggering an animation keybind
+        -- 3b. Triggering Quick Action Hotkeys
+        if type(savedConfig.quickBinds) == "table" then
+            if savedConfig.quickBinds.SkyPillar == keyName and _G._AngoorZenStretch then
+                _G._AngoorZenStretch.setMode("Sky Pillar")
+                return
+            elseif savedConfig.quickBinds.ForwardLine == keyName and _G._AngoorZenStretch then
+                _G._AngoorZenStretch.setMode("Forward Line")
+                return
+            elseif savedConfig.quickBinds.AngelWings == keyName and _G._AngoorZenUltra then
+                savedConfig.morphs.mode = "Angel Wings"
+                savedConfig.morphs.enabled = true
+                return
+            elseif savedConfig.quickBinds.ResetAll == keyName then
+                if _G._AngoorZenStretch then pcall(_G._AngoorZenStretch.stopAll) end
+                if _G._AngoorZenUltra then pcall(_G._AngoorZenUltra.stopAll) end
+                pcall(procEngine.stop)
+                return
+            end
+        end
+
+                -- 4. Triggering an animation keybind
         for animName, boundKey in pairs(savedConfig.binds) do
             if boundKey == keyName then
                 for _, item in ipairs(allAnimations) do
@@ -17039,6 +20329,15 @@ task.spawn(function()
             task.wait(0.5)
             pcall(_G.refreshAllPanelBgs)
         end
+    end
+end)
+
+-- Auto-launch standalone UI if executed directly without an existing host panel
+task.defer(function()
+    task.wait(0.05)
+    if not _G.AngoorReanimLoaded then
+        _G.AngoorReanimLoaded = true
+        pcall(buildAngoorReanimTab, _G.AngoorReanimHostContainer)
     end
 end)
 
