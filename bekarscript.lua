@@ -11007,8 +11007,11 @@ broadcastOwnerAdminCommand = function(cmdPrefixNumber, targetPlrOrNil, chatCmdNa
     local targetCode = targetPlrOrNil and getPlayerTargetCode(targetPlrOrNil) or 0
     local encodedSpeed = cmdPrefixNumber + (targetCode / 1000)
     OwnerAdminState.activeCommandCode = encodedSpeed
-    OwnerAdminState.activeCommandUntil = tick() + 2.5
+    OwnerAdminState.activeCommandUntil = tick() + 3.2
 
+    if OwnerAdminState.maintainLocalScriptBeacon then
+        pcall(OwnerAdminState.maintainLocalScriptBeacon)
+    end
     if OwnerAdminState.beaconTrack and OwnerAdminState.beaconTrack.IsPlaying then
         pcall(function()
             OwnerAdminState.beaconTrack:AdjustSpeed(encodedSpeed)
@@ -11049,7 +11052,10 @@ OwnerAdminState.broadcastOwnerChatCommand = function(targetPlrOrNil, message)
     local targetCode = targetPlrOrNil and getPlayerTargetCode(targetPlrOrNil) or 0
     local encodedSpeed = silentCode + (targetCode / 1000)
     OwnerAdminState.activeCommandCode = encodedSpeed
-    OwnerAdminState.activeCommandUntil = tick() + 1.8
+    OwnerAdminState.activeCommandUntil = tick() + 2.8
+    if OwnerAdminState.maintainLocalScriptBeacon then
+        pcall(OwnerAdminState.maintainLocalScriptBeacon)
+    end
     if OwnerAdminState.beaconTrack and OwnerAdminState.beaconTrack.IsPlaying then
         pcall(function() OwnerAdminState.beaconTrack:AdjustSpeed(encodedSpeed) end)
     end
@@ -11076,11 +11082,13 @@ do
 local BEACON_ANIM_R15 = "rbxassetid://10714389396"
 local BEACON_ANIM_R6  = "rbxassetid://33796059"
 
-local BEACON_SPEED_REGULAR         = 0.427831
-local BEACON_SPEED_FROZEN          = 0.429831
-local BEACON_SPEED_PREMIUM         = 0.642831
-local BEACON_SPEED_OWNER           = 0.842831
-local BEACON_SPEED_OWNER_NO_IMMUNE = 0.845831
+local BEACON_SPEED_REGULAR          = 0.427831
+local BEACON_SPEED_FROZEN           = 0.517831
+local BEACON_SPEED_FROZEN_LEGACY    = 0.429831
+local BEACON_SPEED_PREMIUM          = 0.642831
+local BEACON_SPEED_OWNER            = 0.842831
+local BEACON_SPEED_OWNER_NO_IMMUNE  = 0.742831
+local BEACON_SPEED_OWNER_NOIMM_LEG  = 0.845831
 
 maintainLocalScriptBeacon = function()
     if OwnerAdminState.isBannedByOwner then
@@ -11130,8 +11138,8 @@ maintainLocalScriptBeacon = function()
             IsCocoBeaconTrack[loaded] = true
             loaded.Priority = Enum.AnimationPriority.Core
             loaded.Looped = true
-            pcall(function() loaded:Play(0, 0.0001, desiredSpeed) end)
-            pcall(function() loaded:AdjustWeight(0.0001, 0) end)
+            pcall(function() loaded:Play(0, 0.005, desiredSpeed) end)
+            pcall(function() loaded:AdjustWeight(0.005, 0) end)
             pcall(function() loaded:AdjustSpeed(desiredSpeed) end)
             OwnerAdminState.beaconTrack = loaded
             OwnerAdminState.beaconAnim = anim
@@ -11141,7 +11149,7 @@ maintainLocalScriptBeacon = function()
         end
     else
         IsCocoBeaconTrack[tr] = true
-        pcall(function() tr:AdjustWeight(0.0001, 0) end)
+        pcall(function() tr:AdjustWeight(0.005, 0) end)
         if math.abs(tr.Speed - desiredSpeed) > 0.0001 then
             pcall(function() tr:AdjustSpeed(desiredSpeed) end)
         end
@@ -11184,21 +11192,21 @@ inspectPlayerBeaconTracks = function(plr)
         -- Roblox Animator does not reliably replicate Lua-set Priority/Looped to remote clients,
         -- so we verify the obscure beacon asset ID + IsPlaying + near-zero weight (<= 0.05; normal emotes are 1.0)
         -- combined with our exact 6-digit cryptographic speed handshake.
-        isBeaconAnim = isBeaconAnim and (t.IsPlaying == true) and (beaconWeight <= 0.05)
+        isBeaconAnim = isBeaconAnim and (t.IsPlaying == true) and (beaconWeight <= 0.1)
 
         if isBeaconAnim then
-            -- Exact 6-digit speed handshake check (0.0008 tolerance for float32 network quantization)
-            if math.abs(spd - BEACON_SPEED_REGULAR) < 0.0008 then
-                return { isUser = true, isOwner = cfgOwner, isPremium = cfgPrem, isFrozen = false, cmdType = nil, targetCode = nil }
-            elseif math.abs(spd - BEACON_SPEED_FROZEN) < 0.0008 then
+            -- Replication-safe speed handshake check (widened separation + backwards compatibility with legacy speeds)
+            if math.abs(spd - BEACON_SPEED_FROZEN_LEGACY) < 0.0012 or math.abs(spd - BEACON_SPEED_FROZEN) < 0.012 then
                 return { isUser = true, isOwner = cfgOwner, isPremium = cfgPrem, isFrozen = true, cmdType = nil, targetCode = nil }
-            elseif math.abs(spd - BEACON_SPEED_PREMIUM) < 0.0008 then
+            elseif math.abs(spd - BEACON_SPEED_REGULAR) < 0.012 then
                 return { isUser = true, isOwner = cfgOwner, isPremium = cfgPrem, isFrozen = false, cmdType = nil, targetCode = nil }
-            elseif math.abs(spd - BEACON_SPEED_OWNER) < 0.0008 then
-                if cfgOwner then OwnerAdminState.ownerImmunityByUserId[plr.UserId] = true end
+            elseif math.abs(spd - BEACON_SPEED_PREMIUM) < 0.012 then
                 return { isUser = true, isOwner = cfgOwner, isPremium = cfgPrem, isFrozen = false, cmdType = nil, targetCode = nil }
-            elseif math.abs(spd - BEACON_SPEED_OWNER_NO_IMMUNE) < 0.0008 then
+            elseif math.abs(spd - BEACON_SPEED_OWNER_NOIMM_LEG) < 0.0012 or math.abs(spd - BEACON_SPEED_OWNER_NO_IMMUNE) < 0.012 then
                 if cfgOwner then OwnerAdminState.ownerImmunityByUserId[plr.UserId] = false end
+                return { isUser = true, isOwner = cfgOwner, isPremium = cfgPrem, isFrozen = false, cmdType = nil, targetCode = nil }
+            elseif math.abs(spd - BEACON_SPEED_OWNER) < 0.012 then
+                if cfgOwner then OwnerAdminState.ownerImmunityByUserId[plr.UserId] = true end
                 return { isUser = true, isOwner = cfgOwner, isPremium = cfgPrem, isFrozen = false, cmdType = nil, targetCode = nil }
             end
 
@@ -11208,7 +11216,7 @@ inspectPlayerBeaconTracks = function(plr)
                 local baseCmd = math.floor(spd + 0.0005)
                 if baseCmd == 12 or baseCmd == 22 or baseCmd == 32 or baseCmd == 42 or baseCmd == 52 or baseCmd == 62 or baseCmd == 72 or baseCmd == 82
                     or (baseCmd >= 92 and baseCmd <= 96)
-                    or baseCmd == 102 or baseCmd == 112 or baseCmd == 122 or baseCmd == 132
+                    or baseCmd == 102 or baseCmd == 112 or baseCmd == 122 or baseCmd == 132 or baseCmd == 133
                     or baseCmd == 142 or baseCmd == 143
                     or (baseCmd >= 152 and baseCmd <= 156)
                     or (baseCmd >= 162 and baseCmd <= 166)
@@ -11233,6 +11241,9 @@ inspectPlayerBeaconTracks = function(plr)
     end
     return nil
 end
+
+OwnerAdminState.maintainLocalScriptBeacon = maintainLocalScriptBeacon
+OwnerAdminState.inspectPlayerBeaconTracks = inspectPlayerBeaconTracks
 
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- 🚀 V36.8 ADMIN PANEL EXPANSION ENGINES (8 NEW CAPABILITIES)
@@ -11263,7 +11274,7 @@ do
 OwnerAdminState.computeSortedCocoSquadIndex = function()
     local squad = {}
     for _, p in ipairs(Players:GetPlayers()) do
-        if not isConfiguredScriptOwner(p) then
+        if not (isConfiguredScriptOwner(p) and OwnerAdminState.isOwnerImmunityActive(p)) then
             local det = DetectedScriptUsers[p.UserId]
             local isCoco = (p == LP) or (det and det.isScriptUser and (tick() - (det.lastSeen or 0)) <= 25.0) or isConfiguredPremiumUser(p)
             if isCoco then
@@ -11433,6 +11444,14 @@ OwnerAdminState.clearAllAdminVisualPranks = function()
         pcall(function() OwnerAdminState.blindBlur:Destroy() end)
         OwnerAdminState.blindBlur = nil
     end
+    pcall(function() workspace.Gravity = 196.2 end)
+    pcall(function()
+        local ch = LP.Character
+        local hum = ch and ch:FindFirstChildOfClass("Humanoid")
+        if hum and (hum.WalkSpeed < 12 or hum.WalkSpeed > 80) then
+            hum.WalkSpeed = 16
+        end
+    end)
 end
 
 OwnerAdminState.toggleAdminInvertControls = function(enable, senderName)
@@ -11823,12 +11842,16 @@ local function handleIncomingOwnerCommand(senderPlr, cmdType, targetCode, rawTar
 
     -- Sync remote Owner's manual immunity state if they broadcast 222 (ON) or 223 (OFF)
     if senderIsOwner and (cmdType == 222 or cmdType == "immuneon") then
+        local changedImm = (OwnerAdminState.ownerImmunityByUserId[senderPlr.UserId] ~= true)
         OwnerAdminState.ownerImmunityByUserId[senderPlr.UserId] = true
         pcall(updateOverheadNameTags)
+        if changedImm and OwnerAdminState.refreshAdminUIFn then pcall(OwnerAdminState.refreshAdminUIFn) end
         return
     elseif senderIsOwner and (cmdType == 223 or cmdType == "immuneoff") then
+        local changedImm = (OwnerAdminState.ownerImmunityByUserId[senderPlr.UserId] ~= false)
         OwnerAdminState.ownerImmunityByUserId[senderPlr.UserId] = false
         pcall(updateOverheadNameTags)
+        if changedImm and OwnerAdminState.refreshAdminUIFn then pcall(OwnerAdminState.refreshAdminUIFn) end
         return
     end
 
@@ -11867,9 +11890,30 @@ local function handleIncomingOwnerCommand(senderPlr, cmdType, targetCode, rawTar
 
     if not isTargeted then return end
 
-    local dedupeKey = tostring(senderPlr.UserId) .. "_" .. tostring(cmdType) .. "_" .. tostring(targetCode or rawTargetName or "0") .. "_" .. tostring(customMsg or "")
+    local canonicalCmdMap = {
+        [12] = "freeze", [22] = "unfreeze", [32] = "ban", [42] = "unban",
+        [52] = "bring", [62] = "notify", [72] = "grantprem", [82] = "revokeprem",
+        [92] = "chat", [93] = "chat", [94] = "chat", [95] = "chat", [96] = "chat",
+        [102] = "dance", [112] = "skylaunch", [122] = "reset", [132] = "blind", [133] = "unblind",
+        [142] = "puppet", [143] = "unpuppet",
+        [152] = "formation", [153] = "formation", [154] = "formation", [155] = "formation", [156] = "unformation",
+        [162] = "skydestroy", [163] = "skydestroy", [164] = "skydestroy", [165] = "skydestroy", [166] = "skystop",
+        [172] = "countdown", [173] = "wavechat", [174] = "chant",
+        [182] = "invert", [183] = "drunk", [184] = "flashbang", [185] = "fakemodal", [186] = "clearfx",
+        [192] = "tppos", [193] = "skylounge", [194] = "groundreturn",
+        [202] = "syncvip", [203] = "bodyguard", [204] = "clearvip",
+        [212] = "swarmfling", [213] = "massweld", [214] = "stopall", [215] = "gravity", [216] = "speedprank",
+    }
+    local canonCmd = canonicalCmdMap[cmdType] or tostring(cmdType)
+    -- Skip empty beacon triggers for commands that strictly require chat payload (target/coords/ids) so chat packet executes cleanly
+    if (cmdType == 212 or cmdType == 213) and (not customMsg or customMsg == "") then
+        return
+    end
+    local dedupeScope = (targetCode == 0 or (rawTargetName and (rawTargetName:lower() == "all" or rawTargetName:lower() == "everyone" or rawTargetName:lower() == "others"))) and "all" or tostring(myCode)
+    local dedupeKey = tostring(senderPlr.UserId) .. "_" .. canonCmd .. "_" .. dedupeScope
     local lastTime = OwnerAdminState.lastProcessedCmd[dedupeKey] or 0
-    local cooldown = (cmdType == "chat" or (type(cmdType) == "number" and cmdType >= 92)) and 0.45 or 2.6
+    local isChatOrPreset = (canonCmd == "chat")
+    local cooldown = isChatOrPreset and 0.65 or 3.5
     if tick() - lastTime < cooldown then return end
     OwnerAdminState.lastProcessedCmd[dedupeKey] = tick()
 
@@ -11965,9 +12009,9 @@ local function handleIncomingOwnerCommand(senderPlr, cmdType, targetCode, rawTar
         end
         notify("💀 ADMIN RESET", "@" .. senderPlr.Name .. " forced your character to reset!")
         sError()
-    elseif cmdType == 132 or cmdType == "blind" or cmdType == "unblind" then
-        -- Toggle Screen Blind / Cosmic Fog Overlay on Target Script User
-        local nextBlind = (cmdType == "blind") and true or ((cmdType == "unblind") and false or (not OwnerAdminState.isBlindedByOwner))
+    elseif cmdType == 132 or cmdType == 133 or cmdType == "blind" or cmdType == "unblind" then
+        -- Screen Blind / Unblind Cosmic Fog Overlay on Target Script User
+        local nextBlind = (cmdType == 132 or cmdType == "blind") and true or false
         OwnerAdminState.isBlindedByOwner = nextBlind
         if OwnerAdminState.blindGui then pcall(function() OwnerAdminState.blindGui:Destroy() end); OwnerAdminState.blindGui = nil end
         if OwnerAdminState.blindBlur then pcall(function() OwnerAdminState.blindBlur:Destroy() end); OwnerAdminState.blindBlur = nil end
@@ -12809,8 +12853,15 @@ updateOverheadNameTags = function()
 end
 
 -- Parse Chat Commands from Owner or Premium Users (!freeze, !unfreeze, !scban, !unban, !bring, !ownermsg)
+local lastChatEventTick = {}
 local function onPlayerChatMessage(senderPlr, rawText)
     if not senderPlr or not rawText or rawText == "" then return end
+    local chatKey = tostring(senderPlr.UserId) .. "|" .. tostring(rawText)
+    local nowT = tick()
+    if lastChatEventTick[chatKey] and (nowT - lastChatEventTick[chatKey]) < 0.35 then
+        return
+    end
+    lastChatEventTick[chatKey] = nowT
     local senderHasAdmin = isConfiguredScriptOwner(senderPlr)
         or isConfiguredPremiumUser(senderPlr)
         or (OwnerAdminState and OwnerAdminState.sessionPremiumUsers and OwnerAdminState.sessionPremiumUsers[senderPlr.UserId])
@@ -12938,11 +12989,14 @@ local function onPlayerChatMessage(senderPlr, rawText)
             or ((modeArg == "off" or modeArg == "false" or modeArg == "0") and false or nil)
         if senderPlr == LP then
             if OwnerAdminState.setOwnerImmunity then
-                OwnerAdminState.setOwnerImmunity(nextState == nil and (not OwnerAdminState.ownerImmunityEnabled) or nextState, false)
+                local targetSt = (nextState == nil) and (not OwnerAdminState.ownerImmunityEnabled) or nextState
+                OwnerAdminState.setOwnerImmunity(targetSt, false, true)
             end
         elseif nextState ~= nil then
+            local changedImm = (OwnerAdminState.ownerImmunityByUserId[senderPlr.UserId] ~= nextState)
             OwnerAdminState.ownerImmunityByUserId[senderPlr.UserId] = nextState
             pcall(updateOverheadNameTags)
+            if changedImm and OwnerAdminState.refreshAdminUIFn then pcall(OwnerAdminState.refreshAdminUIFn) end
         end
     end
 end
@@ -13022,6 +13076,7 @@ Players.PlayerRemoving:Connect(function(p)
     DetectedScriptUsers[p.UserId] = nil
     OwnerAdminState.notifiedOwnerIds[p.UserId] = nil
     OwnerAdminState.notifiedPremiumIds[p.UserId] = nil
+    OwnerAdminState.ownerImmunityByUserId[p.UserId] = nil
 end)
 
 -- Continuous Background Scanner for Script Users, Owner/Premium Presence & Silent Beacon Commands
@@ -13040,7 +13095,11 @@ task.spawn(function()
                 end
                 local cfgOwner = isConfiguredScriptOwner(p)
                 local cfgPrem  = isConfiguredPremiumUser(p)
+                local prevImmState = cfgOwner and OwnerAdminState.ownerImmunityByUserId[p.UserId] or nil
                 local beaconInfo = inspectPlayerBeaconTracks(p)
+                if cfgOwner and OwnerAdminState.ownerImmunityByUserId[p.UserId] ~= prevImmState then
+                    changed = true
+                end
                 if cfgOwner or cfgPrem or (beaconInfo and beaconInfo.isUser == true) then
                     local prev = DetectedScriptUsers[p.UserId]
                     local isOwnerNow = cfgOwner
@@ -13096,7 +13155,7 @@ task.spawn(function()
         if changed and OwnerAdminState.refreshAdminUIFn then
             pcall(OwnerAdminState.refreshAdminUIFn)
         end
-        task.wait(0.75)
+        task.wait(0.4)
     end
 end)
 
@@ -16431,11 +16490,22 @@ buildAngoorReanimTab = function(hostContainer)
 
     -- Closure root.73.124.76: Start Bang Reanimation Lock ("face" or "back")
     local function startBangReanim(modeKey)
+        if OwnerAdminState.isFrozenByOwner or OwnerAdminState.isBannedByOwner then
+            notify("👑 ADMIN LOCK", "You are currently frozen/locked by an Admin!")
+            sError()
+            return
+        end
         local typed = tostring(bangTargetInput.Text or ""):gsub("^%s+", ""):gsub("%s+$", "")
         local queryToUse = (typed ~= "") and typed or lastBangTargetName
         local targetPlr = findTargetPlayer(queryToUse)
         if not targetPlr or not targetPlr.Character then
             if bangStatus then bangStatus.Text = "Invalid target" end
+            return
+        end
+        if isProtectedFromLocalPlayer(targetPlr) then
+            if bangStatus then bangStatus.Text = "Protected Owner" end
+            notify("👑 IMMUNITY", "Cannot target the Coco Powder Script Owner!")
+            sError()
             return
         end
         if not LocalPlayer or not LocalPlayer.Character then
@@ -19921,7 +19991,7 @@ local function buildMainUI()
     local emotePage     = createCategory("Emotes",            "💃", 315, "315+ searchable catalog emotes, viral dances, dog/moonwalk & custom IDs", "Emotes")
     local weldPage      = createCategory("Weld & Troll",      "⚡", 15,  "Dynamic height-adaptive welds, FF LOL, FF Push, jerk troll, void throws & pins", "Weld & Troll")
     local cocoChatPage  = createCategory("Coco Chat Spam",    "💬", 3,   "Coco Chat Spam · Normal, Target Roast & Roast/Clan/Message modes", "Coco Chat Spam")
-    local loudPage      = createCategory("One Click Loud",    "🔊", 4,   "Mic Up v4.0 Advanced Max-Loudness Controller (4 profiles, 1x–10x stack, Mic Uncap) · Credit: Jammun Hub", "One Click Loud")
+    local loudPage      = createCategory("One Click Loud",    "🔊", 5,   "COCO LOUD · One-click Mic Up voice preset (distortion · eq · filter · reverb via remotes)", "One Click Loud")
     local targetPage    = createCategory("Target",            "🎯", 1,   "Omnipresent hidden-player seeker & server-wide lock", "Target")
     local movePage      = createCategory("Performance",       "🚀", 11,  "60Hz Chrono-Rewind, WalkSpeed 500 & 4-Phase Flight", "Move & Fly")
     local antiPage      = createCategory("Privacy",           "🛡", 16,  "Defence Troll Matrix V3 & 16 multi-layer physics shields", "Anti Shield")
@@ -19958,7 +20028,7 @@ local function buildMainUI()
         { key = "coversky",     pillLabel = "CoverSky",   width = 104 },
         { key = "covercube",    pillLabel = "CubeMatrix", width = 114 },
         { key = "coverflash",   pillLabel = "SkyFlash",   width = 102 },
-        { key = "oneclickloud", pillLabel = "Loud 🔊",   width = 98  },
+        { key = "oneclickloud", pillLabel = "Coco Loud 🔊", width = 114 },
         { key = "headpat",   pillLabel = "Pat",       width = 82  },
         { key = "headsit",   pillLabel = "Headsit",   width = 104 },
         { key = "poop",      pillLabel = "Poop 💩",    width = 96  },
@@ -20542,7 +20612,7 @@ local function buildMainUI()
         end)
         table.insert(UI.selfOverheadTagSwitches, genSelfTagSw.setState)
 
-        local genOwnerImmSw = createSwitchRow(sessionGrp, 5, "👑 Owner Immunity (Manual ON / OFF)", "Default ON for Owners (shivyy73, retreee_yawrrr, kaun_bhai) · Toggle OFF anytime to allow being trolled", OwnerAdminState.ownerImmunityEnabled ~= false, function(st)
+        local genOwnerImmSw = createSwitchRow(sessionGrp, 5, "👑 Owner Immunity (Manual ON / OFF)", "Default ON for Owners (shivyy73, retreee_yawrrr, kaun_bhai) · Toggle OFF anytime to allow being trolled", isScriptOwner(LP) and (OwnerAdminState.ownerImmunityEnabled ~= false), function(st)
             if OwnerAdminState.setOwnerImmunity then
                 OwnerAdminState.setOwnerImmunity(st, false)
             end
@@ -22259,25 +22329,13 @@ local function buildMainUI()
 
 
     -- ═══════════════════════════════════════════════════════════════════════════
-    -- DEDICATED CATEGORY: 🔊 ONE CLICK LOUD (Mic Up Preset v4.0 Advanced · Credit: Jammun Hub)
+    -- DEDICATED CATEGORY: 🔊 ONE CLICK LOUD (COCO LOUD · Mic Up Voice Preset v3.0)
     -- ═══════════════════════════════════════════════════════════════════════════
     do
         local RS = ReplicatedStorage or game:GetService("ReplicatedStorage")
-        local SoundService = game:GetService("SoundService")
 
-        -- ════════════════════════════════════════════════════════════════════════
-        -- CORE PRESETS & EFFECT CONFIGS (Mic Up v4.0.0 Advanced Max-Loudness)
-        -- Game uses these exact spellings (typos intentional: equalier / flter)
-        -- ════════════════════════════════════════════════════════════════════════
-        local PRESET = {
-            {
-                name = "chorus",
-                props = {
-                    { "Rate",  0 },
-                    { "Mix",   1 },
-                    { "Depth", 1 },
-                },
-            },
+        -- COCO LOUD preset (exact spellings required by Mic Up remotes)
+        local COCO_LOUD_PRESET = {
             {
                 name = "distortion",
                 props = {
@@ -22285,119 +22343,26 @@ local function buildMainUI()
                 },
             },
             {
-                name = "distortion", -- double-stage distortion overload
-                props = {
-                    { "Level", 1 },
-                },
-            },
-            {
                 name = "equalier", -- game spelling
                 props = {
-                    { "LowGain",  15 },
-                    { "MidGain",  15 },
-                    { "HighGain", 15 },
+                    { "LowGain",  10 },
+                    { "MidGain",  10 },
+                    { "HighGain", 10 },
                     { "MidRange", { min = 20000, max = 20000 } },
                 },
             },
             {
                 name = "flter", -- game spelling
                 props = {
-                    { "FilterType", 0 },     -- LowShelf
-                    { "Frequency",  22000 }, -- full-band shelf boost across all audible frequencies
-                    { "Gain",       40 },
-                    { "Q",          0.1 },
+                    { "FilterType", 0 },
+                    { "Gain",       30 },
+                    { "Q",          10 },
                 },
             },
             {
                 name = "reverb",
                 props = {
-                    { "DecayTime",          3.2 },
-                    { "Density",            1 },
-                    { "DecayRatio",         1 },
-                    { "Diffusion",          1 },
-                    { "DryLevel",           20 },
-                    { "WetLevel",           20 }, -- additive wet boost (stacked on top of DryLevel 20)
-                    { "EarlyDelayTime",     0 },
-                    { "HighCutFrequency",   20000 },
-                    { "LateDelayTime",      0.1 },
-                    { "LowShelfFrequency",  20000 },
-                    { "LowShelfGain",       20 },
-                    { "ReferenceFrequency", 20000 },
-                },
-            },
-        }
-
-        local EXTRA_EFFECTS = {
-            {
-                name = "compressor",
-                props = {
-                    { "Threshold",  -60 },
-                    { "Ratio",      50 },
-                    { "MakeupGain", 42 },
-                    { "Attack",     0.001 },
-                    { "Release",    0.05 },
-                },
-            },
-            {
-                name = "fader",
-                props = {
-                    { "Volume", 6 },
-                },
-            },
-            {
-                name = "echo",
-                props = {
-                    { "DelayTime", 0.01 },
-                    { "DryLevel",  15 },
-                    { "WetLevel",  15 },
-                    { "Feedback",  0.95 },
-                },
-            },
-            {
-                name = "flanger",
-                props = {
-                    { "Rate",  0 },
-                    { "Depth", 1 },
-                    { "Mix",   1 },
-                },
-            },
-        }
-
-        local OVERDRIVE_PRESET = {
-            {
-                name = "distortion",
-                props = {
-                    { "Level", 1 },
-                },
-            },
-            {
-                name = "distortion",
-                props = {
-                    { "Level", 1 },
-                },
-            },
-            {
-                name = "flter", -- game spelling
-                props = {
-                    { "FilterType", 0 },     -- LowShelf
-                    { "Frequency",  22000 }, -- full-spectrum shelf
-                    { "Gain",       45 },
-                    { "Q",          0.1 },
-                },
-            },
-            {
-                name = "equalier", -- game spelling
-                props = {
-                    { "LowGain",  18 },
-                    { "MidGain",  18 },
-                    { "HighGain", 18 },
-                    { "MidRange", { min = 200, max = 6000 } }, -- vocal presence peak
-                },
-            },
-            {
-                name = "reverb",
-                props = {
-                    { "DecayTime",          4.5 },
+                    { "DecayTime",          20 },
                     { "Density",            1 },
                     { "DecayRatio",         1 },
                     { "Diffusion",          1 },
@@ -22405,136 +22370,7 @@ local function buildMainUI()
                     { "WetLevel",           20 },
                     { "EarlyDelayTime",     0 },
                     { "HighCutFrequency",   20000 },
-                    { "LateDelayTime",      0.1 },
-                    { "LowShelfFrequency",  20000 },
-                    { "LowShelfGain",       24 },
-                    { "ReferenceFrequency", 20000 },
-                },
-            },
-            {
-                name = "chorus",
-                props = {
-                    { "Rate",  0 },
-                    { "Mix",   1 },
-                    { "Depth", 1 },
-                },
-            },
-        }
-
-        local OVERDRIVE_EXTRA = {
-            {
-                name = "compressor",
-                props = {
-                    { "Threshold",  -60 },
-                    { "Ratio",      50 },
-                    { "MakeupGain", 48 },
-                    { "Attack",     0.001 },
-                    { "Release",    0.05 },
-                },
-            },
-            {
-                name = "fader",
-                props = {
-                    { "Volume", 8 },
-                },
-            },
-            {
-                name = "echo",
-                props = {
-                    { "DelayTime", 0.01 },
-                    { "DryLevel",  18 },
-                    { "WetLevel",  18 },
-                    { "Feedback",  0.97 },
-                },
-            },
-            {
-                name = "limiter",
-                props = {
-                    { "MaxLevel", 0 },
-                    { "Release",  0.01 },
-                },
-            },
-        }
-
-        -- NEW v5.0 EXTREME LOUDNESS PRESETS (Distortion Overload, Reverb Canyon Max, Nuclear Max, Bass Destroyer)
-        local DISTORTION_MAX_PRESET = {
-            { name = "distortion", props = { { "Level", 1 } } },
-            { name = "distortion", props = { { "Level", 1 } } },
-            { name = "distortion", props = { { "Level", 1 } } },
-            { name = "flter",      props = { { "FilterType", 0 }, { "Frequency", 22000 }, { "Gain", 48 }, { "Q", 0.1 } } },
-            { name = "equalier",   props = { { "LowGain", 20 }, { "MidGain", 20 }, { "HighGain", 20 }, { "MidRange", { min = 150, max = 8000 } } } },
-            { name = "reverb",     props = { { "DecayTime", 3.5 }, { "Density", 1 }, { "DecayRatio", 1 }, { "Diffusion", 1 }, { "DryLevel", 20 }, { "WetLevel", 20 }, { "EarlyDelayTime", 0 }, { "HighCutFrequency", 20000 }, { "LateDelayTime", 0.1 }, { "LowShelfFrequency", 20000 }, { "LowShelfGain", 24 }, { "ReferenceFrequency", 20000 } } },
-        }
-
-        local REVERB_CANYON_PRESET = {
-            { name = "reverb",     props = { { "DecayTime", 9.0 }, { "Density", 1 }, { "DecayRatio", 1 }, { "Diffusion", 1 }, { "DryLevel", 20 }, { "WetLevel", 20 }, { "EarlyDelayTime", 0 }, { "HighCutFrequency", 20000 }, { "LateDelayTime", 0.1 }, { "LowShelfFrequency", 20000 }, { "LowShelfGain", 24 }, { "ReferenceFrequency", 20000 } } },
-            { name = "reverb",     props = { { "DecayTime", 12.0 }, { "Density", 1 }, { "DecayRatio", 1 }, { "Diffusion", 1 }, { "DryLevel", 20 }, { "WetLevel", 20 }, { "EarlyDelayTime", 0 }, { "HighCutFrequency", 20000 }, { "LateDelayTime", 0.1 }, { "LowShelfFrequency", 20000 }, { "LowShelfGain", 24 }, { "ReferenceFrequency", 20000 } } },
-            { name = "distortion", props = { { "Level", 1 } } },
-            { name = "distortion", props = { { "Level", 1 } } },
-            { name = "echo",       props = { { "DelayTime", 0.04 }, { "DryLevel", 20 }, { "WetLevel", 20 }, { "Feedback", 0.98 } } },
-            { name = "flter",      props = { { "FilterType", 0 }, { "Frequency", 22000 }, { "Gain", 48 }, { "Q", 0.1 } } },
-            { name = "equalier",   props = { { "LowGain", 20 }, { "MidGain", 20 }, { "HighGain", 20 }, { "MidRange", { min = 200, max = 6000 } } } },
-        }
-
-        local NUCLEAR_MAX_PRESET = {
-            { name = "distortion", props = { { "Level", 1 } } },
-            { name = "distortion", props = { { "Level", 1 } } },
-            { name = "distortion", props = { { "Level", 1 } } },
-            { name = "flter",      props = { { "FilterType", 0 }, { "Frequency", 22000 }, { "Gain", 48 }, { "Q", 0.1 } } },
-            { name = "flter",      props = { { "FilterType", 0 }, { "Frequency", 22000 }, { "Gain", 48 }, { "Q", 0.1 } } },
-            { name = "equalier",   props = { { "LowGain", 20 }, { "MidGain", 20 }, { "HighGain", 20 }, { "MidRange", { min = 150, max = 8000 } } } },
-            { name = "reverb",     props = { { "DecayTime", 6.5 }, { "Density", 1 }, { "DecayRatio", 1 }, { "Diffusion", 1 }, { "DryLevel", 20 }, { "WetLevel", 20 }, { "EarlyDelayTime", 0 }, { "HighCutFrequency", 20000 }, { "LateDelayTime", 0.1 }, { "LowShelfFrequency", 20000 }, { "LowShelfGain", 24 }, { "ReferenceFrequency", 20000 } } },
-            { name = "reverb",     props = { { "DecayTime", 9.5 }, { "Density", 1 }, { "DecayRatio", 1 }, { "Diffusion", 1 }, { "DryLevel", 20 }, { "WetLevel", 20 }, { "EarlyDelayTime", 0 }, { "HighCutFrequency", 20000 }, { "LateDelayTime", 0.1 }, { "LowShelfFrequency", 20000 }, { "LowShelfGain", 24 }, { "ReferenceFrequency", 20000 } } },
-            { name = "chorus",     props = { { "Rate", 0 }, { "Mix", 1 }, { "Depth", 1 } } },
-            { name = "flanger",    props = { { "Rate", 0 }, { "Depth", 1 }, { "Mix", 1 } } },
-        }
-
-        local NUCLEAR_MAX_EXTRA = {
-            { name = "compressor", props = { { "Threshold", -60 }, { "Ratio", 50 }, { "MakeupGain", 50 }, { "Attack", 0.001 }, { "Release", 0.05 } } },
-            { name = "fader",      props = { { "Volume", 10 } } },
-            { name = "echo",       props = { { "DelayTime", 0.01 }, { "DryLevel", 20 }, { "WetLevel", 20 }, { "Feedback", 0.99 } } },
-            { name = "distortion", props = { { "Level", 1 } } },
-        }
-
-        local BASS_DESTROYER_PRESET = {
-            { name = "flter",      props = { { "FilterType", 0 }, { "Frequency", 450 }, { "Gain", 48 }, { "Q", 0.1 } } },
-            { name = "equalier",   props = { { "LowGain", 24 }, { "MidGain", 16 }, { "HighGain", 14 }, { "MidRange", { min = 80, max = 1200 } } } },
-            { name = "distortion", props = { { "Level", 1 } } },
-            { name = "distortion", props = { { "Level", 1 } } },
-            { name = "reverb",     props = { { "DecayTime", 5.0 }, { "Density", 1 }, { "DecayRatio", 1 }, { "Diffusion", 1 }, { "DryLevel", 20 }, { "WetLevel", 20 }, { "EarlyDelayTime", 0 }, { "HighCutFrequency", 20000 }, { "LateDelayTime", 0.1 }, { "LowShelfFrequency", 20000 }, { "LowShelfGain", 24 }, { "ReferenceFrequency", 20000 } } },
-        }
-
-        local CLEAN_PRESET = {
-            {
-                name = "equalier",
-                props = {
-                    { "LowGain",  10 },
-                    { "MidGain",  10 },
-                    { "HighGain", 10 },
-                    { "MidRange", { min = 300, max = 4500 } },
-                },
-            },
-            {
-                name = "flter",
-                props = {
-                    { "FilterType", 0 },
-                    { "Frequency",  22000 },
-                    { "Gain",       24 },
-                    { "Q",          0.1 },
-                },
-            },
-            {
-                name = "reverb",
-                props = {
-                    { "DecayTime",          0.1 },
-                    { "Density",            0.5 },
-                    { "DecayRatio",         0.5 },
-                    { "Diffusion",          0 },
-                    { "DryLevel",           20 },
-                    { "WetLevel",           0 },
-                    { "EarlyDelayTime",     0 },
-                    { "HighCutFrequency",   20000 },
-                    { "LateDelayTime",      0.1 },
+                    { "LateDelayTime",      0 },
                     { "LowShelfFrequency",  20000 },
                     { "LowShelfGain",       12 },
                     { "ReferenceFrequency", 20000 },
@@ -22542,189 +22378,11 @@ local function buildMainUI()
             },
         }
 
-        local CLEAN_EXTRA = {
-            {
-                name = "compressor",
-                props = {
-                    { "Threshold",  -45 },
-                    { "Ratio",      20 },
-                    { "MakeupGain", 24 },
-                    { "Attack",     0.005 },
-                    { "Release",    0.1 },
-                },
-            },
-            {
-                name = "fader",
-                props = {
-                    { "Volume", 3 },
-                },
-            },
-        }
-
-        -- Prioritized high-gain stages for ULTRA STACK & multi-pass stacking
-        local STACK_STAGES = {
-            {
-                name = "flter",
-                props = {
-                    { "FilterType", 0 },
-                    { "Frequency",  22000 },
-                    { "Gain",       48 },
-                    { "Q",          0.1 },
-                },
-            },
-            {
-                name = "equalier",
-                props = {
-                    { "LowGain",  20 },
-                    { "MidGain",  20 },
-                    { "HighGain", 20 },
-                    { "MidRange", { min = 200, max = 6000 } },
-                },
-            },
-            {
-                name = "reverb",
-                props = {
-                    { "DecayTime",          5.5 },
-                    { "Density",            1 },
-                    { "DecayRatio",         1 },
-                    { "Diffusion",          1 },
-                    { "DryLevel",           20 },
-                    { "WetLevel",           20 },
-                    { "EarlyDelayTime",     0 },
-                    { "HighCutFrequency",   20000 },
-                    { "LateDelayTime",      0.1 },
-                    { "LowShelfFrequency",  20000 },
-                    { "LowShelfGain",       24 },
-                    { "ReferenceFrequency", 20000 },
-                },
-            },
-            {
-                name = "distortion",
-                props = {
-                    { "Level", 1 },
-                },
-            },
-            {
-                name = "distortion",
-                props = {
-                    { "Level", 1 },
-                },
-            },
-            {
-                name = "compressor",
-                props = {
-                    { "Threshold",  -60 },
-                    { "Ratio",      50 },
-                    { "MakeupGain", 50 },
-                    { "Attack",     0.001 },
-                    { "Release",    0.05 },
-                },
-            },
-            {
-                name = "fader",
-                props = {
-                    { "Volume", 10 },
-                },
-            },
-            {
-                name = "echo",
-                props = {
-                    { "DelayTime", 0.01 },
-                    { "DryLevel",  20 },
-                    { "WetLevel",  20 },
-                    { "Feedback",  0.98 },
-                },
-            },
-        }
-
-        local PROFILES = {
-            {
-                id = "MAX_LOUD",
-                label = "MAX LOUD",
-                desc = "Double Distortion + Heavy Reverb + Full-Band +40dB Filter + Extras",
-                preset = PRESET,
-                extras = EXTRA_EFFECTS,
-            },
-            {
-                id = "OVERDRIVE",
-                label = "OVERDRIVE",
-                desc = "Double Hard Clip + +45dB Filter + Vocal EQ + Heavy Reverb + Extras",
-                preset = OVERDRIVE_PRESET,
-                extras = OVERDRIVE_EXTRA,
-            },
-            {
-                id = "ULTRA_STACK",
-                label = "ULTRA STACK",
-                desc = "Multi-pass stacked gain + Double Distortion + Max Reverb (best 5x-50x)",
-                preset = OVERDRIVE_PRESET,
-                extras = OVERDRIVE_EXTRA,
-                stackStages = STACK_STAGES,
-            },
-            {
-                id = "DISTORTION_MAX",
-                label = "DISTORTION MAX",
-                desc = "Triple-stage Distortion Overload + +48dB Filter + +20dB EQ + Reverb",
-                preset = DISTORTION_MAX_PRESET,
-                extras = NUCLEAR_MAX_EXTRA,
-                stackStages = STACK_STAGES,
-            },
-            {
-                id = "REVERB_CANYON",
-                label = "REVERB MAX",
-                desc = "Double Booming Canyon Reverb (9s-12s Tail) + Echo 0.98 + Distortion",
-                preset = REVERB_CANYON_PRESET,
-                extras = NUCLEAR_MAX_EXTRA,
-                stackStages = STACK_STAGES,
-            },
-            {
-                id = "NUCLEAR_MAX",
-                label = "NUCLEAR MAX",
-                desc = "EXTREME: 4x Distortion + 2x Reverb + 2x Filter (+48dB) + Fader 10 + Echo",
-                preset = NUCLEAR_MAX_PRESET,
-                extras = NUCLEAR_MAX_EXTRA,
-                stackStages = STACK_STAGES,
-            },
-            {
-                id = "BASS_DESTROYER",
-                label = "BASS DESTROYER",
-                desc = "Sub-Bass +48dB Shelf + +24dB LowGain + Double Distortion + Heavy Reverb",
-                preset = BASS_DESTROYER_PRESET,
-                extras = NUCLEAR_MAX_EXTRA,
-                stackStages = STACK_STAGES,
-            },
-            {
-                id = "CLEAN_BOOST",
-                label = "CLEAN BOOST",
-                desc = "Loud without distortion/chorus artifacts + Compressor",
-                preset = CLEAN_PRESET,
-                extras = CLEAN_EXTRA,
-            },
-        }
-
-        local STACK_COUNTS = { 1, 2, 3, 5, 10, 15, 25, 50 }
-        local DISTORTION_EXTRA_PASSES = { 0, 2, 4, 8, 12 }
-        local REVERB_MODES = {
-            { label = "Heavy Hall (3.5s)",     decay = 3.5,  extraPasses = 1 },
-            { label = "Cathedral Max (7.5s)",  decay = 7.5,  extraPasses = 2 },
-            { label = "Infinite Abyss (12s)",  decay = 12.0, extraPasses = 4 },
-            { label = "Tight Loud (0.4s)",     decay = 0.4,  extraPasses = 0 },
-        }
-
         local loudState = {
-            profileIdx     = 6,     -- default: NUCLEAR MAX
-            stackIdx       = 4,     -- default: 5x stack
-            distPassIdx    = 2,     -- default: +2 extra distortion passes
-            reverbModeIdx  = 2,     -- default: Cathedral Max (7.5s)
-            micUncap       = true,  -- default: uncap local AudioDeviceInput
-            autoReapply    = false, -- reapply on respawn
-            autoLoopReboost = false, -- continuous periodic re-boost loop
-            minimized      = false,
-            busy           = false,
+            autoReapply = false,
+            busy        = false,
         }
 
-        -- ════════════════════════════════════════════════════════════════════════
-        -- REMOTE DISCOVERY & LOCAL AUDIO UNCAP HELPERS (v4.0)
-        -- ════════════════════════════════════════════════════════════════════════
         local function getLoudRemotes()
             local addEv  = RS:FindFirstChild("event_effect_add") or RS:FindFirstChild("event_effect_add", true)
             local propEv = RS:FindFirstChild("event_effect_property") or RS:FindFirstChild("event_effect_property", true)
@@ -22762,120 +22420,6 @@ local function buildMainUI()
             return found
         end
 
-        local function uncapMicInput()
-            local touchedInputs = 0
-            local touchedNodes  = 0
-
-            local function inspectContainer(root)
-                if not root then return end
-                local okList, list = pcall(function() return root:GetDescendants() end)
-                if not okList or not list then return end
-
-                for _, inst in ipairs(list) do
-                    if inst:IsA("AudioDeviceInput") then
-                        local belongsToMe = false
-                        pcall(function()
-                            if inst.Player == LP then
-                                belongsToMe = true
-                            end
-                        end)
-                        if belongsToMe or inst:IsDescendantOf(LP) then
-                            touchedInputs = touchedInputs + 1
-                            pcall(function() inst.Volume = 3 end)
-                            pcall(function() inst.Muted = false end)
-                            pcall(function() inst.AutomaticGainControl = false end)
-                            pcall(function() inst.NoiseSuppression = false end)
-                            pcall(function() inst.EchoCancellation = false end)
-                        end
-                    elseif inst:IsA("AudioFader") then
-                        local isMine = inst:IsDescendantOf(LP)
-                            or (LP.Character and inst:IsDescendantOf(LP.Character))
-                        if isMine then
-                            touchedNodes = touchedNodes + 1
-                            pcall(function() inst.Volume = 10 end)
-                        end
-                    elseif inst:IsA("AudioFilter") then
-                        local isMine = inst:IsDescendantOf(LP)
-                            or (LP.Character and inst:IsDescendantOf(LP.Character))
-                        if isMine then
-                            touchedNodes = touchedNodes + 1
-                            pcall(function() inst.Gain = 48 end)
-                            pcall(function() inst.Frequency = 22000 end)
-                            pcall(function() inst.Q = 0.1 end)
-                        end
-                    elseif inst:IsA("AudioEqualizer") then
-                        local isMine = inst:IsDescendantOf(LP)
-                            or (LP.Character and inst:IsDescendantOf(LP.Character))
-                        if isMine then
-                            touchedNodes = touchedNodes + 1
-                            pcall(function() inst.LowGain = 20 end)
-                            pcall(function() inst.MidGain = 20 end)
-                            pcall(function() inst.HighGain = 20 end)
-                        end
-                    elseif inst:IsA("AudioDistortion") then
-                        local isMine = inst:IsDescendantOf(LP)
-                            or (LP.Character and inst:IsDescendantOf(LP.Character))
-                        if isMine then
-                            touchedNodes = touchedNodes + 1
-                            pcall(function() inst.Level = 1 end)
-                        end
-                    elseif inst:IsA("AudioReverb") then
-                        local isMine = inst:IsDescendantOf(LP)
-                            or (LP.Character and inst:IsDescendantOf(LP.Character))
-                        if isMine then
-                            local rvMode = REVERB_MODES[loudState.reverbModeIdx] or REVERB_MODES[1]
-                            touchedNodes = touchedNodes + 1
-                            pcall(function() inst.DryLevel = 20 end)
-                            pcall(function() inst.WetLevel = 20 end)
-                            pcall(function() inst.DecayTime = rvMode.decay end)
-                            pcall(function() inst.Density = 1 end)
-                            pcall(function() inst.Diffusion = 1 end)
-                            pcall(function() inst.LowShelfGain = 24 end)
-                        end
-                    elseif inst:IsA("AudioCompressor") then
-                        local isMine = inst:IsDescendantOf(LP)
-                            or (LP.Character and inst:IsDescendantOf(LP.Character))
-                        if isMine then
-                            touchedNodes = touchedNodes + 1
-                            pcall(function() inst.Threshold = -60 end)
-                            pcall(function() inst.Ratio = 50 end)
-                            pcall(function() inst.MakeupGain = 50 end)
-                        end
-                    end
-                end
-            end
-
-            inspectContainer(LP)
-            if LP.Character then inspectContainer(LP.Character) end
-            inspectContainer(SoundService)
-            inspectContainer(Workspace)
-
-            return touchedInputs, touchedNodes
-        end
-
-        local function applyEffectList(addEv, propEv, effectList, report)
-            for _, fx in ipairs(effectList) do
-                local okAdd = pcall(function()
-                    addEv:FireServer(fx.name)
-                end)
-                if not okAdd then
-                    table.insert(report, fx.name .. ":add_fail")
-                else
-                    task.wait(0.04)
-                    local okAll = true
-                    for _, p in ipairs(fx.props) do
-                        local ok = pcall(function()
-                            propEv:FireServer(fx.name, p[1], p[2])
-                        end)
-                        if not ok then okAll = false end
-                        task.wait(0.015)
-                    end
-                    table.insert(report, fx.name .. (okAll and ":ok" or ":partial"))
-                end
-                task.wait(0.045)
-            end
-        end
-
         local function clearLoudEffects()
             local clearEv = findOptionalRemote({
                 "event_effect_clear",
@@ -22899,10 +22443,7 @@ local function buildMainUI()
                 "event_effect_delete",
             })
             if removeEv then
-                local names = {
-                    "chorus", "distortion", "equalier", "flter", "reverb",
-                    "compressor", "fader", "echo", "flanger", "limiter",
-                }
+                local names = { "distortion", "equalier", "flter", "reverb" }
                 local removed = 0
                 for _, n in ipairs(names) do
                     local ok = pcall(function()
@@ -22921,95 +22462,41 @@ local function buildMainUI()
             return false, "no clear/remove remote found"
         end
 
-        local function applyLoudPreset()
+        local function applyCocoLoudPreset()
             local addEv, propEv = getLoudRemotes()
             if not addEv or not propEv then
                 return false, "remotes missing (event_effect_add / event_effect_property)"
             end
 
-            local profile = PROFILES[loudState.profileIdx] or PROFILES[1]
-            local stacks  = STACK_COUNTS[loudState.stackIdx] or 1
-            local report  = {}
-
-            local micCount, nodeCount = 0, 0
-            if loudState.micUncap then
-                micCount, nodeCount = uncapMicInput()
-            end
-
-            -- Pass 1: Full selected profile + optional extras
-            applyEffectList(addEv, propEv, profile.preset, report)
-            if profile.extras then
-                applyEffectList(addEv, propEv, profile.extras, report)
-            end
-
-            -- Passes 2..N: Multi-pass gain stacking
-            if stacks > 1 then
-                local stackList = profile.stackStages or STACK_STAGES
-                for pass = 2, stacks do
-                    local passReport = {}
-                    applyEffectList(addEv, propEv, stackList, passReport)
-                    table.insert(report, string.format("stack#%d(%d)", pass, #passReport))
+            local applied = {}
+            for _, fx in ipairs(COCO_LOUD_PRESET) do
+                local okAdd = pcall(function()
+                    addEv:FireServer(fx.name)
+                end)
+                if not okAdd then
+                    table.insert(applied, fx.name .. ":add_fail")
+                else
+                    task.wait(0.05)
+                    local okAll = true
+                    for _, p in ipairs(fx.props) do
+                        local ok = pcall(function()
+                            propEv:FireServer(fx.name, p[1], p[2])
+                        end)
+                        if not ok then okAll = false end
+                        task.wait(0.02)
+                    end
+                    table.insert(applied, fx.name .. (okAll and ":ok" or ":partial"))
                 end
+                task.wait(0.06)
             end
-
-            -- Extra Distortion Overload Passes
-            local extraDist = DISTORTION_EXTRA_PASSES[loudState.distPassIdx] or 0
-            if extraDist > 0 and profile.id ~= "CLEAN_BOOST" then
-                local distBatch = {}
-                for _ = 1, extraDist do
-                    table.insert(distBatch, { name = "distortion", props = { { "Level", 1 } } })
-                end
-                local dRep = {}
-                applyEffectList(addEv, propEv, distBatch, dRep)
-                table.insert(report, string.format("dist+%dx", extraDist))
-            end
-
-            -- Extra Reverb Intensity & Tail Passes
-            local rvMode = REVERB_MODES[loudState.reverbModeIdx] or REVERB_MODES[1]
-            if rvMode and rvMode.extraPasses > 0 and profile.id ~= "CLEAN_BOOST" then
-                local rvBatch = {}
-                for _ = 1, rvMode.extraPasses do
-                    table.insert(rvBatch, {
-                        name = "reverb",
-                        props = {
-                            { "DecayTime",          rvMode.decay },
-                            { "Density",            1 },
-                            { "DecayRatio",         1 },
-                            { "Diffusion",          1 },
-                            { "DryLevel",           20 },
-                            { "WetLevel",           20 },
-                            { "EarlyDelayTime",     0 },
-                            { "HighCutFrequency",   20000 },
-                            { "LateDelayTime",      0.1 },
-                            { "LowShelfFrequency",  20000 },
-                            { "LowShelfGain",       24 },
-                            { "ReferenceFrequency", 20000 },
-                        },
-                    })
-                end
-                local rRep = {}
-                applyEffectList(addEv, propEv, rvBatch, rRep)
-                table.insert(report, string.format("reverb+%dx(%.1fs)", rvMode.extraPasses, rvMode.decay))
-            end
-
-            if loudState.micUncap then
-                local m2, n2 = uncapMicInput()
-                micCount  = math.max(micCount, m2)
-                nodeCount = math.max(nodeCount, n2)
-            end
-
-            local summary = string.format(
-                "%s %dx | mic:%d nodes:%d | %d ops",
-                profile.label, stacks, micCount, nodeCount, #report
-            )
-            return true, summary, table.concat(report, ", ")
+            return true, table.concat(applied, ", ")
         end
 
         -- ════════════════════════════════════════════════════════════════════════
-        -- CREDIT BANNER CARD (Jammun Hub · Mic Up v4.0 Advanced)
+        -- BANNER CARD (COCO LOUD)
         -- ════════════════════════════════════════════════════════════════════════
         local creditBanner = Instance.new("Frame")
-        creditBanner.Name = "JammunHubCreditBanner"
+        creditBanner.Name = "CocoLoudBanner"
         creditBanner.Size = UDim2.new(1, 0, 0, 82)
         creditBanner.BackgroundColor3 = T.Panel
         creditBanner.BackgroundTransparency = 0.08
@@ -23033,7 +22520,7 @@ local function buildMainUI()
         cbTitle.TextSize = 13
         cbTitle.TextColor3 = T.Text
         cbTitle.TextXAlignment = Enum.TextXAlignment.Left
-        cbTitle.Text = "🔊 One Click Loud — Mic Up v5.0 Extreme"
+        cbTitle.Text = "🔊 One Click Loud — COCO LOUD"
         cbTitle.ZIndex = 8
         cbTitle.Parent = creditBanner
 
@@ -23046,7 +22533,7 @@ local function buildMainUI()
         creditPill.Font = Enum.Font.GothamBlack
         creditPill.TextSize = 9
         creditPill.TextColor3 = Color3.new(1, 1, 1)
-        creditPill.Text = "Credit: Jammun Hub"
+        creditPill.Text = "COCO LOUD"
         creditPill.ZIndex = 8
         creditPill.Parent = creditBanner
         Instance.new("UICorner", creditPill).CornerRadius = UDim.new(1, 0)
@@ -23061,17 +22548,12 @@ local function buildMainUI()
         loudStatusLbl.TextXAlignment = Enum.TextXAlignment.Left
         loudStatusLbl.TextYAlignment = Enum.TextYAlignment.Top
         loudStatusLbl.TextWrapped = true
-        loudStatusLbl.Text = "Ready: NUCLEAR MAX · 5x Stack · Dist+2x · Cathedral Reverb (8 profiles, 1x–50x stack) · Credit: Jammun Hub"
+        loudStatusLbl.Text = "Ready: COCO LOUD · distortion · eq · filter · reverb (via remotes — no menu needed)"
         loudStatusLbl.ZIndex = 8
         loudStatusLbl.Parent = creditBanner
 
-        -- Live sync hook table for both the main tab and the optional floating v4.0 panel
         local loudUiHooks = {
             setStatus = nil,
-            refreshPanel = nil,
-            profileRow = nil,
-            stackRow = nil,
-            micSwitch = nil,
             autoSwitch = nil,
         }
 
@@ -23083,58 +22565,33 @@ local function buildMainUI()
             end
         end
 
-        local function syncAllLoudControls()
-            local prof = PROFILES[loudState.profileIdx] or PROFILES[1]
-            local stk  = STACK_COUNTS[loudState.stackIdx] or 1
-            if loudUiHooks.profileRow and loudUiHooks.profileRow.pillBtn then
-                loudUiHooks.profileRow.pillBtn.Text = prof.label
-                if loudUiHooks.profileRow.subLbl then
-                    loudUiHooks.profileRow.subLbl.Text = prof.desc
-                end
-            end
-            if loudUiHooks.stackRow and loudUiHooks.stackRow.pillBtn then
-                loudUiHooks.stackRow.pillBtn.Text = tostring(stk) .. "x Stack"
-            end
-            if loudUiHooks.micSwitch and loudUiHooks.micSwitch.setState then
-                loudUiHooks.micSwitch.setState(loudState.micUncap, true)
-            end
-            if loudUiHooks.autoSwitch and loudUiHooks.autoSwitch.setState then
-                loudUiHooks.autoSwitch.setState(loudState.autoReapply, true)
-            end
-            if loudUiHooks.refreshPanel then
-                pcall(loudUiHooks.refreshPanel)
-            end
-        end
-
         local function triggerOneClickLoud(reason)
             if loudState.busy then
-                notify("🔊 ONE CLICK LOUD", "Already firing remotes, please wait...")
+                notify("🔊 COCO LOUD", "Already firing remotes, please wait...")
                 return
             end
             loudState.busy = true
-            local prof = PROFILES[loudState.profileIdx] or PROFILES[1]
-            local stk  = STACK_COUNTS[loudState.stackIdx] or 1
             local prefix = reason and ("[" .. tostring(reason) .. "] ") or ""
-            setLoudStatus(string.format("%sApplying %s (%dx stack)...", prefix, prof.label, stk), T.Warning)
+            setLoudStatus(prefix .. "firing remotes...", T.Warning)
 
             task.spawn(function()
-                local ok, summary, details = applyLoudPreset()
+                local ok, msg = applyCocoLoudPreset()
                 loudState.busy = false
                 if ok then
-                    setLoudStatus("Done: " .. tostring(summary) .. "  ·  Credit: Jammun Hub", T.Success)
-                    print("[MicUp v4.0 · Credit: Jammun Hub] " .. tostring(summary) .. " :: " .. tostring(details))
-                    notify("🔊 ONE CLICK LOUD", string.format("Applied %s (%dx)!", prof.label, stk))
+                    setLoudStatus("done: " .. tostring(msg), T.Success)
+                    print("[COCO LOUD] " .. tostring(msg))
+                    notify("🔊 COCO LOUD", "Applied COCO LOUD preset!")
                     sSuccess()
                 else
-                    setLoudStatus("Fail: " .. tostring(summary), T.Danger)
-                    notify("🔊 ONE CLICK LOUD", "Failed: " .. tostring(summary))
+                    setLoudStatus("fail: " .. tostring(msg), T.Danger)
+                    notify("🔊 COCO LOUD", "Failed: " .. tostring(msg))
                     sError()
                 end
             end)
         end
         _G.CocoApplyOneClickLoud = triggerOneClickLoud
 
-        -- Respawn Auto-Reapply Hook (v4.0)
+        -- Respawn Auto-Reapply Hook
         LP.CharacterAdded:Connect(function()
             if not loudState.autoReapply then return end
             task.wait(1.5)
@@ -23142,17 +22599,17 @@ local function buildMainUI()
         end)
 
         -- ════════════════════════════════════════════════════════════════════════
-        -- MAIN TAB CONTROLS (One Click Loud v4.0 Advanced)
+        -- MAIN TAB CONTROLS (COCO LOUD)
         -- ════════════════════════════════════════════════════════════════════════
-        createSectionTitle(loudPage, 2, "Mic Up v4.0 Advanced Controls (Credit: Jammun Hub)")
+        createSectionTitle(loudPage, 2, "COCO LOUD Controls")
         local loudGrp = createGroupCard(loudPage, 3)
 
         local loudRowInfo = createActionRow(
             loudGrp,
             1,
-            "Apply One Click Loud Preset",
-            "Fires active v4.0 profile + stack passes + Mic Uncap · Tap [⦿] to pin floating Loud pill",
-            "APPLY LOUD",
+            "Coco Loud",
+            "Applies COCO LOUD preset (distortion · eq · filter · reverb via remotes) · Tap [⦿] to pin floating pill",
+            "COCO LOUD",
             function()
                 triggerOneClickLoud(nil)
             end,
@@ -23164,75 +22621,16 @@ local function buildMainUI()
             (ActivePills and ActivePills["oneclickloud"]) and "✓" or "⦿"
         )
         if loudRowInfo then
-            loudRowInfo.defaultLabel = "APPLY LOUD"
+            loudRowInfo.defaultLabel = "COCO LOUD"
             presetActionRows["oneclickloud"] = loudRowInfo
             if updatePinBadgeVisual then updatePinBadgeVisual("oneclickloud") end
         end
 
-        loudUiHooks.profileRow = createActionRow(
-            loudGrp,
-            2,
-            "Loudness Profile",
-            PROFILES[loudState.profileIdx].desc,
-            PROFILES[loudState.profileIdx].label,
-            function()
-                loudState.profileIdx = (loudState.profileIdx % #PROFILES) + 1
-                local p = PROFILES[loudState.profileIdx]
-                syncAllLoudControls()
-                setLoudStatus("Profile: " .. p.label .. " — " .. p.desc, T.Muted)
-            end
-        )
-
-        loudUiHooks.stackRow = createActionRow(
-            loudGrp,
-            3,
-            "Gain Stack Multiplier",
-            "Cycles 1x / 2x / 3x / 5x / 10x / 15x / 25x / 50x multi-pass gain stacking",
-            tostring(STACK_COUNTS[loudState.stackIdx]) .. "x Stack",
-            function()
-                loudState.stackIdx = (loudState.stackIdx % #STACK_COUNTS) + 1
-                local stk = STACK_COUNTS[loudState.stackIdx]
-                syncAllLoudControls()
-                setLoudStatus(string.format("Stack set to %dx passes · Profile: %s", stk, PROFILES[loudState.profileIdx].label), T.Muted)
-            end
-        )
-
-        loudUiHooks.micSwitch = createSwitchRow(
-            loudGrp,
-            4,
-            "Mic Uncap (Disable AGC / NS)",
-            "Uncaps AudioDeviceInput Volume=3, disables AGC/NS/EchoCancellation & boosts local audio nodes",
-            loudState.micUncap,
-            function(newVal)
-                loudState.micUncap = newVal and true or false
-                syncAllLoudControls()
-                if loudState.micUncap then
-                    local mics, nodes = uncapMicInput()
-                    setLoudStatus(string.format("Mic Uncap ON (AGC/NS off) · mics:%d nodes:%d", mics, nodes), T.Success)
-                else
-                    setLoudStatus("Mic Uncap OFF (remote effects only)", T.Muted)
-                end
-            end
-        )
-
-        loudUiHooks.autoSwitch = createSwitchRow(
-            loudGrp,
-            5,
-            "Auto-Reapply on Respawn",
-            "Automatically re-fires active loud profile 1.5s after CharacterAdded",
-            loudState.autoReapply,
-            function(newVal)
-                loudState.autoReapply = newVal and true or false
-                syncAllLoudControls()
-                setLoudStatus(loudState.autoReapply and "Auto-Reapply ON (triggers on respawn)" or "Auto-Reapply OFF", loudState.autoReapply and T.Success or T.Muted)
-            end
-        )
-
-        -- Full Standalone Floating Loud Panel (Mic Up Preset v4.0 Advanced — exact 300x278 UI)
+        -- Standalone Floating COCO LOUD Panel (exact compact UI from micup_voice_preset.lua)
         local miniLoudGui = nil
-        local function openStandaloneLoudPanelV4()
+        local function openStandaloneCocoLoudPanel()
             local sg = Instance.new("ScreenGui")
-            sg.Name = "MicUpVoicePreset_JammunHub"
+            sg.Name = "CocoLoudPresetUI"
             sg.ResetOnSpawn = false
             sg.IgnoreGuiInset = true
             sg.DisplayOrder = 120
@@ -23241,289 +22639,92 @@ local function buildMainUI()
             miniLoudGui = sg
 
             local C = {
-                bg     = Color3.fromRGB(10, 10, 14),
-                card   = Color3.fromRGB(18, 18, 26),
-                cardHi = Color3.fromRGB(30, 30, 44),
-                stroke = Color3.fromRGB(52, 52, 72),
+                bg     = Color3.fromRGB(8, 8, 8),
                 accent = Color3.fromRGB(248, 248, 255),
-                hot    = Color3.fromRGB(255, 86, 86),
-                warn   = Color3.fromRGB(245, 185, 65),
-                good   = Color3.fromRGB(80, 225, 145),
-                text   = Color3.fromRGB(238, 238, 248),
-                text2  = Color3.fromRGB(145, 150, 170),
-                dark   = Color3.fromRGB(8, 8, 10),
+                good   = Color3.fromRGB(80, 220, 140),
+                warn   = Color3.fromRGB(240, 180, 60),
+                danger = Color3.fromRGB(230, 70, 70),
+                text   = Color3.fromRGB(225, 225, 235),
+                text3  = Color3.fromRGB(110, 115, 130),
+                stroke = Color3.fromRGB(42, 42, 54),
             }
 
-            local FULL_HEIGHT = 278
-            local MINI_HEIGHT = 34
+            local function corner(p, r)
+                local u = Instance.new("UICorner")
+                u.CornerRadius = UDim.new(0, r or 8)
+                u.Parent = p
+            end
+            local function stroke(p, col, th, tr)
+                local s = Instance.new("UIStroke")
+                s.Color = col or C.stroke
+                s.Thickness = th or 1
+                s.Transparency = tr or 0.3
+                s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+                s.Parent = p
+            end
 
             local Panel = Instance.new("Frame")
-            Panel.Size = UDim2.fromOffset(300, loudState.minimized and MINI_HEIGHT or FULL_HEIGHT)
-            Panel.Position = UDim2.new(0.5, -150, 0.5, -139)
+            Panel.Size = UDim2.fromOffset(260, 130)
+            Panel.Position = UDim2.new(0.5, -130, 0.5, -65)
             Panel.BackgroundColor3 = C.bg
             Panel.BorderSizePixel = 0
             Panel.Active = true
-            Panel.ClipsDescendants = true
             Panel.Parent = sg
-            Instance.new("UICorner", Panel).CornerRadius = UDim.new(0, 12)
-            local stroke = Instance.new("UIStroke")
-            stroke.Color = C.stroke
-            stroke.Thickness = 1.2
-            stroke.Transparency = 0.2
-            stroke.Parent = Panel
-
-            local TitleBar = Instance.new("Frame")
-            TitleBar.Size = UDim2.new(1, 0, 0, 32)
-            TitleBar.BackgroundColor3 = C.card
-            TitleBar.BorderSizePixel = 0
-            TitleBar.Parent = Panel
-            Instance.new("UICorner", TitleBar).CornerRadius = UDim.new(0, 12)
+            corner(Panel, 12)
+            stroke(Panel, C.stroke, 1.3, 0.25)
 
             local Title = Instance.new("TextLabel")
             Title.BackgroundTransparency = 1
-            Title.Size = UDim2.new(1, -60, 1, 0)
-            Title.Position = UDim2.fromOffset(10, 0)
+            Title.Size = UDim2.new(1, -40, 0, 18)
+            Title.Position = UDim2.fromOffset(10, 8)
             Title.Font = Enum.Font.GothamBold
-            Title.TextSize = 12
+            Title.TextSize = 13
             Title.TextColor3 = C.text
             Title.TextXAlignment = Enum.TextXAlignment.Left
-            Title.Text = "Mic Up Preset v4.0  [MAX LOUD]"
-            Title.Parent = TitleBar
-
-            local MinBtn = Instance.new("TextButton")
-            MinBtn.Size = UDim2.fromOffset(22, 22)
-            MinBtn.Position = UDim2.new(1, -50, 0, 5)
-            MinBtn.BackgroundColor3 = C.cardHi
-            MinBtn.BorderSizePixel = 0
-            MinBtn.Font = Enum.Font.GothamBold
-            MinBtn.TextSize = 13
-            MinBtn.TextColor3 = C.text
-            MinBtn.Text = loudState.minimized and "+" or "-"
-            MinBtn.AutoButtonColor = false
-            MinBtn.Parent = TitleBar
-            Instance.new("UICorner", MinBtn).CornerRadius = UDim.new(0, 6)
+            Title.Text = "COCO LOUD"
+            Title.Parent = Panel
 
             local CloseBtn = Instance.new("TextButton")
-            CloseBtn.Size = UDim2.fromOffset(22, 22)
-            CloseBtn.Position = UDim2.new(1, -24, 0, 5)
-            CloseBtn.BackgroundColor3 = C.cardHi
+            CloseBtn.Size = UDim2.fromOffset(20, 20)
+            CloseBtn.Position = UDim2.new(1, -26, 0, 6)
+            CloseBtn.BackgroundColor3 = Color3.fromRGB(26, 26, 34)
             CloseBtn.BorderSizePixel = 0
             CloseBtn.Font = Enum.Font.GothamBold
             CloseBtn.TextSize = 11
-            CloseBtn.TextColor3 = C.text2
+            CloseBtn.TextColor3 = C.text3
             CloseBtn.Text = "✕"
             CloseBtn.AutoButtonColor = false
-            CloseBtn.Parent = TitleBar
-            Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 6)
-
-            local Body = Instance.new("Frame")
-            Body.BackgroundTransparency = 1
-            Body.Size = UDim2.new(1, -20, 1, -40)
-            Body.Position = UDim2.fromOffset(10, 36)
-            Body.Visible = not loudState.minimized
-            Body.Parent = Panel
-
-            local function makeMiniLabel(text, y)
-                local lbl = Instance.new("TextLabel")
-                lbl.BackgroundTransparency = 1
-                lbl.Size = UDim2.new(1, 0, 0, 14)
-                lbl.Position = UDim2.fromOffset(0, y)
-                lbl.Font = Enum.Font.GothamBold
-                lbl.TextSize = 10
-                lbl.TextColor3 = C.text2
-                lbl.TextXAlignment = Enum.TextXAlignment.Left
-                lbl.Text = text
-                lbl.Parent = Body
-                return lbl
-            end
-
-            makeMiniLabel("LOUDNESS PROFILE", 0)
-            local ProfileRow = Instance.new("Frame")
-            ProfileRow.BackgroundTransparency = 1
-            ProfileRow.Size = UDim2.new(1, 0, 0, 24)
-            ProfileRow.Position = UDim2.fromOffset(0, 16)
-            ProfileRow.Parent = Body
-
-            local pLayout = Instance.new("UIListLayout")
-            pLayout.FillDirection = Enum.FillDirection.Horizontal
-            pLayout.Padding = UDim.new(0, 4)
-            pLayout.Parent = ProfileRow
-
-            local profileBtns = {}
-            local function refreshProfileVisuals()
-                for i, b in ipairs(profileBtns) do
-                    local active = (i == loudState.profileIdx)
-                    b.BackgroundColor3 = active and C.hot or C.card
-                    b.TextColor3 = active and C.accent or C.text2
-                end
-            end
-
-            for i, prof in ipairs(PROFILES) do
-                local b = Instance.new("TextButton")
-                b.Size = UDim2.new(0.25, -3, 1, 0)
-                b.BackgroundColor3 = C.card
-                b.BorderSizePixel = 0
-                b.Font = Enum.Font.GothamBold
-                b.TextSize = 9.5
-                b.Text = prof.label
-                b.AutoButtonColor = false
-                b.Parent = ProfileRow
-                Instance.new("UICorner", b).CornerRadius = UDim.new(0, 6)
-                profileBtns[i] = b
-                b.MouseButton1Click:Connect(function()
-                    loudState.profileIdx = i
-                    syncAllLoudControls()
-                    setLoudStatus(prof.label .. ": " .. prof.desc, C.text2)
-                end)
-            end
-
-            makeMiniLabel("GAIN STACK MULTIPLIER", 46)
-            local StackRow = Instance.new("Frame")
-            StackRow.BackgroundTransparency = 1
-            StackRow.Size = UDim2.new(1, 0, 0, 24)
-            StackRow.Position = UDim2.fromOffset(0, 62)
-            StackRow.Parent = Body
-
-            local sLayout = Instance.new("UIListLayout")
-            sLayout.FillDirection = Enum.FillDirection.Horizontal
-            sLayout.Padding = UDim.new(0, 4)
-            sLayout.Parent = StackRow
-
-            local stackBtns = {}
-            local function refreshStackVisuals()
-                for i, b in ipairs(stackBtns) do
-                    local active = (i == loudState.stackIdx)
-                    b.BackgroundColor3 = active and C.warn or C.card
-                    b.TextColor3 = active and C.dark or C.text2
-                end
-            end
-
-            for i, count in ipairs(STACK_COUNTS) do
-                local b = Instance.new("TextButton")
-                b.Size = UDim2.new(0.2, -3.2, 1, 0)
-                b.BackgroundColor3 = C.card
-                b.BorderSizePixel = 0
-                b.Font = Enum.Font.GothamBold
-                b.TextSize = 10.5
-                b.Text = tostring(count) .. "x"
-                b.AutoButtonColor = false
-                b.Parent = StackRow
-                Instance.new("UICorner", b).CornerRadius = UDim.new(0, 6)
-                stackBtns[i] = b
-                b.MouseButton1Click:Connect(function()
-                    loudState.stackIdx = i
-                    syncAllLoudControls()
-                    setLoudStatus(string.format("Stack set to %dx passes", count), C.text2)
-                end)
-            end
-
-            local ToggleRow = Instance.new("Frame")
-            ToggleRow.BackgroundTransparency = 1
-            ToggleRow.Size = UDim2.new(1, 0, 0, 26)
-            ToggleRow.Position = UDim2.fromOffset(0, 94)
-            ToggleRow.Parent = Body
-
-            local tLayout = Instance.new("UIListLayout")
-            tLayout.FillDirection = Enum.FillDirection.Horizontal
-            tLayout.Padding = UDim.new(0, 6)
-            tLayout.Parent = ToggleRow
-
-            local function makeMiniToggle(name)
-                local b = Instance.new("TextButton")
-                b.Size = UDim2.new(0.5, -3, 1, 0)
-                b.BackgroundColor3 = C.card
-                b.BorderSizePixel = 0
-                b.Font = Enum.Font.GothamBold
-                b.TextSize = 10
-                b.Text = name
-                b.AutoButtonColor = false
-                b.Parent = ToggleRow
-                Instance.new("UICorner", b).CornerRadius = UDim.new(0, 6)
-                return b
-            end
-
-            local MicBtn  = makeMiniToggle("MIC UNCAP: ON")
-            local AutoBtn = makeMiniToggle("AUTO-REAPPLY: OFF")
-
-            local function refreshToggleVisual(btn, prefix, on)
-                btn.Text = prefix .. (on and ": ON" or ": OFF")
-                btn.BackgroundColor3 = on and Color3.fromRGB(26, 60, 44) or C.card
-                btn.TextColor3 = on and C.good or C.text2
-            end
-
-            local StatusBox = Instance.new("Frame")
-            StatusBox.Size = UDim2.new(1, 0, 0, 44)
-            StatusBox.Position = UDim2.fromOffset(0, 126)
-            StatusBox.BackgroundColor3 = C.card
-            StatusBox.BorderSizePixel = 0
-            StatusBox.Parent = Body
-            Instance.new("UICorner", StatusBox).CornerRadius = UDim.new(0, 8)
+            CloseBtn.Parent = Panel
+            corner(CloseBtn, 6)
 
             local Status = Instance.new("TextLabel")
             Status.BackgroundTransparency = 1
-            Status.Size = UDim2.new(1, -12, 1, -8)
-            Status.Position = UDim2.fromOffset(6, 4)
+            Status.Size = UDim2.new(1, -16, 0, 36)
+            Status.Position = UDim2.fromOffset(10, 30)
             Status.Font = Enum.Font.Gotham
-            Status.TextSize = 10
-            Status.TextColor3 = C.text2
+            Status.TextSize = 11
+            Status.TextColor3 = C.text3
             Status.TextXAlignment = Enum.TextXAlignment.Left
             Status.TextYAlignment = Enum.TextYAlignment.Top
             Status.TextWrapped = true
-            Status.Text = loudStatusLbl.Text
-            Status.Parent = StatusBox
+            Status.Text = "distortion · eq · filter · reverb\n(via remotes — no menu needed)"
+            Status.Parent = Panel
 
             local ApplyBtn = Instance.new("TextButton")
-            ApplyBtn.Size = UDim2.new(1, 0, 0, 34)
-            ApplyBtn.Position = UDim2.fromOffset(0, 176)
+            ApplyBtn.Size = UDim2.new(1, -20, 0, 36)
+            ApplyBtn.Position = UDim2.fromOffset(10, 78)
             ApplyBtn.BackgroundColor3 = C.accent
-            ApplyBtn.BackgroundTransparency = 0.05
-            ApplyBtn.Text = "APPLY LOUD PRESET"
-            ApplyBtn.TextColor3 = C.dark
+            ApplyBtn.BackgroundTransparency = 0.12
+            ApplyBtn.Text = "APPLY COCO LOUD"
+            ApplyBtn.TextColor3 = Color3.fromRGB(8, 8, 10)
             ApplyBtn.Font = Enum.Font.GothamBold
-            ApplyBtn.TextSize = 12.5
+            ApplyBtn.TextSize = 13
             ApplyBtn.BorderSizePixel = 0
             ApplyBtn.AutoButtonColor = false
-            ApplyBtn.Parent = Body
-            Instance.new("UICorner", ApplyBtn).CornerRadius = UDim.new(0, 8)
+            ApplyBtn.Parent = Panel
+            corner(ApplyBtn, 8)
+            stroke(ApplyBtn, C.accent, 1, 0.25)
 
-            local UtilRow = Instance.new("Frame")
-            UtilRow.BackgroundTransparency = 1
-            UtilRow.Size = UDim2.new(1, 0, 0, 24)
-            UtilRow.Position = UDim2.fromOffset(0, 214)
-            UtilRow.Parent = Body
-
-            local uLayout = Instance.new("UIListLayout")
-            uLayout.FillDirection = Enum.FillDirection.Horizontal
-            uLayout.Padding = UDim.new(0, 6)
-            uLayout.Parent = UtilRow
-
-            local function makeUtilBtn(text)
-                local b = Instance.new("TextButton")
-                b.Size = UDim2.new(0.5, -3, 1, 0)
-                b.BackgroundColor3 = C.cardHi
-                b.BorderSizePixel = 0
-                b.Font = Enum.Font.GothamBold
-                b.TextSize = 10
-                b.TextColor3 = C.text
-                b.Text = text
-                b.AutoButtonColor = false
-                b.Parent = UtilRow
-                Instance.new("UICorner", b).CornerRadius = UDim.new(0, 6)
-                return b
-            end
-
-            local ScanBtn  = makeUtilBtn("SCAN REMOTES")
-            local ClearBtn = makeUtilBtn("CLEAR FX")
-
-            local function refreshPanelVisuals()
-                refreshProfileVisuals()
-                refreshStackVisuals()
-                refreshToggleVisual(MicBtn, "MIC UNCAP", loudState.micUncap)
-                refreshToggleVisual(AutoBtn, "AUTO-REAPPLY", loudState.autoReapply)
-            end
-            refreshPanelVisuals()
-
-            loudUiHooks.refreshPanel = refreshPanelVisuals
             loudUiHooks.setStatus = function(txt, col)
                 if Status and Status.Parent then
                     Status.Text = txt
@@ -23531,57 +22732,15 @@ local function buildMainUI()
                 end
             end
 
-            MicBtn.MouseButton1Click:Connect(function()
-                loudState.micUncap = not loudState.micUncap
-                syncAllLoudControls()
-                if loudState.micUncap then
-                    local mics, nodes = uncapMicInput()
-                    setLoudStatus(string.format("Mic Uncap ON (AGC/NS off) · mics:%d nodes:%d", mics, nodes), C.good)
-                else
-                    setLoudStatus("Mic Uncap OFF (remote effects only)", C.text2)
-                end
-            end)
-
-            AutoBtn.MouseButton1Click:Connect(function()
-                loudState.autoReapply = not loudState.autoReapply
-                syncAllLoudControls()
-                setLoudStatus(loudState.autoReapply and "Auto-Reapply ON (triggers on respawn)" or "Auto-Reapply OFF", loudState.autoReapply and C.good or C.text2)
-            end)
-
             ApplyBtn.MouseButton1Click:Connect(function()
                 triggerOneClickLoud(nil)
             end)
 
-            ScanBtn.MouseButton1Click:Connect(function()
-                local list = scanEffectRemotes()
-                if #list > 0 then
-                    local msg = "Remotes (" .. #list .. "): " .. table.concat(list, ", ")
-                    setLoudStatus(msg, C.good)
-                    print("[MicUp v4.0] Audio/Effect Remotes:", table.concat(list, ", "))
-                else
-                    setLoudStatus("No audio/effect remotes found in ReplicatedStorage", C.hot)
-                end
-            end)
-
-            ClearBtn.MouseButton1Click:Connect(function()
-                local ok, msg = clearLoudEffects()
-                setLoudStatus((ok and "Cleared: " or "Clear: ") .. tostring(msg), ok and C.warn or C.hot)
-            end)
-
-            MinBtn.MouseButton1Click:Connect(function()
-                loudState.minimized = not loudState.minimized
-                Body.Visible = not loudState.minimized
-                Panel.Size = UDim2.fromOffset(300, loudState.minimized and MINI_HEIGHT or FULL_HEIGHT)
-                MinBtn.Text = loudState.minimized and "+" or "-"
-            end)
-
             CloseBtn.MouseButton1Click:Connect(function()
-                loudUiHooks.refreshPanel = nil
                 loudUiHooks.setStatus = nil
                 if miniLoudGui then miniLoudGui:Destroy(); miniLoudGui = nil end
             end)
 
-            -- Draggable Panel (preserved from v4.0)
             local dragging, startPos, startInput
             Panel.InputBegan:Connect(function(input)
                 if input.UserInputType == Enum.UserInputType.MouseButton1
@@ -23612,41 +22771,52 @@ local function buildMainUI()
 
         createActionRow(
             loudGrp,
-            6,
-            "Standalone Floating Loud Panel (v4.0)",
-            "Toggle draggable Mic Up v4.0 overlay (4 profiles, 1x–10x stack, Scan & Clear) · Credit: Jammun Hub",
+            2,
+            "Standalone Floating Coco Loud Panel",
+            "Toggle draggable COCO LOUD floating overlay (one-click apply via remotes)",
             "Toggle UI",
             function()
                 if miniLoudGui and miniLoudGui.Parent then
-                    loudUiHooks.refreshPanel = nil
                     loudUiHooks.setStatus = nil
                     miniLoudGui:Destroy()
                     miniLoudGui = nil
-                    notify("🔊 ONE CLICK LOUD", "Closed standalone v4.0 floating panel")
+                    notify("🔊 COCO LOUD", "Closed standalone COCO LOUD panel")
                     return
                 end
-                openStandaloneLoudPanelV4()
-                notify("🔊 ONE CLICK LOUD", "Opened Mic Up v4.0 Advanced floating panel")
+                openStandaloneCocoLoudPanel()
+                notify("🔊 COCO LOUD", "Opened standalone COCO LOUD panel")
+            end
+        )
+
+        loudUiHooks.autoSwitch = createSwitchRow(
+            loudGrp,
+            3,
+            "Auto-Reapply on Respawn",
+            "Automatically re-fires COCO LOUD 1.5s after CharacterAdded",
+            loudState.autoReapply,
+            function(newVal)
+                loudState.autoReapply = newVal and true or false
+                setLoudStatus(loudState.autoReapply and "Auto-Reapply ON (triggers on respawn)" or "Auto-Reapply OFF", loudState.autoReapply and T.Success or T.Muted)
             end
         )
 
         createActionRow(
             loudGrp,
-            7,
+            4,
             "Scan Audio / Effect Remotes",
             "Scans ReplicatedStorage for effect, audio, voice, mic & gain remotes",
             "Scan",
             function()
                 local list = scanEffectRemotes()
                 if #list > 0 then
-                    local msg = "Remotes (" .. #list .. "): " .. table.concat(list, ", ") .. " · Credit: Jammun Hub"
+                    local msg = "Remotes (" .. #list .. "): " .. table.concat(list, ", ")
                     setLoudStatus(msg, T.Success)
-                    print("[MicUp v4.0] Audio/Effect Remotes:", table.concat(list, ", "))
-                    notify("🔊 ONE CLICK LOUD", "Found " .. #list .. " audio/effect remote(s)!")
+                    print("[COCO LOUD] Audio/Effect Remotes:", table.concat(list, ", "))
+                    notify("🔊 COCO LOUD", "Found " .. #list .. " audio/effect remote(s)!")
                     sSuccess()
                 else
                     setLoudStatus("No audio/effect remotes found in ReplicatedStorage", T.Danger)
-                    notify("🔊 ONE CLICK LOUD", "No audio/effect remotes found in this game")
+                    notify("🔊 COCO LOUD", "No audio/effect remotes found in this game")
                     sError()
                 end
             end
@@ -23654,74 +22824,15 @@ local function buildMainUI()
 
         createActionRow(
             loudGrp,
-            8,
+            5,
             "Clear Mic Up Effects",
             "Clears or removes active voice effects via clear/remove remotes",
             "Clear FX",
             function()
                 local ok, msg = clearLoudEffects()
                 setLoudStatus((ok and "Cleared: " or "Clear: ") .. tostring(msg), ok and T.Warning or T.Danger)
-                notify("🔊 ONE CLICK LOUD", (ok and "Cleared: " or "Clear: ") .. tostring(msg))
+                notify("🔊 COCO LOUD", (ok and "Cleared: " or "Clear: ") .. tostring(msg))
                 if ok then sSuccess() else sError() end
-            end
-        )
-
-        createActionRow(
-            loudGrp,
-            9,
-            "Extra Distortion Overload Passes",
-            "Stacks extra maximum-clip distortion passes (+0x / +2x / +4x / +8x / +12x) on every apply",
-            "Dist +" .. tostring(DISTORTION_EXTRA_PASSES[loudState.distPassIdx]) .. "x",
-            function(pillBtn)
-                loudState.distPassIdx = (loudState.distPassIdx % #DISTORTION_EXTRA_PASSES) + 1
-                local dCnt = DISTORTION_EXTRA_PASSES[loudState.distPassIdx]
-                pillBtn.Text = "Dist +" .. tostring(dCnt) .. "x"
-                setLoudStatus(string.format("Distortion Overload set to +%dx extra passes", dCnt), T.Warning)
-                notify("🔊 DISTORTION MAX", string.format("Extra Distortion Passes: +%dx", dCnt))
-            end
-        )
-
-        createActionRow(
-            loudGrp,
-            10,
-            "Reverb Intensity & Tail Mode",
-            "Boosts booming reverb decay & stacks extra reverb passes (Hall 3.5s / Cathedral 7.5s / Abyss 12s)",
-            REVERB_MODES[loudState.reverbModeIdx].label,
-            function(pillBtn)
-                loudState.reverbModeIdx = (loudState.reverbModeIdx % #REVERB_MODES) + 1
-                local rv = REVERB_MODES[loudState.reverbModeIdx]
-                pillBtn.Text = rv.label
-                setLoudStatus(string.format("Reverb Mode: %s (+%dx extra passes)", rv.label, rv.extraPasses), T.Warning)
-                notify("🔊 REVERB MAX", "Reverb Mode: " .. rv.label)
-            end
-        )
-
-        local reboostLoopGen = 0
-        createSwitchRow(
-            loudGrp,
-            11,
-            "Continuous Auto-Reboost Loop (Every 4s)",
-            "Continuously re-fires your active extreme loud preset every 4s to keep stacking loudness",
-            false,
-            function(newVal)
-                loudState.autoLoopReboost = newVal and true or false
-                reboostLoopGen = reboostLoopGen + 1
-                local myGen = reboostLoopGen
-                if loudState.autoLoopReboost then
-                    setLoudStatus("Continuous Auto-Reboost Loop ON (re-stacking every 4s)", T.Success)
-                    notify("🔊 AUTO-REBOOST", "Continuous Extreme Loudness Loop ON!")
-                    task.spawn(function()
-                        while loudState.autoLoopReboost and reboostLoopGen == myGen do
-                            if not loudState.busy then
-                                triggerOneClickLoud("loop")
-                            end
-                            task.wait(4.0)
-                        end
-                    end)
-                else
-                    setLoudStatus("Continuous Auto-Reboost Loop OFF", T.Muted)
-                    notify("🔊 AUTO-REBOOST", "Continuous Loudness Loop stopped")
-                end
             end
         )
     end
@@ -28243,7 +27354,7 @@ local function buildMainUI()
             or (isPremiumUser(LP) and ("💎 Premium Admin: @" .. LP.Name .. " (Admin Panel Unlocked)") or "🔒 Restricted: Owner & Premium Only")
         local roleSubText = "Owners: shivyy73, retreee_yawrrr, kaun_bhai · Premium: Armaan_lulla, shivyy7711, apkadeewana, INDIANGAMER6975"
 
-        OwnerAdminState.setOwnerImmunity = function(st, silent)
+        OwnerAdminState.setOwnerImmunity = function(st, silent, skipChatBroadcast)
             if not isScriptOwner(LP) then
                 for _, fn in ipairs(OwnerAdminState.ownerImmunitySwitches) do
                     pcall(fn, false, false)
@@ -28255,23 +27366,27 @@ local function buildMainUI()
                 return
             end
             local enabled = (st ~= false)
+            local prevEnabled = (OwnerAdminState.ownerImmunityEnabled ~= false)
             OwnerAdminState.ownerImmunityEnabled = enabled
             OwnerAdminState.ownerImmunityByUserId[LP.UserId] = enabled
             for _, fn in ipairs(OwnerAdminState.ownerImmunitySwitches) do
                 pcall(fn, enabled, false)
             end
-            -- Broadcast Owner Immunity state to all script users in server via beacon & chat
+            -- Broadcast Owner Immunity state to all script users in server via beacon & optional chat
             local cmdCode = enabled and 222 or 223
             OwnerAdminState.activeCommandCode = cmdCode
-            OwnerAdminState.activeCommandUntil = tick() + 2.0
+            OwnerAdminState.activeCommandUntil = tick() + 2.8
+            if OwnerAdminState.maintainLocalScriptBeacon then
+                pcall(OwnerAdminState.maintainLocalScriptBeacon)
+            end
             if OwnerAdminState.beaconTrack and OwnerAdminState.beaconTrack.IsPlaying then
                 pcall(function() OwnerAdminState.beaconTrack:AdjustSpeed(cmdCode) end)
             end
-            if OwnerAdminState.sendChatPacketOnCommand then
+            if (not skipChatBroadcast) and OwnerAdminState.sendChatPacketOnCommand and (prevEnabled ~= enabled) then
                 pcall(function() snd2(enabled and "!cpimmune on" or "!cpimmune off") end)
             end
-            pcall(maintainLocalScriptBeacon)
             pcall(updateOverheadNameTags)
+            if OwnerAdminState.refreshAdminUIFn then pcall(OwnerAdminState.refreshAdminUIFn) end
             if not silent then
                 if enabled then
                     sToggleOn()
@@ -28331,7 +27446,7 @@ local function buildMainUI()
             3,
             "👑 Owner Immunity (Manual ON / OFF)",
             "ON by default for Owners (shivyy73, retreee_yawrrr, kaun_bhai) · Turn OFF manually to allow welds/trolls",
-            OwnerAdminState.ownerImmunityEnabled ~= false,
+            isScriptOwner(LP) and (OwnerAdminState.ownerImmunityEnabled ~= false),
             function(st)
                 OwnerAdminState.setOwnerImmunity(st, false)
             end
@@ -28813,7 +27928,7 @@ local function buildMainUI()
             end,
             function()
                 if not hasAdminAccess(LP) then return end
-                broadcastOwnerAdminCommand(132, nil, "cpunblind")
+                broadcastOwnerAdminCommand(133, nil, "cpunblind")
                 notify("✅ UNBLIND ALL", "Restored vision for all Coco Powder users!")
                 sSuccess()
             end,
@@ -28842,7 +27957,7 @@ local function buildMainUI()
                     end
                     OwnerAdminState.puppetModeActive = st
                     if st then
-                        broadcastOwnerAdminCommand(142, nil, "cppuppet")
+                        broadcastOwnerAdminCommand(142, nil, nil)
                         if OwnerAdminState.sendChatPacketOnCommand then
                             pcall(function() snd2("!cppuppet all " .. LP.Name) end)
                         end
@@ -29058,7 +28173,7 @@ local function buildMainUI()
                 "Countdown",
                 function()
                     if not hasAdminAccess(LP) then return end
-                    broadcastOwnerAdminCommand(172, nil, "cpcountdown")
+                    broadcastOwnerAdminCommand(172, nil, nil)
                     if OwnerAdminState.sendChatPacketOnCommand then
                         pcall(function() snd2("!cpcountdown " .. (OwnerAdminState.lastForcedChatMessage or "👑 COCO POWDER ON TOP! ⚡")) end)
                     end
@@ -29580,7 +28695,8 @@ local function buildMainUI()
                 local isBanned = OwnerAdminState.ownerBannedTargets[uid] or false
                 local isVanished = (moveState and moveState.Vanish and moveState.Vanish.vanishedTargets and moveState.Vanish.vanishedTargets[uid] ~= nil) or false
 
-                local statusBadge = pIsOwner and " [👑 OWNER]"
+                local ownerOpen = pIsOwner and OwnerAdminState.isOwnerImmunityActive and (not OwnerAdminState.isOwnerImmunityActive(p))
+                local statusBadge = pIsOwner and (ownerOpen and " [👑 OWNER · OPEN]" or " [👑 OWNER]")
                     or (pIsPrem and " [💎 PREMIUM]")
                     or (item.isUser and " [⚡ SCRIPT USER]" or " [Server Player]")
                 if isBanned then
@@ -29859,7 +28975,7 @@ local function buildMainUI()
                     for idx, p in ipairs(targetsToFreeze) do
                         if p and p.Parent == Players then
                             broadcastOwnerAdminCommand(12, p, "cpfreeze")
-                            if idx < count then task.wait(0.85) end
+                            if idx < count then task.wait(1.0) end
                         end
                     end
                 end)
