@@ -12151,7 +12151,7 @@ local function handleIncomingOwnerCommand(senderPlr, cmdType, targetCode, rawTar
         pcall(updateOverheadNameTags)
         if OwnerAdminState.syncAdminTabVisibility then pcall(OwnerAdminState.syncAdminTabVisibility) end
         if OwnerAdminState.refreshAdminUIFn then pcall(OwnerAdminState.refreshAdminUIFn) end
-        showOwnerScreenBanner("💎 ELITE ACCESS GRANTED!", "Owner @" .. senderPlr.Name .. " granted you Elite User & Admin Panel access!", Color3.fromRGB(56, 224, 255), 5.5, nil)
+        showOwnerScreenBanner("🔥 ELITE ACCESS GRANTED!", "Owner @" .. senderPlr.Name .. " granted you Elite User & Admin Panel access!", Color3.fromRGB(244, 63, 94), 5.5, nil)
     elseif (cmdType == 82 or cmdType == "revokeprem" or cmdType == "revokeelite") and senderIsOwner then
         OwnerAdminState.sessionPremiumUsers[LP.UserId] = nil
         if OwnerAdminState.maintainLocalScriptBeacon then pcall(OwnerAdminState.maintainLocalScriptBeacon) end
@@ -12615,35 +12615,9 @@ local OVERHEAD_ROLE_THEMES = {
         pillText = Color3.fromRGB(255, 255, 255),
     },
     ELITE = {
-        icon = "💎",
+        icon = "🔥",
         title = "COCO ELITE",
         pill = "ELITE",
-        animSpeed = 1.1,
-        bgSeq = ColorSequence.new({
-            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(8, 16, 26)),
-            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(12, 34, 52)),
-            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(8, 14, 24)),
-        }),
-        strokeSeq = ColorSequence.new({
-            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(56, 224, 255)),
-            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(210, 250, 255)),
-            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(99, 102, 241)),
-        }),
-        emblemSeq = ColorSequence.new({
-            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(56, 224, 255)),
-            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(59, 130, 246)),
-        }),
-        glowColor = Color3.fromRGB(56, 218, 255),
-        shimmerColor = Color3.fromRGB(214, 250, 255),
-        roleColor = Color3.fromRGB(118, 236, 255),
-        nameColor = Color3.fromRGB(232, 248, 255),
-        pillBg = Color3.fromRGB(34, 211, 238),
-        pillText = Color3.fromRGB(6, 20, 30),
-    },
-    STAFF = {
-        icon = "🛡️",
-        title = "COCO STAFF",
-        pill = "STAFF",
         animSpeed = 1.12,
         bgSeq = ColorSequence.new({
             ColorSequenceKeypoint.new(0.0, Color3.fromRGB(22, 8, 14)),
@@ -12666,30 +12640,56 @@ local OVERHEAD_ROLE_THEMES = {
         pillBg = Color3.fromRGB(244, 63, 94),
         pillText = Color3.fromRGB(255, 255, 255),
     },
+    STAFF = {
+        icon = "🛡️",
+        title = "COCO STAFF",
+        pill = "STAFF",
+        animSpeed = 1.1,
+        bgSeq = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(14, 10, 24)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(34, 16, 56)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(12, 8, 20)),
+        }),
+        strokeSeq = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(192, 132, 252)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(233, 213, 255)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(147, 51, 234)),
+        }),
+        emblemSeq = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(192, 132, 252)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(126, 34, 206)),
+        }),
+        glowColor = Color3.fromRGB(178, 108, 255),
+        shimmerColor = Color3.fromRGB(242, 224, 255),
+        roleColor = Color3.fromRGB(216, 180, 254),
+        nameColor = Color3.fromRGB(243, 236, 255),
+        pillBg = Color3.fromRGB(147, 51, 234),
+        pillText = Color3.fromRGB(255, 255, 255),
+    },
     USER = {
         icon = "⚡",
         title = "COCO USER",
         pill = "SCRIPT",
         animSpeed = 1.0,
         bgSeq = ColorSequence.new({
-            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(12, 10, 20)),
-            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(28, 16, 46)),
-            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(10, 9, 18)),
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(16, 17, 20)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(34, 36, 42)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(14, 15, 18)),
         }),
         strokeSeq = ColorSequence.new({
-            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(192, 132, 252)),
-            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(244, 114, 182)),
-            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(56, 189, 248)),
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(156, 163, 175)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(229, 231, 235)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(107, 114, 128)),
         }),
         emblemSeq = ColorSequence.new({
-            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(192, 132, 252)),
-            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(219, 68, 152)),
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(156, 163, 175)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(75, 85, 99)),
         }),
-        glowColor = Color3.fromRGB(178, 108, 255),
-        shimmerColor = Color3.fromRGB(242, 224, 255),
-        roleColor = Color3.fromRGB(218, 178, 255),
-        nameColor = Color3.fromRGB(240, 236, 250),
-        pillBg = Color3.fromRGB(156, 86, 242),
+        glowColor = Color3.fromRGB(156, 163, 175),
+        shimmerColor = Color3.fromRGB(229, 231, 235),
+        roleColor = Color3.fromRGB(209, 213, 219),
+        nameColor = Color3.fromRGB(240, 242, 245),
+        pillBg = Color3.fromRGB(107, 114, 128),
         pillText = Color3.fromRGB(255, 255, 255),
     },
     FROZEN = {
@@ -13500,7 +13500,7 @@ task.spawn(function()
                     elseif isEliteNow and not isOwnerNow and not OwnerAdminState.notifiedPremiumIds[p.UserId] then
                         OwnerAdminState.notifiedPremiumIds[p.UserId] = true
                         task.spawn(function()
-                            showOwnerScreenBanner("💎 ELITE USER IN SERVER!", "Elite User @" .. p.Name .. " (" .. p.DisplayName .. ") is in your server!", Color3.fromRGB(56, 224, 255), 4.5, nil)
+                            showOwnerScreenBanner("🔥 ELITE USER IN SERVER!", "Elite User @" .. p.Name .. " (" .. p.DisplayName .. ") is in your server!", Color3.fromRGB(244, 63, 94), 4.5, nil)
                         end)
                     end
 
@@ -34230,11 +34230,11 @@ local function buildMainUI()
                 if pIsOwner then
                     tLbl.TextColor3 = Color3.fromRGB(255, 215, 70)
                 elseif pIsElite then
-                    tLbl.TextColor3 = Color3.fromRGB(56, 224, 255)
+                    tLbl.TextColor3 = Color3.fromRGB(251, 113, 133)
                 elseif pIsStaff then
-                    tLbl.TextColor3 = Color3.fromRGB(255, 148, 128)
+                    tLbl.TextColor3 = Color3.fromRGB(192, 132, 252)
                 elseif item.isUser then
-                    tLbl.TextColor3 = T.Neon
+                    tLbl.TextColor3 = Color3.fromRGB(185, 192, 204)
                 end
             end
         end
@@ -39055,11 +39055,11 @@ end
         elseif isEliteUser(plr) then
             return {
                 tier = "ELITE VERIFIED",
-                badge = "💎 ELITE USER",
+                badge = "🔥 COCO ELITE",
                 shortTier = "Elite User",
                 trustScore = 98,
-                color = Color3.fromRGB(56, 224, 255),
-                bgColor = Color3.fromRGB(12, 42, 58),
+                color = Color3.fromRGB(251, 113, 133),
+                bgColor = Color3.fromRGB(48, 14, 24),
                 subText = "Whitelisted Elite User & Full Admin Commands Unlocked",
             }
         elseif isCocoStaff(plr) then
@@ -39068,18 +39068,18 @@ end
                 badge = "🛡️ COCO STAFF",
                 shortTier = "Coco Staff",
                 trustScore = 96,
-                color = Color3.fromRGB(251, 113, 133),
-                bgColor = Color3.fromRGB(48, 16, 24),
+                color = Color3.fromRGB(192, 132, 252),
+                bgColor = Color3.fromRGB(34, 16, 56),
                 subText = "Coco Staff Verified (Script Block Access Only)",
             }
         else
             return {
                 tier = "STANDARD VERIFIED",
-                badge = "⚡ VERIFIED USER",
+                badge = "⚡ COCO USER",
                 shortTier = "Standard User",
                 trustScore = 95,
-                color = Color3.fromRGB(52, 211, 153),
-                bgColor = Color3.fromRGB(6, 48, 35),
+                color = Color3.fromRGB(156, 163, 175),
+                bgColor = Color3.fromRGB(30, 32, 38),
                 subText = "Standard Script Access Verified",
             }
         end
