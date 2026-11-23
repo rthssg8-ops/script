@@ -4864,15 +4864,15 @@ local EmoteHub = {
     -- 📦 ALL 36 OFFICIAL ROBLOX CATALOG R15 ANIMATION PACKS (Complete Catalog Collection)
     -- ═══════════════════════════════════════════════════════════════════════════
     EmoteHub.CatalogPacks = {
-        { name = "Vampire",       idle1 = "1083445855", idle2 = "1083450166", walk = "1083473930", run = "1083462077", jump = "1083455352", fall = "1083443587", climb = "1083439238", swim = "1083468726", swimidle = "1083471239" },
+        { name = "Vampire",       idle1 = "1083445855", idle2 = "1083450166", walk = "1083473930", run = "1083462077", jump = "1083455352", fall = "1083443587", climb = "1083439238", swim = "1083464683", swimidle = "1083467779" },
         { name = "Superhero",     idle1 = "616111295",  idle2 = "616113536",  walk = "616122287",  run = "616117076",  jump = "616115533",  fall = "616108001",  climb = "616104706",  swim = "616119360",  swimidle = "616120861"  },
         { name = "Zombie",        idle1 = "616158929",  idle2 = "616160636",  walk = "616168032",  run = "616163682",  jump = "616161997",  fall = "616157476",  climb = "616156119",  swim = "616165109",  swimidle = "616166655"  },
         { name = "Ninja",         idle1 = "656117400",  idle2 = "656118341",  walk = "656121766",  run = "656118852",  jump = "656117878",  fall = "656115606",  climb = "656114359",  swim = "656119721",  swimidle = "656121397"  },
         { name = "Mage",          idle1 = "707742142",  idle2 = "707855907",  walk = "707897309",  run = "707861613",  jump = "707853694",  fall = "707829716",  climb = "707826056",  swim = "707876443",  swimidle = "707894699"  },
         { name = "Levitation",    idle1 = "616006778",  idle2 = "616008087",  walk = "616013216",  run = "616010382",  jump = "616008936",  fall = "616005863",  climb = "616003713",  swim = "616011509",  swimidle = "616012453"  },
-        { name = "Astronaut",     idle1 = "891621366",  idle2 = "891633237",  walk = "891667138",  run = "891636393",  jump = "891627522",  fall = "891617961",  climb = "891609353",  swim = "891639666",  swimidle = "891663592"  },
+        { name = "Astronaut",     idle1 = "891621366",  idle2 = "891633237",  walk = "891636393",  run = "891636393",  jump = "891627522",  fall = "891617961",  climb = "891609353",  swim = "891639666",  swimidle = "891663592"  },
         { name = "Werewolf",      idle1 = "1083195517", idle2 = "1083214717", walk = "1083178339", run = "1083216690", jump = "1083218792", fall = "1083189019", climb = "1083182000", swim = "1083222527", swimidle = "1083225406" },
-        { name = "Cartoony",      idle1 = "742637544",  idle2 = "742638445",  walk = "742640026",  run = "742638842",  jump = "742637942",  fall = "742636889",  climb = "742636889",  swim = "742639220",  swimidle = "742639812"  },
+        { name = "Cartoony",      idle1 = "742637544",  idle2 = "742638445",  walk = "742640026",  run = "742638842",  jump = "742637942",  fall = "742637151",  climb = "742636889",  swim = "742639220",  swimidle = "742639812"  },
         { name = "Pirate",        idle1 = "750781874",  idle2 = "750782770",  walk = "750785693",  run = "750783738",  jump = "750782230",  fall = "750780242",  climb = "750779899",  swim = "750784579",  swimidle = "750785176"  },
         { name = "Sneaky",        idle1 = "1132473842", idle2 = "1132477671", walk = "1132510133", run = "1132494274", jump = "1132489853", fall = "1132469004", climb = "1132461372", swim = "1132500520", swimidle = "1132506407" },
         { name = "Toy",           idle1 = "782841498",  idle2 = "782845736",  walk = "782843345",  run = "782842708",  jump = "782847020",  fall = "782846423",  climb = "782843869",  swim = "782844582",  swimidle = "782845186"  },
@@ -4883,7 +4883,7 @@ local EmoteHub = {
         { name = "Cowboy",        idle1 = "1014390418", idle2 = "1014398616", walk = "1014421541", run = "1014401683", jump = "1014394726", fall = "1014384571", climb = "1014380606", swim = "1014406523", swimidle = "1014411816" },
         { name = "Patrol",        idle1 = "1149612882", idle2 = "1150842221", walk = "1151231493", run = "1150967949", jump = "1150944216", fall = "1148863382", climb = "1148811837", swim = "1151204998", swimidle = "1151221899" },
         { name = "Elder",         idle1 = "845397899",  idle2 = "845400520",  walk = "845403856",  run = "845386501",  jump = "845398858",  fall = "845396048",  climb = "845392038",  swim = "845401742",  swimidle = "845403127"  },
-        { name = "Ghost",         idle1 = "616006778",  idle2 = "616008087",  walk = "616010382",  run = "616013216",  jump = "616008936",  fall = "616005863",  climb = "616003713",  swim = "616011509",  swimidle = "616012453"  },
+        { name = "Ghost",         idle1 = "616006778",  idle2 = "616008087",  walk = "616013216",  run = "616010382",  jump = "616008936",  fall = "616005863",  climb = "616003713",  swim = "616011509",  swimidle = "616012453"  },
         { name = "Bubbly",        idle1 = "910004836",  idle2 = "910009958",  walk = "910034870",  run = "910025107",  jump = "910016857",  fall = "910001910",  climb = "909997997",  swim = "910028158",  swimidle = "910030921"  },
         { name = "Robot",         idle1 = "616088211",  idle2 = "616089559",  walk = "616095330",  run = "616091570",  jump = "616090535",  fall = "616087089",  climb = "616086039",  swim = "616092998",  swimidle = "616094091"  },
         { name = "Stylish",       idle1 = "616136790",  idle2 = "616138447",  walk = "616146177",  run = "616140816",  jump = "616139451",  fall = "616134815",  climb = "616133594",  swim = "616143378",  swimidle = "616144772"  },
@@ -4892,14 +4892,15 @@ local EmoteHub = {
         { name = "Bold",          idle1 = "16738333868",idle2 = "16738334710",walk = "16738340646",run = "16738337225",jump = "16738336650",fall = "16738333171",climb = "16738332469",swim = "16738339158",swimidle = "16738339817"},
         { name = "Adidas Sports", idle1 = "18537376492",idle2 = "18537371272",walk = "18537392113",run = "18537384940",jump = "18537380791",fall = "18537367238",climb = "18537363391",swim = "18537389531",swimidle = "18537387180"},
         { name = "FE Zombie",     idle1 = "3489171152", idle2 = "3489171152", walk = "3489174223", run = "3489173414", jump = "616161997",  fall = "616157476",  climb = "616156119",  swim = "616165109",  swimidle = "616166655"  },
-        { name = "Cyberpunk Scout", idle1 = "10921132962", idle2 = "10921132962", walk = "10921134268", run = "10921135644", jump = "10921137402", fall = "10921136539", climb = "10921138241", swim = "10921139120", swimidle = "10921140012" },
-        { name = "Anime Champion",  idle1 = "10921291831", idle2 = "10921291831", walk = "10921292940", run = "10921293815", jump = "10921294559", fall = "10921295240", climb = "10921296011", swim = "10921296719", swimidle = "10921297424" },
-        { name = "Shinobi Assassin", idle1 = "10921157929", idle2 = "10921157929", walk = "10921158562", run = "10921159222", jump = "10921159841", fall = "10921160455", climb = "10921161042", swim = "10921161661", swimidle = "10921162294" },
-        { name = "Levitation Celestial", idle1 = "10921147841", idle2 = "10921147841", walk = "10921148560", run = "10921149231", jump = "10921149864", fall = "10921150482", climb = "10921151104", swim = "10921151739", swimidle = "10921152382" },
-        { name = "Titan Brute",     idle1 = "10921167421", idle2 = "10921167421", walk = "10921168054", run = "10921168691", jump = "10921169324", fall = "10921169950", climb = "10921170577", swim = "10921171204", swimidle = "10921171831" },
-        { name = "Feline Beast",    idle1 = "10921176840", idle2 = "10921176840", walk = "10921177473", run = "10921178106", jump = "10921178739", fall = "10921179372", climb = "10921180005", swim = "10921180638", swimidle = "10921181271" },
-        { name = "Matrix Glitch",   idle1 = "10921186280", idle2 = "10921186280", walk = "10921186913", run = "10921187546", jump = "10921188179", fall = "10921188812", climb = "10921189445", swim = "10921190078", swimidle = "10921190711" },
-        { name = "Chrono Warp",     idle1 = "10921195720", idle2 = "10921195720", walk = "10921196353", run = "10921196986", jump = "10921197619", fall = "10921198252", climb = "10921198885", swim = "10921199518", swimidle = "10921200151" },
+        { name = "Cyberpunk Scout",      idle1 = "616088211",   idle2 = "616138447",   walk = "616146177",   run = "656118852",   jump = "616090535",   fall = "616005863",   climb = "656114359",   swim = "616092998",   swimidle = "616094091"  },
+        { name = "Anime Champion",       idle1 = "616111295",   idle2 = "1083450166",  walk = "616122287",   run = "656118852",   jump = "616115533",   fall = "616108001",   climb = "656114359",   swim = "616119360",   swimidle = "616120861"  },
+        { name = "Shinobi Assassin",     idle1 = "656117400",   idle2 = "1132477671",  walk = "1132510133",  run = "656118852",   jump = "656117878",   fall = "656115606",   climb = "656114359",   swim = "656119721",   swimidle = "656121397"  },
+        { name = "Levitation Celestial", idle1 = "616006778",   idle2 = "707855907",   walk = "616013216",   run = "616010382",   jump = "707853694",   fall = "616005863",   climb = "616003713",   swim = "616011509",   swimidle = "616012453"  },
+        { name = "Titan Brute",          idle1 = "657595757",   idle2 = "1083214717",  walk = "657552124",   run = "1083216690",  jump = "658409194",   fall = "657600338",   climb = "658360781",   swim = "657560551",   swimidle = "657557095"  },
+        { name = "Feline Beast",         idle1 = "1083195517",  idle2 = "1083214717",  walk = "1083178339",  run = "1083216690",  jump = "1083218792",  fall = "1083189019",  climb = "1083182000",  swim = "1083222527",  swimidle = "1083225406" },
+        { name = "Matrix Glitch",        idle1 = "616088211",   idle2 = "616008087",   walk = "616095330",   run = "616010382",   jump = "616008936",   fall = "616087089",   climb = "616086039",   swim = "616092998",   swimidle = "616094091"  },
+        { name = "Chrono Warp",          idle1 = "891621366",   idle2 = "616008087",   walk = "891636393",   run = "616010382",   jump = "891627522",   fall = "891617961",   climb = "891609353",   swim = "891639666",   swimidle = "891663592"  },
+        { name = "Default R15 Official", isOfficial = true, idle1 = "507766388", idle2 = "507766951", walk = "507777826", run = "507767714", jump = "507765000", fall = "507767968", climb = "507765644", swim = "507784897", swimidle = "507785072" },
         -- ═══ MORTALHUB & UGC CHARACTER ANIMATION PACKS (89 Additional Packs) ═══
         { name = "(UGC) 1x1x1x1", idle1 = "76780522821306", idle2 = "76780522821306" },
         { name = "(UGC) Coolkid", idle1 = "95203125292023", idle2 = "95203125292023" },
@@ -5077,13 +5078,51 @@ local EmoteHub = {
         { name = "🦑 Squid Game Thanos Pack", idle1 = "97611664803614", idle2 = "112011282168475", walk = "97611664803614", run = "138305342272849", jump = "97611664803614", fall = "138967706335414", climb = "93550710314258" },
     }
 
+    local ResolvedPackAnimCache = {}
+    local function resolveCatalogAnimUri(idStr)
+        local digits = tostring(idStr or ""):gsub("%D", "")
+        if digits == "" then return nil end
+        if ResolvedPackAnimCache[digits] then
+            return ResolvedPackAnimCache[digits]
+        end
+        local uri = "rbxassetid://" .. digits
+        -- Unwrap Catalog Animation Asset IDs that wrap an Animation instance (common in 2024-2026 UGC packs)
+        if #digits >= 12 and typeof(game.GetObjects) == "function" then
+            pcall(function()
+                local objs = game:GetObjects(uri)
+                if objs and #objs > 0 then
+                    local first = objs[1]
+                    if first:IsA("Animation") and first.AnimationId ~= "" then
+                        uri = first.AnimationId
+                    else
+                        local inner = first:FindFirstChildWhichIsA("Animation", true)
+                        if inner and inner.AnimationId ~= "" then
+                            uri = inner.AnimationId
+                        end
+                    end
+                    pcall(function() first:Destroy() end)
+                end
+            end)
+        end
+        ResolvedPackAnimCache[digits] = uri
+        return uri
+    end
+
     local function setAnimChildId(animateScript, folderName, childName, idStr)
         if not animateScript or not idStr then return end
         local folder = animateScript:FindFirstChild(folderName)
         if not folder then return end
+        local uri = resolveCatalogAnimUri(idStr)
+        if not uri then return end
         local animObj = (childName and folder:FindFirstChild(childName)) or folder:FindFirstChildOfClass("Animation")
         if animObj and animObj:IsA("Animation") then
-            animObj.AnimationId = "rbxassetid://" .. tostring(idStr):gsub("%D", "")
+            animObj.AnimationId = uri
+        else
+            for _, child in ipairs(folder:GetChildren()) do
+                if child:IsA("Animation") then
+                    child.AnimationId = uri
+                end
+            end
         end
     end
 
@@ -5289,15 +5328,31 @@ local EmoteHub = {
             setAnimChildId(animate, "idle",     "Animation1", packEntry.idle1)
             setAnimChildId(animate, "idle",     "Animation2", packEntry.idle2 or packEntry.idle1)
             setAnimChildId(animate, "pose",     nil,          packEntry.idle1)
-            setAnimChildId(animate, "walk",     "WalkAnim",   packEntry.walk)
-            setAnimChildId(animate, "run",      "RunAnim",    packEntry.run)
+            setAnimChildId(animate, "walk",     "WalkAnim",   packEntry.walk or packEntry.run)
+            setAnimChildId(animate, "run",      "RunAnim",    packEntry.run or packEntry.walk)
             setAnimChildId(animate, "jump",     "JumpAnim",   packEntry.jump)
             setAnimChildId(animate, "fall",     "FallAnim",   packEntry.fall)
             setAnimChildId(animate, "climb",    "ClimbAnim",  packEntry.climb)
             setAnimChildId(animate, "swim",     "Swim",       packEntry.swim)
+            setAnimChildId(animate, "swim",     "SwimAnim",   packEntry.swim)
             setAnimChildId(animate, "swimidle", "SwimIdle",   packEntry.swimidle)
 
-            animate.Disabled = false
+            -- Brief yield before re-enabling Animate so Roblox reloads its internal animTable immediately
+            task.spawn(function()
+                task.wait(0.05)
+                if animate and animate.Parent then
+                    animate.Disabled = false
+                end
+                if ch and ch.Parent then
+                    stopDefaultTracks(ch)
+                end
+                if hum and hum.Parent and hum.Health > 0 then
+                    pcall(function() hum:ChangeState(Enum.HumanoidStateType.Jumping) end)
+                    task.wait(0.03)
+                    pcall(function() hum:ChangeState(Enum.HumanoidStateType.Landed) end)
+                    pcall(function() hum:ChangeState(Enum.HumanoidStateType.Running) end)
+                end
+            end)
         end
 
         local autoProc = packEntry.procMode
@@ -5557,6 +5612,19 @@ local EmoteHub = {
         { name = "Sobbing Crying",               id = "5104341999",  cat = "Actions" },
         { name = "Rage Scream",                  id = "3338066331",  cat = "Actions" },
         { name = "Vogue Runway High Fashion",    id = "9810924512",  cat = "Poses" },
+
+        -- Verified Official Roblox Catalog Emotes (Auto-Audited)
+        { name = "Godlike (Official)", id = "3823158750", cat = "Poses" },
+        { name = "Agree Nod (Official)", id = "4849487550", cat = "Actions" },
+        { name = "Confused (Official)", id = "4940561610", cat = "Poses" },
+        { name = "Quiet Waves (Official)", id = "7465946930", cat = "Dances" },
+        { name = "Top Rock Break (Official)", id = "3361276673", cat = "Dances" },
+        { name = "Fast Hands (Official)", id = "4272351660", cat = "Dances" },
+        { name = "Line Dance (Official)", id = "4049037604", cat = "Dances" },
+        { name = "Around Town (Official)", id = "3576747102", cat = "Dances" },
+        { name = "Cha Cha (Official)", id = "3695322025", cat = "Dances" },
+        { name = "Yungblud Happier (Official)", id = "15609995579", cat = "Dances" },
+        { name = "Elton John Still Standing", id = "11444443576", cat = "Dances" },
 
         -- Classic Built-in R15 & R6 Dance1 / Dance2 / Dance3 / Sit / Laugh / Cheer
         { name = "R15 Dance 1",                  id = "507771019",   cat = "Dances" },
@@ -5831,29 +5899,61 @@ local EmoteHub = {
                 return
             end
 
+            local numId = tonumber(tostring(rawId):gsub("%D", ""))
+            local spd = self.emoteFrozen and 0 or (self.emoteSpeed or 1.0)
+
+            local function bindWalkAutoStop(activeTrack)
+                if not self.allowWalkDuringEmote and activeTrack then
+                    local moveConn
+                    moveConn = hum.Running:Connect(function(walkSpd)
+                        if walkSpd > 1.5 and self.currentEmoteTrack == activeTrack and not self.allowWalkDuringEmote then
+                            if moveConn then moveConn:Disconnect() end
+                            self:StopEmote()
+                        end
+                    end)
+                end
+            end
+
+            local function tryCatalogEmoteFallback()
+                if not numId or not hum or not hum.Parent then return false end
+                -- Stage 2: Official Roblox Catalog Emote API (PlayEmoteAndGetAnimTrackById)
+                local okApi, emOk, emTrack = pcall(function()
+                    return hum:PlayEmoteAndGetAnimTrackById(numId)
+                end)
+                if okApi and emOk and emTrack then
+                    pcall(function()
+                        emTrack.Priority = Enum.AnimationPriority.Action4
+                        emTrack.Looped = self.emoteLooped
+                        emTrack:AdjustSpeed(spd)
+                    end)
+                    self.currentEmoteTrack = emTrack
+                    self.currentEmoteName = name or tostring(rawId)
+                    bindWalkAutoStop(emTrack)
+                    return true
+                end
+                -- Stage 3: HumanoidDescription AddEmote + PlayEmote fallback
+                local playedViaDesc = false
+                pcall(function()
+                    local desc = hum:GetAppliedDescription()
+                    desc:AddEmote(name or "CocoEmote", numId)
+                    pcall(function() hum:ApplyDescription(desc) end)
+                end)
+                pcall(function()
+                    playedViaDesc = hum:PlayEmote(name or "CocoEmote")
+                end)
+                return playedViaDesc == true
+            end
+
             local anim = Instance.new("Animation")
             anim.AnimationId = resolvedUri
             local ok, track = pcall(function() return animator:LoadAnimation(anim) end)
             if not ok or not track then
                 pcall(function() anim:Destroy() end)
-                -- Fallback: try HumanoidDescription:AddEmote + Humanoid:PlayEmote for Catalog Bundle IDs
-                local numId = tonumber(tostring(rawId):gsub("%D", ""))
-                local playedViaDesc = false
-                if numId then
-                    pcall(function()
-                        local desc = hum:GetAppliedDescription()
-                        desc:AddEmote(name or "CocoEmote", numId)
-                        hum:ApplyDescriptionClientServer(desc)
-                    end)
-                    pcall(function()
-                        playedViaDesc = hum:PlayEmote(name or "CocoEmote")
-                    end)
-                end
-                if playedViaDesc then
+                if tryCatalogEmoteFallback() then
                     notify("💃 EMOTE PLAYING", "Playing Catalog Emote: " .. tostring(name))
                     sSuccess()
                 else
-                    notify("💃 EMOTE HUB", "Asset could not be loaded. Check the ID, asset permissions, and rig compatibility.")
+                    notify("💃 EMOTE HUB", "Asset could not be loaded (check R15 rig or asset permissions).")
                     sError()
                 end
                 return
@@ -5861,27 +5961,32 @@ local EmoteHub = {
 
             track.Priority = Enum.AnimationPriority.Action4
             track.Looped = self.emoteLooped
-            local spd = self.emoteFrozen and 0 or (self.emoteSpeed or 1.0)
             pcall(function() track:Play(0.12, 1.0, spd) end)
             pcall(function() track:AdjustSpeed(spd) end)
 
             self.currentEmoteTrack = track
             self.currentEmoteAnim = anim
             self.currentEmoteName = name or tostring(rawId)
-
-            -- Stop emote automatically if player walks (unless allowWalkDuringEmote is true)
-            if not self.allowWalkDuringEmote then
-                local moveConn
-                moveConn = hum.Running:Connect(function(walkSpd)
-                    if walkSpd > 1.5 and self.currentEmoteTrack == track and not self.allowWalkDuringEmote then
-                        if moveConn then moveConn:Disconnect() end
-                        self:StopEmote()
-                    end
-                end)
-            end
+            bindWalkAutoStop(track)
 
             notify("💃 EMOTE PLAYING", "Playing: " .. tostring(self.currentEmoteName))
             sSuccess()
+
+            -- Verify track actually loaded (Length > 0); if 0, it is a Catalog Emote Asset ID -> auto-fallback!
+            task.delay(0.4, function()
+                if self.currentEmoteTrack ~= track then return end
+                local len = 0
+                pcall(function() len = track.Length end)
+                if len <= 0.001 then
+                    pcall(function() track:Stop(0); track:Destroy() end)
+                    pcall(function() anim:Destroy() end)
+                    self.currentEmoteTrack = nil
+                    self.currentEmoteAnim = nil
+                    if tryCatalogEmoteFallback() then
+                        notify("💃 CATALOG EMOTE", "Auto-resolved & playing: " .. tostring(name))
+                    end
+                end
+            end)
         end)
         return true
     end
