@@ -375,6 +375,40 @@ local OwnerAdminState = {
     ownerImmunityEnabled = true,     -- Manual Owner Immunity Toggle (ON by default)
     ownerImmunityByUserId = {},      -- [userId] = bool (synced across server; defaults to true for Owners)
     ownerImmunitySwitches = {},      -- UI switch setter callbacks to keep all tabs synced
+    -- Custom Admin Message Studio & Advanced Admin V36.9 Suite State
+    customAdminMsgTitle = "",
+    customAdminMsgBody = "Welcome to the server! Follow Admin orders.",
+    customAdminMsgStyleIdx = 1,      -- 1=Banner, 2=Cinema, 3=Alert, 4=Sticky
+    customAdminMsgDurIdx = 2,        -- 1=5s, 2=8s, 3=12s, 4=20s, 5=Sticky
+    customAdminMsgHistory = {},      -- recent sent custom messages
+    customAdminMsgHistIdx = 1,
+    activeCustomMsgGui = nil,
+    stickyCustomMsgGui = nil,
+    adminAuditLog = {},              -- recent admin actions log
+    adminAuditRefreshFn = nil,
+    jailModel = nil,
+    jailConn = nil,
+    jailCenter = nil,
+    orbitActive = false,
+    orbitLeader = nil,
+    orbitConn = nil,
+    congaActive = false,
+    congaLeader = nil,
+    congaConn = nil,
+    bounceActive = false,
+    bounceConn = nil,
+    spinActive = false,
+    spinConn = nil,
+    watchActive = false,
+    watchLeader = nil,
+    watchConn = nil,
+    glitchActive = false,
+    glitchGui = nil,
+    glitchConn = nil,
+    glitchCC = nil,
+    quakeConn = nil,
+    remoteWsIdx = 4,                 -- presets: 0, 8, 16, 50, 120
+    remoteJpIdx = 3,                 -- presets: 0, 50, 120, 220
 }
 
 local isConfiguredScriptOwner, isConfiguredPremiumUser, isConfiguredEliteUser, isConfiguredCocoStaff, isScriptOwner, isPremiumUser, isEliteUser, isCocoStaff, getRoleRank, getRoleDisplayName, hasAdminAccess, hasStaffBlockAccess, canBlockTarget, isProtectedFromLocalPlayer, getPlayerTargetCode, checkSavedBanState, saveBanStateToDisk, showOwnerScreenBanner, clearPersistentBanner
@@ -785,6 +819,7 @@ function StateManager:ResetPhysics(character)
     if not character then return end
     local isReanimActive = (_G.CocaSkyDestroyer and (_G.CocaSkyDestroyer.isAnyActive() or _G.CocaSkyDestroyer.is_reanimated()))
         or (_G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated) == "function" and _G._AngoorZenApi.is_reanimated())
+        or (_G._reanimAPI and type(_G._reanimAPI.is_reanimated) == "function" and _G._reanimAPI.is_reanimated())
     local activeRealChar = (isReanimActive and _G._AngoorZenApi and type(_G._AngoorZenApi.get_real_character) == "function" and _G._AngoorZenApi.get_real_character())
         or (isReanimActive and _G.CocaSkyDestroyer and type(_G.CocaSkyDestroyer.get_real_character) == "function" and _G.CocaSkyDestroyer.get_real_character())
         or nil
@@ -1139,6 +1174,7 @@ end
 recoverCharacterState = function(char, safeCF)
     local isReanimActive = (_G.CocaSkyDestroyer and (_G.CocaSkyDestroyer.isAnyActive() or _G.CocaSkyDestroyer.is_reanimated()))
         or (_G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated) == "function" and _G._AngoorZenApi.is_reanimated())
+        or (_G._reanimAPI and type(_G._reanimAPI.is_reanimated) == "function" and _G._reanimAPI.is_reanimated())
     local activeRealChar = (isReanimActive and _G._AngoorZenApi and type(_G._AngoorZenApi.get_real_character) == "function" and _G._AngoorZenApi.get_real_character())
         or (isReanimActive and _G.CocaSkyDestroyer and type(_G.CocaSkyDestroyer.get_real_character) == "function" and _G.CocaSkyDestroyer.get_real_character())
         or nil
@@ -8244,6 +8280,7 @@ local function avForceAlive(h)
     if not h or not h.Parent then return end
     local isReanimActive = (_G.CocaSkyDestroyer and (_G.CocaSkyDestroyer.isAnyActive() or _G.CocaSkyDestroyer.is_reanimated()))
         or (_G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated) == "function" and _G._AngoorZenApi.is_reanimated())
+        or (_G._reanimAPI and type(_G._reanimAPI.is_reanimated) == "function" and _G._reanimAPI.is_reanimated())
     pcall(function()
         pcall(function() h.BreakJointsOnDeath = false end)
         -- Only call SetStateEnabled when state is currently enabled to avoid dirtying Roblox's C++ Humanoid state machine!
@@ -11485,7 +11522,8 @@ inspectPlayerBeaconTracks = function(plr)
                     or (baseCmd >= 192 and baseCmd <= 194)
                     or (baseCmd >= 202 and baseCmd <= 204)
                     or (baseCmd >= 212 and baseCmd <= 216)
-                    or (baseCmd >= 222 and baseCmd <= 223) then
+                    or (baseCmd >= 222 and baseCmd <= 223)
+                    or (baseCmd >= 232 and baseCmd <= 249) then
                     local rem = math.floor(((spd - baseCmd) * 1000) + 0.5)
                     -- Commands 72 (grantelite) & 82 (revokeelite) are strictly Owner-only and NEVER accept rem == 0 ("all")!
                     if (baseCmd == 72 or baseCmd == 82) then
@@ -12098,6 +12136,750 @@ end
 
 end -- end Beacon constants scope
 
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- 📢 CUSTOM ADMIN MESSAGE STUDIO & ADVANCED ADMIN V36.9 ENGINES
+-- ═══════════════════════════════════════════════════════════════════════════════
+do
+    local CUSTOM_MSG_STYLES = {
+        { id = "banner", label = "Banner",  accent = Color3.fromRGB(255, 210, 75),  icon = "📢" },
+        { id = "cinema", label = "Cinema",  accent = Color3.fromRGB(168, 85, 247),  icon = "🎬" },
+        { id = "alert",  label = "Alert",   accent = Color3.fromRGB(244, 63, 94),   icon = "🚨" },
+        { id = "sticky", label = "Sticky",  accent = Color3.fromRGB(56, 189, 248),  icon = "📌" },
+    }
+    local CUSTOM_MSG_DURATIONS = {
+        { sec = 5,  label = "5s" },
+        { sec = 8,  label = "8s" },
+        { sec = 12, label = "12s" },
+        { sec = 20, label = "20s" },
+        { sec = 0,  label = "Sticky" },
+    }
+    OwnerAdminState.CUSTOM_MSG_STYLES = CUSTOM_MSG_STYLES
+    OwnerAdminState.CUSTOM_MSG_DURATIONS = CUSTOM_MSG_DURATIONS
+
+    OwnerAdminState.pushAdminAudit = function(actionText)
+        pcall(function()
+            local stamp = os.date("%H:%M:%S")
+            table.insert(OwnerAdminState.adminAuditLog, 1, "[" .. stamp .. "] " .. tostring(actionText or ""))
+            while #OwnerAdminState.adminAuditLog > 8 do
+                table.remove(OwnerAdminState.adminAuditLog)
+            end
+            if OwnerAdminState.adminAuditRefreshFn then
+                pcall(OwnerAdminState.adminAuditRefreshFn)
+            end
+        end)
+    end
+
+    OwnerAdminState.clearCustomAdminMessages = function()
+        pcall(function()
+            if OwnerAdminState.activeCustomMsgGui then
+                OwnerAdminState.activeCustomMsgGui:Destroy()
+                OwnerAdminState.activeCustomMsgGui = nil
+            end
+            if OwnerAdminState.stickyCustomMsgGui then
+                OwnerAdminState.stickyCustomMsgGui:Destroy()
+                OwnerAdminState.stickyCustomMsgGui = nil
+            end
+            local parentContainer = GuiParent or LP:FindFirstChildOfClass("PlayerGui")
+            if parentContainer then
+                for _, nm in ipairs({ "CocoAdminCustomMsgGui", "CocoAdminStickyMsgGui" }) do
+                    local old = parentContainer:FindFirstChild(nm)
+                    if old then old:Destroy() end
+                end
+            end
+        end)
+    end
+
+    OwnerAdminState.showCustomAdminMessage = function(senderName, senderRole, titleText, bodyText, styleName, durationSec, isPreview)
+        pcall(function()
+            local parentContainer = GuiParent or LP:FindFirstChildOfClass("PlayerGui")
+            if not parentContainer then return end
+            styleName = tostring(styleName or "banner"):lower()
+            local styleDef = CUSTOM_MSG_STYLES[1]
+            for _, st in ipairs(CUSTOM_MSG_STYLES) do
+                if st.id == styleName then styleDef = st; break end
+            end
+            local isSticky = (styleName == "sticky") or (tonumber(durationSec) == 0)
+            local dur = tonumber(durationSec)
+            if dur == nil then
+                dur = isSticky and 0 or (styleName == "alert" and 10 or 8)
+            end
+            local accent = styleDef.accent
+            local roleBadge = (senderRole == "Script Owner") and "👑 OWNER" or "💎 ELITE"
+            local cleanTitle = tostring(titleText or ""):gsub("^%s+", ""):gsub("%s+$", "")
+            if cleanTitle == "" then
+                cleanTitle = styleDef.icon .. " " .. roleBadge .. " MESSAGE"
+            else
+                cleanTitle = styleDef.icon .. " " .. cleanTitle
+            end
+            if isPreview then
+                cleanTitle = cleanTitle .. " (PREVIEW)"
+            end
+            local cleanBody = tostring(bodyText or ""):gsub("^%s+", ""):gsub("%s+$", "")
+            if cleanBody == "" then return end
+
+            local guiName = isSticky and "CocoAdminStickyMsgGui" or "CocoAdminCustomMsgGui"
+            local prev = parentContainer:FindFirstChild(guiName)
+            if prev then prev:Destroy() end
+
+            local gui = Instance.new("ScreenGui")
+            gui.Name = guiName
+            gui.ResetOnSpawn = false
+            gui.IgnoreGuiInset = true
+            gui.DisplayOrder = 1000010
+            gui.Parent = parentContainer
+            if isSticky then
+                OwnerAdminState.stickyCustomMsgGui = gui
+            else
+                OwnerAdminState.activeCustomMsgGui = gui
+            end
+
+            if styleName == "cinema" then
+                -- Full-width center-screen holographic Cinema Announcement Card
+                local dim = Instance.new("Frame")
+                dim.Size = UDim2.new(1, 0, 1, 0)
+                dim.BackgroundColor3 = Color3.fromRGB(6, 4, 12)
+                dim.BackgroundTransparency = 1
+                dim.BorderSizePixel = 0
+                dim.ZIndex = 1000
+                dim.Parent = gui
+
+                local card = Instance.new("Frame")
+                card.Size = UDim2.new(0, 440, 0, 152)
+                card.Position = UDim2.new(0.5, -220, 0.5, -76)
+                card.BackgroundColor3 = Color3.fromRGB(14, 11, 24)
+                card.BackgroundTransparency = 0.04
+                card.BorderSizePixel = 0
+                card.ZIndex = 1001
+                card.Parent = gui
+                Instance.new("UICorner", card).CornerRadius = UDim.new(0, 18)
+
+                local stroke = Instance.new("UIStroke", card)
+                stroke.Color = accent
+                stroke.Thickness = 2.2
+                stroke.Transparency = 0.08
+
+                local topBar = Instance.new("Frame", card)
+                topBar.Size = UDim2.new(1, 0, 0, 4)
+                topBar.BackgroundColor3 = accent
+                topBar.BorderSizePixel = 0
+                topBar.ZIndex = 1002
+                Instance.new("UICorner", topBar).CornerRadius = UDim.new(0, 4)
+
+                local fromLbl = Instance.new("TextLabel", card)
+                fromLbl.Size = UDim2.new(1, -54, 0, 18)
+                fromLbl.Position = UDim2.new(0, 18, 0, 12)
+                fromLbl.BackgroundTransparency = 1
+                fromLbl.Text = roleBadge .. "  ·  @" .. tostring(senderName or "Admin")
+                fromLbl.TextColor3 = accent
+                fromLbl.Font = Enum.Font.GothamBold
+                fromLbl.TextSize = 11
+                fromLbl.TextXAlignment = Enum.TextXAlignment.Left
+                fromLbl.ZIndex = 1002
+
+                local closeBtn = Instance.new("TextButton", card)
+                closeBtn.Size = UDim2.new(0, 24, 0, 24)
+                closeBtn.Position = UDim2.new(1, -34, 0, 10)
+                closeBtn.BackgroundColor3 = Color3.fromRGB(32, 26, 46)
+                closeBtn.Text = "✕"
+                closeBtn.TextColor3 = Color3.fromRGB(220, 215, 235)
+                closeBtn.Font = Enum.Font.GothamBold
+                closeBtn.TextSize = 11
+                closeBtn.ZIndex = 1003
+                Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(1, 0)
+                closeBtn.MouseButton1Click:Connect(function()
+                    if gui and gui.Parent then gui:Destroy() end
+                end)
+
+                local titleLbl = Instance.new("TextLabel", card)
+                titleLbl.Size = UDim2.new(1, -36, 0, 24)
+                titleLbl.Position = UDim2.new(0, 18, 0, 32)
+                titleLbl.BackgroundTransparency = 1
+                titleLbl.Text = cleanTitle
+                titleLbl.TextColor3 = Color3.new(1, 1, 1)
+                titleLbl.Font = Enum.Font.GothamBlack
+                titleLbl.TextSize = 16
+                titleLbl.TextXAlignment = Enum.TextXAlignment.Left
+                titleLbl.TextTruncate = Enum.TextTruncate.AtEnd
+                titleLbl.ZIndex = 1002
+
+                local bodyLbl = Instance.new("TextLabel", card)
+                bodyLbl.Size = UDim2.new(1, -36, 0, 68)
+                bodyLbl.Position = UDim2.new(0, 18, 0, 60)
+                bodyLbl.BackgroundTransparency = 1
+                bodyLbl.Text = cleanBody
+                bodyLbl.TextColor3 = Color3.fromRGB(235, 230, 248)
+                bodyLbl.Font = Enum.Font.GothamMedium
+                bodyLbl.TextSize = 13
+                bodyLbl.TextWrapped = true
+                bodyLbl.TextYAlignment = Enum.TextYAlignment.Top
+                bodyLbl.TextXAlignment = Enum.TextXAlignment.Left
+                bodyLbl.ZIndex = 1002
+
+                local progBg = Instance.new("Frame", card)
+                progBg.Size = UDim2.new(1, -36, 0, 4)
+                progBg.Position = UDim2.new(0, 18, 1, -14)
+                progBg.BackgroundColor3 = Color3.fromRGB(36, 30, 52)
+                progBg.BorderSizePixel = 0
+                progBg.ZIndex = 1002
+                Instance.new("UICorner", progBg).CornerRadius = UDim.new(1, 0)
+
+                local progFill = Instance.new("Frame", progBg)
+                progFill.Size = UDim2.new(1, 0, 1, 0)
+                progFill.BackgroundColor3 = accent
+                progFill.BorderSizePixel = 0
+                progFill.ZIndex = 1003
+                Instance.new("UICorner", progFill).CornerRadius = UDim.new(1, 0)
+
+                TweenService:Create(dim, TweenInfo.new(0.28), { BackgroundTransparency = 0.58 }):Play()
+                if dur > 0 then
+                    TweenService:Create(progFill, TweenInfo.new(dur, Enum.EasingStyle.Linear), { Size = UDim2.new(0, 0, 1, 0) }):Play()
+                    task.delay(dur, function()
+                        if gui and gui.Parent then
+                            TweenService:Create(dim, TweenInfo.new(0.25), { BackgroundTransparency = 1 }):Play()
+                            TweenService:Create(card, TweenInfo.new(0.25), { BackgroundTransparency = 1 }):Play()
+                            task.wait(0.28)
+                            if gui and gui.Parent then gui:Destroy() end
+                        end
+                    end)
+                end
+            else
+                -- Upgraded Top-Center Card (Banner / Alert / Sticky)
+                local cardW = 400
+                local cardH = 82
+                local card = Instance.new("Frame")
+                card.Size = UDim2.new(0, cardW, 0, cardH)
+                card.Position = UDim2.new(0.5, -math.floor(cardW / 2), 0, -100)
+                card.BackgroundColor3 = (styleName == "alert") and Color3.fromRGB(28, 10, 18) or Color3.fromRGB(16, 12, 26)
+                card.BackgroundTransparency = 0.04
+                card.BorderSizePixel = 0
+                card.ZIndex = 1001
+                card.Parent = gui
+                Instance.new("UICorner", card).CornerRadius = UDim.new(0, 16)
+
+                local stroke = Instance.new("UIStroke", card)
+                stroke.Color = accent
+                stroke.Thickness = (styleName == "alert") and 2.4 or 1.8
+                stroke.Transparency = 0.08
+
+                local badge = Instance.new("Frame", card)
+                badge.Size = UDim2.new(0, 42, 0, 42)
+                badge.Position = UDim2.new(0, 12, 0.5, -21)
+                badge.BackgroundColor3 = accent:Lerp(Color3.fromRGB(18, 14, 28), 0.72)
+                badge.BorderSizePixel = 0
+                badge.ZIndex = 1002
+                Instance.new("UICorner", badge).CornerRadius = UDim.new(0, 12)
+
+                local iconLbl = Instance.new("TextLabel", badge)
+                iconLbl.Size = UDim2.new(1, 0, 1, 0)
+                iconLbl.BackgroundTransparency = 1
+                iconLbl.Text = styleDef.icon
+                iconLbl.TextColor3 = accent
+                iconLbl.Font = Enum.Font.GothamBold
+                iconLbl.TextSize = 20
+                iconLbl.ZIndex = 1003
+
+                local closeBtn = Instance.new("TextButton", card)
+                closeBtn.Size = UDim2.new(0, 22, 0, 22)
+                closeBtn.Position = UDim2.new(1, -30, 0, 8)
+                closeBtn.BackgroundColor3 = Color3.fromRGB(34, 28, 48)
+                closeBtn.Text = "✕"
+                closeBtn.TextColor3 = Color3.fromRGB(220, 215, 235)
+                closeBtn.Font = Enum.Font.GothamBold
+                closeBtn.TextSize = 10
+                closeBtn.ZIndex = 1003
+                Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(1, 0)
+                closeBtn.MouseButton1Click:Connect(function()
+                    if gui and gui.Parent then gui:Destroy() end
+                end)
+
+                local titleLbl = Instance.new("TextLabel", card)
+                titleLbl.Size = UDim2.new(1, -98, 0, 18)
+                titleLbl.Position = UDim2.new(0, 62, 0, 10)
+                titleLbl.BackgroundTransparency = 1
+                titleLbl.Text = cleanTitle .. "  ·  @" .. tostring(senderName or "Admin")
+                titleLbl.TextColor3 = accent
+                titleLbl.Font = Enum.Font.GothamBlack
+                titleLbl.TextSize = 11.5
+                titleLbl.TextXAlignment = Enum.TextXAlignment.Left
+                titleLbl.TextTruncate = Enum.TextTruncate.AtEnd
+                titleLbl.ZIndex = 1002
+
+                local bodyLbl = Instance.new("TextLabel", card)
+                bodyLbl.Size = UDim2.new(1, -76, 0, 40)
+                bodyLbl.Position = UDim2.new(0, 62, 0, 29)
+                bodyLbl.BackgroundTransparency = 1
+                bodyLbl.Text = cleanBody
+                bodyLbl.TextColor3 = Color3.fromRGB(244, 240, 255)
+                bodyLbl.Font = Enum.Font.GothamMedium
+                bodyLbl.TextSize = 11.5
+                bodyLbl.TextWrapped = true
+                bodyLbl.TextYAlignment = Enum.TextYAlignment.Top
+                bodyLbl.TextXAlignment = Enum.TextXAlignment.Left
+                bodyLbl.ZIndex = 1002
+
+                local progBg = Instance.new("Frame", card)
+                progBg.Size = UDim2.new(1, -24, 0, 3)
+                progBg.Position = UDim2.new(0, 12, 1, -7)
+                progBg.BackgroundColor3 = Color3.fromRGB(36, 30, 52)
+                progBg.BorderSizePixel = 0
+                progBg.ZIndex = 1002
+                Instance.new("UICorner", progBg).CornerRadius = UDim.new(1, 0)
+
+                local progFill = Instance.new("Frame", progBg)
+                progFill.Size = UDim2.new(1, 0, 1, 0)
+                progFill.BackgroundColor3 = accent
+                progFill.BorderSizePixel = 0
+                progFill.ZIndex = 1003
+                Instance.new("UICorner", progFill).CornerRadius = UDim.new(1, 0)
+
+                local targetY = isSticky and 16 or 22
+                TweenService:Create(card, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+                    Position = UDim2.new(0.5, -math.floor(cardW / 2), 0, targetY)
+                }):Play()
+
+                if styleName == "alert" then
+                    task.spawn(function()
+                        for _ = 1, 10 do
+                            if not (gui and gui.Parent) then break end
+                            TweenService:Create(stroke, TweenInfo.new(0.3), { Transparency = 0.7 }):Play()
+                            task.wait(0.32)
+                            if not (gui and gui.Parent) then break end
+                            TweenService:Create(stroke, TweenInfo.new(0.3), { Transparency = 0.05 }):Play()
+                            task.wait(0.32)
+                        end
+                    end)
+                end
+
+                if dur > 0 then
+                    TweenService:Create(progFill, TweenInfo.new(dur, Enum.EasingStyle.Linear), { Size = UDim2.new(0, 0, 1, 0) }):Play()
+                    task.delay(dur, function()
+                        if gui and gui.Parent then
+                            TweenService:Create(card, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+                                Position = UDim2.new(0.5, -math.floor(cardW / 2), 0, -100)
+                            }):Play()
+                            task.wait(0.3)
+                            if gui and gui.Parent then gui:Destroy() end
+                        end
+                    end)
+                end
+            end
+
+            if styleName == "alert" then sError() else sSuccess() end
+        end)
+    end
+
+    OwnerAdminState.broadcastCustomAdminMessage = function(targetPlrOrNil, titleText, bodyText, styleName, durationSec)
+        if not hasAdminAccess(LP) then
+            notify("🔒 ACCESS DENIED", "Only Owners & Elite Users can send Custom Admin Messages!")
+            sError()
+            return false
+        end
+        if targetPlrOrNil and isProtectedFromLocalPlayer(targetPlrOrNil) then
+            notify("👑 OWNER IMMUNITY", "You cannot target an immune Script Owner!")
+            sError()
+            return false
+        end
+        local cleanBody = tostring(bodyText or ""):gsub("^%s+", ""):gsub("%s+$", "")
+        if cleanBody == "" then
+            notify("📢 CUSTOM MESSAGE", "Please type a custom message first!")
+            sError()
+            return false
+        end
+        local cleanTitle = tostring(titleText or ""):gsub("^%s+", ""):gsub("%s+$", "")
+        styleName = tostring(styleName or "banner"):lower()
+        local cmdMap = { banner = "!cpmsg", cinema = "!cpcinema", alert = "!cpalert", sticky = "!cpsticky" }
+        local chatCmd = cmdMap[styleName] or "!cpmsg"
+        local targetArg = targetPlrOrNil and ("@" .. targetPlrOrNil.Name) or "all"
+        local durPrefix = (tonumber(durationSec) and tonumber(durationSec) > 0 and styleName ~= "sticky")
+            and ("[" .. tostring(math.floor(tonumber(durationSec))) .. "s] ")
+            or ""
+        local payload = (cleanTitle ~= "") and (cleanTitle .. " | " .. cleanBody) or cleanBody
+        pcall(function()
+            snd2(chatCmd .. " " .. targetArg .. " " .. durPrefix .. payload)
+        end)
+
+        -- Save to session history
+        table.insert(OwnerAdminState.customAdminMsgHistory, 1, {
+            title = cleanTitle,
+            body = cleanBody,
+            style = styleName,
+            duration = durationSec,
+        })
+        while #OwnerAdminState.customAdminMsgHistory > 6 do
+            table.remove(OwnerAdminState.customAdminMsgHistory)
+        end
+        OwnerAdminState.customAdminMsgHistIdx = 1
+
+        local targetDisplay = targetPlrOrNil and ("@" .. targetPlrOrNil.Name) or "ALL Script Users"
+        OwnerAdminState.pushAdminAudit("Msg [" .. styleName:upper() .. "] -> " .. targetDisplay .. ": " .. cleanBody:sub(1, 36))
+        OwnerAdminState.showCustomAdminMessage(LP.Name, getRoleDisplayName(LP), cleanTitle ~= "" and cleanTitle or ("SENT TO " .. targetDisplay:upper()), cleanBody, styleName, math.min(tonumber(durationSec) or 5, 5), true)
+        notify("📢 CUSTOM MSG SENT", "Sent [" .. styleName:upper() .. "] message to " .. targetDisplay .. "!")
+        return true
+    end
+
+    -- 1. Remote Cyber Jail Cage & Containment Tether
+    OwnerAdminState.toggleAdminJail = function(enable, senderName)
+        if enable == nil then enable = (OwnerAdminState.jailModel == nil) end
+        if OwnerAdminState.jailConn then
+            pcall(function() OwnerAdminState.jailConn:Disconnect() end)
+            OwnerAdminState.jailConn = nil
+        end
+        if OwnerAdminState.jailModel then
+            pcall(function() OwnerAdminState.jailModel:Destroy() end)
+            OwnerAdminState.jailModel = nil
+        end
+        OwnerAdminState.jailCenter = nil
+        if not enable then
+            notify("🔓 UNJAILED", "@" .. tostring(senderName or "Admin") .. " released you from the Cyber Jail!")
+            sSuccess()
+            return
+        end
+        local ch = LP.Character
+        local rt = ch and (ch:FindFirstChild("HumanoidRootPart") or ch:FindFirstChildWhichIsA("BasePart"))
+        if not rt then return end
+        local center = rt.Position
+        OwnerAdminState.jailCenter = center
+        pcall(function()
+            local mdl = Instance.new("Model")
+            mdl.Name = "CocoAdminCyberJail"
+            local sz = 8
+            local wallDefs = {
+                { pos = Vector3.new(0, -3.5, 0), size = Vector3.new(sz, 0.5, sz) },
+                { pos = Vector3.new(0, 4.5, 0),  size = Vector3.new(sz, 0.5, sz) },
+                { pos = Vector3.new(sz / 2, 0.5, 0),  size = Vector3.new(0.4, 8, sz) },
+                { pos = Vector3.new(-sz / 2, 0.5, 0), size = Vector3.new(0.4, 8, sz) },
+                { pos = Vector3.new(0, 0.5, sz / 2),  size = Vector3.new(sz, 8, 0.4) },
+                { pos = Vector3.new(0, 0.5, -sz / 2), size = Vector3.new(sz, 8, 0.4) },
+            }
+            for i, wd in ipairs(wallDefs) do
+                local p = Instance.new("Part")
+                p.Name = "JailWall_" .. tostring(i)
+                p.Anchored = true
+                p.CanCollide = true
+                p.Material = Enum.Material.ForceField
+                p.Color = Color3.fromRGB(244, 63, 94)
+                p.Transparency = 0.45
+                p.Size = wd.size
+                p.CFrame = CFrame.new(center + wd.pos)
+                p.Parent = mdl
+            end
+            mdl.Parent = workspace
+            OwnerAdminState.jailModel = mdl
+        end)
+        OwnerAdminState.jailConn = RunService.Stepped:Connect(function()
+            if not OwnerAdminState.jailCenter then return end
+            local c = LP.Character
+            local r = c and c:FindFirstChild("HumanoidRootPart")
+            if r and (r.Position - OwnerAdminState.jailCenter).Magnitude > 3.2 then
+                pcall(function()
+                    r.CFrame = CFrame.new(OwnerAdminState.jailCenter)
+                    r.AssemblyLinearVelocity = Vector3.zero
+                end)
+            end
+        end)
+        notify("🔒 CYBER JAILED", "@" .. tostring(senderName or "Admin") .. " locked you inside a Cyber Jail!")
+        sError()
+    end
+
+    -- 2. Remote 3D Halo Orbit Around Admin
+    OwnerAdminState.toggleAdminOrbit = function(enable, leaderPlr, senderName)
+        if enable == nil then enable = not OwnerAdminState.orbitActive end
+        OwnerAdminState.orbitActive = enable
+        OwnerAdminState.orbitLeader = enable and leaderPlr or nil
+        if OwnerAdminState.orbitConn then
+            pcall(function() OwnerAdminState.orbitConn:Disconnect() end)
+            OwnerAdminState.orbitConn = nil
+        end
+        if not enable then
+            notify("🪐 ORBIT STOPPED", "@" .. tostring(senderName or "Admin") .. " released your Orbit lock!")
+            sToggleOff()
+            return
+        end
+        OwnerAdminState.orbitConn = RunService.Heartbeat:Connect(function()
+            if not OwnerAdminState.orbitActive then return end
+            local ldr = OwnerAdminState.orbitLeader
+            local lRoot = ldr and ldr.Character and ldr.Character:FindFirstChild("HumanoidRootPart")
+            local myRoot = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+            if not lRoot or not myRoot then return end
+            local myIdx, total = OwnerAdminState.computeSortedCocoSquadIndex()
+            local baseAngle = ((myIdx - 1) / math.max(total, 1)) * (math.pi * 2)
+            local ang = baseAngle + (os.clock() * 2.4)
+            local radius = 7.5
+            local hoverY = 2.0 + math.sin(os.clock() * 3.0 + baseAngle) * 1.4
+            local destPos = lRoot.Position + Vector3.new(math.cos(ang) * radius, hoverY, math.sin(ang) * radius)
+            pcall(function()
+                myRoot.CFrame = CFrame.lookAt(destPos, lRoot.Position)
+                myRoot.AssemblyLinearVelocity = Vector3.zero
+            end)
+        end)
+        notify("🪐 ADMIN ORBIT", "Orbiting @" .. tostring(leaderPlr and leaderPlr.Name or senderName or "Admin") .. "!")
+        sWhoosh()
+    end
+
+    -- 3. Remote Single-File Conga Train Behind Admin
+    OwnerAdminState.toggleAdminConga = function(enable, leaderPlr, senderName)
+        if enable == nil then enable = not OwnerAdminState.congaActive end
+        OwnerAdminState.congaActive = enable
+        OwnerAdminState.congaLeader = enable and leaderPlr or nil
+        if OwnerAdminState.congaConn then
+            pcall(function() OwnerAdminState.congaConn:Disconnect() end)
+            OwnerAdminState.congaConn = nil
+        end
+        if not enable then
+            notify("🚂 CONGA STOPPED", "@" .. tostring(senderName or "Admin") .. " stopped the Conga Train!")
+            sToggleOff()
+            return
+        end
+        OwnerAdminState.congaConn = RunService.Heartbeat:Connect(function()
+            if not OwnerAdminState.congaActive then return end
+            local ldr = OwnerAdminState.congaLeader
+            local lRoot = ldr and ldr.Character and ldr.Character:FindFirstChild("HumanoidRootPart")
+            local myRoot = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+            local myHum = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
+            if not lRoot or not myRoot then return end
+            local myIdx = OwnerAdminState.computeSortedCocoSquadIndex()
+            local slotCF = lRoot.CFrame * CFrame.new(0, 0, myIdx * 3.8)
+            local dist = (myRoot.Position - slotCF.Position).Magnitude
+            if dist > 26 then
+                pcall(function()
+                    myRoot.CFrame = slotCF
+                    myRoot.AssemblyLinearVelocity = Vector3.zero
+                end)
+            elseif myHum and dist > 1.2 then
+                pcall(function() myHum:MoveTo(slotCF.Position) end)
+            end
+        end)
+        notify("🚂 CONGA LINE", "Joined @" .. tostring(leaderPlr and leaderPlr.Name or senderName or "Admin") .. "'s Conga Train!")
+        sSuccess()
+    end
+
+    -- 4. Remote Trampoline Bounce Prank
+    OwnerAdminState.toggleAdminBounce = function(enable, senderName)
+        if enable == nil then enable = not OwnerAdminState.bounceActive end
+        OwnerAdminState.bounceActive = enable
+        if OwnerAdminState.bounceConn then
+            pcall(function() OwnerAdminState.bounceConn:Disconnect() end)
+            OwnerAdminState.bounceConn = nil
+        end
+        if not enable then
+            notify("🦘 BOUNCE OFF", "Trampoline Bounce stopped!")
+            sToggleOff()
+            return
+        end
+        local lastJump = 0
+        OwnerAdminState.bounceConn = RunService.Heartbeat:Connect(function()
+            if not OwnerAdminState.bounceActive then return end
+            local now = os.clock()
+            if now - lastJump < 0.75 then return end
+            local ch = LP.Character
+            local rt = ch and ch:FindFirstChild("HumanoidRootPart")
+            local hum = ch and ch:FindFirstChildOfClass("Humanoid")
+            if rt and hum then
+                lastJump = now
+                pcall(function()
+                    hum.Sit = false
+                    rt.AssemblyLinearVelocity = Vector3.new(rt.AssemblyLinearVelocity.X, 95, rt.AssemblyLinearVelocity.Z)
+                end)
+            end
+        end)
+        notify("🦘 TRAMPOLINE BOUNCE", "@" .. tostring(senderName or "Admin") .. " enabled Trampoline Bounce!")
+        sWhoosh()
+    end
+
+    -- 5. Remote Tornado Spin Prank
+    OwnerAdminState.toggleAdminSpin = function(enable, senderName)
+        if enable == nil then enable = not OwnerAdminState.spinActive end
+        OwnerAdminState.spinActive = enable
+        if OwnerAdminState.spinConn then
+            pcall(function() OwnerAdminState.spinConn:Disconnect() end)
+            OwnerAdminState.spinConn = nil
+        end
+        if not enable then
+            notify("🌪️ SPIN OFF", "Tornado Spin stopped!")
+            sToggleOff()
+            return
+        end
+        OwnerAdminState.spinConn = RunService.RenderStepped:Connect(function(dt)
+            if not OwnerAdminState.spinActive then return end
+            local rt = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+            if rt then
+                pcall(function()
+                    rt.CFrame = rt.CFrame * CFrame.Angles(0, dt * 18, 0)
+                end)
+            end
+        end)
+        notify("🌪️ TORNADO SPIN", "@" .. tostring(senderName or "Admin") .. " activated Tornado Spin!")
+        sWhoosh()
+    end
+
+    -- 6. Remote Camera Spectate / Watch Admin Lock
+    OwnerAdminState.toggleAdminCameraWatch = function(enable, leaderPlr, senderName)
+        if enable == nil then enable = not OwnerAdminState.watchActive end
+        OwnerAdminState.watchActive = enable
+        OwnerAdminState.watchLeader = enable and leaderPlr or nil
+        if OwnerAdminState.watchConn then
+            pcall(function() OwnerAdminState.watchConn:Disconnect() end)
+            OwnerAdminState.watchConn = nil
+        end
+        if not enable then
+            pcall(function()
+                local cam = workspace.CurrentCamera
+                local myHum = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
+                if cam and myHum then cam.CameraSubject = myHum end
+            end)
+            notify("🎥 CAMERA RELEASED", "@" .. tostring(senderName or "Admin") .. " restored your camera!")
+            sSuccess()
+            return
+        end
+        OwnerAdminState.watchConn = RunService.RenderStepped:Connect(function()
+            if not OwnerAdminState.watchActive then return end
+            local ldr = OwnerAdminState.watchLeader
+            local lHum = ldr and ldr.Character and ldr.Character:FindFirstChildOfClass("Humanoid")
+            local cam = workspace.CurrentCamera
+            if cam and lHum and cam.CameraSubject ~= lHum then
+                pcall(function() cam.CameraSubject = lHum end)
+            end
+        end)
+        notify("🎥 CAMERA LOCKED", "Spectating @" .. tostring(leaderPlr and leaderPlr.Name or senderName or "Admin") .. "!")
+        sSuccess()
+    end
+
+    -- 7. Remote Earthquake Camera Shake (5s decaying rumble)
+    OwnerAdminState.triggerAdminEarthquake = function(senderName)
+        if OwnerAdminState.quakeConn then
+            pcall(function() OwnerAdminState.quakeConn:Disconnect() end)
+            OwnerAdminState.quakeConn = nil
+        end
+        local startT = os.clock()
+        local dur = 5.0
+        OwnerAdminState.quakeConn = RunService.RenderStepped:Connect(function()
+            local elapsed = os.clock() - startT
+            if elapsed >= dur then
+                if OwnerAdminState.quakeConn then
+                    pcall(function() OwnerAdminState.quakeConn:Disconnect() end)
+                    OwnerAdminState.quakeConn = nil
+                end
+                return
+            end
+            local cam = workspace.CurrentCamera
+            if cam then
+                local power = (1 - (elapsed / dur)) * 1.4
+                local ox = (math.random() - 0.5) * power
+                local oy = (math.random() - 0.5) * power
+                pcall(function()
+                    cam.CFrame = cam.CFrame * CFrame.new(ox, oy, 0) * CFrame.Angles(0, 0, (math.random() - 0.5) * 0.08 * power)
+                end)
+            end
+        end)
+        notify("🌋 EARTHQUAKE", "@" .. tostring(senderName or "Admin") .. " triggered a 5s Earthquake!")
+        sError()
+    end
+
+    -- 8. Remote Cyber Glitch / Matrix Scanline Overlay
+    OwnerAdminState.toggleAdminGlitchOverlay = function(enable, senderName)
+        if enable == nil then enable = not OwnerAdminState.glitchActive end
+        OwnerAdminState.glitchActive = enable
+        if OwnerAdminState.glitchConn then
+            pcall(function() OwnerAdminState.glitchConn:Disconnect() end)
+            OwnerAdminState.glitchConn = nil
+        end
+        if OwnerAdminState.glitchGui then
+            pcall(function() OwnerAdminState.glitchGui:Destroy() end)
+            OwnerAdminState.glitchGui = nil
+        end
+        if OwnerAdminState.glitchCC then
+            pcall(function() OwnerAdminState.glitchCC:Destroy() end)
+            OwnerAdminState.glitchCC = nil
+        end
+        if not enable then
+            notify("👾 GLITCH FX OFF", "Cyber Glitch overlay removed!")
+            sSuccess()
+            return
+        end
+        pcall(function()
+            local cc = Instance.new("ColorCorrectionEffect")
+            cc.Name = "CocoAdminGlitchCC"
+            cc.Contrast = 0.35
+            cc.Saturation = -0.3
+            cc.TintColor = Color3.fromRGB(165, 255, 210)
+            cc.Parent = game:GetService("Lighting")
+            OwnerAdminState.glitchCC = cc
+
+            local gGui = Instance.new("ScreenGui")
+            gGui.Name = "CocoAdminGlitchGui"
+            gGui.IgnoreGuiInset = true
+            gGui.ResetOnSpawn = false
+            gGui.DisplayOrder = 999990
+            gGui.Parent = GuiParent or LP:FindFirstChildOfClass("PlayerGui")
+            OwnerAdminState.glitchGui = gGui
+
+            local bars = {}
+            for i = 1, 7 do
+                local b = Instance.new("Frame", gGui)
+                b.BorderSizePixel = 0
+                b.BackgroundColor3 = (i % 2 == 0) and Color3.fromRGB(0, 255, 170) or Color3.fromRGB(244, 63, 94)
+                b.BackgroundTransparency = 0.72
+                b.Size = UDim2.new(1, 0, 0, math.random(2, 10))
+                b.Position = UDim2.new(0, 0, math.random() * 0.95, 0)
+                table.insert(bars, b)
+            end
+
+            OwnerAdminState.glitchConn = RunService.RenderStepped:Connect(function()
+                if not OwnerAdminState.glitchActive then return end
+                for _, b in ipairs(bars) do
+                    if math.random() < 0.22 then
+                        b.Position = UDim2.new((math.random() - 0.5) * 0.08, 0, math.random() * 0.96, 0)
+                        b.Size = UDim2.new(1, 0, 0, math.random(2, 14))
+                        b.BackgroundTransparency = 0.55 + math.random() * 0.38
+                    end
+                end
+            end)
+        end)
+        notify("👾 CYBER GLITCH", "@" .. tostring(senderName or "Admin") .. " enabled Cyber Glitch vision!")
+        sError()
+    end
+
+    -- Hook existing clearAllAdminVisualPranks so Clear FX also clears Earthquake & Glitch
+    local prevClearVisualPranks = OwnerAdminState.clearAllAdminVisualPranks
+    OwnerAdminState.clearAllAdminVisualPranks = function()
+        if prevClearVisualPranks then pcall(prevClearVisualPranks) end
+        if OwnerAdminState.quakeConn then
+            pcall(function() OwnerAdminState.quakeConn:Disconnect() end)
+            OwnerAdminState.quakeConn = nil
+        end
+        OwnerAdminState.toggleAdminGlitchOverlay(false)
+    end
+
+    -- 9. Emergency Full Server Restore (clears every admin effect cleanly)
+    OwnerAdminState.fullAdminEmergencyRestore = function(senderName)
+        pcall(function() applyOwnerFreezeState(false, senderName or "Admin") end)
+        pcall(OwnerAdminState.clearAllAdminVisualPranks)
+        pcall(OwnerAdminState.clearCustomAdminMessages)
+        pcall(OwnerAdminState.stopAdminFormation)
+        pcall(function() OwnerAdminState.toggleAdminJail(false, senderName) end)
+        pcall(function() OwnerAdminState.toggleAdminOrbit(false, nil, senderName) end)
+        pcall(function() OwnerAdminState.toggleAdminConga(false, nil, senderName) end)
+        pcall(function() OwnerAdminState.toggleAdminBounce(false, senderName) end)
+        pcall(function() OwnerAdminState.toggleAdminSpin(false, senderName) end)
+        pcall(function() OwnerAdminState.toggleAdminCameraWatch(false, nil, senderName) end)
+        pcall(function()
+            workspace.Gravity = 196.2
+            local hum = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
+            if hum then
+                hum.WalkSpeed = 16
+                hum.JumpPower = 50
+                hum.Sit = false
+            end
+        end)
+        if AnimCopySys and AnimCopySys.active then
+            pcall(function() AnimCopySys:Stop(false) end)
+        end
+        if stopWeld then pcall(stopWeld, false) end
+        notify("🧹 FULL RESTORE", "@" .. tostring(senderName or "Admin") .. " restored all states & physics to normal!")
+        sSuccess()
+    end
+end
+
 -- Process incoming Owner / Elite User / Coco Staff Command (from either Beacon or Chat)
 local function handleIncomingOwnerCommand(senderPlr, cmdType, targetCode, rawTargetName, customMsg)
     if not senderPlr or senderPlr == LP then return end
@@ -12215,6 +12997,10 @@ local function handleIncomingOwnerCommand(senderPlr, cmdType, targetCode, rawTar
         [192] = "tppos", [193] = "skylounge", [194] = "groundreturn",
         [202] = "syncvip", [203] = "bodyguard", [204] = "clearvip",
         [212] = "swarmfling", [213] = "massweld", [214] = "stopall", [215] = "gravity", [216] = "speedprank",
+        [232] = "clearmsg", [233] = "jail", [234] = "unjail", [235] = "orbit", [236] = "unorbit",
+        [237] = "bounce", [238] = "spin", [239] = "sit", [240] = "setws", [241] = "setjp",
+        [242] = "watch", [243] = "unwatch", [244] = "quake", [245] = "glitch",
+        [246] = "conga", [247] = "unconga", [248] = "fullreset",
     }
     local canonCmd = canonicalCmdMap[cmdType] or tostring(cmdType)
     -- Skip empty beacon triggers for commands that strictly require chat payload (target/coords/ids) so chat packet executes cleanly
@@ -12614,6 +13400,96 @@ local function handleIncomingOwnerCommand(senderPlr, cmdType, targetCode, rawTar
             pcall(function() hum.WalkSpeed = nextSpd end)
             notify("🐌 ADMIN SPEED", "@" .. senderPlr.Name .. " set your WalkSpeed to " .. tostring(nextSpd) .. "!")
         end
+    elseif cmdType == "custommsg" then
+        -- 10A. Rich Custom Admin Message (Banner / Cinema / Alert / Sticky)
+        local payload = tostring(customMsg or "")
+        local styleTag, durTag, rest = payload:match("^(%w+)::(%d*)::(.*)$")
+        styleTag = styleTag or "banner"
+        local durNum = tonumber(durTag)
+        rest = (rest or payload):gsub("^%s+", ""):gsub("%s+$", "")
+        local optDur, afterDur = rest:match("^%[(%d+)s%]%s*(.+)$")
+        if optDur and afterDur then
+            durNum = tonumber(optDur)
+            rest = afterDur
+        end
+        local titlePart, bodyPart = rest:match("^([^|]-)%s*|%s*(.+)$")
+        if not bodyPart then
+            titlePart = ""
+            bodyPart = rest
+        end
+        if bodyPart and bodyPart ~= "" then
+            OwnerAdminState.showCustomAdminMessage(senderPlr.Name, getRoleDisplayName(senderPlr), titlePart, bodyPart, styleTag, durNum, false)
+        end
+    elseif cmdType == 232 or cmdType == "clearmsg" then
+        OwnerAdminState.clearCustomAdminMessages()
+        notify("🧹 ADMIN MSG", "@" .. senderPlr.Name .. " cleared active admin announcements!")
+    elseif cmdType == 233 or cmdType == "jail" then
+        OwnerAdminState.toggleAdminJail(true, senderPlr.Name)
+    elseif cmdType == 234 or cmdType == "unjail" then
+        OwnerAdminState.toggleAdminJail(false, senderPlr.Name)
+    elseif cmdType == 235 or cmdType == "orbit" then
+        local ldr = senderPlr
+        if customMsg and customMsg ~= "" then
+            local q = customMsg:lower():gsub("^%s*@+%s*", "")
+            for _, p in ipairs(Players:GetPlayers()) do
+                if p.Name:lower():find(q, 1, true) == 1 or p.DisplayName:lower():find(q, 1, true) == 1 then
+                    ldr = p; break
+                end
+            end
+        end
+        OwnerAdminState.toggleAdminOrbit(true, ldr, senderPlr.Name)
+    elseif cmdType == 236 or cmdType == "unorbit" then
+        OwnerAdminState.toggleAdminOrbit(false, nil, senderPlr.Name)
+    elseif cmdType == 237 or cmdType == "bounce" then
+        OwnerAdminState.toggleAdminBounce(nil, senderPlr.Name)
+    elseif cmdType == 238 or cmdType == "spin" then
+        OwnerAdminState.toggleAdminSpin(nil, senderPlr.Name)
+    elseif cmdType == 239 or cmdType == "sit" then
+        local hum = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
+        if hum then
+            pcall(function() hum.Sit = true end)
+            notify("🪑 ADMIN SIT", "@" .. senderPlr.Name .. " forced you to sit!")
+        end
+    elseif cmdType == 240 or cmdType == "setws" then
+        local hum = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
+        local val = tonumber(customMsg) or 50
+        if hum then
+            pcall(function() hum.WalkSpeed = math.clamp(val, 0, 250) end)
+            notify("⚡ ADMIN WALKSPEED", "@" .. senderPlr.Name .. " set your WalkSpeed to " .. tostring(math.clamp(val, 0, 250)) .. "!")
+        end
+    elseif cmdType == 241 or cmdType == "setjp" then
+        local hum = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
+        local val = tonumber(customMsg) or 150
+        if hum then
+            pcall(function()
+                hum.UseJumpPower = true
+                hum.JumpPower = math.clamp(val, 0, 350)
+            end)
+            notify("🦘 ADMIN JUMPPOWER", "@" .. senderPlr.Name .. " set your JumpPower to " .. tostring(math.clamp(val, 0, 350)) .. "!")
+        end
+    elseif cmdType == 242 or cmdType == "watch" then
+        local ldr = senderPlr
+        if customMsg and customMsg ~= "" then
+            local q = customMsg:lower():gsub("^%s*@+%s*", "")
+            for _, p in ipairs(Players:GetPlayers()) do
+                if p.Name:lower():find(q, 1, true) == 1 or p.DisplayName:lower():find(q, 1, true) == 1 then
+                    ldr = p; break
+                end
+            end
+        end
+        OwnerAdminState.toggleAdminCameraWatch(true, ldr, senderPlr.Name)
+    elseif cmdType == 243 or cmdType == "unwatch" then
+        OwnerAdminState.toggleAdminCameraWatch(false, nil, senderPlr.Name)
+    elseif cmdType == 244 or cmdType == "quake" then
+        OwnerAdminState.triggerAdminEarthquake(senderPlr.Name)
+    elseif cmdType == 245 or cmdType == "glitch" then
+        OwnerAdminState.toggleAdminGlitchOverlay(nil, senderPlr.Name)
+    elseif cmdType == 246 or cmdType == "conga" then
+        OwnerAdminState.toggleAdminConga(true, senderPlr, senderPlr.Name)
+    elseif cmdType == 247 or cmdType == "unconga" then
+        OwnerAdminState.toggleAdminConga(false, nil, senderPlr.Name)
+    elseif cmdType == 248 or cmdType == "fullreset" then
+        OwnerAdminState.fullAdminEmergencyRestore(senderPlr.Name)
     end
 end
 
@@ -13397,12 +14273,55 @@ local function onPlayerChatMessage(senderPlr, rawText)
         end
     elseif cmd == "cpnotify" or cmd == "ownermsg" then
         if senderPlr ~= LP then
-            local title = senderIsOwner and "👑 OWNER ANNOUNCEMENT" or "💎 ELITE USER ANNOUNCEMENT"
-            notifyOwnerJoinedServer(
-                senderPlr,
-                title,
-                (arg and arg ~= "") and arg or ("@" .. senderPlr.Name .. " is in your server!")
-            )
+            if arg and arg ~= "" then
+                handleIncomingOwnerCommand(senderPlr, "custommsg", nil, "all", "banner::8::" .. arg)
+            else
+                local title = senderIsOwner and "👑 OWNER ANNOUNCEMENT" or "💎 ELITE USER ANNOUNCEMENT"
+                notifyOwnerJoinedServer(
+                    senderPlr,
+                    title,
+                    "@" .. senderPlr.Name .. " is in your server!"
+                )
+            end
+        end
+    elseif cmd == "cpmsg" or cmd == "adminmsg" or cmd == "announce" or cmd == "broadcast" or cmd == "cpbroadcast"
+        or cmd == "cpcinema" or cmd == "cinema"
+        or cmd == "cpalert" or cmd == "alert"
+        or cmd == "cpsticky" or cmd == "sticky" then
+        local styleTag = (cmd == "cpcinema" or cmd == "cinema") and "cinema"
+            or ((cmd == "cpalert" or cmd == "alert") and "alert"
+            or ((cmd == "cpsticky" or cmd == "sticky") and "sticky" or "banner"))
+        local defaultDur = (styleTag == "sticky") and "0" or ((styleTag == "alert") and "10" or "8")
+        local firstTok, restMsg = arg:match("^(@?[%w_]+)%s+(.+)$")
+        local targetArg, msgBody = "all", arg
+        if firstTok and restMsg and restMsg ~= "" then
+            local qTok = firstTok:lower():gsub("^@", "")
+            local isKnownTarget = (qTok == "all" or qTok == "everyone" or qTok == "others" or firstTok:sub(1, 1) == "@")
+            if not isKnownTarget then
+                for _, p in ipairs(Players:GetPlayers()) do
+                    if p.Name:lower():find(qTok, 1, true) == 1 or p.DisplayName:lower():find(qTok, 1, true) == 1 then
+                        isKnownTarget = true
+                        break
+                    end
+                end
+            end
+            if isKnownTarget then
+                targetArg = firstTok
+                msgBody = restMsg
+            end
+        end
+        if msgBody and msgBody ~= "" then
+            if senderPlr == LP then
+                OwnerAdminState.pushAdminAudit("ChatCmd !" .. cmd .. " (" .. targetArg .. "): " .. msgBody:sub(1, 32))
+            else
+                handleIncomingOwnerCommand(senderPlr, "custommsg", nil, targetArg, styleTag .. "::" .. defaultDur .. "::" .. msgBody)
+            end
+        end
+    elseif cmd == "cpclearmsg" or cmd == "clearmsg" then
+        if senderPlr == LP then
+            OwnerAdminState.clearCustomAdminMessages()
+        else
+            handleIncomingOwnerCommand(senderPlr, "clearmsg", nil, arg ~= "" and arg or "all")
         end
     elseif cmd == "cppuppet" or cmd == "puppet" then
         local tArg, leaderArg = arg:match("^(%S+)%s*(.-)$")
@@ -13483,6 +14402,58 @@ local function onPlayerChatMessage(senderPlr, rawText)
             tArg = "all"
         end
         handleIncomingOwnerCommand(senderPlr, "speedprank", nil, (tArg and tArg ~= "") and tArg or "all", spdArg)
+    elseif cmd == "cpjail" or cmd == "jail" then
+        handleIncomingOwnerCommand(senderPlr, "jail", nil, arg ~= "" and arg or "all")
+    elseif cmd == "cpunjail" or cmd == "unjail" then
+        handleIncomingOwnerCommand(senderPlr, "unjail", nil, arg ~= "" and arg or "all")
+    elseif cmd == "cporbit" or cmd == "orbit" then
+        local tArg, ldrArg = arg:match("^(%S+)%s*(.-)$")
+        handleIncomingOwnerCommand(senderPlr, "orbit", nil, (tArg and tArg ~= "") and tArg or "all", ldrArg)
+    elseif cmd == "cpunorbit" or cmd == "unorbit" then
+        handleIncomingOwnerCommand(senderPlr, "unorbit", nil, arg ~= "" and arg or "all")
+    elseif cmd == "cpconga" or cmd == "conga" then
+        handleIncomingOwnerCommand(senderPlr, "conga", nil, arg ~= "" and arg or "all")
+    elseif cmd == "cpunconga" or cmd == "unconga" then
+        handleIncomingOwnerCommand(senderPlr, "unconga", nil, arg ~= "" and arg or "all")
+    elseif cmd == "cpbounce" or cmd == "bounce" or cmd == "cpjump" then
+        handleIncomingOwnerCommand(senderPlr, "bounce", nil, arg ~= "" and arg or "all")
+    elseif cmd == "cpspin" or cmd == "spin" then
+        handleIncomingOwnerCommand(senderPlr, "spin", nil, arg ~= "" and arg or "all")
+    elseif cmd == "cpsit" or cmd == "sit" then
+        handleIncomingOwnerCommand(senderPlr, "sit", nil, arg ~= "" and arg or "all")
+    elseif cmd == "cpws" or cmd == "setws" then
+        local tArg, valArg = arg:match("^(%S+)%s+(%d+)$")
+        if not tArg then
+            local onlyNum = arg:match("^(%d+)$")
+            if onlyNum then tArg = "all"; valArg = onlyNum end
+        end
+        if valArg then
+            handleIncomingOwnerCommand(senderPlr, "setws", nil, tArg or "all", valArg)
+        end
+    elseif cmd == "cpjp" or cmd == "setjp" then
+        local tArg, valArg = arg:match("^(%S+)%s+(%d+)$")
+        if not tArg then
+            local onlyNum = arg:match("^(%d+)$")
+            if onlyNum then tArg = "all"; valArg = onlyNum end
+        end
+        if valArg then
+            handleIncomingOwnerCommand(senderPlr, "setjp", nil, tArg or "all", valArg)
+        end
+    elseif cmd == "cpwatch" or cmd == "watch" then
+        local tArg, ldrArg = arg:match("^(%S+)%s*(.-)$")
+        handleIncomingOwnerCommand(senderPlr, "watch", nil, (tArg and tArg ~= "") and tArg or "all", ldrArg)
+    elseif cmd == "cpunwatch" or cmd == "unwatch" then
+        handleIncomingOwnerCommand(senderPlr, "unwatch", nil, arg ~= "" and arg or "all")
+    elseif cmd == "cpquake" or cmd == "quake" then
+        handleIncomingOwnerCommand(senderPlr, "quake", nil, arg ~= "" and arg or "all")
+    elseif cmd == "cpglitch" or cmd == "glitch" then
+        handleIncomingOwnerCommand(senderPlr, "glitch", nil, arg ~= "" and arg or "all")
+    elseif cmd == "cpfullreset" or cmd == "fullreset" or cmd == "cpclearall" then
+        if senderPlr == LP then
+            OwnerAdminState.fullAdminEmergencyRestore(LP.Name)
+        else
+            handleIncomingOwnerCommand(senderPlr, "fullreset", nil, arg ~= "" and arg or "all")
+        end
     elseif (cmd == "cpimmune" or cmd == "ownerimmune" or cmd == "immune") and isConfiguredScriptOwner(senderPlr) then
         local modeArg = tostring(arg or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
         local nextState = (modeArg == "on" or modeArg == "true" or modeArg == "1") and true
@@ -25332,7 +26303,8 @@ local function buildMainUI()
     local emotePage     = createCategory("Emotes",            "💃", 315, "315+ searchable catalog emotes, viral dances, dog/moonwalk & custom IDs", "Emotes")
     local weldPage      = createCategory("Weld & Troll",      "⚡", 15,  "Dynamic height-adaptive welds, FF LOL, FF Push, jerk troll, void throws & pins", "Weld & Troll")
     local cocoChatPage  = createCategory("Coco Chat Spam",    "💬", 3,   "Coco Chat Spam · Normal, Target Roast & Roast/Clan/Message modes", "Coco Chat Spam")
-    local loudPage      = createCategory("One Click Loud",    "🔊", 5,   "COCO LOUD · One-click Mic Up voice preset (distortion · eq · filter · reverb via remotes)", "One Click Loud")
+    local loudPage      = createCategory("One Click Loud",    "🔊", 7,   "COCO LOUD & Mic Up v3.1 · One-click Loud + One-click Remove Loud via remotes", "One Click Loud")
+    createCategory("Spotify",           "🎵", 6,   "Spotify Web API · OAuth PKCE Login, Now Playing, Library, Search, Queue & Devices", "Spotify")
     local targetPage    = createCategory("Target",            "🎯", 1,   "Omnipresent hidden-player seeker & server-wide lock", "Target")
     local movePage      = createCategory("Performance",       "🚀", 11,  "60Hz Chrono-Rewind, WalkSpeed 500 & 4-Phase Flight", "Move & Fly")
     local antiPage      = createCategory("Privacy",           "🛡", 16,  "Defence Troll Matrix V3 & 16 multi-layer physics shields", "Anti Shield")
@@ -25369,7 +26341,9 @@ local function buildMainUI()
         { key = "coversky",     pillLabel = "CoverSky",   width = 104 },
         { key = "covercube",    pillLabel = "CubeMatrix", width = 114 },
         { key = "coverflash",   pillLabel = "SkyFlash",   width = 102 },
-        { key = "oneclickloud", pillLabel = "Coco Loud 🔊", width = 114 },
+        { key = "oneclickloud",     pillLabel = "Coco Loud 🔊",   width = 114 },
+        { key = "oneclickloud_v31", pillLabel = "Loud v3.1 🔊",   width = 114 },
+        { key = "removeloud",       pillLabel = "Remove Loud 🔇", width = 126 },
         { key = "headpat",   pillLabel = "Pat",       width = 82  },
         { key = "headsit",   pillLabel = "Headsit",   width = 104 },
         { key = "poop",      pillLabel = "Poop 💩",    width = 96  },
@@ -25559,6 +26533,18 @@ local function buildMainUI()
         if key == "oneclickloud" then
             if type(_G.CocoApplyOneClickLoud) == "function" then
                 _G.CocoApplyOneClickLoud()
+            end
+            return
+        end
+        if key == "oneclickloud_v31" then
+            if type(_G.CocoApplyOneClickLoudV31) == "function" then
+                _G.CocoApplyOneClickLoudV31()
+            end
+            return
+        end
+        if key == "removeloud" then
+            if type(_G.CocoRemoveOneClickLoud) == "function" then
+                _G.CocoRemoveOneClickLoud()
             end
             return
         end
@@ -27719,9 +28705,98 @@ local function buildMainUI()
             },
         }
 
+        -- Mic Up Voice Preset v3.1.0 (from micup_voice_preset (1).lua — adjusted to chat loud settings)
+        --   distortion: max
+        --   equalizer:  first 2 max, middle (3rd) zero, last 2 max
+        --   filter:     type = 0, q = 0, gain = max
+        --   reverb:     density, diffusion, dry level, and last 4 max (others untouched at defaults)
+        local MICUP_V31_PRESET = {
+            {
+                name = "distortion",
+                props = {
+                    { "Level", 1 },
+                },
+            },
+            {
+                name = "equalier", -- game spelling
+                props = {
+                    { "LowGain",  10 },
+                    { "MidGain",  10 },
+                    { "HighGain", 0 },
+                    { "MidRange", { min = 20000, max = 20000 } },
+                },
+            },
+            {
+                name = "flter", -- game spelling
+                props = {
+                    { "FilterType", 0 },
+                    { "Gain",       30 },
+                    { "Q",          0 },
+                },
+            },
+            {
+                name = "reverb",
+                props = {
+                    { "Density",            1 },
+                    { "Diffusion",          1 },
+                    { "DryLevel",           20 },
+                    { "LateDelayTime",      0.1 },
+                    { "LowShelfFrequency",  20000 },
+                    { "LowShelfGain",       12 },
+                    { "ReferenceFrequency", 20000 },
+                },
+            },
+        }
+
+        -- Neutral / clean values used by One Click Remove Loud fallback via event_effect_property
+        local REMOVE_LOUD_NEUTRAL = {
+            {
+                name = "distortion",
+                props = {
+                    { "Level",   0 },
+                    { "Enabled", false },
+                },
+            },
+            {
+                name = "equalier",
+                props = {
+                    { "LowGain",  0 },
+                    { "MidGain",  0 },
+                    { "HighGain", 0 },
+                    { "MidRange", { min = 400, max = 4000 } },
+                    { "Enabled",  false },
+                },
+            },
+            {
+                name = "flter",
+                props = {
+                    { "FilterType", 0 },
+                    { "Gain",       0 },
+                    { "Q",          1 },
+                    { "Enabled",    false },
+                },
+            },
+            {
+                name = "reverb",
+                props = {
+                    { "DecayTime",          0.1 },
+                    { "Density",            0 },
+                    { "DecayRatio",         0.5 },
+                    { "Diffusion",          0 },
+                    { "DryLevel",           0 },
+                    { "WetLevel",           -80 },
+                    { "EarlyDelayTime",     0 },
+                    { "LateDelayTime",      0 },
+                    { "LowShelfGain",       0 },
+                    { "Enabled",            false },
+                },
+            },
+        }
+
         local loudState = {
             autoReapply = false,
             busy        = false,
+            lastPreset  = "v31",
         }
 
         local function getLoudRemotes()
@@ -27761,13 +28836,68 @@ local function buildMainUI()
             return found
         end
 
+        local function applyPresetTable(presetTable)
+            local addEv, propEv = getLoudRemotes()
+            if not addEv or not propEv then
+                return false, "remotes missing (event_effect_add / event_effect_property)"
+            end
+
+            local applied = {}
+            for _, fx in ipairs(presetTable) do
+                local okAdd = pcall(function()
+                    addEv:FireServer(fx.name)
+                end)
+                if not okAdd then
+                    table.insert(applied, fx.name .. ":add_fail")
+                else
+                    task.wait(0.05)
+                    local okAll = true
+                    for _, p in ipairs(fx.props) do
+                        local ok = pcall(function()
+                            propEv:FireServer(fx.name, p[1], p[2])
+                        end)
+                        if not ok then okAll = false end
+                        task.wait(0.02)
+                    end
+                    table.insert(applied, fx.name .. (okAll and ":ok" or ":partial"))
+                end
+                task.wait(0.06)
+            end
+            return true, table.concat(applied, ", ")
+        end
+
+        local function applyMicUpV31Preset()
+            return applyPresetTable(MICUP_V31_PRESET)
+        end
+
+        -- Bulletproof 3-layer One Click Remove Loud:
+        --   Layer 1: Clear/Reset-All remotes (known names + dynamic scan)
+        --   Layer 2: Per-effect Remove/Delete/Disable remotes for all voice FX
+        --   Layer 3: Guaranteed property neutralize via event_effect_property + local Audio* FX cleanup
         local function clearLoudEffects()
+            local steps = {}
+            local anySuccess = false
+
+            -- Layer 1: Direct Clear / Reset-All remotes
             local clearEv = findOptionalRemote({
                 "event_effect_clear",
                 "event_effects_clear",
                 "event_effect_reset",
+                "event_effects_reset",
                 "event_effect_remove_all",
+                "event_clear_effects",
             })
+            if not clearEv then
+                for _, inst in ipairs(RS:GetDescendants()) do
+                    if inst:IsA("RemoteEvent") or inst:IsA("RemoteFunction") then
+                        local ln = string.lower(inst.Name)
+                        if string.find(ln, "effect", 1, true) and (string.find(ln, "clear", 1, true) or string.find(ln, "reset", 1, true)) then
+                            clearEv = inst
+                            break
+                        end
+                    end
+                end
+            end
             if clearEv then
                 local ok = pcall(function()
                     if clearEv:IsA("RemoteEvent") then
@@ -27776,17 +28906,37 @@ local function buildMainUI()
                         clearEv:InvokeServer()
                     end
                 end)
-                return ok, ok and ("cleared via " .. clearEv.Name) or ("failed: " .. clearEv.Name)
+                if ok then
+                    anySuccess = true
+                    table.insert(steps, "cleared:" .. clearEv.Name)
+                end
+                task.wait(0.03)
             end
 
+            -- Layer 2: Per-effect Remove / Delete / Disable remotes
             local removeEv = findOptionalRemote({
                 "event_effect_remove",
                 "event_effect_delete",
+                "event_effect_destroy",
+                "event_effect_disable",
+                "event_effect_off",
+                "event_remove_effect",
             })
+            if not removeEv then
+                for _, inst in ipairs(RS:GetDescendants()) do
+                    if inst:IsA("RemoteEvent") or inst:IsA("RemoteFunction") then
+                        local ln = string.lower(inst.Name)
+                        if string.find(ln, "effect", 1, true) and (string.find(ln, "remove", 1, true) or string.find(ln, "delete", 1, true) or string.find(ln, "destroy", 1, true)) then
+                            removeEv = inst
+                            break
+                        end
+                    end
+                end
+            end
+            local fxNames = { "distortion", "equalier", "flter", "reverb", "chorus", "compressor", "echo", "pitch" }
             if removeEv then
-                local names = { "distortion", "equalier", "flter", "reverb" }
                 local removed = 0
-                for _, n in ipairs(names) do
+                for _, n in ipairs(fxNames) do
                     local ok = pcall(function()
                         if removeEv:IsA("RemoteEvent") then
                             removeEv:FireServer(n)
@@ -27797,10 +28947,61 @@ local function buildMainUI()
                     if ok then removed = removed + 1 end
                     task.wait(0.02)
                 end
-                return true, string.format("removed %d via %s", removed, removeEv.Name)
+                if removed > 0 then
+                    anySuccess = true
+                    table.insert(steps, string.format("removed(%d):%s", removed, removeEv.Name))
+                end
             end
 
-            return false, "no clear/remove remote found"
+            -- Layer 3: Guaranteed property neutralize via event_effect_property
+            local _, propEv = getLoudRemotes()
+            if propEv then
+                local resetCount = 0
+                for _, fx in ipairs(REMOVE_LOUD_NEUTRAL) do
+                    for _, p in ipairs(fx.props) do
+                        local ok = pcall(function()
+                            propEv:FireServer(fx.name, p[1], p[2])
+                        end)
+                        if ok then resetCount = resetCount + 1 end
+                        task.wait(0.015)
+                    end
+                end
+                if resetCount > 0 then
+                    anySuccess = true
+                    table.insert(steps, string.format("neutralized(%d props)", resetCount))
+                end
+            end
+
+            -- Local client Audio* effect cleanup (bypass/disable any client-side audio effects)
+            local localReset = 0
+            pcall(function()
+                local containers = { LP }
+                if LP.Character then table.insert(containers, LP.Character) end
+                local vcs = game:FindFirstChildOfClass("VoiceChatService")
+                if vcs then table.insert(containers, vcs) end
+                for _, root in ipairs(containers) do
+                    for _, d in ipairs(root:GetDescendants()) do
+                        local cn = d.ClassName
+                        if cn == "AudioDistortion" or cn == "AudioEqualizer" or cn == "AudioFilter" or cn == "AudioReverb" or cn == "AudioChorus" or cn == "AudioCompressor" or cn == "AudioEcho" then
+                            pcall(function() d.Bypass = true end)
+                            if cn == "AudioDistortion" then pcall(function() d.Level = 0 end)
+                            elseif cn == "AudioEqualizer" then pcall(function() d.LowGain = 0; d.MidGain = 0; d.HighGain = 0 end)
+                            elseif cn == "AudioFilter" then pcall(function() d.Gain = 0 end)
+                            elseif cn == "AudioReverb" then pcall(function() d.DryLevel = 0; d.WetLevel = -80 end) end
+                            localReset = localReset + 1
+                        end
+                    end
+                end
+            end)
+            if localReset > 0 then
+                anySuccess = true
+                table.insert(steps, string.format("localFX(%d)", localReset))
+            end
+
+            if anySuccess then
+                return true, table.concat(steps, " · ")
+            end
+            return false, "no effect remotes or local audio FX found"
         end
 
         local function applyCocoLoudPreset()
@@ -27930,13 +29131,72 @@ local function buildMainUI()
                 end
             end)
         end
-        _G.CocoApplyOneClickLoud = triggerOneClickLoud
+        _G.CocoApplyOneClickLoud = function(reason)
+            loudState.lastPreset = "coco"
+            triggerOneClickLoud(reason)
+        end
+
+        local function triggerOneClickLoudV31(reason)
+            if loudState.busy then
+                notify("🔊 MIC UP v3.1", "Already firing remotes, please wait...")
+                return
+            end
+            loudState.busy = true
+            loudState.lastPreset = "v31"
+            local prefix = reason and ("[" .. tostring(reason) .. "] ") or ""
+            setLoudStatus(prefix .. "firing Mic Up v3.1 remotes...", T.Warning)
+
+            task.spawn(function()
+                local ok, msg = applyMicUpV31Preset()
+                loudState.busy = false
+                if ok then
+                    setLoudStatus("v3.1 done: " .. tostring(msg), T.Success)
+                    print("[MicUp v3.1] " .. tostring(msg))
+                    notify("🔊 MIC UP v3.1", "Applied Mic Up Voice Preset v3.1!")
+                    sSuccess()
+                else
+                    setLoudStatus("v3.1 fail: " .. tostring(msg), T.Danger)
+                    notify("🔊 MIC UP v3.1", "Failed: " .. tostring(msg))
+                    sError()
+                end
+            end)
+        end
+        _G.CocoApplyOneClickLoudV31 = triggerOneClickLoudV31
+
+        local function triggerOneClickRemoveLoud()
+            if loudState.busy then
+                notify("🔇 REMOVE LOUD", "Already firing remotes, please wait...")
+                return
+            end
+            loudState.busy = true
+            setLoudStatus("removing / neutralizing all loud effects...", T.Warning)
+
+            task.spawn(function()
+                local ok, msg = clearLoudEffects()
+                loudState.busy = false
+                if ok then
+                    setLoudStatus("Removed Loud: " .. tostring(msg), T.Success)
+                    print("[COCO LOUD REMOVE] " .. tostring(msg))
+                    notify("🔇 REMOVE LOUD", "Loud removed! (" .. tostring(msg) .. ")")
+                    sSuccess()
+                else
+                    setLoudStatus("Remove fail: " .. tostring(msg), T.Danger)
+                    notify("🔇 REMOVE LOUD", "Failed: " .. tostring(msg))
+                    sError()
+                end
+            end)
+        end
+        _G.CocoRemoveOneClickLoud = triggerOneClickRemoveLoud
 
         -- Respawn Auto-Reapply Hook
         LP.CharacterAdded:Connect(function()
             if not loudState.autoReapply then return end
             task.wait(1.5)
-            triggerOneClickLoud("respawn")
+            if loudState.lastPreset == "v31" then
+                triggerOneClickLoudV31("respawn")
+            else
+                triggerOneClickLoud("respawn")
+            end
         end)
 
         -- ════════════════════════════════════════════════════════════════════════
@@ -27965,6 +29225,50 @@ local function buildMainUI()
             loudRowInfo.defaultLabel = "COCO LOUD"
             presetActionRows["oneclickloud"] = loudRowInfo
             if updatePinBadgeVisual then updatePinBadgeVisual("oneclickloud") end
+        end
+
+        local loudV31RowInfo = createActionRow(
+            loudGrp,
+            2,
+            "Mic Up Preset v3.1 (Chat Loud)",
+            "Exact micup_voice_preset v3.1 (distortion max · eq HighGain=0 · filter Q=0 · reverb chat loud) · [⦿] pin pill",
+            "LOUD v3.1",
+            function()
+                triggerOneClickLoudV31(nil)
+            end,
+            function()
+                if toggleFloatingPill then
+                    toggleFloatingPill("oneclickloud_v31")
+                end
+            end,
+            (ActivePills and ActivePills["oneclickloud_v31"]) and "✓" or "⦿"
+        )
+        if loudV31RowInfo then
+            loudV31RowInfo.defaultLabel = "LOUD v3.1"
+            presetActionRows["oneclickloud_v31"] = loudV31RowInfo
+            if updatePinBadgeVisual then updatePinBadgeVisual("oneclickloud_v31") end
+        end
+
+        local removeLoudRowInfo = createActionRow(
+            loudGrp,
+            3,
+            "One Click Remove Loud",
+            "Removes & neutralizes all Mic Up loud effects in 1 click (clear/remove remotes + property reset + local FX) · [⦿] pin pill",
+            "REMOVE 🔇",
+            function()
+                triggerOneClickRemoveLoud()
+            end,
+            function()
+                if toggleFloatingPill then
+                    toggleFloatingPill("removeloud")
+                end
+            end,
+            (ActivePills and ActivePills["removeloud"]) and "✓" or "⦿"
+        )
+        if removeLoudRowInfo then
+            removeLoudRowInfo.defaultLabel = "REMOVE 🔇"
+            presetActionRows["removeloud"] = removeLoudRowInfo
+            if updatePinBadgeVisual then updatePinBadgeVisual("removeloud") end
         end
 
         -- Standalone Floating COCO LOUD Panel (exact compact UI from micup_voice_preset.lua)
@@ -28005,8 +29309,8 @@ local function buildMainUI()
             end
 
             local Panel = Instance.new("Frame")
-            Panel.Size = UDim2.fromOffset(260, 130)
-            Panel.Position = UDim2.new(0.5, -130, 0.5, -65)
+            Panel.Size = UDim2.fromOffset(266, 214)
+            Panel.Position = UDim2.new(0.5, -133, 0.5, -107)
             Panel.BackgroundColor3 = C.bg
             Panel.BorderSizePixel = 0
             Panel.Active = true
@@ -28077,6 +29381,44 @@ local function buildMainUI()
                 triggerOneClickLoud(nil)
             end)
 
+            local ApplyV31Btn = Instance.new("TextButton")
+            ApplyV31Btn.Size = UDim2.new(1, -20, 0, 34)
+            ApplyV31Btn.Position = UDim2.fromOffset(10, 120)
+            ApplyV31Btn.BackgroundColor3 = Color3.fromRGB(60, 185, 130)
+            ApplyV31Btn.BackgroundTransparency = 0.14
+            ApplyV31Btn.Text = "APPLY MIC UP v3.1 LOUD"
+            ApplyV31Btn.TextColor3 = Color3.fromRGB(8, 8, 10)
+            ApplyV31Btn.Font = Enum.Font.GothamBold
+            ApplyV31Btn.TextSize = 12
+            ApplyV31Btn.BorderSizePixel = 0
+            ApplyV31Btn.AutoButtonColor = false
+            ApplyV31Btn.Parent = Panel
+            corner(ApplyV31Btn, 8)
+            stroke(ApplyV31Btn, C.good, 1, 0.25)
+
+            ApplyV31Btn.MouseButton1Click:Connect(function()
+                triggerOneClickLoudV31(nil)
+            end)
+
+            local RemoveBtn = Instance.new("TextButton")
+            RemoveBtn.Size = UDim2.new(1, -20, 0, 34)
+            RemoveBtn.Position = UDim2.fromOffset(10, 160)
+            RemoveBtn.BackgroundColor3 = C.danger
+            RemoveBtn.BackgroundTransparency = 0.14
+            RemoveBtn.Text = "🔇 REMOVE LOUD (1-CLICK)"
+            RemoveBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            RemoveBtn.Font = Enum.Font.GothamBold
+            RemoveBtn.TextSize = 12
+            RemoveBtn.BorderSizePixel = 0
+            RemoveBtn.AutoButtonColor = false
+            RemoveBtn.Parent = Panel
+            corner(RemoveBtn, 8)
+            stroke(RemoveBtn, C.danger, 1, 0.25)
+
+            RemoveBtn.MouseButton1Click:Connect(function()
+                triggerOneClickRemoveLoud()
+            end)
+
             CloseBtn.MouseButton1Click:Connect(function()
                 loudUiHooks.setStatus = nil
                 if miniLoudGui then miniLoudGui:Destroy(); miniLoudGui = nil end
@@ -28112,7 +29454,7 @@ local function buildMainUI()
 
         createActionRow(
             loudGrp,
-            2,
+            4,
             "Standalone Floating Coco Loud Panel",
             "Toggle draggable COCO LOUD floating overlay (one-click apply via remotes)",
             "Toggle UI",
@@ -28131,7 +29473,7 @@ local function buildMainUI()
 
         loudUiHooks.autoSwitch = createSwitchRow(
             loudGrp,
-            3,
+            5,
             "Auto-Reapply on Respawn",
             "Automatically re-fires COCO LOUD 1.5s after CharacterAdded",
             loudState.autoReapply,
@@ -28143,7 +29485,7 @@ local function buildMainUI()
 
         createActionRow(
             loudGrp,
-            4,
+            6,
             "Scan Audio / Effect Remotes",
             "Scans ReplicatedStorage for effect, audio, voice, mic & gain remotes",
             "Scan",
@@ -28165,7 +29507,7 @@ local function buildMainUI()
 
         createActionRow(
             loudGrp,
-            5,
+            7,
             "Clear Mic Up Effects",
             "Clears or removes active voice effects via clear/remove remotes",
             "Clear FX",
@@ -28176,6 +29518,1462 @@ local function buildMainUI()
                 if ok then sSuccess() else sError() end
             end
         )
+    end
+
+
+    -- ═══════════════════════════════════════════════════════════════════════════
+    -- DEDICATED CATEGORY: 🎵 SPOTIFY (spotify.luau · OAuth PKCE, Now Playing, Library, Search, Queue & Devices)
+    -- ═══════════════════════════════════════════════════════════════════════════
+    do
+        local spotifyPage = UI.catPages["Spotify"]
+        if spotifyPage then
+local _initCocoSpotifyModule = function(env)
+local _nvL = env._nvL
+	local SPOTIFY_REDIRECT = "http://127.0.0.1:8888/callback"
+	local SCOPES = "user-read-playback-state user-modify-playback-state user-read-currently-playing user-library-read user-library-modify playlist-read-private playlist-read-collaborative user-read-recently-played"
+	local SP = {file = "Novoline/spotify.json", cfg = {}, st = {}, art = {}, queueList = {}, queueRev = 0, lists = {}, listRev = 0, liked = {}, redirect = SPOTIFY_REDIRECT, dashboard = "https://developer.spotify.com/dashboard"}
+	_G._nv_spotify = SP
+	local hs = game:GetService("HttpService")
+	local K = {
+		0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+		0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+		0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+		0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+		0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+		0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+		0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+		0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
+	}
+	local band, bxor, bnot, rr, rs = bit32.band, bit32.bxor, bit32.bnot, bit32.rrotate, bit32.rshift
+	local function _packBE32(n)
+		n = math.floor(n) % 4294967296
+		return string.char(
+			bit32.band(bit32.rshift(n, 24), 255),
+			bit32.band(bit32.rshift(n, 16), 255),
+			bit32.band(bit32.rshift(n, 8), 255),
+			bit32.band(n, 255)
+		)
+	end
+	local function _unpackBE32(s, pos)
+		local a, b, c, d = string.byte(s, pos, pos + 3)
+		return ((a or 0) * 16777216) + ((b or 0) * 65536) + ((c or 0) * 256) + (d or 0)
+	end
+	function SP.sha256(msg)
+		local h = {0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19}
+		local len = #msg
+		local hiLen = math.floor(len / (2 ^ 29))
+		local loLen = (len * 8) % 4294967296
+		local tail = (type(string.pack) == "function") and string.pack(">I4I4", hiLen, loLen) or (_packBE32(hiLen) .. _packBE32(loLen))
+		msg = msg .. "\128" .. string.rep("\0", (55 - len) % 64) .. tail
+		local w = {}
+		local hasUnpack = type(string.unpack) == "function"
+		for at = 1, #msg, 64 do
+			for i = 0, 15 do w[i] = hasUnpack and string.unpack(">I4", msg, at + i * 4) or _unpackBE32(msg, at + i * 4) end
+			for i = 16, 63 do
+				local a, b = w[i - 15], w[i - 2]
+				w[i] = (w[i - 16] + bxor(rr(a, 7), rr(a, 18), rs(a, 3)) + w[i - 7] + bxor(rr(b, 17), rr(b, 19), rs(b, 10))) % 2 ^ 32
+			end
+			local a, b, c, d, e, f, g, hh = h[1], h[2], h[3], h[4], h[5], h[6], h[7], h[8]
+			for i = 0, 63 do
+				local t1 = (hh + bxor(rr(e, 6), rr(e, 11), rr(e, 25)) + bxor(band(e, f), band(bnot(e), g)) + K[i + 1] + w[i]) % 2 ^ 32
+				local t2 = (bxor(rr(a, 2), rr(a, 13), rr(a, 22)) + bxor(band(a, b), band(a, c), band(b, c))) % 2 ^ 32
+				hh, g, f, e, d, c, b, a = g, f, e, (d + t1) % 2 ^ 32, c, b, a, (t1 + t2) % 2 ^ 32
+			end
+			h[1], h[2], h[3], h[4] = (h[1] + a) % 2 ^ 32, (h[2] + b) % 2 ^ 32, (h[3] + c) % 2 ^ 32, (h[4] + d) % 2 ^ 32
+			h[5], h[6], h[7], h[8] = (h[5] + e) % 2 ^ 32, (h[6] + f) % 2 ^ 32, (h[7] + g) % 2 ^ 32, (h[8] + hh) % 2 ^ 32
+		end
+		if type(string.pack) == "function" then return string.pack(">I4I4I4I4I4I4I4I4", h[1], h[2], h[3], h[4], h[5], h[6], h[7], h[8]) end
+		return _packBE32(h[1]) .. _packBE32(h[2]) .. _packBE32(h[3]) .. _packBE32(h[4]) .. _packBE32(h[5]) .. _packBE32(h[6]) .. _packBE32(h[7]) .. _packBE32(h[8])
+	end
+	local B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+	function SP.b64url(s)
+		local out = {}
+		for i = 1, #s, 3 do
+			local a, b, c = string.byte(s, i, i + 2)
+			local n = a * 65536 + (b or 0) * 256 + (c or 0)
+			for k = 1, 2 + (b and 1 or 0) + (c and 1 or 0) do
+				local v = (n // 64 ^ (4 - k)) % 64
+				out[#out + 1] = string.sub(B64, v + 1, v + 1)
+			end
+		end
+		return table.concat(out)
+	end
+	function SP.send(o)
+		local fn
+		pcall(function() fn = request or http_request or (syn and syn.request) or (fluxus and fluxus.request) or (http and http.request) end)
+		if type(fn) ~= "function" then return nil end
+		local ok, res = pcall(fn, o)
+		if ok and type(res) == "table" then return res end
+		return nil
+	end
+	_G._nv_httpSend = SP.send
+	local function say(text) if _nvL.notify then pcall(_nvL.notify, "Spotify", text, 4) end end
+	local function form(t)
+		local parts = {}
+		for k, v in t do parts[#parts + 1] = k .. "=" .. hs:UrlEncode(tostring(v)) end
+		return table.concat(parts, "&")
+	end
+	local function randomText(n)
+		local chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~"
+		local rng, out = Random.new(), {}
+		for i = 1, n do
+			local k = rng:NextInteger(1, #chars)
+			out[i] = string.sub(chars, k, k)
+		end
+		return table.concat(out)
+	end
+	local function decode(body)
+		if type(body) ~= "string" or body == "" then return nil end
+		local ok, data = pcall(hs.JSONDecode, hs, body)
+		return ok and data or nil
+	end
+	function SP.load()
+		local data
+		pcall(function() if isfile(SP.file) then data = decode(readfile(SP.file)) end end)
+		SP.cfg = type(data) == "table" and data or {}
+	end
+	function SP.save()
+		pcall(function()
+			if not isfolder("Novoline") then makefolder("Novoline") end
+			writefile(SP.file, hs:JSONEncode(SP.cfg))
+		end)
+	end
+	function SP.connected() return type(SP.cfg.refresh) == "string" and SP.cfg.refresh ~= "" end
+	function SP.needsReconnect()
+		return SP.connected() and not tostring(SP.cfg.scope or ""):find("user-library-read", 1, true)
+	end
+	function SP.on() return _G._nv_musicSpotify == true and SP.connected() end
+	function SP.nameOf(s)
+		if not (s and s.title) then return nil end
+		return (s.artist and s.artist ~= "") and (s.artist .. " - " .. s.title) or s.title
+	end
+	function SP.authUrl(clientId)
+		clientId = tostring(clientId or ""):match("^%s*(.-)%s*$")
+		if not clientId:match("^%x+$") or #clientId < 16 then return nil, "That Client ID does not look right. Copy it from your app's Settings page." end
+		SP.cfg.clientId = clientId
+		SP.cfg.verifier = randomText(64)
+		SP.cfg.state = randomText(16)
+		SP.save()
+		return "https://accounts.spotify.com/authorize?" .. form({
+			response_type = "code", client_id = clientId, scope = SCOPES, redirect_uri = SPOTIFY_REDIRECT,
+			code_challenge_method = "S256", code_challenge = SP.b64url(SP.sha256(SP.cfg.verifier)), state = SP.cfg.state,
+		})
+	end
+	local function tokenCall(body)
+		local res = SP.send({Url = "https://accounts.spotify.com/api/token", Method = "POST", Headers = {["Content-Type"] = "application/x-www-form-urlencoded"}, Body = form(body)})
+		if not res then return nil, "Your executor could not reach Spotify" end
+		local data = decode(res.Body)
+		if type(data) ~= "table" or not data.access_token then
+			local err = type(data) == "table" and (data.error_description or data.error) or ("Spotify answered " .. tostring(res.StatusCode))
+			return nil, tostring(err), type(data) == "table" and data.error
+		end
+		SP.token, SP.tokenUntil = data.access_token, os.clock() + (tonumber(data.expires_in) or 3600) - 60
+		local cfg = SP.frozen or SP.cfg
+		if type(data.refresh_token) == "string" and data.refresh_token ~= "" then cfg.refresh = data.refresh_token end
+		if type(data.scope) == "string" then cfg.scope = data.scope end
+		if not SP.frozen then SP.save() end
+		return true
+	end
+	function SP.refresh()
+		if not (SP.connected() and SP.cfg.clientId) then return false end
+		local ok, err, code = tokenCall({grant_type = "refresh_token", refresh_token = SP.cfg.refresh, client_id = SP.cfg.clientId})
+		if not ok and code == "invalid_grant" then
+			SP.cfg.refresh, SP.cfg.user = nil, nil
+			SP.save()
+			say("Spotify signed you out. Connect again in Settings, Music.")
+		end
+		return ok == true
+	end
+	function SP.finish(pasted)
+		pasted = tostring(pasted or "")
+		local denied = pasted:match("[?&]error=([^&#%s]+)")
+		if denied then return nil, denied == "access_denied" and "You pressed Cancel on the Spotify page. Try again and press Agree." or ("Spotify said " .. denied) end
+		local code = pasted:match("[?&]code=([^&#%s]+)")
+		if not code then return nil, "That address has no sign-in code. Copy the whole address from the browser after you press Agree." end
+		local state = pasted:match("[?&]state=([^&#%s]+)")
+		if not (SP.cfg.verifier and SP.cfg.clientId) or (state and state ~= SP.cfg.state) then return nil, "That address is from an older sign-in. Copy a new sign-in link and try again." end
+		local ok, err = tokenCall({grant_type = "authorization_code", code = code, redirect_uri = SPOTIFY_REDIRECT, client_id = SP.cfg.clientId, code_verifier = SP.cfg.verifier})
+		if not ok then return nil, err end
+		SP.cfg.verifier, SP.cfg.state = nil, nil
+		local me = SP.call("GET", "/me")
+		SP.cfg.user = type(me) == "table" and (me.display_name or me.id) or nil
+		SP.cfg.userId = type(me) == "table" and me.id or nil
+		SP.lists, SP.liked = {}, {}
+		SP.save()
+		task.spawn(pcall, SP.poll)
+		return true
+	end
+	function SP.disconnect()
+		SP.cfg = {clientId = SP.cfg.clientId}
+		SP.token, SP.st, SP.queueList, SP.lists, SP.liked = nil, {}, {}, {}, {}
+		SP.listRev += 1
+		SP.save()
+		if _G._nv_musicSpotify then SP.setSource(false) end
+	end
+	function SP.call(method, path, body)
+		if not SP.token or os.clock() > (SP.tokenUntil or 0) then
+			if not SP.refresh() then return nil, 0 end
+		end
+		local function go()
+			return SP.send({
+				Url = "https://api.spotify.com/v1" .. path, Method = method,
+				Headers = {Authorization = "Bearer " .. SP.token, ["Content-Type"] = "application/json"},
+				Body = body and hs:JSONEncode(body) or ((method ~= "GET" and method ~= "DELETE") and "{}" or nil),
+			})
+		end
+		local res = go()
+		if res and res.StatusCode == 401 and SP.refresh() then res = go() end
+		if not res then return nil, 0 end
+		if res.StatusCode == 429 then
+			local h = res.Headers or {}
+			SP.waitUntil = os.clock() + (tonumber(h["Retry-After"] or h["retry-after"]) or 5)
+		end
+		return decode(res.Body), res.StatusCode
+	end
+	function SP.poll()
+		if os.clock() < (SP.waitUntil or 0) or os.clock() < (SP.holdUntil or 0) then return end
+		local data, code = SP.call("GET", "/me/player?additional_types=episode")
+		if SP.frozen then return end
+		if code == 204 or (code == 200 and type(data) ~= "table") then
+			SP.st = {idle = true, at = os.clock()}
+			return
+		end
+		if code ~= 200 or type(data) ~= "table" then return end
+		local s = {at = os.clock(), playing = data.is_playing == true, progress = (tonumber(data.progress_ms) or 0) / 1000, shuffle = data.shuffle_state == true}
+		local dev = type(data.device) == "table" and data.device or {}
+		s.volume, s.device, s.deviceKind = tonumber(dev.volume_percent), dev.name, dev.type
+		local item = type(data.item) == "table" and data.item or nil
+		if item then
+			local names = {}
+			for _, a in item.artists or {} do names[#names + 1] = a.name end
+			s.id, s.title, s.uri, s.explicit = item.id, tostring(item.name or ""), item.uri, item.explicit == true
+			s.artist = #names > 0 and table.concat(names, ", ") or (type(item.show) == "table" and item.show.name) or ""
+			s.duration = (tonumber(item.duration_ms) or 0) / 1000
+			local imgs = (type(item.album) == "table" and item.album.images) or item.images or {}
+			local pick = imgs[1]
+			s.image = type(pick) == "table" and pick.url or nil
+			s.artKey = tostring((type(item.album) == "table" and item.album.id) or item.id or "") .. "_l"
+		end
+		SP.st = s
+		if s.artKey and s.artKey ~= "" and s.image then SP.fetchArt(s.artKey, s.image) end
+		if s.uri and SP.liked[s.uri] == nil and not SP.needsReconnect() then
+			SP.liked[s.uri] = false
+			task.spawn(SP.checkLiked, s.uri)
+		end
+	end
+	local function bump()
+		if SP.bumpQueued then return end
+		SP.bumpQueued = true
+		task.delay(0.6, function()
+			SP.bumpQueued = false
+			SP.listRev += 1
+		end)
+	end
+	local function track(t)
+		if type(t) ~= "table" or not t.uri then return nil end
+		local names = {}
+		for _, a in t.artists or {} do names[#names + 1] = a.name end
+		local imgs = type(t.album) == "table" and t.album.images or t.images or {}
+		local pick = imgs[#imgs] or imgs[1]
+		return {
+			title = tostring(t.name or ""), artist = table.concat(names, ", "), uri = t.uri, id = t.id,
+			explicit = t.explicit == true, duration = (tonumber(t.duration_ms) or 0) / 1000,
+			image = type(pick) == "table" and pick.url or nil, artKey = tostring((type(t.album) == "table" and t.album.id) or t.id or "") .. "_s",
+		}
+	end
+	SP.track = track
+	local function collection(c, sub)
+		if type(c) ~= "table" or not c.uri then return nil end
+		local imgs = c.images or {}
+		local pick = imgs[#imgs] or imgs[1]
+		local count = type(c.items) == "table" and c.items.total or type(c.tracks) == "table" and c.tracks.total or nil
+		local owner = type(c.owner) == "table" and c.owner or nil
+		return {
+			title = tostring(c.name or ""), sub = sub, uri = c.uri, id = c.id, count = tonumber(count),
+			own = owner ~= nil and SP.cfg.userId ~= nil and owner.id == SP.cfg.userId,
+			ownerName = owner and (owner.display_name or owner.id) or nil,
+			image = type(pick) == "table" and pick.url or nil, artKey = tostring(c.id or "") .. "_s",
+		}
+	end
+	local SOURCES = {
+		liked = {"/me/tracks?limit=50", function(d) local out = {} for _, e in d.items or {} do out[#out + 1] = track(e.track) end return out end},
+		recent = {"/me/player/recently-played?limit=30", function(d)
+			local out, seen = {}, {}
+			for _, e in d.items or {} do
+				local t = track(e.track)
+				if t and not seen[t.uri] then seen[t.uri] = true out[#out + 1] = t end
+			end
+			return out
+		end},
+		playlists = {"/me/playlists?limit=50", function(d) local out = {} for _, c in d.items or {} do out[#out + 1] = collection(c, "playlist") end return out end},
+		albums = {"/me/albums?limit=50", function(d)
+			local out = {}
+			for _, e in d.items or {} do
+				local a = type(e) == "table" and e.album
+				local item = collection(a, "album")
+				if item then
+					local names = {}
+					for _, ar in a.artists or {} do names[#names + 1] = ar.name end
+					item.ownerName = table.concat(names, ", ")
+					out[#out + 1] = item
+				end
+			end
+			return out
+		end},
+	}
+	function SP.list(key)
+		local l = SP.lists[key]
+		if l and (l.busy or os.clock() - l.at < 60) then return l end
+		l = l or {items = {}}
+		l.busy, l.at = true, os.clock()
+		SP.lists[key] = l
+		task.spawn(function()
+			local path, shape
+			local src = SOURCES[key]
+			if src then
+				path, shape = src[1], src[2]
+			elseif key:sub(1, 9) == "playlist:" then
+				path = "/playlists/" .. key:sub(10) .. "/items?limit=100"
+				shape = function(d)
+					local out = {}
+					for _, e in d.items or {} do out[#out + 1] = track(type(e) == "table" and (e.item or e.track) or nil) end
+					return out
+				end
+			elseif key:sub(1, 7) == "search:" then
+				path = "/search?type=track&limit=10&q=" .. game:GetService("HttpService"):UrlEncode(key:sub(8))
+				shape = function(d)
+					local out = {}
+					for _, t in type(d.tracks) == "table" and d.tracks.items or {} do out[#out + 1] = track(t) end
+					return out
+				end
+			end
+			local data, code
+			if path then
+				data, code = SP.call("GET", path)
+				if code ~= 200 and key:sub(1, 9) == "playlist:" then
+					local fbPath = "/playlists/" .. key:sub(10) .. "/tracks?limit=100"
+					local fbData, fbCode = SP.call("GET", fbPath)
+					if fbCode == 200 and type(fbData) == "table" then
+						data, code = fbData, fbCode
+					end
+				end
+			end
+			l.busy, l.at = false, os.clock()
+			if code == 200 and type(data) == "table" then
+				l.items, l.err = shape(data), nil
+				for _, it in l.items do
+					if it.image and it.artKey ~= "" then SP.fetchArt(it.artKey, it.image) end
+				end
+			else
+				l.err = code == 403 and "Spotify did not allow this. Try reconnecting." or (code == 404 and "Spotify can only show songs from playlists you made." or "Could not load this from Spotify.")
+			end
+			SP.listRev += 1
+		end)
+		return l
+	end
+	function SP.forget(key) SP.lists[key] = nil end
+	function SP.play(body)
+		SP.holdUntil = os.clock() + 1.2
+		task.spawn(function()
+			local _, code = SP.call("PUT", "/me/player/play", body)
+			if code == 403 then
+				if _nvL.notify then pcall(_nvL.notify, "Spotify", "Playing songs needs Spotify Premium.", 4) end
+			elseif code == 404 then
+				if _nvL.notify then pcall(_nvL.notify, "Spotify", "Open Spotify on your PC or phone first.", 4) end
+			end
+			task.wait(1.3)
+			pcall(SP.poll)
+		end)
+	end
+	function SP.playIn(items, uri)
+		local uris = {}
+		for _, t in items do if t.uri then uris[#uris + 1] = t.uri end end
+		if #uris == 0 then return end
+		SP.play({uris = uris, offset = uri and {uri = uri} or nil})
+	end
+	function SP.playContext(ctx, uri)
+		SP.play({context_uri = ctx, offset = uri and {uri = uri} or nil})
+	end
+	function SP.likedSongsContext()
+		return SP.cfg.userId and ("spotify:user:" .. SP.cfg.userId .. ":collection") or nil
+	end
+	function SP.checkLiked(uri)
+		local data, code = SP.call("GET", "/me/library/contains?uris=" .. game:GetService("HttpService"):UrlEncode(uri))
+		if code ~= 200 and uri:match("^spotify:track:") then
+			data, code = SP.call("GET", "/me/tracks/contains?ids=" .. uri:sub(15))
+		end
+		if code == 200 and type(data) == "table" then SP.liked[uri] = data[1] == true end
+	end
+	function SP.isLiked(uri)
+		uri = uri or SP.st.uri
+		return uri ~= nil and SP.liked[uri] == true
+	end
+	function SP.toggleLike(uri)
+		uri = uri or SP.st.uri
+		if not uri then return end
+		local want = not SP.isLiked(uri)
+		SP.liked[uri] = want
+		SP.forget("liked")
+		task.spawn(function()
+			local hs = game:GetService("HttpService")
+			local method = want and "PUT" or "DELETE"
+			local _, code = SP.call(method, "/me/library?uris=" .. hs:UrlEncode(uri))
+			if (code < 200 or code >= 300) and uri:match("^spotify:track:") then
+				_, code = SP.call(method, "/me/tracks?ids=" .. uri:sub(15))
+			end
+			if code < 200 or code >= 300 then
+				SP.liked[uri] = not want
+				if _nvL.notify then pcall(_nvL.notify, "Spotify", code == 403 and "Reconnect Spotify to save songs." or "Could not update Liked Songs.", 4) end
+			end
+			SP.listRev += 1
+		end)
+	end
+	function SP.devices(cb)
+		task.spawn(function()
+			local data, code = SP.call("GET", "/me/player/devices")
+			local out = {}
+			if code == 200 and type(data) == "table" then
+				for _, d in data.devices or {} do
+					if type(d) == "table" and d.id then out[#out + 1] = {id = d.id, name = tostring(d.name or "Device"), kind = tostring(d.type or ""), active = d.is_active == true} end
+				end
+			end
+			cb(out, code)
+		end)
+	end
+	function SP.transfer(id)
+		SP.holdUntil = os.clock() + 1.5
+		task.spawn(function()
+			SP.call("PUT", "/me/player", {device_ids = {id}, play = SP.st.playing == true})
+			task.wait(1.5)
+			pcall(SP.poll)
+		end)
+	end
+	function SP.pollQueue()
+		local data, code = SP.call("GET", "/me/player/queue")
+		if SP.frozen or code ~= 200 or type(data) ~= "table" then return end
+		local list = {}
+		local first = type(data.queue) == "table" and data.queue[1]
+		local album = type(first) == "table" and type(first.album) == "table" and first.album or nil
+		if album and album.id and type(album.images) == "table" and type(album.images[1]) == "table" then
+			SP.fetchArt(tostring(album.id) .. "_l", album.images[1].url)
+		end
+		for _, item in data.queue or {} do
+			if type(item) == "table" then
+				local names = {}
+				for _, a in item.artists or {} do names[#names + 1] = a.name end
+				list[#list + 1] = {title = tostring(item.name or ""), artist = table.concat(names, ", ")}
+			end
+			if #list >= 30 then break end
+		end
+		local sig = {}
+		for _, t in list do sig[#sig + 1] = t.title end
+		sig = table.concat(sig, "|")
+		if sig ~= SP.queueSig then SP.queueSig, SP.queueList, SP.queueRev = sig, list, SP.queueRev + 1 end
+	end
+	function SP.fetchArt(key, url)
+		if SP.art[key] ~= nil then return end
+		SP.art[key] = false
+		task.spawn(function()
+			local path = "Novoline/spotify/art/" .. key:gsub("[^%w_]", "") .. ".jpg"
+			pcall(function()
+				if isfile(path) then return end
+				local res = SP.send({Url = url, Method = "GET"})
+				if not (res and res.StatusCode == 200 and type(res.Body) == "string" and #res.Body > 200) then return end
+				for _, dir in {"Novoline", "Novoline/spotify", "Novoline/spotify/art"} do
+					if not isfolder(dir) then makefolder(dir) end
+				end
+				writefile(path, res.Body)
+			end)
+			local ok, asset = pcall(getcustomasset, path)
+			if ok and type(asset) == "string" and asset ~= "" then
+				SP.art[key] = asset
+				bump()
+			else
+				task.delay(20, function() if SP.art[key] == false then SP.art[key] = nil end end)
+			end
+		end)
+	end
+	function SP.artNow()
+		local k = SP.st.artKey
+		local a = k and SP.art[k]
+		return type(a) == "string" and a or nil
+	end
+	function SP.position()
+		local s = SP.st
+		if not s.duration then return 0 end
+		return math.clamp(s.progress + (s.playing and os.clock() - s.at or 0), 0, s.duration)
+	end
+	local function act(method, path)
+		SP.holdUntil = os.clock() + 1.2
+		task.spawn(function()
+			local data, code = SP.call(method, path)
+			if code == 403 then
+				say("Controlling playback needs Spotify Premium.")
+			elseif code == 404 then
+				say("Open Spotify on your PC or phone first.")
+			elseif code == 0 or code >= 400 then
+				say("Spotify did not take that. Try again in a moment.")
+			end
+			task.wait(1.3)
+			pcall(SP.poll)
+		end)
+	end
+	function SP.toggle()
+		local s = SP.st
+		if s.playing then
+			s.progress, s.at, s.playing = SP.position(), os.clock(), false
+			act("PUT", "/me/player/pause")
+		else
+			s.at, s.playing = os.clock(), s.title ~= nil
+			act("PUT", "/me/player/play")
+		end
+	end
+	function SP.next() act("POST", "/me/player/next") end
+	function SP.prev() act("POST", "/me/player/previous") end
+	function SP.seek(sec)
+		local s = SP.st
+		if not s.duration then return end
+		s.progress, s.at = math.clamp(tonumber(sec) or 0, 0, s.duration), os.clock()
+		act("PUT", "/me/player/seek?position_ms=" .. math.floor(s.progress * 1000))
+	end
+	function SP.setShuffle(on)
+		SP.st.shuffle = on and true or false
+		act("PUT", "/me/player/shuffle?state=" .. tostring(SP.st.shuffle))
+	end
+	function SP.setVolume(rel)
+		rel = math.clamp(tonumber(rel) or 0, 0, 1)
+		SP.st.volume, SP.volWant = rel * 100, rel
+		SP.holdUntil = os.clock() + 1.2
+		if SP.volBusy then return end
+		SP.volBusy = true
+		task.delay(0.3, function()
+			SP.volBusy = false
+			SP.call("PUT", "/me/player/volume?volume_percent=" .. math.floor(SP.volWant * 100 + 0.5))
+		end)
+	end
+	function SP.setSource(on)
+		on = on and true or false
+		if (_G._nv_musicSpotify == true) == on then return end
+		_G._nv_musicSpotify = on
+		if on and _G._nv_appleMusic then pcall(_G._nv_appleMusic.setSource, false) end
+		if on and _G._nv_mp3LocalPause then pcall(_G._nv_mp3LocalPause) end
+		if _G._nv_saveSettings then pcall(_G._nv_saveSettings) end
+		if on then task.spawn(pcall, SP.poll) end
+		if _G._nv_deckRefresh and _G._nv_deckRefresh[4] then pcall(_G._nv_deckRefresh[4]) end
+	end
+	function SP.leave()
+		if SP.st.playing then SP.toggle() end
+		SP.setSource(false)
+		say("Playing from SoundCloud now.")
+	end
+	function SP.wrap(base)
+		if base.spotify then return base end
+		local fake = setmetatable({}, {
+			__index = function(_, k)
+				if k == "TimePosition" then return SP.position() end
+				if k == "TimeLength" then return SP.st.duration or 0 end
+				if k == "IsPlaying" or k == "Playing" then return SP.st.playing == true end
+				if k == "Volume" then return (SP.st.volume or 50) / 100 end
+				if k == "PlaybackLoudness" then return 0 end
+				return nil
+			end,
+			__newindex = function(_, k, v)
+				if k == "Volume" then SP.setVolume(v) elseif k == "TimePosition" then SP.seek(v) end
+			end,
+		})
+		local function now() return SP.st.title and {name = SP.nameOf(SP.st), spotify = true} or nil end
+		local over = {
+			sound = function() return fake end,
+			tracks = function()
+				local list = table.clone(base.tracks())
+				local e = now()
+				if e then list[#list + 1] = e end
+				return list
+			end,
+			index = function() return SP.st.title and #base.tracks() + 1 or 0 end,
+			play = function(i)
+				if i == #base.tracks() + 1 then
+					if not SP.st.playing then SP.toggle() end
+				else
+					SP.leave()
+					base.play(i)
+				end
+			end,
+			queue = function() return {} end,
+			shuffle = function(on)
+				if on ~= nil then SP.setShuffle(on) end
+				return SP.st.shuffle == true
+			end,
+			seek = function(sec) SP.seek(sec) end,
+			spotify = function() return true end,
+		}
+		base.library = base.library or base.tracks
+		base.spotify = function() return false end
+		local baseArt, baseEnsure = _G._nv_musicTrackArt, _G._nv_mp3EnsureArt
+		_G._nv_musicTrackArt = function(i)
+			if SP.on() and i == #base.tracks() + 1 then return SP.artNow() end
+			if baseArt then return baseArt(i) end
+			return nil
+		end
+		_G._nv_mp3EnsureArt = function(name, cb)
+			if SP.on() and SP.st.title and name == SP.nameOf(SP.st) then
+				task.spawn(function()
+					for _ = 1, 40 do
+						local a = SP.artNow()
+						if a then if cb then cb(a) end return end
+						task.wait(0.25)
+					end
+					if cb then cb(nil) end
+				end)
+				return
+			end
+			if baseEnsure then return baseEnsure(name, cb) end
+		end
+		return setmetatable({}, {__index = function(_, k)
+			if over[k] and SP.on() then return over[k] end
+			return base[k]
+		end})
+	end
+	SP.load()
+	local gen = (_G._nv_spotifyGen or 0) + 1
+	_G._nv_spotifyGen = gen
+	task.spawn(function()
+		local n = 0
+		while _G._nv_spotifyGen == gen do
+			if SP.on() then
+				n += 1
+				pcall(SP.poll)
+				if n % 5 == 1 then pcall(SP.pollQueue) end
+				local s = SP.st
+				local left = s.playing and s.duration and (s.duration - SP.position()) or 99
+				task.wait(left < 1.2 and math.max(left, 0.3) + 0.2 or 1.2)
+			else
+				n = 0
+				task.wait(1)
+			end
+		end
+	end)
+end
+
+
+            pcall(_initCocoSpotifyModule, {
+                _nvL = {
+                    notify = function(title, text, _dur)
+                        pcall(notify, "🎵 " .. tostring(title or "Spotify"), tostring(text or ""))
+                    end,
+                },
+            })
+
+            local SP = _G._nv_spotify
+            if SP and SP.connected() and _G._nv_musicSpotify == nil then
+                SP.setSource(true)
+            end
+
+            local function copyClip(str)
+                pcall(function()
+                    if typeof(setclipboard) == "function" then setclipboard(str)
+                    elseif typeof(toclipboard) == "function" then toclipboard(str) end
+                end)
+            end
+
+            local function fmtTime(sec)
+                sec = math.max(0, math.floor(tonumber(sec) or 0))
+                return string.format("%d:%02d", math.floor(sec / 60), sec % 60)
+            end
+
+            -- ───────────────────────────────────────────────────────────────────
+            -- 1. NOW PLAYING LIVE CARD
+            -- ───────────────────────────────────────────────────────────────────
+            local npCard = Instance.new("Frame")
+            npCard.Name = "SpotifyNowPlayingCard"
+            npCard.Size = UDim2.new(1, 0, 0, 148)
+            npCard.BackgroundColor3 = T.Panel
+            npCard.BackgroundTransparency = 0.06
+            npCard.BorderSizePixel = 0
+            npCard.LayoutOrder = 1
+            npCard.ZIndex = 7
+            npCard.Parent = spotifyPage
+            Instance.new("UICorner", npCard).CornerRadius = UDim.new(0, 14)
+            local npStroke = Instance.new("UIStroke")
+            npStroke.Color = Color3.fromRGB(30, 215, 96)
+            npStroke.Thickness = 1.2
+            npStroke.Transparency = 0.35
+            npStroke.Parent = npCard
+
+            local artImg = Instance.new("ImageLabel")
+            artImg.Size = UDim2.fromOffset(64, 64)
+            artImg.Position = UDim2.fromOffset(12, 12)
+            artImg.BackgroundColor3 = T.BG
+            artImg.BorderSizePixel = 0
+            artImg.Image = ""
+            artImg.ScaleType = Enum.ScaleType.Crop
+            artImg.ZIndex = 8
+            artImg.Parent = npCard
+            Instance.new("UICorner", artImg).CornerRadius = UDim.new(0, 10)
+
+            local artPlaceholder = Instance.new("TextLabel")
+            artPlaceholder.Size = UDim2.new(1, 0, 1, 0)
+            artPlaceholder.BackgroundTransparency = 1
+            artPlaceholder.Text = "🎵"
+            artPlaceholder.TextSize = 24
+            artPlaceholder.Font = Enum.Font.GothamBold
+            artPlaceholder.TextColor3 = Color3.fromRGB(30, 215, 96)
+            artPlaceholder.ZIndex = 8
+            artPlaceholder.Parent = artImg
+
+            local trackTitleLbl = Instance.new("TextLabel")
+            trackTitleLbl.Size = UDim2.new(1, -132, 0, 20)
+            trackTitleLbl.Position = UDim2.fromOffset(86, 12)
+            trackTitleLbl.BackgroundTransparency = 1
+            trackTitleLbl.Font = Enum.Font.GothamBlack
+            trackTitleLbl.TextSize = 13
+            trackTitleLbl.TextColor3 = T.Text
+            trackTitleLbl.TextXAlignment = Enum.TextXAlignment.Left
+            trackTitleLbl.TextTruncate = Enum.TextTruncate.AtEnd
+            trackTitleLbl.Text = "Not Connected"
+            trackTitleLbl.ZIndex = 8
+            trackTitleLbl.Parent = npCard
+
+            local trackArtistLbl = Instance.new("TextLabel")
+            trackArtistLbl.Size = UDim2.new(1, -132, 0, 16)
+            trackArtistLbl.Position = UDim2.fromOffset(86, 34)
+            trackArtistLbl.BackgroundTransparency = 1
+            trackArtistLbl.Font = Enum.Font.GothamMedium
+            trackArtistLbl.TextSize = 11
+            trackArtistLbl.TextColor3 = T.Muted
+            trackArtistLbl.TextXAlignment = Enum.TextXAlignment.Left
+            trackArtistLbl.TextTruncate = Enum.TextTruncate.AtEnd
+            trackArtistLbl.Text = "Connect your Spotify account below"
+            trackArtistLbl.ZIndex = 8
+            trackArtistLbl.Parent = npCard
+
+            local deviceLbl = Instance.new("TextLabel")
+            deviceLbl.Size = UDim2.new(1, -132, 0, 14)
+            deviceLbl.Position = UDim2.fromOffset(86, 54)
+            deviceLbl.BackgroundTransparency = 1
+            deviceLbl.Font = Enum.Font.Gotham
+            deviceLbl.TextSize = 10
+            deviceLbl.TextColor3 = Color3.fromRGB(30, 215, 96)
+            deviceLbl.TextXAlignment = Enum.TextXAlignment.Left
+            deviceLbl.TextTruncate = Enum.TextTruncate.AtEnd
+            deviceLbl.Text = "Device: —"
+            deviceLbl.ZIndex = 8
+            deviceLbl.Parent = npCard
+
+            local likeBtn = Instance.new("TextButton")
+            likeBtn.Size = UDim2.fromOffset(32, 32)
+            likeBtn.Position = UDim2.new(1, -42, 0, 14)
+            likeBtn.BackgroundColor3 = T.PanelLt
+            likeBtn.BorderSizePixel = 0
+            likeBtn.Font = Enum.Font.GothamBold
+            likeBtn.TextSize = 14
+            likeBtn.TextColor3 = T.Muted
+            likeBtn.Text = "♡"
+            likeBtn.AutoButtonColor = false
+            likeBtn.ZIndex = 9
+            likeBtn.Parent = npCard
+            Instance.new("UICorner", likeBtn).CornerRadius = UDim.new(0, 8)
+            likeBtn.MouseButton1Click:Connect(function()
+                if SP and SP.connected() then
+                    SP.toggleLike()
+                end
+            end)
+
+            -- Progress bar
+            local progBg = Instance.new("TextButton")
+            progBg.Size = UDim2.new(1, -24, 0, 6)
+            progBg.Position = UDim2.fromOffset(12, 86)
+            progBg.BackgroundColor3 = T.BG
+            progBg.BorderSizePixel = 0
+            progBg.Text = ""
+            progBg.AutoButtonColor = false
+            progBg.ZIndex = 8
+            progBg.Parent = npCard
+            Instance.new("UICorner", progBg).CornerRadius = UDim.new(1, 0)
+
+            local progFill = Instance.new("Frame")
+            progFill.Size = UDim2.new(0, 0, 1, 0)
+            progFill.BackgroundColor3 = Color3.fromRGB(30, 215, 96)
+            progFill.BorderSizePixel = 0
+            progFill.ZIndex = 9
+            progFill.Parent = progBg
+            Instance.new("UICorner", progFill).CornerRadius = UDim.new(1, 0)
+
+            progBg.MouseButton1Click:Connect(function()
+                if not (SP and SP.connected() and SP.st and SP.st.duration and SP.st.duration > 0) then return end
+                local mPos = UIS:GetMouseLocation()
+                local rel = math.clamp((mPos.X - progBg.AbsolutePosition.X) / math.max(1, progBg.AbsoluteSize.X), 0, 1)
+                SP.seek(rel * SP.st.duration)
+            end)
+
+            local timeLeftLbl = Instance.new("TextLabel")
+            timeLeftLbl.Size = UDim2.fromOffset(54, 14)
+            timeLeftLbl.Position = UDim2.fromOffset(12, 94)
+            timeLeftLbl.BackgroundTransparency = 1
+            timeLeftLbl.Font = Enum.Font.GothamMedium
+            timeLeftLbl.TextSize = 9.5
+            timeLeftLbl.TextColor3 = T.Muted
+            timeLeftLbl.TextXAlignment = Enum.TextXAlignment.Left
+            timeLeftLbl.Text = "0:00"
+            timeLeftLbl.ZIndex = 8
+            timeLeftLbl.Parent = npCard
+
+            local timeRightLbl = Instance.new("TextLabel")
+            timeRightLbl.Size = UDim2.fromOffset(54, 14)
+            timeRightLbl.Position = UDim2.new(1, -66, 0, 94)
+            timeRightLbl.BackgroundTransparency = 1
+            timeRightLbl.Font = Enum.Font.GothamMedium
+            timeRightLbl.TextSize = 9.5
+            timeRightLbl.TextColor3 = T.Muted
+            timeRightLbl.TextXAlignment = Enum.TextXAlignment.Right
+            timeRightLbl.Text = "0:00"
+            timeRightLbl.ZIndex = 8
+            timeRightLbl.Parent = npCard
+
+            -- Transport Buttons Row
+            local ctrlRow = Instance.new("Frame")
+            ctrlRow.Size = UDim2.new(1, -24, 0, 30)
+            ctrlRow.Position = UDim2.fromOffset(12, 110)
+            ctrlRow.BackgroundTransparency = 1
+            ctrlRow.ZIndex = 8
+            ctrlRow.Parent = npCard
+            local ctrlLayout = Instance.new("UIListLayout", ctrlRow)
+            ctrlLayout.FillDirection = Enum.FillDirection.Horizontal
+            ctrlLayout.Padding = UDim.new(0, 6)
+
+            local function makeCtrlBtn(txt, bg, cb)
+                local b = Instance.new("TextButton")
+                b.Size = UDim2.new(0.25, -4.5, 1, 0)
+                b.BackgroundColor3 = bg or T.PanelLt
+                b.BorderSizePixel = 0
+                b.Font = Enum.Font.GothamBold
+                b.TextSize = 11
+                b.TextColor3 = T.Text
+                b.Text = txt
+                b.AutoButtonColor = false
+                b.ZIndex = 9
+                b.Parent = ctrlRow
+                Instance.new("UICorner", b).CornerRadius = UDim.new(0, 8)
+                b.MouseButton1Click:Connect(cb)
+                return b
+            end
+
+            makeCtrlBtn("⏮ Prev", T.PanelLt, function()
+                if SP and SP.connected() then SP.prev() else notify("🎵 Spotify", "Connect Spotify first!") end
+            end)
+            local playPauseBtn = makeCtrlBtn("▶ Play", Color3.fromRGB(30, 215, 96), function()
+                if SP and SP.connected() then SP.toggle() else notify("🎵 Spotify", "Connect Spotify first!") end
+            end)
+            playPauseBtn.TextColor3 = Color3.fromRGB(8, 10, 8)
+            makeCtrlBtn("⏭ Next", T.PanelLt, function()
+                if SP and SP.connected() then SP.next() else notify("🎵 Spotify", "Connect Spotify first!") end
+            end)
+            local shuffleBtn = makeCtrlBtn("🔀 Off", T.PanelLt, function()
+                if SP and SP.connected() then
+                    SP.setShuffle(not (SP.st and SP.st.shuffle))
+                else
+                    notify("🎵 Spotify", "Connect Spotify first!")
+                end
+            end)
+
+            -- ───────────────────────────────────────────────────────────────────
+            -- 2. VOLUME & LIVE SYNC CONTROLS
+            -- ───────────────────────────────────────────────────────────────────
+            createSectionTitle(spotifyPage, 2, "Playback & Sync Controls")
+            local spCtrlGrp = createGroupCard(spotifyPage, 3)
+
+            createSliderInputRow(
+                spCtrlGrp,
+                1,
+                "Spotify Volume",
+                "Controls active Spotify device volume (0% – 100%)",
+                0, 100, 50, 0, "%",
+                function(val)
+                    if SP and SP.connected() then
+                        SP.setVolume(val / 100)
+                    end
+                end
+            )
+
+            createSwitchRow(
+                spCtrlGrp,
+                2,
+                "Live Spotify Sync (Auto-Poll)",
+                "Keeps Now Playing, album art, progress & queue synced automatically",
+                SP and SP.on() or false,
+                function(on)
+                    if SP then
+                        SP.setSource(on)
+                        notify("🎵 Spotify", on and "Live Sync ON" or "Live Sync OFF")
+                    end
+                end
+            )
+
+            createActionRow(
+                spCtrlGrp,
+                3,
+                "Force Refresh Playback & Queue",
+                "Immediately polls Spotify for current track and Up Next queue",
+                "Refresh",
+                function()
+                    if SP and SP.connected() then
+                        task.spawn(function()
+                            pcall(SP.poll)
+                            pcall(SP.pollQueue)
+                        end)
+                        notify("🎵 Spotify", "Refreshed playback & queue!")
+                    else
+                        notify("🎵 Spotify", "Connect Spotify first!")
+                    end
+                end
+            )
+
+            -- ───────────────────────────────────────────────────────────────────
+            -- 3. OAUTH PKCE CONNECTION SETUP
+            -- ───────────────────────────────────────────────────────────────────
+            createSectionTitle(spotifyPage, 4, "Spotify Account Connection (OAuth PKCE)")
+            local authCard = Instance.new("Frame")
+            authCard.Name = "SpotifyAuthCard"
+            authCard.Size = UDim2.new(1, 0, 0, 198)
+            authCard.BackgroundColor3 = T.Panel
+            authCard.BackgroundTransparency = 0.08
+            authCard.BorderSizePixel = 0
+            authCard.LayoutOrder = 5
+            authCard.ZIndex = 7
+            authCard.Parent = spotifyPage
+            Instance.new("UICorner", authCard).CornerRadius = UDim.new(0, 12)
+            local authStroke = Instance.new("UIStroke")
+            authStroke.Color = T.Border
+            authStroke.Thickness = 1
+            authStroke.Transparency = 0.35
+            authStroke.Parent = authCard
+
+            local authStatusLbl = Instance.new("TextLabel")
+            authStatusLbl.Size = UDim2.new(1, -24, 0, 18)
+            authStatusLbl.Position = UDim2.fromOffset(12, 8)
+            authStatusLbl.BackgroundTransparency = 1
+            authStatusLbl.Font = Enum.Font.GothamBold
+            authStatusLbl.TextSize = 11
+            authStatusLbl.TextColor3 = T.Text
+            authStatusLbl.TextXAlignment = Enum.TextXAlignment.Left
+            authStatusLbl.Text = "Status: Not Connected"
+            authStatusLbl.ZIndex = 8
+            authStatusLbl.Parent = authCard
+
+            local stepRow = Instance.new("Frame")
+            stepRow.Size = UDim2.new(1, -24, 0, 26)
+            stepRow.Position = UDim2.fromOffset(12, 30)
+            stepRow.BackgroundTransparency = 1
+            stepRow.ZIndex = 8
+            stepRow.Parent = authCard
+            local stepLayout = Instance.new("UIListLayout", stepRow)
+            stepLayout.FillDirection = Enum.FillDirection.Horizontal
+            stepLayout.Padding = UDim.new(0, 6)
+
+            local function makeAuthBtn(parent, size, txt, bg, cb)
+                local b = Instance.new("TextButton")
+                b.Size = size
+                b.BackgroundColor3 = bg or T.PanelLt
+                b.BorderSizePixel = 0
+                b.Font = Enum.Font.GothamBold
+                b.TextSize = 10.5
+                b.TextColor3 = T.Text
+                b.Text = txt
+                b.AutoButtonColor = false
+                b.ZIndex = 9
+                b.Parent = parent
+                Instance.new("UICorner", b).CornerRadius = UDim.new(0, 7)
+                b.MouseButton1Click:Connect(cb)
+                return b
+            end
+
+            makeAuthBtn(stepRow, UDim2.new(0.5, -3, 1, 0), "📋 Copy Redirect URI", T.PanelLt, function()
+                copyClip(SP and SP.redirect or "http://127.0.0.1:8888/callback")
+                notify("🎵 Spotify", "Copied Redirect URI: http://127.0.0.1:8888/callback")
+            end)
+            makeAuthBtn(stepRow, UDim2.new(0.5, -3, 1, 0), "🌐 Copy Dashboard URL", T.PanelLt, function()
+                copyClip(SP and SP.dashboard or "https://developer.spotify.com/dashboard")
+                notify("🎵 Spotify", "Copied Spotify Developer Dashboard URL!")
+            end)
+
+            local clientIdBox = Instance.new("TextBox")
+            clientIdBox.Size = UDim2.new(1, -24, 0, 30)
+            clientIdBox.Position = UDim2.fromOffset(12, 62)
+            clientIdBox.BackgroundColor3 = T.BG
+            clientIdBox.BorderSizePixel = 0
+            clientIdBox.Font = Enum.Font.GothamMedium
+            clientIdBox.TextSize = 11
+            clientIdBox.TextColor3 = T.Text
+            clientIdBox.PlaceholderText = "Step 1: Paste your Spotify App Client ID..."
+            clientIdBox.PlaceholderColor3 = T.Muted
+            clientIdBox.Text = (SP and SP.cfg and SP.cfg.clientId) or ""
+            clientIdBox.ClearTextOnFocus = false
+            clientIdBox.TextXAlignment = Enum.TextXAlignment.Left
+            clientIdBox.ZIndex = 8
+            clientIdBox.Parent = authCard
+            Instance.new("UICorner", clientIdBox).CornerRadius = UDim.new(0, 8)
+            local cidPad = Instance.new("UIPadding", clientIdBox)
+            cidPad.PaddingLeft = UDim.new(0, 10)
+
+            local genLinkBtn = makeAuthBtn(authCard, UDim2.new(1, -24, 0, 28), "🔗 Step 2: Generate & Copy Spotify Sign-In Link", T.Accent, function()
+                if not SP then return end
+                local url, err = SP.authUrl(clientIdBox.Text)
+                if url then
+                    copyClip(url)
+                    authStatusLbl.Text = "Sign-in link copied! Open it in browser, press Agree, then paste the redirect URL below."
+                    authStatusLbl.TextColor3 = T.Success
+                    notify("🎵 Spotify", "Copied Sign-In Link! Open in browser & paste callback URL.")
+                    sSuccess()
+                else
+                    authStatusLbl.Text = "Error: " .. tostring(err)
+                    authStatusLbl.TextColor3 = T.Danger
+                    notify("🎵 Spotify", tostring(err))
+                    sError()
+                end
+            end)
+            genLinkBtn.Position = UDim2.fromOffset(12, 98)
+
+            local callbackBox = Instance.new("TextBox")
+            callbackBox.Size = UDim2.new(1, -24, 0, 30)
+            callbackBox.Position = UDim2.fromOffset(12, 132)
+            callbackBox.BackgroundColor3 = T.BG
+            callbackBox.BorderSizePixel = 0
+            callbackBox.Font = Enum.Font.GothamMedium
+            callbackBox.TextSize = 11
+            callbackBox.TextColor3 = T.Text
+            callbackBox.PlaceholderText = "Step 3: Paste http://127.0.0.1:8888/callback?code=... here"
+            callbackBox.PlaceholderColor3 = T.Muted
+            callbackBox.Text = ""
+            callbackBox.ClearTextOnFocus = false
+            callbackBox.TextXAlignment = Enum.TextXAlignment.Left
+            callbackBox.ZIndex = 8
+            callbackBox.Parent = authCard
+            Instance.new("UICorner", callbackBox).CornerRadius = UDim.new(0, 8)
+            local cbPad = Instance.new("UIPadding", callbackBox)
+            cbPad.PaddingLeft = UDim.new(0, 10)
+
+            local connectRow = Instance.new("Frame")
+            connectRow.Size = UDim2.new(1, -24, 0, 26)
+            connectRow.Position = UDim2.fromOffset(12, 166)
+            connectRow.BackgroundTransparency = 1
+            connectRow.ZIndex = 8
+            connectRow.Parent = authCard
+            local connLayout = Instance.new("UIListLayout", connectRow)
+            connLayout.FillDirection = Enum.FillDirection.Horizontal
+            connLayout.Padding = UDim.new(0, 6)
+
+            local connBtn = makeAuthBtn(connectRow, UDim2.new(0.65, -3, 1, 0), "✓ Connect Spotify", Color3.fromRGB(30, 215, 96), function()
+                if not SP then return end
+                authStatusLbl.Text = "Completing Spotify login..."
+                authStatusLbl.TextColor3 = T.Warning
+                task.spawn(function()
+                    local ok, err = SP.finish(callbackBox.Text)
+                    if ok then
+                        callbackBox.Text = ""
+                        SP.setSource(true)
+                        authStatusLbl.Text = "Connected as " .. tostring(SP.cfg.user or "Spotify User")
+                        authStatusLbl.TextColor3 = T.Success
+                        notify("🎵 Spotify", "Connected as " .. tostring(SP.cfg.user or "Spotify User") .. "!")
+                        sSuccess()
+                    else
+                        authStatusLbl.Text = "Login failed: " .. tostring(err)
+                        authStatusLbl.TextColor3 = T.Danger
+                        notify("🎵 Spotify", tostring(err))
+                        sError()
+                    end
+                end)
+            end)
+            connBtn.TextColor3 = Color3.fromRGB(8, 10, 8)
+
+            makeAuthBtn(connectRow, UDim2.new(0.35, -3, 1, 0), "Disconnect", T.Danger, function()
+                if SP then
+                    SP.disconnect()
+                    authStatusLbl.Text = "Disconnected from Spotify"
+                    authStatusLbl.TextColor3 = T.Muted
+                    notify("🎵 Spotify", "Disconnected Spotify account.")
+                end
+            end)
+
+            -- ───────────────────────────────────────────────────────────────────
+            -- 4. SEARCH, LIBRARY & QUEUE BROWSER
+            -- ───────────────────────────────────────────────────────────────────
+            createSectionTitle(spotifyPage, 6, "Search · Library · Playlists · Queue")
+            local libCard = Instance.new("Frame")
+            libCard.Name = "SpotifyLibraryCard"
+            libCard.Size = UDim2.new(1, 0, 0, 290)
+            libCard.BackgroundColor3 = T.Panel
+            libCard.BackgroundTransparency = 0.08
+            libCard.BorderSizePixel = 0
+            libCard.LayoutOrder = 7
+            libCard.ZIndex = 7
+            libCard.Parent = spotifyPage
+            Instance.new("UICorner", libCard).CornerRadius = UDim.new(0, 12)
+            local libStroke = Instance.new("UIStroke")
+            libStroke.Color = T.Border
+            libStroke.Thickness = 1
+            libStroke.Transparency = 0.35
+            libStroke.Parent = libCard
+
+            local tabRow = Instance.new("Frame")
+            tabRow.Size = UDim2.new(1, -20, 0, 26)
+            tabRow.Position = UDim2.fromOffset(10, 10)
+            tabRow.BackgroundTransparency = 1
+            tabRow.ZIndex = 8
+            tabRow.Parent = libCard
+            local tabLay = Instance.new("UIListLayout", tabRow)
+            tabLay.FillDirection = Enum.FillDirection.Horizontal
+            tabLay.Padding = UDim.new(0, 4)
+
+            local spTabs = {
+                { id = "search",    label = "Search" },
+                { id = "liked",     label = "Liked" },
+                { id = "playlists", label = "Playlists" },
+                { id = "albums",    label = "Albums" },
+                { id = "recent",    label = "Recent" },
+                { id = "queue",     label = "Queue" },
+            }
+            local activeSpTab = "liked"
+            local openPlaylist = nil -- { id, title, uri }
+            local spTabBtns = {}
+
+            local searchRow = Instance.new("Frame")
+            searchRow.Size = UDim2.new(1, -20, 0, 28)
+            searchRow.Position = UDim2.fromOffset(10, 42)
+            searchRow.BackgroundTransparency = 1
+            searchRow.ZIndex = 8
+            searchRow.Parent = libCard
+
+            local searchBox = Instance.new("TextBox")
+            searchBox.Size = UDim2.new(1, -76, 1, 0)
+            searchBox.BackgroundColor3 = T.BG
+            searchBox.BorderSizePixel = 0
+            searchBox.Font = Enum.Font.GothamMedium
+            searchBox.TextSize = 11
+            searchBox.TextColor3 = T.Text
+            searchBox.PlaceholderText = "Search Spotify tracks..."
+            searchBox.PlaceholderColor3 = T.Muted
+            searchBox.Text = ""
+            searchBox.ClearTextOnFocus = false
+            searchBox.TextXAlignment = Enum.TextXAlignment.Left
+            searchBox.ZIndex = 8
+            searchBox.Parent = searchRow
+            Instance.new("UICorner", searchBox).CornerRadius = UDim.new(0, 8)
+            local sPad = Instance.new("UIPadding", searchBox)
+            sPad.PaddingLeft = UDim.new(0, 10)
+
+            local lastSearchKey = nil
+            local renderLibraryList
+
+            local searchGoBtn = makeAuthBtn(searchRow, UDim2.new(0, 70, 1, 0), "Search", Color3.fromRGB(30, 215, 96), function()
+                local q = tostring(searchBox.Text or ""):match("^%s*(.-)%s*$")
+                if q == "" then return end
+                activeSpTab = "search"
+                openPlaylist = nil
+                lastSearchKey = "search:" .. q
+                if SP and SP.connected() then
+                    SP.forget(lastSearchKey)
+                    SP.list(lastSearchKey)
+                end
+                renderLibraryList()
+            end)
+            searchGoBtn.Position = UDim2.new(1, -70, 0, 0)
+            searchGoBtn.TextColor3 = Color3.fromRGB(8, 10, 8)
+
+            local listScroll = Instance.new("ScrollingFrame")
+            listScroll.Size = UDim2.new(1, -20, 1, -84)
+            listScroll.Position = UDim2.fromOffset(10, 76)
+            listScroll.BackgroundColor3 = T.BG
+            listScroll.BackgroundTransparency = 0.25
+            listScroll.BorderSizePixel = 0
+            listScroll.ScrollBarThickness = 3
+            listScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+            listScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+            listScroll.ZIndex = 8
+            listScroll.Parent = libCard
+            Instance.new("UICorner", listScroll).CornerRadius = UDim.new(0, 8)
+            local listLay = Instance.new("UIListLayout", listScroll)
+            listLay.Padding = UDim.new(0, 4)
+            local listPad = Instance.new("UIPadding", listScroll)
+            listPad.PaddingTop = UDim.new(0, 6)
+            listPad.PaddingBottom = UDim.new(0, 6)
+            listPad.PaddingLeft = UDim.new(0, 6)
+            listPad.PaddingRight = UDim.new(0, 6)
+
+            local function addInfoRow(msg, col)
+                local lbl = Instance.new("TextLabel")
+                lbl.Size = UDim2.new(1, 0, 0, 28)
+                lbl.BackgroundTransparency = 1
+                lbl.Font = Enum.Font.GothamMedium
+                lbl.TextSize = 11
+                lbl.TextColor3 = col or T.Muted
+                lbl.Text = msg
+                lbl.TextWrapped = true
+                lbl.ZIndex = 9
+                lbl.Parent = listScroll
+            end
+
+            local function addItemRow(titleTxt, subTxt, badgeTxt, onClick)
+                local row = Instance.new("TextButton")
+                row.Size = UDim2.new(1, 0, 0, 38)
+                row.BackgroundColor3 = T.PanelLt
+                row.BackgroundTransparency = 0.2
+                row.BorderSizePixel = 0
+                row.Text = ""
+                row.AutoButtonColor = false
+                row.ZIndex = 9
+                row.Parent = listScroll
+                Instance.new("UICorner", row).CornerRadius = UDim.new(0, 8)
+
+                local tLbl = Instance.new("TextLabel")
+                tLbl.Size = UDim2.new(1, -74, 0, 17)
+                tLbl.Position = UDim2.fromOffset(10, 4)
+                tLbl.BackgroundTransparency = 1
+                tLbl.Font = Enum.Font.GothamBold
+                tLbl.TextSize = 11
+                tLbl.TextColor3 = T.Text
+                tLbl.TextXAlignment = Enum.TextXAlignment.Left
+                tLbl.TextTruncate = Enum.TextTruncate.AtEnd
+                tLbl.Text = titleTxt
+                tLbl.ZIndex = 10
+                tLbl.Parent = row
+
+                local sLbl = Instance.new("TextLabel")
+                sLbl.Size = UDim2.new(1, -74, 0, 14)
+                sLbl.Position = UDim2.fromOffset(10, 21)
+                sLbl.BackgroundTransparency = 1
+                sLbl.Font = Enum.Font.Gotham
+                sLbl.TextSize = 9.5
+                sLbl.TextColor3 = T.Muted
+                sLbl.TextXAlignment = Enum.TextXAlignment.Left
+                sLbl.TextTruncate = Enum.TextTruncate.AtEnd
+                sLbl.Text = subTxt or ""
+                sLbl.ZIndex = 10
+                sLbl.Parent = row
+
+                if badgeTxt and badgeTxt ~= "" then
+                    local bLbl = Instance.new("TextLabel")
+                    bLbl.Size = UDim2.fromOffset(56, 20)
+                    bLbl.Position = UDim2.new(1, -64, 0.5, -10)
+                    bLbl.BackgroundColor3 = T.BG
+                    bLbl.BorderSizePixel = 0
+                    bLbl.Font = Enum.Font.GothamBold
+                    bLbl.TextSize = 9.5
+                    bLbl.TextColor3 = Color3.fromRGB(30, 215, 96)
+                    bLbl.Text = badgeTxt
+                    bLbl.ZIndex = 10
+                    bLbl.Parent = row
+                    Instance.new("UICorner", bLbl).CornerRadius = UDim.new(0, 6)
+                end
+
+                row.MouseButton1Click:Connect(onClick)
+            end
+
+            renderLibraryList = function()
+                for _, ch in ipairs(listScroll:GetChildren()) do
+                    if ch:IsA("GuiObject") then ch:Destroy() end
+                end
+                for id, b in pairs(spTabBtns) do
+                    local isAct = (id == activeSpTab)
+                    b.BackgroundColor3 = isAct and Color3.fromRGB(30, 215, 96) or T.PanelLt
+                    b.TextColor3 = isAct and Color3.fromRGB(8, 10, 8) or T.Text
+                end
+
+                if not (SP and SP.connected()) then
+                    addInfoRow("Connect Spotify above to browse Liked Songs, Playlists, Albums, Search & Queue.")
+                    return
+                end
+
+                if activeSpTab == "queue" then
+                    if not SP.queueList or #SP.queueList == 0 then
+                        addInfoRow("Queue is empty (or start playing on Spotify & tap Refresh).")
+                        return
+                    end
+                    for idx, item in ipairs(SP.queueList) do
+                        addInfoRow(string.format("%d. %s — %s", idx, tostring(item.title or ""), tostring(item.artist or "")), T.Text)
+                    end
+                    return
+                end
+
+                local key = activeSpTab
+                if activeSpTab == "search" then
+                    if not lastSearchKey then
+                        addInfoRow("Type a song or artist above and press Search.")
+                        return
+                    end
+                    key = lastSearchKey
+                elseif activeSpTab == "playlists" and openPlaylist then
+                    addItemRow("← Back to Playlists", "Viewing: " .. tostring(openPlaylist.title), "▶ Play", function()
+                        openPlaylist = nil
+                        renderLibraryList()
+                    end)
+                    key = "playlist:" .. tostring(openPlaylist.id)
+                end
+
+                local res = SP.list(key)
+                if res.busy then
+                    addInfoRow("Loading from Spotify...", T.Warning)
+                    return
+                end
+                if res.err then
+                    addInfoRow(tostring(res.err), T.Danger)
+                    return
+                end
+                local items = res.items or {}
+                if #items == 0 then
+                    addInfoRow("No items found.")
+                    return
+                end
+
+                for _, it in ipairs(items) do
+                    if activeSpTab == "playlists" and not openPlaylist then
+                        local countStr = it.count and (tostring(it.count) .. " tracks") or "Playlist"
+                        addItemRow(it.title, tostring(it.ownerName or "Spotify") .. " · " .. countStr, "Open", function()
+                            openPlaylist = it
+                            renderLibraryList()
+                        end)
+                    elseif activeSpTab == "albums" then
+                        addItemRow(it.title, tostring(it.ownerName or "Album"), "▶ Play", function()
+                            SP.playContext(it.uri)
+                            notify("🎵 Spotify", "Playing album: " .. tostring(it.title))
+                        end)
+                    else
+                        addItemRow(it.title, tostring(it.artist or ""), fmtTime(it.duration), function()
+                            if activeSpTab == "playlists" and openPlaylist and openPlaylist.uri then
+                                SP.playContext(openPlaylist.uri, it.uri)
+                            elseif activeSpTab == "liked" and SP.likedSongsContext() then
+                                SP.playContext(SP.likedSongsContext(), it.uri)
+                            else
+                                SP.playIn(items, it.uri)
+                            end
+                            notify("🎵 Spotify", "Playing: " .. tostring(it.title))
+                        end)
+                    end
+                end
+            end
+
+            for _, tabDef in ipairs(spTabs) do
+                local tb = makeAuthBtn(tabRow, UDim2.new(1 / #spTabs, -3.5, 1, 0), tabDef.label, T.PanelLt, function()
+                    activeSpTab = tabDef.id
+                    openPlaylist = nil
+                    if tabDef.id == "queue" and SP and SP.connected() then
+                        task.spawn(pcall, SP.pollQueue)
+                    end
+                    renderLibraryList()
+                end)
+                spTabBtns[tabDef.id] = tb
+            end
+
+            -- ───────────────────────────────────────────────────────────────────
+            -- 5. PLAYBACK DEVICES
+            -- ───────────────────────────────────────────────────────────────────
+            createSectionTitle(spotifyPage, 8, "Spotify Playback Devices")
+            local devGrp = createGroupCard(spotifyPage, 9)
+            local devStatusRow = createActionRow(
+                devGrp,
+                1,
+                "Transfer Playback Device",
+                "Lists your active Spotify devices (PC, Phone, Web) and transfers playback",
+                "Scan Devices",
+                function()
+                    if not (SP and SP.connected()) then
+                        notify("🎵 Spotify", "Connect Spotify first!")
+                        return
+                    end
+                    SP.devices(function(list)
+                        if not list or #list == 0 then
+                            notify("🎵 Spotify", "No active Spotify devices found. Open Spotify on PC or phone first.")
+                            return
+                        end
+                        -- Transfer to next non-active device, or first device
+                        local pick = list[1]
+                        for _, d in ipairs(list) do
+                            if not d.active then pick = d; break end
+                        end
+                        SP.transfer(pick.id)
+                        notify("🎵 Spotify", "Transferred playback to: " .. tostring(pick.name) .. " (" .. tostring(pick.kind) .. ")")
+                    end)
+                end
+            )
+
+            -- Live UI updater loop (lightweight, only updates when Spotify page is visible)
+            local lastRenderedListRev = -1
+            local lastRenderedQueueRev = -1
+            task.spawn(function()
+                while spotifyPage and spotifyPage.Parent do
+                    if spotifyPage.Visible and SP then
+                        if SP.connected() then
+                            local userStr = tostring(SP.cfg.user or "Connected")
+                            if SP.needsReconnect() then
+                                authStatusLbl.Text = "Connected as " .. userStr .. " (Reconnect to enable Liked Songs)"
+                                authStatusLbl.TextColor3 = T.Warning
+                            else
+                                authStatusLbl.Text = "Connected as " .. userStr .. (SP.on() and " · Live Sync ON" or " · Live Sync OFF")
+                                authStatusLbl.TextColor3 = T.Success
+                            end
+
+                            local s = SP.st or {}
+                            if s.title and s.title ~= "" then
+                                trackTitleLbl.Text = s.title
+                                trackArtistLbl.Text = s.artist or ""
+                                deviceLbl.Text = "Device: " .. tostring(s.device or "Active") .. (s.deviceKind and (" (" .. s.deviceKind .. ")") or "")
+                                local pos = SP.position()
+                                local dur = math.max(1, s.duration or 0)
+                                progFill.Size = UDim2.new(math.clamp(pos / dur, 0, 1), 0, 1, 0)
+                                timeLeftLbl.Text = fmtTime(pos)
+                                timeRightLbl.Text = fmtTime(s.duration or 0)
+                                playPauseBtn.Text = s.playing and "⏸ Pause" or "▶ Play"
+                                shuffleBtn.Text = s.shuffle and "🔀 On" or "🔀 Off"
+                                shuffleBtn.BackgroundColor3 = s.shuffle and Color3.fromRGB(30, 215, 96) or T.PanelLt
+                                shuffleBtn.TextColor3 = s.shuffle and Color3.fromRGB(8, 10, 8) or T.Text
+                                local liked = SP.isLiked()
+                                likeBtn.Text = liked and "♥" or "♡"
+                                likeBtn.TextColor3 = liked and Color3.fromRGB(30, 215, 96) or T.Muted
+                                local art = SP.artNow()
+                                if art then
+                                    artImg.Image = art
+                                    artPlaceholder.Visible = false
+                                else
+                                    artImg.Image = ""
+                                    artPlaceholder.Visible = true
+                                end
+                            else
+                                trackTitleLbl.Text = s.idle and "Spotify Idle" or "Waiting for playback..."
+                                trackArtistLbl.Text = "Play a song on Spotify or pick from Library below"
+                                deviceLbl.Text = "Device: —"
+                                progFill.Size = UDim2.new(0, 0, 1, 0)
+                                timeLeftLbl.Text = "0:00"
+                                timeRightLbl.Text = "0:00"
+                                playPauseBtn.Text = "▶ Play"
+                                artImg.Image = ""
+                                artPlaceholder.Visible = true
+                            end
+                        else
+                            authStatusLbl.Text = "Status: Not Connected"
+                            authStatusLbl.TextColor3 = T.Muted
+                            trackTitleLbl.Text = "Not Connected"
+                            trackArtistLbl.Text = "Follow Steps 1–3 below to connect Spotify"
+                            deviceLbl.Text = "Device: —"
+                        end
+
+                        if SP.listRev ~= lastRenderedListRev or SP.queueRev ~= lastRenderedQueueRev then
+                            lastRenderedListRev = SP.listRev
+                            lastRenderedQueueRev = SP.queueRev
+                            pcall(renderLibraryList)
+                        end
+                    end
+                    task.wait(0.5)
+                end
+            end)
+
+            spotifyPage:GetPropertyChangedSignal("Visible"):Connect(function()
+                if spotifyPage.Visible then
+                    pcall(renderLibraryList)
+                    if SP and SP.connected() then
+                        task.spawn(pcall, SP.poll)
+                    end
+                end
+            end)
+        end
     end
 
     -- Spawn the default floating quick pills (including AnimCopy!)
@@ -28223,6 +31021,2717 @@ local function buildMainUI()
                 ensureCocaReanimMounted()
             end
         end)
+
+        -- ════════════════════════════════════════════════════════════════════════
+        -- ULTIMATE COMBINED REANIMATION ENGINE (UltimateReanimation.luau — Full Intact Integration)
+        -- ════════════════════════════════════════════════════════════════════════
+        do
+            local function _loadUltimateReanimationEngine()
+                if _G.UltimateReanimAPI and type(_G.UltimateReanimAPI.reanimate) == "function" then
+                    return _G.UltimateReanimAPI
+                end
+--[[
+    ============================================================================
+    ULTIMATE COMBINED REANIMATION SCRIPT (Standalone + Module Compatible)
+    ============================================================================
+    Combined intact components:
+      1. Core Reanimation Engine       (reanimation.luau)
+         - Character cloning, puppet mode, noclip, anti-death, ShiftLock gyro
+         - Keyframe animation player + URL memory/disk cache + AC/Motor6D support
+         - Arm Poles (set_arm_poles), Limb Poles (pole_*), Limb Reach (reach_*)
+      2. Built-in KeyframeRecorder     (rig / pose / rigid / upright provider)
+      3. Reanim Pair Sync Module       (reanimPair.luau)
+      4. Reanim Mimic Module           (reanimMimic.luau)
+      5. Reanim Blend Module           (reanimBlend.luau)
+    ============================================================================
+]]
+
+local function initUltimateReanimation(env)
+    env = type(env) == "table" and env or {}
+
+    local _nvAny = env._nvAny or function(t)
+        if type(t) ~= "table" then return nil end
+        return next(t)
+    end
+
+    local _nvL = env._nvL or {
+        notify = function(title, msg)
+            warn("[" .. tostring(title) .. "] " .. tostring(msg))
+        end,
+    }
+
+    local _safeLoadstring = env._safeLoadstring or function(src)
+        local loader = loadstring or load
+        if type(loader) ~= "function" then
+            return nil, "loadstring is not available in this environment"
+        end
+        return loader(src)
+    end
+
+    local createInstance = env.createInstance or function(className, props)
+        local inst = Instance.new(className)
+        if type(props) == "table" then
+            local parent = props.Parent
+            for k, v in props do
+                if k ~= "Parent" then
+                    inst[k] = v
+                end
+            end
+            if parent ~= nil then
+                inst.Parent = parent
+            end
+        end
+        return inst
+    end
+
+    -- ========================================================================
+    -- BUILT-IN KEYFRAME RECORDER (Fallback for reanimPair & reanimMimic)
+    -- ========================================================================
+    local function createBuiltinKeyframeRecorder()
+        local K = {}
+
+        function K.rig(char)
+            if typeof(char) ~= "Instance" then return nil end
+            local hrp = char:FindFirstChild("HumanoidRootPart")
+            local joints = {}
+            local root = nil
+            local seen = {}
+
+            for _, d in char:GetDescendants() do
+                if d:IsA("Motor6D") and d.Part0 and d.Part1
+                and d.Part0:IsDescendantOf(char) and d.Part1:IsDescendantOf(char) then
+                    local name = d.Part1.Name
+                    if not seen[name] then
+                        seen[name] = true
+                        local entry = {
+                            name = name,
+                            p0 = d.Part0,
+                            p1 = d.Part1,
+                            c0 = d.C0,
+                            c1 = d.C1,
+                            motor = d,
+                        }
+                        if d.Part0 == hrp or d.Part0.Name == "HumanoidRootPart" then
+                            root = entry
+                        else
+                            joints[#joints + 1] = entry
+                        end
+                    end
+                end
+            end
+
+            if #joints == 0 and not root then
+                for _, d in char:GetDescendants() do
+                    if (d:IsA("AnimationConstraint") or d:IsA("BallSocketConstraint"))
+                    and d.Attachment0 and d.Attachment1
+                    and d.Attachment0.Parent and d.Attachment1.Parent
+                    and d.Attachment0.Parent:IsA("BasePart") and d.Attachment1.Parent:IsA("BasePart")
+                    and d.Attachment0.Parent:IsDescendantOf(char) and d.Attachment1.Parent:IsDescendantOf(char) then
+                        local p0 = d.Attachment0.Parent
+                        local p1 = d.Attachment1.Parent
+                        local name = p1.Name
+                        if not seen[name] then
+                            seen[name] = true
+                            local entry = {
+                                name = name,
+                                p0 = p0,
+                                p1 = p1,
+                                c0 = d.Attachment0.CFrame,
+                                c1 = d.Attachment1.CFrame,
+                                constraint = d,
+                            }
+                            if p0 == hrp or p0.Name == "HumanoidRootPart" then
+                                root = entry
+                            else
+                                joints[#joints + 1] = entry
+                            end
+                        end
+                    end
+                end
+            end
+
+            if not root and hrp and hrp:IsA("BasePart") then
+                local torso = char:FindFirstChild("LowerTorso") or char:FindFirstChild("Torso")
+                if torso and torso:IsA("BasePart") then
+                    root = {
+                        name = torso.Name,
+                        p0 = hrp,
+                        p1 = torso,
+                        c0 = CFrame.identity,
+                        c1 = CFrame.identity,
+                    }
+                end
+            end
+
+            if not root then return nil end
+            return { root = root, joints = joints }
+        end
+
+        function K.pose(j)
+            if not (j and j.p0 and j.p1 and j.p0.Parent and j.p1.Parent) then return nil end
+            return (j.p0.CFrame * j.c0):Inverse() * (j.p1.CFrame * j.c1)
+        end
+
+        function K.rigid(j)
+            if not (j and j.p0 and j.p1 and j.p0.Parent and j.p1.Parent) then return false end
+            local r0 = j.p0.AssemblyRootPart
+            local r1 = j.p1.AssemblyRootPart
+            return r0 ~= nil and r0 == r1
+        end
+
+        function K.upright(char, rig)
+            if typeof(char) ~= "Instance" then return nil end
+            local candidates = {
+                rig and rig.root and rig.root.p0,
+                char:FindFirstChild("HumanoidRootPart"),
+                char:FindFirstChild("UpperTorso"),
+                char:FindFirstChild("LowerTorso"),
+                char:FindFirstChild("Torso"),
+            }
+            for _, part in candidates do
+                if part and part:IsA("BasePart") and part.Parent == char then
+                    if part.CFrame.UpVector.Y > 0.5 then
+                        return part
+                    end
+                end
+            end
+            return nil
+        end
+
+        return K
+    end
+
+    local function getKeyframeRecorder()
+        if type(env.keyframeRecorder) == "function" then
+            local ok, res = pcall(env.keyframeRecorder)
+            if ok and type(res) == "table" then return res end
+        elseif type(env.keyframeRecorder) == "table" then
+            return env.keyframeRecorder
+        end
+        if type(require) == "function" then
+            local okReq, mod = pcall(require, "./keyframeRecorder")
+            if okReq then
+                if type(mod) == "function" then
+                    local okCall, res = pcall(mod)
+                    if okCall and type(res) == "table" then return res end
+                elseif type(mod) == "table" then
+                    return mod
+                end
+            end
+        end
+        return createBuiltinKeyframeRecorder()
+    end
+
+    -- ========================================================================
+    -- SECTION 1: CORE REANIMATION ENGINE (reanimation.luau)
+    -- ========================================================================
+    local prev = _G._nv_reanimRunning
+    if type(prev) == "table" and type(prev.reanimate) == "function" then pcall(prev.reanimate, false) end
+    _G._nv_reanimRunning = nil
+    local stalkie = {
+        services = {
+            players = game:GetService("Players"),
+            workspace = game:GetService("Workspace"),
+            replicated = game:GetService("ReplicatedStorage"),
+            run_service = game:GetService("RunService"),
+            user_input_service = game:GetService("UserInputService"),
+            http_service = game:GetService("HttpService"),
+        },
+        flags = { reanimated = false },
+        puppet = { weld = nil, parts = {}, active = false, animWasEnabled = false },
+        noclip = { on = true, parts = {}, was = {} },
+        poles = { active = false, conn = nil, items = {}, hidden = {}, length = 40 },
+        pole = { list = {}, skip = {}, render = nil },
+        reach = { arms = {}, skip = {}, render = nil, last = nil, step = nil },
+        free = { skip = {} },
+        trickStep = nil,
+        pairStep = nil,
+        clones = {},
+        connections = { hb=nil, died=nil, real_char_child_removed=nil,
+                        character_removing=nil, clone_died=nil,
+                        clone_char_child_removed=nil, animation_hb=nil },
+        real_chars = {},
+        callbacks = { on_play=nil, on_stop=nil, on_deactivate=nil },
+        animation = {
+            cache = {},
+            load_id = 0,
+            state = { is_playing=false, current_url=nil, speed=1.0,
+                      keyframes=nil, total_duration=0, elapsed_time=0 },
+            original_motor_c0s = {},
+            joints = {},
+            ac_joint_map = nil,
+            body = nil,
+        },
+    }
+
+    local API = {}
+
+    local ANIM_CACHE_DIR = "Novoline/anim_cache"
+    local function animCachePath(url)
+        local h = 0
+        for i = 1, #url do
+            h = (h * 31 + string.byte(url, i)) % 2147483647
+        end
+        return ANIM_CACHE_DIR .. "/" .. tostring(h) .. ".lua"
+    end
+
+    local function ensureAnimCacheDir()
+        pcall(function()
+            if typeof(isfolder) == "function" and typeof(makefolder) == "function" then
+                if not isfolder("Novoline") then makefolder("Novoline") end
+                if not isfolder(ANIM_CACHE_DIR) then makefolder(ANIM_CACHE_DIR) end
+            end
+        end)
+    end
+
+    local function decodeAnimSource(src)
+        if type(src) ~= "string" or src == "" then return nil, "empty source" end
+        local loaded_fn, load_err = _safeLoadstring(src)
+        if not loaded_fn then return nil, "Invalid script from URL. " .. tostring(load_err) end
+        local ok2, data = pcall(loaded_fn)
+        if not ok2 then return nil, "Script from URL failed to execute. " .. tostring(data) end
+        if typeof(data) ~= "table" then return nil, "Script from URL did not return a table." end
+        return data, nil
+    end
+
+    local function resolveAnimData(url)
+        local anim = stalkie.animation
+        local cached = anim.cache[url]
+        if cached then return cached, nil end
+
+        local path = animCachePath(url)
+        if typeof(isfile) == "function" and typeof(readfile) == "function" then
+            local okFile, exists = pcall(isfile, path)
+            if okFile and exists then
+                local okRead, src = pcall(readfile, path)
+                if okRead and type(src) == "string" and #src > 0 then
+                    local data, _err = decodeAnimSource(src)
+                    if data then
+                        anim.cache[url] = data
+                        return data, nil
+                    end
+                end
+            end
+        end
+
+        local ok1, response = pcall(game.HttpGet, game, url)
+        if not ok1 then return nil, "Animation Error: Failed to fetch URL." end
+        local data, err = decodeAnimSource(response)
+        if not data then return nil, "Animation Error: " .. tostring(err) end
+        anim.cache[url] = data
+        if typeof(writefile) == "function" and type(response) == "string" then
+            ensureAnimCacheDir()
+            pcall(writefile, path, response)
+        end
+        return data, nil
+    end
+
+    API.preload_animation = function(url)
+        if type(url) ~= "string" or url:sub(1, 4) ~= "http" then return false end
+        if stalkie.animation.cache[url] then return true end
+        local data = resolveAnimData(url)
+        return data ~= nil
+    end
+
+    local AC_HIERARCHY = {
+        { part = "LowerTorso",    parent = "HumanoidRootPart" },
+        { part = "UpperTorso",    parent = "LowerTorso"       },
+        { part = "Head",          parent = "UpperTorso"       },
+        { part = "LeftUpperArm",  parent = "UpperTorso"       },
+        { part = "LeftLowerArm",  parent = "LeftUpperArm"     },
+        { part = "LeftHand",      parent = "LeftLowerArm"     },
+        { part = "RightUpperArm", parent = "UpperTorso"       },
+        { part = "RightLowerArm", parent = "RightUpperArm"    },
+        { part = "RightHand",     parent = "RightLowerArm"    },
+        { part = "LeftUpperLeg",  parent = "LowerTorso"       },
+        { part = "LeftLowerLeg",  parent = "LeftUpperLeg"     },
+        { part = "LeftFoot",      parent = "LeftLowerLeg"     },
+        { part = "RightUpperLeg", parent = "LowerTorso"       },
+        { part = "RightLowerLeg", parent = "RightUpperLeg"    },
+        { part = "RightFoot",     parent = "RightLowerLeg"    },
+    }
+
+    local function buildACJointMap(clone)
+        local map = {}
+        for _, c in clone:GetDescendants() do
+            if c:IsA("AnimationConstraint")
+            and c.Attachment0 and c.Attachment0.Parent
+            and c.Attachment1 and c.Attachment1.Parent then
+                local childName = c.Attachment1.Parent.Name
+                map[childName] = {
+                    constraint = c,
+                    part0 = c.Attachment0.Parent,
+                    part1 = c.Attachment1.Parent,
+                    att0CF = c.Attachment0.CFrame,
+                    att1CF = c.Attachment1.CFrame,
+                }
+            end
+        end
+        return map
+    end
+
+    local function setACConstraints(clone, enabled)
+        for _, c in clone:GetDescendants() do
+            if c:IsA("BallSocketConstraint") or c:IsA("AnimationConstraint") then
+                pcall(function() c.Enabled = enabled end)
+            end
+        end
+    end
+
+    local function attachPuppet(real_char, clone_char)
+        if not (real_char and clone_char) then return end
+        local rHRP = real_char:FindFirstChild("HumanoidRootPart")
+        local cHRP = clone_char:FindFirstChild("HumanoidRootPart")
+        if not (rHRP and cHRP) then return end
+        local parts = {}
+        for _, d in real_char:GetDescendants() do
+            if d:IsA("BasePart") then
+                parts[d] = { massless = d.Massless, canCollide = d.CanCollide }
+                pcall(function() d.Massless = true end)
+                if d ~= rHRP then pcall(function() d.CanCollide = false end) end
+            end
+        end
+        local rAnim = real_char:FindFirstChild("Animate")
+        if rAnim then stalkie.puppet.animWasEnabled = not rAnim.Disabled; rAnim.Disabled = true end
+        local weld = createInstance("Motor6D", {
+          Name = "PuppetRoot",
+          Part0 = cHRP,
+          Part1 = rHRP,
+          C0 = CFrame.identity,
+          C1 = CFrame.identity,
+          Parent = cHRP,
+        })
+        stalkie.puppet.weld = weld
+        stalkie.puppet.parts = parts
+        stalkie.puppet.active = true
+    end
+
+    local function detachPuppet(real_char)
+        if stalkie.puppet.weld then
+            pcall(function() stalkie.puppet.weld:Destroy() end)
+        end
+        if real_char then
+            for d, st in stalkie.puppet.parts do
+                if d and d.Parent then
+                    pcall(function() d.Massless = st.massless end)
+                    pcall(function() d.CanCollide = st.canCollide end)
+                end
+            end
+            local rAnim = real_char:FindFirstChild("Animate")
+            if rAnim and stalkie.puppet.animWasEnabled then rAnim.Disabled = false end
+        end
+        stalkie.puppet.weld = nil
+        stalkie.puppet.parts = {}
+        stalkie.puppet.active = false
+    end
+
+    local function noclipRestore()
+        for part in stalkie.noclip.was do
+            if part.Parent then pcall(function() part.CanCollide = true end) end
+        end
+        table.clear(stalkie.noclip.was)
+    end
+
+    local function noclipWatch(model)
+        local parts = stalkie.noclip.parts
+        for _, d in model:GetDescendants() do
+            if d:IsA("BasePart") then parts[#parts + 1] = d end
+        end
+        return model.DescendantAdded:Connect(function(d)
+            if d:IsA("BasePart") then parts[#parts + 1] = d end
+        end)
+    end
+
+    local function noCollide(p)
+        p.CanCollide = false
+    end
+
+    local function noclipStep()
+        local nc = stalkie.noclip
+        if not nc.on then return end
+        for _, p in nc.parts do
+            if p.CanCollide and p.Parent then
+                nc.was[p] = true
+                pcall(noCollide, p)
+            end
+        end
+    end
+
+    local get_game_ragdoll_info = function(enable)
+        local place_id = game.PlaceId
+        local rep = stalkie.services.replicated
+        if place_id == 15546218972 or place_id == 6884319169 then
+            local remote = rep:WaitForChild("event_rag", 4)
+            if remote then return remote, {"Ball"}, false end
+        elseif place_id == 5991163185 then
+            local ok, remote = pcall(function() return rep.Remotes.Physics.Ragdoll end)
+            if ok and remote then return remote, {}, false end
+        elseif place_id == 5683833663 then
+            local local_event = rep:WaitForChild("LocalRagdollEvent", 4)
+            if local_event then return local_event, {enable}, true end
+        elseif place_id == 86382196724726 or game.GameId == 10581310106 then
+            local remotes = rep:WaitForChild("Remotes", 4)
+            local toggle = remotes and remotes:WaitForChild("RagdollToggle", 4)
+            if toggle then return toggle, {enable and "Ball" or false}, false end
+            return nil, nil, false
+        end
+        local function findChild(parent, path)
+            local cur = parent
+            for part in path:gmatch("[^/]+") do
+                if not cur then return nil end
+                cur = cur:FindFirstChild(part)
+            end
+            return cur
+        end
+        local candidates = {
+            "Ragdoll", "RagdollEvent", "event_rag", "Rag", "Ragdolled",
+            "Remotes/Ragdoll", "Events/Ragdoll", "Remotes/Physics/Ragdoll",
+            "RemoteEvents/Ragdoll", "RemoteEvents/RagdollEvent",
+        }
+        for _, path in candidates do
+            local r = findChild(rep, path)
+            if r then
+                if r:IsA("BindableEvent") then
+                    return r, {enable}, true
+                elseif r:IsA("RemoteEvent") or r:IsA("RemoteFunction") then
+                    return r, {}, false
+                end
+            end
+        end
+        return nil, nil, false
+    end
+
+    local set_model_transparency = function(model, transparency)
+        if not model then return end
+        for _, part in model:GetDescendants() do
+            if part:IsA("BasePart") then part.Transparency = transparency end
+        end
+    end
+
+    local get_local_player = function()
+        local player = stalkie.services.players.LocalPlayer
+        if not player then
+            return "bad argument to 'get_local_player' (LocalPlayer not found; must run in a LocalScript)"
+        end
+        return player
+    end
+
+    local get_char = function(player)
+        if typeof(player) ~= "Instance" or not player:IsA("Player") then
+            return ("bad argument #1 to 'get_char' (Player expected, got %s)"):format(typeof(player))
+        end
+        local character = player.Character
+        if not character or not character.Parent then
+            return ("Player %s has no active character."):format(player.Name)
+        end
+        return character
+    end
+
+    local clone_char = function(model)
+        if typeof(model) ~= "Instance" then
+            return ("bad argument #1 to 'clone_char' (Instance expected, got %s)"):format(typeof(model))
+        end
+        model.Archivable = true
+        local new_clone = model:Clone()
+        model.Archivable = false
+        new_clone.Name = "Reanimation"
+        new_clone.Parent = stalkie.services.workspace
+        local _animScript = new_clone:WaitForChild("Animate", 6)
+        if _animScript then _animScript.Disabled = true end
+        new_clone.Humanoid.RequiresNeck = false
+        new_clone.Humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+        if new_clone:FindFirstChildWhichIsA("ForceField") then
+            new_clone:FindFirstChildWhichIsA("ForceField"):Destroy()
+        end
+        return new_clone
+    end
+
+    local fire_remote = function(remote, is_local, ...)
+        if typeof(remote) ~= "Instance" then
+            return ("bad argument to 'fire_remote' (Instance expected, got %s)"):format(typeof(remote))
+        end
+        if is_local then
+            if not remote:IsA("BindableEvent") then
+                return ("bad argument to 'fire_remote' (BindableEvent expected for local event, got %s)"):format(remote.ClassName)
+            end
+            remote:Fire(...)
+        else
+            if not (remote:IsA("RemoteEvent") or remote:IsA("RemoteFunction")) then
+                return ("bad argument to 'fire_remote' (RemoteEvent or RemoteFunction expected, got %s)"):format(remote.ClassName)
+            end
+            if remote:IsA("RemoteEvent") then remote:FireServer(...)
+            else remote:InvokeServer(...) end
+        end
+    return end
+
+    API.get_clone = function(player)
+        player = player or get_local_player()
+        if typeof(player) == "string" then return nil end
+        return stalkie.clones[player]
+    end
+
+    API.get_real_character = function(player)
+        player = player or get_local_player()
+        if typeof(player) == "string" then return nil end
+        return stalkie.real_chars[player]
+    end
+
+    API.get_anim_body = function(player)
+        return stalkie.animation.body or API.get_clone(player)
+    end
+
+    API.get_original_c0s = function()
+        return stalkie.animation.original_motor_c0s
+    end
+
+    API.is_reanimated = function()
+        return stalkie.flags.reanimated
+    end
+
+    API.set_noclip = function(on)
+        stalkie.noclip.on = on == true
+        if not stalkie.noclip.on then noclipRestore() end
+    end
+
+    API.get_noclip = function()
+        return stalkie.noclip.on
+    end
+    API.set_animation_speed = function(speed) stalkie.animation.state.speed = tonumber(speed) or 1.0 end
+    API.set_animation_dir = function(dir)
+        stalkie.animation.state.dir = (tonumber(dir) or 1) < 0 and -1 or 1
+    end
+    API.set_animation_paused = function(paused)
+        stalkie.animation.state.paused = paused and true or false
+    end
+    API.set_animation_hold = function(on)
+        stalkie.animation.state.hold = on and true or false
+    end
+    API.get_animation_time = function()
+        local st = stalkie.animation.state
+        if not st.is_playing or (st.total_duration or 0) <= 0 then return nil end
+        return st.elapsed_time, st.total_duration, st.current_url
+    end
+    API.set_animation_time = function(t)
+        local st = stalkie.animation.state
+        if not st.is_playing or (st.total_duration or 0) <= 0 then return end
+        st.elapsed_time = math.clamp(tonumber(t) or 0, 0, st.total_duration - 1e-3)
+    end
+    API.on_animation_play = function(cb2) if type(cb2)=="function" then stalkie.callbacks.on_play=cb2 end end
+    API.on_animation_stop = function(cb2) if type(cb2)=="function" then stalkie.callbacks.on_stop=cb2 end end
+    API.on_deactivate = function(cb2) if type(cb2)=="function" then stalkie.callbacks.on_deactivate=cb2 end end
+    API.is_animation_playing = function()
+        return stalkie.animation.state.is_playing, stalkie.animation.state.current_url
+    end
+
+    API.cancel_pending = function()
+        stalkie.animation.load_id = (stalkie.animation.load_id or 0) + 1
+    end
+
+    API.stop_animation = function(keep)
+        local stopped_url = stalkie.animation.state.current_url
+        if API.blend then API.blend.cancel() end
+        if stalkie.connections.animation_hb then
+            stalkie.connections.animation_hb:Disconnect()
+            stalkie.connections.animation_hb = nil
+        end
+        local _kept = stalkie.animation.state
+        stalkie.animation.state = {
+            is_playing=false, current_url=nil, speed=_kept.speed,
+            dir=_kept.dir, paused=_kept.paused,
+            keyframes=nil, total_duration=0, elapsed_time=0,
+        }
+        local player = get_local_player()
+        if typeof(player) == "string" then return end
+        local cc = API.get_clone(player)
+        if cc then
+            for motor, orig_c0 in stalkie.animation.original_motor_c0s do
+                if not keep and motor and motor.Parent then motor.C0 = orig_c0 end
+            end
+            if stalkie.animation.ac_joint_map then
+                for _, jd in stalkie.animation.ac_joint_map do
+                    if not keep and jd.constraint and jd.constraint.Parent then
+                        pcall(function() jd.constraint.Transform = CFrame.identity end)
+                    end
+                end
+                local cas = cc:FindFirstChild("Animate")
+                if cas then cas.Enabled = true end
+            else
+                local cas = cc:FindFirstChild("Animate")
+                if cas then cas.Enabled = true end
+            end
+        end
+        if stopped_url and stalkie.callbacks.on_stop then
+            pcall(stalkie.callbacks.on_stop, stopped_url)
+        end
+    end
+
+    API.reanimate = function(bool, remote, args)
+        if bool ~= true and bool ~= false then
+            return ("bad argument #1 to 'reanimate' (boolean expected, got %s)"):format(typeof(bool))
+        end
+        local player = get_local_player()
+        if typeof(player) == "string" then return player end
+        local is_local_event = false
+        if not remote then
+            local game_remote, game_args, is_local = get_game_ragdoll_info(bool)
+            if game_remote then remote=game_remote; args=game_args; is_local_event=is_local end
+        end
+        if bool then
+            if stalkie.flags.reanimated then return "Already reanimated." end
+            local real_char = get_char(player)
+            if typeof(real_char) == "string" then return real_char end
+            if not real_char:FindFirstChild("Humanoid") then return "Real character is missing a Humanoid." end
+            local real_hrp = real_char:FindFirstChild("HumanoidRootPart")
+            if not real_hrp then return "Real character is missing a HumanoidRootPart, cannot reanimate." end
+            stalkie.real_chars[player] = real_char
+            local cloned_char = clone_char(real_char)
+            if typeof(cloned_char) == "string" then return cloned_char end
+            if not cloned_char:FindFirstChild("Humanoid") then return "Cloned character failed to create or is missing a Humanoid." end
+            stalkie.clones[player] = cloned_char
+            set_model_transparency(cloned_char, 1)
+            local player_gui = player:FindFirstChildWhichIsA("PlayerGui")
+            local _guisFlipped = {}
+            if player_gui then
+                for _, gui in player_gui:GetChildren() do
+                    if gui:IsA("ScreenGui") and gui.ResetOnSpawn then
+                        gui.ResetOnSpawn = false
+                        _guisFlipped[gui] = true
+                    end
+                end
+            end
+            if stalkie.destroyBehavior == nil and typeof(sethiddenproperty) == "function" then
+                pcall(function()
+                    stalkie.destroyBehavior = gethiddenproperty(stalkie.services.workspace, "PlayerCharacterDestroyBehavior")
+                    sethiddenproperty(stalkie.services.workspace, "PlayerCharacterDestroyBehavior", Enum.PlayerCharacterDestroyBehavior.Disabled)
+                end)
+            end
+            player.Character = cloned_char
+            if real_char.Parent == nil then pcall(function() real_char.Parent = stalkie.services.workspace end) end
+            local _realHum = real_char:FindFirstChildOfClass("Humanoid")
+            if _realHum then
+                pcall(function() _realHum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None end)
+            end
+            local _camHum = cloned_char:WaitForChild("Humanoid", 6)
+            if _camHum then stalkie.services.workspace.CurrentCamera.CameraSubject = _camHum end
+            local _animS2 = cloned_char:WaitForChild("Animate", 6)
+            if _animS2 then _animS2.Disabled = true ; _animS2.Disabled = false end
+            local anim_body = (not remote) and real_char or cloned_char
+            stalkie.animation.body = anim_body
+            table.clear(stalkie.animation.original_motor_c0s)
+            table.clear(stalkie.animation.joints)
+            local hasMotor6D = false
+            for _, descendant in anim_body:GetDescendants() do
+                if descendant:IsA("Motor6D") and descendant.Part1 then
+                    hasMotor6D = true
+                    stalkie.animation.joints[descendant.Part1.Name] = descendant
+                    stalkie.animation.original_motor_c0s[descendant] = descendant.C0
+                end
+            end
+            if not hasMotor6D then
+                stalkie.animation.ac_joint_map = buildACJointMap(anim_body)
+            else
+                stalkie.animation.ac_joint_map = nil
+            end
+            if player_gui then
+                for _, gui in player_gui:GetChildren() do
+                    if gui:IsA("ScreenGui") and _guisFlipped[gui] then gui.ResetOnSpawn=true end
+                end
+            end
+            local real_humanoid = real_char.Humanoid
+            local cloned_humanoid = cloned_char.Humanoid
+
+            if real_humanoid and real_humanoid.Parent then
+                real_humanoid.Health = real_humanoid.MaxHealth
+            end
+            for _, dt2 in {0.1, 0.5, 1.0} do
+                task.delay(dt2, function()
+                    if real_humanoid and real_humanoid.Parent and stalkie.flags.reanimated then
+                        real_humanoid.Health = real_humanoid.MaxHealth
+                    end
+                end)
+            end
+            pcall(function()
+                real_humanoid:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
+            end)
+            pcall(function()
+                real_humanoid.HealthChanged:Connect(function(hp)
+                    if stalkie.flags.reanimated
+                    and real_humanoid and real_humanoid.Parent
+                    and hp < real_humanoid.MaxHealth then
+                        real_humanoid.Health = real_humanoid.MaxHealth
+                    end
+                end)
+            end)
+
+            if cloned_humanoid then
+                pcall(function() cloned_humanoid.BreakJointsOnDeath = false end)
+                pcall(function()
+                    cloned_humanoid:SetStateEnabled(Enum.HumanoidStateType.Dead,       false)
+                    cloned_humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+                    cloned_humanoid:SetStateEnabled(Enum.HumanoidStateType.Ragdoll,     false)
+                    cloned_humanoid:SetStateEnabled(Enum.HumanoidStateType.Physics,     false)
+                end)
+                pcall(function()
+                    cloned_humanoid.HealthChanged:Connect(function(hp)
+                        if stalkie.flags.reanimated
+                        and cloned_humanoid and cloned_humanoid.Parent
+                        and hp < cloned_humanoid.MaxHealth then
+                            cloned_humanoid.Health = cloned_humanoid.MaxHealth
+                        end
+                    end)
+                end)
+                pcall(function()
+                    cloned_humanoid.StateChanged:Connect(function(_, new)
+                        local bad = new == Enum.HumanoidStateType.Dead
+                                 or new == Enum.HumanoidStateType.Ragdoll
+                                 or new == Enum.HumanoidStateType.Physics
+                                 or new == Enum.HumanoidStateType.FallingDown
+                        if bad and stalkie.flags.reanimated
+                        and cloned_humanoid and cloned_humanoid.Parent then
+                            cloned_humanoid.Health = cloned_humanoid.MaxHealth
+                            pcall(function()
+                                cloned_humanoid:ChangeState(Enum.HumanoidStateType.Running)
+                            end)
+                        end
+                    end)
+                end)
+            end
+
+            stalkie.connections.hb = stalkie.services.run_service.Heartbeat:Connect(
+                function()
+                    if real_char and real_char.Parent == nil then
+                        pcall(function() real_char.Parent = stalkie.services.workspace end)
+                    end
+                    if not real_char or not real_char.Parent or not cloned_char or not cloned_char.Parent then
+                        API.reanimate(false, remote, args); return
+                    end
+                    local mouse_behavior = stalkie.services.user_input_service.MouseBehavior
+                    local is_panning = stalkie.services.user_input_service:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
+                    local hrp = cloned_char:FindFirstChild("HumanoidRootPart")
+                    if hrp then
+                        local bg = hrp:FindFirstChild("ShiftLockGyro")
+                        if not bg then
+                            bg = createInstance("BodyGyro", {
+                              Name = "ShiftLockGyro",
+                              P = 5000,
+                              D = 300,
+                              MaxTorque = Vector3.new(0,0,0),
+                              Parent = hrp,
+                            })
+                        end
+                        if mouse_behavior==Enum.MouseBehavior.LockCenter and not is_panning then
+                            local cam = stalkie.services.workspace.CurrentCamera
+                            if cam then
+                                local look = cam.CFrame.LookVector
+                                local hzLook = Vector3.new(look.X,0,look.Z)
+                                if hzLook.Magnitude > 0.001 then
+                                    bg.MaxTorque = Vector3.new(400000,400000,400000)
+                                    bg.CFrame = CFrame.new(Vector3.new(), hzLook)
+                                end
+                            end
+                        else
+                            bg.MaxTorque = Vector3.new(0, 0, 0)
+                        end
+                    end
+                    if stalkie.trickStep then pcall(stalkie.trickStep) end
+                    if not stalkie.puppet.active then
+                        local skip = stalkie.pole.skip
+                        local reachSkip = stalkie.reach.skip
+                        local freeSkip = stalkie.free.skip
+                        for _, p in real_char:GetChildren() do
+                            local clone_part = cloned_char:FindFirstChild(p.Name)
+                            if p:IsA("BasePart") and clone_part and not skip[p] and not reachSkip[p] and not freeSkip[p] then
+                                p.CFrame=clone_part.CFrame; p.Velocity=Vector3.new()
+                            end
+                        end
+                        if stalkie.pairStep then
+                            pcall(stalkie.pairStep, real_char, cloned_char, function(p) return skip[p] or reachSkip[p] or freeSkip[p] end)
+                        end
+                        local poles = stalkie.pole.list
+                        local rroot = _nvAny(poles) and real_hrp and real_hrp.Parent and real_hrp.AssemblyRootPart
+                        for _, entry in poles do
+                            local base = entry.base
+                            for _, it in base and entry.items or {} do
+                                local part = it.part
+                                if part.Parent and part.AssemblyRootPart ~= rroot then
+                                    part.CFrame = base * it.offset
+                                    part.AssemblyLinearVelocity = Vector3.zero
+                                    part.AssemblyAngularVelocity = Vector3.zero
+                                end
+                            end
+                        end
+                        if _nvAny(stalkie.reach.arms) and stalkie.reach.step then stalkie.reach.step(false) end
+                    end
+                    if real_humanoid and real_humanoid.Parent and real_humanoid.Health < real_humanoid.MaxHealth then
+                        real_humanoid.Health = real_humanoid.MaxHealth
+                    end
+                    if cloned_humanoid and cloned_humanoid.Parent and cloned_humanoid.Health < cloned_humanoid.MaxHealth then
+                        cloned_humanoid.Health = cloned_humanoid.MaxHealth
+                    end
+                end)
+            task.delay(1.5, function()
+                if not stalkie.flags.reanimated then return end
+                stalkie.connections.died = real_humanoid.Died:Connect(function()
+                    API.reanimate(false, remote, args)
+                end)
+                stalkie.connections.real_char_child_removed = real_char.ChildRemoved:Connect(function(child)
+                    if child==real_humanoid or child==real_hrp then API.reanimate(false,remote,args) end
+                end)
+            end)
+            stalkie.connections.clone_char_child_removed = cloned_char.ChildRemoved:Connect(function(child)
+                if child==cloned_humanoid then API.reanimate(false,remote,args) end
+            end)
+            stalkie.connections.clone_died = cloned_humanoid.Died:Connect(function()
+                task.delay(0.35, function()
+                    if not stalkie.flags.reanimated then return end
+                    if not cloned_humanoid or not cloned_humanoid.Parent then
+                        API.reanimate(false, remote, args)
+                    end
+                end)
+            end)
+            stalkie.connections.character_removing = player.CharacterRemoving:Connect(function(cbr)
+                if cbr == cloned_char then API.reanimate(false, remote, args) end
+            end)
+            table.clear(stalkie.noclip.parts)
+            stalkie.connections.noclip_real = noclipWatch(real_char)
+            stalkie.connections.noclip_clone = noclipWatch(cloned_char)
+            stalkie.connections.noclip = stalkie.services.run_service.Stepped:Connect(noclipStep)
+            if remote then
+                pcall(fire_remote, remote, is_local_event, unpack(args or {}))
+            else
+                attachPuppet(real_char, cloned_char)
+            end
+            stalkie.flags.reanimated = true
+            _G._nv_reanimRunning = API
+        else
+            if not stalkie.flags.reanimated then
+                for key, conn in stalkie.connections do
+                    if conn then
+                        pcall(function() conn:Disconnect() end); stalkie.connections[key] = nil
+                    end
+                end
+                return
+            end
+            if API.trick_clear then pcall(API.trick_clear) end
+            if API.mimic_stop then pcall(API.mimic_stop, "Reanimation stopped") end
+            if API.pair_hosting and API.pair_hosting() then pcall(API.pair_host, false) end
+            API.set_arm_poles(false)
+            API.pole_clear()
+            API.reach_clear()
+            API.stop_animation()
+            detachPuppet(stalkie.real_chars[player])
+            noclipRestore()
+            stalkie.animation.body = nil
+            do
+                local _cc_off = API.get_clone(player)
+                if _cc_off and stalkie.animation.ac_joint_map then
+                    setACConstraints(_cc_off, true)
+                    stalkie.animation.ac_joint_map = nil
+                end
+            end
+            if remote then
+                pcall(fire_remote, remote, is_local_event, unpack(args or {}))
+            end
+            for key, connection in stalkie.connections do
+                if connection then connection:Disconnect(); stalkie.connections[key]=nil end
+            end
+            local cc2 = stalkie.clones[player]
+            local rc2 = stalkie.real_chars[player]
+            local _savedHRPCF = nil
+            if cc2 and cc2.Parent then
+                local _cHRP = cc2:FindFirstChild("HumanoidRootPart")
+                if _cHRP then _savedHRPCF = _cHRP.CFrame end
+            end
+            if rc2 and rc2.Parent then
+                set_model_transparency(rc2, 0)
+                local hrp2 = rc2:FindFirstChild("HumanoidRootPart")
+                if hrp2 then hrp2.Transparency=1 end
+                local pg2 = player:FindFirstChildWhichIsA("PlayerGui")
+                local _guisFlipped2 = {}
+                if pg2 then
+                    for _, gui in pg2:GetChildren() do
+                        if gui:IsA("ScreenGui") and gui.ResetOnSpawn then
+                            gui.ResetOnSpawn = false
+                            _guisFlipped2[gui] = true
+                        end
+                    end
+                end
+                player.Character = rc2
+                if cc2 then pcall(function() cc2:Destroy() end); stalkie.clones[player]=nil end
+                local crh2 = rc2:FindFirstChild("Humanoid")
+                if crh2 then stalkie.services.workspace.CurrentCamera.CameraSubject=crh2 end
+                if _savedHRPCF then
+                    local _snapCF = _savedHRPCF
+                    local _snapRC = rc2
+                    task.spawn(function()
+                        local t0 = tick()
+                        while tick() - t0 < 0.5 do
+                            task.wait()
+                            local h = _snapRC and _snapRC.Parent
+                                      and _snapRC:FindFirstChild("HumanoidRootPart")
+                            if not h then break end
+                            h.CFrame = _snapCF
+                            pcall(function() h.Velocity = Vector3.new() end)
+                            pcall(function() h.AssemblyLinearVelocity = Vector3.new() end)
+                        end
+                        if not (_snapRC and _snapRC.Parent) then return end
+                        local wrapLayers = {}
+                        for _, desc in _snapRC:GetDescendants() do
+                            if desc:IsA("WrapLayer") then
+                                wrapLayers[#wrapLayers + 1] = desc
+                                pcall(function() desc.Enabled = false end)
+                            end
+                        end
+                        task.defer(function()
+                            for _, wl in wrapLayers do
+                                pcall(function()
+                                    if wl and wl.Parent then wl.Enabled = true end
+                                end)
+                            end
+                        end)
+                        for _, child in _snapRC:GetChildren() do
+                            if child:IsA("Accessory") then
+                                local handle = child:FindFirstChild("Handle")
+                                if handle then
+                                    local weld = handle:FindFirstChildWhichIsA("Weld")
+                                               or handle:FindFirstChildWhichIsA("AccessoryWeld")
+                                    if weld and weld.Part1 and weld.Part1.Parent then
+                                        pcall(function()
+                                            handle.CFrame = weld.Part1.CFrame
+                                                          * weld.C1 * weld.C0:Inverse()
+                                        end)
+                                    end
+                                end
+                            end
+                        end
+                    end)
+                end
+                if pg2 then
+                    for _, gui in pg2:GetChildren() do
+                        if gui:IsA("ScreenGui") and _guisFlipped2[gui] then gui.ResetOnSpawn=true end
+                    end
+                end
+            end
+            stalkie.real_chars[player] = nil
+            if stalkie.destroyBehavior ~= nil then
+                pcall(sethiddenproperty, stalkie.services.workspace, "PlayerCharacterDestroyBehavior", stalkie.destroyBehavior)
+                stalkie.destroyBehavior = nil
+            end
+            if stalkie.callbacks.on_deactivate then pcall(stalkie.callbacks.on_deactivate) end
+            stalkie.flags.reanimated = false
+            if _G._nv_reanimRunning == API then _G._nv_reanimRunning = nil end
+        end
+    return end
+
+    API.play_animation = function(url, speed)
+        if not stalkie.flags.reanimated then return "Cannot play animation, not reanimated." end
+        local player = get_local_player()
+        if typeof(player) == "string" then return player end
+        local cc = stalkie.animation.body or API.get_clone(player)
+        if not cc then return "Cannot play animation, clone character not found." end
+        if stalkie.animation.state.is_playing and stalkie.animation.state.current_url==url then
+            API.stop_animation(); return
+        end
+        local anim = stalkie.animation
+        anim.load_id = (anim.load_id or 0) + 1
+        local loadId = anim.load_id
+        local keyframe_data, resolveErr = resolveAnimData(url)
+        if loadId ~= anim.load_id then return end
+        if not keyframe_data then return resolveErr or "Animation Error: Failed to load." end
+        local keyframes = keyframe_data[_nvAny(keyframe_data)]
+        if not keyframes or #keyframes==0 then return "No keyframes array found for animation URL: "..url end
+
+        local blendFrom, blendCarried, blendSrc
+        if API.blend_capture then blendFrom, blendCarried, blendSrc = API.blend_capture() end
+        API.stop_animation(blendFrom ~= nil and next(blendFrom) ~= nil)
+        if loadId ~= anim.load_id then return end
+        local ctrl = cc:FindFirstChildOfClass("Humanoid") or cc:FindFirstChildOfClass("AnimationController")
+        if ctrl then
+            local tracks = ctrl:GetPlayingAnimationTracks()
+            if tracks then for _, track in tracks do track:Stop(0) end end
+        end
+        local cas = cc:FindFirstChild("Animate")
+        if cas then cas.Enabled = false end
+        anim.state.speed = tonumber(speed) or 1.0
+        anim.state.dir = anim.state.dir or 1
+        anim.state.keyframes = keyframes
+        anim.state.is_playing = true
+        anim.state.current_url = url
+        anim.state.total_duration = keyframes[#keyframes].Time
+        if anim.state.total_duration<=0 then API.stop_animation(); return end
+        anim.state.elapsed_time = 0
+        local hasMotor6D_pa = _nvAny(anim.joints) ~= nil
+        if not hasMotor6D_pa then
+            anim.ac_joint_map = buildACJointMap(cc)
+            if not (anim.ac_joint_map and _nvAny(anim.ac_joint_map)) then
+                anim.ac_joint_map = nil
+            end
+        end
+        local blend = API.blend
+        if blend then
+            local st = anim.state
+            blend.start(blendFrom, blendCarried, blendSrc)
+            blend.source = {
+                kfs = keyframes, total = st.total_duration,
+                at = function() return st.elapsed_time end,
+                rate = function() return (st.paused or st.hold) and 0 or (st.speed or 1) * (st.dir or 1) end,
+            }
+        end
+        if stalkie.callbacks.on_play then pcall(stalkie.callbacks.on_play, anim.state.current_url) end
+        local _animCC = cc
+        local _animEvent = anim.ac_joint_map
+            and stalkie.services.run_service.PreSimulation
+            or  stalkie.services.run_service.Heartbeat
+        local _animAnimator = anim.ac_joint_map and (function()
+            local h = _animCC:FindFirstChildOfClass("Humanoid")
+                   or _animCC:FindFirstChildOfClass("AnimationController")
+            return h and h:FindFirstChildOfClass("Animator")
+        end)() or nil
+        stalkie.connections.animation_hb = _animEvent:Connect(
+            function(dt)
+                if not anim.state.is_playing then return end
+                if not _animCC or not _animCC.Parent then
+                    API.stop_animation(); return
+                end
+                if not anim.state.paused and not anim.state.hold then
+                    local dir = anim.state.dir or 1
+                    anim.state.elapsed_time =
+                        (anim.state.elapsed_time + dt * anim.state.speed * dir) % anim.state.total_duration
+                end
+                local kfs = anim.state.keyframes
+                local t = anim.state.elapsed_time
+                local lo, hi = 1, #kfs - 1
+                while lo < hi do
+                    local mid = math.floor((lo + hi + 1) / 2)
+                    if kfs[mid].Time <= t then lo = mid else hi = mid - 1 end
+                end
+                local cf = kfs[lo]
+                local nf = kfs[lo + 1] or kfs[1]
+                local fd = nf.Time - cf.Time
+                if fd <= 0 then fd = (anim.state.total_duration - cf.Time) + nf.Time end
+                local segElapsed = t - cf.Time
+                if segElapsed < 0 then segElapsed = segElapsed + anim.state.total_duration end
+                local alpha = math.clamp(segElapsed / fd, 0, 1)
+                if anim.ac_joint_map then
+                    if _animAnimator and _animAnimator.EvaluationThrottled then return end
+                    local blending = blend and blend.step(dt)
+                    for _, entry in AC_HIERARCHY do
+                        local jd = anim.ac_joint_map[entry.part]
+                        if jd and jd.constraint and jd.constraint.Parent then
+                            local poseCF = CFrame.identity
+                            if cf.Data and cf.Data[entry.part] then
+                                local p = cf.Data[entry.part]
+                                local np = nf.Data and nf.Data[entry.part]
+                                poseCF = (np ~= nil) and p:Lerp(np, alpha) or p
+                            end
+                            if blending then poseCF = blend.mix(entry.part, poseCF) end
+                            jd.constraint.Transform = poseCF
+                        end
+                    end
+                else
+                    local blending = blend and blend.step(dt)
+                    for partName, pose_cf in cf.Data do
+                        local motor = anim.joints[partName]
+                        if motor and anim.original_motor_c0s[motor] then
+                            local orig = anim.original_motor_c0s[motor]
+                            local np = nf.Data and nf.Data[partName]
+                            local pose = np and pose_cf:Lerp(np,alpha) or pose_cf
+                            if blending then pose = blend.mix(partName, pose) end
+                            motor.C0 = orig*pose
+                        end
+                    end
+                    if blending then
+                        blend.rest(function(name, pose)
+                            local motor = anim.joints[name]
+                            local orig = motor and anim.original_motor_c0s[motor]
+                            if orig and motor.Parent then motor.C0 = orig*pose end
+                        end)
+                    end
+                end
+            end)
+    return end
+
+    local ARM_SETS = {
+        r15 = {
+            { pole = "LeftUpperArm",  hide = { "LeftLowerArm", "LeftHand" } },
+            { pole = "RightUpperArm", hide = { "RightLowerArm", "RightHand" } },
+        },
+        r6 = {
+            { pole = "Left Arm",  hide = {} },
+            { pole = "Right Arm", hide = {} },
+        },
+    }
+
+    local function findMotorByPart1(char, name)
+        for _, d in char:GetDescendants() do
+            if d:IsA("Motor6D") and d.Part1 and d.Part1.Name == name then return d end
+        end
+        return nil
+    end
+
+    API.are_arms_poles = function() return stalkie.poles.active end
+
+    API.set_arm_poles = function(enable, length)
+        local player = get_local_player()
+        if typeof(player) == "string" then return player end
+        local rc = stalkie.real_chars[player]
+        if enable then
+            if not stalkie.flags.reanimated then return "Cannot make poles, not reanimated." end
+            if not (rc and rc.Parent) then return "Reanimated body not found." end
+            if stalkie.poles.active then return end
+            local L = math.max(4, tonumber(length) or stalkie.poles.length)
+            stalkie.poles.length = L
+            local isR6 = rc:FindFirstChild("Torso") ~= nil and rc:FindFirstChild("Left Arm") ~= nil
+            local sets = isR6 and ARM_SETS.r6 or ARM_SETS.r15
+            local items, hidden = {}, {}
+            for _, set in sets do
+                local part = rc:FindFirstChild(set.pole)
+                local motor = findMotorByPart1(rc, set.pole)
+                if part and part:IsA("BasePart") and motor then
+                    items[#items+1] = {
+                        part = part, motor = motor,
+                        origSize = part.Size, origC0 = motor.C0, anchorC0 = motor.C0,
+                        origCanCollide = part.CanCollide,
+                    }
+                    pcall(function()
+                        part.Size = Vector3.new(part.Size.X, L, part.Size.Z)
+                        part.CanCollide = false
+                    end)
+                end
+                for _, hn in set.hide do
+                    local hp = rc:FindFirstChild(hn)
+                    if hp and hp:IsA("BasePart") then
+                        hidden[#hidden+1] = { part = hp, t = hp.Transparency }
+                        pcall(function() hp.Transparency = 1 end)
+                    end
+                end
+            end
+            if #items == 0 then return "No arm parts found to convert." end
+            stalkie.poles.items = items
+            stalkie.poles.hidden = hidden
+            stalkie.poles.active = true
+            stalkie.poles.conn = stalkie.services.run_service.Heartbeat:Connect(function()
+                if not stalkie.flags.reanimated then API.set_arm_poles(false); return end
+                local down = Vector3.new(0, L * 0.5, 0)
+                for _, it in stalkie.poles.items do
+                    local m = it.motor
+                    if m and m.Parent and m.Part0 and m.Part1 then
+                        local shoulder = m.Part0.CFrame * it.anchorC0
+                        local targetCF = CFrame.new(shoulder.Position - down)
+                        if stalkie.puppet.active then
+                            m.C0 = m.Part0.CFrame:Inverse() * targetCF * m.C1
+                        else
+                            pcall(function() it.part.CFrame = targetCF end)
+                        end
+                    end
+                end
+            end)
+        else
+            if stalkie.poles.conn then
+                pcall(function() stalkie.poles.conn:Disconnect() end)
+                stalkie.poles.conn = nil
+            end
+            for _, it in stalkie.poles.items do
+                if it.part and it.part.Parent then
+                    pcall(function() it.part.Size = it.origSize end)
+                    pcall(function() it.part.CanCollide = it.origCanCollide end)
+                end
+                if it.motor and it.motor.Parent then pcall(function() it.motor.C0 = it.origC0 end) end
+            end
+            for _, h in stalkie.poles.hidden do
+                if h.part and h.part.Parent then pcall(function() h.part.Transparency = h.t end) end
+            end
+            stalkie.poles.items = {}
+            stalkie.poles.hidden = {}
+            stalkie.poles.active = false
+        end
+    return end
+
+    local POLE_LIMBS = {
+        rightArm = {r15 = {"RightUpperArm", "RightLowerArm", "RightHand"}, r6 = {"Right Arm"}},
+        leftArm = {r15 = {"LeftUpperArm", "LeftLowerArm", "LeftHand"}, r6 = {"Left Arm"}},
+        rightLeg = {r15 = {"RightUpperLeg", "RightLowerLeg", "RightFoot"}, r6 = {"Right Leg"}},
+        leftLeg = {r15 = {"LeftUpperLeg", "LeftLowerLeg", "LeftFoot"}, r6 = {"Left Leg"}},
+    }
+    local POLE_FLIP = CFrame.Angles(math.pi, 0, 0)
+
+    local function poleLayout(parts, height)
+        local list = {}
+        local bottom, middle, top = parts[1], parts[2], parts[3]
+        if not bottom then return list, 0 end
+        local floor = bottom.Size.Y + (middle and middle.Size.Y or 0) + (top and top.Size.Y or 0)
+        height = math.max(tonumber(height) or 0, floor)
+        list[1] = {part = bottom, offset = CFrame.new(0, bottom.Size.Y * 0.5, 0) * POLE_FLIP}
+        local tip = top and top.Size.Y or 0
+        if middle then
+            list[#list + 1] = {part = middle, offset = CFrame.new(0, height - tip - middle.Size.Y * 0.5, 0) * POLE_FLIP}
+        end
+        if top then
+            list[#list + 1] = {part = top, offset = CFrame.new(0, height - top.Size.Y * 0.5, 0) * POLE_FLIP}
+        end
+        if not middle and not top then height = bottom.Size.Y end
+        return list, height
+    end
+
+    local function poleRelayout(entry, height)
+        local list, h = poleLayout(entry.parts, height)
+        local byPart = {}
+        for _, it in list do byPart[it.part] = it.offset end
+        for _, it in entry.items do
+            if byPart[it.part] then it.offset = byPart[it.part] end
+        end
+        entry.height = h
+    end
+
+    local function poleRelease(limb)
+        local pole = stalkie.pole
+        local entry = pole.list[limb]
+        if not entry then return end
+        pole.list[limb] = nil
+        if _nvAny(entry.collide) then
+            local player = get_local_player()
+            local cc = typeof(player) ~= "string" and stalkie.clones[player] or nil
+            local rcHome = typeof(player) ~= "string" and stalkie.real_chars[player] or nil
+            local anchor = rcHome and rcHome:FindFirstChild("HumanoidRootPart")
+            for _, it in entry.items do
+                local part = it.part
+                local src = cc and cc:FindFirstChild(part.Name)
+                local to = src and src:IsA("BasePart") and src.CFrame or nil
+                if not to and rcHome then
+                    local m = findMotorByPart1(rcHome, part.Name)
+                    if m and m.Part0 and m.Part0.Parent then to = m.Part0.CFrame * m.C0 * m.C1:Inverse() end
+                end
+                if not to and anchor then to = anchor.CFrame end
+                if part.Parent and to then
+                    pcall(function()
+                        part.CFrame = to
+                        part.AssemblyLinearVelocity = Vector3.zero
+                        part.AssemblyAngularVelocity = Vector3.zero
+                    end)
+                end
+            end
+        end
+        for inst, was in entry.enabled do
+            if inst.Parent then pcall(function() inst.Enabled = was end) end
+        end
+        for part, was in entry.collide do
+            if part.Parent then pcall(function() part.CanCollide = was end) end
+            pole.skip[part] = nil
+        end
+        for motor, c0 in entry.c0 do
+            if motor.Parent then
+                local rest = stalkie.animation.original_motor_c0s[motor] or c0
+                pcall(function() motor.C0 = rest end)
+            end
+        end
+        if not _nvAny(pole.list) and pole.render then
+            pcall(function() pole.render:Disconnect() end)
+            pole.render = nil
+        end
+    end
+
+    local function poleReleaseAll()
+        local names = {}
+        for limb in stalkie.pole.list do names[#names + 1] = limb end
+        for _, limb in names do poleRelease(limb) end
+    end
+
+    local function poleBuild(rc, setName, wantHeight)
+        local pole = stalkie.pole
+        local group = POLE_LIMBS[setName] or POLE_LIMBS.rightArm
+        local r6 = rc:FindFirstChild("UpperTorso") == nil and rc:FindFirstChild("Torso") ~= nil
+        local parts = {}
+        for _, name in r6 and group.r6 or group.r15 do
+            local part = rc:FindFirstChild(name)
+            if part and part:IsA("BasePart") then parts[#parts + 1] = part end
+        end
+        local list, height = poleLayout(parts, wantHeight)
+        if #list == 0 then return nil, "That limb is missing" end
+        for _, part in parts do
+            if pole.skip[part] or stalkie.reach.skip[part] or stalkie.free.skip[part] then return nil, "That limb is busy" end
+        end
+        local root = rc:FindFirstChild("HumanoidRootPart")
+        local visible = not stalkie.puppet.active
+        local items, seen, riders, riderCount = {}, {}, {}, 0
+        for _, it in list do
+            if visible then
+                local ar = it.part.AssemblyRootPart
+                if not (root and ar == root.AssemblyRootPart) then
+                    if ar and seen[ar] then
+                        if it.part ~= parts[3] then
+                            return nil, "This game keeps your elbows and knees attached"
+                        end
+                        riders[it.part] = true
+                        riderCount = riderCount + 1
+                    else
+                        if ar then seen[ar] = true end
+                        items[#items + 1] = it
+                    end
+                end
+            else
+                it.motor = findMotorByPart1(rc, it.part.Name)
+                if it.motor then items[#items + 1] = it end
+            end
+        end
+        if #items == 0 then
+            return nil, visible and "This game keeps your limbs attached" or "No joints found for your limbs"
+        end
+        if visible and #items + riderCount < #list then
+            return nil, "This game keeps your shoulders and hips attached"
+        end
+        local entry = {items = items, parts = parts, height = height, limb = setName, enabled = {}, collide = {}, c0 = {}}
+        local inPole = {}
+        for _, it in items do inPole[it.part] = true end
+        if visible then
+            local function ownerPart(x)
+                if x and x:IsA("Attachment") then x = x.Parent end
+                if x and x:IsA("BasePart") then return x end
+                return nil
+            end
+            local function rides(x)
+                return x ~= nil and not inPole[x] and (riders[x] == true or (x.Parent ~= rc and x:IsDescendantOf(rc)))
+            end
+            local function grabs(p0, p1)
+                return (p0 ~= nil and inPole[p0] and not rides(p1)) or (p1 ~= nil and inPole[p1] and not rides(p0))
+            end
+            local function joint(d)
+                return d:IsA("BallSocketConstraint") or d:IsA("HingeConstraint") or d:IsA("UniversalConstraint")
+                    or d:IsA("RodConstraint") or d:IsA("RopeConstraint") or d:IsA("SpringConstraint")
+                    or d:IsA("PrismaticConstraint") or d:IsA("CylindricalConstraint")
+            end
+            for _, d in rc:GetDescendants() do
+                if d:IsA("Constraint") and not d:IsA("NoCollisionConstraint") and not joint(d) then
+                    if grabs(ownerPart(d.Attachment0), ownerPart(d.Attachment1)) then
+                        entry.enabled[d] = d.Enabled
+                        pcall(function() d.Enabled = false end)
+                    end
+                elseif d:IsA("WeldConstraint") then
+                    if grabs(d.Part0, d.Part1) then
+                        entry.enabled[d] = d.Enabled
+                        pcall(function() d.Enabled = false end)
+                    end
+                end
+            end
+            for _, it in items do
+                entry.collide[it.part] = it.part.CanCollide
+                pcall(function() it.part.CanCollide = false end)
+                pole.skip[it.part] = true
+            end
+            for part in riders do
+                entry.collide[part] = part.CanCollide
+                pcall(function() part.CanCollide = false end)
+                pole.skip[part] = true
+            end
+        else
+            for _, it in items do entry.c0[it.motor] = it.motor.C0 end
+            if not pole.render then
+                pole.render = stalkie.services.run_service.RenderStepped:Connect(function()
+                    for _, e in stalkie.pole.list do
+                        if e.base then
+                            local targets = {}
+                            for _, it in e.items do targets[it.part] = e.base * it.offset end
+                            for _, it in e.items do
+                                local m = it.motor
+                                if m and m.Parent and m.Part0 then
+                                    local parentCF = targets[m.Part0] or m.Part0.CFrame
+                                    m.C0 = parentCF:Inverse() * targets[it.part] * m.C1 * m.Transform:Inverse()
+                                end
+                            end
+                        end
+                    end
+                end)
+            end
+        end
+        return entry
+    end
+
+    API.pole_place = function(cf, setName, height)
+        local player = get_local_player()
+        if typeof(player) == "string" then return false, player end
+        if not stalkie.flags.reanimated then return false, "Reanimate first" end
+        local rc = stalkie.real_chars[player]
+        if not rc or not rc.Parent then return false, "No character" end
+        local pole = stalkie.pole
+        local entry = pole.list[setName]
+        if not entry then
+            local built, err = poleBuild(rc, setName, height)
+            if not built then return false, err end
+            entry = built
+            pole.list[setName] = entry
+        elseif height and height ~= entry.height then
+            poleRelayout(entry, height)
+        end
+        entry.base = cf
+        return true, stalkie.puppet.active and "local" or "shared", entry.height
+    end
+
+    API.pole_clear = function(setName)
+        if setName then poleRelease(setName) else poleReleaseAll() end
+    end
+
+    API.pole_active = function(setName)
+        if setName then return stalkie.pole.list[setName] ~= nil end
+        return _nvAny(stalkie.pole.list) ~= nil
+    end
+
+    API.pole_height = function(setName)
+        local entry = setName and stalkie.pole.list[setName] or select(2, _nvAny(stalkie.pole.list))
+        return entry and entry.height or nil
+    end
+
+    API.pole_stretchable = function(setName)
+        local entry = setName and stalkie.pole.list[setName] or select(2, _nvAny(stalkie.pole.list))
+        return entry ~= nil and #entry.parts > 1
+    end
+
+    API.pole_mode = function()
+        if not stalkie.flags.reanimated then return nil end
+        return stalkie.puppet.active and "local" or "shared"
+    end
+
+    local REACH_PARTS = {
+        left = {"LeftUpperArm", "LeftLowerArm", "LeftHand"},
+        right = {"RightUpperArm", "RightLowerArm", "RightHand"},
+        attach_leftArm = {"LeftUpperArm", "LeftLowerArm", "LeftHand"},
+        attach_rightArm = {"RightUpperArm", "RightLowerArm", "RightHand"},
+        attach_leftLeg = {"LeftUpperLeg", "LeftLowerLeg", "LeftFoot"},
+        attach_rightLeg = {"RightUpperLeg", "RightLowerLeg", "RightFoot"},
+    }
+
+    local function reachEase(t, extending)
+        t = math.clamp(t, 0, 1)
+        if extending then
+            local c = 1.25
+            local y = t - 1
+            return 1 + (c + 1) * y * y * y + c * y * y
+        end
+        return t * t * t
+    end
+
+    local function reachBasis(pos, dir, ref)
+        local up = -dir
+        local fwd = ref.LookVector
+        fwd = fwd - up * fwd:Dot(up)
+        if fwd.Magnitude < 0.05 then fwd = ref.RightVector:Cross(up) end
+        fwd = fwd.Unit
+        return CFrame.fromMatrix(pos, up:Cross(-fwd), up, -fwd)
+    end
+
+    local function reachUpper(arm, animated, e)
+        local m = arm.motorUpper
+        if not (m and m.Part0 and m.Part0.Parent) then return animated end
+        local restC0 = stalkie.animation.original_motor_c0s[m] or arm.restUpperC0 or m.C0
+        local pivot = (m.Part0.CFrame * restC0).Position
+        local dir = arm.target - pivot
+        if dir.Magnitude < 0.05 then return animated end
+        dir = dir.Unit
+        local aimed = reachBasis(pivot + dir * (arm.upper.Size.Y * 0.5), dir, m.Part0.CFrame)
+        return animated:Lerp(aimed, math.clamp(e, 0, 1))
+    end
+
+    local function reachFrames(arm, upperCF, rest, e)
+        local elbow = (upperCF * CFrame.new(0, -arm.upper.Size.Y * 0.5, 0)).Position
+        local tip = rest:Lerp(arm.target, e)
+        local dir = tip - elbow
+        if dir.Magnitude < 0.05 then
+            dir = -upperCF.UpVector
+        else
+            dir = dir.Unit
+        end
+        local up = -dir
+        local fwd = upperCF.LookVector
+        fwd = fwd - up * fwd:Dot(up)
+        if fwd.Magnitude < 0.05 then fwd = upperCF.RightVector:Cross(up) end
+        fwd = fwd.Unit
+        local right = up:Cross(-fwd)
+        local handPos = tip - dir * (arm.hand.Size.Y * 0.5)
+        local lowerPos = handPos - dir * (arm.hand.Size.Y * 0.5 + arm.lower.Size.Y * 0.5)
+        return CFrame.fromMatrix(lowerPos, right, up, -fwd), CFrame.fromMatrix(handPos, right, up, -fwd)
+    end
+
+    local function reachRelease(side)
+        local reach = stalkie.reach
+        local arm = reach.arms[side]
+        if not arm then return end
+        reach.arms[side] = nil
+        for part, was in arm.collide do
+            if part.Parent then pcall(function() part.CanCollide = was end) end
+            reach.skip[part] = nil
+        end
+        for motor, c0 in arm.c0 do
+            if motor.Parent then
+                local rest = stalkie.animation.original_motor_c0s[motor] or c0
+                pcall(function() motor.C0 = rest end)
+            end
+        end
+        if not _nvAny(reach.arms) and reach.render then
+            pcall(function() reach.render:Disconnect() end)
+            reach.render = nil
+        end
+    end
+
+    stalkie.reach.step = function(puppet)
+        local reach = stalkie.reach
+        local now = os.clock()
+        local dt = math.min(now - (reach.last or now), 0.1)
+        reach.last = now
+        local player = get_local_player()
+        local cc = typeof(player) ~= "string" and stalkie.clones[player] or nil
+        for side, arm in reach.arms do
+            if arm.goal == 1 then
+                arm.t = math.min(1, arm.t + dt / 0.26)
+            else
+                arm.t = math.max(0, arm.t - dt / 0.18)
+            end
+            if arm.goal == 0 and arm.t <= 0 then
+                reachRelease(side)
+            elseif arm.upper.Parent and arm.lower.Parent and arm.hand.Parent then
+                local surface = arm.surface
+                if surface and surface.Parent and arm.grip then
+                    arm.target = surface.CFrame:PointToWorldSpace(arm.grip)
+                elseif surface then
+                    arm.surface = nil
+                end
+                local e = reachEase(arm.t, arm.goal == 1)
+                local animated
+                local upperSrc = cc and cc:FindFirstChild(arm.upper.Name)
+                local mu = arm.motorUpper
+                if not puppet and upperSrc and upperSrc:IsA("BasePart") then
+                    animated = upperSrc.CFrame
+                elseif mu and mu.Part0 and mu.Part0.Parent then
+                    animated = mu.Part0.CFrame * (stalkie.animation.original_motor_c0s[mu] or arm.restUpperC0 or mu.C0) * mu.C1:Inverse()
+                else
+                    animated = arm.upper.CFrame
+                end
+                local upperCF = reachUpper(arm, animated, e)
+                local src = cc and cc:FindFirstChild(arm.hand.Name)
+                local rest
+                if not puppet and src and src:IsA("BasePart") then
+                    rest = (src.CFrame * CFrame.new(0, -src.Size.Y * 0.5, 0)).Position
+                else
+                    rest = (upperCF * CFrame.new(0, -arm.upper.Size.Y * 0.5 - arm.lower.Size.Y - arm.hand.Size.Y, 0)).Position
+                end
+                local lowerCF, handCF = reachFrames(arm, upperCF, rest, e)
+                if puppet then
+                    local ml, mh = arm.motorLower, arm.motorHand
+                    if mu and mu.Parent and mu.Part0 then
+                        mu.C0 = mu.Part0.CFrame:Inverse() * upperCF * mu.C1 * mu.Transform:Inverse()
+                    end
+                    if ml and ml.Parent then
+                        ml.C0 = upperCF:Inverse() * lowerCF * ml.C1 * ml.Transform:Inverse()
+                    end
+                    if mh and mh.Parent then
+                        mh.C0 = lowerCF:Inverse() * handCF * mh.C1 * mh.Transform:Inverse()
+                    end
+                else
+                    if arm.aimUpper then
+                        arm.upper.CFrame = upperCF
+                        arm.upper.AssemblyLinearVelocity = Vector3.zero
+                        arm.upper.AssemblyAngularVelocity = Vector3.zero
+                    end
+                    arm.lower.CFrame = lowerCF
+                    arm.hand.CFrame = handCF
+                    arm.lower.AssemblyLinearVelocity = Vector3.zero
+                    arm.hand.AssemblyLinearVelocity = Vector3.zero
+                    arm.lower.AssemblyAngularVelocity = Vector3.zero
+                    arm.hand.AssemblyAngularVelocity = Vector3.zero
+                end
+            end
+        end
+    end
+
+    API.reach_set = function(side, point, surface)
+        local reach = stalkie.reach
+        local names = REACH_PARTS[side]
+        if not names then return false, "Unknown arm" end
+        if not point then
+            local arm = reach.arms[side]
+            if arm then arm.goal = 0 end
+            return true
+        end
+        local player = get_local_player()
+        if typeof(player) == "string" then return false, player end
+        if not stalkie.flags.reanimated then return false, "Reanimate first" end
+        local rc = stalkie.real_chars[player]
+        if not rc or not rc.Parent then return false, "No character" end
+        local arm = reach.arms[side]
+        if not arm then
+            local upper, lower, hand = rc:FindFirstChild(names[1]), rc:FindFirstChild(names[2]), rc:FindFirstChild(names[3])
+            if not (upper and lower and hand and upper:IsA("BasePart") and lower:IsA("BasePart") and hand:IsA("BasePart")) then
+                return false, "Your arms are one piece, so they cannot stretch"
+            end
+            local pskip = stalkie.pole.skip
+            if pskip[upper] or pskip[lower] or pskip[hand] then return false, "That arm is in your pole" end
+            local rskip, fskip = reach.skip, stalkie.free.skip
+            if rskip[upper] or rskip[lower] or rskip[hand] or fskip[upper] or fskip[lower] or fskip[hand] then return false, "That limb is busy" end
+            for _, other in reach.arms do
+                if other.upper == upper or other.lower == lower or other.hand == hand then return false, "That limb is busy" end
+            end
+            local puppet = stalkie.puppet.active
+            arm = {upper = upper, lower = lower, hand = hand, t = 0, goal = 1, collide = {}, c0 = {}}
+            arm.motorUpper = findMotorByPart1(rc, upper.Name)
+            if arm.motorUpper then arm.restUpperC0 = arm.motorUpper.C0 end
+            if puppet then
+                arm.motorLower = findMotorByPart1(rc, lower.Name)
+                arm.motorHand = findMotorByPart1(rc, hand.Name)
+                if not (arm.motorLower and arm.motorHand) then return false, "No arm joints found" end
+                arm.c0[arm.motorLower] = arm.motorLower.C0
+                arm.c0[arm.motorHand] = arm.motorHand.C0
+                if arm.motorUpper then arm.c0[arm.motorUpper] = arm.motorUpper.C0 end
+            else
+                local root = rc:FindFirstChild("HumanoidRootPart")
+                local body = root and root.AssemblyRootPart
+                if lower.AssemblyRootPart == body or hand.AssemblyRootPart == body or lower.AssemblyRootPart == upper.AssemblyRootPart then
+                    return false, "This game keeps your arms attached"
+                end
+                local driven = {lower, hand}
+                if upper.AssemblyRootPart ~= body then
+                    arm.aimUpper = true
+                    driven[3] = upper
+                end
+                for _, part in driven do
+                    arm.collide[part] = part.CanCollide
+                    pcall(function() part.CanCollide = false end)
+                    reach.skip[part] = true
+                end
+            end
+            reach.arms[side] = arm
+            reach.last = os.clock()
+            if puppet and not reach.render then
+                reach.render = stalkie.services.run_service.RenderStepped:Connect(function()
+                    stalkie.reach.step(true)
+                end)
+            end
+        end
+        arm.target = point
+        if typeof(surface) == "Instance" and surface:IsA("BasePart") and not surface:IsA("Terrain") then
+            arm.surface = surface
+            arm.grip = surface.CFrame:PointToObjectSpace(point)
+        else
+            arm.surface, arm.grip = nil, nil
+        end
+        arm.goal = 1
+        return true, stalkie.puppet.active and "local" or "shared"
+    end
+
+    API.reach_clear = function()
+        for side in stalkie.reach.arms do reachRelease(side) end
+    end
+
+    API.reach_active = function(side)
+        local arm = stalkie.reach.arms[side]
+        return arm ~= nil and arm.goal == 1
+    end
+
+    API._buildACJointMap = buildACJointMap
+    API._setACConstraints = setACConstraints
+    API._AC_HIERARCHY = AC_HIERARCHY
+
+    -- ========================================================================
+    -- OPTIONAL MODULE: reanimTricks (Loaded automatically if present)
+    -- ========================================================================
+    do
+        local tricksEnv = {
+            API = API,
+            stalkie = stalkie,
+            findMotorByPart1 = findMotorByPart1,
+        }
+        if type(env.reanimTricks) == "function" then
+            pcall(env.reanimTricks, tricksEnv)
+        elseif type(require) == "function" then
+            local okReq, tricksMod = pcall(require, "./reanimTricks")
+            if okReq and type(tricksMod) == "function" then
+                pcall(tricksMod, tricksEnv)
+            end
+        end
+    end
+
+    -- ========================================================================
+    -- SECTION 2: REANIM PAIR MODULE (reanimPair.luau)
+    -- ========================================================================
+    do
+        local S = stalkie
+        local K = getKeyframeRecorder()
+        local P = { MARK = 0.4375, WRAP = 32, SCALE = 0.125, LEAD = 0.35, EASE = 0.6, FRESH = 3 }
+        local hosting, lead, cur, last, dirty, followAt = false, P.LEAD, 0, nil, false, nil
+        local hist, rig, rigFor = {}, nil, nil
+        local quiet = setmetatable({}, { __mode = "k" })
+
+        local function clock()
+            return workspace:GetServerTimeNow()
+        end
+
+        local function packPose(cf)
+            local axis, angle = cf:ToAxisAngle()
+            if angle ~= angle or axis.X ~= axis.X then axis, angle = Vector3.zero, 0 end
+            return cf.Position * P.SCALE, axis * (angle * P.SCALE)
+        end
+
+        local function readPose(p, now)
+            local lin, ang = p.AssemblyLinearVelocity, p.AssemblyAngularVelocity
+            if lin.Magnitude + ang.Magnitude > 1e-6 then
+                quiet[p] = nil
+            else
+                quiet[p] = quiet[p] or now
+                if now - quiet[p] > 0.25 then return nil end
+            end
+            local r = ang / P.SCALE
+            local a = r.Magnitude
+            local rot = (a > 1e-6 and a == a) and CFrame.fromAxisAngle(r / a, a) or CFrame.identity
+            return CFrame.new(lin / P.SCALE) * rot
+        end
+
+        local function sample(list, at, key)
+            local n = #list
+            if n == 0 then return nil end
+            if at <= list[1].t then return list[1][key] end
+            if at >= list[n].t then return list[n][key] end
+            local lo, hi = 1, n
+            while hi - lo > 1 do
+                local mid = math.floor((lo + hi) / 2)
+                if list[mid].t <= at then lo = mid else hi = mid end
+            end
+            local a, b = list[lo], list[hi]
+            local k = b.t > a.t and math.clamp((at - a.t) / (b.t - a.t), 0, 1) or 1
+            local out = {}
+            for name, c in b[key] do
+                local o = a[key][name]
+                out[name] = o and o:Lerp(c, k) or c
+            end
+            return out
+        end
+
+        local function solo(char)
+            local count = {}
+            for _, p in char:GetChildren() do
+                if p:IsA("BasePart") then
+                    local r = p.AssemblyRootPart
+                    if r then count[r] = (count[r] or 0) + 1 end
+                end
+            end
+            return function(p)
+                local r = p and p.AssemblyRootPart
+                return r ~= nil and count[r] == 1
+            end
+        end
+
+        local function livePoses(clone)
+            if rigFor ~= clone then rig, rigFor = K.rig(clone), clone end
+            if not rig then return nil end
+            local out = {}
+            for _, j in rig.joints do
+                local ok, r = pcall(K.pose, j)
+                if ok and r then out[j.name] = r end
+            end
+            local root = rig.root
+            if root and root.p0 and root.p0.Parent == clone then
+                out[root.name] = (root.p0.CFrame * root.c0):Inverse() * (root.p1.CFrame * root.c1)
+            end
+            return out
+        end
+
+        S.pairStep = function(real, clone, skipped)
+            local rhrp = real:FindFirstChild("HumanoidRootPart")
+            if not hosting then
+                if dirty then
+                    dirty = false
+                    for _, p in real:GetChildren() do
+                        if p:IsA("BasePart") then p.AssemblyAngularVelocity = Vector3.zero end
+                    end
+                    if rhrp then rhrp.AssemblyLinearVelocity = Vector3.zero end
+                end
+                return
+            end
+            local chrp = clone:FindFirstChild("HumanoidRootPart")
+            if not (rhrp and chrp) then return end
+            local now = clock()
+            local dt = last and math.clamp(now - last, 0, 0.1) or 0
+            last = now
+            local hum = clone:FindFirstChildOfClass("Humanoid")
+            local moving = hum ~= nil and (hum.MoveDirection.Magnitude > 0.05 or hum.FloorMaterial == Enum.Material.Air)
+            local following = followAt ~= nil and now - followAt < 0.25
+            local alone = solo(real)
+            local open = alone(rhrp)
+            local hold = open and not moving and not following
+            cur += math.clamp((hold and lead or 0) - cur, -dt * P.EASE, dt * P.EASE)
+            local base = chrp.CFrame
+            local rel, parts = {}, {}
+            for _, p in real:GetChildren() do
+                if p:IsA("BasePart") and p ~= rhrp and not skipped(p) then
+                    local cp = clone:FindFirstChild(p.Name)
+                    if cp and cp:IsA("BasePart") then
+                        rel[p.Name] = base:ToObjectSpace(cp.CFrame)
+                        parts[#parts + 1] = p
+                    end
+                end
+            end
+            hist[#hist + 1] = { t = now, rel = rel }
+            while #hist > 2 and hist[2].t < now - lead - 1 do table.remove(hist, 1) end
+            local shown = sample(hist, now - cur, "rel") or rel
+            local live = livePoses(clone) or {}
+            for _, p in parts do
+                local c = shown[p.Name]
+                if c then p.CFrame = base * c end
+                local pose = live[p.Name]
+                if pose and alone(p) then
+                    local lin, ang = packPose(pose)
+                    p.AssemblyLinearVelocity = lin
+                    p.AssemblyAngularVelocity = ang
+                end
+            end
+            if open then
+                rhrp.AssemblyLinearVelocity = Vector3.new(P.MARK, now % P.WRAP, cur)
+                rhrp.AssemblyAngularVelocity = Vector3.zero
+            end
+        end
+
+        API.pair_host = function(on, seconds)
+            hosting = on and true or false
+            lead = math.clamp(tonumber(seconds) or lead, 0.05, 2)
+            cur, last = 0, nil
+            table.clear(hist)
+            if not hosting then dirty = true end
+            return true
+        end
+
+        API.pair_hosting = function()
+            return hosting
+        end
+
+        API.pair_follow = function()
+            followAt = clock()
+        end
+
+        API.pair_read = function(char, joints, root)
+            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+            if not (hrp and hrp:IsA("BasePart")) then return nil end
+            local v = hrp.AssemblyLinearVelocity
+            if not (math.abs(v.X - P.MARK) < 4e-3 and v.Z >= -0.01 and v.Z <= 2.01) then return nil end
+            local now = clock()
+            local age = (now - v.Y + P.WRAP / 2) % P.WRAP - P.WRAP / 2
+            if age < -0.25 or age > P.FRESH then return nil end
+            local alone = solo(char)
+            if not alone(hrp) then return nil end
+            local poses = {}
+            for _, j in joints do
+                if j.p1 and j.p1.Parent == char and alone(j.p1) then
+                    poses[j.name] = readPose(j.p1, now)
+                end
+            end
+            if root and root.p1 and root.p1.Parent == char and alone(root.p1) then
+                poses[root.name] = readPose(root.p1, now)
+            end
+            if not next(poses) then return nil end
+            return now - age, math.max(v.Z, 0), poses
+        end
+
+        API.pair_lead = function(list, now)
+            local b, a = list[#list], list[#list - 1]
+            if not b then return 0 end
+            local slope = a and b.t > a.t and math.clamp((b.lead - a.lead) / (b.t - a.t), -P.EASE, P.EASE) or 0
+            return math.clamp(b.lead + slope * (now - b.t), 0, math.max(P.LEAD, b.lead))
+        end
+
+        API.pair_sample = function(list, at)
+            return sample(list, at, "pose")
+        end
+
+        API.pair_clock = clock
+    end
+
+    -- ========================================================================
+    -- SECTION 3: REANIM MIMIC MODULE (reanimMimic.luau)
+    -- ========================================================================
+    do
+        local K = getKeyframeRecorder()
+        local players = game:GetService("Players")
+        local run = game:GetService("RunService")
+        local M = {on = false}
+
+        local function flat(cf)
+            local _, _, _, r00, _, r02, _, _, _, r20, _, r22 = cf:GetComponents()
+            local s, c = r02 - r20, r00 + r22
+            local yaw = s * s + c * c > 0.04 and math.atan2(s, c) or select(2, cf:ToOrientation())
+            return CFrame.new(cf.Position) * CFrame.Angles(0, yaw, 0)
+        end
+
+        local function anchor(char, rig)
+            local root = rig.root
+            if not (root and root.p1 and root.p1.Parent == char) then return nil end
+            local hrp = root.p0
+            if not (hrp and hrp.Parent == char and K.rigid(root)) then hrp = K.upright(char, rig) end
+            if hrp then return flat(hrp.CFrame), hrp end
+            return flat(root.p1.CFrame * root.c1 * root.c0:Inverse()), nil
+        end
+
+        function M.stop(reason)
+            if not M.on then return end
+            M.on = false
+            local c = M.ctx
+            M.ctx = nil
+            for _, conn in c.conns do pcall(function() conn:Disconnect() end) end
+            if API.blend_hold then pcall(API.blend_hold) end
+            for motor, c0 in c.origC0 do
+                if motor.Parent then pcall(function() motor.C0 = c0 end) end
+            end
+            if c.acMap then
+                for _, jd in c.acMap do
+                    if type(jd) == "table" and jd.constraint and jd.constraint.Parent then
+                        pcall(function() jd.constraint.Transform = CFrame.identity end)
+                    end
+                end
+            end
+            if c.hum and c.hum.Parent then
+                c.hum.PlatformStand, c.hum.AutoRotate = c.saved.platform, c.saved.rotate
+            end
+            if c.animScript and c.animScript.Parent then c.animScript.Enabled = c.animWas end
+            if c.root and c.root.Parent then
+                c.root.AssemblyLinearVelocity = Vector3.zero
+                c.root.AssemblyAngularVelocity = Vector3.zero
+            end
+            if M.onStop then pcall(M.onStop, reason) end
+        end
+
+        function M.start(plr)
+            M.stop()
+            local lp = players.LocalPlayer
+            if not (API.is_reanimated and API.is_reanimated()) then return false, "Reanimate first" end
+            if not (plr and plr.Parent and plr ~= lp) then return false, "Pick a player first" end
+            local char = plr.Character
+            local okR, rig = pcall(K.rig, char)
+            if not (char and okR and rig and #rig.joints > 0) then return false, plr.DisplayName .. " has no body to copy right now" end
+            local clone = API.get_clone and API.get_clone(lp)
+            local root = clone and clone:FindFirstChild("HumanoidRootPart")
+            if not root then return false, "Reanimate first" end
+            local base = anchor(char, rig)
+            if not base then return false, plr.DisplayName .. " has no body to copy right now" end
+            local body = (API.get_anim_body and API.get_anim_body(lp)) or clone
+            pcall(API.stop_animation)
+            pcall(function()
+                local ctrl = body:FindFirstChildOfClass("Humanoid") or body:FindFirstChildOfClass("AnimationController")
+                for _, t in ctrl:GetPlayingAnimationTracks() do t:Stop() end
+            end)
+            local animScript = body:FindFirstChild("Animate")
+            local animWas = animScript and animScript.Enabled
+            if animScript then animScript.Enabled = false end
+            local joints, origC0 = {}, {}
+            for _, d in body:GetDescendants() do
+                if d:IsA("Motor6D") and d.Part1 then
+                    joints[d.Part1.Name] = d
+                    origC0[d] = d.C0
+                end
+            end
+            local acMap
+            if next(joints) == nil and API._buildACJointMap then
+                local okM, m = pcall(API._buildACJointMap, body)
+                if okM then acMap = m end
+            end
+            local hum = clone:FindFirstChildOfClass("Humanoid")
+            local c = {
+                conns = {}, origC0 = origC0, acMap = acMap, root = root, hum = hum, animScript = animScript, animWas = animWas,
+                saved = {platform = hum and hum.PlatformStand, rotate = hum and hum.AutoRotate},
+            }
+            if hum then hum.PlatformStand, hum.AutoRotate = true, false end
+            local offset = base:ToObjectSpace(flat(root.CFrame))
+            if offset.Position.Magnitude > 12 then offset = CFrame.new(3, 0, 0) end
+            local poses = {}
+            local function step()
+                if not (API.is_reanimated and API.is_reanimated()) then return "Reanimation stopped" end
+                if not plr.Parent then return plr.DisplayName .. " left" end
+                if not root.Parent then return "Lost your body" end
+                if plr.Character ~= char then
+                    local nc = plr.Character
+                    local okN, nr = pcall(K.rig, nc)
+                    if not (nc and okN and nr and #nr.joints > 0) then return nil end
+                    char, rig = nc, nr
+                    table.clear(poses)
+                    for motor, c0 in origC0 do
+                        if motor.Parent then motor.C0 = c0 end
+                    end
+                end
+                local ref, thrp = anchor(char, rig)
+                if not ref then return nil end
+                root.CFrame = ref * offset
+                root.AssemblyLinearVelocity = thrp and thrp.AssemblyLinearVelocity or Vector3.zero
+                root.AssemblyAngularVelocity = Vector3.zero
+                for _, j in rig.joints do
+                    local ok, r = pcall(K.pose, j)
+                    if ok and r then poses[j.name] = r end
+                end
+                local rr = rig.root
+                poses[rr.name] = (ref * rr.c0):Inverse() * (rr.p1.CFrame * rr.c1)
+                if not acMap then
+                    for name, r in poses do
+                        local motor = joints[name]
+                        if motor and origC0[motor] then motor.C0 = origC0[motor] * r end
+                    end
+                end
+                return nil
+            end
+            c.conns[#c.conns + 1] = run.Heartbeat:Connect(function()
+                if not M.on then return end
+                local ok, why = pcall(step)
+                if not ok then
+                    M.stop("Mimic stopped")
+                elseif why then
+                    M.stop(why)
+                end
+            end)
+            if acMap then
+                c.conns[#c.conns + 1] = run.PreSimulation:Connect(function()
+                    if not M.on then return end
+                    for _, entry in API._AC_HIERARCHY or {} do
+                        local jd = acMap[entry.part]
+                        if jd and jd.constraint and jd.constraint.Parent then
+                            jd.constraint.Transform = poses[entry.part] or CFrame.identity
+                        end
+                    end
+                end)
+            end
+            M.ctx, M.plr, M.on = c, plr, true
+            return true
+        end
+
+        API.mimic_start = function(plr) return M.start(plr) end
+        API.mimic_stop = function(reason) M.stop(reason) end
+        API.mimic_active = function() return M.on end
+        API.mimic_target = function() return M.on and M.plr or nil end
+        API.mimic_on_stop = function(fn) M.onStop = fn end
+    end
+
+    -- ========================================================================
+    -- SECTION 4: REANIM BLEND MODULE (reanimBlend.luau)
+    -- ========================================================================
+    do
+        local S = stalkie
+        local B = { mode = nil, source = nil, pre = nil }
+        local STYLES = {
+            smooth = { time = 0.4, move = true },
+            snappy = { time = 0.2, out = true },
+            floaty = { time = 0.8, lag = 0.14 },
+        }
+        B.STYLES = STYLES
+        local cur
+
+        function B.sample(kfs, total, t, out)
+            local lo, hi = 1, #kfs - 1
+            while lo < hi do
+                local mid = math.floor((lo + hi + 1) / 2)
+                if kfs[mid].Time <= t then lo = mid else hi = mid - 1 end
+            end
+            local cf = kfs[lo]
+            local nf = kfs[lo + 1] or kfs[1]
+            local fd = nf.Time - cf.Time
+            if fd <= 0 then fd = (total - cf.Time) + nf.Time end
+            local seg = t - cf.Time
+            if seg < 0 then seg += total end
+            local a = fd > 0 and math.clamp(seg / fd, 0, 1) or 0
+            for name, p in cf.Data or {} do
+                local np = nf.Data and nf.Data[name]
+                out[name] = np and p:Lerp(np, a) or p
+            end
+            return out
+        end
+
+        local function near(a, b)
+            local d = a:Inverse() * b
+            local _, ang = d:ToAxisAngle()
+            return d.Position.Magnitude < 0.05 and math.abs(ang) < 0.05
+        end
+
+        local function follows(src, from)
+            local ok, poses = pcall(B.sample, src.kfs, src.total, src.at(), {})
+            if not ok then return nil end
+            local skip, miss, hit = {}, 0, 0
+            for name, p in poses do
+                local f = from[name]
+                if f then
+                    if near(f, p) then
+                        hit += 1
+                    else
+                        skip[name] = true
+                        miss += 1
+                        if miss > 2 then return nil end
+                    end
+                end
+            end
+            if hit == 0 then return nil end
+            return skip
+        end
+
+        function B.start(from, carried, src)
+            cur = nil
+            local style = B.mode and STYLES[B.mode]
+            if not (style and from and next(from)) then return end
+            local c = { style = style, from = from, out = {}, seen = {}, hold = {}, t = 0, frame = 0 }
+            local skip = style.move and src and not carried and follows(src, from)
+            if skip then
+                local rate = src.rate()
+                c.src = { kfs = src.kfs, total = src.total, t = src.at(), rate = rate == rate and rate or 0, skip = skip, pose = {} }
+            end
+            cur = c
+        end
+
+        function B.step(dt)
+            local c = cur
+            if not c then return false end
+            if c.done then
+                cur = nil
+                return false
+            end
+            local s = c.style
+            c.t = math.min(c.t + math.min(dt, 1 / 20), s.time)
+            c.done = c.t >= s.time
+            c.frame += 1
+            local a = c.t / s.time
+            if s.lag then
+                c.k = 1 - math.exp(-dt / s.lag)
+                c.w = a * a * a
+            elseif s.out then
+                local b = 1 - a
+                c.w = 1 - b * b * b
+            else
+                c.w = a * a * (3 - 2 * a)
+            end
+            local src = c.src
+            if src and src.total > 0 then
+                src.t = (src.t + dt * src.rate) % src.total
+                if pcall(B.sample, src.kfs, src.total, src.t, src.pose) then
+                    for name, p in src.pose do
+                        if not src.skip[name] then c.from[name] = p end
+                    end
+                end
+            end
+            return true
+        end
+
+        function B.mix(name, pose)
+            local c = cur
+            if not c then return pose end
+            c.seen[name] = c.frame
+            c.hold[name] = pose
+            if c.k then
+                local o = c.out[name] or c.from[name]
+                if not o then return pose end
+                o = o:Lerp(pose, c.k)
+                c.out[name] = o
+                return o:Lerp(pose, c.w)
+            end
+            local f = c.from[name]
+            return f and f:Lerp(pose, c.w) or pose
+        end
+
+        function B.rest(write)
+            local c = cur
+            if not c then return end
+            for name in c.from do
+                if c.seen[name] ~= c.frame then pcall(write, name, B.mix(name, c.hold[name] or CFrame.identity)) end
+            end
+        end
+
+        function B.active() return cur ~= nil end
+        function B.cancel()
+            cur = nil
+            B.source = nil
+        end
+
+        local function read()
+            local anim = S.animation
+            local base = S.trickBase
+            local from = {}
+            if anim.ac_joint_map then
+                for part, jd in anim.ac_joint_map do
+                    local k = type(jd) == "table" and jd.constraint
+                    if k and k.Parent then from[part] = (base and base(k, "Transform")) or k.Transform end
+                end
+            else
+                for name, motor in anim.joints do
+                    local orig = anim.original_motor_c0s[motor]
+                    if orig and motor.Parent then
+                        from[name] = orig:Inverse() * ((base and base(motor, "C0")) or motor.C0) * motor.Transform
+                    end
+                end
+            end
+            return from
+        end
+
+        API.blend = B
+        API.set_blend = function(mode)
+            B.mode = STYLES[mode] and mode or nil
+        end
+        API.get_blend = function() return B.mode end
+        API.blend_hold = function()
+            if not B.mode then return end
+            local held = { read(), cur ~= nil and not cur.done }
+            B.pre = held
+            task.defer(function()
+                if B.pre == held then B.pre = nil end
+            end)
+        end
+        API.blend_capture = function()
+            if not B.mode then return nil, false, nil end
+            local held = B.pre
+            if held then
+                B.pre = nil
+                return held[1], held[2], nil
+            end
+            return read(), cur ~= nil and not cur.done, B.source
+        end
+    end
+
+    -- ========================================================================
+    -- SECTION 5: GLOBAL REGISTRATION & LOADER
+    -- ========================================================================
+    _G.loadReanimAPI = function(cb)
+        if _G._reanimLoaded then if cb then cb() end; return end
+        local ok, result = pcall(function() return API end)
+        if ok and result and result.reanimate then
+            _G._reanimAPI = result
+            _G._reanimLoaded = true
+            if cb then cb() end
+        else
+            _nvL.notify("Reanim", "Failed to init integral Reanimation API")
+        end
+    end
+
+    _G._reanimAPI = API
+    _G._reanimLoaded = true
+    API.init = initUltimateReanimation
+    return API
+end
+
+    local _okUr, _urApi = pcall(initUltimateReanimation, {
+        _nvL = {
+            notify = function(t, m)
+                pcall(notify, "🦴 " .. tostring(t or "Ultimate Reanim"), tostring(m or ""))
+            end,
+        },
+    })
+    if _okUr and type(_urApi) == "table" then
+        _G.UltimateReanimAPI = _urApi
+        _G._reanimAPI = _urApi
+        _G._reanimLoaded = true
+    end
+    return _urApi
+
+            end
+
+            -- Initialize Ultimate Reanimation Engine safely (exposes _G.UltimateReanimAPI & _G._reanimAPI)
+            local UR_API = nil
+            local okInit, resApi = pcall(_loadUltimateReanimationEngine)
+            if okInit and type(resApi) == "table" then
+                UR_API = resApi
+            end
+
+            local function getUR()
+                if not UR_API then
+                    local ok, api = pcall(_loadUltimateReanimationEngine)
+                    if ok and type(api) == "table" then UR_API = api end
+                end
+                return UR_API or _G.UltimateReanimAPI or _G._reanimAPI
+            end
+
+            createSectionTitle(cocaReanimPage, 2, "Ultimate Reanimation Engine (Core · Pair · Mimic · Blend)")
+
+            -- Live Status Card
+            local urBanner = Instance.new("Frame")
+            urBanner.Name = "UltimateReanimBanner"
+            urBanner.Size = UDim2.new(1, 0, 0, 62)
+            urBanner.BackgroundColor3 = T.Panel
+            urBanner.BackgroundTransparency = 0.08
+            urBanner.BorderSizePixel = 0
+            urBanner.LayoutOrder = 3
+            urBanner.ZIndex = 7
+            urBanner.Parent = cocaReanimPage
+            Instance.new("UICorner", urBanner).CornerRadius = UDim.new(0, 12)
+            local urBStroke = Instance.new("UIStroke")
+            urBStroke.Color = T.Accent
+            urBStroke.Thickness = 1.1
+            urBStroke.Transparency = 0.35
+            urBStroke.Parent = urBanner
+
+            local urTitleLbl = Instance.new("TextLabel")
+            urTitleLbl.Size = UDim2.new(1, -24, 0, 18)
+            urTitleLbl.Position = UDim2.new(0, 12, 0, 8)
+            urTitleLbl.BackgroundTransparency = 1
+            urTitleLbl.Font = Enum.Font.GothamBold
+            urTitleLbl.TextSize = 12
+            urTitleLbl.TextColor3 = T.Text
+            urTitleLbl.TextXAlignment = Enum.TextXAlignment.Left
+            urTitleLbl.Text = "🦴 Ultimate Reanimation · Core + KeyframeRecorder + Pair + Mimic + Blend"
+            urTitleLbl.ZIndex = 8
+            urTitleLbl.Parent = urBanner
+
+            local urStatusLbl = Instance.new("TextLabel")
+            urStatusLbl.Size = UDim2.new(1, -24, 0, 28)
+            urStatusLbl.Position = UDim2.new(0, 12, 0, 28)
+            urStatusLbl.BackgroundTransparency = 1
+            urStatusLbl.Font = Enum.Font.GothamMedium
+            urStatusLbl.TextSize = 10
+            urStatusLbl.TextColor3 = T.Muted
+            urStatusLbl.TextXAlignment = Enum.TextXAlignment.Left
+            urStatusLbl.TextWrapped = true
+            urStatusLbl.Text = "Ready · Toggle Reanimate below or access via _G._reanimAPI"
+            urStatusLbl.ZIndex = 8
+            urStatusLbl.Parent = urBanner
+
+            local function setUrStatus(txt, col)
+                urStatusLbl.Text = tostring(txt)
+                if col then urStatusLbl.TextColor3 = col end
+            end
+
+            local urCoreGrp = createGroupCard(cocaReanimPage, 4)
+
+            createSwitchRow(
+                urCoreGrp,
+                1,
+                "Ultimate Reanimate",
+                "Activates UltimateReanimation puppet/clone rig with anti-death & ShiftLock gyro",
+                false,
+                function(on)
+                    local api = getUR()
+                    if not api or type(api.reanimate) ~= "function" then
+                        setUrStatus("UltimateReanimation API unavailable", T.Danger)
+                        return
+                    end
+                    task.spawn(function()
+                        setUrStatus(on and "Reanimating rig..." or "Restoring real character...", T.Warning)
+                        local ok, res, err = pcall(api.reanimate, on)
+                        if ok and res ~= false then
+                            setUrStatus(on and "Active · Reanimated (Ultimate Engine)" or "Stopped · Restored normal rig", on and T.Success or T.Muted)
+                            notify("🦴 ULTIMATE REANIM", on and "Reanimation Activated!" or "Reanimation Stopped.")
+                            sSuccess()
+                        else
+                            setUrStatus("Failed: " .. tostring(err or res), T.Danger)
+                            notify("🦴 ULTIMATE REANIM", "Error: " .. tostring(err or res))
+                            sError()
+                        end
+                    end)
+                end
+            )
+
+            createSwitchRow(
+                urCoreGrp,
+                2,
+                "Reanim Noclip",
+                "Toggles collision bypass on the reanimated clone rig",
+                false,
+                function(on)
+                    local api = getUR()
+                    if api and api.set_noclip then
+                        pcall(api.set_noclip, on)
+                        setUrStatus("Noclip: " .. (on and "ON" or "OFF"), on and T.Success or T.Muted)
+                    end
+                end
+            )
+
+            local blendModes = { "off", "smooth", "snappy", "floaty" }
+            local blendIdx = 1
+            createActionRow(
+                urCoreGrp,
+                3,
+                "Animation Blend Mode",
+                "Cycles Ultimate Reanim transition blend style (off · smooth · snappy · floaty)",
+                "Blend: OFF",
+                function()
+                    local api = getUR()
+                    blendIdx = (blendIdx % #blendModes) + 1
+                    local mode = blendModes[blendIdx]
+                    if api and api.set_blend then
+                        pcall(api.set_blend, mode == "off" and nil or mode)
+                    end
+                    setUrStatus("Blend Mode: " .. string.upper(mode), mode == "off" and T.Muted or T.Success)
+                    notify("🦴 ULTIMATE REANIM", "Blend Mode set to: " .. string.upper(mode))
+                end
+            )
+
+            -- Keyframe URL Player Box
+            createSectionTitle(cocaReanimPage, 5, "Ultimate Keyframe Animation Player")
+            local urAnimBox = Instance.new("Frame")
+            urAnimBox.Name = "UltimateAnimPlayerCard"
+            urAnimBox.Size = UDim2.new(1, 0, 0, 90)
+            urAnimBox.BackgroundColor3 = T.Panel
+            urAnimBox.BackgroundTransparency = 0.08
+            urAnimBox.BorderSizePixel = 0
+            urAnimBox.LayoutOrder = 6
+            urAnimBox.ZIndex = 7
+            urAnimBox.Parent = cocaReanimPage
+            Instance.new("UICorner", urAnimBox).CornerRadius = UDim.new(0, 12)
+            local urAStroke = Instance.new("UIStroke")
+            urAStroke.Color = T.Border
+            urAStroke.Thickness = 1
+            urAStroke.Transparency = 0.35
+            urAStroke.Parent = urAnimBox
+
+            local urUrlInput = Instance.new("TextBox")
+            urUrlInput.Size = UDim2.new(1, -20, 0, 32)
+            urUrlInput.Position = UDim2.new(0, 10, 0, 10)
+            urUrlInput.BackgroundColor3 = T.BG
+            urUrlInput.BorderSizePixel = 0
+            urUrlInput.Font = Enum.Font.GothamMedium
+            urUrlInput.TextSize = 11
+            urUrlInput.TextColor3 = T.Text
+            urUrlInput.PlaceholderText = "Paste Keyframe Animation URL (raw .lua / .luau)..."
+            urUrlInput.PlaceholderColor3 = T.Muted
+            urUrlInput.Text = ""
+            urUrlInput.ClearTextOnFocus = false
+            urUrlInput.TextXAlignment = Enum.TextXAlignment.Left
+            urUrlInput.ZIndex = 8
+            urUrlInput.Parent = urAnimBox
+            Instance.new("UICorner", urUrlInput).CornerRadius = UDim.new(0, 8)
+            local urlPad = Instance.new("UIPadding", urUrlInput)
+            urlPad.PaddingLeft = UDim.new(0, 10)
+            urlPad.PaddingRight = UDim.new(0, 10)
+
+            local urBtnRow = Instance.new("Frame")
+            urBtnRow.Size = UDim2.new(1, -20, 0, 32)
+            urBtnRow.Position = UDim2.new(0, 10, 0, 48)
+            urBtnRow.BackgroundTransparency = 1
+            urBtnRow.ZIndex = 8
+            urBtnRow.Parent = urAnimBox
+            local urBtnLayout = Instance.new("UIListLayout", urBtnRow)
+            urBtnLayout.FillDirection = Enum.FillDirection.Horizontal
+            urBtnLayout.Padding = UDim.new(0, 6)
+
+            local urPaused = false
+            local urHold = false
+            local urSpeed = 1.0
+
+            local function makeUrSmallBtn(label, bg, cb)
+                local b = Instance.new("TextButton")
+                b.Size = UDim2.new(0.25, -4.5, 1, 0)
+                b.BackgroundColor3 = bg or T.Accent
+                b.BackgroundTransparency = 0.14
+                b.BorderSizePixel = 0
+                b.Font = Enum.Font.GothamBold
+                b.TextSize = 11
+                b.TextColor3 = Color3.new(1, 1, 1)
+                b.Text = label
+                b.AutoButtonColor = false
+                b.ZIndex = 9
+                b.Parent = urBtnRow
+                Instance.new("UICorner", b).CornerRadius = UDim.new(0, 8)
+                b.MouseButton1Click:Connect(cb)
+                return b
+            end
+
+            makeUrSmallBtn("▶ Play URL", T.Accent, function()
+                local api = getUR()
+                local u = tostring(urUrlInput.Text or ""):match("^%s*(.-)%s*$")
+                if u == "" then
+                    setUrStatus("Enter a Keyframe animation URL first", T.Warning)
+                    return
+                end
+                if api and api.play_animation then
+                    setUrStatus("Loading & playing URL...", T.Warning)
+                    task.spawn(function()
+                        local ok, res, err = pcall(api.play_animation, u, urSpeed)
+                        if ok and res ~= false then
+                            urPaused = false
+                            setUrStatus("Playing keyframe URL @ " .. tostring(urSpeed) .. "x", T.Success)
+                            sSuccess()
+                        else
+                            setUrStatus("Play error: " .. tostring(err or res), T.Danger)
+                            sError()
+                        end
+                    end)
+                end
+            end)
+
+            makeUrSmallBtn("⏯ Pause", T.PanelLt, function()
+                local api = getUR()
+                if api and api.set_animation_paused then
+                    urPaused = not urPaused
+                    pcall(api.set_animation_paused, urPaused)
+                    setUrStatus(urPaused and "Animation Paused" or "Animation Resumed", T.Warning)
+                end
+            end)
+
+            makeUrSmallBtn("📌 Hold", T.PanelLt, function()
+                local api = getUR()
+                if api and api.set_animation_hold then
+                    urHold = not urHold
+                    pcall(api.set_animation_hold, urHold)
+                    setUrStatus("Hold Pose: " .. (urHold and "ON" or "OFF"), urHold and T.Success or T.Muted)
+                end
+            end)
+
+            makeUrSmallBtn("⏹ Stop", T.Danger, function()
+                local api = getUR()
+                if api and api.stop_animation then
+                    pcall(api.stop_animation, false)
+                    urPaused = false
+                    setUrStatus("Animation Stopped", T.Muted)
+                end
+            end)
+
+            local urAnimGrp = createGroupCard(cocaReanimPage, 7)
+
+            createSliderInputRow(
+                urAnimGrp,
+                1,
+                "Keyframe Playback Speed",
+                "Adjusts Ultimate Reanim animation speed multiplier",
+                0.1, 5.0, 1.0, 2, "x",
+                function(val)
+                    urSpeed = val
+                    local api = getUR()
+                    if api and api.set_animation_speed then
+                        pcall(api.set_animation_speed, val)
+                    end
+                end
+            )
+
+            createSwitchRow(
+                urAnimGrp,
+                2,
+                "Reverse Animation Direction",
+                "Plays current keyframe animation backwards",
+                false,
+                function(on)
+                    local api = getUR()
+                    if api and api.set_animation_dir then
+                        pcall(api.set_animation_dir, on and -1 or 1)
+                        setUrStatus("Direction: " .. (on and "REVERSE" or "FORWARD"), T.Muted)
+                    end
+                end
+            )
+
+            -- Poles, Mimic & Pair Sync Controls
+            createSectionTitle(cocaReanimPage, 8, "Ultimate Poles · Mimic · Pair Sync")
+            local urExtGrp = createGroupCard(cocaReanimPage, 9)
+
+            local armPoleLen = 8
+            local armPolesOn = false
+            createSwitchRow(
+                urExtGrp,
+                1,
+                "Arm Poles",
+                "Extends arms into rigid poles (requires Ultimate Reanimate active)",
+                false,
+                function(on)
+                    armPolesOn = on
+                    local api = getUR()
+                    if api and api.set_arm_poles then
+                        local ok, res, err = pcall(api.set_arm_poles, on, armPoleLen)
+                        setUrStatus(on and ("Arm Poles ON (" .. tostring(armPoleLen) .. " studs)") or "Arm Poles OFF", (ok and res ~= false) and T.Success or T.Danger)
+                    end
+                end
+            )
+
+            createSliderInputRow(
+                urExtGrp,
+                2,
+                "Arm Pole Length",
+                "Length of Arm Poles in studs",
+                2, 25, 8, 1, " st",
+                function(val)
+                    armPoleLen = val
+                    local api = getUR()
+                    if armPolesOn and api and api.set_arm_poles then
+                        pcall(api.set_arm_poles, true, armPoleLen)
+                    end
+                end
+            )
+
+            createActionRow(
+                urExtGrp,
+                3,
+                "Place Limb Pole Here / Clear Poles",
+                "Places a Right-Arm limb pole at your character CFrame (or clears active poles)",
+                "Toggle Pole",
+                function()
+                    local api = getUR()
+                    if not api then return end
+                    if api.pole_active and api.pole_active() then
+                        pcall(api.pole_clear)
+                        setUrStatus("Cleared all Limb Poles", T.Muted)
+                        notify("🦴 ULTIMATE REANIM", "Cleared all Limb Poles")
+                    else
+                        local hrp = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+                        if hrp and api.pole_place then
+                            local ok, res, modeOrErr = pcall(api.pole_place, hrp.CFrame * CFrame.new(0, 0, -4), "rightArm", armPoleLen)
+                            if ok and res then
+                                setUrStatus("Limb Pole placed (" .. tostring(modeOrErr) .. ")", T.Success)
+                                notify("🦴 ULTIMATE REANIM", "Limb Pole placed in front of you!")
+                            else
+                                setUrStatus("Pole failed: " .. tostring(modeOrErr or res), T.Danger)
+                                notify("🦴 ULTIMATE REANIM", "Pole failed: " .. tostring(modeOrErr or res))
+                            end
+                        end
+                    end
+                end
+            )
+
+            createSwitchRow(
+                urExtGrp,
+                4,
+                "Mimic Current Target (Ultimate Mimic)",
+                "Mirrors the selected CocoPowder target player's full body pose in real time",
+                false,
+                function(on)
+                    local api = getUR()
+                    if not api then return end
+                    if on then
+                        local tgt = CurrentTarget
+                        if not tgt or not tgt.Parent then
+                            setUrStatus("Select a target in Target / Weld & Troll first!", T.Warning)
+                            notify("🦴 ULTIMATE MIMIC", "No target selected — pick a player in Target tab first!")
+                            return
+                        end
+                        if api.mimic_start then
+                            local ok, res, err = pcall(api.mimic_start, tgt)
+                            if ok and res ~= false then
+                                setUrStatus("Mimicking: " .. tostring(tgt.DisplayName or tgt.Name), T.Success)
+                                notify("🦴 ULTIMATE MIMIC", "Mimicking " .. tostring(tgt.DisplayName or tgt.Name))
+                                sSuccess()
+                            else
+                                setUrStatus("Mimic error: " .. tostring(err or res), T.Danger)
+                                notify("🦴 ULTIMATE MIMIC", "Failed: " .. tostring(err or res))
+                                sError()
+                            end
+                        end
+                    else
+                        if api.mimic_stop then pcall(api.mimic_stop, "user") end
+                        setUrStatus("Mimic Stopped", T.Muted)
+                    end
+                end
+            )
+
+            createSwitchRow(
+                urExtGrp,
+                5,
+                "Pair Sync Host",
+                "Broadcasts your reanimation keyframes for paired players to sync",
+                false,
+                function(on)
+                    local api = getUR()
+                    if api and api.pair_host then
+                        local ok, res, err = pcall(api.pair_host, on)
+                        setUrStatus(on and "Pair Sync Host: ON" or "Pair Sync Host: OFF", (ok and res ~= false) and T.Success or T.Warning)
+                        if not (ok and res ~= false) and err then
+                            notify("🦴 PAIR SYNC", tostring(err))
+                        end
+                    end
+                end
+            )
+
+            createActionRow(
+                urExtGrp,
+                6,
+                "Clear Limb Reach",
+                "Resets any active limb reach targets back to normal",
+                "Clear Reach",
+                function()
+                    local api = getUR()
+                    if api and api.reach_clear then
+                        pcall(api.reach_clear)
+                        setUrStatus("Cleared Limb Reach", T.Muted)
+                        notify("🦴 ULTIMATE REANIM", "Cleared Limb Reach")
+                    end
+                end
+            )
+        end
     end
 
     -- ═══════════════════════════════════════════════════════════════════════════
@@ -33960,14 +39469,611 @@ local function buildMainUI()
         end)()
 
         -- ═══════════════════════════════════════════════════════════════════════
+        -- NEW V36.9 CUSTOM ADMIN MESSAGE STUDIO & ADVANCED ADMIN COMMAND SUITE
+        -- ═══════════════════════════════════════════════════════════════════════
+        ;(function()
+            -- A. CUSTOM ADMIN MESSAGE & ANNOUNCEMENT STUDIO
+            local secMsgTitle = createSectionTitle(adminPage, 18, "Custom Admin Message & Announcement Studio")
+            local customMsgGrp = createGroupCard(adminPage, 19)
+            table.insert(staffHiddenElements, secMsgTitle)
+            table.insert(staffHiddenElements, customMsgGrp)
+
+            local titleWrap = Instance.new("Frame")
+            titleWrap.Name = "CustomMsgTitleWrap"
+            titleWrap.Size = UDim2.new(1, 0, 0, 38)
+            titleWrap.BackgroundTransparency = 1
+            titleWrap.LayoutOrder = 1
+            titleWrap.ZIndex = 8
+            titleWrap.Parent = customMsgGrp
+
+            local customTitleBox = Instance.new("TextBox")
+            customTitleBox.Name = "CustomMsgTitleBox"
+            customTitleBox.Size = UDim2.new(1, 0, 0, 30)
+            customTitleBox.Position = UDim2.new(0, 0, 0, 4)
+            customTitleBox.BackgroundColor3 = T.BG2
+            customTitleBox.PlaceholderText = "Optional Custom Title (e.g. ROYAL NOTICE, RAID ORDER)..."
+            customTitleBox.Text = OwnerAdminState.customAdminMsgTitle or ""
+            customTitleBox.TextColor3 = T.Text
+            customTitleBox.PlaceholderColor3 = T.Muted
+            customTitleBox.Font = Enum.Font.GothamBold
+            customTitleBox.TextSize = 10
+            customTitleBox.ClearTextOnFocus = false
+            customTitleBox.ZIndex = 9
+            customTitleBox.Parent = titleWrap
+            Instance.new("UICorner", customTitleBox).CornerRadius = UDim.new(0, 9)
+            local ctStroke = Instance.new("UIStroke", customTitleBox)
+            ctStroke.Color = T.Border
+            ctStroke.Thickness = 1
+            ctStroke.Transparency = 0.35
+            local ctPad = Instance.new("UIPadding", customTitleBox)
+            ctPad.PaddingLeft = UDim.new(0, 10)
+            ctPad.PaddingRight = UDim.new(0, 10)
+
+            customTitleBox:GetPropertyChangedSignal("Text"):Connect(function()
+                OwnerAdminState.customAdminMsgTitle = customTitleBox.Text
+            end)
+
+            local bodyWrap = Instance.new("Frame")
+            bodyWrap.Name = "CustomMsgBodyWrap"
+            bodyWrap.Size = UDim2.new(1, 0, 0, 44)
+            bodyWrap.BackgroundTransparency = 1
+            bodyWrap.LayoutOrder = 2
+            bodyWrap.ZIndex = 8
+            bodyWrap.Parent = customMsgGrp
+
+            local customBodyBox = Instance.new("TextBox")
+            customBodyBox.Name = "CustomMsgBodyBox"
+            customBodyBox.Size = UDim2.new(1, 0, 0, 34)
+            customBodyBox.Position = UDim2.new(0, 0, 0, 4)
+            customBodyBox.BackgroundColor3 = T.BG2
+            customBodyBox.PlaceholderText = "Type your custom Admin screen message to broadcast..."
+            customBodyBox.Text = OwnerAdminState.customAdminMsgBody or "Welcome to the server! Follow Admin orders."
+            customBodyBox.TextColor3 = T.Text
+            customBodyBox.PlaceholderColor3 = T.Muted
+            customBodyBox.Font = Enum.Font.Gotham
+            customBodyBox.TextSize = 10
+            customBodyBox.ClearTextOnFocus = false
+            customBodyBox.ZIndex = 9
+            customBodyBox.Parent = bodyWrap
+            Instance.new("UICorner", customBodyBox).CornerRadius = UDim.new(0, 9)
+            local cbStroke = Instance.new("UIStroke", customBodyBox)
+            cbStroke.Color = T.Accent
+            cbStroke.Thickness = 1.1
+            cbStroke.Transparency = 0.35
+            local cbPad = Instance.new("UIPadding", customBodyBox)
+            cbPad.PaddingLeft = UDim.new(0, 10)
+            cbPad.PaddingRight = UDim.new(0, 10)
+
+            customBodyBox:GetPropertyChangedSignal("Text"):Connect(function()
+                OwnerAdminState.customAdminMsgBody = customBodyBox.Text
+            end)
+
+            local stylesList = OwnerAdminState.CUSTOM_MSG_STYLES or {}
+            local dursList = OwnerAdminState.CUSTOM_MSG_DURATIONS or {}
+            local function getCurStyle()
+                return stylesList[OwnerAdminState.customAdminMsgStyleIdx or 1] or { id = "banner", label = "Banner" }
+            end
+            local function getCurDur()
+                return dursList[OwnerAdminState.customAdminMsgDurIdx or 2] or { sec = 8, label = "8s" }
+            end
+
+            createActionRow(
+                customMsgGrp,
+                3,
+                "Message Display Style & Duration",
+                "Tap [Banner] to cycle Banner / Cinema / Alert / Sticky · Tap [⏱] to cycle duration (5s–20s / Sticky)",
+                getCurStyle().label,
+                function(pillBtn)
+                    OwnerAdminState.customAdminMsgStyleIdx = ((OwnerAdminState.customAdminMsgStyleIdx or 1) % math.max(#stylesList, 1)) + 1
+                    local st = getCurStyle()
+                    pillBtn.Text = st.label
+                    notify("📢 MSG STYLE", "Selected style: " .. st.label .. " (" .. getCurDur().label .. ")")
+                    sSuccess()
+                end,
+                function()
+                    OwnerAdminState.customAdminMsgDurIdx = ((OwnerAdminState.customAdminMsgDurIdx or 2) % math.max(#dursList, 1)) + 1
+                    local dr = getCurDur()
+                    notify("⏱️ MSG DURATION", "Selected duration: " .. dr.label)
+                    sSuccess()
+                end,
+                "⏱"
+            )
+
+            createActionRow(
+                customMsgGrp,
+                4,
+                "Send Custom Message (All / Locked Target)",
+                "Tap [Send All] to broadcast to every script user · Tap [🎯] for direct private message to locked target",
+                "Send All",
+                function()
+                    local st = getCurStyle()
+                    local dr = getCurDur()
+                    OwnerAdminState.broadcastCustomAdminMessage(nil, customTitleBox.Text, customBodyBox.Text, st.id, dr.sec)
+                end,
+                function()
+                    local tgt = resolveActiveTarget()
+                    if not tgt then
+                        notify("📢 CUSTOM MESSAGE", "Lock a target player first to send a private message!")
+                        sError()
+                        return
+                    end
+                    local st = getCurStyle()
+                    local dr = getCurDur()
+                    OwnerAdminState.broadcastCustomAdminMessage(tgt, customTitleBox.Text, customBodyBox.Text, st.id, dr.sec)
+                end,
+                "🎯"
+            )
+
+            createActionRow(
+                customMsgGrp,
+                5,
+                "Preview Message Locally / Clear Active & Sticky",
+                "Tap [Preview] to test on your screen only · Tap [🧹] to dismiss all active/sticky messages server-wide",
+                "Preview",
+                function()
+                    local st = getCurStyle()
+                    local dr = getCurDur()
+                    OwnerAdminState.showCustomAdminMessage(LP.Name, getRoleDisplayName(LP), customTitleBox.Text, customBodyBox.Text, st.id, dr.sec, true)
+                end,
+                function()
+                    if not hasAdminAccess(LP) then return end
+                    OwnerAdminState.clearCustomAdminMessages()
+                    broadcastOwnerAdminCommand(232, nil, "cpclearmsg")
+                    OwnerAdminState.pushAdminAudit("Cleared active/sticky admin messages")
+                    notify("🧹 MESSAGES CLEARED", "Cleared all active & sticky admin announcements server-wide!")
+                    sSuccess()
+                end,
+                "🧹"
+            )
+
+            local msgPresets = {
+                { label = "👑 Follow Admin", title = "ADMIN ORDER", body = "Everyone regroup and follow the Admin immediately!", style = "banner" },
+                { label = "⚔️ Raid Target",  title = "RAID ALERT",  body = "All Coco Powder users: lock onto the marked target NOW!", style = "alert" },
+                { label = "🛑 Hold Fire",    title = "CEASEFIRE",   body = "Stop all flings & welds — stand down until further notice.", style = "sticky" },
+                { label = "📸 Group Photo",  title = "GROUP PHOTO", body = "Line up in front of the Admin for a server squad photo!", style = "cinema" },
+                { label = "🎉 Event Start",  title = "SERVER EVENT", body = "Admin event is starting now — get ready!", style = "cinema" },
+            }
+            for idxP, mp in ipairs(msgPresets) do
+                createActionRow(
+                    customMsgGrp,
+                    5 + idxP,
+                    mp.label .. " [" .. mp.style:upper() .. "]",
+                    mp.body,
+                    "Send",
+                    function()
+                        customTitleBox.Text = mp.title
+                        customBodyBox.Text = mp.body
+                        OwnerAdminState.broadcastCustomAdminMessage(nil, mp.title, mp.body, mp.style, mp.style == "sticky" and 0 or 8)
+                    end,
+                    function()
+                        customTitleBox.Text = mp.title
+                        customBodyBox.Text = mp.body
+                        notify("✏️ PRESET LOADED", "Loaded '" .. mp.title .. "' into editor!")
+                        sSuccess()
+                    end,
+                    "✏️"
+                )
+            end
+
+            createActionRow(
+                customMsgGrp,
+                11,
+                "Re-Send Recent Custom Message",
+                "Tap [Re-Send] to re-broadcast your last sent custom message · Tap [↻] to cycle history",
+                "Re-Send",
+                function()
+                    local hist = OwnerAdminState.customAdminMsgHistory
+                    local item = hist[OwnerAdminState.customAdminMsgHistIdx or 1]
+                    if not item then
+                        notify("📢 HISTORY EMPTY", "Send a custom message first to populate history!")
+                        sError()
+                        return
+                    end
+                    customTitleBox.Text = item.title or ""
+                    customBodyBox.Text = item.body or ""
+                    OwnerAdminState.broadcastCustomAdminMessage(nil, item.title, item.body, item.style, item.duration)
+                end,
+                function()
+                    local hist = OwnerAdminState.customAdminMsgHistory
+                    if #hist == 0 then
+                        notify("📢 HISTORY EMPTY", "No recent custom messages yet!")
+                        return
+                    end
+                    OwnerAdminState.customAdminMsgHistIdx = ((OwnerAdminState.customAdminMsgHistIdx or 1) % #hist) + 1
+                    local item = hist[OwnerAdminState.customAdminMsgHistIdx]
+                    if item then
+                        customTitleBox.Text = item.title or ""
+                        customBodyBox.Text = item.body or ""
+                        notify("📢 HISTORY #" .. tostring(OwnerAdminState.customAdminMsgHistIdx), item.body)
+                    end
+                end,
+                "↻"
+            )
+
+            -- B. ADVANCED ADMIN POWER SUITE (JAIL, ORBIT, CONGA, CAMERA, PHYSICS, FX)
+            local secAdvTitle = createSectionTitle(adminPage, 20, "Advanced Admin Power Suite (Jail / Orbit / Conga / Camera / Physics)")
+            local advSuiteGrp = createGroupCard(adminPage, 21)
+            table.insert(staffHiddenElements, secAdvTitle)
+            table.insert(staffHiddenElements, advSuiteGrp)
+
+            createActionRow(
+                advSuiteGrp,
+                1,
+                "Cyber Jail Cage Trap (All / Target)",
+                "Locks script users inside a glowing ForceField cage with containment tether · Tap [🎯] for target",
+                "Jail All",
+                function()
+                    if not hasAdminAccess(LP) then return end
+                    broadcastOwnerAdminCommand(233, nil, "cpjail")
+                    OwnerAdminState.pushAdminAudit("Cyber Jail -> ALL")
+                    notify("🔒 CYBER JAIL", "Jailed all Coco Powder users in Cyber Cages!")
+                    sSuccess()
+                end,
+                function()
+                    if not hasAdminAccess(LP) then return end
+                    local tgt = resolveActiveTarget()
+                    if not tgt then notify("🔒 CYBER JAIL", "Lock a target player first!"); sError(); return end
+                    broadcastOwnerAdminCommand(233, tgt, "cpjail")
+                    OwnerAdminState.pushAdminAudit("Cyber Jail -> @" .. tgt.Name)
+                    notify("🔒 CYBER JAIL", "Jailed @" .. tgt.Name .. " inside a Cyber Cage!")
+                    sSuccess()
+                end,
+                "🎯"
+            )
+
+            createActionRow(
+                advSuiteGrp,
+                2,
+                "Release / Shatter Cyber Jail Cages",
+                "Frees all jailed Coco Powder users (or locked target via [🎯])",
+                "Unjail All",
+                function()
+                    if not hasAdminAccess(LP) then return end
+                    broadcastOwnerAdminCommand(234, nil, "cpunjail")
+                    OwnerAdminState.pushAdminAudit("Unjail -> ALL")
+                    notify("🔓 UNJAIL ALL", "Released all jailed Coco Powder users!")
+                    sSuccess()
+                end,
+                function()
+                    if not hasAdminAccess(LP) then return end
+                    local tgt = resolveActiveTarget()
+                    if not tgt then notify("🔓 UNJAIL", "Lock a target player first!"); sError(); return end
+                    broadcastOwnerAdminCommand(234, tgt, "cpunjail")
+                    OwnerAdminState.pushAdminAudit("Unjail -> @" .. tgt.Name)
+                    notify("🔓 UNJAIL", "Released @" .. tgt.Name .. " from Cyber Jail!")
+                    sSuccess()
+                end,
+                "🎯"
+            )
+
+            createActionRow(
+                advSuiteGrp,
+                3,
+                "3D Halo Orbit Around Admin",
+                "Makes all Coco Powder users orbit around you in a glowing 3D halo · Tap [⏹] to stop",
+                "Orbit All",
+                function()
+                    if not hasAdminAccess(LP) then return end
+                    broadcastOwnerAdminCommand(235, nil, "cporbit")
+                    OwnerAdminState.pushAdminAudit("3D Halo Orbit -> ALL")
+                    notify("🪐 HALO ORBIT", "All Coco Powder users are now orbiting you!")
+                    sWhoosh()
+                end,
+                function()
+                    if not hasAdminAccess(LP) then return end
+                    broadcastOwnerAdminCommand(236, nil, "cpunorbit")
+                    OwnerAdminState.pushAdminAudit("Stop Orbit -> ALL")
+                    notify("🪐 ORBIT STOPPED", "Stopped 3D Halo Orbit across all users!")
+                    sToggleOff()
+                end,
+                "⏹"
+            )
+
+            createActionRow(
+                advSuiteGrp,
+                4,
+                "Single-File Conga Train Behind Admin",
+                "Lines up every Coco Powder user to walk in a single-file Conga Line behind you · Tap [⏹] to stop",
+                "Conga All",
+                function()
+                    if not hasAdminAccess(LP) then return end
+                    broadcastOwnerAdminCommand(246, nil, "cpconga")
+                    OwnerAdminState.pushAdminAudit("Conga Line -> ALL")
+                    notify("🚂 CONGA LINE", "Started single-file Conga Train behind you!")
+                    sSuccess()
+                end,
+                function()
+                    if not hasAdminAccess(LP) then return end
+                    broadcastOwnerAdminCommand(247, nil, "cpunconga")
+                    OwnerAdminState.pushAdminAudit("Stop Conga -> ALL")
+                    notify("🚂 CONGA STOPPED", "Disbanded Conga Train!")
+                    sToggleOff()
+                end,
+                "⏹"
+            )
+
+            createActionRow(
+                advSuiteGrp,
+                5,
+                "Remote Camera Spectate Lock (Watch Me)",
+                "Forces all Coco Powder users' cameras to spectate you live · Tap [⏹] to release cameras",
+                "Watch Me",
+                function()
+                    if not hasAdminAccess(LP) then return end
+                    broadcastOwnerAdminCommand(242, nil, "cpwatch")
+                    OwnerAdminState.pushAdminAudit("Camera Watch Lock -> ALL")
+                    notify("🎥 CAMERA LOCK", "All Coco Powder users are now spectating you!")
+                    sSuccess()
+                end,
+                function()
+                    if not hasAdminAccess(LP) then return end
+                    broadcastOwnerAdminCommand(243, nil, "cpunwatch")
+                    OwnerAdminState.pushAdminAudit("Camera Watch Release -> ALL")
+                    notify("🎥 CAMERA RELEASED", "Restored normal camera for all users!")
+                    sToggleOff()
+                end,
+                "⏹"
+            )
+
+            createActionRow(
+                advSuiteGrp,
+                6,
+                "Trampoline Bounce & Tornado Spin Chaos",
+                "Tap [Bounce] to toggle rhythmic super-bouncing · Tap [🌪️] to toggle high-speed Tornado Spin",
+                "Bounce",
+                function()
+                    if not hasAdminAccess(LP) then return end
+                    broadcastOwnerAdminCommand(237, nil, "cpbounce")
+                    OwnerAdminState.pushAdminAudit("Toggle Bounce -> ALL")
+                    notify("🦘 BOUNCE", "Toggled Trampoline Bounce on all Coco Users!")
+                    sWhoosh()
+                end,
+                function()
+                    if not hasAdminAccess(LP) then return end
+                    broadcastOwnerAdminCommand(238, nil, "cpspin")
+                    OwnerAdminState.pushAdminAudit("Toggle Tornado Spin -> ALL")
+                    notify("🌪️ TORNADO SPIN", "Toggled Tornado Spin on all Coco Users!")
+                    sWhoosh()
+                end,
+                "🌪️"
+            )
+
+            createActionRow(
+                advSuiteGrp,
+                7,
+                "Force Sit / Trip & Earthquake / Cyber Glitch FX",
+                "Tap [Quake] for 5s Earthquake camera shake · Tap [👾] for Cyber Glitch overlay",
+                "Quake",
+                function()
+                    if not hasAdminAccess(LP) then return end
+                    broadcastOwnerAdminCommand(244, nil, "cpquake")
+                    OwnerAdminState.pushAdminAudit("Earthquake Shake -> ALL")
+                    notify("🌋 EARTHQUAKE", "Triggered 5s Earthquake across all Coco Users!")
+                    sError()
+                end,
+                function()
+                    if not hasAdminAccess(LP) then return end
+                    broadcastOwnerAdminCommand(245, nil, "cpglitch")
+                    OwnerAdminState.pushAdminAudit("Toggle Cyber Glitch -> ALL")
+                    notify("👾 CYBER GLITCH", "Toggled Cyber Glitch overlay on all Coco Users!")
+                    sSuccess()
+                end,
+                "👾"
+            )
+
+            local wsPresets = { 0, 8, 16, 50, 120 }
+            local jpPresets = { 0, 50, 120, 220 }
+
+            createActionRow(
+                advSuiteGrp,
+                8,
+                "Remote WalkSpeed Controller (All Users)",
+                "Tap [WS: 50] to apply WalkSpeed to all Coco Users · Tap [↻] to cycle 0 / 8 / 16 / 50 / 120",
+                "WS: " .. tostring(wsPresets[OwnerAdminState.remoteWsIdx or 4]),
+                function()
+                    if not hasAdminAccess(LP) then return end
+                    local val = wsPresets[OwnerAdminState.remoteWsIdx or 4]
+                    pcall(function() snd2("!cpws all " .. tostring(val)) end)
+                    OwnerAdminState.pushAdminAudit("Set WalkSpeed " .. tostring(val) .. " -> ALL")
+                    notify("⚡ WALKSPEED SET", "Set WalkSpeed = " .. tostring(val) .. " on all Coco Users!")
+                    sSuccess()
+                end,
+                function(_, _, pillBtn)
+                    OwnerAdminState.remoteWsIdx = ((OwnerAdminState.remoteWsIdx or 4) % #wsPresets) + 1
+                    local val = wsPresets[OwnerAdminState.remoteWsIdx]
+                    if pillBtn then pillBtn.Text = "WS: " .. tostring(val) end
+                    notify("⚡ WALKSPEED PRESET", "Selected WalkSpeed: " .. tostring(val))
+                end,
+                "↻"
+            )
+
+            createActionRow(
+                advSuiteGrp,
+                9,
+                "Remote JumpPower & Force Sit Controller",
+                "Tap [JP: 120] to apply JumpPower (cycle via [↻] in chat !cpjp) · Tap [🪑] to force-sit all",
+                "JP: " .. tostring(jpPresets[OwnerAdminState.remoteJpIdx or 3]),
+                function(pillBtn)
+                    if not hasAdminAccess(LP) then return end
+                    local val = jpPresets[OwnerAdminState.remoteJpIdx or 3]
+                    pcall(function() snd2("!cpjp all " .. tostring(val)) end)
+                    OwnerAdminState.pushAdminAudit("Set JumpPower " .. tostring(val) .. " -> ALL")
+                    notify("🦘 JUMPPOWER SET", "Set JumpPower = " .. tostring(val) .. " on all Coco Users!")
+                    sSuccess()
+                    OwnerAdminState.remoteJpIdx = ((OwnerAdminState.remoteJpIdx or 3) % #jpPresets) + 1
+                    if pillBtn then pillBtn.Text = "JP: " .. tostring(jpPresets[OwnerAdminState.remoteJpIdx]) end
+                end,
+                function()
+                    if not hasAdminAccess(LP) then return end
+                    broadcastOwnerAdminCommand(239, nil, "cpsit")
+                    OwnerAdminState.pushAdminAudit("Force Sit -> ALL")
+                    notify("🪑 FORCE SIT", "Forced all Coco Users to sit!")
+                    sSuccess()
+                end,
+                "🪑"
+            )
+
+            -- C. ONE-CLICK ADMIN COMBOS, DIRECT COMMAND RUNNER & LIVE AUDIT LOG
+            local secComboTitle = createSectionTitle(adminPage, 22, "Admin Combos, Direct Command Runner & Live Audit Log")
+            local comboGrp = createGroupCard(adminPage, 23)
+            table.insert(staffHiddenElements, secComboTitle)
+            table.insert(staffHiddenElements, comboGrp)
+
+            createActionRow(
+                comboGrp,
+                1,
+                "👑 Royal Entrance Combo (Bring + Ring + Cinema)",
+                "Summons all users, forms a protective Ring around you & blasts a Cinema arrival banner!",
+                "Royal Entry",
+                function()
+                    if not hasAdminAccess(LP) then return end
+                    broadcastOwnerAdminCommand(52, nil, "cpbring")
+                    task.delay(0.35, function()
+                        broadcastOwnerAdminCommand(152, nil, "cpform")
+                    end)
+                    task.delay(0.7, function()
+                        OwnerAdminState.broadcastCustomAdminMessage(nil, "ROYAL ARRIVAL", "@" .. LP.Name .. " has entered the arena — all Coco Users stand by!", "cinema", 8)
+                    end)
+                    OwnerAdminState.pushAdminAudit("Combo: Royal Entrance")
+                end,
+                function()
+                    if not hasAdminAccess(LP) then return end
+                    broadcastOwnerAdminCommand(183, nil, "cpdrunk")
+                    task.delay(0.25, function() broadcastOwnerAdminCommand(215, nil, "cpgravity") end)
+                    task.delay(0.5, function() broadcastOwnerAdminCommand(244, nil, "cpquake") end)
+                    task.delay(0.75, function()
+                        OwnerAdminState.broadcastCustomAdminMessage(nil, "CHAOS MODE", "Admin @" .. LP.Name .. " unleashed Total Chaos Mode!", "alert", 8)
+                    end)
+                    OwnerAdminState.pushAdminAudit("Combo: Total Chaos Mode")
+                end,
+                "🌪️"
+            )
+
+            createActionRow(
+                comboGrp,
+                2,
+                "🧹 Emergency All-Clear / Full Server Restore",
+                "Instantly unfreezes, unjails, stops orbit/conga/formations/camera lock, resets physics & clears all FX",
+                "Full Reset",
+                function()
+                    if not hasAdminAccess(LP) then return end
+                    OwnerAdminState.ownerFrozenTargets = {}
+                    OwnerAdminState.fullAdminEmergencyRestore(LP.Name)
+                    broadcastOwnerAdminCommand(248, nil, "cpfullreset")
+                    OwnerAdminState.pushAdminAudit("Emergency Full Server Restore")
+                    if OwnerAdminState.refreshAdminUIFn then pcall(OwnerAdminState.refreshAdminUIFn) end
+                    pcall(updateOverheadNameTags)
+                end
+            )
+
+            local cmdBarWrap = Instance.new("Frame")
+            cmdBarWrap.Name = "AdminCmdBarWrap"
+            cmdBarWrap.Size = UDim2.new(1, 0, 0, 40)
+            cmdBarWrap.BackgroundTransparency = 1
+            cmdBarWrap.LayoutOrder = 3
+            cmdBarWrap.ZIndex = 8
+            cmdBarWrap.Parent = comboGrp
+
+            local cmdRunBox = Instance.new("TextBox")
+            cmdRunBox.Size = UDim2.new(1, -76, 0, 32)
+            cmdRunBox.Position = UDim2.new(0, 0, 0, 4)
+            cmdRunBox.BackgroundColor3 = T.BG2
+            cmdRunBox.PlaceholderText = "Run any command (e.g. !cpcinema Hi | Welcome, !cpjail @user, !cpws all 80)"
+            cmdRunBox.Text = ""
+            cmdRunBox.TextColor3 = T.Text
+            cmdRunBox.PlaceholderColor3 = T.Muted
+            cmdRunBox.Font = Enum.Font.Code
+            cmdRunBox.TextSize = 10
+            cmdRunBox.ClearTextOnFocus = false
+            cmdRunBox.ZIndex = 9
+            cmdRunBox.Parent = cmdBarWrap
+            Instance.new("UICorner", cmdRunBox).CornerRadius = UDim.new(0, 9)
+            local crStroke = Instance.new("UIStroke", cmdRunBox)
+            crStroke.Color = T.Border
+            crStroke.Thickness = 1
+            crStroke.Transparency = 0.35
+            local crPad = Instance.new("UIPadding", cmdRunBox)
+            crPad.PaddingLeft = UDim.new(0, 10)
+            crPad.PaddingRight = UDim.new(0, 8)
+
+            local cmdRunBtn = Instance.new("TextButton")
+            cmdRunBtn.Size = UDim2.new(0, 68, 0, 32)
+            cmdRunBtn.Position = UDim2.new(1, -68, 0, 4)
+            cmdRunBtn.Text = "Run ⚡"
+            cmdRunBtn.TextColor3 = Color3.new(1, 1, 1)
+            cmdRunBtn.Font = Enum.Font.GothamBold
+            cmdRunBtn.TextSize = 10.5
+            cmdRunBtn.ZIndex = 9
+            cmdRunBtn.Parent = cmdBarWrap
+            Instance.new("UICorner", cmdRunBtn).CornerRadius = UDim.new(0, 9)
+            styleBtn(cmdRunBtn, T.Accent)
+
+            local function executeCmdBar()
+                if not hasAdminAccess(LP) then
+                    notify("🔒 ACCESS DENIED", "Only Owners & Elite Users can run Admin commands!")
+                    sError()
+                    return
+                end
+                local raw = tostring(cmdRunBox.Text or ""):gsub("^%s+", ""):gsub("%s+$", "")
+                if raw == "" then return end
+                if raw:sub(1, 1) ~= "!" and raw:sub(1, 1) ~= ";" then
+                    raw = "!" .. raw
+                end
+                pcall(function() snd2(raw) end)
+                OwnerAdminState.pushAdminAudit("Runner: " .. raw:sub(1, 42))
+                notify("⚡ COMMAND SENT", "Executed: " .. raw)
+                sSuccess()
+                cmdRunBox.Text = ""
+            end
+            cmdRunBtn.MouseButton1Click:Connect(function() playClick(); executeCmdBar() end)
+            cmdRunBox.FocusLost:Connect(function(enterPressed)
+                if enterPressed then executeCmdBar() end
+            end)
+
+            local auditBox = Instance.new("TextLabel")
+            auditBox.Name = "AdminAuditLogLabel"
+            auditBox.Size = UDim2.new(1, 0, 0, 74)
+            auditBox.BackgroundColor3 = T.BG2
+            auditBox.Text = "📋 Admin Audit Log — ready. Commands & custom broadcasts will appear here."
+            auditBox.TextColor3 = T.Muted
+            auditBox.Font = Enum.Font.Code
+            auditBox.TextSize = 9.5
+            auditBox.TextWrapped = true
+            auditBox.TextYAlignment = Enum.TextYAlignment.Top
+            auditBox.TextXAlignment = Enum.TextXAlignment.Left
+            auditBox.LayoutOrder = 4
+            auditBox.ZIndex = 8
+            auditBox.Parent = comboGrp
+            Instance.new("UICorner", auditBox).CornerRadius = UDim.new(0, 10)
+            local alPad = Instance.new("UIPadding", auditBox)
+            alPad.PaddingTop = UDim.new(0, 6)
+            alPad.PaddingBottom = UDim.new(0, 6)
+            alPad.PaddingLeft = UDim.new(0, 10)
+            alPad.PaddingRight = UDim.new(0, 10)
+
+            OwnerAdminState.adminAuditRefreshFn = function()
+                if not (auditBox and auditBox.Parent) then return end
+                if #OwnerAdminState.adminAuditLog == 0 then
+                    auditBox.Text = "📋 Admin Audit Log — ready. Commands & custom broadcasts will appear here."
+                else
+                    local lines = {}
+                    for i = 1, math.min(5, #OwnerAdminState.adminAuditLog) do
+                        table.insert(lines, OwnerAdminState.adminAuditLog[i])
+                    end
+                    auditBox.Text = table.concat(lines, "\n")
+                end
+            end
+        end)()
+
+        -- ═══════════════════════════════════════════════════════════════════════
         -- SECTION 9: 👑 SCRIPT USERS & PLAYERS (Freeze / Ban / Chat / Vanish)
         -- ═══════════════════════════════════════════════════════════════════════
-        createSectionTitle(adminPage, 18, "Script Users & Server Players (Freeze / Chat / Vanish / Elite / Block)")
+        createSectionTitle(adminPage, 24, "Script Users & Server Players (Freeze / Chat / Vanish / Elite / Block)")
 
         local adminSearchRow = Instance.new("Frame")
         adminSearchRow.Size = UDim2.new(1, 0, 0, 34)
         adminSearchRow.BackgroundTransparency = 1
-        adminSearchRow.LayoutOrder = 18
+        adminSearchRow.LayoutOrder = 24
         adminSearchRow.ZIndex = 7
         adminSearchRow.Parent = adminPage
 
@@ -34004,7 +40110,7 @@ local function buildMainUI()
         Instance.new("UICorner", freezeNonFriendsBtn).CornerRadius = UDim.new(1, 0)
         styleBtn(freezeNonFriendsBtn, T.Accent2)
 
-        local adminPlrGrp = createGroupCard(adminPage, 19)
+        local adminPlrGrp = createGroupCard(adminPage, 25)
         adminPlrGrp:SetAttribute("DynamicList", true)
         local adminListDirty = true
 
