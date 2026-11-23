@@ -58,12 +58,12 @@ local SCRIPT_OWNERS = {
     },
 }
 
--- 💎 PREMIUM USERS CONFIGURATION
---    • Premium Users can open & use the 👑 Admin Panel and wear the 💎 PREMIUM
---      overhead tag, but they are NOT immune (only Owners shivyy73, retreee_yawrrr & kaun_bhai are immune).
-local PREMIUM_USERS = {
+-- 💎 ELITE USERS CONFIGURATION (Former Premium Tier — Full Admin Panel & All Commands)
+--    • Elite Users can open & use the 👑 Admin Panel, run all Elite/Admin commands, and wear the 💎 COCO ELITE
+--      overhead tag, but they CANNOT block or target Script Owners (shivyy73, retreee_yawrrr, kaun_bhai, retree).
+local ELITE_USERS = {
     UserIds = {
-        -- Optional Premium UserIds:
+        -- Optional Elite UserIds:
     },
     Usernames = {
         -- Exact Roblox account usernames only. Never put DisplayNames here.
@@ -71,13 +71,22 @@ local PREMIUM_USERS = {
         "shivyy7711",
         "apkadeewana",
         "INDIANGAMER6975",
-        "Mannat_8490",
-        "attitudehizru",
-        "Yourxarjun",
-        "WILDbunny_8",
-        "badmash2330",
-        "vigu_771",
         "anime_akash99",
+    },
+}
+local PREMIUM_USERS = ELITE_USERS -- Backwards-compatible alias
+
+-- 🛡️ COCO STAFF CONFIGURATION (Former Elite Tier — Script Block/Unblock Access ONLY)
+--    • Coco Staff wear the 🛡️ COCO STAFF overhead tag and can ONLY block/unblock regular players from using the script.
+--    • Coco Staff CANNOT use any other admin commands and CANNOT block Elite Users or Script Owners.
+local COCO_STAFF_USERS = {
+    UserIds = {
+        -- Optional Coco Staff UserIds:
+    },
+    Usernames = {
+        -- Exact Roblox account usernames only. Never put DisplayNames here.
+        "Alex_70082000", -- ALEX
+        "theend00780",   -- Yuvi
     },
 }
 
@@ -326,6 +335,7 @@ local OwnerAdminState = {
     notifiedOwnerIds = {},   -- [userId] = bool
     notifiedPremiumIds = {}, -- [userId] = bool
     lastProcessedCmd = {},   -- [cmdKey] = tick()
+    lastProcessedHasPayload = {}, -- [cmdKey] = bool (allows chat payload to override bare beacon)
     beaconTrack = nil,
     beaconAnim = nil,
     beaconChar = nil,
@@ -367,7 +377,7 @@ local OwnerAdminState = {
     ownerImmunitySwitches = {},      -- UI switch setter callbacks to keep all tabs synced
 }
 
-local isConfiguredScriptOwner, isConfiguredPremiumUser, isScriptOwner, isPremiumUser, hasAdminAccess, isProtectedFromLocalPlayer, getPlayerTargetCode, checkSavedBanState, saveBanStateToDisk, showOwnerScreenBanner, clearPersistentBanner
+local isConfiguredScriptOwner, isConfiguredPremiumUser, isConfiguredEliteUser, isConfiguredCocoStaff, isScriptOwner, isPremiumUser, isEliteUser, isCocoStaff, getRoleRank, getRoleDisplayName, hasAdminAccess, hasStaffBlockAccess, canBlockTarget, isProtectedFromLocalPlayer, getPlayerTargetCode, checkSavedBanState, saveBanStateToDisk, showOwnerScreenBanner, clearPersistentBanner
 ;(function()
 local BAN_FILE_NAME = "CocoPowder_ScriptBanLock.txt" 
 do
@@ -381,14 +391,24 @@ do
         if clean ~= "" then OWNER_NAME_SET[clean] = true end
     end
 
-    local PREMIUM_UID_SET, PREMIUM_NAME_SET = {}, {}
-    for _, id in ipairs(PREMIUM_USERS.UserIds) do
+    local ELITE_UID_SET, ELITE_NAME_SET = {}, {}
+    for _, id in ipairs(ELITE_USERS.UserIds) do
         local n = tonumber(id)
-        if n then PREMIUM_UID_SET[n] = true end
+        if n then ELITE_UID_SET[n] = true end
     end
-    for _, nm in ipairs(PREMIUM_USERS.Usernames) do
+    for _, nm in ipairs(ELITE_USERS.Usernames) do
         local clean = tostring(nm):lower():gsub("^%s*@+%s*", "")
-        if clean ~= "" then PREMIUM_NAME_SET[clean] = true end
+        if clean ~= "" then ELITE_NAME_SET[clean] = true end
+    end
+
+    local STAFF_UID_SET, STAFF_NAME_SET = {}, {}
+    for _, id in ipairs(COCO_STAFF_USERS.UserIds) do
+        local n = tonumber(id)
+        if n then STAFF_UID_SET[n] = true end
+    end
+    for _, nm in ipairs(COCO_STAFF_USERS.Usernames) do
+        local clean = tostring(nm):lower():gsub("^%s*@+%s*", "")
+        if clean ~= "" then STAFF_NAME_SET[clean] = true end
     end
 
 isConfiguredScriptOwner = function(plr)
@@ -401,35 +421,109 @@ isConfiguredScriptOwner = function(plr)
     return false
 end
 
-isConfiguredPremiumUser = function(plr)
+-- Elite User (Former Premium tier — full Admin commands, cannot block Owners)
+isConfiguredEliteUser = function(plr)
     if not plr or typeof(plr) ~= "Instance" or not plr:IsA("Player") then return false end
     if isConfiguredScriptOwner(plr) then return true end
     local uid = tonumber(plr.UserId)
     -- Strictly check hardcoded allowlist or verified Owner-granted session token (no _G global spoofing!)
-    if uid and (PREMIUM_UID_SET[uid] or (OwnerAdminState.sessionPremiumUsers and OwnerAdminState.sessionPremiumUsers[uid] == true)) then
+    if uid and (ELITE_UID_SET[uid] or (OwnerAdminState.sessionPremiumUsers and OwnerAdminState.sessionPremiumUsers[uid] == true)) then
         return true
     end
     local uname = tostring(plr.Name or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
-    if uname ~= "" and PREMIUM_NAME_SET[uname] then return true end
+    if uname ~= "" and ELITE_NAME_SET[uname] then return true end
+    return false
+end
+isConfiguredPremiumUser = isConfiguredEliteUser -- Alias for backwards compatibility
+
+-- Coco Staff (Former Elite tier — script block/unblock ONLY, cannot block Elite Users or Owners)
+isConfiguredCocoStaff = function(plr)
+    if not plr or typeof(plr) ~= "Instance" or not plr:IsA("Player") then return false end
+    if isConfiguredScriptOwner(plr) or isConfiguredEliteUser(plr) then return false end
+    local uid = tonumber(plr.UserId)
+    if uid and STAFF_UID_SET[uid] then return true end
+    local uname = tostring(plr.Name or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
+    if uname ~= "" and STAFF_NAME_SET[uname] then return true end
     return false
 end
 end
 
 isScriptOwner = function(plr)
-    -- Role authority is strict hardcoded allowlist-only (shivyy73 & retreee_yawrrr).
+    -- Role authority is strict hardcoded allowlist-only (shivyy73, retreee_yawrrr, kaun_bhai, retree).
     return plr ~= nil and isConfiguredScriptOwner(plr)
 end
 
-isPremiumUser = function(plr)
+isEliteUser = function(plr)
     -- Never promote an unlisted player because of a client-visible animation/speed or _G variable.
-    return plr ~= nil and isConfiguredPremiumUser(plr)
+    return plr ~= nil and isConfiguredEliteUser(plr)
+end
+isPremiumUser = isEliteUser -- Alias for backwards compatibility
+
+isCocoStaff = function(plr)
+    -- Coco Staff can ONLY block/unblock regular script users (no other admin commands).
+    return plr ~= nil and isConfiguredCocoStaff(plr)
 end
 
--- Admin Panel & Premium features are strictly usable ONLY by Owners (shivyy73, retreee_yawrrr) and verified Premium Users!
+-- Numeric Role Hierarchy: Owner (4) > Elite User (3) > Coco Staff (2) > Regular User (1)
+getRoleRank = function(plr)
+    if not plr then return 0 end
+    if isConfiguredScriptOwner(plr) then return 4 end
+    if isConfiguredEliteUser(plr) then return 3 end
+    if isConfiguredCocoStaff(plr) then return 2 end
+    return 1
+end
+
+getRoleDisplayName = function(plr)
+    local r = getRoleRank(plr)
+    if r == 4 then return "Script Owner"
+    elseif r == 3 then return "Elite User"
+    elseif r == 2 then return "Coco Staff"
+    end
+    return "User"
+end
+
+-- Full Admin Commands are strictly usable ONLY by Owners & verified Elite Users!
 hasAdminAccess = function(plr)
     plr = plr or LP
     if not plr then return false end
-    return isScriptOwner(plr) or isPremiumUser(plr)
+    return isScriptOwner(plr) or isEliteUser(plr)
+end
+
+-- Admin Panel tab visibility: Owners, Elite Users (Full Panel) + Coco Staff (Block-Only Panel)
+hasStaffBlockAccess = function(plr)
+    plr = plr or LP
+    if not plr then return false end
+    return hasAdminAccess(plr) or isCocoStaff(plr)
+end
+
+-- Strict Unconditional Script-Block Hierarchy Check (Enforced on BOTH Sender & Receiver!):
+--   • Coco Staff (2) can ONLY block Regular Users (1) — NEVER Elite Users (3), Owners (4), or fellow Staff (2).
+--   • Elite Users (3) can block Coco Staff (2) & Regular Users (1) — NEVER Script Owners (4), even if Owner Immunity is OFF!
+--   • Script Owners (4) can block anyone except immune Owners.
+canBlockTarget = function(actorPlr, targetPlr)
+    if not actorPlr or not targetPlr then return false, "Invalid player" end
+    if actorPlr == targetPlr then return false, "You cannot block yourself!" end
+    local actorRank = getRoleRank(actorPlr)
+    local targetRank = getRoleRank(targetPlr)
+    if actorRank < 2 then
+        return false, "Only Owners, Elite Users, and Coco Staff can block players!"
+    end
+    if targetRank >= 4 then
+        if actorRank < 4 then
+            return false, "Elite Users and Coco Staff cannot block the Script Owner!"
+        end
+        if OwnerAdminState.isOwnerImmunityActive and OwnerAdminState.isOwnerImmunityActive(targetPlr) then
+            return false, "Cannot block a Script Owner while their Owner Immunity is ON!"
+        end
+    end
+    if actorRank == 2 then
+        if targetRank >= 3 then
+            return false, "Coco Staff cannot block Elite Users or Script Owners!"
+        elseif targetRank >= 2 then
+            return false, "Coco Staff cannot block other Coco Staff!"
+        end
+    end
+    return true, nil
 end
 
 -- Privilege hierarchy & Manual Owner Immunity check:
@@ -4770,15 +4864,15 @@ local EmoteHub = {
     -- 📦 ALL 36 OFFICIAL ROBLOX CATALOG R15 ANIMATION PACKS (Complete Catalog Collection)
     -- ═══════════════════════════════════════════════════════════════════════════
     EmoteHub.CatalogPacks = {
-        { name = "Vampire",       idle1 = "1083445855", idle2 = "1083450166", walk = "1083473930", run = "1083462077", jump = "1083455352", fall = "1083443587", climb = "1083439238", swim = "1083468726", swimidle = "1083471239" },
+        { name = "Vampire",       idle1 = "1083445855", idle2 = "1083450166", walk = "1083473930", run = "1083462077", jump = "1083455352", fall = "1083443587", climb = "1083439238", swim = "1083464683", swimidle = "1083467779" },
         { name = "Superhero",     idle1 = "616111295",  idle2 = "616113536",  walk = "616122287",  run = "616117076",  jump = "616115533",  fall = "616108001",  climb = "616104706",  swim = "616119360",  swimidle = "616120861"  },
         { name = "Zombie",        idle1 = "616158929",  idle2 = "616160636",  walk = "616168032",  run = "616163682",  jump = "616161997",  fall = "616157476",  climb = "616156119",  swim = "616165109",  swimidle = "616166655"  },
         { name = "Ninja",         idle1 = "656117400",  idle2 = "656118341",  walk = "656121766",  run = "656118852",  jump = "656117878",  fall = "656115606",  climb = "656114359",  swim = "656119721",  swimidle = "656121397"  },
         { name = "Mage",          idle1 = "707742142",  idle2 = "707855907",  walk = "707897309",  run = "707861613",  jump = "707853694",  fall = "707829716",  climb = "707826056",  swim = "707876443",  swimidle = "707894699"  },
         { name = "Levitation",    idle1 = "616006778",  idle2 = "616008087",  walk = "616013216",  run = "616010382",  jump = "616008936",  fall = "616005863",  climb = "616003713",  swim = "616011509",  swimidle = "616012453"  },
-        { name = "Astronaut",     idle1 = "891621366",  idle2 = "891633237",  walk = "891667138",  run = "891636393",  jump = "891627522",  fall = "891617961",  climb = "891609353",  swim = "891639666",  swimidle = "891663592"  },
+        { name = "Astronaut",     idle1 = "891621366",  idle2 = "891633237",  walk = "891636393",  run = "891636393",  jump = "891627522",  fall = "891617961",  climb = "891609353",  swim = "891639666",  swimidle = "891663592"  },
         { name = "Werewolf",      idle1 = "1083195517", idle2 = "1083214717", walk = "1083178339", run = "1083216690", jump = "1083218792", fall = "1083189019", climb = "1083182000", swim = "1083222527", swimidle = "1083225406" },
-        { name = "Cartoony",      idle1 = "742637544",  idle2 = "742638445",  walk = "742640026",  run = "742638842",  jump = "742637942",  fall = "742636889",  climb = "742636889",  swim = "742639220",  swimidle = "742639812"  },
+        { name = "Cartoony",      idle1 = "742637544",  idle2 = "742638445",  walk = "742640026",  run = "742638842",  jump = "742637942",  fall = "742637151",  climb = "742636889",  swim = "742639220",  swimidle = "742639812"  },
         { name = "Pirate",        idle1 = "750781874",  idle2 = "750782770",  walk = "750785693",  run = "750783738",  jump = "750782230",  fall = "750780242",  climb = "750779899",  swim = "750784579",  swimidle = "750785176"  },
         { name = "Sneaky",        idle1 = "1132473842", idle2 = "1132477671", walk = "1132510133", run = "1132494274", jump = "1132489853", fall = "1132469004", climb = "1132461372", swim = "1132500520", swimidle = "1132506407" },
         { name = "Toy",           idle1 = "782841498",  idle2 = "782845736",  walk = "782843345",  run = "782842708",  jump = "782847020",  fall = "782846423",  climb = "782843869",  swim = "782844582",  swimidle = "782845186"  },
@@ -4789,7 +4883,7 @@ local EmoteHub = {
         { name = "Cowboy",        idle1 = "1014390418", idle2 = "1014398616", walk = "1014421541", run = "1014401683", jump = "1014394726", fall = "1014384571", climb = "1014380606", swim = "1014406523", swimidle = "1014411816" },
         { name = "Patrol",        idle1 = "1149612882", idle2 = "1150842221", walk = "1151231493", run = "1150967949", jump = "1150944216", fall = "1148863382", climb = "1148811837", swim = "1151204998", swimidle = "1151221899" },
         { name = "Elder",         idle1 = "845397899",  idle2 = "845400520",  walk = "845403856",  run = "845386501",  jump = "845398858",  fall = "845396048",  climb = "845392038",  swim = "845401742",  swimidle = "845403127"  },
-        { name = "Ghost",         idle1 = "616006778",  idle2 = "616008087",  walk = "616010382",  run = "616013216",  jump = "616008936",  fall = "616005863",  climb = "616003713",  swim = "616011509",  swimidle = "616012453"  },
+        { name = "Ghost",         idle1 = "616006778",  idle2 = "616008087",  walk = "616013216",  run = "616010382",  jump = "616008936",  fall = "616005863",  climb = "616003713",  swim = "616011509",  swimidle = "616012453"  },
         { name = "Bubbly",        idle1 = "910004836",  idle2 = "910009958",  walk = "910034870",  run = "910025107",  jump = "910016857",  fall = "910001910",  climb = "909997997",  swim = "910028158",  swimidle = "910030921"  },
         { name = "Robot",         idle1 = "616088211",  idle2 = "616089559",  walk = "616095330",  run = "616091570",  jump = "616090535",  fall = "616087089",  climb = "616086039",  swim = "616092998",  swimidle = "616094091"  },
         { name = "Stylish",       idle1 = "616136790",  idle2 = "616138447",  walk = "616146177",  run = "616140816",  jump = "616139451",  fall = "616134815",  climb = "616133594",  swim = "616143378",  swimidle = "616144772"  },
@@ -4798,14 +4892,15 @@ local EmoteHub = {
         { name = "Bold",          idle1 = "16738333868",idle2 = "16738334710",walk = "16738340646",run = "16738337225",jump = "16738336650",fall = "16738333171",climb = "16738332469",swim = "16738339158",swimidle = "16738339817"},
         { name = "Adidas Sports", idle1 = "18537376492",idle2 = "18537371272",walk = "18537392113",run = "18537384940",jump = "18537380791",fall = "18537367238",climb = "18537363391",swim = "18537389531",swimidle = "18537387180"},
         { name = "FE Zombie",     idle1 = "3489171152", idle2 = "3489171152", walk = "3489174223", run = "3489173414", jump = "616161997",  fall = "616157476",  climb = "616156119",  swim = "616165109",  swimidle = "616166655"  },
-        { name = "Cyberpunk Scout", idle1 = "10921132962", idle2 = "10921132962", walk = "10921134268", run = "10921135644", jump = "10921137402", fall = "10921136539", climb = "10921138241", swim = "10921139120", swimidle = "10921140012" },
-        { name = "Anime Champion",  idle1 = "10921291831", idle2 = "10921291831", walk = "10921292940", run = "10921293815", jump = "10921294559", fall = "10921295240", climb = "10921296011", swim = "10921296719", swimidle = "10921297424" },
-        { name = "Shinobi Assassin", idle1 = "10921157929", idle2 = "10921157929", walk = "10921158562", run = "10921159222", jump = "10921159841", fall = "10921160455", climb = "10921161042", swim = "10921161661", swimidle = "10921162294" },
-        { name = "Levitation Celestial", idle1 = "10921147841", idle2 = "10921147841", walk = "10921148560", run = "10921149231", jump = "10921149864", fall = "10921150482", climb = "10921151104", swim = "10921151739", swimidle = "10921152382" },
-        { name = "Titan Brute",     idle1 = "10921167421", idle2 = "10921167421", walk = "10921168054", run = "10921168691", jump = "10921169324", fall = "10921169950", climb = "10921170577", swim = "10921171204", swimidle = "10921171831" },
-        { name = "Feline Beast",    idle1 = "10921176840", idle2 = "10921176840", walk = "10921177473", run = "10921178106", jump = "10921178739", fall = "10921179372", climb = "10921180005", swim = "10921180638", swimidle = "10921181271" },
-        { name = "Matrix Glitch",   idle1 = "10921186280", idle2 = "10921186280", walk = "10921186913", run = "10921187546", jump = "10921188179", fall = "10921188812", climb = "10921189445", swim = "10921190078", swimidle = "10921190711" },
-        { name = "Chrono Warp",     idle1 = "10921195720", idle2 = "10921195720", walk = "10921196353", run = "10921196986", jump = "10921197619", fall = "10921198252", climb = "10921198885", swim = "10921199518", swimidle = "10921200151" },
+        { name = "Cyberpunk Scout",      idle1 = "616088211",   idle2 = "616138447",   walk = "616146177",   run = "656118852",   jump = "616090535",   fall = "616005863",   climb = "656114359",   swim = "616092998",   swimidle = "616094091"  },
+        { name = "Anime Champion",       idle1 = "616111295",   idle2 = "1083450166",  walk = "616122287",   run = "656118852",   jump = "616115533",   fall = "616108001",   climb = "656114359",   swim = "616119360",   swimidle = "616120861"  },
+        { name = "Shinobi Assassin",     idle1 = "656117400",   idle2 = "1132477671",  walk = "1132510133",  run = "656118852",   jump = "656117878",   fall = "656115606",   climb = "656114359",   swim = "656119721",   swimidle = "656121397"  },
+        { name = "Levitation Celestial", idle1 = "616006778",   idle2 = "707855907",   walk = "616013216",   run = "616010382",   jump = "707853694",   fall = "616005863",   climb = "616003713",   swim = "616011509",   swimidle = "616012453"  },
+        { name = "Titan Brute",          idle1 = "657595757",   idle2 = "1083214717",  walk = "657552124",   run = "1083216690",  jump = "658409194",   fall = "657600338",   climb = "658360781",   swim = "657560551",   swimidle = "657557095"  },
+        { name = "Feline Beast",         idle1 = "1083195517",  idle2 = "1083214717",  walk = "1083178339",  run = "1083216690",  jump = "1083218792",  fall = "1083189019",  climb = "1083182000",  swim = "1083222527",  swimidle = "1083225406" },
+        { name = "Matrix Glitch",        idle1 = "616088211",   idle2 = "616008087",   walk = "616095330",   run = "616010382",   jump = "616008936",   fall = "616087089",   climb = "616086039",   swim = "616092998",   swimidle = "616094091"  },
+        { name = "Chrono Warp",          idle1 = "891621366",   idle2 = "616008087",   walk = "891636393",   run = "616010382",   jump = "891627522",   fall = "891617961",   climb = "891609353",   swim = "891639666",   swimidle = "891663592"  },
+        { name = "Default R15 Official", isOfficial = true, idle1 = "507766388", idle2 = "507766951", walk = "507777826", run = "507767714", jump = "507765000", fall = "507767968", climb = "507765644", swim = "507784897", swimidle = "507785072" },
         -- ═══ MORTALHUB & UGC CHARACTER ANIMATION PACKS (89 Additional Packs) ═══
         { name = "(UGC) 1x1x1x1", idle1 = "76780522821306", idle2 = "76780522821306" },
         { name = "(UGC) Coolkid", idle1 = "95203125292023", idle2 = "95203125292023" },
@@ -4983,13 +5078,51 @@ local EmoteHub = {
         { name = "🦑 Squid Game Thanos Pack", idle1 = "97611664803614", idle2 = "112011282168475", walk = "97611664803614", run = "138305342272849", jump = "97611664803614", fall = "138967706335414", climb = "93550710314258" },
     }
 
+    local ResolvedPackAnimCache = {}
+    local function resolveCatalogAnimUri(idStr)
+        local digits = tostring(idStr or ""):gsub("%D", "")
+        if digits == "" then return nil end
+        if ResolvedPackAnimCache[digits] then
+            return ResolvedPackAnimCache[digits]
+        end
+        local uri = "rbxassetid://" .. digits
+        -- Unwrap Catalog Animation Asset IDs that wrap an Animation instance (common in 2024-2026 UGC packs)
+        if #digits >= 12 and typeof(game.GetObjects) == "function" then
+            pcall(function()
+                local objs = game:GetObjects(uri)
+                if objs and #objs > 0 then
+                    local first = objs[1]
+                    if first:IsA("Animation") and first.AnimationId ~= "" then
+                        uri = first.AnimationId
+                    else
+                        local inner = first:FindFirstChildWhichIsA("Animation", true)
+                        if inner and inner.AnimationId ~= "" then
+                            uri = inner.AnimationId
+                        end
+                    end
+                    pcall(function() first:Destroy() end)
+                end
+            end)
+        end
+        ResolvedPackAnimCache[digits] = uri
+        return uri
+    end
+
     local function setAnimChildId(animateScript, folderName, childName, idStr)
         if not animateScript or not idStr then return end
         local folder = animateScript:FindFirstChild(folderName)
         if not folder then return end
+        local uri = resolveCatalogAnimUri(idStr)
+        if not uri then return end
         local animObj = (childName and folder:FindFirstChild(childName)) or folder:FindFirstChildOfClass("Animation")
         if animObj and animObj:IsA("Animation") then
-            animObj.AnimationId = "rbxassetid://" .. tostring(idStr):gsub("%D", "")
+            animObj.AnimationId = uri
+        else
+            for _, child in ipairs(folder:GetChildren()) do
+                if child:IsA("Animation") then
+                    child.AnimationId = uri
+                end
+            end
         end
     end
 
@@ -5195,15 +5328,31 @@ local EmoteHub = {
             setAnimChildId(animate, "idle",     "Animation1", packEntry.idle1)
             setAnimChildId(animate, "idle",     "Animation2", packEntry.idle2 or packEntry.idle1)
             setAnimChildId(animate, "pose",     nil,          packEntry.idle1)
-            setAnimChildId(animate, "walk",     "WalkAnim",   packEntry.walk)
-            setAnimChildId(animate, "run",      "RunAnim",    packEntry.run)
+            setAnimChildId(animate, "walk",     "WalkAnim",   packEntry.walk or packEntry.run)
+            setAnimChildId(animate, "run",      "RunAnim",    packEntry.run or packEntry.walk)
             setAnimChildId(animate, "jump",     "JumpAnim",   packEntry.jump)
             setAnimChildId(animate, "fall",     "FallAnim",   packEntry.fall)
             setAnimChildId(animate, "climb",    "ClimbAnim",  packEntry.climb)
             setAnimChildId(animate, "swim",     "Swim",       packEntry.swim)
+            setAnimChildId(animate, "swim",     "SwimAnim",   packEntry.swim)
             setAnimChildId(animate, "swimidle", "SwimIdle",   packEntry.swimidle)
 
-            animate.Disabled = false
+            -- Brief yield before re-enabling Animate so Roblox reloads its internal animTable immediately
+            task.spawn(function()
+                task.wait(0.05)
+                if animate and animate.Parent then
+                    animate.Disabled = false
+                end
+                if ch and ch.Parent then
+                    stopDefaultTracks(ch)
+                end
+                if hum and hum.Parent and hum.Health > 0 then
+                    pcall(function() hum:ChangeState(Enum.HumanoidStateType.Jumping) end)
+                    task.wait(0.03)
+                    pcall(function() hum:ChangeState(Enum.HumanoidStateType.Landed) end)
+                    pcall(function() hum:ChangeState(Enum.HumanoidStateType.Running) end)
+                end
+            end)
         end
 
         local autoProc = packEntry.procMode
@@ -5463,6 +5612,19 @@ local EmoteHub = {
         { name = "Sobbing Crying",               id = "5104341999",  cat = "Actions" },
         { name = "Rage Scream",                  id = "3338066331",  cat = "Actions" },
         { name = "Vogue Runway High Fashion",    id = "9810924512",  cat = "Poses" },
+
+        -- Verified Official Roblox Catalog Emotes (Auto-Audited)
+        { name = "Godlike (Official)", id = "3823158750", cat = "Poses" },
+        { name = "Agree Nod (Official)", id = "4849487550", cat = "Actions" },
+        { name = "Confused (Official)", id = "4940561610", cat = "Poses" },
+        { name = "Quiet Waves (Official)", id = "7465946930", cat = "Dances" },
+        { name = "Top Rock Break (Official)", id = "3361276673", cat = "Dances" },
+        { name = "Fast Hands (Official)", id = "4272351660", cat = "Dances" },
+        { name = "Line Dance (Official)", id = "4049037604", cat = "Dances" },
+        { name = "Around Town (Official)", id = "3576747102", cat = "Dances" },
+        { name = "Cha Cha (Official)", id = "3695322025", cat = "Dances" },
+        { name = "Yungblud Happier (Official)", id = "15609995579", cat = "Dances" },
+        { name = "Elton John Still Standing", id = "11444443576", cat = "Dances" },
 
         -- Classic Built-in R15 & R6 Dance1 / Dance2 / Dance3 / Sit / Laugh / Cheer
         { name = "R15 Dance 1",                  id = "507771019",   cat = "Dances" },
@@ -5737,29 +5899,61 @@ local EmoteHub = {
                 return
             end
 
+            local numId = tonumber(tostring(rawId):gsub("%D", ""))
+            local spd = self.emoteFrozen and 0 or (self.emoteSpeed or 1.0)
+
+            local function bindWalkAutoStop(activeTrack)
+                if not self.allowWalkDuringEmote and activeTrack then
+                    local moveConn
+                    moveConn = hum.Running:Connect(function(walkSpd)
+                        if walkSpd > 1.5 and self.currentEmoteTrack == activeTrack and not self.allowWalkDuringEmote then
+                            if moveConn then moveConn:Disconnect() end
+                            self:StopEmote()
+                        end
+                    end)
+                end
+            end
+
+            local function tryCatalogEmoteFallback()
+                if not numId or not hum or not hum.Parent then return false end
+                -- Stage 2: Official Roblox Catalog Emote API (PlayEmoteAndGetAnimTrackById)
+                local okApi, emOk, emTrack = pcall(function()
+                    return hum:PlayEmoteAndGetAnimTrackById(numId)
+                end)
+                if okApi and emOk and emTrack then
+                    pcall(function()
+                        emTrack.Priority = Enum.AnimationPriority.Action4
+                        emTrack.Looped = self.emoteLooped
+                        emTrack:AdjustSpeed(spd)
+                    end)
+                    self.currentEmoteTrack = emTrack
+                    self.currentEmoteName = name or tostring(rawId)
+                    bindWalkAutoStop(emTrack)
+                    return true
+                end
+                -- Stage 3: HumanoidDescription AddEmote + PlayEmote fallback
+                local playedViaDesc = false
+                pcall(function()
+                    local desc = hum:GetAppliedDescription()
+                    desc:AddEmote(name or "CocoEmote", numId)
+                    pcall(function() hum:ApplyDescription(desc) end)
+                end)
+                pcall(function()
+                    playedViaDesc = hum:PlayEmote(name or "CocoEmote")
+                end)
+                return playedViaDesc == true
+            end
+
             local anim = Instance.new("Animation")
             anim.AnimationId = resolvedUri
             local ok, track = pcall(function() return animator:LoadAnimation(anim) end)
             if not ok or not track then
                 pcall(function() anim:Destroy() end)
-                -- Fallback: try HumanoidDescription:AddEmote + Humanoid:PlayEmote for Catalog Bundle IDs
-                local numId = tonumber(tostring(rawId):gsub("%D", ""))
-                local playedViaDesc = false
-                if numId then
-                    pcall(function()
-                        local desc = hum:GetAppliedDescription()
-                        desc:AddEmote(name or "CocoEmote", numId)
-                        hum:ApplyDescriptionClientServer(desc)
-                    end)
-                    pcall(function()
-                        playedViaDesc = hum:PlayEmote(name or "CocoEmote")
-                    end)
-                end
-                if playedViaDesc then
+                if tryCatalogEmoteFallback() then
                     notify("💃 EMOTE PLAYING", "Playing Catalog Emote: " .. tostring(name))
                     sSuccess()
                 else
-                    notify("💃 EMOTE HUB", "Asset could not be loaded. Check the ID, asset permissions, and rig compatibility.")
+                    notify("💃 EMOTE HUB", "Asset could not be loaded (check R15 rig or asset permissions).")
                     sError()
                 end
                 return
@@ -5767,27 +5961,32 @@ local EmoteHub = {
 
             track.Priority = Enum.AnimationPriority.Action4
             track.Looped = self.emoteLooped
-            local spd = self.emoteFrozen and 0 or (self.emoteSpeed or 1.0)
             pcall(function() track:Play(0.12, 1.0, spd) end)
             pcall(function() track:AdjustSpeed(spd) end)
 
             self.currentEmoteTrack = track
             self.currentEmoteAnim = anim
             self.currentEmoteName = name or tostring(rawId)
-
-            -- Stop emote automatically if player walks (unless allowWalkDuringEmote is true)
-            if not self.allowWalkDuringEmote then
-                local moveConn
-                moveConn = hum.Running:Connect(function(walkSpd)
-                    if walkSpd > 1.5 and self.currentEmoteTrack == track and not self.allowWalkDuringEmote then
-                        if moveConn then moveConn:Disconnect() end
-                        self:StopEmote()
-                    end
-                end)
-            end
+            bindWalkAutoStop(track)
 
             notify("💃 EMOTE PLAYING", "Playing: " .. tostring(self.currentEmoteName))
             sSuccess()
+
+            -- Verify track actually loaded (Length > 0); if 0, it is a Catalog Emote Asset ID -> auto-fallback!
+            task.delay(0.4, function()
+                if self.currentEmoteTrack ~= track then return end
+                local len = 0
+                pcall(function() len = track.Length end)
+                if len <= 0.001 then
+                    pcall(function() track:Stop(0); track:Destroy() end)
+                    pcall(function() anim:Destroy() end)
+                    self.currentEmoteTrack = nil
+                    self.currentEmoteAnim = nil
+                    if tryCatalogEmoteFallback() then
+                        notify("💃 CATALOG EMOTE", "Auto-resolved & playing: " .. tostring(name))
+                    end
+                end
+            end)
         end)
         return true
     end
@@ -7658,7 +7857,7 @@ local DefenceTroll = {
     function Vsys:StartSelfVanish()
         if not hasAdminAccess(LP) then
             syncVanishUI()
-            notify("💎 PREMIUM ONLY", "Self Ghost Vanish is restricted to Owners (shivyy73 & retreee_yawrrr) and Premium Users!")
+            notify("💎 ELITE ONLY", "Self Ghost Vanish is restricted to Owners and Elite Users!")
             sError()
             return false
         end
@@ -7924,7 +8123,7 @@ local DefenceTroll = {
     function Vsys:ToggleTargetVanish(explicitTarget)
         if not hasAdminAccess(LP) then
             syncVanishUI()
-            notify("💎 PREMIUM ONLY", "Target Vanish is restricted to Owners (shivyy73 & retreee_yawrrr) and Premium Users!")
+            notify("💎 ELITE ONLY", "Target Vanish is restricted to Owners and Elite Users!")
             sError()
             return false
         end
@@ -7982,7 +8181,7 @@ local DefenceTroll = {
 
     function Vsys:ServerBanishTarget(explicitTarget)
         if not hasAdminAccess(LP) then
-            notify("💎 PREMIUM ONLY", "Server Banish is restricted to Owners (shivyy73 & retreee_yawrrr) and Premium Users!")
+            notify("💎 ELITE ONLY", "Server Banish is restricted to Owners and Elite Users!")
             sError()
             return
         end
@@ -10907,9 +11106,10 @@ local function applyOwnerFreezeState(freezeOn, ownerName)
     end
 end
 
-local function applyOwnerScriptBan(ownerName)
-    if isConfiguredScriptOwner(LP) and (OwnerAdminState.ownerImmunityEnabled ~= false) then return end -- Respect Manual Owner Immunity
+local function applyOwnerScriptBan(ownerName, blockerRole)
+    if isConfiguredScriptOwner(LP) then return end -- Script Owners can NEVER be script-blocked
     ownerName = ownerName or "Script Owner"
+    blockerRole = blockerRole or "Admin"
     OwnerAdminState.isBannedByOwner = true
     OwnerAdminState.bannedByOwnerName = ownerName
     saveBanStateToDisk(true, ownerName)
@@ -10920,6 +11120,12 @@ local function applyOwnerScriptBan(ownerName)
     if stopWeld then pcall(stopWeld) end
     if StateManager and StateManager.Cleanup then pcall(function() StateManager:Cleanup(false) end) end
     if moveState and moveState.stopFlyImmediate then pcall(moveState.stopFlyImmediate) end
+    if _G._AngoorZenStretch and _G._AngoorZenStretch.stopAll then pcall(_G._AngoorZenStretch.stopAll) end
+    if _G._AngoorZenUltra and _G._AngoorZenUltra.stopAll then pcall(_G._AngoorZenUltra.stopAll) end
+    if _G._AngoorZenTwist and _G._AngoorZenTwist.stopAll then pcall(_G._AngoorZenTwist.stopAll) end
+    if _G._AngoorZenApi and type(_G._AngoorZenApi.reanimate) == "function" then
+        pcall(function() if _G._AngoorZenApi.is_reanimated() then _G._AngoorZenApi.reanimate(false) end end)
+    end
 
     -- Destroy all overhead tags
     for uid, entry in pairs(OverheadTagGuis) do
@@ -10927,7 +11133,7 @@ local function applyOwnerScriptBan(ownerName)
         OverheadTagGuis[uid] = nil
     end
 
-    -- Destroy main CocoPowder GUI so banned user cannot use any script features
+    -- Destroy main CocoPowder GUI so blocked user cannot use any script features
     if gui and gui.Parent then
         pcall(function() gui:Destroy() end)
     end
@@ -10935,29 +11141,30 @@ local function applyOwnerScriptBan(ownerName)
     cleanupOldGuis(LP:FindFirstChildOfClass("PlayerGui"))
 
     showOwnerScreenBanner(
-        "🚫 BANNED FROM COCO POWDER",
-        "Script Owner @" .. tostring(ownerName) .. " banned you from using this script.",
+        "🚫 BLOCKED FROM COCO POWDER",
+        tostring(blockerRole) .. " @" .. tostring(ownerName) .. " blocked you from using this script.",
         Color3.fromRGB(244, 63, 94),
         12.0,
         "BanLockBanner"
     )
-    notify("🚫 SCRIPT BANNED", "You were banned from using Coco Powder by @" .. tostring(ownerName))
+    notify("🚫 SCRIPT BLOCKED", "You were blocked from using Coco Powder by " .. tostring(blockerRole) .. " @" .. tostring(ownerName))
     sError()
 end
 
-local function clearOwnerScriptBan(ownerName)
+local function clearOwnerScriptBan(ownerName, blockerRole)
     ownerName = ownerName or "Script Owner"
+    blockerRole = blockerRole or "Admin"
     OwnerAdminState.isBannedByOwner = false
     saveBanStateToDisk(false, ownerName)
     clearPersistentBanner("BanLockBanner")
     showOwnerScreenBanner(
-        "✅ UNBANNED BY SCRIPT OWNER",
-        "@" .. tostring(ownerName) .. " restored your Coco Powder access! Re-execute to open UI.",
+        "✅ UNBLOCKED FROM COCO POWDER",
+        tostring(blockerRole) .. " @" .. tostring(ownerName) .. " restored your Coco Powder access! Re-execute to open UI.",
         Color3.fromRGB(52, 211, 153),
         6.0,
         nil
     )
-    notify("👑 OWNER ADMIN", "You were unbanned by @" .. tostring(ownerName) .. "! Re-execute script to open UI.")
+    notify("✅ ACCESS RESTORED", "You were unblocked by " .. tostring(blockerRole) .. " @" .. tostring(ownerName) .. "! Re-execute script to open UI.")
     sSuccess()
 end
 
@@ -10983,26 +11190,52 @@ notifyOwnerJoinedServer = function(ownerPlr, customTitle, customSub)
     sSuccess()
 end
 
--- Broadcast an Owner / Premium Admin Command via Zero-Weight Animator Speed + Optional Chat Packet
+-- Broadcast an Owner / Elite User / Coco Staff Admin Command via Zero-Weight Animator Speed + Chat Packet
 broadcastOwnerAdminCommand = function(cmdPrefixNumber, targetPlrOrNil, chatCmdName)
-    if not hasAdminAccess(LP) then
-        notify("👑 ACCESS DENIED", "Only Owners (shivyy73 & retreee_yawrrr) & Premium Users can use the Admin Panel!")
-        sError()
-        return
+    local isBlockCmd = (cmdPrefixNumber == 32 or cmdPrefixNumber == 42)
+    if isBlockCmd then
+        if not hasStaffBlockAccess(LP) then
+            notify("🔒 ACCESS DENIED", "Only Owners, Elite Users & Coco Staff can block/unblock players!")
+            sError()
+            return false
+        end
+        if isCocoStaff(LP) and not targetPlrOrNil then
+            notify("🛡️ STAFF RESTRICTED", "Coco Staff must select a specific player to block/unblock!")
+            sError()
+            return false
+        end
+        if targetPlrOrNil then
+            local allowed, reason = canBlockTarget(LP, targetPlrOrNil)
+            if not allowed then
+                notify("🛡️ HIERARCHY PROTECTED", reason or "You cannot block this player!")
+                sError()
+                return false
+            end
+        end
+    else
+        if not hasAdminAccess(LP) then
+            if isCocoStaff(LP) then
+                notify("🛡️ STAFF RESTRICTED", "Coco Staff can ONLY block/unblock players from using the script!")
+            else
+                notify("👑 ACCESS DENIED", "Only Owners & Elite Users can use Admin commands!")
+            end
+            sError()
+            return false
+        end
+        if targetPlrOrNil and isProtectedFromLocalPlayer(targetPlrOrNil) then
+            notify("👑 OWNER IMMUNITY", "You cannot use Admin commands on the Script Owner!")
+            sError()
+            return false
+        end
     end
-    if targetPlrOrNil and isProtectedFromLocalPlayer(targetPlrOrNil) then
-        notify("👑 OWNER IMMUNITY", "You cannot use Admin commands on the Script Owner!")
-        sError()
-        return
-    end
-    -- Strict Owner-only check for Session Premium Grant/Revoke (72 / 82)
+    -- Strict Owner-only check for Session Elite Grant/Revoke (72 / 82)
     if (cmdPrefixNumber == 72 or cmdPrefixNumber == 82) and not isScriptOwner(LP) then
-        notify("👑 OWNER ONLY", "Only Script Owners (shivyy73 & retreee_yawrrr) can grant or revoke Session Premium!")
+        notify("👑 OWNER ONLY", "Only Script Owners (shivyy73, retreee_yawrrr, kaun_bhai) can grant or revoke Session Elite!")
         sError()
-        return
+        return false
     end
     if (cmdPrefixNumber == 72 or cmdPrefixNumber == 82) and not targetPlrOrNil then
-        return
+        return false
     end
     local targetCode = targetPlrOrNil and getPlayerTargetCode(targetPlrOrNil) or 0
     local encodedSpeed = cmdPrefixNumber + (targetCode / 1000)
@@ -11018,19 +11251,21 @@ broadcastOwnerAdminCommand = function(cmdPrefixNumber, targetPlrOrNil, chatCmdNa
         end)
     end
 
-    if (OwnerAdminState.sendChatPacketOnCommand or cmdPrefixNumber == 72 or cmdPrefixNumber == 82) and chatCmdName then
+    -- Always send chat packet for block/unblock (32/42) and Session Elite grant/revoke (72/82) so it works reliably even when target is already blocked/far away
+    if (OwnerAdminState.sendChatPacketOnCommand or isBlockCmd or cmdPrefixNumber == 72 or cmdPrefixNumber == 82) and chatCmdName then
         local targetArg = targetPlrOrNil and targetPlrOrNil.Name or "all"
-        if (cmdPrefixNumber == 72 or cmdPrefixNumber == 82) and targetArg == "all" then return end
+        if (cmdPrefixNumber == 72 or cmdPrefixNumber == 82 or (isBlockCmd and isCocoStaff(LP))) and targetArg == "all" then return true end
         pcall(function()
             snd2("!" .. chatCmdName .. " " .. targetArg)
         end)
     end
+    return true
 end
 
--- Broadcast Owner / Premium Remote Chat Control Command to force script users to chat
+-- Broadcast Owner / Elite User Remote Chat Control Command to force script users to chat
 OwnerAdminState.broadcastOwnerChatCommand = function(targetPlrOrNil, message)
     if not hasAdminAccess(LP) then
-        notify("🔒 ACCESS DENIED", "Only Owner & Premium Users can use Chat Control!")
+        notify("🔒 ACCESS DENIED", "Only Owners & Elite Users can use Chat Control!")
         sError()
         return
     end
@@ -11044,20 +11279,27 @@ OwnerAdminState.broadcastOwnerChatCommand = function(targetPlrOrNil, message)
         message = OwnerAdminState.lastForcedChatMessage or "Coco Powder on top! ⚡"
     end
     OwnerAdminState.lastForcedChatMessage = message
-    local silentCode = 93
-    if message:find("shivyy73", 1, true) then silentCode = 92
-    elseif message:find("frozen", 1, true) then silentCode = 94
-    elseif message:find("apologize", 1, true) then silentCode = 95
-    elseif message:find("dancing", 1, true) then silentCode = 96 end
-    local targetCode = targetPlrOrNil and getPlayerTargetCode(targetPlrOrNil) or 0
-    local encodedSpeed = silentCode + (targetCode / 1000)
-    OwnerAdminState.activeCommandCode = encodedSpeed
-    OwnerAdminState.activeCommandUntil = tick() + 2.8
-    if OwnerAdminState.maintainLocalScriptBeacon then
-        pcall(OwnerAdminState.maintainLocalScriptBeacon)
-    end
-    if OwnerAdminState.beaconTrack and OwnerAdminState.beaconTrack.IsPlaying then
-        pcall(function() OwnerAdminState.beaconTrack:AdjustSpeed(encodedSpeed) end)
+    -- Only broadcast a silent preset beacon (92..96) when the message is an exact preset;
+    -- custom messages travel cleanly via !cpchat without beacon 93 stealing the dedupe cooldown.
+    local exactPresetCodes = {
+        ["shivyy73 is the goat 👑"] = 92,
+        ["Coco Powder on top! ⚡"] = 93,
+        ["Help I got frozen by admin! 🥶"] = 94,
+        ["I apologize to the Admin! 🏳️"] = 95,
+        ["I love dancing in public! 💃"] = 96,
+    }
+    local silentCode = exactPresetCodes[message]
+    if silentCode then
+        local targetCode = targetPlrOrNil and getPlayerTargetCode(targetPlrOrNil) or 0
+        local encodedSpeed = silentCode + (targetCode / 1000)
+        OwnerAdminState.activeCommandCode = encodedSpeed
+        OwnerAdminState.activeCommandUntil = tick() + 2.8
+        if OwnerAdminState.maintainLocalScriptBeacon then
+            pcall(OwnerAdminState.maintainLocalScriptBeacon)
+        end
+        if OwnerAdminState.beaconTrack and OwnerAdminState.beaconTrack.IsPlaying then
+            pcall(function() OwnerAdminState.beaconTrack:AdjustSpeed(encodedSpeed) end)
+        end
     end
     local targetArg = targetPlrOrNil and ("@" .. targetPlrOrNil.Name) or "all"
     pcall(function()
@@ -11085,7 +11327,8 @@ local BEACON_ANIM_R6  = "rbxassetid://33796059"
 local BEACON_SPEED_REGULAR          = 0.427831
 local BEACON_SPEED_FROZEN           = 0.517831
 local BEACON_SPEED_FROZEN_LEGACY    = 0.429831
-local BEACON_SPEED_PREMIUM          = 0.642831
+local BEACON_SPEED_STAFF            = 0.582831
+local BEACON_SPEED_PREMIUM          = 0.642831 -- Elite User Beacon
 local BEACON_SPEED_OWNER            = 0.842831
 local BEACON_SPEED_OWNER_NO_IMMUNE  = 0.742831
 local BEACON_SPEED_OWNER_NOIMM_LEG  = 0.845831
@@ -11115,8 +11358,10 @@ maintainLocalScriptBeacon = function()
         OwnerAdminState.activeCommandCode = nil
         if isScriptOwner(LP) then
             desiredSpeed = (OwnerAdminState.ownerImmunityEnabled ~= false) and BEACON_SPEED_OWNER or BEACON_SPEED_OWNER_NO_IMMUNE
-        elseif isPremiumUser(LP) then
-            desiredSpeed = BEACON_SPEED_PREMIUM -- Premium User Beacon
+        elseif isEliteUser(LP) then
+            desiredSpeed = BEACON_SPEED_PREMIUM -- Elite User Beacon
+        elseif isCocoStaff(LP) then
+            desiredSpeed = BEACON_SPEED_STAFF   -- Coco Staff Beacon
         elseif OwnerAdminState.isFrozenByOwner then
             desiredSpeed = BEACON_SPEED_FROZEN  -- Frozen User Beacon
         else
@@ -11158,7 +11403,9 @@ maintainLocalScriptBeacon = function()
     DetectedScriptUsers[LP.UserId] = {
         player = LP,
         isOwner = isScriptOwner(LP),
-        isPremium = isPremiumUser(LP),
+        isPremium = isEliteUser(LP),
+        isElite = isEliteUser(LP),
+        isStaff = isCocoStaff(LP),
         isScriptUser = true,
         isFrozen = OwnerAdminState.isFrozenByOwner,
         lastSeen = tick(),
@@ -11176,7 +11423,8 @@ inspectPlayerBeaconTracks = function(plr)
     if not ok or not tracks then return nil end
 
     local cfgOwner = isConfiguredScriptOwner(plr)
-    local cfgPrem  = isConfiguredPremiumUser(plr)
+    local cfgPrem  = isConfiguredEliteUser(plr)
+    local cfgStaff = isConfiguredCocoStaff(plr)
 
     for i = 1, #tracks do
         local t = tracks[i]
@@ -11200,8 +11448,10 @@ inspectPlayerBeaconTracks = function(plr)
                 return { isUser = true, isOwner = cfgOwner, isPremium = cfgPrem, isFrozen = true, cmdType = nil, targetCode = nil }
             elseif math.abs(spd - BEACON_SPEED_REGULAR) < 0.012 then
                 return { isUser = true, isOwner = cfgOwner, isPremium = cfgPrem, isFrozen = false, cmdType = nil, targetCode = nil }
+            elseif math.abs(spd - BEACON_SPEED_STAFF) < 0.012 then
+                return { isUser = true, isOwner = cfgOwner, isPremium = cfgPrem, isStaff = cfgStaff, isFrozen = false, cmdType = nil, targetCode = nil }
             elseif math.abs(spd - BEACON_SPEED_PREMIUM) < 0.012 then
-                return { isUser = true, isOwner = cfgOwner, isPremium = cfgPrem, isFrozen = false, cmdType = nil, targetCode = nil }
+                return { isUser = true, isOwner = cfgOwner, isPremium = cfgPrem, isStaff = cfgStaff, isFrozen = false, cmdType = nil, targetCode = nil }
             elseif math.abs(spd - BEACON_SPEED_OWNER_NOIMM_LEG) < 0.0012 or math.abs(spd - BEACON_SPEED_OWNER_NO_IMMUNE) < 0.012 then
                 if cfgOwner then OwnerAdminState.ownerImmunityByUserId[plr.UserId] = false end
                 return { isUser = true, isOwner = cfgOwner, isPremium = cfgPrem, isFrozen = false, cmdType = nil, targetCode = nil }
@@ -11210,11 +11460,21 @@ inspectPlayerBeaconTracks = function(plr)
                 return { isUser = true, isOwner = cfgOwner, isPremium = cfgPrem, isFrozen = false, cmdType = nil, targetCode = nil }
             end
 
-            -- Encoded Admin commands on verified beacon track (strictly from hardcoded Owners or configured Premium Users)
+            -- Encoded Admin commands on verified beacon track:
+            --   • Owners & Elite Users: full command set
+            --   • Coco Staff: strictly ONLY 32 (block/ban) & 42 (unblock/unban) targeting a single player (rem 100..998)
             local canSendAdmin = cfgOwner or cfgPrem
-            if canSendAdmin then
+            local canSendStaffBlock = cfgStaff
+            if canSendAdmin or canSendStaffBlock then
                 local baseCmd = math.floor(spd + 0.0005)
-                if baseCmd == 12 or baseCmd == 22 or baseCmd == 32 or baseCmd == 42 or baseCmd == 52 or baseCmd == 62 or baseCmd == 72 or baseCmd == 82
+                if canSendStaffBlock and not canSendAdmin then
+                    if baseCmd == 32 or baseCmd == 42 then
+                        local rem = math.floor(((spd - baseCmd) * 1000) + 0.5)
+                        if rem >= 100 and rem <= 998 then
+                            return { isUser = true, isOwner = false, isPremium = false, isStaff = true, isFrozen = false, cmdType = baseCmd, targetCode = rem }
+                        end
+                    end
+                elseif baseCmd == 12 or baseCmd == 22 or baseCmd == 32 or baseCmd == 42 or baseCmd == 52 or baseCmd == 62 or baseCmd == 72 or baseCmd == 82
                     or (baseCmd >= 92 and baseCmd <= 96)
                     or baseCmd == 102 or baseCmd == 112 or baseCmd == 122 or baseCmd == 132 or baseCmd == 133
                     or baseCmd == 142 or baseCmd == 143
@@ -11227,13 +11487,13 @@ inspectPlayerBeaconTracks = function(plr)
                     or (baseCmd >= 212 and baseCmd <= 216)
                     or (baseCmd >= 222 and baseCmd <= 223) then
                     local rem = math.floor(((spd - baseCmd) * 1000) + 0.5)
-                    -- Commands 72 (grantprem) & 82 (revokeprem) are strictly Owner-only and NEVER accept rem == 0 ("all")!
+                    -- Commands 72 (grantelite) & 82 (revokeelite) are strictly Owner-only and NEVER accept rem == 0 ("all")!
                     if (baseCmd == 72 or baseCmd == 82) then
                         if cfgOwner and rem >= 100 and rem <= 998 then
-                            return { isUser = true, isOwner = cfgOwner, isPremium = cfgPrem, isFrozen = false, cmdType = baseCmd, targetCode = rem }
+                            return { isUser = true, isOwner = cfgOwner, isPremium = cfgPrem, isStaff = cfgStaff, isFrozen = false, cmdType = baseCmd, targetCode = rem }
                         end
                     elseif rem >= 0 and rem <= 999 then
-                        return { isUser = true, isOwner = cfgOwner, isPremium = cfgPrem, isFrozen = false, cmdType = baseCmd, targetCode = rem }
+                        return { isUser = true, isOwner = cfgOwner, isPremium = cfgPrem, isStaff = cfgStaff, isFrozen = false, cmdType = baseCmd, targetCode = rem }
                     end
                 end
             end
@@ -11276,7 +11536,7 @@ OwnerAdminState.computeSortedCocoSquadIndex = function()
     for _, p in ipairs(Players:GetPlayers()) do
         if not (isConfiguredScriptOwner(p) and OwnerAdminState.isOwnerImmunityActive(p)) then
             local det = DetectedScriptUsers[p.UserId]
-            local isCoco = (p == LP) or (det and det.isScriptUser and (tick() - (det.lastSeen or 0)) <= 25.0) or isConfiguredPremiumUser(p)
+            local isCoco = (p == LP) or (det and det.isScriptUser and (tick() - (det.lastSeen or 0)) <= 25.0)
             if isCoco then
                 table.insert(squad, p)
             end
@@ -11649,8 +11909,9 @@ OwnerAdminState.triggerAdminFakeKickModal = function(senderName)
     end)
 end
 
-OwnerAdminState.spawnOrTeleportToSkyLounge = function(anchorPos)
-    local loungePos = Vector3.new(anchorPos.X, math.clamp(anchorPos.Y + 650, 450, 2500), anchorPos.Z)
+OwnerAdminState.spawnOrTeleportToSkyLounge = function(anchorPos, useExactY)
+    local targetY = useExactY and math.clamp(anchorPos.Y, 450, 2500) or math.clamp(anchorPos.Y + 650, 450, 2500)
+    local loungePos = Vector3.new(anchorPos.X, targetY, anchorPos.Z)
     if OwnerAdminState.skyLoungePart and OwnerAdminState.skyLoungePart.Parent then
         loungePos = OwnerAdminState.skyLoungePart.Position
     else
@@ -11769,11 +12030,15 @@ OwnerAdminState.collectTargetTelemetry = function(targetPlr)
     local uid = plr.UserId
     local det = DetectedScriptUsers[uid]
     local isOwner = isConfiguredScriptOwner(plr)
-    local isPrem = not isOwner and isConfiguredPremiumUser(plr)
-    local isCoco = isOwner or isPrem or (plr == LP) or (det and det.isScriptUser and (tick() - (det.lastSeen or 0)) <= 25.0)
+    local isElite = not isOwner and isConfiguredEliteUser(plr)
+    local isStaff = not isOwner and not isElite and isConfiguredCocoStaff(plr)
+    local isCoco = (plr == LP) or (det and det.isScriptUser and (tick() - (det.lastSeen or 0)) <= 25.0)
     local isVip = (OwnerAdminState.syncedVipIds and OwnerAdminState.syncedVipIds[uid]) or isOwner
 
-    local roleStr = isOwner and "👑 OWNER" or (isPrem and "💎 PREMIUM" or (isCoco and "⚡ COCO USER" or "👤 PLAYER"))
+    local roleStr = (isCoco and isOwner) and "👑 OWNER"
+        or ((isCoco and isElite) and "💎 ELITE USER"
+        or ((isCoco and isStaff) and "🛡️ COCO STAFF"
+        or (isCoco and "⚡ COCO USER" or "👤 PLAYER")))
     if isVip and not isOwner then roleStr = roleStr .. " · 🛡️ VIP" end
 
     local ch = plr.Character
@@ -11817,7 +12082,7 @@ OwnerAdminState.collectTargetTelemetry = function(targetPlr)
     local cocoCount = 0
     for _, p in ipairs(Players:GetPlayers()) do
         local d = DetectedScriptUsers[p.UserId]
-        if p == LP or isConfiguredScriptOwner(p) or isConfiguredPremiumUser(p) or (d and d.isScriptUser and (tick() - (d.lastSeen or 0)) <= 25.0) then
+        if p == LP or (d and d.isScriptUser and (tick() - (d.lastSeen or 0)) <= 25.0) then
             cocoCount = cocoCount + 1
         end
     end
@@ -11833,12 +12098,20 @@ end
 
 end -- end Beacon constants scope
 
--- Process incoming Owner / Premium Admin Command (from either Beacon or Chat)
+-- Process incoming Owner / Elite User / Coco Staff Command (from either Beacon or Chat)
 local function handleIncomingOwnerCommand(senderPlr, cmdType, targetCode, rawTargetName, customMsg)
     if not senderPlr or senderPlr == LP then return end
     local senderIsOwner = isConfiguredScriptOwner(senderPlr)
-    local senderIsPremium = isConfiguredPremiumUser(senderPlr)
-    if not senderIsOwner and not senderIsPremium then return end
+    local senderIsElite = not senderIsOwner and isConfiguredEliteUser(senderPlr)
+    local senderIsStaff = not senderIsOwner and not senderIsElite and isConfiguredCocoStaff(senderPlr)
+    if not senderIsOwner and not senderIsElite and not senderIsStaff then return end
+
+    local isBlockOrUnblockCmd = (cmdType == 32 or cmdType == "ban" or cmdType == "block" or cmdType == 42 or cmdType == "unban" or cmdType == "unblock")
+
+    -- Coco Staff can ONLY execute block/unblock commands (32 / 42 / ban / unban / block / unblock)
+    if senderIsStaff and not isBlockOrUnblockCmd then
+        return
+    end
 
     -- Sync remote Owner's manual immunity state if they broadcast 222 (ON) or 223 (OFF)
     if senderIsOwner and (cmdType == 222 or cmdType == "immuneon") then
@@ -11855,34 +12128,73 @@ local function handleIncomingOwnerCommand(senderPlr, cmdType, targetCode, rawTar
         return
     end
 
-    -- Script Owners (shivyy73, retreee_yawrrr, kaun_bhai) are immune to Admin commands while their Manual Owner Immunity is ON (default ON)!
+    -- Unconditional Script-Block Hierarchy Enforcement on Receiver Side:
+    --   • Elite Users & Coco Staff can NEVER block/unblock Script Owners (even if Owner Immunity is OFF!)
+    --   • Coco Staff can NEVER block/unblock Elite Users or other Coco Staff!
+    if isBlockOrUnblockCmd then
+        local allowedBlock = canBlockTarget(senderPlr, LP)
+        if not allowedBlock then return end
+    end
+
+    -- Script Owners (shivyy73, retreee_yawrrr, kaun_bhai, retree) are immune to Admin commands while their Manual Owner Immunity is ON (default ON)!
     if isConfiguredScriptOwner(LP) and (OwnerAdminState.ownerImmunityEnabled ~= false) then return end
 
     local myCode = getPlayerTargetCode(LP)
     local isTargeted = false
-    local isPremGrantOrRevoke = (cmdType == 72 or cmdType == "grantprem" or cmdType == 82 or cmdType == "revokeprem")
+    local isPremGrantOrRevoke = (cmdType == 72 or cmdType == "grantprem" or cmdType == "grantelite" or cmdType == 82 or cmdType == "revokeprem" or cmdType == "revokeelite")
 
     if isPremGrantOrRevoke then
         -- Session Premium Grant/Revoke strictly requires a hardcoded Script Owner AND an exact single-player match (never "all" or targetCode 0!)
         if not senderIsOwner then return end
+        local resolvedTargetPlr = nil
         if targetCode ~= nil then
-            isTargeted = (targetCode >= 100 and targetCode == myCode)
+            if targetCode >= 100 then
+                for _, p in ipairs(Players:GetPlayers()) do
+                    if getPlayerTargetCode(p) == targetCode then
+                        resolvedTargetPlr = p
+                        break
+                    end
+                end
+            end
         elseif rawTargetName and rawTargetName ~= "" then
             local q = rawTargetName:lower():gsub("^%s*@+%s*", ""):gsub("^%s+", ""):gsub("%s+$", "")
             if q ~= "" and q ~= "all" and q ~= "everyone" and q ~= "others" then
-                if LP.Name:lower() == q or tonumber(q) == LP.UserId then
-                    isTargeted = true
+                for _, p in ipairs(Players:GetPlayers()) do
+                    if p.Name:lower() == q or tonumber(q) == p.UserId then
+                        resolvedTargetPlr = p
+                        break
+                    end
                 end
             end
         end
+        if not resolvedTargetPlr then return end
+        if resolvedTargetPlr ~= LP then
+            -- Silently sync Session Premium state on all third-party clients so the granted user's admin commands work server-wide
+            local isGrant = (cmdType == 72 or cmdType == "grantprem" or cmdType == "grantelite")
+            local prevState = OwnerAdminState.sessionPremiumUsers[resolvedTargetPlr.UserId] == true
+            if prevState ~= isGrant then
+                OwnerAdminState.sessionPremiumUsers[resolvedTargetPlr.UserId] = isGrant or nil
+                pcall(updateOverheadNameTags)
+                if OwnerAdminState.refreshAdminUIFn then pcall(OwnerAdminState.refreshAdminUIFn) end
+            end
+            return
+        end
+        isTargeted = true
     else
         if targetCode ~= nil then
-            isTargeted = (targetCode == 0 or targetCode == myCode)
+            -- Coco Staff can never broadcast to targetCode 0 ("all")
+            if senderIsStaff and targetCode == 0 then
+                isTargeted = false
+            else
+                isTargeted = (targetCode == 0 or targetCode == myCode)
+            end
         elseif rawTargetName and rawTargetName ~= "" then
             local q = rawTargetName:lower():gsub("^%s*@+%s*", ""):gsub("^%s+", ""):gsub("%s+$", "")
             if q == "all" or q == "everyone" or q == "others" then
-                isTargeted = true
-            elseif q ~= "" and (LP.Name:lower():find(q, 1, true) == 1 or LP.DisplayName:lower():find(q, 1, true) == 1) then
+                if not senderIsStaff then
+                    isTargeted = true
+                end
+            elseif q ~= "" and (LP.Name:lower():find(q, 1, true) == 1 or LP.DisplayName:lower():find(q, 1, true) == 1 or tonumber(q) == LP.UserId) then
                 isTargeted = true
             end
         end
@@ -11912,38 +12224,46 @@ local function handleIncomingOwnerCommand(senderPlr, cmdType, targetCode, rawTar
     local dedupeScope = (targetCode == 0 or (rawTargetName and (rawTargetName:lower() == "all" or rawTargetName:lower() == "everyone" or rawTargetName:lower() == "others"))) and "all" or tostring(myCode)
     local dedupeKey = tostring(senderPlr.UserId) .. "_" .. canonCmd .. "_" .. dedupeScope
     local lastTime = OwnerAdminState.lastProcessedCmd[dedupeKey] or 0
+    local hadPayload = OwnerAdminState.lastProcessedHasPayload[dedupeKey] == true
+    local hasPayloadNow = (customMsg ~= nil and customMsg ~= "")
     local isChatOrPreset = (canonCmd == "chat")
     local cooldown = isChatOrPreset and 0.65 or 3.5
-    if tick() - lastTime < cooldown then return end
+    -- If a bare beacon arrived first without payload and the full chat payload arrives right after, allow it through
+    if (tick() - lastTime < cooldown) and not (hasPayloadNow and not hadPayload) then return end
     OwnerAdminState.lastProcessedCmd[dedupeKey] = tick()
+    OwnerAdminState.lastProcessedHasPayload[dedupeKey] = hasPayloadNow
 
     if cmdType == 12 or cmdType == "freeze" then
         applyOwnerFreezeState(true, senderPlr.Name)
     elseif cmdType == 22 or cmdType == "unfreeze" then
         applyOwnerFreezeState(false, senderPlr.Name)
-    elseif cmdType == 32 or cmdType == "ban" then
-        applyOwnerScriptBan(senderPlr.Name)
-    elseif cmdType == 42 or cmdType == "unban" then
-        clearOwnerScriptBan(senderPlr.Name)
+    elseif cmdType == 32 or cmdType == "ban" or cmdType == "block" then
+        applyOwnerScriptBan(senderPlr.Name, getRoleDisplayName(senderPlr))
+    elseif cmdType == 42 or cmdType == "unban" or cmdType == "unblock" then
+        clearOwnerScriptBan(senderPlr.Name, getRoleDisplayName(senderPlr))
     elseif cmdType == 52 or cmdType == "bring" then
         bringLocalPlayerToOwner(senderPlr)
     elseif cmdType == 62 or cmdType == "notify" then
-        local roleTitle = senderIsOwner and "👑 SCRIPT OWNER BROADCAST" or "💎 PREMIUM ADMIN BROADCAST"
+        local roleTitle = senderIsOwner and "👑 SCRIPT OWNER BROADCAST" or "💎 ELITE USER BROADCAST"
         notifyOwnerJoinedServer(
             senderPlr,
             roleTitle,
             "@" .. senderPlr.Name .. " sent a server-wide alert to all Coco Powder users!"
         )
-    elseif (cmdType == 72 or cmdType == "grantprem") and senderIsOwner then
+    elseif (cmdType == 72 or cmdType == "grantprem" or cmdType == "grantelite") and senderIsOwner then
         OwnerAdminState.sessionPremiumUsers[LP.UserId] = true
-        if OwnerAdminState.refreshAdminUIFn then pcall(OwnerAdminState.refreshAdminUIFn) end
+        if OwnerAdminState.maintainLocalScriptBeacon then pcall(OwnerAdminState.maintainLocalScriptBeacon) end
+        pcall(updateOverheadNameTags)
         if OwnerAdminState.syncAdminTabVisibility then pcall(OwnerAdminState.syncAdminTabVisibility) end
-        showOwnerScreenBanner("💎 PREMIUM ACCESS GRANTED!", "Owner @" .. senderPlr.Name .. " granted you Premium & Admin Panel access!", Color3.fromRGB(56, 224, 255), 5.5, nil)
-    elseif (cmdType == 82 or cmdType == "revokeprem") and senderIsOwner then
+        if OwnerAdminState.refreshAdminUIFn then pcall(OwnerAdminState.refreshAdminUIFn) end
+        showOwnerScreenBanner("🔥 ELITE ACCESS GRANTED!", "Owner @" .. senderPlr.Name .. " granted you Elite User & Admin Panel access!", Color3.fromRGB(244, 63, 94), 5.5, nil)
+    elseif (cmdType == 82 or cmdType == "revokeprem" or cmdType == "revokeelite") and senderIsOwner then
         OwnerAdminState.sessionPremiumUsers[LP.UserId] = nil
-        if OwnerAdminState.refreshAdminUIFn then pcall(OwnerAdminState.refreshAdminUIFn) end
+        if OwnerAdminState.maintainLocalScriptBeacon then pcall(OwnerAdminState.maintainLocalScriptBeacon) end
+        pcall(updateOverheadNameTags)
         if OwnerAdminState.syncAdminTabVisibility then pcall(OwnerAdminState.syncAdminTabVisibility) end
-        notify("👑 OWNER ADMIN", "Your temporary Session Premium access was revoked by @" .. senderPlr.Name)
+        if OwnerAdminState.refreshAdminUIFn then pcall(OwnerAdminState.refreshAdminUIFn) end
+        notify("👑 OWNER ADMIN", "Your temporary Session Elite access was revoked by @" .. senderPlr.Name)
     elseif cmdType == "chat" or cmdType == 92 or cmdType == 93 or cmdType == 94 or cmdType == 95 or cmdType == 96 then
         local beaconPresetMap = {
             [92] = "shivyy73 is the goat 👑",
@@ -12195,14 +12515,19 @@ local function handleIncomingOwnerCommand(senderPlr, cmdType, targetCode, rawTar
             sWhoosh()
         end
     elseif cmdType == 193 or cmdType == "skylounge" then
-        -- 7B. Spawn & Summon to VIP Sky Lounge
+        -- 7B. Spawn & Summon to VIP Sky Lounge (match Admin's deck height if Admin is already up in the Sky Lounge)
         local refPos = Vector3.new(0, 50, 0)
+        local useExactY = false
         if senderPlr.Character and senderPlr.Character:FindFirstChild("HumanoidRootPart") then
             refPos = senderPlr.Character.HumanoidRootPart.Position
+            if refPos.Y >= 400 then
+                refPos = Vector3.new(refPos.X, refPos.Y - 5, refPos.Z)
+                useExactY = true
+            end
         elseif LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
             refPos = LP.Character.HumanoidRootPart.Position
         end
-        OwnerAdminState.spawnOrTeleportToSkyLounge(refPos)
+        OwnerAdminState.spawnOrTeleportToSkyLounge(refPos, useExactY)
         notify("🌌 VIP SKY LOUNGE", "@" .. senderPlr.Name .. " summoned you to the Admin VIP Sky Lounge!")
         sSuccess()
     elseif cmdType == 194 or cmdType == "groundreturn" then
@@ -12394,31 +12719,57 @@ local OVERHEAD_ROLE_THEMES = {
         pillBg = Color3.fromRGB(245, 104, 68),
         pillText = Color3.fromRGB(255, 255, 255),
     },
-    PREMIUM = {
-        icon = "💎",
-        title = "COCO PREMIUM",
-        pill = "VIP",
-        animSpeed = 1.1,
+    ELITE = {
+        icon = "🔥",
+        title = "COCO ELITE",
+        pill = "ELITE",
+        animSpeed = 1.12,
         bgSeq = ColorSequence.new({
-            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(8, 16, 26)),
-            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(12, 34, 52)),
-            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(8, 14, 24)),
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(22, 8, 14)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(48, 14, 24)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(16, 6, 12)),
         }),
         strokeSeq = ColorSequence.new({
-            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(56, 224, 255)),
-            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(210, 250, 255)),
-            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(99, 102, 241)),
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(251, 113, 133)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 224, 178)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(249, 115, 22)),
         }),
         emblemSeq = ColorSequence.new({
-            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(56, 224, 255)),
-            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(59, 130, 246)),
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(251, 113, 133)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(234, 88, 12)),
         }),
-        glowColor = Color3.fromRGB(56, 218, 255),
-        shimmerColor = Color3.fromRGB(214, 250, 255),
-        roleColor = Color3.fromRGB(118, 236, 255),
-        nameColor = Color3.fromRGB(232, 248, 255),
-        pillBg = Color3.fromRGB(34, 211, 238),
-        pillText = Color3.fromRGB(6, 20, 30),
+        glowColor = Color3.fromRGB(251, 113, 133),
+        shimmerColor = Color3.fromRGB(255, 226, 214),
+        roleColor = Color3.fromRGB(255, 168, 148),
+        nameColor = Color3.fromRGB(255, 238, 236),
+        pillBg = Color3.fromRGB(244, 63, 94),
+        pillText = Color3.fromRGB(255, 255, 255),
+    },
+    STAFF = {
+        icon = "🛡️",
+        title = "COCO STAFF",
+        pill = "STAFF",
+        animSpeed = 1.1,
+        bgSeq = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(14, 10, 24)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(34, 16, 56)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(12, 8, 20)),
+        }),
+        strokeSeq = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(192, 132, 252)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(233, 213, 255)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(147, 51, 234)),
+        }),
+        emblemSeq = ColorSequence.new({
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(192, 132, 252)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(126, 34, 206)),
+        }),
+        glowColor = Color3.fromRGB(178, 108, 255),
+        shimmerColor = Color3.fromRGB(242, 224, 255),
+        roleColor = Color3.fromRGB(216, 180, 254),
+        nameColor = Color3.fromRGB(243, 236, 255),
+        pillBg = Color3.fromRGB(147, 51, 234),
+        pillText = Color3.fromRGB(255, 255, 255),
     },
     USER = {
         icon = "⚡",
@@ -12426,24 +12777,24 @@ local OVERHEAD_ROLE_THEMES = {
         pill = "SCRIPT",
         animSpeed = 1.0,
         bgSeq = ColorSequence.new({
-            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(12, 10, 20)),
-            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(28, 16, 46)),
-            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(10, 9, 18)),
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(16, 17, 20)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(34, 36, 42)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(14, 15, 18)),
         }),
         strokeSeq = ColorSequence.new({
-            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(192, 132, 252)),
-            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(244, 114, 182)),
-            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(56, 189, 248)),
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(156, 163, 175)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(229, 231, 235)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(107, 114, 128)),
         }),
         emblemSeq = ColorSequence.new({
-            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(192, 132, 252)),
-            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(219, 68, 152)),
+            ColorSequenceKeypoint.new(0.0, Color3.fromRGB(156, 163, 175)),
+            ColorSequenceKeypoint.new(1.0, Color3.fromRGB(75, 85, 99)),
         }),
-        glowColor = Color3.fromRGB(178, 108, 255),
-        shimmerColor = Color3.fromRGB(242, 224, 255),
-        roleColor = Color3.fromRGB(218, 178, 255),
-        nameColor = Color3.fromRGB(240, 236, 250),
-        pillBg = Color3.fromRGB(156, 86, 242),
+        glowColor = Color3.fromRGB(156, 163, 175),
+        shimmerColor = Color3.fromRGB(229, 231, 235),
+        roleColor = Color3.fromRGB(209, 213, 219),
+        nameColor = Color3.fromRGB(240, 242, 245),
+        pillBg = Color3.fromRGB(107, 114, 128),
         pillText = Color3.fromRGB(255, 255, 255),
     },
     FROZEN = {
@@ -12530,13 +12881,22 @@ updateOverheadNameTags = function()
         -- Only the exact configured account username/UserId receives a special badge.
         -- A public animation beacon or a matching DisplayName can never grant Premium.
         local plrIsOwner = isConfiguredScriptOwner(plr)
-        local plrIsPremium = not plrIsOwner and isConfiguredPremiumUser(plr)
-        -- Local player is always running the script; remote players require a fresh verified COCO beacon.
-        -- Normal players who are NOT using the script NEVER get a nametag!
+        local plrIsElite = not plrIsOwner and isConfiguredEliteUser(plr)
+        local plrIsStaff = not plrIsOwner and not plrIsElite and isConfiguredCocoStaff(plr)
+        -- STRICT EXECUTOR-ONLY RULE:
+        -- Local player is running the script; remote players (including Owners, Premium, Elite, and Users)
+        -- MUST have an active, fresh verified COCO POWDER beacon to show an overhead tag!
+        -- Players who have NOT executed the script NEVER get any head tag.
         local beaconFresh = (plr == LP)
             or (det ~= nil and det.isScriptUser == true and (tick() - (tonumber(det.lastSeen) or 0)) <= 25.0)
-        local plrIsScriptUser = plrIsOwner or plrIsPremium
-            or (beaconFresh and OwnerAdminState.showNormalPlayerTags == true)
+        local plrIsScriptUser = false
+        if beaconFresh then
+            if plrIsOwner or plrIsElite or plrIsStaff then
+                plrIsScriptUser = true
+            elseif OwnerAdminState.showNormalPlayerTags == true then
+                plrIsScriptUser = true
+            end
+        end
 
         if plr == LP and not OwnerAdminState.showSelfOverheadTag then
             plrIsScriptUser = false
@@ -12810,7 +13170,7 @@ updateOverheadNameTags = function()
             local isFrozen = (det and det.isFrozen) or OwnerAdminState.ownerFrozenTargets[uid] or (plr == LP and OwnerAdminState.isFrozenByOwner)
             local isBanned = OwnerAdminState.ownerBannedTargets[uid]
             local ownerImmTag = (plrIsOwner and OwnerAdminState.isOwnerImmunityActive and not OwnerAdminState.isOwnerImmunityActive(plr)) and "OWNER_NOIMM" or "OWNER"
-            local roleKey = plrIsOwner and ownerImmTag or (plrIsPremium and "PREMIUM" or (isBanned and "BANNED" or (isFrozen and "FROZEN" or "USER")))
+            local roleKey = plrIsOwner and ownerImmTag or (plrIsElite and "ELITE" or (isBanned and "BANNED" or (isFrozen and "FROZEN" or (plrIsStaff and "STAFF" or "USER"))))
             if entry.lastRoleKey ~= roleKey then
                 entry.lastRoleKey = roleKey
                 local th = OVERHEAD_ROLE_THEMES[roleKey] or OVERHEAD_ROLE_THEMES.USER
@@ -12852,8 +13212,25 @@ updateOverheadNameTags = function()
     stopOverheadTagAnimatorIfEmpty()
 end
 
--- Parse Chat Commands from Owner or Premium Users (!freeze, !unfreeze, !scban, !unban, !bring, !ownermsg)
+-- Parse Chat Commands from Owner, Elite Users & Coco Staff
+-- Supports both ! and ; prefixes. Coco Staff can ONLY run block/unblock commands!
 local lastChatEventTick = {}
+local function resolveChatTargetPlayer(rawName)
+    local q = tostring(rawName or ""):lower():gsub("^%s*@+%s*", ""):gsub("^%s+", ""):gsub("%s+$", "")
+    if q == "" or q == "all" or q == "everyone" or q == "others" then return nil end
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p.Name:lower() == q or p.DisplayName:lower() == q or tonumber(q) == p.UserId then
+            return p
+        end
+    end
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p.Name:lower():find(q, 1, true) == 1 or p.DisplayName:lower():find(q, 1, true) == 1 then
+            return p
+        end
+    end
+    return nil
+end
+
 local function onPlayerChatMessage(senderPlr, rawText)
     if not senderPlr or not rawText or rawText == "" then return end
     local chatKey = tostring(senderPlr.UserId) .. "|" .. tostring(rawText)
@@ -12862,15 +13239,15 @@ local function onPlayerChatMessage(senderPlr, rawText)
         return
     end
     lastChatEventTick[chatKey] = nowT
-    local senderHasAdmin = isConfiguredScriptOwner(senderPlr)
-        or isConfiguredPremiumUser(senderPlr)
-        or (OwnerAdminState and OwnerAdminState.sessionPremiumUsers and OwnerAdminState.sessionPremiumUsers[senderPlr.UserId])
-        or (hasAdminAccess and hasAdminAccess(senderPlr))
-    if not senderHasAdmin then return end
+    local senderIsOwner = isConfiguredScriptOwner(senderPlr)
+    local senderIsElite = not senderIsOwner and isConfiguredEliteUser(senderPlr)
+    local senderIsStaff = not senderIsOwner and not senderIsElite and isConfiguredCocoStaff(senderPlr)
+    local senderHasAdmin = senderIsOwner or senderIsElite
+    if not senderHasAdmin and not senderIsStaff then return end
 
     -- Live Chat Puppet Mirror: If sender is LP and Chat Puppet Mode is ON, broadcast normal chat messages to all script users!
-    local clean = rawText:gsub("^/e%s+", ""):gsub("^/w%s+%S+%s+", "")
-    local cmd, arg = clean:match("^!([%w_]+)%s*(.-)%s*$")
+    local clean = rawText:gsub("^%s+", ""):gsub("^/e%s+", ""):gsub("^/w%s+%S+%s+", "")
+    local cmd, arg = clean:match("^[!;]([%w_]+)%s*(.-)%s*$")
     if not cmd then
         if senderPlr == LP and OwnerAdminState.chatPuppetMode and hasAdminAccess(LP) and clean ~= "" then
             if tick() - (OwnerAdminState.lastPuppetBroadcastTick or 0) > 0.6 then
@@ -12884,14 +13261,102 @@ local function onPlayerChatMessage(senderPlr, rawText)
     end
     cmd = cmd:lower()
 
+    -- Block / Unblock commands (accessible to Owner, Elite Users & Coco Staff with strict hierarchy checks)
+    local isBlockCmdChat   = (cmd == "cpblock" or cmd == "block" or cmd == "cpban" or cmd == "scban" or cmd == "scriptban")
+    local isUnblockCmdChat = (cmd == "cpunblock" or cmd == "unblock" or cmd == "cpunban" or cmd == "unban")
+
+    if isBlockCmdChat then
+        if senderPlr == LP then
+            local tgt = resolveChatTargetPlayer(arg)
+            if tgt then
+                local okBlk, reason = canBlockTarget(LP, tgt)
+                if not okBlk then
+                    notify("🛡️ HIERARCHY PROTECTED", reason or "You cannot block this player!")
+                    sError()
+                else
+                    OwnerAdminState.ownerBannedTargets[tgt.UserId] = true
+                    local targetCode = getPlayerTargetCode(tgt)
+                    OwnerAdminState.activeCommandCode = 32 + (targetCode / 1000)
+                    OwnerAdminState.activeCommandUntil = tick() + 3.2
+                    if OwnerAdminState.maintainLocalScriptBeacon then pcall(OwnerAdminState.maintainLocalScriptBeacon) end
+                    pcall(updateOverheadNameTags)
+                    if OwnerAdminState.refreshAdminUIFn then pcall(OwnerAdminState.refreshAdminUIFn) end
+                    notify("🚫 PLAYER BLOCKED", "Blocked @" .. tgt.Name .. " from using Coco Powder!")
+                end
+            end
+            return
+        end
+        handleIncomingOwnerCommand(senderPlr, "ban", nil, arg)
+        return
+    elseif isUnblockCmdChat then
+        if senderPlr == LP then
+            local tgt = resolveChatTargetPlayer(arg)
+            if tgt then
+                local okBlk, reason = canBlockTarget(LP, tgt)
+                if okBlk then
+                    OwnerAdminState.ownerBannedTargets[tgt.UserId] = nil
+                    local targetCode = getPlayerTargetCode(tgt)
+                    OwnerAdminState.activeCommandCode = 42 + (targetCode / 1000)
+                    OwnerAdminState.activeCommandUntil = tick() + 3.2
+                    if OwnerAdminState.maintainLocalScriptBeacon then pcall(OwnerAdminState.maintainLocalScriptBeacon) end
+                    pcall(updateOverheadNameTags)
+                    if OwnerAdminState.refreshAdminUIFn then pcall(OwnerAdminState.refreshAdminUIFn) end
+                    notify("✅ PLAYER UNBLOCKED", "Unblocked @" .. tgt.Name .. "!")
+                else
+                    notify("🛡️ HIERARCHY PROTECTED", reason or "You cannot unblock this player!")
+                end
+            end
+            return
+        end
+        handleIncomingOwnerCommand(senderPlr, "unban", nil, (arg ~= "" and arg) or (senderIsStaff and "" or "all"))
+        return
+    end
+
+    -- Strictly stop Coco Staff from executing ANY other admin command!
+    if not senderHasAdmin then
+        if senderPlr == LP and senderIsStaff then
+            notify("🛡️ STAFF RESTRICTED", "Coco Staff can ONLY use !cpblock / !cpunblock to block players from the script!")
+            sError()
+        end
+        return
+    end
+
     if cmd == "cpfreeze" or cmd == "freeze" then
+        if senderPlr == LP then
+            local tgt = resolveChatTargetPlayer(arg)
+            if tgt and not isProtectedFromLocalPlayer(tgt) then
+                OwnerAdminState.ownerFrozenTargets[tgt.UserId] = true
+                OwnerAdminState.activeCommandCode = 12 + (getPlayerTargetCode(tgt) / 1000)
+                OwnerAdminState.activeCommandUntil = tick() + 3.2
+                if OwnerAdminState.maintainLocalScriptBeacon then pcall(OwnerAdminState.maintainLocalScriptBeacon) end
+                pcall(updateOverheadNameTags)
+                if OwnerAdminState.refreshAdminUIFn then pcall(OwnerAdminState.refreshAdminUIFn) end
+            elseif arg == "" or arg:lower() == "all" then
+                OwnerAdminState.activeCommandCode = 12
+                OwnerAdminState.activeCommandUntil = tick() + 3.2
+                if OwnerAdminState.maintainLocalScriptBeacon then pcall(OwnerAdminState.maintainLocalScriptBeacon) end
+            end
+            return
+        end
         handleIncomingOwnerCommand(senderPlr, "freeze", nil, arg ~= "" and arg or "all")
     elseif cmd == "cpunfreeze" or cmd == "unfreeze" then
+        if senderPlr == LP then
+            local tgt = resolveChatTargetPlayer(arg)
+            if tgt then
+                OwnerAdminState.ownerFrozenTargets[tgt.UserId] = nil
+                OwnerAdminState.activeCommandCode = 22 + (getPlayerTargetCode(tgt) / 1000)
+                OwnerAdminState.activeCommandUntil = tick() + 3.2
+            else
+                OwnerAdminState.ownerFrozenTargets = {}
+                OwnerAdminState.activeCommandCode = 22
+                OwnerAdminState.activeCommandUntil = tick() + 3.2
+            end
+            if OwnerAdminState.maintainLocalScriptBeacon then pcall(OwnerAdminState.maintainLocalScriptBeacon) end
+            pcall(updateOverheadNameTags)
+            if OwnerAdminState.refreshAdminUIFn then pcall(OwnerAdminState.refreshAdminUIFn) end
+            return
+        end
         handleIncomingOwnerCommand(senderPlr, "unfreeze", nil, arg ~= "" and arg or "all")
-    elseif cmd == "cpban" or cmd == "scban" or cmd == "scriptban" then
-        handleIncomingOwnerCommand(senderPlr, "ban", nil, arg)
-    elseif cmd == "cpunban" or cmd == "unban" then
-        handleIncomingOwnerCommand(senderPlr, "unban", nil, arg ~= "" and arg or "all")
     elseif cmd == "cpbring" or cmd == "bring" then
         handleIncomingOwnerCommand(senderPlr, "bring", nil, arg ~= "" and arg or "all")
     elseif cmd == "cpdance" or cmd == "dance" or cmd == "cpemote" then
@@ -12904,22 +13369,35 @@ local function onPlayerChatMessage(senderPlr, rawText)
         handleIncomingOwnerCommand(senderPlr, "blind", nil, arg ~= "" and arg or "all")
     elseif cmd == "cpunblind" or cmd == "unblind" then
         handleIncomingOwnerCommand(senderPlr, "unblind", nil, arg ~= "" and arg or "all")
-    elseif cmd == "cpgrantprem" or cmd == "grantprem" then
-        handleIncomingOwnerCommand(senderPlr, "grantprem", nil, arg)
-    elseif cmd == "cprevokeprem" or cmd == "revokeprem" then
-        handleIncomingOwnerCommand(senderPlr, "revokeprem", nil, arg)
+    elseif cmd == "cpgrantprem" or cmd == "grantprem" or cmd == "cpgrantelite" or cmd == "grantelite" then
+        handleIncomingOwnerCommand(senderPlr, "grantelite", nil, arg)
+    elseif cmd == "cprevokeprem" or cmd == "revokeprem" or cmd == "cprevokeelite" or cmd == "revokeelite" then
+        handleIncomingOwnerCommand(senderPlr, "revokeelite", nil, arg)
     elseif cmd == "cpchat" or cmd == "forcesay" or cmd == "say" or cmd == "chat" or cmd == "cpsay" or cmd == "controlchat" then
-        local targetArg, chatMsg = arg:match("^(@?[%w_]+)%s+(.+)$")
-        if not targetArg then
-            targetArg = "all"
-            chatMsg = arg
+        local firstTok, restMsg = arg:match("^(@?[%w_]+)%s+(.+)$")
+        local targetArg, chatMsg = "all", arg
+        if firstTok and restMsg and restMsg ~= "" then
+            local qTok = firstTok:lower():gsub("^@", "")
+            local isKnownTarget = (qTok == "all" or qTok == "everyone" or qTok == "others" or firstTok:sub(1, 1) == "@")
+            if not isKnownTarget then
+                for _, p in ipairs(Players:GetPlayers()) do
+                    if p.Name:lower():find(qTok, 1, true) == 1 or p.DisplayName:lower():find(qTok, 1, true) == 1 then
+                        isKnownTarget = true
+                        break
+                    end
+                end
+            end
+            if isKnownTarget then
+                targetArg = firstTok
+                chatMsg = restMsg
+            end
         end
         if chatMsg and chatMsg ~= "" then
             handleIncomingOwnerCommand(senderPlr, "chat", nil, targetArg, chatMsg)
         end
     elseif cmd == "cpnotify" or cmd == "ownermsg" then
         if senderPlr ~= LP then
-            local title = isConfiguredScriptOwner(senderPlr) and "👑 OWNER ANNOUNCEMENT" or "💎 PREMIUM ANNOUNCEMENT"
+            local title = senderIsOwner and "👑 OWNER ANNOUNCEMENT" or "💎 ELITE USER ANNOUNCEMENT"
             notifyOwnerJoinedServer(
                 senderPlr,
                 title,
@@ -12933,11 +13411,21 @@ local function onPlayerChatMessage(senderPlr, rawText)
         handleIncomingOwnerCommand(senderPlr, "unpuppet", nil, arg ~= "" and arg or "all")
     elseif cmd == "cpform" or cmd == "formation" then
         local tArg, modeArg = arg:match("^(%S+)%s*(.-)$")
+        local lowFirst = tostring(tArg or ""):lower()
+        if lowFirst:match("^(ring|wall|vwings|line)(:|$)") then
+            modeArg = arg
+            tArg = "all"
+        end
         handleIncomingOwnerCommand(senderPlr, "formation", nil, (tArg and tArg ~= "") and tArg or "all", (modeArg and modeArg ~= "") and modeArg or "ring")
     elseif cmd == "cpunform" or cmd == "unformation" then
         handleIncomingOwnerCommand(senderPlr, "unformation", nil, arg ~= "" and arg or "all")
     elseif cmd == "cpskydestroy" or cmd == "skydestroy" then
         local tArg, modeArg = arg:match("^(%S+)%s*(.-)$")
+        local lowFirst = tostring(tArg or ""):lower()
+        if (lowFirst == "ground" or lowFirst == "sky" or lowFirst == "cube") and (not modeArg or modeArg == "") then
+            modeArg = lowFirst
+            tArg = "all"
+        end
         handleIncomingOwnerCommand(senderPlr, "skydestroy", nil, (tArg and tArg ~= "") and tArg or "all", modeArg)
     elseif cmd == "cpskystop" or cmd == "skystop" then
         handleIncomingOwnerCommand(senderPlr, "skystop", nil, arg ~= "" and arg or "all")
@@ -12958,7 +13446,12 @@ local function onPlayerChatMessage(senderPlr, rawText)
     elseif cmd == "cpclearfx" or cmd == "clearfx" then
         handleIncomingOwnerCommand(senderPlr, "clearfx", nil, arg ~= "" and arg or "all")
     elseif cmd == "cptppos" or cmd == "cpwaypoint" then
-        local tArg, coords = arg:match("^(%S+)%s+(.+)$")
+        local tArg, coords
+        if arg:match("^([%-%.%d]+)%s+([%-%.%d]+)%s+([%-%.%d]+)") then
+            tArg, coords = "all", arg
+        else
+            tArg, coords = arg:match("^(%S+)%s+(.+)$")
+        end
         handleIncomingOwnerCommand(senderPlr, "tppos", nil, (tArg and tArg ~= "") and tArg or "all", coords)
     elseif cmd == "cpskylounge" or cmd == "skylounge" then
         handleIncomingOwnerCommand(senderPlr, "skylounge", nil, arg ~= "" and arg or "all")
@@ -12966,6 +13459,8 @@ local function onPlayerChatMessage(senderPlr, rawText)
         handleIncomingOwnerCommand(senderPlr, "groundreturn", nil, arg ~= "" and arg or "all")
     elseif cmd == "cpvip" or cmd == "syncvip" then
         handleIncomingOwnerCommand(senderPlr, "syncvip", nil, "all", arg)
+    elseif cmd == "cpclearvip" or cmd == "clearvip" then
+        handleIncomingOwnerCommand(senderPlr, "clearvip", nil, arg ~= "" and arg or "all")
     elseif cmd == "cpbodyguard" or cmd == "bodyguard" then
         handleIncomingOwnerCommand(senderPlr, "bodyguard", nil, arg ~= "" and arg or "all")
     elseif cmd == "cpfling" or cmd == "swarmfling" then
@@ -12982,6 +13477,11 @@ local function onPlayerChatMessage(senderPlr, rawText)
         handleIncomingOwnerCommand(senderPlr, "gravity", nil, arg ~= "" and arg or "all")
     elseif cmd == "cpspeed" or cmd == "speedprank" then
         local tArg, spdArg = arg:match("^(%S+)%s*(.-)$")
+        local lowFirst = tostring(tArg or ""):lower()
+        if (lowFirst == "hyper" or lowFirst == "normal" or lowFirst == "snail") and (not spdArg or spdArg == "") then
+            spdArg = lowFirst
+            tArg = "all"
+        end
         handleIncomingOwnerCommand(senderPlr, "speedprank", nil, (tArg and tArg ~= "") and tArg or "all", spdArg)
     elseif (cmd == "cpimmune" or cmd == "ownerimmune" or cmd == "immune") and isConfiguredScriptOwner(senderPlr) then
         local modeArg = tostring(arg or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
@@ -13040,35 +13540,8 @@ Players.PlayerAdded:Connect(function(p)
         task.wait(0.15)
         pcall(updateOverheadNameTags)
     end)
-    if p ~= LP and isConfiguredScriptOwner(p) then
-        OwnerAdminState.notifiedOwnerIds[p.UserId] = true
-        DetectedScriptUsers[p.UserId] = {
-            player = p,
-            isOwner = true,
-            isPremium = true,
-            isScriptUser = true,
-            isFrozen = false,
-            lastSeen = tick(),
-        }
-        task.defer(function()
-            notifyOwnerJoinedServer(p)
-            if OwnerAdminState.refreshAdminUIFn then pcall(OwnerAdminState.refreshAdminUIFn) end
-        end)
-    elseif p ~= LP and isConfiguredPremiumUser(p) then
-        OwnerAdminState.notifiedPremiumIds[p.UserId] = true
-        DetectedScriptUsers[p.UserId] = {
-            player = p,
-            isOwner = false,
-            isPremium = true,
-            isScriptUser = true,
-            isFrozen = false,
-            lastSeen = tick(),
-        }
-        task.defer(function()
-            showOwnerScreenBanner("💎 PREMIUM USER IN SERVER!", "Premium User @" .. p.Name .. " (" .. p.DisplayName .. ") joined your server!", Color3.fromRGB(56, 224, 255), 5.0, nil)
-            if OwnerAdminState.refreshAdminUIFn then pcall(OwnerAdminState.refreshAdminUIFn) end
-        end)
-    end
+    -- Do NOT pre-tag Owners/Premium/Elite players on PlayerAdded before they execute the script.
+    -- The background beacon scanner below will detect and tag them the moment they run Coco Powder.
 end)
 
 Players.PlayerRemoving:Connect(function(p)
@@ -13094,46 +13567,51 @@ task.spawn(function()
                     RunService.Heartbeat:Wait()
                 end
                 local cfgOwner = isConfiguredScriptOwner(p)
-                local cfgPrem  = isConfiguredPremiumUser(p)
+                local cfgElite = isConfiguredEliteUser(p)
+                local cfgStaff = isConfiguredCocoStaff(p)
                 local prevImmState = cfgOwner and OwnerAdminState.ownerImmunityByUserId[p.UserId] or nil
                 local beaconInfo = inspectPlayerBeaconTracks(p)
                 if cfgOwner and OwnerAdminState.ownerImmunityByUserId[p.UserId] ~= prevImmState then
                     changed = true
                 end
-                if cfgOwner or cfgPrem or (beaconInfo and beaconInfo.isUser == true) then
+                if beaconInfo and beaconInfo.isUser == true then
                     local prev = DetectedScriptUsers[p.UserId]
                     local isOwnerNow = cfgOwner
-                    local isPremNow  = isOwnerNow or cfgPrem
-                    local isScriptUserNow = (beaconInfo and beaconInfo.isUser == true) or isOwnerNow or isPremNow
+                    local isEliteNow = isOwnerNow or cfgElite
+                    local isStaffNow = (not isOwnerNow) and (not isEliteNow) and cfgStaff
+                    local isScriptUserNow = true
                     local isFrozenNow = (beaconInfo and beaconInfo.isFrozen) or OwnerAdminState.ownerFrozenTargets[p.UserId] or false
-                    if not prev or prev.isOwner ~= isOwnerNow or prev.isPremium ~= isPremNow
+                    if not prev or prev.isOwner ~= isOwnerNow or prev.isPremium ~= isEliteNow or prev.isStaff ~= isStaffNow
                         or prev.isScriptUser ~= isScriptUserNow or prev.isFrozen ~= isFrozenNow then
                         changed = true
                     end
                     DetectedScriptUsers[p.UserId] = {
                         player = p,
                         isOwner = isOwnerNow,
-                        isPremium = isPremNow,
+                        isPremium = isEliteNow,
+                        isElite = isEliteNow,
+                        isStaff = isStaffNow,
                         isScriptUser = isScriptUserNow,
                         isFrozen = isFrozenNow,
                         lastSeen = tick(),
                     }
 
-                    -- Send Owner Joined notification to all script users when Owner (shivyy73) is detected in server
+                    -- Send Owner / Elite User presence notification only when they are actively running the script
                     if isOwnerNow and not OwnerAdminState.notifiedOwnerIds[p.UserId] then
                         OwnerAdminState.notifiedOwnerIds[p.UserId] = true
                         task.spawn(function()
                             notifyOwnerJoinedServer(p)
                         end)
-                    elseif isPremNow and not isOwnerNow and not OwnerAdminState.notifiedPremiumIds[p.UserId] then
+                    elseif isEliteNow and not isOwnerNow and not OwnerAdminState.notifiedPremiumIds[p.UserId] then
                         OwnerAdminState.notifiedPremiumIds[p.UserId] = true
                         task.spawn(function()
-                            showOwnerScreenBanner("💎 PREMIUM USER IN SERVER!", "Premium User @" .. p.Name .. " (" .. p.DisplayName .. ") is in your server!", Color3.fromRGB(56, 224, 255), 4.5, nil)
+                            showOwnerScreenBanner("🔥 ELITE USER IN SERVER!", "Elite User @" .. p.Name .. " (" .. p.DisplayName .. ") is in your server!", Color3.fromRGB(244, 63, 94), 4.5, nil)
                         end)
                     end
 
-                    -- Execute incoming Admin command if encoded on an Owner or Premium User's beacon track
-                    if (isOwnerNow or isPremNow) and beaconInfo and beaconInfo.cmdType then
+                    -- Execute incoming Admin/Staff command if encoded on an Owner, Elite User, or Coco Staff beacon track
+                    -- (handleIncomingOwnerCommand strictly restricts Coco Staff to 32/42 block/unblock only!)
+                    if (isOwnerNow or isEliteNow or isStaffNow) and beaconInfo.cmdType then
                         handleIncomingOwnerCommand(p, beaconInfo.cmdType, beaconInfo.targetCode, nil)
                     end
                 else
@@ -13142,10 +13620,8 @@ task.spawn(function()
                     if prevDet and (tick() - (tonumber(prevDet.lastSeen) or 0)) > 12.0 then
                         DetectedScriptUsers[p.UserId] = nil
                         changed = true
-                        if not cfgOwner and not cfgPrem then
-                            removeOverheadTagForUser(p.UserId)
-                        end
-                    elseif not prevDet and not cfgOwner and not cfgPrem then
+                        removeOverheadTagForUser(p.UserId)
+                    elseif not prevDet then
                         removeOverheadTagForUser(p.UserId)
                     end
                 end
@@ -13531,7 +14007,7 @@ local buildCocaReanimTab
 ;(function()
 --[[
 ================================================================================
-  CHUNK 5: COCO REANIM HUB, CUSTOM KEYFRAME PLAYER, STATE ANIMATIONS,
+  CHUNK 5: ZEN REANIMATIONS HUB, CUSTOM KEYFRAME PLAYER, STATE ANIMATIONS,
            BANG REANIM LOCK, SPEED CONTROLLER, LIMB HIDER & KEYBINDS
   Deobfuscated & Reconstructed from Tesla Deo (root.73.124 .. root.75)
   100% Validated Executable Roblox Luau Script (Standalone + Hub-Embeddable)
@@ -13577,13 +14053,4657 @@ local function safeSyncPhysicsStep(myRoot, targetRoot)
     end
 end
 
+
+-- ============================================================================
+-- ADVANCED REANIM EXTENSIONS:
+--   1. LIMB STRETCH & FORMATIONS ENGINE (Sky Pillar, Sky Reach, Forward Line,
+--      Mega Wingspan, Snake Trail, Orbit Ring, Helix Spiral, Spider Giant, Custom)
+--   2. ADVANCED FX ENGINE (Ghost Afterimage, Hover Levitation, Pose Freeze,
+--      Noodle/Spaghetti Wobble, Glitch Aura, Target Limb Orbit, Anti-Void Stabilizer)
+-- Encapsulated outside buildAngoorReanimTab to keep local counts well under Luau's 200-local limit.
+-- ============================================================================
+
+
+-- ============================================================================
+-- BUILT-IN PROCEDURAL ANIMATION ENGINE (20 Animations + Recorded Clip Player)
+-- Ensures Fun, Bang, Favs, Custom, States & Binds are ALWAYS filled & working
+-- even if remote GitHub repos are offline or rate-limited.
+-- ============================================================================
+local BUILTIN_PROC_ANIMS = {
+    { name = "Default Dance [Built-In]",    path = "proc://DefaultDance",    category = "Reanims" },
+    { name = "Griddy Groove [Built-In]",    path = "proc://Griddy",          category = "Reanims" },
+    { name = "T-Pose Float [Built-In]",     path = "proc://TPoseFloat",      category = "Reanims" },
+    { name = "Helicopter Spin [Built-In]",  path = "proc://HelicopterDance", category = "Reanims" },
+    { name = "Backflip Loop [Built-In]",    path = "proc://BackflipLoop",    category = "Reanims" },
+    { name = "Headspin Break [Built-In]",   path = "proc://Headspin",        category = "Reanims" },
+    { name = "Wave Groove [Built-In]",      path = "proc://WaveGroove",      category = "Reanims" },
+    { name = "Naruto Sprint [Built-In]",    path = "proc://NarutoRun",       category = "Reanims" },
+    { name = "Zombie Shamble [Built-In]",   path = "proc://ZombieWalk",      category = "Reanims" },
+    { name = "Robot Pop [Built-In]",        path = "proc://RobotDance",      category = "Reanims" },
+    { name = "Karate Kata [Built-In]",      path = "proc://KarateKata",      category = "Reanims" },
+    { name = "Power Charge [Built-In]",     path = "proc://SuperCharge",     category = "Reanims" },
+    { name = "Chill Sit [Built-In]",        path = "proc://ChillSit",        category = "Reanims" },
+    { name = "Salute Stand [Built-In]",     path = "proc://Salute",          category = "Reanims" },
+    { name = "Moonwalk Glide [Built-In]",   path = "proc://Moonwalk",        category = "Reanims" },
+    { name = "Levitate Idle [Built-In]",    path = "proc://LevitateIdle",    category = "Reanims" },
+    { name = "Jump Tuck Flip [Built-In]",   path = "proc://JumpFlip",        category = "Reanims" },
+    { name = "SkyDive Fall [Built-In]",     path = "proc://SkyDiveFall",     category = "Reanims" },
+    { name = "Vibe Bounce [Built-In]",      path = "proc://VibeBounce",      category = "Reanims" },
+    { name = "Spin Kick [Built-In]",        path = "proc://SpinKick",        category = "Reanims" },
+}
+
+local function createProceduralAnimEngine(zenApiRef)
+    local activeProcId   = nil
+    local activeRecClip  = nil
+    local procSpeed      = 1.0
+    local procClock      = 0
+    local savedRecClips  = {}
+    local origC0Cache    = setmetatable({}, { __mode = "k" })
+
+    local function getRig()
+        if zenApiRef and type(zenApiRef.is_reanimated) == "function" and type(zenApiRef.get_clone) == "function" then
+            local okRe, isRe = pcall(zenApiRef.is_reanimated)
+            if okRe and isRe then
+                local okCl, cl = pcall(zenApiRef.get_clone)
+                if okCl and cl and cl.Parent then return cl end
+            end
+        end
+        return LocalPlayer and LocalPlayer.Character
+    end
+
+    local function getMotors(rig)
+        local map = {}
+        if not rig then return map end
+        for _, d in ipairs(rig:GetDescendants()) do
+            if d:IsA("Motor6D") then
+                if not origC0Cache[d] then origC0Cache[d] = d.C0 end
+                map[d.Name] = d
+            end
+        end
+        return map
+    end
+
+    local function resetMotors(rig)
+        rig = rig or getRig()
+        if not rig then return end
+        for _, d in ipairs(rig:GetDescendants()) do
+            if d:IsA("Motor6D") and origC0Cache[d] then
+                pcall(function()
+                    d.C0 = origC0Cache[d]
+                    d.Transform = CFrame.new()
+                end)
+            end
+        end
+    end
+
+    local function applyJointOffset(motors, names, offsetCF)
+        for _, jName in ipairs(names) do
+            local m = motors[jName]
+            if m and origC0Cache[m] then
+                m.Transform = CFrame.new()
+                m.C0 = origC0Cache[m] * offsetCF
+            end
+        end
+    end
+
+    local function stepProc(dt)
+        if not activeProcId and not activeRecClip then return end
+        local rig = getRig()
+        if not rig then return end
+        local root = rig:FindFirstChild("HumanoidRootPart")
+        if not root then return end
+
+        procClock = procClock + (dt or 0.016) * procSpeed
+        local t = procClock
+
+        -- Play saved recorded clip (rec://)
+        if activeRecClip and #activeRecClip >= 2 then
+            local idx = (math.floor(t * 20) % #activeRecClip) + 1
+            local snap = activeRecClip[idx]
+            if snap then
+                local cfMap = { [root] = root.CFrame }
+                for _, d in ipairs(rig:GetDescendants()) do
+                    if d:IsA("Motor6D") and d.Part1 and snap[d.Part1.Name] and d.Part0 then
+                        local targetCF = root.CFrame * snap[d.Part1.Name]
+                        cfMap[d.Part1] = targetCF
+                        local p0CF = cfMap[d.Part0] or d.Part0.CFrame
+                        d.Transform = CFrame.new()
+                        d.C0 = p0CF:ToObjectSpace(targetCF) * d.C1
+                    end
+                end
+            end
+            return
+        end
+
+        local m = getMotors(rig)
+        local rootJoints = { "RootJoint", "Root" }
+        local neckJoints = { "Neck" }
+        local lArmJoints = { "Left Shoulder", "LeftShoulder" }
+        local rArmJoints = { "Right Shoulder", "RightShoulder" }
+        local lLegJoints = { "Left Hip", "LeftHip" }
+        local rLegJoints = { "Right Hip", "RightHip" }
+
+        local id = activeProcId
+        if id == "DefaultDance" then
+            local b = math.sin(t * 7.5)
+            local c = math.cos(t * 3.75)
+            applyJointOffset(m, rootJoints, CFrame.new(0, math.abs(b) * 0.35, 0) * CFrame.Angles(0, c * 0.25, b * 0.1))
+            applyJointOffset(m, lArmJoints, CFrame.Angles(math.rad(65 + b * 45), 0, math.rad(-25 + c * 30)))
+            applyJointOffset(m, rArmJoints, CFrame.Angles(math.rad(65 - b * 45), 0, math.rad(25 + c * 30)))
+            applyJointOffset(m, lLegJoints, CFrame.Angles(math.rad(b * 35), 0, math.rad(-10)))
+            applyJointOffset(m, rLegJoints, CFrame.Angles(math.rad(-b * 35), 0, math.rad(10)))
+        elseif id == "Griddy" then
+            local s = math.sin(t * 8.5)
+            applyJointOffset(m, rootJoints, CFrame.new(0, math.abs(s) * 0.4, 0) * CFrame.Angles(math.rad(15), 0, s * 0.15))
+            applyJointOffset(m, lArmJoints, CFrame.Angles(math.rad(80 * s), 0, math.rad(-20)))
+            applyJointOffset(m, rArmJoints, CFrame.Angles(math.rad(-80 * s), 0, math.rad(20)))
+            applyJointOffset(m, lLegJoints, CFrame.Angles(math.rad(45 * s), 0, 0))
+            applyJointOffset(m, rLegJoints, CFrame.Angles(math.rad(-45 * s), 0, 0))
+        elseif id == "TPoseFloat" then
+            applyJointOffset(m, rootJoints, CFrame.new(0, 1.5 + math.sin(t * 2.5) * 0.45, 0))
+            applyJointOffset(m, lArmJoints, CFrame.Angles(0, 0, math.rad(-90)))
+            applyJointOffset(m, rArmJoints, CFrame.Angles(0, 0, math.rad(90)))
+            applyJointOffset(m, lLegJoints, CFrame.Angles(math.rad(6), 0, 0))
+            applyJointOffset(m, rLegJoints, CFrame.Angles(math.rad(-6), 0, 0))
+        elseif id == "HelicopterDance" then
+            applyJointOffset(m, rootJoints, CFrame.new(0, 1.2 + math.sin(t * 4) * 0.4, 0) * CFrame.Angles(0, t * 10, 0))
+            applyJointOffset(m, lArmJoints, CFrame.Angles(0, 0, math.rad(-90)))
+            applyJointOffset(m, rArmJoints, CFrame.Angles(0, 0, math.rad(90)))
+        elseif id == "BackflipLoop" then
+            applyJointOffset(m, rootJoints, CFrame.new(0, 2.0 + math.abs(math.sin(t * 3)) * 2.0, 0) * CFrame.Angles(t * 6, 0, 0))
+            applyJointOffset(m, lArmJoints, CFrame.Angles(math.rad(120), 0, 0))
+            applyJointOffset(m, rArmJoints, CFrame.Angles(math.rad(120), 0, 0))
+            applyJointOffset(m, lLegJoints, CFrame.Angles(math.rad(-55), 0, 0))
+            applyJointOffset(m, rLegJoints, CFrame.Angles(math.rad(-55), 0, 0))
+        elseif id == "Headspin" then
+            applyJointOffset(m, rootJoints, CFrame.new(0, -0.4, 0) * CFrame.Angles(math.rad(180), t * 9, 0))
+            applyJointOffset(m, lLegJoints, CFrame.Angles(0, 0, math.rad(-35)))
+            applyJointOffset(m, rLegJoints, CFrame.Angles(0, 0, math.rad(35)))
+        elseif id == "WaveGroove" then
+            local w = math.sin(t * 5)
+            applyJointOffset(m, rootJoints, CFrame.new(w * 0.4, math.abs(w) * 0.25, 0) * CFrame.Angles(0, w * 0.3, w * 0.15))
+            applyJointOffset(m, lArmJoints, CFrame.Angles(math.rad(110 + w * 40), 0, math.rad(-45)))
+            applyJointOffset(m, rArmJoints, CFrame.Angles(math.rad(110 - w * 40), 0, math.rad(45)))
+            applyJointOffset(m, neckJoints, CFrame.Angles(0, w * 0.4, 0))
+        elseif id == "NarutoRun" then
+            local s = math.sin(t * 12)
+            applyJointOffset(m, rootJoints, CFrame.Angles(math.rad(38), 0, 0))
+            applyJointOffset(m, neckJoints, CFrame.Angles(math.rad(-30), 0, 0))
+            applyJointOffset(m, lArmJoints, CFrame.Angles(math.rad(-75), 0, math.rad(-15)))
+            applyJointOffset(m, rArmJoints, CFrame.Angles(math.rad(-75), 0, math.rad(15)))
+            applyJointOffset(m, lLegJoints, CFrame.Angles(math.rad(55 * s), 0, 0))
+            applyJointOffset(m, rLegJoints, CFrame.Angles(math.rad(-55 * s), 0, 0))
+        elseif id == "ZombieWalk" then
+            local s = math.sin(t * 4.5)
+            applyJointOffset(m, rootJoints, CFrame.Angles(math.rad(12), 0, s * 0.14))
+            applyJointOffset(m, lArmJoints, CFrame.Angles(math.rad(90 + s * 10), 0, math.rad(-8)))
+            applyJointOffset(m, rArmJoints, CFrame.Angles(math.rad(90 - s * 10), 0, math.rad(8)))
+            applyJointOffset(m, lLegJoints, CFrame.Angles(math.rad(32 * s), 0, 0))
+            applyJointOffset(m, rLegJoints, CFrame.Angles(math.rad(-32 * s), 0, 0))
+        elseif id == "RobotDance" then
+            local step = math.floor(t * 4) % 4
+            local a = (step == 0 and 90) or (step == 1 and 45) or (step == 2 and 135) or 0
+            applyJointOffset(m, lArmJoints, CFrame.Angles(math.rad(a), 0, math.rad(-20)))
+            applyJointOffset(m, rArmJoints, CFrame.Angles(math.rad(135 - a), 0, math.rad(20)))
+            applyJointOffset(m, neckJoints, CFrame.Angles(0, math.rad((step - 1.5) * 25), 0))
+        elseif id == "KarateKata" then
+            local k = math.sin(t * 7)
+            applyJointOffset(m, rootJoints, CFrame.Angles(0, k * 0.5, 0))
+            applyJointOffset(m, rArmJoints, CFrame.Angles(math.rad(95 + k * 45), 0, math.rad(10)))
+            applyJointOffset(m, lArmJoints, CFrame.Angles(math.rad(50 - k * 35), 0, math.rad(-25)))
+            applyJointOffset(m, rLegJoints, CFrame.Angles(math.rad(math.max(0, k) * 75), 0, 0))
+        elseif id == "SuperCharge" then
+            local j = math.sin(t * 28) * 0.08
+            applyJointOffset(m, rootJoints, CFrame.new(j, 0.35 + math.abs(j), 0) * CFrame.Angles(math.rad(-12), 0, 0))
+            applyJointOffset(m, lArmJoints, CFrame.Angles(math.rad(35), 0, math.rad(-42)))
+            applyJointOffset(m, rArmJoints, CFrame.Angles(math.rad(35), 0, math.rad(42)))
+            applyJointOffset(m, lLegJoints, CFrame.Angles(math.rad(-15), 0, math.rad(-18)))
+            applyJointOffset(m, rLegJoints, CFrame.Angles(math.rad(-15), 0, math.rad(18)))
+        elseif id == "ChillSit" then
+            applyJointOffset(m, rootJoints, CFrame.new(0, -1.0, 0) * CFrame.Angles(math.rad(-12), 0, 0))
+            applyJointOffset(m, lLegJoints, CFrame.Angles(math.rad(85), 0, math.rad(-12)))
+            applyJointOffset(m, rLegJoints, CFrame.Angles(math.rad(85), 0, math.rad(12)))
+            applyJointOffset(m, lArmJoints, CFrame.Angles(math.rad(-25), 0, math.rad(-15)))
+            applyJointOffset(m, rArmJoints, CFrame.Angles(math.rad(-25), 0, math.rad(15)))
+        elseif id == "Salute" then
+            applyJointOffset(m, rArmJoints, CFrame.Angles(math.rad(140), 0, math.rad(-22)))
+            applyJointOffset(m, lArmJoints, CFrame.Angles(0, 0, math.rad(-6)))
+        elseif id == "Moonwalk" then
+            local s = math.sin(t * 6)
+            applyJointOffset(m, rootJoints, CFrame.new(0, math.abs(s) * 0.15, 0) * CFrame.Angles(math.rad(-10), 0, 0))
+            applyJointOffset(m, lLegJoints, CFrame.Angles(math.rad(-42 * s), 0, 0))
+            applyJointOffset(m, rLegJoints, CFrame.Angles(math.rad(42 * s), 0, 0))
+            applyJointOffset(m, lArmJoints, CFrame.Angles(math.rad(30 * s), 0, math.rad(-12)))
+            applyJointOffset(m, rArmJoints, CFrame.Angles(math.rad(-30 * s), 0, math.rad(12)))
+        elseif id == "LevitateIdle" then
+            local bob = math.sin(t * 2.2) * 0.45
+            applyJointOffset(m, rootJoints, CFrame.new(0, 1.4 + bob, 0) * CFrame.Angles(math.rad(-6), 0, 0))
+            applyJointOffset(m, lArmJoints, CFrame.Angles(math.rad(15), 0, math.rad(-24 + bob * 10)))
+            applyJointOffset(m, rArmJoints, CFrame.Angles(math.rad(15), 0, math.rad(24 - bob * 10)))
+            applyJointOffset(m, lLegJoints, CFrame.Angles(math.rad(-18), 0, 0))
+            applyJointOffset(m, rLegJoints, CFrame.Angles(math.rad(-8), 0, 0))
+        elseif id == "JumpFlip" then
+            applyJointOffset(m, rootJoints, CFrame.Angles(t * 7, 0, 0))
+            applyJointOffset(m, lLegJoints, CFrame.Angles(math.rad(-45), 0, 0))
+            applyJointOffset(m, rLegJoints, CFrame.Angles(math.rad(-45), 0, 0))
+        elseif id == "SkyDiveFall" then
+            local w = math.sin(t * 6) * 0.15
+            applyJointOffset(m, rootJoints, CFrame.Angles(math.rad(78), 0, w))
+            applyJointOffset(m, lArmJoints, CFrame.Angles(math.rad(25), 0, math.rad(-65)))
+            applyJointOffset(m, rArmJoints, CFrame.Angles(math.rad(25), 0, math.rad(65)))
+            applyJointOffset(m, lLegJoints, CFrame.Angles(math.rad(-20), 0, math.rad(-18)))
+            applyJointOffset(m, rLegJoints, CFrame.Angles(math.rad(-20), 0, math.rad(18)))
+        elseif id == "VibeBounce" then
+            local b = math.abs(math.sin(t * 6.5))
+            applyJointOffset(m, rootJoints, CFrame.new(0, b * 0.4, 0))
+            applyJointOffset(m, neckJoints, CFrame.Angles(math.rad(-18 * b), 0, 0))
+            applyJointOffset(m, lArmJoints, CFrame.Angles(math.rad(45 + b * 25), 0, math.rad(-20)))
+            applyJointOffset(m, rArmJoints, CFrame.Angles(math.rad(45 + b * 25), 0, math.rad(20)))
+        elseif id == "SpinKick" then
+            applyJointOffset(m, rootJoints, CFrame.Angles(0, t * 9, math.rad(15)))
+            applyJointOffset(m, rLegJoints, CFrame.Angles(math.rad(85), 0, math.rad(20)))
+            applyJointOffset(m, lArmJoints, CFrame.Angles(math.rad(40), 0, math.rad(-45)))
+            applyJointOffset(m, rArmJoints, CFrame.Angles(math.rad(40), 0, math.rad(45)))
+        end
+    end
+
+    local PROC_STEP = "AngoorZenBuiltInProcStep"
+    pcall(function() RunService:UnbindFromRenderStep(PROC_STEP) end)
+    pcall(function()
+        RunService:BindToRenderStep(PROC_STEP, Enum.RenderPriority.Camera.Value + 2, stepProc)
+    end)
+
+    return {
+        isHandledPath = function(p)
+            return type(p) == "string" and (p:sub(1, 7) == "proc://" or p:sub(1, 6) == "rec://")
+        end,
+        play = function(path, spd)
+            procSpeed = tonumber(spd) or procSpeed or 1.0
+            procClock = 0
+            if type(path) == "string" and path:sub(1, 7) == "proc://" then
+                activeRecClip = nil
+                activeProcId = path:sub(8)
+                return true
+            elseif type(path) == "string" and path:sub(1, 6) == "rec://" then
+                local clipKey = path:sub(7)
+                activeProcId = nil
+                activeRecClip = savedRecClips[clipKey]
+                return activeRecClip ~= nil
+            end
+            return false
+        end,
+        stop = function()
+            if activeProcId or activeRecClip then
+                activeProcId = nil
+                activeRecClip = nil
+                resetMotors(getRig())
+            end
+        end,
+        setSpeed = function(spd)
+            procSpeed = tonumber(spd) or 1.0
+        end,
+        registerRecClip = function(key, frames)
+            local copy = {}
+            for i, f in ipairs(frames) do
+                local fc = {}
+                for k, v in pairs(f) do fc[k] = v end
+                copy[i] = fc
+            end
+            savedRecClips[key] = copy
+        end,
+    }
+end
+
+local function createAdvancedSlider(parentFrame, ctx, labelText, minVal, maxVal, initVal, fmtStr, yPos, onChange)
+    local Theme = ctx.Theme
+    local addCorner = ctx.addCorner
+    local addStroke = ctx.addStroke
+
+    local wrap = Instance.new("Frame")
+    wrap.Size = UDim2.new(1, -20, 0, 36)
+    wrap.Position = UDim2.new(0, 10, 0, yPos)
+    wrap.BackgroundTransparency = 1
+    wrap.Parent = parentFrame
+
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(1, -56, 0, 16)
+    lbl.Position = UDim2.new(0, 0, 0, 0)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = labelText
+    lbl.TextColor3 = Theme.text
+    lbl.Font = Enum.Font.GothamSemibold
+    lbl.TextSize = 10
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.Parent = wrap
+
+    local valLbl = Instance.new("TextLabel")
+    valLbl.Size = UDim2.new(0, 52, 0, 16)
+    valLbl.Position = UDim2.new(1, -52, 0, 0)
+    valLbl.BackgroundColor3 = Theme.input
+    valLbl.Text = string.format(fmtStr, initVal)
+    valLbl.TextColor3 = Theme.accent
+    valLbl.Font = Enum.Font.GothamBold
+    valLbl.TextSize = 9.5
+    valLbl.Parent = wrap
+    addCorner(valLbl, 4)
+    addStroke(valLbl, Theme.divider, 1, 0)
+
+    local track = Instance.new("Frame")
+    track.Size = UDim2.new(1, 0, 0, 6)
+    track.Position = UDim2.new(0, 0, 0, 24)
+    track.BackgroundColor3 = Theme.surface
+    track.BorderSizePixel = 0
+    track.Parent = wrap
+    addCorner(track, 3)
+
+    local initAlpha = math.clamp((initVal - minVal) / math.max(maxVal - minVal, 0.0001), 0, 1)
+    local fill = Instance.new("Frame")
+    fill.Size = UDim2.new(initAlpha, 0, 1, 0)
+    fill.BackgroundColor3 = Theme.accent
+    fill.BorderSizePixel = 0
+    fill.Parent = track
+    addCorner(fill, 3)
+
+    local knob = Instance.new("Frame")
+    knob.Size = UDim2.new(0, 12, 0, 12)
+    knob.Position = UDim2.new(1, -6, 0.5, -6)
+    knob.BackgroundColor3 = Theme.text
+    knob.BorderSizePixel = 0
+    knob.Parent = fill
+    addCorner(knob, 6)
+
+    local dragging = false
+    local function setVal(v, triggerCb)
+        local clamped = math.clamp(v, minVal, maxVal)
+        local rounded = math.floor(clamped * 10 + 0.5) / 10
+        local alpha = math.clamp((rounded - minVal) / math.max(maxVal - minVal, 0.0001), 0, 1)
+        fill.Size = UDim2.new(alpha, 0, 1, 0)
+        valLbl.Text = string.format(fmtStr, rounded)
+        if triggerCb and onChange then
+            onChange(rounded)
+        end
+    end
+
+    local function updateFromInput(input)
+        local w = math.max(track.AbsoluteSize.X, 1)
+        local relX = math.clamp(input.Position.X - track.AbsolutePosition.X, 0, w)
+        local v = minVal + (maxVal - minVal) * (relX / w)
+        setVal(v, true)
+    end
+
+    local hitArea = Instance.new("TextButton")
+    hitArea.Size = UDim2.new(1, 0, 0, 20)
+    hitArea.Position = UDim2.new(0, 0, 0, 16)
+    hitArea.BackgroundTransparency = 1
+    hitArea.Text = ""
+    hitArea.ZIndex = 6
+    hitArea.Parent = wrap
+
+    hitArea.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            updateFromInput(input)
+        end
+    end)
+
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            updateFromInput(input)
+        end
+    end)
+
+    return {
+        frame = wrap,
+        setVal = setVal,
+    }
+end
+
+local function buildStretchAndFxModules(ctx)
+    local Theme                  = ctx.Theme
+    local addCorner              = ctx.addCorner
+    local addStroke              = ctx.addStroke
+    local playTween              = ctx.playTween
+    local zenApi                 = ctx.zenApi
+    local savedConfig            = ctx.savedConfig
+    local saveConfig             = ctx.saveConfig
+    local pagesHolder            = ctx.pagesHolder
+    local findTargetPlayer       = ctx.findTargetPlayer
+    local createLimbToggleSwitch = ctx.createLimbToggleSwitch
+    local setSwitchVisual        = ctx.setSwitchVisual
+    local stopBangFn             = ctx.stopBang
+
+    -- Default Stretch & FX config initialization
+    savedConfig.stretch = type(savedConfig.stretch) == "table" and savedConfig.stretch or {}
+    local stCfg = savedConfig.stretch
+    if stCfg.enabled == nil then stCfg.enabled = false end
+    if type(stCfg.mode) ~= "string" then stCfg.mode = "Single Limb" end
+    if type(stCfg.length) ~= "number" then stCfg.length = 24 end
+    if type(stCfg.skyHeight) ~= "number" then stCfg.skyHeight = 0 end
+    if type(stCfg.motionSpeed) ~= "number" then stCfg.motionSpeed = 2.0 end
+    if type(stCfg.spinSpeed) ~= "number" then stCfg.spinSpeed = 0 end
+    if stCfg.visualStretch == nil then stCfg.visualStretch = true end
+    if stCfg.wavePulse == nil then stCfg.wavePulse = false end
+    if stCfg.keepRootGrounded == nil then stCfg.keepRootGrounded = true end
+    if type(stCfg.enabledLimbs) ~= "table" then
+        stCfg.enabledLimbs = {
+            ["Head"]      = true,
+            ["Torso"]     = true,
+            ["Left Arm"]  = true,
+            ["Right Arm"] = true,
+            ["Left Leg"]  = true,
+            ["Right Leg"] = true,
+        }
+    end
+    if type(stCfg.customOffsets) ~= "table" then
+        stCfg.customOffsets = {}
+    end
+    if type(stCfg.limbLines) ~= "table" then
+        stCfg.limbLines = {}
+    end
+
+    savedConfig.fx = type(savedConfig.fx) == "table" and savedConfig.fx or {}
+    local fxCfg = savedConfig.fx
+    if fxCfg.afterimageEnabled == nil then fxCfg.afterimageEnabled = false end
+    if type(fxCfg.afterimageRate) ~= "number" then fxCfg.afterimageRate = 0.12 end
+    if type(fxCfg.afterimageFade) ~= "number" then fxCfg.afterimageFade = 0.6 end
+    if fxCfg.hoverEnabled == nil then fxCfg.hoverEnabled = false end
+    if type(fxCfg.hoverHeight) ~= "number" then fxCfg.hoverHeight = 4.5 end
+    if fxCfg.poseFreezeEnabled == nil then fxCfg.poseFreezeEnabled = false end
+    if fxCfg.noodleEnabled == nil then fxCfg.noodleEnabled = false end
+    if type(fxCfg.noodleIntensity) ~= "number" then fxCfg.noodleIntensity = 1.5 end
+    if fxCfg.glitchEnabled == nil then fxCfg.glitchEnabled = false end
+    if type(fxCfg.glitchIntensity) ~= "number" then fxCfg.glitchIntensity = 1.0 end
+    if fxCfg.targetOrbitEnabled == nil then fxCfg.targetOrbitEnabled = false end
+    if type(fxCfg.targetOrbitName) ~= "string" then fxCfg.targetOrbitName = "" end
+    if type(fxCfg.targetOrbitRadius) ~= "number" then fxCfg.targetOrbitRadius = 7 end
+    if type(fxCfg.targetOrbitMode) ~= "string" then fxCfg.targetOrbitMode = "Orbit" end
+    if fxCfg.antiVoidEnabled == nil then fxCfg.antiVoidEnabled = true end
+
+    local LIMB_ORDER = { "Torso", "Head", "Left Arm", "Right Arm", "Left Leg", "Right Leg" }
+    local STRETCHABLE_LIMBS = { "Right Leg", "Left Leg", "Right Arm", "Left Arm", "Head" }
+    local LIMB_PART_MAP = {
+        ["Head"]      = { "Head" },
+        ["Torso"]     = { "Torso", "UpperTorso", "LowerTorso" },
+        ["Left Arm"]  = { "Left Arm", "LeftUpperArm", "LeftLowerArm", "LeftHand" },
+        ["Right Arm"] = { "Right Arm", "RightUpperArm", "RightLowerArm", "RightHand" },
+        ["Left Leg"]  = { "Left Leg", "LeftUpperLeg", "LeftLowerLeg", "LeftFoot" },
+        ["Right Leg"] = { "Right Leg", "RightUpperLeg", "RightLowerLeg", "RightFoot" },
+    }
+    local R6_SOCKET_OFFSETS = {
+        ["Head"]      = Vector3.new(0, 1.0, 0),
+        ["Left Arm"]  = Vector3.new(-1.5, 0.5, 0),
+        ["Right Arm"] = Vector3.new(1.5, 0.5, 0),
+        ["Left Leg"]  = Vector3.new(-0.5, -1.0, 0),
+        ["Right Leg"] = Vector3.new(0.5, -1.0, 0),
+    }
+
+    for _, limbId in ipairs(LIMB_ORDER) do
+        if stCfg.enabledLimbs[limbId] == nil then
+            stCfg.enabledLimbs[limbId] = true
+        end
+        if type(stCfg.customOffsets[limbId]) ~= "table" then
+            stCfg.customOffsets[limbId] = { x = 0, y = 0, z = 0, scale = 1 }
+        end
+    end
+    for _, limbId in ipairs(STRETCHABLE_LIMBS) do
+        local ll = stCfg.limbLines[limbId]
+        if type(ll) ~= "table" then
+            ll = {
+                enabled   = false,
+                dir       = "Forward",
+                length    = 20,
+                thickness = 1.0,
+                pitch     = 0,
+                yaw       = 0,
+                walkSwing = false,
+            }
+            stCfg.limbLines[limbId] = ll
+        else
+            if ll.enabled == nil then ll.enabled = false end
+            if type(ll.dir) ~= "string" then ll.dir = "Forward" end
+            if type(ll.length) ~= "number" then ll.length = 20 end
+            if type(ll.thickness) ~= "number" then ll.thickness = 1.0 end
+            if type(ll.pitch) ~= "number" then ll.pitch = 0 end
+            if type(ll.yaw) ~= "number" then ll.yaw = 0 end
+            if ll.walkSwing == nil then ll.walkSwing = false end
+        end
+    end
+
+    -- Weak-keyed original rig cache so resetting restores every joint, size & mesh cleanly
+    local origMotorCache     = setmetatable({}, { __mode = "k" })
+    local origPartCache      = setmetatable({}, { __mode = "k" })
+    local lastModifiedParts  = {}
+    local trailHistory       = {}
+    local frozenRelCF        = {}
+    local lastRigRef         = nil
+    local lastAfterimageTick = 0
+    local runtimeClock       = 0
+
+    local function getActiveRig()
+        if zenApi and type(zenApi.is_reanimated) == "function" and type(zenApi.get_clone) == "function" then
+            local okRe, isRe = pcall(zenApi.is_reanimated)
+            if okRe and isRe then
+                local okCl, cl = pcall(zenApi.get_clone)
+                if okCl and cl and cl.Parent then
+                    return cl
+                end
+            end
+        end
+        return LocalPlayer and LocalPlayer.Character
+    end
+
+    local function cacheRigOriginals(rig)
+        if not rig then return end
+        for _, desc in ipairs(rig:GetDescendants()) do
+            if desc:IsA("Motor6D") and not origMotorCache[desc] then
+                origMotorCache[desc] = {
+                    C0 = desc.C0,
+                    C1 = desc.C1,
+                }
+            elseif desc:IsA("BasePart") and not origPartCache[desc] then
+                local existingMesh = desc:FindFirstChildOfClass("SpecialMesh")
+                origPartCache[desc] = {
+                    Size = desc.Size,
+                    Mesh = existingMesh,
+                    MeshScale = existingMesh and existingMesh.Scale or nil,
+                }
+            end
+        end
+    end
+
+    local function restorePartMesh(part)
+        if not part or not part.Parent then return end
+        local helper = part:FindFirstChild("_AngoorStretchMesh")
+        if helper then
+            pcall(function() helper:Destroy() end)
+        end
+        local cached = origPartCache[part]
+        if cached and cached.Mesh and cached.Mesh.Parent and cached.MeshScale then
+            pcall(function() cached.Mesh.Scale = cached.MeshScale end)
+        end
+    end
+
+    local function applyPartVisualStretch(part, scaleVec)
+        if not part or not part.Parent then return end
+        cacheRigOriginals(part.Parent)
+        local cached = origPartCache[part]
+        local existingMesh = part:FindFirstChildOfClass("SpecialMesh")
+        if existingMesh and existingMesh.Name ~= "_AngoorStretchMesh" then
+            local baseScale = (cached and cached.MeshScale) or Vector3.new(1, 1, 1)
+            existingMesh.Scale = Vector3.new(
+                baseScale.X * scaleVec.X,
+                baseScale.Y * scaleVec.Y,
+                baseScale.Z * scaleVec.Z
+            )
+        else
+            local helper = part:FindFirstChild("_AngoorStretchMesh")
+            if not helper then
+                helper = Instance.new("SpecialMesh")
+                helper.Name = "_AngoorStretchMesh"
+                helper.MeshType = Enum.MeshType.Brick
+                helper.Parent = part
+            end
+            helper.Scale = scaleVec
+        end
+    end
+
+    local function getMotorForPart(rig, part)
+        for _, desc in ipairs(rig:GetDescendants()) do
+            if desc:IsA("Motor6D") and desc.Part1 == part then
+                return desc
+            end
+        end
+        return nil
+    end
+
+    local function restoreSinglePart(rig, part)
+        if not part or not part.Parent then return end
+        restorePartMesh(part)
+        local m = getMotorForPart(rig, part)
+        if m and origMotorCache[m] then
+            pcall(function()
+                m.C0 = origMotorCache[m].C0
+                m.C1 = origMotorCache[m].C1
+                m.Transform = CFrame.new()
+            end)
+        end
+    end
+
+    local function restoreRigVisuals(rig)
+        rig = rig or getActiveRig()
+        table.clear(lastModifiedParts)
+        if not rig then return end
+        for _, desc in ipairs(rig:GetDescendants()) do
+            if desc:IsA("Motor6D") then
+                local orig = origMotorCache[desc]
+                if orig then
+                    pcall(function()
+                        desc.C0 = orig.C0
+                        desc.C1 = orig.C1
+                        desc.Transform = CFrame.new()
+                    end)
+                end
+            elseif desc:IsA("BasePart") then
+                restorePartMesh(desc)
+            end
+        end
+    end
+
+    local function placeLimbPart(rig, part, targetCF, computedCFMap, modSet)
+        if not part or not part.Parent then return end
+        computedCFMap[part] = targetCF
+        if modSet then modSet[part] = true end
+        local motor = getMotorForPart(rig, part)
+        if motor and motor.Part0 then
+            local p0CF = computedCFMap[motor.Part0] or motor.Part0.CFrame
+            motor.Transform = CFrame.new()
+            motor.C0 = p0CF:ToObjectSpace(targetCF) * motor.C1
+        else
+            part.CFrame = targetCF
+            pcall(function()
+                part.AssemblyLinearVelocity = Vector3.zero
+                part.AssemblyAngularVelocity = Vector3.zero
+            end)
+        end
+    end
+
+    local function getPartsForLimbGroup(rig, limbId)
+        local names = LIMB_PART_MAP[limbId] or {}
+        local found = {}
+        for _, pName in ipairs(names) do
+            local p = rig:FindFirstChild(pName)
+            if p and p:IsA("BasePart") then
+                table.insert(found, p)
+            end
+        end
+        return found
+    end
+
+    -- Build a clean right-handed CFrame whose UpVector (+Y) points along dirUnit
+    local function cframeAlongDir(pos, dirUnit, refRight)
+        local up = (dirUnit.Magnitude > 0.0001) and dirUnit.Unit or Vector3.new(0, 1, 0)
+        local right = refRight or Vector3.new(1, 0, 0)
+        if math.abs(up:Dot(right)) > 0.98 then
+            right = Vector3.new(0, 0, 1)
+            if math.abs(up:Dot(right)) > 0.98 then
+                right = Vector3.new(1, 0, 0)
+            end
+        end
+        local back = right:Cross(up).Unit
+        right = up:Cross(back).Unit
+        return CFrame.fromMatrix(pos, right, up, back)
+    end
+
+    -- Exact joint socket position on the Torso/UpperTorso/LowerTorso (R6 & R15)
+    local function getLimbSocketWorldPos(rig, limbId, firstPart, computedCFMap)
+        local r6Torso = rig:FindFirstChild("Torso")
+        local isR6 = (r6Torso ~= nil) and (rig:FindFirstChild("UpperTorso") == nil)
+        if isR6 and R6_SOCKET_OFFSETS[limbId] then
+            local torsoCF = computedCFMap[r6Torso] or r6Torso.CFrame
+            return (torsoCF * CFrame.new(R6_SOCKET_OFFSETS[limbId])).Position
+        end
+        local motor = firstPart and getMotorForPart(rig, firstPart)
+        if motor and motor.Part0 then
+            local orig = origMotorCache[motor]
+            local p0CF = computedCFMap[motor.Part0] or motor.Part0.CFrame
+            if orig and orig.C0 then
+                return (p0CF * orig.C0).Position
+            end
+            return p0CF.Position
+        end
+        local root = rig:FindFirstChild("HumanoidRootPart")
+        return root and root.Position or Vector3.zero
+    end
+
+    -- Stretch a single limb seamlessly in ONE unbroken line from its real joint socket
+    local function stretchLimbFromSocket(rig, limbId, worldDir, totalLen, thickness, spinRot, visualMeshOn, computedCFMap, modSet)
+        local parts = getPartsForLimbGroup(rig, limbId)
+        if #parts == 0 then return end
+        local root = rig:FindFirstChild("HumanoidRootPart")
+        local refRight = root and root.CFrame.RightVector or Vector3.new(1, 0, 0)
+        local dir = (worldDir.Magnitude > 0.0001) and worldDir.Unit or Vector3.new(0, 1, 0)
+        local socketPos = getLimbSocketWorldPos(rig, limbId, parts[1], computedCFMap)
+        local thick = math.clamp(thickness or 1.0, 0.3, 4.0)
+        local L = math.max(totalLen or 12, 1.0)
+        local n = #parts
+
+        if n == 1 then
+            local p = parts[1]
+            local origSz = (origPartCache[p] and origPartCache[p].Size) or p.Size
+            local center = socketPos + dir * (L * 0.5)
+            local cf = cframeAlongDir(center, dir, refRight) * spinRot
+            placeLimbPart(rig, p, cf, computedCFMap, modSet)
+            if visualMeshOn then
+                local scaleY = math.clamp(L / math.max(origSz.Y, 0.2), 0.5, 80)
+                applyPartVisualStretch(p, Vector3.new(thick, scaleY, thick))
+            else
+                restorePartMesh(p)
+            end
+        elseif n == 3 and visualMeshOn then
+            -- R15 3-part limb (Upper, Lower, Foot/Hand): keep cap natural at tip, stretch Upper+Lower seamlessly
+            local p1, p2, p3 = parts[1], parts[2], parts[3]
+            local s1 = (origPartCache[p1] and origPartCache[p1].Size) or p1.Size
+            local s2 = (origPartCache[p2] and origPartCache[p2].Size) or p2.Size
+            local s3 = (origPartCache[p3] and origPartCache[p3].Size) or p3.Size
+            local tipLen = math.min(s3.Y, L * 0.25)
+            local shaftLen = math.max(L - tipLen, 0.5)
+            local len1 = shaftLen * 0.5
+            local len2 = shaftLen * 0.5
+
+            local cf1 = cframeAlongDir(socketPos + dir * (len1 * 0.5), dir, refRight) * spinRot
+            placeLimbPart(rig, p1, cf1, computedCFMap, modSet)
+            applyPartVisualStretch(p1, Vector3.new(thick, math.clamp(len1 / math.max(s1.Y, 0.2), 0.5, 60), thick))
+
+            local cf2 = cframeAlongDir(socketPos + dir * (len1 + len2 * 0.5), dir, refRight) * spinRot
+            placeLimbPart(rig, p2, cf2, computedCFMap, modSet)
+            applyPartVisualStretch(p2, Vector3.new(thick, math.clamp(len2 / math.max(s2.Y, 0.2), 0.5, 60), thick))
+
+            local cf3 = cframeAlongDir(socketPos + dir * (len1 + len2 + tipLen * 0.5), dir, refRight) * spinRot
+            placeLimbPart(rig, p3, cf3, computedCFMap, modSet)
+            applyPartVisualStretch(p3, Vector3.new(thick, math.clamp(tipLen / math.max(s3.Y, 0.2), 0.5, 4), thick))
+        else
+            local segLen = L / n
+            for pIdx, p in ipairs(parts) do
+                local origSz = (origPartCache[p] and origPartCache[p].Size) or p.Size
+                local dist = (pIdx - 0.5) * segLen
+                local cf = cframeAlongDir(socketPos + dir * dist, dir, refRight) * spinRot
+                placeLimbPart(rig, p, cf, computedCFMap, modSet)
+                if visualMeshOn then
+                    applyPartVisualStretch(p, Vector3.new(thick, math.clamp(segLen / math.max(origSz.Y, 0.2), 0.5, 60), thick))
+                else
+                    restorePartMesh(p)
+                end
+            end
+        end
+    end
+
+    local function resolveDirectionVector(rootCF, dirName, pitchDeg, yawDeg)
+        local baseWorld
+        if dirName == "Camera" then
+            local cam = workspace.CurrentCamera
+            baseWorld = (cam and cam.CFrame.LookVector) or rootCF.LookVector
+        elseif dirName == "Sky" then
+            baseWorld = Vector3.new(0, 1, 0)
+        elseif dirName == "Down" then
+            baseWorld = Vector3.new(0, -1, 0)
+        elseif dirName == "Right" then
+            baseWorld = rootCF.RightVector
+        elseif dirName == "Left" then
+            baseWorld = -rootCF.RightVector
+        elseif dirName == "Back" then
+            baseWorld = -rootCF.LookVector
+        else
+            baseWorld = rootCF.LookVector
+        end
+
+        if (pitchDeg or 0) == 0 and (yawDeg or 0) == 0 then
+            return baseWorld.Unit
+        end
+        local localDir = rootCF:VectorToObjectSpace(baseWorld).Unit
+        local rotatedLocal = (CFrame.Angles(math.rad(pitchDeg or 0), math.rad(yawDeg or 0), 0)):VectorToWorldSpace(localDir)
+        return rootCF:VectorToWorldSpace(rotatedLocal).Unit
+    end
+
+    -- ========================================================================
+    -- BUILD STRETCH PAGE UI
+    -- ========================================================================
+    local stretchPage = Instance.new("ScrollingFrame")
+    stretchPage.Name = "StretchPage"
+    stretchPage.Size = UDim2.new(1, 0, 1, 0)
+    stretchPage.BackgroundTransparency = 1
+    stretchPage.BorderSizePixel = 0
+    stretchPage.ScrollBarThickness = 3
+    stretchPage.ScrollBarImageColor3 = Theme.accent
+    stretchPage.ScrollBarImageTransparency = 0.6
+    pcall(function()
+        stretchPage.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    end)
+    stretchPage.CanvasSize = UDim2.new(0, 0, 0, 760)
+    stretchPage.Visible = false
+    stretchPage.Parent = pagesHolder
+
+    local stPad = Instance.new("UIPadding")
+    stPad.PaddingLeft = UDim.new(0, 2)
+    stPad.PaddingRight = UDim.new(0, 4)
+    stPad.PaddingTop = UDim.new(0, 2)
+    stPad.PaddingBottom = UDim.new(0, 14)
+    stPad.Parent = stretchPage
+
+    local stLayout = Instance.new("UIListLayout")
+    stLayout.Padding = UDim.new(0, 8)
+    stLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    stLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        stretchPage.CanvasSize = UDim2.new(0, 0, 0, stLayout.AbsoluteContentSize.Y + 28)
+    end)
+    stLayout.Parent = stretchPage
+
+    local stMasterTrack, stMasterKnob, stMasterGlow, stMasterSub
+    local setStretchEnabled, updateFormationButtonsUI, syncSingleLimbUI
+    local singleLimbCardRef, customCardRef
+    local formationButtons = {}
+
+    -- Header + Master Card
+    do
+        local stHeaderLbl = Instance.new("TextLabel")
+        stHeaderLbl.Size = UDim2.new(1, 0, 0, 16)
+        stHeaderLbl.BackgroundTransparency = 1
+        stHeaderLbl.Text = "SINGLE-LIMB STRETCH & FORMATIONS"
+        stHeaderLbl.TextColor3 = Theme.textMuted
+        stHeaderLbl.Font = Enum.Font.GothamBold
+        stHeaderLbl.TextSize = 10
+        stHeaderLbl.TextXAlignment = Enum.TextXAlignment.Left
+        stHeaderLbl.LayoutOrder = 1
+        stHeaderLbl.Parent = stretchPage
+
+        local stMasterCard = Instance.new("Frame")
+        stMasterCard.Size = UDim2.new(1, 0, 0, 46)
+        stMasterCard.BackgroundColor3 = Theme.surface
+        stMasterCard.BorderSizePixel = 0
+        stMasterCard.LayoutOrder = 2
+        stMasterCard.Parent = stretchPage
+        addCorner(stMasterCard, 10)
+        addStroke(stMasterCard, Color3.fromRGB(255, 255, 255), 1, 0.88)
+
+        local stMasterTitle = Instance.new("TextLabel")
+        stMasterTitle.Size = UDim2.new(1, -135, 0, 18)
+        stMasterTitle.Position = UDim2.new(0, 12, 0, 6)
+        stMasterTitle.BackgroundTransparency = 1
+        stMasterTitle.Text = "Limb Stretch Engine"
+        stMasterTitle.TextColor3 = Color3.fromRGB(245, 245, 250)
+        stMasterTitle.Font = Enum.Font.GothamBold
+        stMasterTitle.TextSize = 11
+        stMasterTitle.TextXAlignment = Enum.TextXAlignment.Left
+        stMasterTitle.Parent = stMasterCard
+
+        stMasterSub = Instance.new("TextLabel")
+        stMasterSub.Size = UDim2.new(1, -135, 0, 14)
+        stMasterSub.Position = UDim2.new(0, 12, 0, 24)
+        stMasterSub.BackgroundTransparency = 1
+        stMasterSub.Text = "Mode: " .. tostring(stCfg.mode)
+        stMasterSub.TextColor3 = Theme.textMuted
+        stMasterSub.Font = Enum.Font.Gotham
+        stMasterSub.TextSize = 9
+        stMasterSub.TextXAlignment = Enum.TextXAlignment.Left
+        stMasterSub.Parent = stMasterCard
+
+        local stResetBtn = Instance.new("TextButton")
+        stResetBtn.Size = UDim2.new(0, 50, 0, 22)
+        stResetBtn.Position = UDim2.new(1, -112, 0.5, -11)
+        stResetBtn.BackgroundColor3 = Theme.bgCard
+        stResetBtn.Text = "Reset"
+        stResetBtn.TextColor3 = Theme.textMuted
+        stResetBtn.Font = Enum.Font.GothamBold
+        stResetBtn.TextSize = 9.5
+        stResetBtn.ZIndex = 7
+        stResetBtn.Parent = stMasterCard
+        addCorner(stResetBtn, 6)
+        addStroke(stResetBtn, Theme.divider, 1, 0.3)
+
+        stMasterTrack, stMasterKnob, stMasterGlow = createLimbToggleSwitch(stMasterCard, -54, -11)
+        setSwitchVisual(stMasterTrack, stMasterKnob, stMasterGlow, stCfg.enabled, false)
+
+        local stMasterHit = Instance.new("TextButton")
+        stMasterHit.Size = UDim2.new(0, 54, 1, 0)
+        stMasterHit.Position = UDim2.new(1, -56, 0, 0)
+        stMasterHit.BackgroundTransparency = 1
+        stMasterHit.Text = ""
+        stMasterHit.ZIndex = 6
+        stMasterHit.Parent = stMasterCard
+
+        setStretchEnabled = function(newState, animate)
+            stCfg.enabled = (newState == true)
+            saveConfig()
+            setSwitchVisual(stMasterTrack, stMasterKnob, stMasterGlow, stCfg.enabled, animate ~= false)
+            if not stCfg.enabled then
+                restoreRigVisuals(getActiveRig())
+            end
+        end
+
+        stMasterHit.MouseButton1Click:Connect(function()
+            setStretchEnabled(not stCfg.enabled, true)
+        end)
+
+        stResetBtn.MouseButton1Click:Connect(function()
+            stCfg.enabled = false
+            stCfg.length = 24
+            stCfg.skyHeight = 0
+            stCfg.motionSpeed = 2.0
+            stCfg.spinSpeed = 0
+            stCfg.wavePulse = false
+            for _, lId in ipairs(LIMB_ORDER) do
+                stCfg.enabledLimbs[lId] = true
+                stCfg.customOffsets[lId] = { x = 0, y = 0, z = 0, scale = 1 }
+            end
+            for _, lId in ipairs(STRETCHABLE_LIMBS) do
+                stCfg.limbLines[lId] = {
+                    enabled = false, dir = "Forward", length = 20,
+                    thickness = 1.0, pitch = 0, yaw = 0, walkSwing = false,
+                }
+            end
+            saveConfig()
+            setSwitchVisual(stMasterTrack, stMasterKnob, stMasterGlow, false, true)
+            if syncSingleLimbUI then syncSingleLimbUI() end
+            restoreRigVisuals(getActiveRig())
+        end)
+    end
+
+    -- Formation Presets Grid Card (Single Limb is #1 Default!)
+    do
+        local FORMATIONS = {
+            "Single Limb", "Sky Pillar", "Forward Line",
+            "Sky Reach", "Mega Wingspan", "Snake Trail",
+            "Orbit Ring", "Helix Spiral", "Spider Giant",
+            "Custom",
+        }
+
+        local presetsCard = Instance.new("Frame")
+        presetsCard.Size = UDim2.new(1, 0, 0, 146)
+        presetsCard.BackgroundColor3 = Theme.bgCard
+        presetsCard.BorderSizePixel = 0
+        presetsCard.LayoutOrder = 3
+        presetsCard.Parent = stretchPage
+        addCorner(presetsCard, 8)
+        addStroke(presetsCard, Theme.divider, 1, 0)
+
+        local presetsTitle = Instance.new("TextLabel")
+        presetsTitle.Size = UDim2.new(1, -20, 0, 18)
+        presetsTitle.Position = UDim2.new(0, 10, 0, 6)
+        presetsTitle.BackgroundTransparency = 1
+        presetsTitle.Text = "STRETCH MODE (SINGLE LIMB = NO BROKEN BODY)"
+        presetsTitle.TextColor3 = Theme.textMuted
+        presetsTitle.Font = Enum.Font.GothamBold
+        presetsTitle.TextSize = 9.5
+        presetsTitle.TextXAlignment = Enum.TextXAlignment.Left
+        presetsTitle.Parent = presetsCard
+
+        updateFormationButtonsUI = function()
+            stMasterSub.Text = "Mode: " .. tostring(stCfg.mode)
+            for name, btn in pairs(formationButtons) do
+                local active = (stCfg.mode == name)
+                btn.BackgroundColor3 = active and Theme.accent or Theme.surface
+                btn.TextColor3 = active and Color3.fromRGB(8, 8, 10) or Theme.text
+                btn.Font = active and Enum.Font.GothamBold or Enum.Font.GothamMedium
+            end
+            if singleLimbCardRef then
+                singleLimbCardRef.Visible = (stCfg.mode == "Single Limb")
+            end
+            if customCardRef then
+                customCardRef.Visible = (stCfg.mode == "Custom")
+            end
+        end
+
+        for idx, fName in ipairs(FORMATIONS) do
+            local row = math.floor((idx - 1) / 3)
+            local col = (idx - 1) % 3
+            local btn = Instance.new("TextButton")
+            btn.Size = UDim2.new(1 / 3, -10, 0, 24)
+            btn.Position = UDim2.new(col / 3, 7, 0, 28 + row * 28)
+            btn.BackgroundColor3 = Theme.surface
+            btn.Text = fName
+            btn.TextColor3 = Theme.text
+            btn.Font = Enum.Font.GothamMedium
+            btn.TextSize = 9.5
+            btn.TextTruncate = Enum.TextTruncate.AtEnd
+            btn.Parent = presetsCard
+            addCorner(btn, 6)
+            addStroke(btn, Theme.divider, 1, 0.3)
+
+            formationButtons[fName] = btn
+            btn.MouseButton1Click:Connect(function()
+                stCfg.mode = fName
+                if not stCfg.enabled then
+                    setStretchEnabled(true, true)
+                else
+                    saveConfig()
+                end
+                updateFormationButtonsUI()
+            end)
+        end
+    end
+
+    -- ========================================================================
+    -- SINGLE-LIMB LINE STRETCH CARD (Independent Per-Limb Controls!)
+    -- Stretch Right Leg, Left Leg, Right Arm, Left Arm, or Head in ONE straight
+    -- line from its real joint socket while keeping the rest of your body normal!
+    -- ========================================================================
+    do
+        local slCard = Instance.new("Frame")
+        slCard.Size = UDim2.new(1, 0, 0, 392)
+        slCard.BackgroundColor3 = Theme.bgCard
+        slCard.BorderSizePixel = 0
+        slCard.LayoutOrder = 4
+        slCard.Visible = (stCfg.mode == "Single Limb")
+        slCard.Parent = stretchPage
+        addCorner(slCard, 8)
+        addStroke(slCard, Theme.accent, 1, 0.55)
+        singleLimbCardRef = slCard
+
+        local slTitle = Instance.new("TextLabel", slCard)
+        slTitle.Size = UDim2.new(1, -20, 0, 18)
+        slTitle.Position = UDim2.new(0, 10, 0, 6)
+        slTitle.BackgroundTransparency = 1
+        slTitle.Text = "PICK ANY LIMB TO STRETCH IN ONE LINE"
+        slTitle.TextColor3 = Theme.accent
+        slTitle.Font = Enum.Font.GothamBold
+        slTitle.TextSize = 9.5
+        slTitle.TextXAlignment = Enum.TextXAlignment.Left
+
+        local selectedLimb = "Right Leg"
+        local limbPillBtns = {}
+        local dirBtns = {}
+        local slLenSlider, slPitchSlider, slYawSlider, slThickSlider
+        local slEnableLbl, slEnTrack, slEnKnob, slEnGlow
+        local slSwingTrack, slSwingKnob, slSwingGlow
+
+        -- 5 Limb Selector Pills (Row 1: 3 pills, Row 2: 2 pills + Clear All)
+        for idx, limbId in ipairs(STRETCHABLE_LIMBS) do
+            local r = math.floor((idx - 1) / 3)
+            local c = (idx - 1) % 3
+            local pb = Instance.new("TextButton", slCard)
+            pb.Size = UDim2.new(1 / 3, -10, 0, 24)
+            pb.Position = UDim2.new(c / 3, 7, 0, 26 + r * 28)
+            pb.BackgroundColor3 = Theme.surface
+            pb.Text = limbId
+            pb.TextColor3 = Theme.text
+            pb.Font = Enum.Font.GothamBold
+            pb.TextSize = 9.5
+            addCorner(pb, 6)
+            local pStroke = addStroke(pb, Theme.divider, 1, 0.3)
+            limbPillBtns[limbId] = { btn = pb, stroke = pStroke }
+
+            pb.MouseButton1Click:Connect(function()
+                selectedLimb = limbId
+                if syncSingleLimbUI then syncSingleLimbUI() end
+            end)
+        end
+
+        -- 6th slot in the 2x3 grid: Clear All Limbs button
+        local clearAllLimbsBtn = Instance.new("TextButton", slCard)
+        clearAllLimbsBtn.Size = UDim2.new(1 / 3, -10, 0, 24)
+        clearAllLimbsBtn.Position = UDim2.new(2 / 3, 7, 0, 54)
+        clearAllLimbsBtn.BackgroundColor3 = Theme.dangerHover
+        clearAllLimbsBtn.Text = "Clear All"
+        clearAllLimbsBtn.TextColor3 = Theme.danger
+        clearAllLimbsBtn.Font = Enum.Font.GothamBold
+        clearAllLimbsBtn.TextSize = 9.5
+        addCorner(clearAllLimbsBtn, 6)
+        addStroke(clearAllLimbsBtn, Theme.dangerDim, 1, 0.3)
+        clearAllLimbsBtn.MouseButton1Click:Connect(function()
+            for _, lId in ipairs(STRETCHABLE_LIMBS) do
+                stCfg.limbLines[lId].enabled = false
+            end
+            saveConfig()
+            restoreRigVisuals(getActiveRig())
+            if syncSingleLimbUI then syncSingleLimbUI() end
+        end)
+
+        -- Selected Limb Enable Toggle Row
+        local enRow = Instance.new("Frame", slCard)
+        enRow.Size = UDim2.new(1, -16, 0, 32)
+        enRow.Position = UDim2.new(0, 8, 0, 86)
+        enRow.BackgroundColor3 = Theme.surface
+        enRow.BorderSizePixel = 0
+        addCorner(enRow, 6)
+        addStroke(enRow, Theme.divider, 1, 0.3)
+
+        slEnableLbl = Instance.new("TextLabel", enRow)
+        slEnableLbl.Size = UDim2.new(1, -64, 1, 0)
+        slEnableLbl.Position = UDim2.new(0, 10, 0, 0)
+        slEnableLbl.BackgroundTransparency = 1
+        slEnableLbl.Text = "Stretch Right Leg (Keep Rest Normal)"
+        slEnableLbl.TextColor3 = Theme.text
+        slEnableLbl.Font = Enum.Font.GothamBold
+        slEnableLbl.TextSize = 10
+        slEnableLbl.TextXAlignment = Enum.TextXAlignment.Left
+
+        slEnTrack, slEnKnob, slEnGlow = createLimbToggleSwitch(enRow, -48, -11)
+        local enHit = Instance.new("TextButton", enRow)
+        enHit.Size = UDim2.new(1, 0, 1, 0)
+        enHit.BackgroundTransparency = 1
+        enHit.Text = ""
+        enHit.ZIndex = 6
+        enHit.MouseButton1Click:Connect(function()
+            local ll = stCfg.limbLines[selectedLimb]
+            ll.enabled = not ll.enabled
+            if ll.enabled then
+                stCfg.mode = "Single Limb"
+                if not stCfg.enabled then
+                    setStretchEnabled(true, true)
+                end
+                updateFormationButtonsUI()
+            end
+            saveConfig()
+            if syncSingleLimbUI then syncSingleLimbUI() end
+        end)
+
+        -- Direction Picker (7 Directions: Forward, Sky, Right, Left, Back, Down, Camera)
+        local dirLbl = Instance.new("TextLabel", slCard)
+        dirLbl.Size = UDim2.new(1, -20, 0, 16)
+        dirLbl.Position = UDim2.new(0, 10, 0, 124)
+        dirLbl.BackgroundTransparency = 1
+        dirLbl.Text = "LINE DIRECTION (STRETCH STRAIGHT FROM JOINT)"
+        dirLbl.TextColor3 = Theme.textMuted
+        dirLbl.Font = Enum.Font.GothamBold
+        dirLbl.TextSize = 9
+        dirLbl.TextXAlignment = Enum.TextXAlignment.Left
+
+        local DIRS_ROW1 = { "Forward", "Sky", "Right", "Left" }
+        local DIRS_ROW2 = { "Back", "Down", "Camera" }
+        for idx, dName in ipairs(DIRS_ROW1) do
+            local db = Instance.new("TextButton", slCard)
+            db.Size = UDim2.new(0.25, -8, 0, 22)
+            db.Position = UDim2.new((idx - 1) * 0.25, 6, 0, 142)
+            db.BackgroundColor3 = Theme.surface
+            db.Text = dName
+            db.TextColor3 = Theme.text
+            db.Font = Enum.Font.GothamBold
+            db.TextSize = 9
+            addCorner(db, 5)
+            addStroke(db, Theme.divider, 1, 0.3)
+            dirBtns[dName] = db
+            db.MouseButton1Click:Connect(function()
+                local ll = stCfg.limbLines[selectedLimb]
+                ll.dir = dName
+                ll.enabled = true
+                stCfg.mode = "Single Limb"
+                if not stCfg.enabled then setStretchEnabled(true, true) end
+                saveConfig()
+                updateFormationButtonsUI()
+                if syncSingleLimbUI then syncSingleLimbUI() end
+            end)
+        end
+        for idx, dName in ipairs(DIRS_ROW2) do
+            local db = Instance.new("TextButton", slCard)
+            db.Size = UDim2.new(1 / 3, -9, 0, 22)
+            db.Position = UDim2.new((idx - 1) / 3, 6, 0, 168)
+            db.BackgroundColor3 = Theme.surface
+            db.Text = (dName == "Camera") and "Camera Aim" or dName
+            db.TextColor3 = Theme.text
+            db.Font = Enum.Font.GothamBold
+            db.TextSize = 9
+            addCorner(db, 5)
+            addStroke(db, Theme.divider, 1, 0.3)
+            dirBtns[dName] = db
+            db.MouseButton1Click:Connect(function()
+                local ll = stCfg.limbLines[selectedLimb]
+                ll.dir = dName
+                ll.enabled = true
+                stCfg.mode = "Single Limb"
+                if not stCfg.enabled then setStretchEnabled(true, true) end
+                saveConfig()
+                updateFormationButtonsUI()
+                if syncSingleLimbUI then syncSingleLimbUI() end
+            end)
+        end
+
+        -- Length Slider + Quick Length Pills
+        slLenSlider = createAdvancedSlider(slCard, ctx, "Limb Line Length", 2, 120, 20, "%.0f st", 196, function(v)
+            stCfg.limbLines[selectedLimb].length = v
+            saveConfig()
+        end)
+
+        for idx, qVal in ipairs({ 8, 20, 45, 90 }) do
+            local qb = Instance.new("TextButton", slCard)
+            qb.Size = UDim2.new(0.25, -8, 0, 18)
+            qb.Position = UDim2.new((idx - 1) * 0.25, 6, 0, 234)
+            qb.BackgroundColor3 = Theme.surface
+            qb.Text = tostring(qVal) .. " st"
+            qb.TextColor3 = Theme.accent
+            qb.Font = Enum.Font.GothamBold
+            qb.TextSize = 8.5
+            addCorner(qb, 4)
+            addStroke(qb, Theme.divider, 1, 0.3)
+            qb.MouseButton1Click:Connect(function()
+                slLenSlider.setVal(qVal, true)
+            end)
+        end
+
+        -- Pitch, Yaw & Thickness Sliders
+        slPitchSlider = createAdvancedSlider(slCard, ctx, "Angle Pitch (Up / Down)", -90, 90, 0, "%.0f°", 256, function(v)
+            stCfg.limbLines[selectedLimb].pitch = v
+            saveConfig()
+        end)
+        slYawSlider = createAdvancedSlider(slCard, ctx, "Angle Yaw (Left / Right)", -180, 180, 0, "%.0f°", 294, function(v)
+            stCfg.limbLines[selectedLimb].yaw = v
+            saveConfig()
+        end)
+        slThickSlider = createAdvancedSlider(slCard, ctx, "Limb Thickness", 0.4, 3.0, 1.0, "%.1fx", 332, function(v)
+            stCfg.limbLines[selectedLimb].thickness = v
+            saveConfig()
+        end)
+
+        -- Walk Swing Toggle (play dynamically while moving)
+        local swRow = Instance.new("Frame", slCard)
+        swRow.Size = UDim2.new(1, -20, 0, 22)
+        swRow.Position = UDim2.new(0, 10, 0, 366)
+        swRow.BackgroundTransparency = 1
+        local swLbl = Instance.new("TextLabel", swRow)
+        swLbl.Size = UDim2.new(1, -54, 1, 0)
+        swLbl.BackgroundTransparency = 1
+        swLbl.Text = "Walk Swing (Move / Play According to Limb)"
+        swLbl.TextColor3 = Theme.textMuted
+        swLbl.Font = Enum.Font.GothamSemibold
+        swLbl.TextSize = 9.5
+        swLbl.TextXAlignment = Enum.TextXAlignment.Left
+
+        slSwingTrack, slSwingKnob, slSwingGlow = createLimbToggleSwitch(swRow, -44, -11)
+        local swHit = Instance.new("TextButton", swRow)
+        swHit.Size = UDim2.new(1, 0, 1, 0)
+        swHit.BackgroundTransparency = 1
+        swHit.Text = ""
+        swHit.ZIndex = 6
+        swHit.MouseButton1Click:Connect(function()
+            local ll = stCfg.limbLines[selectedLimb]
+            ll.walkSwing = not ll.walkSwing
+            saveConfig()
+            if syncSingleLimbUI then syncSingleLimbUI() end
+        end)
+
+        syncSingleLimbUI = function()
+            local ll = stCfg.limbLines[selectedLimb]
+            for lId, info in pairs(limbPillBtns) do
+                local isSel = (lId == selectedLimb)
+                local isOn = (stCfg.limbLines[lId] and stCfg.limbLines[lId].enabled == true)
+                info.btn.BackgroundColor3 = isOn and Color3.fromRGB(24, 48, 34) or Theme.surface
+                info.btn.TextColor3 = isOn and Theme.green or (isSel and Theme.accent or Theme.text)
+                info.btn.Text = isOn and ("● " .. lId) or lId
+                info.stroke.Color = isSel and Theme.accent or Theme.divider
+                info.stroke.Transparency = isSel and 0 or 0.35
+            end
+            slEnableLbl.Text = (ll.enabled and "ON: " or "OFF: ") .. selectedLimb .. " (" .. tostring(ll.dir) .. ")"
+            setSwitchVisual(slEnTrack, slEnKnob, slEnGlow, ll.enabled == true, false)
+            setSwitchVisual(slSwingTrack, slSwingKnob, slSwingGlow, ll.walkSwing == true, false)
+            for dName, db in pairs(dirBtns) do
+                local act = (ll.dir == dName)
+                db.BackgroundColor3 = act and Theme.accent or Theme.surface
+                db.TextColor3 = act and Color3.fromRGB(8, 8, 10) or Theme.text
+            end
+            slLenSlider.setVal(ll.length or 20, false)
+            slPitchSlider.setVal(ll.pitch or 0, false)
+            slYawSlider.setVal(ll.yaw or 0, false)
+            slThickSlider.setVal(ll.thickness or 1.0, false)
+        end
+        syncSingleLimbUI()
+    end
+
+    -- Stretch Tuning Sliders Card (For Presets: Sky Pillar, Forward Line, etc.)
+    do
+        local tuningCard = Instance.new("Frame")
+        tuningCard.Size = UDim2.new(1, 0, 0, 206)
+        tuningCard.BackgroundColor3 = Theme.bgCard
+        tuningCard.BorderSizePixel = 0
+        tuningCard.LayoutOrder = 5
+        tuningCard.Parent = stretchPage
+        addCorner(tuningCard, 8)
+        addStroke(tuningCard, Theme.divider, 1, 0)
+
+        local tuningTitle = Instance.new("TextLabel")
+        tuningTitle.Size = UDim2.new(1, -20, 0, 18)
+        tuningTitle.Position = UDim2.new(0, 10, 0, 6)
+        tuningTitle.BackgroundTransparency = 1
+        tuningTitle.Text = "PRESET LENGTH, SKY ALTITUDE & MOTION"
+        tuningTitle.TextColor3 = Theme.textMuted
+        tuningTitle.Font = Enum.Font.GothamBold
+        tuningTitle.TextSize = 9.5
+        tuningTitle.TextXAlignment = Enum.TextXAlignment.Left
+        tuningTitle.Parent = tuningCard
+
+        local lenSlider = createAdvancedSlider(tuningCard, ctx, "Preset Stretch Length", 2, 120, stCfg.length, "%.0f st", 26, function(v)
+            stCfg.length = v
+            saveConfig()
+        end)
+
+        local QUICK_LENS = { 10, 25, 50, 100 }
+        for idx, qVal in ipairs(QUICK_LENS) do
+            local qb = Instance.new("TextButton")
+            qb.Size = UDim2.new(0.25, -8, 0, 20)
+            qb.Position = UDim2.new((idx - 1) * 0.25, 6, 0, 64)
+            qb.BackgroundColor3 = Theme.surface
+            qb.Text = tostring(qVal) .. " st"
+            qb.TextColor3 = Theme.accent
+            qb.Font = Enum.Font.GothamBold
+            qb.TextSize = 9
+            qb.Parent = tuningCard
+            addCorner(qb, 4)
+            addStroke(qb, Theme.divider, 1, 0.3)
+            qb.MouseButton1Click:Connect(function()
+                lenSlider.setVal(qVal, true)
+            end)
+        end
+
+        createAdvancedSlider(tuningCard, ctx, "Sky Height Offset (+Y)", -20, 150, stCfg.skyHeight, "%.0f st", 90, function(v)
+            stCfg.skyHeight = v
+            saveConfig()
+        end)
+
+        createAdvancedSlider(tuningCard, ctx, "Orbit / Wave Motion Speed", 0.1, 10, stCfg.motionSpeed, "%.1fx", 128, function(v)
+            stCfg.motionSpeed = v
+            saveConfig()
+        end)
+
+        createAdvancedSlider(tuningCard, ctx, "Limb Axial Spin Speed", 0, 20, stCfg.spinSpeed, "%.1f", 166, function(v)
+            stCfg.spinSpeed = v
+            saveConfig()
+        end)
+    end
+
+    -- Modifiers Card (Visual Mesh Stretch, Wave Pulse, Keep Grounded)
+    do
+        local modsCard = Instance.new("Frame")
+        modsCard.Size = UDim2.new(1, 0, 0, 118)
+        modsCard.BackgroundColor3 = Theme.bgCard
+        modsCard.BorderSizePixel = 0
+        modsCard.LayoutOrder = 6
+        modsCard.Parent = stretchPage
+        addCorner(modsCard, 8)
+        addStroke(modsCard, Theme.divider, 1, 0)
+
+        local MOD_TOGGLES = {
+            { key = "visualStretch",    title = "Visual Mesh Stretch", sub = "Elongates limb meshes seamlessly from joint (unbroken)" },
+            { key = "wavePulse",        title = "Wave / Pulse Ripple", sub = "Adds smooth sinusoidal wave motion to stretched limbs" },
+            { key = "keepRootGrounded", title = "Keep Body Grounded",  sub = "Keeps your torso controllable while limbs stretch far" },
+        }
+
+        for idx, mt in ipairs(MOD_TOGGLES) do
+            local row = Instance.new("Frame")
+            row.Size = UDim2.new(1, -16, 0, 34)
+            row.Position = UDim2.new(0, 8, 0, 6 + (idx - 1) * 36)
+            row.BackgroundTransparency = 1
+            row.Parent = modsCard
+
+            local tLbl = Instance.new("TextLabel")
+            tLbl.Size = UDim2.new(1, -60, 0, 16)
+            tLbl.Position = UDim2.new(0, 4, 0, 2)
+            tLbl.BackgroundTransparency = 1
+            tLbl.Text = mt.title
+            tLbl.TextColor3 = Theme.text
+            tLbl.Font = Enum.Font.GothamBold
+            tLbl.TextSize = 10
+            tLbl.TextXAlignment = Enum.TextXAlignment.Left
+            tLbl.Parent = row
+
+            local sLbl = Instance.new("TextLabel")
+            sLbl.Size = UDim2.new(1, -60, 0, 14)
+            sLbl.Position = UDim2.new(0, 4, 0, 18)
+            sLbl.BackgroundTransparency = 1
+            sLbl.Text = mt.sub
+            sLbl.TextColor3 = Theme.textMuted
+            sLbl.Font = Enum.Font.Gotham
+            sLbl.TextSize = 8.5
+            sLbl.TextXAlignment = Enum.TextXAlignment.Left
+            sLbl.TextTruncate = Enum.TextTruncate.AtEnd
+            sLbl.Parent = row
+
+            local trk, knb, glw = createLimbToggleSwitch(row, -48, -11)
+            setSwitchVisual(trk, knb, glw, stCfg[mt.key] == true, false)
+
+            local hit = Instance.new("TextButton")
+            hit.Size = UDim2.new(1, 0, 1, 0)
+            hit.BackgroundTransparency = 1
+            hit.Text = ""
+            hit.ZIndex = 5
+            hit.Parent = row
+
+            hit.MouseButton1Click:Connect(function()
+                stCfg[mt.key] = not stCfg[mt.key]
+                saveConfig()
+                setSwitchVisual(trk, knb, glw, stCfg[mt.key] == true, true)
+                if mt.key == "visualStretch" and not stCfg.visualStretch then
+                    local rig = getActiveRig()
+                    if rig then
+                        for _, d in ipairs(rig:GetDescendants()) do
+                            if d:IsA("BasePart") then restorePartMesh(d) end
+                        end
+                    end
+                end
+            end)
+        end
+    end
+
+    -- Active Limbs Filter Card (for multi-limb presets)
+    do
+        local limbFilterCard = Instance.new("Frame")
+        limbFilterCard.Size = UDim2.new(1, 0, 0, 86)
+        limbFilterCard.BackgroundColor3 = Theme.bgCard
+        limbFilterCard.BorderSizePixel = 0
+        limbFilterCard.LayoutOrder = 7
+        limbFilterCard.Parent = stretchPage
+        addCorner(limbFilterCard, 8)
+        addStroke(limbFilterCard, Theme.divider, 1, 0)
+
+        local lfTitle = Instance.new("TextLabel")
+        lfTitle.Size = UDim2.new(1, -20, 0, 18)
+        lfTitle.Position = UDim2.new(0, 10, 0, 6)
+        lfTitle.BackgroundTransparency = 1
+        lfTitle.Text = "PRESET AFFECTED LIMBS (TOGGLE ON/OFF)"
+        lfTitle.TextColor3 = Theme.textMuted
+        lfTitle.Font = Enum.Font.GothamBold
+        lfTitle.TextSize = 9.5
+        lfTitle.TextXAlignment = Enum.TextXAlignment.Left
+        lfTitle.Parent = limbFilterCard
+
+        for idx, limbId in ipairs(LIMB_ORDER) do
+            local row = math.floor((idx - 1) / 3)
+            local col = (idx - 1) % 3
+            local lb = Instance.new("TextButton")
+            lb.Size = UDim2.new(1 / 3, -10, 0, 24)
+            lb.Position = UDim2.new(col / 3, 7, 0, 28 + row * 28)
+            local isOn = (stCfg.enabledLimbs[limbId] ~= false)
+            lb.BackgroundColor3 = isOn and Color3.fromRGB(24, 48, 34) or Theme.surface
+            lb.Text = limbId
+            lb.TextColor3 = isOn and Theme.green or Theme.textMuted
+            lb.Font = Enum.Font.GothamBold
+            lb.TextSize = 9.5
+            lb.Parent = limbFilterCard
+            addCorner(lb, 6)
+            addStroke(lb, Theme.divider, 1, 0.3)
+
+            lb.MouseButton1Click:Connect(function()
+                local nextState = not (stCfg.enabledLimbs[limbId] ~= false)
+                stCfg.enabledLimbs[limbId] = nextState
+                saveConfig()
+                lb.BackgroundColor3 = nextState and Color3.fromRGB(24, 48, 34) or Theme.surface
+                lb.TextColor3 = nextState and Theme.green or Theme.textMuted
+                if not nextState then
+                    local rig = getActiveRig()
+                    if rig then
+                        for _, p in ipairs(getPartsForLimbGroup(rig, limbId)) do
+                            restoreSinglePart(rig, p)
+                        end
+                    end
+                end
+            end)
+        end
+    end
+
+    -- Custom Per-Limb Offset Card (Visible when Mode == "Custom")
+    do
+        local customCard = Instance.new("Frame")
+        customCard.Size = UDim2.new(1, 0, 0, 212)
+        customCard.BackgroundColor3 = Theme.bgCard
+        customCard.BorderSizePixel = 0
+        customCard.LayoutOrder = 8
+        customCard.Visible = (stCfg.mode == "Custom")
+        customCard.Parent = stretchPage
+        addCorner(customCard, 8)
+        addStroke(customCard, Theme.divider, 1, 0)
+        customCardRef = customCard
+
+        local selectedCustomLimb = "Right Arm"
+        local custLimbBtn = Instance.new("TextButton")
+        custLimbBtn.Size = UDim2.new(1, -20, 0, 24)
+        custLimbBtn.Position = UDim2.new(0, 10, 0, 8)
+        custLimbBtn.BackgroundColor3 = Theme.surface
+        custLimbBtn.Text = "Editing Limb: " .. selectedCustomLimb .. "  (tap to cycle)"
+        custLimbBtn.TextColor3 = Theme.accent
+        custLimbBtn.Font = Enum.Font.GothamBold
+        custLimbBtn.TextSize = 10
+        custLimbBtn.Parent = customCard
+        addCorner(custLimbBtn, 6)
+        addStroke(custLimbBtn, Theme.divider, 1, 0.3)
+
+        local cxSlider, cySlider, czSlider, csSlider
+        local function syncCustomSliders()
+            local c = stCfg.customOffsets[selectedCustomLimb] or { x = 0, y = 0, z = 0, scale = 1 }
+            custLimbBtn.Text = "Editing Limb: " .. selectedCustomLimb .. "  (tap to cycle)"
+            if cxSlider then cxSlider.setVal(c.x or 0, false) end
+            if cySlider then cySlider.setVal(c.y or 0, false) end
+            if czSlider then czSlider.setVal(c.z or 0, false) end
+            if csSlider then csSlider.setVal(c.scale or 1, false) end
+        end
+
+        cxSlider = createAdvancedSlider(customCard, ctx, "Offset X (Left / Right)", -50, 50, 0, "%.1f", 38, function(v)
+            stCfg.customOffsets[selectedCustomLimb].x = v
+            saveConfig()
+        end)
+        cySlider = createAdvancedSlider(customCard, ctx, "Offset Y (Down / Sky)", -20, 120, 0, "%.1f", 78, function(v)
+            stCfg.customOffsets[selectedCustomLimb].y = v
+            saveConfig()
+        end)
+        czSlider = createAdvancedSlider(customCard, ctx, "Offset Z (Forward / Back)", -50, 50, 0, "%.1f", 118, function(v)
+            stCfg.customOffsets[selectedCustomLimb].z = v
+            saveConfig()
+        end)
+        csSlider = createAdvancedSlider(customCard, ctx, "Visual Stretch Scale", 0.5, 25, 1, "%.1fx", 158, function(v)
+            stCfg.customOffsets[selectedCustomLimb].scale = v
+            saveConfig()
+        end)
+
+        custLimbBtn.MouseButton1Click:Connect(function()
+            local curIdx = 1
+            for i, lId in ipairs(LIMB_ORDER) do
+                if lId == selectedCustomLimb then curIdx = i break end
+            end
+            selectedCustomLimb = LIMB_ORDER[(curIdx % #LIMB_ORDER) + 1]
+            syncCustomSliders()
+        end)
+        syncCustomSliders()
+    end
+
+    updateFormationButtonsUI()
+
+    -- ========================================================================
+    -- BUILD ADVANCED FX PAGE UI
+    -- ========================================================================
+    local fxPage = Instance.new("ScrollingFrame")
+    fxPage.Name = "FXPage"
+    fxPage.Size = UDim2.new(1, 0, 1, 0)
+    fxPage.BackgroundTransparency = 1
+    fxPage.BorderSizePixel = 0
+    fxPage.ScrollBarThickness = 3
+    fxPage.ScrollBarImageColor3 = Theme.accent
+    fxPage.ScrollBarImageTransparency = 0.6
+    pcall(function()
+        fxPage.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    end)
+    fxPage.CanvasSize = UDim2.new(0, 0, 0, 620)
+    fxPage.Visible = false
+    fxPage.Parent = pagesHolder
+
+    local fxPad = Instance.new("UIPadding")
+    fxPad.PaddingLeft = UDim.new(0, 2)
+    fxPad.PaddingRight = UDim.new(0, 4)
+    fxPad.PaddingTop = UDim.new(0, 2)
+    fxPad.PaddingBottom = UDim.new(0, 14)
+    fxPad.Parent = fxPage
+
+    local fxLayout = Instance.new("UIListLayout")
+    fxLayout.Padding = UDim.new(0, 8)
+    fxLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    fxLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        fxPage.CanvasSize = UDim2.new(0, 0, 0, fxLayout.AbsoluteContentSize.Y + 28)
+    end)
+    fxLayout.Parent = fxPage
+
+    local fxSwitchSyncList = {}
+    local orbTrk, orbKnb, orbGlw
+
+    do
+        local fxHeaderLbl = Instance.new("TextLabel")
+        fxHeaderLbl.Size = UDim2.new(1, 0, 0, 16)
+        fxHeaderLbl.BackgroundTransparency = 1
+        fxHeaderLbl.Text = "ADVANCED REANIM FX & TOOLS"
+        fxHeaderLbl.TextColor3 = Theme.textMuted
+        fxHeaderLbl.Font = Enum.Font.GothamBold
+        fxHeaderLbl.TextSize = 10
+        fxHeaderLbl.TextXAlignment = Enum.TextXAlignment.Left
+        fxHeaderLbl.LayoutOrder = 1
+        fxHeaderLbl.Parent = fxPage
+
+        local function addFxToggleCard(orderIdx, cfgKey, titleText, descText, onToggle)
+            local card = Instance.new("Frame")
+            card.Size = UDim2.new(1, 0, 0, 44)
+            card.BackgroundColor3 = Theme.surface
+            card.BorderSizePixel = 0
+            card.LayoutOrder = orderIdx
+            card.Parent = fxPage
+            addCorner(card, 10)
+            addStroke(card, Color3.fromRGB(255, 255, 255), 1, 0.9)
+
+            local tLbl = Instance.new("TextLabel")
+            tLbl.Size = UDim2.new(1, -72, 0, 18)
+            tLbl.Position = UDim2.new(0, 12, 0, 5)
+            tLbl.BackgroundTransparency = 1
+            tLbl.Text = titleText
+            tLbl.TextColor3 = Color3.fromRGB(240, 240, 248)
+            tLbl.Font = Enum.Font.GothamBold
+            tLbl.TextSize = 10.5
+            tLbl.TextXAlignment = Enum.TextXAlignment.Left
+            tLbl.Parent = card
+
+            local dLbl = Instance.new("TextLabel")
+            dLbl.Size = UDim2.new(1, -72, 0, 15)
+            dLbl.Position = UDim2.new(0, 12, 0, 23)
+            dLbl.BackgroundTransparency = 1
+            dLbl.Text = descText
+            dLbl.TextColor3 = Theme.textMuted
+            dLbl.Font = Enum.Font.Gotham
+            dLbl.TextSize = 8.5
+            dLbl.TextXAlignment = Enum.TextXAlignment.Left
+            dLbl.TextTruncate = Enum.TextTruncate.AtEnd
+            dLbl.Parent = card
+
+            local trk, knb, glw = createLimbToggleSwitch(card, -54, -11)
+            setSwitchVisual(trk, knb, glw, fxCfg[cfgKey] == true, false)
+
+            local hit = Instance.new("TextButton")
+            hit.Size = UDim2.new(1, 0, 1, 0)
+            hit.BackgroundTransparency = 1
+            hit.Text = ""
+            hit.ZIndex = 5
+            hit.Parent = card
+
+            hit.MouseEnter:Connect(function()
+                playTween(card, { BackgroundColor3 = Theme.surfaceHover }, 0.18)
+            end)
+            hit.MouseLeave:Connect(function()
+                playTween(card, { BackgroundColor3 = Theme.surface }, 0.18)
+            end)
+
+            local function setIt(val, anim)
+                fxCfg[cfgKey] = (val == true)
+                saveConfig()
+                setSwitchVisual(trk, knb, glw, fxCfg[cfgKey], anim ~= false)
+                if onToggle then onToggle(fxCfg[cfgKey]) end
+            end
+
+            hit.MouseButton1Click:Connect(function()
+                setIt(not fxCfg[cfgKey], true)
+            end)
+
+            table.insert(fxSwitchSyncList, function()
+                setSwitchVisual(trk, knb, glw, fxCfg[cfgKey] == true, false)
+            end)
+            return card
+        end
+
+        addFxToggleCard(2, "afterimageEnabled", "Ghost Afterimage Trail", "Spawns fading neon pose clones behind your reanim rig")
+        addFxToggleCard(3, "hoverEnabled", "Hover Levitation", "Smoothly floats your rig in mid-air with gentle bobbing")
+        addFxToggleCard(4, "poseFreezeEnabled", "Pose Freeze (Statue Mode)", "Locks your current limb pose in place while you move", function(isOn)
+            table.clear(frozenRelCF)
+            if isOn then
+                local rig = getActiveRig()
+                local root = rig and rig:FindFirstChild("HumanoidRootPart")
+                if rig and root then
+                    for _, limbId in ipairs(LIMB_ORDER) do
+                        for _, p in ipairs(getPartsForLimbGroup(rig, limbId)) do
+                            frozenRelCF[p] = root.CFrame:ToObjectSpace(p.CFrame)
+                        end
+                    end
+                end
+            else
+                restoreRigVisuals(getActiveRig())
+            end
+        end)
+        addFxToggleCard(5, "noodleEnabled", "Noodle / Spaghetti Wobble", "Adds springy ragdoll-style wobble to limbs as you move")
+        addFxToggleCard(6, "glitchEnabled", "Cyber Glitch Aura", "Rapid hologram micro-teleport jitter across your limbs")
+        addFxToggleCard(7, "antiVoidEnabled", "Anti-Void & Limb Stabilizer", "Prevents sky-stretched or detached limbs from voiding/flinging")
+
+        -- Target Player Limb Orbit Card
+        local orbitCard = Instance.new("Frame")
+        orbitCard.Size = UDim2.new(1, 0, 0, 134)
+        orbitCard.BackgroundColor3 = Theme.bgCard
+        orbitCard.BorderSizePixel = 0
+        orbitCard.LayoutOrder = 8
+        orbitCard.Parent = fxPage
+        addCorner(orbitCard, 8)
+        addStroke(orbitCard, Theme.divider, 1, 0)
+
+        local orbitTitle = Instance.new("TextLabel")
+        orbitTitle.Size = UDim2.new(1, -70, 0, 18)
+        orbitTitle.Position = UDim2.new(0, 10, 0, 8)
+        orbitTitle.BackgroundTransparency = 1
+        orbitTitle.Text = "TARGET PLAYER LIMB ORBIT"
+        orbitTitle.TextColor3 = Theme.textMuted
+        orbitTitle.Font = Enum.Font.GothamBold
+        orbitTitle.TextSize = 9.5
+        orbitTitle.TextXAlignment = Enum.TextXAlignment.Left
+        orbitTitle.Parent = orbitCard
+
+        orbTrk, orbKnb, orbGlw = createLimbToggleSwitch(orbitCard, -54, -52)
+        setSwitchVisual(orbTrk, orbKnb, orbGlw, fxCfg.targetOrbitEnabled == true, false)
+
+        local orbToggleHit = Instance.new("TextButton")
+        orbToggleHit.Size = UDim2.new(0, 52, 0, 28)
+        orbToggleHit.Position = UDim2.new(1, -56, 0, 4)
+        orbToggleHit.BackgroundTransparency = 1
+        orbToggleHit.Text = ""
+        orbToggleHit.ZIndex = 6
+        orbToggleHit.Parent = orbitCard
+
+        orbToggleHit.MouseButton1Click:Connect(function()
+            fxCfg.targetOrbitEnabled = not fxCfg.targetOrbitEnabled
+            saveConfig()
+            setSwitchVisual(orbTrk, orbKnb, orbGlw, fxCfg.targetOrbitEnabled, true)
+            if not fxCfg.targetOrbitEnabled then
+                restoreRigVisuals(getActiveRig())
+            end
+        end)
+
+        local orbitTargetBox = Instance.new("TextBox")
+        orbitTargetBox.Size = UDim2.new(1, -20, 0, 26)
+        orbitTargetBox.Position = UDim2.new(0, 10, 0, 32)
+        orbitTargetBox.BackgroundColor3 = Theme.input
+        orbitTargetBox.PlaceholderText = "Target username (orbit / sky cage / line)..."
+        orbitTargetBox.PlaceholderColor3 = Theme.textMuted
+        orbitTargetBox.Text = fxCfg.targetOrbitName or ""
+        orbitTargetBox.TextColor3 = Theme.text
+        orbitTargetBox.Font = Enum.Font.GothamMedium
+        orbitTargetBox.TextSize = 10.5
+        orbitTargetBox.ClearTextOnFocus = false
+        orbitTargetBox.Parent = orbitCard
+        addCorner(orbitTargetBox, 6)
+        addStroke(orbitTargetBox, Theme.divider, 1, 0.3)
+
+        orbitTargetBox:GetPropertyChangedSignal("Text"):Connect(function()
+            fxCfg.targetOrbitName = orbitTargetBox.Text
+            saveConfig()
+        end)
+
+        local ORBIT_MODES = { "Orbit", "Sky Cage", "Line Follow" }
+        local orbitModeBtns = {}
+        local function refreshOrbitModeBtns()
+            for _, mName in ipairs(ORBIT_MODES) do
+                local b = orbitModeBtns[mName]
+                if b then
+                    local act = (fxCfg.targetOrbitMode == mName)
+                    b.BackgroundColor3 = act and Theme.accent or Theme.surface
+                    b.TextColor3 = act and Color3.fromRGB(8, 8, 10) or Theme.text
+                end
+            end
+        end
+
+        for idx, mName in ipairs(ORBIT_MODES) do
+            local mb = Instance.new("TextButton")
+            mb.Size = UDim2.new(1 / 3, -10, 0, 22)
+            mb.Position = UDim2.new((idx - 1) / 3, 7, 0, 64)
+            mb.BackgroundColor3 = Theme.surface
+            mb.Text = mName
+            mb.TextColor3 = Theme.text
+            mb.Font = Enum.Font.GothamBold
+            mb.TextSize = 9.5
+            mb.Parent = orbitCard
+            addCorner(mb, 5)
+            addStroke(mb, Theme.divider, 1, 0.3)
+            orbitModeBtns[mName] = mb
+            mb.MouseButton1Click:Connect(function()
+                fxCfg.targetOrbitMode = mName
+                saveConfig()
+                refreshOrbitModeBtns()
+            end)
+        end
+        refreshOrbitModeBtns()
+
+        createAdvancedSlider(orbitCard, ctx, "Orbit / Cage Radius", 2, 35, fxCfg.targetOrbitRadius, "%.0f st", 92, function(v)
+            fxCfg.targetOrbitRadius = v
+            saveConfig()
+        end)
+
+        -- FX Intensity Sliders Card
+        local fxSlidersCard = Instance.new("Frame")
+        fxSlidersCard.Size = UDim2.new(1, 0, 0, 128)
+        fxSlidersCard.BackgroundColor3 = Theme.bgCard
+        fxSlidersCard.BorderSizePixel = 0
+        fxSlidersCard.LayoutOrder = 9
+        fxSlidersCard.Parent = fxPage
+        addCorner(fxSlidersCard, 8)
+        addStroke(fxSlidersCard, Theme.divider, 1, 0)
+
+        createAdvancedSlider(fxSlidersCard, ctx, "Hover Height", 1, 25, fxCfg.hoverHeight, "%.1f st", 8, function(v)
+            fxCfg.hoverHeight = v
+            saveConfig()
+        end)
+        createAdvancedSlider(fxSlidersCard, ctx, "Noodle Wobble Intensity", 0.2, 5, fxCfg.noodleIntensity, "%.1fx", 46, function(v)
+            fxCfg.noodleIntensity = v
+            saveConfig()
+        end)
+        createAdvancedSlider(fxSlidersCard, ctx, "Glitch Aura Intensity", 0.2, 5, fxCfg.glitchIntensity, "%.1fx", 84, function(v)
+            fxCfg.glitchIntensity = v
+            saveConfig()
+        end)
+    end
+
+    local function stopAllAdvanced()
+        stCfg.enabled = false
+        fxCfg.afterimageEnabled = false
+        fxCfg.hoverEnabled = false
+        fxCfg.poseFreezeEnabled = false
+        fxCfg.noodleEnabled = false
+        fxCfg.glitchEnabled = false
+        fxCfg.targetOrbitEnabled = false
+        for _, lId in ipairs(STRETCHABLE_LIMBS) do
+            stCfg.limbLines[lId].enabled = false
+        end
+        saveConfig()
+        setSwitchVisual(stMasterTrack, stMasterKnob, stMasterGlow, false, true)
+        if orbTrk then setSwitchVisual(orbTrk, orbKnb, orbGlw, false, true) end
+        for _, fn in ipairs(fxSwitchSyncList) do pcall(fn) end
+        if syncSingleLimbUI then syncSingleLimbUI() end
+        table.clear(frozenRelCF)
+        restoreRigVisuals(getActiveRig())
+    end
+
+    do
+        local panicResetBtn = Instance.new("TextButton")
+        panicResetBtn.Size = UDim2.new(1, 0, 0, 32)
+        panicResetBtn.BackgroundColor3 = Theme.dangerHover
+        panicResetBtn.Text = "Reset All Stretch, FX & Limb Joints"
+        panicResetBtn.TextColor3 = Theme.danger
+        panicResetBtn.Font = Enum.Font.GothamBold
+        panicResetBtn.TextSize = 10.5
+        panicResetBtn.LayoutOrder = 10
+        panicResetBtn.Parent = fxPage
+        addCorner(panicResetBtn, 8)
+        addStroke(panicResetBtn, Theme.dangerDim, 1, 0.3)
+
+        panicResetBtn.MouseButton1Click:Connect(function()
+            stopAllAdvanced()
+            if type(stopBangFn) == "function" then pcall(stopBangFn) end
+        end)
+    end
+
+    -- ========================================================================
+    -- GHOST AFTERIMAGE SPAWNER
+    -- ========================================================================
+    local function spawnAfterimageGhost(rig)
+        if not rig then return end
+        local folder = workspace:FindFirstChild("_AngoorGhostTrails")
+        if not folder then
+            folder = Instance.new("Folder")
+            folder.Name = "_AngoorGhostTrails"
+            folder.Parent = workspace
+        end
+        local ghostModel = Instance.new("Model")
+        ghostModel.Name = "GhostSnap"
+        ghostModel.Parent = folder
+
+        local fadeDur = math.clamp(fxCfg.afterimageFade or 0.6, 0.2, 2.5)
+        for _, limbId in ipairs(LIMB_ORDER) do
+            for _, srcPart in ipairs(getPartsForLimbGroup(rig, limbId)) do
+                if srcPart.Transparency < 0.95 then
+                    local clone = Instance.new("Part")
+                    clone.Name = srcPart.Name
+                    clone.Size = srcPart.Size
+                    clone.CFrame = srcPart.CFrame
+                    clone.Anchored = true
+                    clone.CanCollide = false
+                    clone.CanTouch = false
+                    clone.CanQuery = false
+                    clone.CastShadow = false
+                    clone.Material = Enum.Material.Neon
+                    clone.Color = Theme.accent
+                    clone.Transparency = 0.55
+                    clone.Parent = ghostModel
+
+                    local srcMesh = srcPart:FindFirstChildOfClass("SpecialMesh")
+                    if srcMesh then
+                        local m = srcMesh:Clone()
+                        m.Parent = clone
+                    end
+                    playTween(clone, { Transparency = 1 }, fadeDur, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+                end
+            end
+        end
+        task.delay(fadeDur + 0.05, function()
+            if ghostModel and ghostModel.Parent then
+                pcall(function() ghostModel:Destroy() end)
+            end
+        end)
+    end
+
+    -- ========================================================================
+    -- REAL-TIME STEP ENGINE (Runs after Zen Reanim animation step)
+    -- ========================================================================
+    local function stepStretchAndFx(dt)
+        runtimeClock = runtimeClock + (dt or 0.016)
+        local rig = getActiveRig()
+        if not rig then return end
+
+        if rig ~= lastRigRef then
+            lastRigRef = rig
+            table.clear(trailHistory)
+            table.clear(frozenRelCF)
+            table.clear(lastModifiedParts)
+            cacheRigOriginals(rig)
+        end
+
+        local root = rig:FindFirstChild("HumanoidRootPart")
+        if not root then return end
+
+        -- Record movement trail for Snake Trail formation
+        if #trailHistory == 0 or (trailHistory[1].Position - root.Position).Magnitude > 0.35 then
+            table.insert(trailHistory, 1, root.CFrame)
+            if #trailHistory > 120 then
+                table.remove(trailHistory)
+            end
+        end
+
+        -- 1. Anti-Void & Stabilizer
+        if fxCfg.antiVoidEnabled then
+            local destroyY = workspace.FallenPartsDestroyHeight or -500
+            if root.Position.Y < (destroyY + 25) then
+                root.CFrame = CFrame.new(root.Position.X, destroyY + 60, root.Position.Z)
+                root.AssemblyLinearVelocity = Vector3.zero
+            end
+        end
+
+        -- 2. Ghost Afterimage Trail
+        if fxCfg.afterimageEnabled then
+            local now = tick()
+            if (now - lastAfterimageTick) >= (fxCfg.afterimageRate or 0.12) then
+                lastAfterimageTick = now
+                pcall(spawnAfterimageGhost, rig)
+            end
+        end
+
+        -- 3. Hover Levitation
+        if fxCfg.hoverEnabled then
+            local bob = math.sin(runtimeClock * 2.6) * 0.75
+            local hoverOffsetY = (fxCfg.hoverHeight or 4.5) + bob
+            local hum = rig:FindFirstChildOfClass("Humanoid")
+            if hum then
+                hum.HipHeight = math.max(0, hoverOffsetY)
+            end
+        else
+            local hum = rig:FindFirstChildOfClass("Humanoid")
+            if hum and hum.HipHeight > 2.2 then
+                hum.HipHeight = 0
+            end
+        end
+
+        local anyLimbOverride = stCfg.enabled or fxCfg.poseFreezeEnabled or fxCfg.noodleEnabled or fxCfg.glitchEnabled or fxCfg.targetOrbitEnabled
+        if not anyLimbOverride then
+            if next(lastModifiedParts) ~= nil then
+                for p in pairs(lastModifiedParts) do
+                    restoreSinglePart(rig, p)
+                end
+                table.clear(lastModifiedParts)
+            end
+            return
+        end
+
+        cacheRigOriginals(rig)
+        local computedCF = { [root] = root.CFrame }
+        local modifiedThisFrame = {}
+
+        local activeLimbs = {}
+        for _, limbId in ipairs(LIMB_ORDER) do
+            if stCfg.enabledLimbs[limbId] ~= false then
+                if not (stCfg.keepRootGrounded and limbId == "Torso" and stCfg.mode ~= "Custom") then
+                    table.insert(activeLimbs, limbId)
+                end
+            end
+        end
+
+        local L = stCfg.length or 24
+        local skyH = stCfg.skyHeight or 0
+        local spd = stCfg.motionSpeed or 2.0
+        local spinAng = (stCfg.spinSpeed or 0) * runtimeClock
+        local spinRot = (stCfg.spinSpeed and stCfg.spinSpeed > 0) and CFrame.Angles(0, spinAng, 0) or CFrame.new()
+
+        -- 4. Target Player Limb Orbit (overrides stretch positions if enabled & target found)
+        local orbitTargetRoot = nil
+        if fxCfg.targetOrbitEnabled and fxCfg.targetOrbitName ~= "" then
+            local plr = findTargetPlayer(fxCfg.targetOrbitName)
+            if plr and plr.Character and not (type(isProtectedFromLocalPlayer) == "function" and isProtectedFromLocalPlayer(plr)) then
+                orbitTargetRoot = plr.Character:FindFirstChild("HumanoidRootPart")
+            end
+        end
+
+        if orbitTargetRoot then
+            local rad = fxCfg.targetOrbitRadius or 7
+            local count = math.max(#activeLimbs, 1)
+            for idx, limbId in ipairs(activeLimbs) do
+                local parts = getPartsForLimbGroup(rig, limbId)
+                local angle = (runtimeClock * spd) + ((idx - 1) * (math.pi * 2 / count))
+                local targetCF
+                if fxCfg.targetOrbitMode == "Sky Cage" then
+                    local yStack = 3 + (idx - 1) * (L / count)
+                    targetCF = CFrame.new(orbitTargetRoot.Position + Vector3.new(math.cos(angle) * rad, yStack, math.sin(angle) * rad)) * spinRot
+                elseif fxCfg.targetOrbitMode == "Line Follow" then
+                    local linePos = orbitTargetRoot.CFrame * CFrame.new(0, 2 + skyH, rad + (idx - 1) * (L / count))
+                    targetCF = linePos * spinRot
+                else
+                    targetCF = CFrame.new(orbitTargetRoot.Position + Vector3.new(math.cos(angle) * rad, 1.5 + math.sin(angle * 2) * 1.5, math.sin(angle) * rad)) * spinRot
+                end
+                for pIdx, p in ipairs(parts) do
+                    local segCF = targetCF * CFrame.new(0, -(pIdx - 1) * 0.9, 0)
+                    placeLimbPart(rig, p, segCF, computedCF, modifiedThisFrame)
+                    if stCfg.visualStretch then
+                        applyPartVisualStretch(p, Vector3.new(1, math.clamp(L / (count * 2), 1, 14), 1))
+                    else
+                        restorePartMesh(p)
+                    end
+                end
+            end
+        elseif stCfg.enabled then
+            -- 5. Stretch & Formations Engine (Connected from Real Joint Sockets!)
+            local mode = stCfg.mode or "Single Limb"
+            local count = math.max(#activeLimbs, 1)
+            local rootCF = root.CFrame
+
+            if mode == "Single Limb" then
+                local flatVel = Vector2.new(root.AssemblyLinearVelocity.X, root.AssemblyLinearVelocity.Z).Magnitude
+                for idx, limbId in ipairs(STRETCHABLE_LIMBS) do
+                    local ll = stCfg.limbLines[limbId]
+                    if ll and ll.enabled then
+                        local pitchDeg = ll.pitch or 0
+                        local yawDeg = ll.yaw or 0
+                        if ll.walkSwing and flatVel > 0.8 then
+                            local phase = (idx % 2 == 0) and 1 or -1
+                            local swingDeg = math.sin(runtimeClock * (6 + flatVel * 0.3)) * math.min(flatVel * 1.4, 24) * phase
+                            pitchDeg = pitchDeg + swingDeg
+                        end
+                        if stCfg.wavePulse then
+                            yawDeg = yawDeg + math.sin(runtimeClock * spd * 2.4 + idx) * 14
+                        end
+                        local worldDir = resolveDirectionVector(rootCF, ll.dir, pitchDeg, yawDeg)
+                        stretchLimbFromSocket(
+                            rig,
+                            limbId,
+                            worldDir,
+                            ll.length or 20,
+                            ll.thickness or 1.0,
+                            spinRot,
+                            stCfg.visualStretch ~= false,
+                            computedCF,
+                            modifiedThisFrame
+                        )
+                    end
+                end
+
+            elseif mode == "Sky Pillar" then
+                -- Connected Sky Pillar: each enabled limb stretches straight UP from its real joint socket (no broken body!)
+                local totalH = math.max(L + skyH, 2)
+                for idx, limbId in ipairs(activeLimbs) do
+                    local swayX = stCfg.wavePulse and (math.sin(runtimeClock * spd * 2 + idx * 0.7) * 0.15) or 0
+                    local swayZ = stCfg.wavePulse and (math.cos(runtimeClock * spd * 2 + idx * 0.7) * 0.15) or 0
+                    local skyDir = Vector3.new(swayX, 1, swayZ).Unit
+                    stretchLimbFromSocket(
+                        rig,
+                        limbId,
+                        skyDir,
+                        totalH,
+                        1.0,
+                        spinRot,
+                        stCfg.visualStretch ~= false,
+                        computedCF,
+                        modifiedThisFrame
+                    )
+                end
+
+            elseif mode == "Sky Reach" then
+                local totalH = math.max(L + skyH, 2)
+                for _, limbId in ipairs({ "Left Arm", "Right Arm", "Head" }) do
+                    if stCfg.enabledLimbs[limbId] ~= false then
+                        local sway = stCfg.wavePulse and (math.sin(runtimeClock * spd * 2) * 0.14) or 0
+                        local upDir = (Vector3.new(0, 1, 0) + rootCF.RightVector * sway).Unit
+                        stretchLimbFromSocket(
+                            rig,
+                            limbId,
+                            upDir,
+                            totalH,
+                            1.0,
+                            spinRot,
+                            stCfg.visualStretch ~= false,
+                            computedCF,
+                            modifiedThisFrame
+                        )
+                    end
+                end
+
+            elseif mode == "Forward Line" then
+                -- Connected Forward Line: each enabled limb extends straight forward from its real joint socket
+                for idx, limbId in ipairs(activeLimbs) do
+                    local waveY = stCfg.wavePulse and (math.sin(runtimeClock * spd * 2.2 + idx * 0.8) * 0.16) or 0
+                    local fwdDir = (rootCF.LookVector + Vector3.new(0, waveY, 0)).Unit
+                    stretchLimbFromSocket(
+                        rig,
+                        limbId,
+                        fwdDir,
+                        L,
+                        1.0,
+                        spinRot,
+                        stCfg.visualStretch ~= false,
+                        computedCF,
+                        modifiedThisFrame
+                    )
+                end
+
+            elseif mode == "Mega Wingspan" then
+                local wingSpecs = {
+                    ["Left Arm"]  = -1,
+                    ["Right Arm"] = 1,
+                    ["Left Leg"]  = -1,
+                    ["Right Leg"] = 1,
+                }
+                for limbId, sideDir in pairs(wingSpecs) do
+                    if stCfg.enabledLimbs[limbId] ~= false then
+                        local flapY = stCfg.wavePulse and (math.sin(runtimeClock * spd * 2.5) * 0.35) or 0
+                        local wingDir = (rootCF.RightVector * sideDir + Vector3.new(0, flapY, 0)).Unit
+                        stretchLimbFromSocket(
+                            rig,
+                            limbId,
+                            wingDir,
+                            L * 0.5,
+                            1.0,
+                            spinRot,
+                            stCfg.visualStretch ~= false,
+                            computedCF,
+                            modifiedThisFrame
+                        )
+                    end
+                end
+
+            elseif mode == "Snake Trail" then
+                local histLen = #trailHistory
+                for idx, limbId in ipairs(activeLimbs) do
+                    local parts = getPartsForLimbGroup(rig, limbId)
+                    local sampleIdx = math.clamp(math.floor(idx * math.max(L / 10, 2)), 1, math.max(histLen, 1))
+                    local histCF = trailHistory[sampleIdx] or (rootCF * CFrame.new(0, 0, idx * 2.5))
+                    local waveX = stCfg.wavePulse and (math.sin(runtimeClock * spd * 3 + idx) * 1.5) or 0
+                    local limbCF = histCF * CFrame.new(waveX, skyH, 0) * spinRot
+                    for pIdx, p in ipairs(parts) do
+                        placeLimbPart(rig, p, limbCF * CFrame.new(0, 0, (pIdx - 1) * 0.8), computedCF, modifiedThisFrame)
+                        if stCfg.visualStretch then
+                            applyPartVisualStretch(p, Vector3.new(1, 1, math.clamp(L / 12, 1, 12)))
+                        else
+                            restorePartMesh(p)
+                        end
+                    end
+                end
+
+            elseif mode == "Orbit Ring" then
+                local radius = math.max(L * 0.35, 3)
+                for idx, limbId in ipairs(activeLimbs) do
+                    local parts = getPartsForLimbGroup(rig, limbId)
+                    local ang = (runtimeClock * spd) + ((idx - 1) * (math.pi * 2 / count))
+                    local waveY = stCfg.wavePulse and (math.sin(ang * 2) * 2.5) or 0
+                    local pos = rootCF.Position + Vector3.new(math.cos(ang) * radius, 1 + skyH + waveY, math.sin(ang) * radius)
+                    local limbCF = CFrame.lookAt(pos, rootCF.Position + Vector3.new(0, 1 + skyH, 0)) * spinRot
+                    for pIdx, p in ipairs(parts) do
+                        placeLimbPart(rig, p, limbCF * CFrame.new(0, (pIdx - 1) * 0.9, 0), computedCF, modifiedThisFrame)
+                        restorePartMesh(p)
+                    end
+                end
+
+            elseif mode == "Helix Spiral" then
+                local radius = math.clamp(L * 0.18, 2.5, 16)
+                local stepY = math.max(L / count, 2.2)
+                for idx, limbId in ipairs(activeLimbs) do
+                    local parts = getPartsForLimbGroup(rig, limbId)
+                    local ang = (runtimeClock * spd * 1.5) + (idx * 1.1)
+                    local pos = rootCF.Position + Vector3.new(math.cos(ang) * radius, 2 + skyH + (idx - 1) * stepY, math.sin(ang) * radius)
+                    local limbCF = CFrame.new(pos) * CFrame.Angles(0, -ang, 0) * spinRot
+                    for pIdx, p in ipairs(parts) do
+                        placeLimbPart(rig, p, limbCF * CFrame.new(0, (pIdx - 1) * 1.0, 0), computedCF, modifiedThisFrame)
+                        if stCfg.visualStretch then
+                            applyPartVisualStretch(p, Vector3.new(1, math.clamp(stepY / 2.2, 1, 16), 1))
+                        else
+                            restorePartMesh(p)
+                        end
+                    end
+                end
+
+            elseif mode == "Spider Giant" then
+                local velMag = Vector2.new(root.AssemblyLinearVelocity.X, root.AssemblyLinearVelocity.Z).Magnitude
+                local stride = math.sin(runtimeClock * (spd * 2 + velMag * 0.25)) * math.min(velMag * 0.25 + 1.5, 5)
+                local giantScale = math.clamp(L / 10, 1.5, 12)
+                local spiderOffsets = {
+                    ["Head"]      = Vector3.new(0, 3.2 * giantScale * 0.4 + skyH, -1.2),
+                    ["Left Arm"]  = Vector3.new(-3.2 * giantScale * 0.4, 1.0 + skyH, -stride),
+                    ["Right Arm"] = Vector3.new(3.2 * giantScale * 0.4, 1.0 + skyH, stride),
+                    ["Left Leg"]  = Vector3.new(-2.4 * giantScale * 0.4, -1.5 + skyH, stride),
+                    ["Right Leg"] = Vector3.new(2.4 * giantScale * 0.4, -1.5 + skyH, -stride),
+                }
+                for limbId, off in pairs(spiderOffsets) do
+                    if stCfg.enabledLimbs[limbId] ~= false then
+                        local parts = getPartsForLimbGroup(rig, limbId)
+                        for pIdx, p in ipairs(parts) do
+                            local targetCF = rootCF * CFrame.new(off.X, off.Y - (pIdx - 1) * 0.9, off.Z) * spinRot
+                            placeLimbPart(rig, p, targetCF, computedCF, modifiedThisFrame)
+                            if stCfg.visualStretch then
+                                applyPartVisualStretch(p, Vector3.new(1, math.clamp(giantScale * 0.7, 1, 10), 1))
+                            else
+                                restorePartMesh(p)
+                            end
+                        end
+                    end
+                end
+
+            elseif mode == "Custom" then
+                for _, limbId in ipairs(LIMB_ORDER) do
+                    if stCfg.enabledLimbs[limbId] ~= false then
+                        local c = stCfg.customOffsets[limbId]
+                        if c and ((c.x or 0) ~= 0 or (c.y or 0) ~= 0 or (c.z or 0) ~= 0 or (c.scale or 1) ~= 1) then
+                            local parts = getPartsForLimbGroup(rig, limbId)
+                            for pIdx, p in ipairs(parts) do
+                                local targetCF = rootCF * CFrame.new(c.x or 0, (c.y or 0) + skyH + (pIdx - 1) * 0.9, c.z or 0) * spinRot
+                                placeLimbPart(rig, p, targetCF, computedCF, modifiedThisFrame)
+                                if (c.scale or 1) ~= 1 then
+                                    applyPartVisualStretch(p, Vector3.new(1, c.scale, 1))
+                                else
+                                    restorePartMesh(p)
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+
+        -- 6. Pose Freeze (Statue Mode)
+        if fxCfg.poseFreezeEnabled and next(frozenRelCF) ~= nil then
+            for part, relCF in pairs(frozenRelCF) do
+                if part and part.Parent then
+                    placeLimbPart(rig, part, root.CFrame * relCF, computedCF, modifiedThisFrame)
+                end
+            end
+        end
+
+        -- 7. Noodle / Spaghetti Wobble
+        if fxCfg.noodleEnabled then
+            local inten = fxCfg.noodleIntensity or 1.5
+            local vel = root.AssemblyLinearVelocity
+            for idx, limbId in ipairs(LIMB_ORDER) do
+                if limbId ~= "Torso" then
+                    for _, p in ipairs(getPartsForLimbGroup(rig, limbId)) do
+                        local baseCF = computedCF[p] or p.CFrame
+                        local wobX = math.sin(runtimeClock * 8 + idx * 1.4) * 0.35 * inten
+                        local wobY = math.cos(runtimeClock * 6.5 + idx * 1.1) * 0.25 * inten - math.clamp(vel.Y * 0.02, -1.5, 1.5)
+                        local wobRot = CFrame.Angles(
+                            math.sin(runtimeClock * 7 + idx) * 0.45 * inten,
+                            0,
+                            math.cos(runtimeClock * 7 + idx) * 0.45 * inten
+                        )
+                        placeLimbPart(rig, p, baseCF * CFrame.new(wobX, wobY, 0) * wobRot, computedCF, modifiedThisFrame)
+                    end
+                end
+            end
+        end
+
+        -- 8. Cyber Glitch Aura
+        if fxCfg.glitchEnabled then
+            local gInt = fxCfg.glitchIntensity or 1.0
+            for _, limbId in ipairs(LIMB_ORDER) do
+                if math.random() < 0.45 then
+                    for _, p in ipairs(getPartsForLimbGroup(rig, limbId)) do
+                        local baseCF = computedCF[p] or p.CFrame
+                        local jx = (math.random() - 0.5) * 1.4 * gInt
+                        local jy = (math.random() - 0.5) * 1.4 * gInt
+                        local jz = (math.random() - 0.5) * 1.4 * gInt
+                        placeLimbPart(rig, p, baseCF * CFrame.new(jx, jy, jz), computedCF, modifiedThisFrame)
+                    end
+                end
+            end
+        end
+
+        -- Cleanly restore any limb/part that was modified on the previous frame but is no longer overridden
+        for prevPart in pairs(lastModifiedParts) do
+            if not modifiedThisFrame[prevPart] then
+                restoreSinglePart(rig, prevPart)
+            end
+        end
+        lastModifiedParts = modifiedThisFrame
+    end
+
+    local STEP_BIND_NAME = "AngoorZenStretchFXStep"
+    pcall(function() RunService:UnbindFromRenderStep(STEP_BIND_NAME) end)
+    pcall(function()
+        RunService:BindToRenderStep(STEP_BIND_NAME, Enum.RenderPriority.Camera.Value + 3, stepStretchAndFx)
+    end)
+
+    local controller = {
+        stretchPage           = stretchPage,
+        fxPage                = fxPage,
+        stopAll               = stopAllAdvanced,
+        restoreVisuals        = restoreRigVisuals,
+        stretchLimbFromSocket = stretchLimbFromSocket,
+        cacheRigOriginals     = cacheRigOriginals,
+        syncSingleLimbUI      = function()
+            if syncSingleLimbUI then syncSingleLimbUI() end
+        end,
+        setStretchEnabled     = setStretchEnabled,
+        setMode               = function(modeName)
+            stCfg.mode = modeName
+            setStretchEnabled(true, true)
+            updateFormationButtonsUI()
+        end,
+        toggleSingleLimb      = function(limbId, dirName, lengthVal)
+            local ll = stCfg.limbLines and stCfg.limbLines[limbId]
+            if not ll then return false end
+            if dirName then ll.dir = dirName end
+            if lengthVal then ll.length = lengthVal end
+            ll.enabled = not ll.enabled
+            if ll.enabled then
+                stCfg.mode = "Single Limb"
+                if not stCfg.enabled then setStretchEnabled(true, true) end
+                updateFormationButtonsUI()
+            end
+            saveConfig()
+            if syncSingleLimbUI then syncSingleLimbUI() end
+            return ll.enabled
+        end,
+    }
+    _G._AngoorZenStretch = controller
+    return controller
+end
+
+
+-- ============================================================================
+-- MASTER 3D RIG TWIST, ROTATE, SCULPT & UNIVERSAL QUICK-DRAWER ENGINE
+-- Layers cleanly at RenderPriority.Camera.Value + 5 on top of ALL 14 tabs
+-- (Fun, Bang, Favs, Custom, States, Stretch, Morphs, Studio, FX, etc.)
+-- ============================================================================
+local function buildTwistAndRotateModule(ctx)
+    local Theme                  = ctx.Theme
+    local addCorner              = ctx.addCorner
+    local addStroke              = ctx.addStroke
+    local playTween              = ctx.playTween
+    local zenApi                 = ctx.zenApi
+    local savedConfig            = ctx.savedConfig
+    local saveConfig             = ctx.saveConfig
+    local pagesHolder            = ctx.pagesHolder
+    local embedFrame             = ctx.embedFrame
+    local headerBar              = ctx.headerBar
+    local createLimbToggleSwitch = ctx.createLimbToggleSwitch
+    local setSwitchVisual        = ctx.setSwitchVisual
+    local advStretchFx           = ctx.advStretchFx
+
+    savedConfig.twist = type(savedConfig.twist) == "table" and savedConfig.twist or {}
+    local twCfg = savedConfig.twist
+    if twCfg.enabled == nil then twCfg.enabled = false end
+    if type(twCfg.preset) ~= "string" then twCfg.preset = "Normal" end
+    if type(twCfg.pitch) ~= "number" then twCfg.pitch = 0 end
+    if type(twCfg.yaw) ~= "number" then twCfg.yaw = 0 end
+    if type(twCfg.roll) ~= "number" then twCfg.roll = 0 end
+    if type(twCfg.floatY) ~= "number" then twCfg.floatY = 0 end
+    if type(twCfg.spinX) ~= "number" then twCfg.spinX = 0 end
+    if type(twCfg.spinY) ~= "number" then twCfg.spinY = 0 end
+    if type(twCfg.spinZ) ~= "number" then twCfg.spinZ = 0 end
+    if type(twCfg.waistTwist) ~= "number" then twCfg.waistTwist = 0 end
+    if type(twCfg.headTwist) ~= "number" then twCfg.headTwist = 0 end
+    if twCfg.headSpin == nil then twCfg.headSpin = false end
+    if type(twCfg.limbSculpt) ~= "table" then twCfg.limbSculpt = {} end
+    if type(twCfg.slots) ~= "table" then twCfg.slots = {} end
+
+    local SCULPT_LIMBS = { "Right Leg", "Left Leg", "Right Arm", "Left Arm", "Head" }
+    for _, lId in ipairs(SCULPT_LIMBS) do
+        if type(twCfg.limbSculpt[lId]) ~= "table" then
+            twCfg.limbSculpt[lId] = { twist = 0, bend = 0, drill = 0, mode = "None" }
+        end
+    end
+
+    local origJoints = setmetatable({}, { __mode = "k" })
+    local touchedJoints = {}
+    local twistClock = 0
+
+    local function getActiveRig()
+        if zenApi and type(zenApi.is_reanimated) == "function" and type(zenApi.get_clone) == "function" then
+            local okRe, isRe = pcall(zenApi.is_reanimated)
+            if okRe and isRe then
+                local okCl, cl = pcall(zenApi.get_clone)
+                if okCl and cl and cl.Parent then return cl end
+            end
+        end
+        return LocalPlayer and LocalPlayer.Character
+    end
+
+    local function cacheJoints(rig)
+        if not rig then return end
+        for _, d in ipairs(rig:GetDescendants()) do
+            if d:IsA("Motor6D") and not origJoints[d] then
+                origJoints[d] = { C0 = d.C0, C1 = d.C1 }
+            end
+        end
+    end
+
+    local function findMotorByNames(rig, names)
+        if not rig then return nil end
+        for _, d in ipairs(rig:GetDescendants()) do
+            if d:IsA("Motor6D") then
+                for _, n in ipairs(names) do
+                    if d.Name == n then return d end
+                end
+            end
+        end
+        return nil
+    end
+
+    local function restoreTwistJoints(rig)
+        rig = rig or getActiveRig()
+        if rig then
+            for m in pairs(touchedJoints) do
+                if m and m.Parent and origJoints[m] then
+                    pcall(function()
+                        m.C0 = origJoints[m].C0
+                        m.C1 = origJoints[m].C1
+                    end)
+                end
+            end
+        end
+        table.clear(touchedJoints)
+    end
+
+    -- ========================================================================
+    -- BUILD TWIST & 3D ROTATE TAB PAGE
+    -- ========================================================================
+    local twistPage = Instance.new("ScrollingFrame")
+    twistPage.Name = "TwistPage"
+    twistPage.Size = UDim2.new(1, 0, 1, 0)
+    twistPage.BackgroundTransparency = 1
+    twistPage.BorderSizePixel = 0
+    twistPage.ScrollBarThickness = 3
+    twistPage.ScrollBarImageColor3 = Theme.accent
+    twistPage.ScrollBarImageTransparency = 0.6
+    pcall(function() twistPage.AutomaticCanvasSize = Enum.AutomaticSize.Y end)
+    twistPage.CanvasSize = UDim2.new(0, 0, 0, 820)
+    twistPage.Visible = false
+    twistPage.Parent = pagesHolder
+
+    local twPad = Instance.new("UIPadding", twistPage)
+    twPad.PaddingLeft = UDim.new(0, 2)
+    twPad.PaddingRight = UDim.new(0, 4)
+    twPad.PaddingTop = UDim.new(0, 2)
+    twPad.PaddingBottom = UDim.new(0, 14)
+
+    local twLayout = Instance.new("UIListLayout", twistPage)
+    twLayout.Padding = UDim.new(0, 8)
+    twLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    twLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        twistPage.CanvasSize = UDim2.new(0, 0, 0, twLayout.AbsoluteContentSize.Y + 28)
+    end)
+
+    local twMasterTrack, twMasterKnob, twMasterGlow, twMasterSub
+    local pitchSl, yawSl, rollSl, floatSl, spinXSl, spinYSl, spinZSl, waistSl, headSl
+    local headSpinTrk, headSpinKnb, headSpinGlw
+    local presetBtns = {}
+    local syncAllTwistUI
+
+    local function setTwistEnabled(onVal, anim)
+        twCfg.enabled = (onVal == true)
+        saveConfig()
+        if twMasterTrack then
+            setSwitchVisual(twMasterTrack, twMasterKnob, twMasterGlow, twCfg.enabled, anim ~= false)
+        end
+        if not twCfg.enabled then
+            restoreTwistJoints(getActiveRig())
+        end
+    end
+
+    local function applyRigPreset(pName)
+        twCfg.preset = pName
+        twCfg.pitch, twCfg.yaw, twCfg.roll, twCfg.floatY = 0, 0, 0, 0
+        twCfg.spinX, twCfg.spinY, twCfg.spinZ = 0, 0, 0
+        twCfg.waistTwist, twCfg.headTwist, twCfg.headSpin = 0, 0, false
+
+        if pName == "Upside Down" then
+            twCfg.pitch = 180; twCfg.floatY = 1.2
+        elseif pName == "Flat Crawl" then
+            twCfg.pitch = 90; twCfg.floatY = -1.6
+        elseif pName == "Sideways L" then
+            twCfg.roll = 90; twCfg.floatY = -0.6
+        elseif pName == "Sideways R" then
+            twCfg.roll = -90; twCfg.floatY = -0.6
+        elseif pName == "Barrel Roll" then
+            twCfg.spinZ = 8; twCfg.floatY = 1.0
+        elseif pName == "Tornado Spin" then
+            twCfg.spinY = 16
+        elseif pName == "Frontflip" then
+            twCfg.spinX = 9; twCfg.floatY = 1.5
+        elseif pName == "Exorcist" then
+            twCfg.waistTwist = 180; twCfg.headTwist = 180; twCfg.headSpin = true
+        end
+
+        if pName == "Normal" then
+            setTwistEnabled(false, true)
+        else
+            setTwistEnabled(true, true)
+        end
+        saveConfig()
+        if syncAllTwistUI then syncAllTwistUI() end
+    end
+
+    -- Header + Master Switch Card
+    do
+        local hdr = Instance.new("TextLabel", twistPage)
+        hdr.Size = UDim2.new(1, 0, 0, 16)
+        hdr.BackgroundTransparency = 1
+        hdr.Text = "3D REANIM ROTATE, TWIST & SCULPT (ALL TABS)"
+        hdr.TextColor3 = Theme.textMuted
+        hdr.Font = Enum.Font.GothamBold
+        hdr.TextSize = 10
+        hdr.TextXAlignment = Enum.TextXAlignment.Left
+        hdr.LayoutOrder = 1
+
+        local mCard = Instance.new("Frame", twistPage)
+        mCard.Size = UDim2.new(1, 0, 0, 46)
+        mCard.BackgroundColor3 = Theme.surface
+        mCard.BorderSizePixel = 0
+        mCard.LayoutOrder = 2
+        addCorner(mCard, 10)
+        addStroke(mCard, Color3.fromRGB(255, 255, 255), 1, 0.88)
+
+        local mTitle = Instance.new("TextLabel", mCard)
+        mTitle.Size = UDim2.new(1, -135, 0, 18)
+        mTitle.Position = UDim2.new(0, 12, 0, 6)
+        mTitle.BackgroundTransparency = 1
+        mTitle.Text = "3D Twist & Rotate Engine"
+        mTitle.TextColor3 = Color3.fromRGB(245, 245, 250)
+        mTitle.Font = Enum.Font.GothamBold
+        mTitle.TextSize = 11
+        mTitle.TextXAlignment = Enum.TextXAlignment.Left
+
+        twMasterSub = Instance.new("TextLabel", mCard)
+        twMasterSub.Size = UDim2.new(1, -135, 0, 14)
+        twMasterSub.Position = UDim2.new(0, 12, 0, 24)
+        twMasterSub.BackgroundTransparency = 1
+        twMasterSub.Text = "Layers on Fun, Bang, Morphs & Stretch"
+        twMasterSub.TextColor3 = Theme.textMuted
+        twMasterSub.Font = Enum.Font.Gotham
+        twMasterSub.TextSize = 9
+        twMasterSub.TextXAlignment = Enum.TextXAlignment.Left
+
+        local rstBtn = Instance.new("TextButton", mCard)
+        rstBtn.Size = UDim2.new(0, 50, 0, 22)
+        rstBtn.Position = UDim2.new(1, -112, 0.5, -11)
+        rstBtn.BackgroundColor3 = Theme.bgCard
+        rstBtn.Text = "Reset"
+        rstBtn.TextColor3 = Theme.textMuted
+        rstBtn.Font = Enum.Font.GothamBold
+        rstBtn.TextSize = 9.5
+        rstBtn.ZIndex = 7
+        addCorner(rstBtn, 6)
+        addStroke(rstBtn, Theme.divider, 1, 0.3)
+        rstBtn.MouseButton1Click:Connect(function()
+            for _, lId in ipairs(SCULPT_LIMBS) do
+                twCfg.limbSculpt[lId] = { twist = 0, bend = 0, drill = 0, mode = "None" }
+            end
+            applyRigPreset("Normal")
+        end)
+
+        twMasterTrack, twMasterKnob, twMasterGlow = createLimbToggleSwitch(mCard, -54, -11)
+        setSwitchVisual(twMasterTrack, twMasterKnob, twMasterGlow, twCfg.enabled == true, false)
+
+        local mHit = Instance.new("TextButton", mCard)
+        mHit.Size = UDim2.new(0, 54, 1, 0)
+        mHit.Position = UDim2.new(1, -56, 0, 0)
+        mHit.BackgroundTransparency = 1
+        mHit.Text = ""
+        mHit.ZIndex = 6
+        mHit.MouseButton1Click:Connect(function()
+            setTwistEnabled(not twCfg.enabled, true)
+        end)
+    end
+
+    -- 1-Tap Flip & Spin Presets Card
+    do
+        local PRESETS = {
+            "Normal", "Upside Down", "Flat Crawl",
+            "Sideways L", "Sideways R", "Barrel Roll",
+            "Tornado Spin", "Frontflip", "Exorcist",
+        }
+        local pCard = Instance.new("Frame", twistPage)
+        pCard.Size = UDim2.new(1, 0, 0, 118)
+        pCard.BackgroundColor3 = Theme.bgCard
+        pCard.BorderSizePixel = 0
+        pCard.LayoutOrder = 3
+        addCorner(pCard, 8)
+        addStroke(pCard, Theme.divider, 1, 0)
+
+        local pt = Instance.new("TextLabel", pCard)
+        pt.Size = UDim2.new(1, -20, 0, 18)
+        pt.Position = UDim2.new(0, 10, 0, 6)
+        pt.BackgroundTransparency = 1
+        pt.Text = "1-TAP RIG ROTATION & FLIP PRESETS"
+        pt.TextColor3 = Theme.textMuted
+        pt.Font = Enum.Font.GothamBold
+        pt.TextSize = 9.5
+        pt.TextXAlignment = Enum.TextXAlignment.Left
+
+        for idx, pName in ipairs(PRESETS) do
+            local r = math.floor((idx - 1) / 3)
+            local c = (idx - 1) % 3
+            local b = Instance.new("TextButton", pCard)
+            b.Size = UDim2.new(1 / 3, -10, 0, 24)
+            b.Position = UDim2.new(c / 3, 7, 0, 28 + r * 28)
+            b.BackgroundColor3 = Theme.surface
+            b.Text = pName
+            b.TextColor3 = Theme.text
+            b.Font = Enum.Font.GothamMedium
+            b.TextSize = 9.5
+            b.TextTruncate = Enum.TextTruncate.AtEnd
+            addCorner(b, 6)
+            addStroke(b, Theme.divider, 1, 0.3)
+            presetBtns[pName] = b
+            b.MouseButton1Click:Connect(function()
+                applyRigPreset(pName)
+            end)
+        end
+    end
+
+    -- Full 3D Rig Rotation & Float Sliders Card
+    do
+        local rotCard = Instance.new("Frame", twistPage)
+        rotCard.Size = UDim2.new(1, 0, 0, 182)
+        rotCard.BackgroundColor3 = Theme.bgCard
+        rotCard.BorderSizePixel = 0
+        rotCard.LayoutOrder = 4
+        addCorner(rotCard, 8)
+        addStroke(rotCard, Theme.divider, 1, 0)
+
+        local rt = Instance.new("TextLabel", rotCard)
+        rt.Size = UDim2.new(1, -20, 0, 18)
+        rt.Position = UDim2.new(0, 10, 0, 6)
+        rt.BackgroundTransparency = 1
+        rt.Text = "ROTATE ENTIRE REANIM (PITCH / YAW / ROLL)"
+        rt.TextColor3 = Theme.textMuted
+        rt.Font = Enum.Font.GothamBold
+        rt.TextSize = 9.5
+        rt.TextXAlignment = Enum.TextXAlignment.Left
+
+        pitchSl = createAdvancedSlider(rotCard, ctx, "Rig Pitch (Flip Forward / Back)", -180, 180, twCfg.pitch, "%.0f°", 26, function(v)
+            twCfg.pitch = v; twCfg.preset = "Custom"
+            if not twCfg.enabled then setTwistEnabled(true, true) else saveConfig() end
+        end)
+        yawSl = createAdvancedSlider(rotCard, ctx, "Rig Yaw (Turn Facing Angle)", -180, 180, twCfg.yaw, "%.0f°", 64, function(v)
+            twCfg.yaw = v; twCfg.preset = "Custom"
+            if not twCfg.enabled then setTwistEnabled(true, true) else saveConfig() end
+        end)
+        rollSl = createAdvancedSlider(rotCard, ctx, "Rig Roll (Tilt Left / Right)", -180, 180, twCfg.roll, "%.0f°", 102, function(v)
+            twCfg.roll = v; twCfg.preset = "Custom"
+            if not twCfg.enabled then setTwistEnabled(true, true) else saveConfig() end
+        end)
+        floatSl = createAdvancedSlider(rotCard, ctx, "Body Height / Float Offset (+Y)", -5, 25, twCfg.floatY, "%.1f st", 140, function(v)
+            twCfg.floatY = v
+            if not twCfg.enabled then setTwistEnabled(true, true) else saveConfig() end
+        end)
+    end
+
+    -- Continuous 3D Auto-Spin & Waist/Head Twist Card
+    do
+        local spinCard = Instance.new("Frame", twistPage)
+        spinCard.Size = UDim2.new(1, 0, 0, 248)
+        spinCard.BackgroundColor3 = Theme.bgCard
+        spinCard.BorderSizePixel = 0
+        spinCard.LayoutOrder = 5
+        addCorner(spinCard, 8)
+        addStroke(spinCard, Theme.divider, 1, 0)
+
+        local st = Instance.new("TextLabel", spinCard)
+        st.Size = UDim2.new(1, -20, 0, 18)
+        st.Position = UDim2.new(0, 10, 0, 6)
+        st.BackgroundTransparency = 1
+        st.Text = "3D AUTO-SPIN, WAIST TWIST & HEAD 360°"
+        st.TextColor3 = Theme.textMuted
+        st.Font = Enum.Font.GothamBold
+        st.TextSize = 9.5
+        st.TextXAlignment = Enum.TextXAlignment.Left
+
+        spinXSl = createAdvancedSlider(spinCard, ctx, "Auto-Spin Pitch (Front/Back Flip)", -20, 20, twCfg.spinX, "%.1f", 26, function(v)
+            twCfg.spinX = v
+            if not twCfg.enabled and v ~= 0 then setTwistEnabled(true, true) else saveConfig() end
+        end)
+        spinYSl = createAdvancedSlider(spinCard, ctx, "Auto-Spin Yaw (Tornado Spin)", -20, 20, twCfg.spinY, "%.1f", 64, function(v)
+            twCfg.spinY = v
+            if not twCfg.enabled and v ~= 0 then setTwistEnabled(true, true) else saveConfig() end
+        end)
+        spinZSl = createAdvancedSlider(spinCard, ctx, "Auto-Spin Roll (Barrel Roll)", -20, 20, twCfg.spinZ, "%.1f", 102, function(v)
+            twCfg.spinZ = v
+            if not twCfg.enabled and v ~= 0 then setTwistEnabled(true, true) else saveConfig() end
+        end)
+        waistSl = createAdvancedSlider(spinCard, ctx, "Upper Body / Waist Twist", -180, 180, twCfg.waistTwist, "%.0f°", 140, function(v)
+            twCfg.waistTwist = v
+            if not twCfg.enabled and v ~= 0 then setTwistEnabled(true, true) else saveConfig() end
+        end)
+        headSl = createAdvancedSlider(spinCard, ctx, "Head 360° Twist Angle", -180, 180, twCfg.headTwist, "%.0f°", 178, function(v)
+            twCfg.headTwist = v
+            if not twCfg.enabled and v ~= 0 then setTwistEnabled(true, true) else saveConfig() end
+        end)
+
+        local hsRow = Instance.new("Frame", spinCard)
+        hsRow.Size = UDim2.new(1, -20, 0, 24)
+        hsRow.Position = UDim2.new(0, 10, 0, 218)
+        hsRow.BackgroundTransparency = 1
+        local hsLbl = Instance.new("TextLabel", hsRow)
+        hsLbl.Size = UDim2.new(1, -56, 1, 0)
+        hsLbl.BackgroundTransparency = 1
+        hsLbl.Text = "Owl Head Continuous 360° Auto-Spin"
+        hsLbl.TextColor3 = Theme.text
+        hsLbl.Font = Enum.Font.GothamSemibold
+        hsLbl.TextSize = 9.5
+        hsLbl.TextXAlignment = Enum.TextXAlignment.Left
+
+        headSpinTrk, headSpinKnb, headSpinGlw = createLimbToggleSwitch(hsRow, -44, -11)
+        setSwitchVisual(headSpinTrk, headSpinKnb, headSpinGlw, twCfg.headSpin == true, false)
+        local hsHit = Instance.new("TextButton", hsRow)
+        hsHit.Size = UDim2.new(1, 0, 1, 0)
+        hsHit.BackgroundTransparency = 1
+        hsHit.Text = ""
+        hsHit.ZIndex = 6
+        hsHit.MouseButton1Click:Connect(function()
+            twCfg.headSpin = not twCfg.headSpin
+            if twCfg.headSpin and not twCfg.enabled then setTwistEnabled(true, true) end
+            saveConfig()
+            setSwitchVisual(headSpinTrk, headSpinKnb, headSpinGlw, twCfg.headSpin == true, true)
+        end)
+    end
+
+    -- Per-Limb Twist, Bend & Sculpt Card
+    local syncSculptUI
+    do
+        local scCard = Instance.new("Frame", twistPage)
+        scCard.Size = UDim2.new(1, 0, 0, 250)
+        scCard.BackgroundColor3 = Theme.bgCard
+        scCard.BorderSizePixel = 0
+        scCard.LayoutOrder = 6
+        addCorner(scCard, 8)
+        addStroke(scCard, Theme.accent, 1, 0.5)
+
+        local scTitle = Instance.new("TextLabel", scCard)
+        scTitle.Size = UDim2.new(1, -20, 0, 18)
+        scTitle.Position = UDim2.new(0, 10, 0, 6)
+        scTitle.BackgroundTransparency = 1
+        scTitle.Text = "PER-LIMB TWIST, KNEE/ELBOW BEND & DRILL"
+        scTitle.TextColor3 = Theme.accent
+        scTitle.Font = Enum.Font.GothamBold
+        scTitle.TextSize = 9.5
+        scTitle.TextXAlignment = Enum.TextXAlignment.Left
+
+        local selSculptLimb = "Right Leg"
+        local scLimbBtns = {}
+        local scModeBtns = {}
+        local scTwistSl, scBendSl, scDrillSl
+
+        for idx, lId in ipairs(SCULPT_LIMBS) do
+            local r = math.floor((idx - 1) / 3)
+            local c = (idx - 1) % 3
+            local b = Instance.new("TextButton", scCard)
+            b.Size = UDim2.new(1 / 3, -10, 0, 22)
+            b.Position = UDim2.new(c / 3, 7, 0, 26 + r * 26)
+            b.BackgroundColor3 = Theme.surface
+            b.Text = lId
+            b.TextColor3 = Theme.text
+            b.Font = Enum.Font.GothamBold
+            b.TextSize = 9
+            addCorner(b, 5)
+            local st = addStroke(b, Theme.divider, 1, 0.3)
+            scLimbBtns[lId] = { btn = b, stroke = st }
+            b.MouseButton1Click:Connect(function()
+                selSculptLimb = lId
+                if syncSculptUI then syncSculptUI() end
+            end)
+        end
+
+        local clrScBtn = Instance.new("TextButton", scCard)
+        clrScBtn.Size = UDim2.new(1 / 3, -10, 0, 22)
+        clrScBtn.Position = UDim2.new(2 / 3, 7, 0, 52)
+        clrScBtn.BackgroundColor3 = Theme.dangerHover
+        clrScBtn.Text = "Clear Limb"
+        clrScBtn.TextColor3 = Theme.danger
+        clrScBtn.Font = Enum.Font.GothamBold
+        clrScBtn.TextSize = 9
+        addCorner(clrScBtn, 5)
+        clrScBtn.MouseButton1Click:Connect(function()
+            twCfg.limbSculpt[selSculptLimb] = { twist = 0, bend = 0, drill = 0, mode = "None" }
+            saveConfig()
+            restoreTwistJoints(getActiveRig())
+            if syncSculptUI then syncSculptUI() end
+        end)
+
+        local SC_MODES = { "None", "Spiral", "Whip", "Spring" }
+        for idx, mName in ipairs(SC_MODES) do
+            local mb = Instance.new("TextButton", scCard)
+            mb.Size = UDim2.new(0.25, -8, 0, 20)
+            mb.Position = UDim2.new((idx - 1) * 0.25, 6, 0, 82)
+            mb.BackgroundColor3 = Theme.surface
+            mb.Text = mName
+            mb.TextColor3 = Theme.text
+            mb.Font = Enum.Font.GothamBold
+            mb.TextSize = 9
+            addCorner(mb, 4)
+            addStroke(mb, Theme.divider, 1, 0.3)
+            scModeBtns[mName] = mb
+            mb.MouseButton1Click:Connect(function()
+                twCfg.limbSculpt[selSculptLimb].mode = mName
+                if mName ~= "None" and not twCfg.enabled then setTwistEnabled(true, true) end
+                saveConfig()
+                if syncSculptUI then syncSculptUI() end
+            end)
+        end
+
+        scTwistSl = createAdvancedSlider(scCard, ctx, "Limb Twist / Axial Roll", -180, 180, 0, "%.0f°", 108, function(v)
+            twCfg.limbSculpt[selSculptLimb].twist = v
+            if v ~= 0 and not twCfg.enabled then setTwistEnabled(true, true) end
+            saveConfig()
+        end)
+        scBendSl = createAdvancedSlider(scCard, ctx, "Joint Bend (Knee / Elbow / Tilt)", -150, 150, 0, "%.0f°", 148, function(v)
+            twCfg.limbSculpt[selSculptLimb].bend = v
+            if v ~= 0 and not twCfg.enabled then setTwistEnabled(true, true) end
+            saveConfig()
+        end)
+        scDrillSl = createAdvancedSlider(scCard, ctx, "Limb Drill / Propeller Spin", 0, 25, 0, "%.1f", 188, function(v)
+            twCfg.limbSculpt[selSculptLimb].drill = v
+            if v ~= 0 and not twCfg.enabled then setTwistEnabled(true, true) end
+            saveConfig()
+        end)
+
+        syncSculptUI = function()
+            local sc = twCfg.limbSculpt[selSculptLimb]
+            for lId, info in pairs(scLimbBtns) do
+                local s = twCfg.limbSculpt[lId]
+                local active = s and ((s.twist or 0) ~= 0 or (s.bend or 0) ~= 0 or (s.drill or 0) ~= 0 or (s.mode and s.mode ~= "None"))
+                local sel = (lId == selSculptLimb)
+                info.btn.BackgroundColor3 = active and Color3.fromRGB(24, 48, 34) or Theme.surface
+                info.btn.TextColor3 = active and Theme.green or (sel and Theme.accent or Theme.text)
+                info.stroke.Color = sel and Theme.accent or Theme.divider
+                info.stroke.Transparency = sel and 0 or 0.35
+            end
+            for mName, mb in pairs(scModeBtns) do
+                local act = (sc.mode == mName)
+                mb.BackgroundColor3 = act and Theme.accent or Theme.surface
+                mb.TextColor3 = act and Color3.fromRGB(8, 8, 10) or Theme.text
+            end
+            scTwistSl.setVal(sc.twist or 0, false)
+            scBendSl.setVal(sc.bend or 0, false)
+            scDrillSl.setVal(sc.drill or 0, false)
+        end
+        syncSculptUI()
+    end
+
+    -- 4 Custom Rig Pose Slots (Save / Load Stretch + Twist Combos!)
+    do
+        local slotCard = Instance.new("Frame", twistPage)
+        slotCard.Size = UDim2.new(1, 0, 0, 90)
+        slotCard.BackgroundColor3 = Theme.bgCard
+        slotCard.BorderSizePixel = 0
+        slotCard.LayoutOrder = 7
+        addCorner(slotCard, 8)
+        addStroke(slotCard, Theme.divider, 1, 0)
+
+        local slt = Instance.new("TextLabel", slotCard)
+        slt.Size = UDim2.new(1, -20, 0, 18)
+        slt.Position = UDim2.new(0, 10, 0, 6)
+        slt.BackgroundTransparency = 1
+        slt.Text = "CUSTOM RIG SLOTS (SAVE / LOAD STRETCH + TWIST)"
+        slt.TextColor3 = Theme.textMuted
+        slt.Font = Enum.Font.GothamBold
+        slt.TextSize = 9
+        slt.TextXAlignment = Enum.TextXAlignment.Left
+
+        local slotStatus = Instance.new("TextLabel", slotCard)
+        slotStatus.Size = UDim2.new(1, -20, 0, 14)
+        slotStatus.Position = UDim2.new(0, 10, 0, 72)
+        slotStatus.BackgroundTransparency = 1
+        slotStatus.Text = "Tap Load to recall, or Save to store current rig setup"
+        slotStatus.TextColor3 = Theme.textMuted
+        slotStatus.Font = Enum.Font.Gotham
+        slotStatus.TextSize = 8.5
+        slotStatus.TextXAlignment = Enum.TextXAlignment.Left
+
+        for slotIdx = 1, 4 do
+            local key = "Slot" .. tostring(slotIdx)
+            local xScale = (slotIdx - 1) * 0.25
+
+            local loadB = Instance.new("TextButton", slotCard)
+            loadB.Size = UDim2.new(0.25, -8, 0, 20)
+            loadB.Position = UDim2.new(xScale, 6, 0, 26)
+            loadB.BackgroundColor3 = Theme.surface
+            loadB.Text = "Load #" .. tostring(slotIdx)
+            loadB.TextColor3 = Theme.accent
+            loadB.Font = Enum.Font.GothamBold
+            loadB.TextSize = 9
+            addCorner(loadB, 4)
+            addStroke(loadB, Theme.divider, 1, 0.3)
+
+            local saveB = Instance.new("TextButton", slotCard)
+            saveB.Size = UDim2.new(0.25, -8, 0, 18)
+            saveB.Position = UDim2.new(xScale, 6, 0, 50)
+            saveB.BackgroundColor3 = Color3.fromRGB(24, 44, 32)
+            saveB.Text = "Save #" .. tostring(slotIdx)
+            saveB.TextColor3 = Theme.green
+            saveB.Font = Enum.Font.GothamBold
+            saveB.TextSize = 8.5
+            addCorner(saveB, 4)
+
+            saveB.MouseButton1Click:Connect(function()
+                local copyLines = {}
+                if savedConfig.stretch and savedConfig.stretch.limbLines then
+                    for k, v in pairs(savedConfig.stretch.limbLines) do
+                        copyLines[k] = {
+                            enabled = v.enabled, dir = v.dir, length = v.length,
+                            thickness = v.thickness, pitch = v.pitch, yaw = v.yaw, walkSwing = v.walkSwing,
+                        }
+                    end
+                end
+                local copySculpt = {}
+                for k, v in pairs(twCfg.limbSculpt) do
+                    copySculpt[k] = { twist = v.twist, bend = v.bend, drill = v.drill, mode = v.mode }
+                end
+                twCfg.slots[key] = {
+                    pitch = twCfg.pitch, yaw = twCfg.yaw, roll = twCfg.roll, floatY = twCfg.floatY,
+                    spinX = twCfg.spinX, spinY = twCfg.spinY, spinZ = twCfg.spinZ,
+                    waistTwist = twCfg.waistTwist, headTwist = twCfg.headTwist, headSpin = twCfg.headSpin,
+                    limbLines = copyLines, limbSculpt = copySculpt,
+                }
+                saveConfig()
+                slotStatus.Text = "Saved current Stretch + Twist setup to Slot #" .. tostring(slotIdx) .. "!"
+            end)
+
+            loadB.MouseButton1Click:Connect(function()
+                local data = twCfg.slots[key]
+                if not data then
+                    slotStatus.Text = "Slot #" .. tostring(slotIdx) .. " is empty — tap Save first!"
+                    return
+                end
+                twCfg.pitch = data.pitch or 0; twCfg.yaw = data.yaw or 0; twCfg.roll = data.roll or 0
+                twCfg.floatY = data.floatY or 0
+                twCfg.spinX = data.spinX or 0; twCfg.spinY = data.spinY or 0; twCfg.spinZ = data.spinZ or 0
+                twCfg.waistTwist = data.waistTwist or 0; twCfg.headTwist = data.headTwist or 0
+                twCfg.headSpin = data.headSpin == true
+                if type(data.limbSculpt) == "table" then
+                    for k, v in pairs(data.limbSculpt) do
+                        twCfg.limbSculpt[k] = { twist = v.twist, bend = v.bend, drill = v.drill, mode = v.mode }
+                    end
+                end
+                if type(data.limbLines) == "table" and savedConfig.stretch and savedConfig.stretch.limbLines then
+                    local anyOn = false
+                    for k, v in pairs(data.limbLines) do
+                        savedConfig.stretch.limbLines[k] = {
+                            enabled = v.enabled, dir = v.dir, length = v.length,
+                            thickness = v.thickness, pitch = v.pitch, yaw = v.yaw, walkSwing = v.walkSwing,
+                        }
+                        if v.enabled then anyOn = true end
+                    end
+                    if anyOn and advStretchFx and advStretchFx.setMode then
+                        advStretchFx.setMode("Single Limb")
+                    end
+                    if advStretchFx and advStretchFx.syncSingleLimbUI then advStretchFx.syncSingleLimbUI() end
+                end
+                setTwistEnabled(true, true)
+                if syncAllTwistUI then syncAllTwistUI() end
+                if syncSculptUI then syncSculptUI() end
+                slotStatus.Text = "Loaded Slot #" .. tostring(slotIdx) .. "!"
+            end)
+        end
+    end
+
+    syncAllTwistUI = function()
+        if twMasterSub then
+            twMasterSub.Text = "Preset: " .. tostring(twCfg.preset) .. " | Active on ALL tabs"
+        end
+        for pName, b in pairs(presetBtns) do
+            local act = (twCfg.preset == pName)
+            b.BackgroundColor3 = act and Theme.accent or Theme.surface
+            b.TextColor3 = act and Color3.fromRGB(8, 8, 10) or Theme.text
+        end
+        if pitchSl then pitchSl.setVal(twCfg.pitch or 0, false) end
+        if yawSl then yawSl.setVal(twCfg.yaw or 0, false) end
+        if rollSl then rollSl.setVal(twCfg.roll or 0, false) end
+        if floatSl then floatSl.setVal(twCfg.floatY or 0, false) end
+        if spinXSl then spinXSl.setVal(twCfg.spinX or 0, false) end
+        if spinYSl then spinYSl.setVal(twCfg.spinY or 0, false) end
+        if spinZSl then spinZSl.setVal(twCfg.spinZ or 0, false) end
+        if waistSl then waistSl.setVal(twCfg.waistTwist or 0, false) end
+        if headSl then headSl.setVal(twCfg.headTwist or 0, false) end
+        if headSpinTrk then setSwitchVisual(headSpinTrk, headSpinKnb, headSpinGlw, twCfg.headSpin == true, false) end
+    end
+    syncAllTwistUI()
+
+    -- ========================================================================
+    -- UNIVERSAL QUICK-TRANSFORM DRAWER (Accessible from ALL 14 Tabs via ⚡)
+    -- Lets you stretch any single limb or twist/rotate your reanim from ANY tab!
+    -- ========================================================================
+    if headerBar and embedFrame then
+        local quickBtn = Instance.new("TextButton")
+        quickBtn.Name = "QuickTransformBtn"
+        quickBtn.Size = UDim2.new(0, 28, 0, 26)
+        quickBtn.Position = UDim2.new(1, -162, 0.5, -13)
+        quickBtn.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
+        quickBtn.Text = "⚡"
+        quickBtn.TextColor3 = Theme.accent
+        quickBtn.Font = Enum.Font.GothamBold
+        quickBtn.TextSize = 13
+        quickBtn.ZIndex = 23
+        quickBtn.Parent = headerBar
+        addCorner(quickBtn, 100)
+        addStroke(quickBtn, Theme.accent, 1, 0.45)
+
+        local drawer = Instance.new("Frame")
+        drawer.Name = "QuickTransformDrawer"
+        drawer.Size = UDim2.new(1, -20, 0, 250)
+        drawer.Position = UDim2.new(0, 10, 0, 48)
+        drawer.BackgroundColor3 = Color3.fromRGB(14, 14, 18)
+        drawer.BorderSizePixel = 0
+        drawer.ZIndex = 60
+        drawer.Visible = false
+        drawer.Parent = embedFrame
+        addCorner(drawer, 10)
+        addStroke(drawer, Theme.accent, 1.2, 0.25)
+
+        local dTitle = Instance.new("TextLabel", drawer)
+        dTitle.Size = UDim2.new(1, -40, 0, 22)
+        dTitle.Position = UDim2.new(0, 10, 0, 6)
+        dTitle.BackgroundTransparency = 1
+        dTitle.Text = "⚡ QUICK LIMB STRETCH & 3D TWIST (WORKS ON ALL TABS)"
+        dTitle.TextColor3 = Theme.accent
+        dTitle.Font = Enum.Font.GothamBold
+        dTitle.TextSize = 9
+        dTitle.TextXAlignment = Enum.TextXAlignment.Left
+        dTitle.ZIndex = 61
+
+        local dClose = Instance.new("TextButton", drawer)
+        dClose.Size = UDim2.new(0, 22, 0, 22)
+        dClose.Position = UDim2.new(1, -28, 0, 6)
+        dClose.BackgroundColor3 = Theme.surface
+        dClose.Text = "✕"
+        dClose.TextColor3 = Theme.textMuted
+        dClose.Font = Enum.Font.GothamBold
+        dClose.TextSize = 10
+        dClose.ZIndex = 62
+        addCorner(dClose, 11)
+        dClose.MouseButton1Click:Connect(function() drawer.Visible = false end)
+
+        -- Row 1: Quick Single-Limb Line Stretch Toggles (R-Leg, L-Leg, R-Arm, L-Arm, Head)
+        local qDirs = { "Forward", "Sky", "Right", "Left", "Back", "Down", "Camera" }
+        local qDirIdx = 1
+        local qLenVal = 24
+
+        local qDirBtn = Instance.new("TextButton", drawer)
+        qDirBtn.Size = UDim2.new(0.5, -12, 0, 22)
+        qDirBtn.Position = UDim2.new(0, 8, 0, 32)
+        qDirBtn.BackgroundColor3 = Theme.surface
+        qDirBtn.Text = "Line Dir: " .. qDirs[qDirIdx] .. " (tap)"
+        qDirBtn.TextColor3 = Theme.accent
+        qDirBtn.Font = Enum.Font.GothamBold
+        qDirBtn.TextSize = 9.5
+        qDirBtn.ZIndex = 61
+        addCorner(qDirBtn, 5)
+        qDirBtn.MouseButton1Click:Connect(function()
+            qDirIdx = (qDirIdx % #qDirs) + 1
+            qDirBtn.Text = "Line Dir: " .. qDirs[qDirIdx] .. " (tap)"
+        end)
+
+        local qLenBtn = Instance.new("TextButton", drawer)
+        qLenBtn.Size = UDim2.new(0.5, -12, 0, 22)
+        qLenBtn.Position = UDim2.new(0.5, 4, 0, 32)
+        qLenBtn.BackgroundColor3 = Theme.surface
+        qLenBtn.Text = "Length: " .. tostring(qLenVal) .. " st (tap)"
+        qLenBtn.TextColor3 = Theme.green
+        qLenBtn.Font = Enum.Font.GothamBold
+        qLenBtn.TextSize = 9.5
+        qLenBtn.ZIndex = 61
+        addCorner(qLenBtn, 5)
+        qLenBtn.MouseButton1Click:Connect(function()
+            local cycle = { 12, 24, 45, 80, 120 }
+            local nextV = cycle[1]
+            for i, v in ipairs(cycle) do
+                if v == qLenVal then nextV = cycle[(i % #cycle) + 1] break end
+            end
+            qLenVal = nextV
+            qLenBtn.Text = "Length: " .. tostring(qLenVal) .. " st (tap)"
+        end)
+
+        local qLimbMap = {
+            { id = "Right Leg", short = "R-Leg" },
+            { id = "Left Leg",  short = "L-Leg" },
+            { id = "Right Arm", short = "R-Arm" },
+            { id = "Left Arm",  short = "L-Arm" },
+            { id = "Head",      short = "Head"  },
+        }
+        for idx, item in ipairs(qLimbMap) do
+            local b = Instance.new("TextButton", drawer)
+            b.Size = UDim2.new(0.2, -6, 0, 24)
+            b.Position = UDim2.new((idx - 1) * 0.2, 4, 0, 60)
+            b.BackgroundColor3 = Theme.surface
+            b.Text = item.short
+            b.TextColor3 = Theme.text
+            b.Font = Enum.Font.GothamBold
+            b.TextSize = 9.5
+            b.ZIndex = 61
+            addCorner(b, 5)
+            addStroke(b, Theme.divider, 1, 0.3)
+            b.MouseButton1Click:Connect(function()
+                if advStretchFx and advStretchFx.toggleSingleLimb then
+                    local isOn = advStretchFx.toggleSingleLimb(item.id, qDirs[qDirIdx], qLenVal)
+                    b.BackgroundColor3 = isOn and Color3.fromRGB(24, 48, 34) or Theme.surface
+                    b.TextColor3 = isOn and Theme.green or Theme.text
+                end
+            end)
+        end
+
+        -- Row 2: Quick 3D Rotate & Twist Presets
+        local qPresets = { "Upside Down", "Tornado Spin", "Barrel Roll", "Flat Crawl", "Exorcist", "Normal" }
+        for idx, pName in ipairs(qPresets) do
+            local r = math.floor((idx - 1) / 3)
+            local c = (idx - 1) % 3
+            local pb = Instance.new("TextButton", drawer)
+            pb.Size = UDim2.new(1 / 3, -8, 0, 22)
+            pb.Position = UDim2.new(c / 3, 5, 0, 92 + r * 26)
+            pb.BackgroundColor3 = (pName == "Normal") and Theme.dangerHover or Theme.surface
+            pb.Text = (pName == "Normal") and "Reset All" or pName
+            pb.TextColor3 = (pName == "Normal") and Theme.danger or Theme.text
+            pb.Font = Enum.Font.GothamBold
+            pb.TextSize = 9
+            pb.ZIndex = 61
+            addCorner(pb, 5)
+            pb.MouseButton1Click:Connect(function()
+                if pName == "Normal" then
+                    applyRigPreset("Normal")
+                    if advStretchFx and advStretchFx.stopAll then pcall(advStretchFx.stopAll) end
+                else
+                    applyRigPreset(pName)
+                end
+            end)
+        end
+
+        -- Mini Pitch / Yaw / Roll Sliders right inside the Quick Drawer
+        local qp = createAdvancedSlider(drawer, ctx, "Quick Rig Pitch", -180, 180, twCfg.pitch, "%.0f°", 148, function(v)
+            twCfg.pitch = v
+            if not twCfg.enabled then setTwistEnabled(true, true) else saveConfig() end
+            if pitchSl then pitchSl.setVal(v, false) end
+        end)
+        qp.frame.ZIndex = 61
+        local qy = createAdvancedSlider(drawer, ctx, "Quick Rig Yaw / Spin", -180, 180, twCfg.yaw, "%.0f°", 184, function(v)
+            twCfg.yaw = v
+            if not twCfg.enabled then setTwistEnabled(true, true) else saveConfig() end
+            if yawSl then yawSl.setVal(v, false) end
+        end)
+        qy.frame.ZIndex = 61
+        local qr = createAdvancedSlider(drawer, ctx, "Quick Rig Roll", -180, 180, twCfg.roll, "%.0f°", 216, function(v)
+            twCfg.roll = v
+            if not twCfg.enabled then setTwistEnabled(true, true) else saveConfig() end
+            if rollSl then rollSl.setVal(v, false) end
+        end)
+        qr.frame.ZIndex = 61
+
+        quickBtn.MouseButton1Click:Connect(function()
+            drawer.Visible = not drawer.Visible
+            if drawer.Visible then
+                qp.setVal(twCfg.pitch or 0, false)
+                qy.setVal(twCfg.yaw or 0, false)
+                qr.setVal(twCfg.roll or 0, false)
+            end
+        end)
+    end
+
+    -- ========================================================================
+    -- REAL-TIME 3D TWIST, ROTATE & SCULPT STEP (Runs AFTER Stretch & Morphs!)
+    -- ========================================================================
+    local LIMB_JOINT_MAP = {
+        ["Right Leg"] = { main = { "Right Hip", "RightHip" },       mid = { "RightKnee" } },
+        ["Left Leg"]  = { main = { "Left Hip", "LeftHip" },         mid = { "LeftKnee" } },
+        ["Right Arm"] = { main = { "Right Shoulder", "RightShoulder" }, mid = { "RightElbow" } },
+        ["Left Arm"]  = { main = { "Left Shoulder", "LeftShoulder" },   mid = { "LeftElbow" } },
+        ["Head"]      = { main = { "Neck" },                        mid = {} },
+    }
+
+    local function stepRigTwistAndRotate(dt)
+        twistClock = twistClock + (dt or 0.016)
+        local rig = getActiveRig()
+        if not rig then return end
+        cacheJoints(rig)
+
+        if not twCfg.enabled then
+            if next(touchedJoints) ~= nil then
+                restoreTwistJoints(rig)
+            end
+            return
+        end
+
+        local curTouched = {}
+
+        -- 1. Whole-Rig 3D Rotation + Continuous Auto-Spin + Float Offset via RootJoint / Root
+        local px = math.rad(twCfg.pitch or 0) + (twCfg.spinX or 0) * twistClock
+        local py = math.rad(twCfg.yaw or 0)   + (twCfg.spinY or 0) * twistClock
+        local pz = math.rad(twCfg.roll or 0)  + (twCfg.spinZ or 0) * twistClock
+        local fy = twCfg.floatY or 0
+        local hasRootTransform = (math.abs(px) > 0.001 or math.abs(py) > 0.001 or math.abs(pz) > 0.001 or math.abs(fy) > 0.001)
+
+        if hasRootTransform then
+            local rootMotor = findMotorByNames(rig, { "RootJoint", "Root" })
+            if rootMotor and origJoints[rootMotor] then
+                local rotCF = CFrame.Angles(px, py, pz)
+                rootMotor.C0 = CFrame.new(0, fy, 0) * rotCF * origJoints[rootMotor].C0
+                curTouched[rootMotor] = true
+            end
+        end
+
+        -- 2. Upper Body / Waist Twist
+        local wTwist = twCfg.waistTwist or 0
+        if math.abs(wTwist) > 0.5 then
+            local waistMotor = findMotorByNames(rig, { "Waist" })
+            if waistMotor and origJoints[waistMotor] then
+                waistMotor.C0 = CFrame.Angles(0, math.rad(wTwist), 0) * origJoints[waistMotor].C0
+                curTouched[waistMotor] = true
+            else
+                -- R6 fallback: counter-twist hips so torso twists relative to legs
+                for _, hipName in ipairs({ "Left Hip", "Right Hip" }) do
+                    local hm = findMotorByNames(rig, { hipName })
+                    if hm and origJoints[hm] then
+                        hm.C0 = CFrame.Angles(0, -math.rad(wTwist), 0) * origJoints[hm].C0
+                        curTouched[hm] = true
+                    end
+                end
+            end
+        end
+
+        -- 3. Head 360° Twist / Owl Auto-Spin
+        local hTwist = (twCfg.headTwist or 0) + (twCfg.headSpin and (twistClock * 280) or 0)
+        if math.abs(hTwist) > 0.5 then
+            local neckMotor = findMotorByNames(rig, { "Neck" })
+            if neckMotor and origJoints[neckMotor] then
+                neckMotor.C0 = CFrame.Angles(0, math.rad(hTwist), 0) * origJoints[neckMotor].C0
+                curTouched[neckMotor] = true
+            end
+        end
+
+        -- 4. Per-Limb Twist, Bend, Drill Spin & Sculpt Modes
+        for idx, lId in ipairs(SCULPT_LIMBS) do
+            local sc = twCfg.limbSculpt[lId]
+            if sc then
+                local twDeg = sc.twist or 0
+                local bdDeg = sc.bend or 0
+                local drSpd = sc.drill or 0
+                local scMode = sc.mode or "None"
+                if twDeg ~= 0 or bdDeg ~= 0 or drSpd ~= 0 or scMode ~= "None" then
+                    local jSpec = LIMB_JOINT_MAP[lId]
+                    if jSpec then
+                        local mainM = findMotorByNames(rig, jSpec.main)
+                        local midM  = (#jSpec.mid > 0) and findMotorByNames(rig, jSpec.mid) or nil
+
+                        local axialAng = math.rad(twDeg) + (drSpd * twistClock)
+                        local bendAng  = math.rad(bdDeg)
+                        local waveX, waveZ = 0, 0
+                        if scMode == "Spiral" then
+                            axialAng = axialAng + math.sin(twistClock * 4 + idx) * 2.4
+                            waveX = math.sin(twistClock * 5 + idx) * 0.45
+                        elseif scMode == "Whip" then
+                            waveX = math.sin(twistClock * 9 + idx) * 0.85
+                            waveZ = math.cos(twistClock * 7 + idx) * 0.45
+                        elseif scMode == "Spring" then
+                            bendAng = bendAng + math.sin(twistClock * 8 + idx) * 1.1
+                        end
+
+                        if mainM and origJoints[mainM] then
+                            -- Layer cleanly on top of current C0 (preserves Stretch!) or origJoints
+                            local baseC0 = (savedConfig.stretch and savedConfig.stretch.enabled) and mainM.C0 or origJoints[mainM].C0
+                            local twistCF = CFrame.Angles(waveX + (midM and 0 or bendAng), axialAng, waveZ)
+                            mainM.C0 = baseC0 * twistCF
+                            curTouched[mainM] = true
+                        end
+                        if midM and origJoints[midM] and (math.abs(bendAng) > 0.01 or scMode ~= "None") then
+                            local baseMid = (savedConfig.stretch and savedConfig.stretch.enabled) and midM.C0 or origJoints[midM].C0
+                            midM.C0 = baseMid * CFrame.Angles(bendAng, axialAng * 0.5, waveZ)
+                            curTouched[midM] = true
+                        end
+                    end
+                end
+            end
+        end
+
+        -- Restore any joint that was touched last frame but not this frame
+        for prevM in pairs(touchedJoints) do
+            if not curTouched[prevM] and prevM and prevM.Parent and origJoints[prevM] then
+                pcall(function()
+                    prevM.C0 = origJoints[prevM].C0
+                    prevM.C1 = origJoints[prevM].C1
+                end)
+            end
+        end
+        touchedJoints = curTouched
+    end
+
+    local TWIST_STEP_NAME = "AngoorZenTwistRotateStep"
+    pcall(function() RunService:UnbindFromRenderStep(TWIST_STEP_NAME) end)
+    pcall(function()
+        RunService:BindToRenderStep(TWIST_STEP_NAME, Enum.RenderPriority.Camera.Value + 5, stepRigTwistAndRotate)
+    end)
+
+    local controller = {
+        twistPage   = twistPage,
+        restoreRig  = restoreTwistJoints,
+        applyPreset = applyRigPreset,
+        stopAll     = function()
+            for _, lId in ipairs(SCULPT_LIMBS) do
+                twCfg.limbSculpt[lId] = { twist = 0, bend = 0, drill = 0, mode = "None" }
+            end
+            applyRigPreset("Normal")
+        end,
+    }
+    _G._AngoorZenTwist = controller
+    return controller
+end
+
+-- ============================================================================
+-- ULTRA REANIM EXTENSIONS:
+--   1. MORPHS TAB (12 Procedural Rig Formations: Angel Wings, Halo Crown,
+--      Helicopter, Centipede, Vortex Tornado, Shield Dome, Starburst,
+--      X-Titan, Lance Arm, Sky Cannons, Meditation Float, Pendulum)
+--   2. HATS TAB (Accessory Animator: Halo Ring, Orbit Sphere, Sky Tower,
+--      Wing Fan, Comet Trail, Waist Shield)
+--   3. STUDIO TAB (Pose Recorder + Reverse/Ping-Pong Looper + Export to Custom,
+--      Player Pose Mimic/Mirror, BPM Rhythm Bounce, Movement Banking, Movement Tuning)
+-- ============================================================================
+
+local function buildUltraReanimModules(ctx)
+    local Theme                  = ctx.Theme
+    local addCorner              = ctx.addCorner
+    local addStroke              = ctx.addStroke
+    local playTween              = ctx.playTween
+    local zenApi                 = ctx.zenApi
+    local savedConfig            = ctx.savedConfig
+    local saveConfig             = ctx.saveConfig
+    local pagesHolder            = ctx.pagesHolder
+    local findTargetPlayer       = ctx.findTargetPlayer
+    local createLimbToggleSwitch = ctx.createLimbToggleSwitch
+    local setSwitchVisual        = ctx.setSwitchVisual
+    local allAnimations          = ctx.allAnimations
+    local refreshAnimList        = ctx.refreshAnimList
+
+    -- Persist configs cleanly
+    savedConfig.morphs = type(savedConfig.morphs) == "table" and savedConfig.morphs or {}
+    local mCfg = savedConfig.morphs
+    if mCfg.enabled == nil then mCfg.enabled = false end
+    if type(mCfg.mode) ~= "string" then mCfg.mode = "Angel Wings" end
+    if type(mCfg.scale) ~= "number" then mCfg.scale = 12 end
+    if type(mCfg.speed) ~= "number" then mCfg.speed = 2.5 end
+    if type(mCfg.altitude) ~= "number" then mCfg.altitude = 0 end
+    if mCfg.stretchMesh == nil then mCfg.stretchMesh = true end
+
+    savedConfig.hats = type(savedConfig.hats) == "table" and savedConfig.hats or {}
+    local hCfg = savedConfig.hats
+    if hCfg.enabled == nil then hCfg.enabled = false end
+    if type(hCfg.mode) ~= "string" then hCfg.mode = "Halo Ring" end
+    if type(hCfg.radius) ~= "number" then hCfg.radius = 5 end
+    if type(hCfg.height) ~= "number" then hCfg.height = 4 end
+    if type(hCfg.speed) ~= "number" then hCfg.speed = 2.5 end
+
+    savedConfig.studio = type(savedConfig.studio) == "table" and savedConfig.studio or {}
+    local sCfg = savedConfig.studio
+    if sCfg.mimicEnabled == nil then sCfg.mimicEnabled = false end
+    if type(sCfg.mimicTarget) ~= "string" then sCfg.mimicTarget = "" end
+    if sCfg.mimicMirror == nil then sCfg.mimicMirror = false end
+    if sCfg.bpmEnabled == nil then sCfg.bpmEnabled = false end
+    if type(sCfg.bpm) ~= "number" then sCfg.bpm = 128 end
+    if type(sCfg.bpmAmp) ~= "number" then sCfg.bpmAmp = 1.0 end
+    if sCfg.leanEnabled == nil then sCfg.leanEnabled = false end
+    if type(sCfg.leanStrength) ~= "number" then sCfg.leanStrength = 1.0 end
+    if sCfg.recReverse == nil then sCfg.recReverse = false end
+    if sCfg.recPingPong == nil then sCfg.recPingPong = false end
+    if type(sCfg.recSpeed) ~= "number" then sCfg.recSpeed = 1.0 end
+
+    local LIMB_ORDER = { "Torso", "Head", "Left Arm", "Right Arm", "Left Leg", "Right Leg" }
+    local LIMB_PART_MAP = {
+        ["Head"]      = { "Head" },
+        ["Torso"]     = { "Torso", "UpperTorso", "LowerTorso" },
+        ["Left Arm"]  = { "Left Arm", "LeftUpperArm", "LeftLowerArm", "LeftHand" },
+        ["Right Arm"] = { "Right Arm", "RightUpperArm", "RightLowerArm", "RightHand" },
+        ["Left Leg"]  = { "Left Leg", "LeftUpperLeg", "LeftLowerLeg", "LeftFoot" },
+        ["Right Leg"] = { "Right Leg", "RightUpperLeg", "RightLowerLeg", "RightFoot" },
+    }
+
+    local origMotors   = setmetatable({}, { __mode = "k" })
+    local origWelds    = setmetatable({}, { __mode = "k" })
+    local origMeshes   = setmetatable({}, { __mode = "k" })
+    local hatTrailHist = {}
+    local ultraClock   = 0
+
+    -- Recorder state
+    local recordedFrames = {}
+    local isRecording    = false
+    local isPlayingRec   = false
+    local recSampleAccum = 0
+    local recPlayCursor  = 1
+    local recPlayDir     = 1
+
+    local function getActiveRig()
+        if zenApi and type(zenApi.is_reanimated) == "function" and type(zenApi.get_clone) == "function" then
+            local okRe, isRe = pcall(zenApi.is_reanimated)
+            if okRe and isRe then
+                local okCl, cl = pcall(zenApi.get_clone)
+                if okCl and cl and cl.Parent then
+                    return cl
+                end
+            end
+        end
+        return LocalPlayer and LocalPlayer.Character
+    end
+
+    local function cacheRig(rig)
+        if not rig then return end
+        for _, d in ipairs(rig:GetDescendants()) do
+            if d:IsA("Motor6D") and not origMotors[d] then
+                origMotors[d] = { C0 = d.C0, C1 = d.C1 }
+            elseif d:IsA("Weld") and not origWelds[d] then
+                origWelds[d] = { C0 = d.C0, C1 = d.C1 }
+            elseif d:IsA("BasePart") and not origMeshes[d] then
+                local sm = d:FindFirstChildOfClass("SpecialMesh")
+                origMeshes[d] = { Mesh = sm, Scale = sm and sm.Scale or nil }
+            end
+        end
+    end
+
+    local function clearPartStretch(part)
+        if not part or not part.Parent then return end
+        local h = part:FindFirstChild("_AngoorMorphMesh")
+        if h then pcall(function() h:Destroy() end) end
+        local c = origMeshes[part]
+        if c and c.Mesh and c.Mesh.Parent and c.Scale then
+            pcall(function() c.Mesh.Scale = c.Scale end)
+        end
+    end
+
+    local function setPartStretch(part, scaleVec)
+        if not part or not part.Parent then return end
+        local existing = part:FindFirstChildOfClass("SpecialMesh")
+        if existing and existing.Name ~= "_AngoorMorphMesh" then
+            local base = (origMeshes[part] and origMeshes[part].Scale) or Vector3.new(1, 1, 1)
+            existing.Scale = Vector3.new(base.X * scaleVec.X, base.Y * scaleVec.Y, base.Z * scaleVec.Z)
+        else
+            local helper = part:FindFirstChild("_AngoorMorphMesh")
+            if not helper then
+                helper = Instance.new("SpecialMesh")
+                helper.Name = "_AngoorMorphMesh"
+                helper.MeshType = Enum.MeshType.Brick
+                helper.Parent = part
+            end
+            helper.Scale = scaleVec
+        end
+    end
+
+    local function restoreUltraRig(rig)
+        rig = rig or getActiveRig()
+        if not rig then return end
+        for _, d in ipairs(rig:GetDescendants()) do
+            if d:IsA("Motor6D") and origMotors[d] then
+                pcall(function()
+                    d.C0 = origMotors[d].C0
+                    d.C1 = origMotors[d].C1
+                    d.Transform = CFrame.new()
+                end)
+            elseif d:IsA("Weld") and origWelds[d] then
+                pcall(function()
+                    d.C0 = origWelds[d].C0
+                    d.C1 = origWelds[d].C1
+                end)
+            elseif d:IsA("BasePart") then
+                clearPartStretch(d)
+            end
+        end
+    end
+
+    local function getPartsOfGroup(rig, limbId)
+        local out = {}
+        for _, pName in ipairs(LIMB_PART_MAP[limbId] or {}) do
+            local p = rig:FindFirstChild(pName)
+            if p and p:IsA("BasePart") then
+                table.insert(out, p)
+            end
+        end
+        return out
+    end
+
+    local function getMotorOf(rig, part)
+        for _, d in ipairs(rig:GetDescendants()) do
+            if d:IsA("Motor6D") and d.Part1 == part then
+                return d
+            end
+        end
+        return nil
+    end
+
+    local function moveLimb(rig, part, targetCF, cfMap)
+        if not part or not part.Parent then return end
+        cfMap[part] = targetCF
+        local m = getMotorOf(rig, part)
+        if m and m.Part0 then
+            local p0CF = cfMap[m.Part0] or m.Part0.CFrame
+            m.Transform = CFrame.new()
+            m.C0 = p0CF:ToObjectSpace(targetCF) * m.C1
+        else
+            part.CFrame = targetCF
+        end
+    end
+
+    local function collectAccessories(rig)
+        local list = {}
+        if not rig then return list end
+        for _, child in ipairs(rig:GetChildren()) do
+            if child:IsA("Accessory") then
+                local handle = child:FindFirstChild("Handle")
+                if handle and handle:IsA("BasePart") then
+                    local weld = handle:FindFirstChildOfClass("Weld") or handle:FindFirstChild("AccessoryWeld")
+                    table.insert(list, { acc = child, handle = handle, weld = weld })
+                end
+            end
+        end
+        return list
+    end
+
+    -- ========================================================================
+    -- PAGE 1: MORPHS TAB
+    -- ========================================================================
+    local morphsPage = Instance.new("ScrollingFrame")
+    morphsPage.Name = "MorphsPage"
+    morphsPage.Size = UDim2.new(1, 0, 1, 0)
+    morphsPage.BackgroundTransparency = 1
+    morphsPage.BorderSizePixel = 0
+    morphsPage.ScrollBarThickness = 3
+    morphsPage.ScrollBarImageColor3 = Theme.accent
+    morphsPage.ScrollBarImageTransparency = 0.6
+    pcall(function() morphsPage.AutomaticCanvasSize = Enum.AutomaticSize.Y end)
+    morphsPage.CanvasSize = UDim2.new(0, 0, 0, 560)
+    morphsPage.Visible = false
+    morphsPage.Parent = pagesHolder
+
+    local mPad = Instance.new("UIPadding", morphsPage)
+    mPad.PaddingLeft = UDim.new(0, 2)
+    mPad.PaddingRight = UDim.new(0, 4)
+    mPad.PaddingTop = UDim.new(0, 2)
+    mPad.PaddingBottom = UDim.new(0, 14)
+
+    local mLayout = Instance.new("UIListLayout", morphsPage)
+    mLayout.Padding = UDim.new(0, 8)
+    mLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    mLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        morphsPage.CanvasSize = UDim2.new(0, 0, 0, mLayout.AbsoluteContentSize.Y + 28)
+    end)
+
+    local mMasterTrack, mMasterKnob, mMasterGlow
+    do
+        local hdr = Instance.new("TextLabel", morphsPage)
+        hdr.Size = UDim2.new(1, 0, 0, 16)
+        hdr.BackgroundTransparency = 1
+        hdr.Text = "PROCEDURAL RIG MORPHS (12 MODES)"
+        hdr.TextColor3 = Theme.textMuted
+        hdr.Font = Enum.Font.GothamBold
+        hdr.TextSize = 10
+        hdr.TextXAlignment = Enum.TextXAlignment.Left
+        hdr.LayoutOrder = 1
+
+        local masterCard = Instance.new("Frame", morphsPage)
+        masterCard.Size = UDim2.new(1, 0, 0, 46)
+        masterCard.BackgroundColor3 = Theme.surface
+        masterCard.BorderSizePixel = 0
+        masterCard.LayoutOrder = 2
+        addCorner(masterCard, 10)
+        addStroke(masterCard, Color3.fromRGB(255, 255, 255), 1, 0.88)
+
+        local mTitle = Instance.new("TextLabel", masterCard)
+        mTitle.Size = UDim2.new(1, -120, 0, 18)
+        mTitle.Position = UDim2.new(0, 12, 0, 6)
+        mTitle.BackgroundTransparency = 1
+        mTitle.Text = "Morph Engine"
+        mTitle.TextColor3 = Color3.fromRGB(245, 245, 250)
+        mTitle.Font = Enum.Font.GothamBold
+        mTitle.TextSize = 11
+        mTitle.TextXAlignment = Enum.TextXAlignment.Left
+
+        local mSub = Instance.new("TextLabel", masterCard)
+        mSub.Size = UDim2.new(1, -120, 0, 14)
+        mSub.Position = UDim2.new(0, 12, 0, 24)
+        mSub.BackgroundTransparency = 1
+        mSub.Text = "Active: " .. tostring(mCfg.mode)
+        mSub.TextColor3 = Theme.textMuted
+        mSub.Font = Enum.Font.Gotham
+        mSub.TextSize = 9
+        mSub.TextXAlignment = Enum.TextXAlignment.Left
+
+        mMasterTrack, mMasterKnob, mMasterGlow = createLimbToggleSwitch(masterCard, -54, -11)
+        setSwitchVisual(mMasterTrack, mMasterKnob, mMasterGlow, mCfg.enabled == true, false)
+
+        local mHit = Instance.new("TextButton", masterCard)
+        mHit.Size = UDim2.new(1, 0, 1, 0)
+        mHit.BackgroundTransparency = 1
+        mHit.Text = ""
+        mHit.ZIndex = 6
+
+        local function setMorphOn(onVal)
+            mCfg.enabled = (onVal == true)
+            saveConfig()
+            setSwitchVisual(mMasterTrack, mMasterKnob, mMasterGlow, mCfg.enabled, true)
+            if not mCfg.enabled then
+                restoreUltraRig(getActiveRig())
+            end
+        end
+        mHit.MouseButton1Click:Connect(function() setMorphOn(not mCfg.enabled) end)
+
+        -- 12 Morph Presets Grid (4 rows x 3 cols)
+        local MORPH_MODES = {
+            "Angel Wings", "Halo Crown", "Helicopter",
+            "Centipede", "Vortex Tornado", "Shield Dome",
+            "Starburst", "X-Titan", "Lance Arm",
+            "Sky Cannons", "Meditation", "Pendulum",
+        }
+        local gridCard = Instance.new("Frame", morphsPage)
+        gridCard.Size = UDim2.new(1, 0, 0, 146)
+        gridCard.BackgroundColor3 = Theme.bgCard
+        gridCard.BorderSizePixel = 0
+        gridCard.LayoutOrder = 3
+        addCorner(gridCard, 8)
+        addStroke(gridCard, Theme.divider, 1, 0)
+
+        local gTitle = Instance.new("TextLabel", gridCard)
+        gTitle.Size = UDim2.new(1, -20, 0, 18)
+        gTitle.Position = UDim2.new(0, 10, 0, 6)
+        gTitle.BackgroundTransparency = 1
+        gTitle.Text = "SELECT MORPH FORMATION"
+        gTitle.TextColor3 = Theme.textMuted
+        gTitle.Font = Enum.Font.GothamBold
+        gTitle.TextSize = 9.5
+        gTitle.TextXAlignment = Enum.TextXAlignment.Left
+
+        local morphBtns = {}
+        local function refreshMorphBtns()
+            mSub.Text = "Active: " .. tostring(mCfg.mode)
+            for name, b in pairs(morphBtns) do
+                local act = (mCfg.mode == name)
+                b.BackgroundColor3 = act and Theme.accent or Theme.surface
+                b.TextColor3 = act and Color3.fromRGB(8, 8, 10) or Theme.text
+                b.Font = act and Enum.Font.GothamBold or Enum.Font.GothamMedium
+            end
+        end
+
+        for idx, name in ipairs(MORPH_MODES) do
+            local r = math.floor((idx - 1) / 3)
+            local c = (idx - 1) % 3
+            local b = Instance.new("TextButton", gridCard)
+            b.Size = UDim2.new(1 / 3, -10, 0, 24)
+            b.Position = UDim2.new(c / 3, 7, 0, 28 + r * 28)
+            b.BackgroundColor3 = Theme.surface
+            b.Text = name
+            b.TextColor3 = Theme.text
+            b.Font = Enum.Font.GothamMedium
+            b.TextSize = 9.5
+            b.TextTruncate = Enum.TextTruncate.AtEnd
+            addCorner(b, 6)
+            addStroke(b, Theme.divider, 1, 0.3)
+            morphBtns[name] = b
+            b.MouseButton1Click:Connect(function()
+                mCfg.mode = name
+                setMorphOn(true)
+                refreshMorphBtns()
+            end)
+        end
+        refreshMorphBtns()
+
+        -- Morph Sliders + Mesh Stretch Toggle
+        local tuneCard = Instance.new("Frame", morphsPage)
+        tuneCard.Size = UDim2.new(1, 0, 0, 168)
+        tuneCard.BackgroundColor3 = Theme.bgCard
+        tuneCard.BorderSizePixel = 0
+        tuneCard.LayoutOrder = 4
+        addCorner(tuneCard, 8)
+        addStroke(tuneCard, Theme.divider, 1, 0)
+
+        createAdvancedSlider(tuneCard, ctx, "Morph Size / Reach", 2, 60, mCfg.scale, "%.0f st", 8, function(v)
+            mCfg.scale = v
+            saveConfig()
+        end)
+        createAdvancedSlider(tuneCard, ctx, "Animation Speed", 0.2, 12, mCfg.speed, "%.1fx", 48, function(v)
+            mCfg.speed = v
+            saveConfig()
+        end)
+        createAdvancedSlider(tuneCard, ctx, "Altitude Offset (+Y)", -10, 80, mCfg.altitude, "%.0f st", 88, function(v)
+            mCfg.altitude = v
+            saveConfig()
+        end)
+
+        local meshRow = Instance.new("Frame", tuneCard)
+        meshRow.Size = UDim2.new(1, -20, 0, 28)
+        meshRow.Position = UDim2.new(0, 10, 0, 132)
+        meshRow.BackgroundTransparency = 1
+        local ml = Instance.new("TextLabel", meshRow)
+        ml.Size = UDim2.new(1, -60, 1, 0)
+        ml.BackgroundTransparency = 1
+        ml.Text = "Stretch Limb Meshes for Wings / Lance"
+        ml.TextColor3 = Theme.text
+        ml.Font = Enum.Font.GothamSemibold
+        ml.TextSize = 10
+        ml.TextXAlignment = Enum.TextXAlignment.Left
+
+        local smT, smK, smG = createLimbToggleSwitch(meshRow, -46, -11)
+        setSwitchVisual(smT, smK, smG, mCfg.stretchMesh == true, false)
+        local smHit = Instance.new("TextButton", meshRow)
+        smHit.Size = UDim2.new(1, 0, 1, 0)
+        smHit.BackgroundTransparency = 1
+        smHit.Text = ""
+        smHit.ZIndex = 6
+        smHit.MouseButton1Click:Connect(function()
+            mCfg.stretchMesh = not mCfg.stretchMesh
+            saveConfig()
+            setSwitchVisual(smT, smK, smG, mCfg.stretchMesh, true)
+            if not mCfg.stretchMesh then
+                local rig = getActiveRig()
+                if rig then
+                    for _, d in ipairs(rig:GetDescendants()) do
+                        if d:IsA("BasePart") then clearPartStretch(d) end
+                    end
+                end
+            end
+        end)
+    end
+
+    -- ========================================================================
+    -- PAGE 2: HATS / ACCESSORY ANIMATOR TAB
+    -- ========================================================================
+    local hatsPage = Instance.new("ScrollingFrame")
+    hatsPage.Name = "HatsPage"
+    hatsPage.Size = UDim2.new(1, 0, 1, 0)
+    hatsPage.BackgroundTransparency = 1
+    hatsPage.BorderSizePixel = 0
+    hatsPage.ScrollBarThickness = 3
+    hatsPage.ScrollBarImageColor3 = Theme.accent
+    hatsPage.ScrollBarImageTransparency = 0.6
+    pcall(function() hatsPage.AutomaticCanvasSize = Enum.AutomaticSize.Y end)
+    hatsPage.CanvasSize = UDim2.new(0, 0, 0, 420)
+    hatsPage.Visible = false
+    hatsPage.Parent = pagesHolder
+
+    local hPad = Instance.new("UIPadding", hatsPage)
+    hPad.PaddingLeft = UDim.new(0, 2)
+    hPad.PaddingRight = UDim.new(0, 4)
+    hPad.PaddingTop = UDim.new(0, 2)
+    hPad.PaddingBottom = UDim.new(0, 14)
+
+    local hLayout = Instance.new("UIListLayout", hatsPage)
+    hLayout.Padding = UDim.new(0, 8)
+    hLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    hLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        hatsPage.CanvasSize = UDim2.new(0, 0, 0, hLayout.AbsoluteContentSize.Y + 28)
+    end)
+
+    local hMasterTrack, hMasterKnob, hMasterGlow, hatCountLbl
+    do
+        local hdr = Instance.new("TextLabel", hatsPage)
+        hdr.Size = UDim2.new(1, 0, 0, 16)
+        hdr.BackgroundTransparency = 1
+        hdr.Text = "ACCESSORY & HAT ANIMATOR"
+        hdr.TextColor3 = Theme.textMuted
+        hdr.Font = Enum.Font.GothamBold
+        hdr.TextSize = 10
+        hdr.TextXAlignment = Enum.TextXAlignment.Left
+        hdr.LayoutOrder = 1
+
+        local masterCard = Instance.new("Frame", hatsPage)
+        masterCard.Size = UDim2.new(1, 0, 0, 46)
+        masterCard.BackgroundColor3 = Theme.surface
+        masterCard.BorderSizePixel = 0
+        masterCard.LayoutOrder = 2
+        addCorner(masterCard, 10)
+        addStroke(masterCard, Color3.fromRGB(255, 255, 255), 1, 0.88)
+
+        local hTitle = Instance.new("TextLabel", masterCard)
+        hTitle.Size = UDim2.new(1, -120, 0, 18)
+        hTitle.Position = UDim2.new(0, 12, 0, 6)
+        hTitle.BackgroundTransparency = 1
+        hTitle.Text = "Hat Animator"
+        hTitle.TextColor3 = Color3.fromRGB(245, 245, 250)
+        hTitle.Font = Enum.Font.GothamBold
+        hTitle.TextSize = 11
+        hTitle.TextXAlignment = Enum.TextXAlignment.Left
+
+        hatCountLbl = Instance.new("TextLabel", masterCard)
+        hatCountLbl.Size = UDim2.new(1, -120, 0, 14)
+        hatCountLbl.Position = UDim2.new(0, 12, 0, 24)
+        hatCountLbl.BackgroundTransparency = 1
+        hatCountLbl.Text = "Detected accessories: 0"
+        hatCountLbl.TextColor3 = Theme.textMuted
+        hatCountLbl.Font = Enum.Font.Gotham
+        hatCountLbl.TextSize = 9
+        hatCountLbl.TextXAlignment = Enum.TextXAlignment.Left
+
+        hMasterTrack, hMasterKnob, hMasterGlow = createLimbToggleSwitch(masterCard, -54, -11)
+        setSwitchVisual(hMasterTrack, hMasterKnob, hMasterGlow, hCfg.enabled == true, false)
+
+        local hHit = Instance.new("TextButton", masterCard)
+        hHit.Size = UDim2.new(1, 0, 1, 0)
+        hHit.BackgroundTransparency = 1
+        hHit.Text = ""
+        hHit.ZIndex = 6
+
+        local function setHatsOn(onVal)
+            hCfg.enabled = (onVal == true)
+            saveConfig()
+            setSwitchVisual(hMasterTrack, hMasterKnob, hMasterGlow, hCfg.enabled, true)
+            if not hCfg.enabled then
+                restoreUltraRig(getActiveRig())
+            end
+        end
+        hHit.MouseButton1Click:Connect(function() setHatsOn(not hCfg.enabled) end)
+
+        local HAT_MODES = { "Halo Ring", "Orbit Sphere", "Sky Tower", "Wing Fan", "Comet Trail", "Waist Shield" }
+        local gridCard = Instance.new("Frame", hatsPage)
+        gridCard.Size = UDim2.new(1, 0, 0, 90)
+        gridCard.BackgroundColor3 = Theme.bgCard
+        gridCard.BorderSizePixel = 0
+        gridCard.LayoutOrder = 3
+        addCorner(gridCard, 8)
+        addStroke(gridCard, Theme.divider, 1, 0)
+
+        local gt = Instance.new("TextLabel", gridCard)
+        gt.Size = UDim2.new(1, -20, 0, 18)
+        gt.Position = UDim2.new(0, 10, 0, 6)
+        gt.BackgroundTransparency = 1
+        gt.Text = "ACCESSORY FORMATION"
+        gt.TextColor3 = Theme.textMuted
+        gt.Font = Enum.Font.GothamBold
+        gt.TextSize = 9.5
+        gt.TextXAlignment = Enum.TextXAlignment.Left
+
+        local hatBtns = {}
+        local function refreshHatBtns()
+            for name, b in pairs(hatBtns) do
+                local act = (hCfg.mode == name)
+                b.BackgroundColor3 = act and Theme.accent or Theme.surface
+                b.TextColor3 = act and Color3.fromRGB(8, 8, 10) or Theme.text
+                b.Font = act and Enum.Font.GothamBold or Enum.Font.GothamMedium
+            end
+        end
+
+        for idx, name in ipairs(HAT_MODES) do
+            local r = math.floor((idx - 1) / 3)
+            local c = (idx - 1) % 3
+            local b = Instance.new("TextButton", gridCard)
+            b.Size = UDim2.new(1 / 3, -10, 0, 24)
+            b.Position = UDim2.new(c / 3, 7, 0, 28 + r * 28)
+            b.BackgroundColor3 = Theme.surface
+            b.Text = name
+            b.TextColor3 = Theme.text
+            b.Font = Enum.Font.GothamMedium
+            b.TextSize = 9.5
+            addCorner(b, 6)
+            addStroke(b, Theme.divider, 1, 0.3)
+            hatBtns[name] = b
+            b.MouseButton1Click:Connect(function()
+                hCfg.mode = name
+                setHatsOn(true)
+                refreshHatBtns()
+            end)
+        end
+        refreshHatBtns()
+
+        local hTune = Instance.new("Frame", hatsPage)
+        hTune.Size = UDim2.new(1, 0, 0, 128)
+        hTune.BackgroundColor3 = Theme.bgCard
+        hTune.BorderSizePixel = 0
+        hTune.LayoutOrder = 4
+        addCorner(hTune, 8)
+        addStroke(hTune, Theme.divider, 1, 0)
+
+        createAdvancedSlider(hTune, ctx, "Radius / Line Spacing", 1, 35, hCfg.radius, "%.1f st", 8, function(v)
+            hCfg.radius = v
+            saveConfig()
+        end)
+        createAdvancedSlider(hTune, ctx, "Height Offset (+Y)", -5, 60, hCfg.height, "%.1f st", 48, function(v)
+            hCfg.height = v
+            saveConfig()
+        end)
+        createAdvancedSlider(hTune, ctx, "Orbit / Flap Speed", 0.2, 12, hCfg.speed, "%.1fx", 88, function(v)
+            hCfg.speed = v
+            saveConfig()
+        end)
+    end
+
+    -- ========================================================================
+    -- PAGE 3: STUDIO TAB (Recorder, Player Mimic, BPM Bounce, Movement Lean)
+    -- ========================================================================
+    local studioPage = Instance.new("ScrollingFrame")
+    studioPage.Name = "StudioPage"
+    studioPage.Size = UDim2.new(1, 0, 1, 0)
+    studioPage.BackgroundTransparency = 1
+    studioPage.BorderSizePixel = 0
+    studioPage.ScrollBarThickness = 3
+    studioPage.ScrollBarImageColor3 = Theme.accent
+    studioPage.ScrollBarImageTransparency = 0.6
+    pcall(function() studioPage.AutomaticCanvasSize = Enum.AutomaticSize.Y end)
+    studioPage.CanvasSize = UDim2.new(0, 0, 0, 580)
+    studioPage.Visible = false
+    studioPage.Parent = pagesHolder
+
+    local sPad = Instance.new("UIPadding", studioPage)
+    sPad.PaddingLeft = UDim.new(0, 2)
+    sPad.PaddingRight = UDim.new(0, 4)
+    sPad.PaddingTop = UDim.new(0, 2)
+    sPad.PaddingBottom = UDim.new(0, 14)
+
+    local sLayout = Instance.new("UIListLayout", studioPage)
+    sLayout.Padding = UDim.new(0, 8)
+    sLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    sLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        studioPage.CanvasSize = UDim2.new(0, 0, 0, sLayout.AbsoluteContentSize.Y + 28)
+    end)
+
+    local recStatusLbl
+    do
+        local hdr = Instance.new("TextLabel", studioPage)
+        hdr.Size = UDim2.new(1, 0, 0, 16)
+        hdr.BackgroundTransparency = 1
+        hdr.Text = "REANIM STUDIO: RECORDER, MIMIC & RHYTHM"
+        hdr.TextColor3 = Theme.textMuted
+        hdr.Font = Enum.Font.GothamBold
+        hdr.TextSize = 10
+        hdr.TextXAlignment = Enum.TextXAlignment.Left
+        hdr.LayoutOrder = 1
+
+        -- 1. Keyframe Pose Recorder Card
+        local recCard = Instance.new("Frame", studioPage)
+        recCard.Size = UDim2.new(1, 0, 0, 162)
+        recCard.BackgroundColor3 = Theme.bgCard
+        recCard.BorderSizePixel = 0
+        recCard.LayoutOrder = 2
+        addCorner(recCard, 8)
+        addStroke(recCard, Theme.divider, 1, 0)
+
+        local recTitle = Instance.new("TextLabel", recCard)
+        recTitle.Size = UDim2.new(1, -20, 0, 18)
+        recTitle.Position = UDim2.new(0, 10, 0, 6)
+        recTitle.BackgroundTransparency = 1
+        recTitle.Text = "KEYFRAME POSE RECORDER & LOOPER"
+        recTitle.TextColor3 = Theme.textMuted
+        recTitle.Font = Enum.Font.GothamBold
+        recTitle.TextSize = 9.5
+        recTitle.TextXAlignment = Enum.TextXAlignment.Left
+
+        recStatusLbl = Instance.new("TextLabel", recCard)
+        recStatusLbl.Size = UDim2.new(1, -20, 0, 14)
+        recStatusLbl.Position = UDim2.new(0, 10, 0, 24)
+        recStatusLbl.BackgroundTransparency = 1
+        recStatusLbl.Text = "Idle — 0 frames captured (max 300)"
+        recStatusLbl.TextColor3 = Theme.text
+        recStatusLbl.Font = Enum.Font.Gotham
+        recStatusLbl.TextSize = 9.5
+        recStatusLbl.TextXAlignment = Enum.TextXAlignment.Left
+
+        local recBtn = Instance.new("TextButton", recCard)
+        recBtn.Size = UDim2.new(1 / 3, -10, 0, 26)
+        recBtn.Position = UDim2.new(0, 8, 0, 44)
+        recBtn.BackgroundColor3 = Theme.surface
+        recBtn.Text = "● Record"
+        recBtn.TextColor3 = Theme.danger
+        recBtn.Font = Enum.Font.GothamBold
+        recBtn.TextSize = 10
+        addCorner(recBtn, 6)
+        addStroke(recBtn, Theme.divider, 1, 0.3)
+
+        local playRecBtn = Instance.new("TextButton", recCard)
+        playRecBtn.Size = UDim2.new(1 / 3, -10, 0, 26)
+        playRecBtn.Position = UDim2.new(1 / 3, 5, 0, 44)
+        playRecBtn.BackgroundColor3 = Theme.surface
+        playRecBtn.Text = "▶ Play Loop"
+        playRecBtn.TextColor3 = Theme.green
+        playRecBtn.Font = Enum.Font.GothamBold
+        playRecBtn.TextSize = 10
+        addCorner(playRecBtn, 6)
+        addStroke(playRecBtn, Theme.divider, 1, 0.3)
+
+        local revBtn = Instance.new("TextButton", recCard)
+        revBtn.Size = UDim2.new(1 / 3, -10, 0, 26)
+        revBtn.Position = UDim2.new(2 / 3, 2, 0, 44)
+        revBtn.BackgroundColor3 = sCfg.recPingPong and Theme.accent or Theme.surface
+        revBtn.Text = sCfg.recPingPong and "⇄ PingPong" or (sCfg.recReverse and "◀ Reverse" or "▶ Forward")
+        revBtn.TextColor3 = sCfg.recPingPong and Color3.fromRGB(8, 8, 10) or Theme.text
+        revBtn.Font = Enum.Font.GothamBold
+        revBtn.TextSize = 9.5
+        addCorner(revBtn, 6)
+        addStroke(revBtn, Theme.divider, 1, 0.3)
+
+        recBtn.MouseButton1Click:Connect(function()
+            if isRecording then
+                isRecording = false
+                recBtn.Text = "● Record"
+                recBtn.BackgroundColor3 = Theme.surface
+                recStatusLbl.Text = "Captured " .. tostring(#recordedFrames) .. " frames — ready to play"
+            else
+                isPlayingRec = false
+                playRecBtn.Text = "▶ Play Loop"
+                table.clear(recordedFrames)
+                recSampleAccum = 0
+                isRecording = true
+                recBtn.Text = "■ Stop Rec"
+                recBtn.BackgroundColor3 = Theme.dangerHover
+                recStatusLbl.Text = "Recording live poses..."
+            end
+        end)
+
+        playRecBtn.MouseButton1Click:Connect(function()
+            if isPlayingRec then
+                isPlayingRec = false
+                playRecBtn.Text = "▶ Play Loop"
+                restoreUltraRig(getActiveRig())
+                recStatusLbl.Text = "Stopped (" .. tostring(#recordedFrames) .. " frames saved)"
+            else
+                if #recordedFrames < 2 then
+                    recStatusLbl.Text = "Record at least 2 frames first!"
+                    return
+                end
+                isRecording = false
+                recBtn.Text = "● Record"
+                recBtn.BackgroundColor3 = Theme.surface
+                recPlayCursor = sCfg.recReverse and #recordedFrames or 1
+                recPlayDir = sCfg.recReverse and -1 or 1
+                isPlayingRec = true
+                playRecBtn.Text = "■ Stop Loop"
+                recStatusLbl.Text = "Playing " .. tostring(#recordedFrames) .. " recorded frames"
+            end
+        end)
+
+        revBtn.MouseButton1Click:Connect(function()
+            if not sCfg.recReverse and not sCfg.recPingPong then
+                sCfg.recReverse = true
+                sCfg.recPingPong = false
+                revBtn.Text = "◀ Reverse"
+                revBtn.BackgroundColor3 = Theme.surface
+                revBtn.TextColor3 = Theme.accent
+            elseif sCfg.recReverse then
+                sCfg.recReverse = false
+                sCfg.recPingPong = true
+                revBtn.Text = "⇄ PingPong"
+                revBtn.BackgroundColor3 = Theme.accent
+                revBtn.TextColor3 = Color3.fromRGB(8, 8, 10)
+            else
+                sCfg.recReverse = false
+                sCfg.recPingPong = false
+                revBtn.Text = "▶ Forward"
+                revBtn.BackgroundColor3 = Theme.surface
+                revBtn.TextColor3 = Theme.text
+            end
+            saveConfig()
+        end)
+
+        createAdvancedSlider(recCard, ctx, "Recorder Playback Speed", 0.2, 4, sCfg.recSpeed, "%.1fx", 78, function(v)
+            sCfg.recSpeed = v
+            saveConfig()
+        end)
+
+        local exportRecBtn = Instance.new("TextButton", recCard)
+        exportRecBtn.Size = UDim2.new(1, -16, 0, 24)
+        exportRecBtn.Position = UDim2.new(0, 8, 0, 126)
+        exportRecBtn.BackgroundColor3 = Color3.fromRGB(24, 44, 32)
+        exportRecBtn.Text = "+ Save Recorded Clip to Custom Tab"
+        exportRecBtn.TextColor3 = Theme.green
+        exportRecBtn.Font = Enum.Font.GothamBold
+        exportRecBtn.TextSize = 9.5
+        addCorner(exportRecBtn, 6)
+        addStroke(exportRecBtn, Color3.fromRGB(40, 110, 65), 1, 0.35)
+        exportRecBtn.MouseButton1Click:Connect(function()
+            if #recordedFrames < 2 then
+                recStatusLbl.Text = "Record at least 2 frames before saving!"
+                return
+            end
+            local clipId = "Clip_" .. tostring(math.floor(tick()) % 10000)
+            local clipName = "Recorded " .. clipId
+            if ctx.procEngine and type(ctx.procEngine.registerRecClip) == "function" then
+                ctx.procEngine.registerRecClip(clipId, recordedFrames)
+            end
+            local entryPath = "rec://" .. clipId
+            savedConfig.customAnims = savedConfig.customAnims or {}
+            table.insert(savedConfig.customAnims, { name = clipName, script = entryPath })
+            table.insert(allAnimations, { name = clipName, path = entryPath, category = "Custom", isCustom = true })
+            saveConfig()
+            if type(refreshAnimList) == "function" then pcall(refreshAnimList) end
+            recStatusLbl.Text = "Saved '" .. clipName .. "' to Custom tab!"
+        end)
+
+        -- 2. Live Player Pose Mimic / Mirror Card
+        local mimicCard = Instance.new("Frame", studioPage)
+        mimicCard.Size = UDim2.new(1, 0, 0, 96)
+        mimicCard.BackgroundColor3 = Theme.bgCard
+        mimicCard.BorderSizePixel = 0
+        mimicCard.LayoutOrder = 3
+        addCorner(mimicCard, 8)
+        addStroke(mimicCard, Theme.divider, 1, 0)
+
+        local mTitle = Instance.new("TextLabel", mimicCard)
+        mTitle.Size = UDim2.new(1, -70, 0, 18)
+        mTitle.Position = UDim2.new(0, 10, 0, 8)
+        mTitle.BackgroundTransparency = 1
+        mTitle.Text = "LIVE PLAYER POSE MIMIC"
+        mTitle.TextColor3 = Theme.textMuted
+        mTitle.Font = Enum.Font.GothamBold
+        mTitle.TextSize = 9.5
+        mTitle.TextXAlignment = Enum.TextXAlignment.Left
+
+        local mmT, mmK, mmG = createLimbToggleSwitch(mimicCard, -54, -34)
+        setSwitchVisual(mmT, mmK, mmG, sCfg.mimicEnabled == true, false)
+        local mmHit = Instance.new("TextButton", mimicCard)
+        mmHit.Size = UDim2.new(0, 52, 0, 26)
+        mmHit.Position = UDim2.new(1, -56, 0, 4)
+        mmHit.BackgroundTransparency = 1
+        mmHit.Text = ""
+        mmHit.ZIndex = 6
+        mmHit.MouseButton1Click:Connect(function()
+            sCfg.mimicEnabled = not sCfg.mimicEnabled
+            saveConfig()
+            setSwitchVisual(mmT, mmK, mmG, sCfg.mimicEnabled, true)
+            if not sCfg.mimicEnabled then restoreUltraRig(getActiveRig()) end
+        end)
+
+        local mimicBox = Instance.new("TextBox", mimicCard)
+        mimicBox.Size = UDim2.new(1, -20, 0, 26)
+        mimicBox.Position = UDim2.new(0, 10, 0, 32)
+        mimicBox.BackgroundColor3 = Theme.input
+        mimicBox.PlaceholderText = "Target username to copy poses from..."
+        mimicBox.PlaceholderColor3 = Theme.textMuted
+        mimicBox.Text = sCfg.mimicTarget or ""
+        mimicBox.TextColor3 = Theme.text
+        mimicBox.Font = Enum.Font.GothamMedium
+        mimicBox.TextSize = 10.5
+        mimicBox.ClearTextOnFocus = false
+        addCorner(mimicBox, 6)
+        addStroke(mimicBox, Theme.divider, 1, 0.3)
+        mimicBox:GetPropertyChangedSignal("Text"):Connect(function()
+            sCfg.mimicTarget = mimicBox.Text
+            saveConfig()
+        end)
+
+        local flipBtn = Instance.new("TextButton", mimicCard)
+        flipBtn.Size = UDim2.new(1, -20, 0, 22)
+        flipBtn.Position = UDim2.new(0, 10, 0, 64)
+        flipBtn.BackgroundColor3 = sCfg.mimicMirror and Theme.accent or Theme.surface
+        flipBtn.Text = sCfg.mimicMirror and "Mirror Flip: ON (Left ↔ Right)" or "Mirror Flip: OFF (Exact Copy)"
+        flipBtn.TextColor3 = sCfg.mimicMirror and Color3.fromRGB(8, 8, 10) or Theme.text
+        flipBtn.Font = Enum.Font.GothamBold
+        flipBtn.TextSize = 9.5
+        addCorner(flipBtn, 5)
+        addStroke(flipBtn, Theme.divider, 1, 0.3)
+        flipBtn.MouseButton1Click:Connect(function()
+            sCfg.mimicMirror = not sCfg.mimicMirror
+            saveConfig()
+            flipBtn.BackgroundColor3 = sCfg.mimicMirror and Theme.accent or Theme.surface
+            flipBtn.Text = sCfg.mimicMirror and "Mirror Flip: ON (Left ↔ Right)" or "Mirror Flip: OFF (Exact Copy)"
+            flipBtn.TextColor3 = sCfg.mimicMirror and Color3.fromRGB(8, 8, 10) or Theme.text
+        end)
+
+        -- 3. BPM Rhythm Bounce & Movement Lean Card
+        local beatCard = Instance.new("Frame", studioPage)
+        beatCard.Size = UDim2.new(1, 0, 0, 168)
+        beatCard.BackgroundColor3 = Theme.bgCard
+        beatCard.BorderSizePixel = 0
+        beatCard.LayoutOrder = 4
+        addCorner(beatCard, 8)
+        addStroke(beatCard, Theme.divider, 1, 0)
+
+        local bLbl = Instance.new("TextLabel", beatCard)
+        bLbl.Size = UDim2.new(1, -70, 0, 18)
+        bLbl.Position = UDim2.new(0, 10, 0, 8)
+        bLbl.BackgroundTransparency = 1
+        bLbl.Text = "BPM RHYTHM BOUNCE (HEAD & BODY)"
+        bLbl.TextColor3 = Theme.textMuted
+        bLbl.Font = Enum.Font.GothamBold
+        bLbl.TextSize = 9.5
+        bLbl.TextXAlignment = Enum.TextXAlignment.Left
+
+        local bmT, bmK, bmG = createLimbToggleSwitch(beatCard, -54, -70)
+        setSwitchVisual(bmT, bmK, bmG, sCfg.bpmEnabled == true, false)
+        local bmHit = Instance.new("TextButton", beatCard)
+        bmHit.Size = UDim2.new(0, 52, 0, 26)
+        bmHit.Position = UDim2.new(1, -56, 0, 4)
+        bmHit.BackgroundTransparency = 1
+        bmHit.Text = ""
+        bmHit.ZIndex = 6
+        bmHit.MouseButton1Click:Connect(function()
+            sCfg.bpmEnabled = not sCfg.bpmEnabled
+            saveConfig()
+            setSwitchVisual(bmT, bmK, bmG, sCfg.bpmEnabled, true)
+            if not sCfg.bpmEnabled then restoreUltraRig(getActiveRig()) end
+        end)
+
+        createAdvancedSlider(beatCard, ctx, "Tempo (BPM)", 60, 200, sCfg.bpm, "%.0f BPM", 30, function(v)
+            sCfg.bpm = v
+            saveConfig()
+        end)
+        createAdvancedSlider(beatCard, ctx, "Bounce Intensity", 0.2, 3, sCfg.bpmAmp, "%.1fx", 70, function(v)
+            sCfg.bpmAmp = v
+            saveConfig()
+        end)
+
+        -- Movement Banking / Lean row
+        local leanRow = Instance.new("Frame", beatCard)
+        leanRow.Size = UDim2.new(1, -20, 0, 44)
+        leanRow.Position = UDim2.new(0, 10, 0, 114)
+        leanRow.BackgroundTransparency = 1
+        local lnT = Instance.new("TextLabel", leanRow)
+        lnT.Size = UDim2.new(1, -60, 0, 18)
+        lnT.Position = UDim2.new(0, 0, 0, 2)
+        lnT.BackgroundTransparency = 1
+        lnT.Text = "Dynamic Movement Lean / Banking"
+        lnT.TextColor3 = Theme.text
+        lnT.Font = Enum.Font.GothamBold
+        lnT.TextSize = 10
+        lnT.TextXAlignment = Enum.TextXAlignment.Left
+
+        local lnS = Instance.new("TextLabel", leanRow)
+        lnS.Size = UDim2.new(1, -60, 0, 14)
+        lnS.Position = UDim2.new(0, 0, 0, 20)
+        lnS.BackgroundTransparency = 1
+        lnS.Text = "Tilts torso smoothly into run direction & turns"
+        lnS.TextColor3 = Theme.textMuted
+        lnS.Font = Enum.Font.Gotham
+        lnS.TextSize = 8.5
+        lnS.TextXAlignment = Enum.TextXAlignment.Left
+
+        local lT, lK, lG = createLimbToggleSwitch(leanRow, -46, -11)
+        setSwitchVisual(lT, lK, lG, sCfg.leanEnabled == true, false)
+        local lHit = Instance.new("TextButton", leanRow)
+        lHit.Size = UDim2.new(1, 0, 1, 0)
+        lHit.BackgroundTransparency = 1
+        lHit.Text = ""
+        lHit.ZIndex = 6
+        lHit.MouseButton1Click:Connect(function()
+            sCfg.leanEnabled = not sCfg.leanEnabled
+            saveConfig()
+            setSwitchVisual(lT, lK, lG, sCfg.leanEnabled, true)
+            if not sCfg.leanEnabled then restoreUltraRig(getActiveRig()) end
+        end)
+
+        -- 4. Movement Speed & Jump Controls Card
+        local moveCard = Instance.new("Frame", studioPage)
+        moveCard.Size = UDim2.new(1, 0, 0, 118)
+        moveCard.BackgroundColor3 = Theme.bgCard
+        moveCard.BorderSizePixel = 0
+        moveCard.LayoutOrder = 5
+        addCorner(moveCard, 8)
+        addStroke(moveCard, Theme.divider, 1, 0)
+
+        local wsSlider = createAdvancedSlider(moveCard, ctx, "WalkSpeed", 4, 120, 16, "%.0f", 8, function(v)
+            local r = getActiveRig()
+            local h = r and r:FindFirstChildOfClass("Humanoid")
+            if h then h.WalkSpeed = v end
+            local lc = LocalPlayer and LocalPlayer.Character
+            local lh = lc and lc:FindFirstChildOfClass("Humanoid")
+            if lh then lh.WalkSpeed = v end
+        end)
+        local jpSlider = createAdvancedSlider(moveCard, ctx, "JumpPower", 10, 200, 50, "%.0f", 48, function(v)
+            local r = getActiveRig()
+            local h = r and r:FindFirstChildOfClass("Humanoid")
+            if h then h.UseJumpPower = true; h.JumpPower = v end
+            local lc = LocalPlayer and LocalPlayer.Character
+            local lh = lc and lc:FindFirstChildOfClass("Humanoid")
+            if lh then lh.UseJumpPower = true; lh.JumpPower = v end
+        end)
+
+        local rstMove = Instance.new("TextButton", moveCard)
+        rstMove.Size = UDim2.new(1, -20, 0, 22)
+        rstMove.Position = UDim2.new(0, 10, 0, 88)
+        rstMove.BackgroundColor3 = Theme.surface
+        rstMove.Text = "Reset WalkSpeed (16) & JumpPower (50)"
+        rstMove.TextColor3 = Theme.textMuted
+        rstMove.Font = Enum.Font.GothamBold
+        rstMove.TextSize = 9.5
+        addCorner(rstMove, 5)
+        addStroke(rstMove, Theme.divider, 1, 0.3)
+        rstMove.MouseButton1Click:Connect(function()
+            wsSlider.setVal(16, true)
+            jpSlider.setVal(50, true)
+        end)
+    end
+
+    -- ========================================================================
+    -- REAL-TIME STEP LOOP FOR MORPHS, HATS & STUDIO
+    -- ========================================================================
+    local function stepUltra(dt)
+        dt = dt or 0.016
+        ultraClock = ultraClock + dt
+        local rig = getActiveRig()
+        if not rig then return end
+        local root = rig:FindFirstChild("HumanoidRootPart")
+        if not root then return end
+
+        cacheRig(rig)
+        local cfMap = { [root] = root.CFrame }
+
+        -- Update hat trail history
+        if #hatTrailHist == 0 or (hatTrailHist[1].Position - root.Position).Magnitude > 0.3 then
+            table.insert(hatTrailHist, 1, root.CFrame)
+            if #hatTrailHist > 90 then table.remove(hatTrailHist) end
+        end
+
+        -- 1. Pose Recording (20 FPS)
+        if isRecording then
+            recSampleAccum = recSampleAccum + dt
+            if recSampleAccum >= 0.05 then
+                recSampleAccum = 0
+                local snap = {}
+                for _, limbId in ipairs(LIMB_ORDER) do
+                    for _, p in ipairs(getPartsOfGroup(rig, limbId)) do
+                        snap[p.Name] = root.CFrame:ToObjectSpace(p.CFrame)
+                    end
+                end
+                table.insert(recordedFrames, snap)
+                if recStatusLbl then
+                    recStatusLbl.Text = "Recording... " .. tostring(#recordedFrames) .. "/300 frames"
+                end
+                if #recordedFrames >= 300 then
+                    isRecording = false
+                    if recStatusLbl then
+                        recStatusLbl.Text = "Max 300 frames captured — ready to play!"
+                    end
+                end
+            end
+        end
+
+        -- 2. Recorded Pose Playback
+        if isPlayingRec and #recordedFrames >= 2 then
+            recPlayCursor = recPlayCursor + (dt * 20 * (sCfg.recSpeed or 1.0) * recPlayDir)
+            if sCfg.recPingPong then
+                if recPlayCursor >= #recordedFrames then
+                    recPlayCursor = #recordedFrames
+                    recPlayDir = -1
+                elseif recPlayCursor <= 1 then
+                    recPlayCursor = 1
+                    recPlayDir = 1
+                end
+            else
+                if recPlayCursor > #recordedFrames then
+                    recPlayCursor = 1
+                elseif recPlayCursor < 1 then
+                    recPlayCursor = #recordedFrames
+                end
+            end
+            local frameIdx = math.clamp(math.floor(recPlayCursor), 1, #recordedFrames)
+            local snap = recordedFrames[frameIdx]
+            if snap then
+                for pName, relCF in pairs(snap) do
+                    local p = rig:FindFirstChild(pName)
+                    if p and p:IsA("BasePart") then
+                        moveLimb(rig, p, root.CFrame * relCF, cfMap)
+                    end
+                end
+            end
+        end
+
+        -- 3. Player Pose Mimic
+        if sCfg.mimicEnabled and sCfg.mimicTarget ~= "" then
+            local targetPlr = findTargetPlayer(sCfg.mimicTarget)
+            local tChar = targetPlr and targetPlr.Character
+            local tRoot = tChar and tChar:FindFirstChild("HumanoidRootPart")
+            if tChar and tRoot then
+                local mirrorSwap = {
+                    ["Left Arm"] = "Right Arm", ["Right Arm"] = "Left Arm",
+                    ["Left Leg"] = "Right Leg", ["Right Leg"] = "Left Leg",
+                }
+                for _, limbId in ipairs(LIMB_ORDER) do
+                    local srcLimbId = (sCfg.mimicMirror and mirrorSwap[limbId]) or limbId
+                    local srcParts = getPartsOfGroup(tChar, srcLimbId)
+                    local dstParts = getPartsOfGroup(rig, limbId)
+                    for i, dstP in ipairs(dstParts) do
+                        local srcP = srcParts[i] or srcParts[1]
+                        if srcP then
+                            local rel = tRoot.CFrame:ToObjectSpace(srcP.CFrame)
+                            if sCfg.mimicMirror then
+                                local pos = rel.Position
+                                local rx, ry, rz = rel:ToEulerAnglesXYZ()
+                                rel = CFrame.new(-pos.X, pos.Y, pos.Z) * CFrame.Angles(rx, -ry, -rz)
+                            end
+                            moveLimb(rig, dstP, root.CFrame * rel, cfMap)
+                        end
+                    end
+                end
+            end
+        end
+
+        -- 4. Procedural Rig Morphs (12 Modes)
+        if mCfg.enabled then
+            local mode = mCfg.mode
+            local S = mCfg.scale or 12
+            local spd = mCfg.speed or 2.5
+            local alt = mCfg.altitude or 0
+            local rootCF = root.CFrame
+            local limbs = { "Head", "Left Arm", "Right Arm", "Left Leg", "Right Leg" }
+
+            local sockStretch = _G._AngoorZenStretch and _G._AngoorZenStretch.stretchLimbFromSocket
+            if sockStretch and _G._AngoorZenStretch.cacheRigOriginals then
+                _G._AngoorZenStretch.cacheRigOriginals(rig)
+            end
+            if mode == "Angel Wings" then
+                local flap = math.sin(ultraClock * spd * 3) * 0.55
+                local wingSpecs = {
+                    ["Left Arm"]  = Vector3.new(-1, 0.45 + flap, 0.35).Unit,
+                    ["Right Arm"] = Vector3.new(1,  0.45 + flap, 0.35).Unit,
+                    ["Left Leg"]  = Vector3.new(-1, -0.1 + flap * 0.6, 0.45).Unit,
+                    ["Right Leg"] = Vector3.new(1,  -0.1 + flap * 0.6, 0.45).Unit,
+                }
+                for limbId, localDir in pairs(wingSpecs) do
+                    if sockStretch then
+                        sockStretch(rig, limbId, rootCF:VectorToWorldSpace(localDir), math.max(S, 4), 0.9, CFrame.new(), mCfg.stretchMesh == true, cfMap, nil)
+                    else
+                        for idx, p in ipairs(getPartsOfGroup(rig, limbId)) do
+                            moveLimb(rig, p, rootCF * CFrame.new(localDir * (S * 0.4 + idx)), cfMap)
+                        end
+                    end
+                end
+
+            elseif mode == "Halo Crown" then
+                local rad = math.max(S * 0.35, 2.5)
+                for idx, limbId in ipairs(limbs) do
+                    local a = ultraClock * spd + (idx - 1) * (math.pi * 2 / #limbs)
+                    local pos = rootCF.Position + Vector3.new(math.cos(a) * rad, 5.5 + alt, math.sin(a) * rad)
+                    local cf = CFrame.new(pos) * CFrame.Angles(math.rad(90), a, 0)
+                    for _, p in ipairs(getPartsOfGroup(rig, limbId)) do
+                        moveLimb(rig, p, cf, cfMap)
+                        clearPartStretch(p)
+                    end
+                end
+
+            elseif mode == "Helicopter" then
+                local spin = ultraClock * spd * 8
+                for _, limbId in ipairs({ "Left Arm", "Right Arm" }) do
+                    local dir = (limbId == "Left Arm") and -1 or 1
+                    for _, p in ipairs(getPartsOfGroup(rig, limbId)) do
+                        local cf = rootCF * CFrame.new(0, 4.2 + alt, 0) * CFrame.Angles(0, spin, 0) * CFrame.new(dir * S * 0.35, 0, 0) * CFrame.Angles(0, 0, math.rad(90))
+                        moveLimb(rig, p, cf, cfMap)
+                        if mCfg.stretchMesh then setPartStretch(p, Vector3.new(1, math.clamp(S * 0.45, 2, 18), 0.6)) else clearPartStretch(p) end
+                    end
+                end
+
+            elseif mode == "Centipede" then
+                for idx, limbId in ipairs(limbs) do
+                    local sway = math.sin(ultraClock * spd * 4 - idx * 0.9) * 2.2
+                    local cf = rootCF * CFrame.new(sway, -1.6 + alt, 2.5 + idx * (S * 0.25)) * CFrame.Angles(math.rad(90), 0, 0)
+                    for _, p in ipairs(getPartsOfGroup(rig, limbId)) do
+                        moveLimb(rig, p, cf, cfMap)
+                        clearPartStretch(p)
+                    end
+                end
+
+            elseif mode == "Vortex Tornado" then
+                for idx, limbId in ipairs(limbs) do
+                    local frac = idx / #limbs
+                    local rad = 2 + frac * (S * 0.65)
+                    local ang = ultraClock * spd * 4 + idx * 1.4
+                    local pos = rootCF.Position + Vector3.new(math.cos(ang) * rad, alt + frac * S, math.sin(ang) * rad)
+                    local cf = CFrame.new(pos) * CFrame.Angles(ang, ang * 0.7, 0)
+                    for _, p in ipairs(getPartsOfGroup(rig, limbId)) do
+                        moveLimb(rig, p, cf, cfMap)
+                        clearPartStretch(p)
+                    end
+                end
+
+            elseif mode == "Shield Dome" then
+                local rad = math.max(S * 0.4, 3.5)
+                for idx, limbId in ipairs(limbs) do
+                    local theta = ultraClock * spd * 1.8 + idx * 1.25
+                    local phi = math.sin(ultraClock * spd + idx) * 1.1
+                    local pos = rootCF.Position + Vector3.new(math.cos(theta) * math.cos(phi) * rad, 1 + alt + math.sin(phi) * rad, math.sin(theta) * math.cos(phi) * rad)
+                    local cf = CFrame.lookAt(pos, rootCF.Position + Vector3.new(0, 1 + alt, 0))
+                    for _, p in ipairs(getPartsOfGroup(rig, limbId)) do
+                        moveLimb(rig, p, cf, cfMap)
+                        if mCfg.stretchMesh then setPartStretch(p, Vector3.new(2.2, 2.2, 0.4)) else clearPartStretch(p) end
+                    end
+                end
+
+            elseif mode == "Starburst" then
+                local pulse = 0.5 + 0.5 * math.sin(ultraClock * spd * 3)
+                local dirs = {
+                    ["Head"]      = Vector3.new(0, 1, 0),
+                    ["Left Arm"]  = Vector3.new(-1, 0.6, 0).Unit,
+                    ["Right Arm"] = Vector3.new(1, 0.6, 0).Unit,
+                    ["Left Leg"]  = Vector3.new(-0.8, -0.7, 0.4).Unit,
+                    ["Right Leg"] = Vector3.new(0.8, -0.7, -0.4).Unit,
+                }
+                for limbId, dVec in pairs(dirs) do
+                    local dist = 2 + pulse * S
+                    local pos = rootCF.Position + (rootCF:VectorToWorldSpace(dVec) * dist) + Vector3.new(0, alt, 0)
+                    local cf = CFrame.lookAt(pos, rootCF.Position) * CFrame.Angles(math.rad(90), 0, 0)
+                    for _, p in ipairs(getPartsOfGroup(rig, limbId)) do
+                        moveLimb(rig, p, cf, cfMap)
+                        if mCfg.stretchMesh then setPartStretch(p, Vector3.new(1, math.clamp(dist * 0.35, 1, 14), 1)) else clearPartStretch(p) end
+                    end
+                end
+
+            elseif mode == "X-Titan" then
+                local xMap = {
+                    ["Head"]      = { pos = Vector3.new(0, S * 0.55, 0), rot = CFrame.new() },
+                    ["Left Arm"]  = { pos = Vector3.new(-S * 0.45, S * 0.35, 0), rot = CFrame.Angles(0, 0, math.rad(-45)) },
+                    ["Right Arm"] = { pos = Vector3.new(S * 0.45, S * 0.35, 0), rot = CFrame.Angles(0, 0, math.rad(45)) },
+                    ["Left Leg"]  = { pos = Vector3.new(-S * 0.35, -S * 0.3, 0), rot = CFrame.Angles(0, 0, math.rad(35)) },
+                    ["Right Leg"] = { pos = Vector3.new(S * 0.35, -S * 0.3, 0), rot = CFrame.Angles(0, 0, math.rad(-35)) },
+                }
+                for limbId, spec in pairs(xMap) do
+                    for _, p in ipairs(getPartsOfGroup(rig, limbId)) do
+                        moveLimb(rig, p, rootCF * CFrame.new(spec.pos + Vector3.new(0, alt + 4, 0)) * spec.rot, cfMap)
+                        if mCfg.stretchMesh then setPartStretch(p, Vector3.new(1.5, math.clamp(S * 0.4, 2, 16), 1.5)) else clearPartStretch(p) end
+                    end
+                end
+
+            elseif mode == "Lance Arm" then
+                if sockStretch then
+                    sockStretch(rig, "Right Arm", rootCF.LookVector, math.max(S * 1.4, 6), 0.85, CFrame.Angles(0, ultraClock * spd * 6, 0), mCfg.stretchMesh == true, cfMap, nil)
+                else
+                    for _, p in ipairs(getPartsOfGroup(rig, "Right Arm")) do
+                        local cf = rootCF * CFrame.new(1.6, 0.4 + alt, -(S * 0.45)) * CFrame.Angles(math.rad(90), 0, 0)
+                        moveLimb(rig, p, cf, cfMap)
+                    end
+                end
+
+            elseif mode == "Sky Cannons" then
+                local recoil = math.abs(math.sin(ultraClock * spd * 4)) * 3.0
+                local cannonDir = (rootCF.LookVector * 0.65 + Vector3.new(0, 0.76, 0)).Unit
+                for _, limbId in ipairs({ "Left Arm", "Right Arm" }) do
+                    if sockStretch then
+                        sockStretch(rig, limbId, cannonDir, math.max(S - recoil, 4), 1.15, CFrame.new(), mCfg.stretchMesh == true, cfMap, nil)
+                    end
+                end
+
+            elseif mode == "Meditation" then
+                local bob = math.sin(ultraClock * spd * 1.5) * 0.7
+                local medMap = {
+                    ["Left Arm"]  = rootCF * CFrame.new(-2.4, 0.5 + bob + alt, -0.8) * CFrame.Angles(math.rad(60), 0, math.rad(-25)),
+                    ["Right Arm"] = rootCF * CFrame.new(2.4, 0.5 + bob + alt, -0.8) * CFrame.Angles(math.rad(60), 0, math.rad(25)),
+                    ["Left Leg"]  = rootCF * CFrame.new(-0.9, -1.2 + bob + alt, -0.6) * CFrame.Angles(math.rad(80), math.rad(35), 0),
+                    ["Right Leg"] = rootCF * CFrame.new(0.9, -1.2 + bob + alt, -0.6) * CFrame.Angles(math.rad(80), math.rad(-35), 0),
+                }
+                for limbId, cf in pairs(medMap) do
+                    for _, p in ipairs(getPartsOfGroup(rig, limbId)) do
+                        moveLimb(rig, p, cf, cfMap)
+                        clearPartStretch(p)
+                    end
+                end
+
+            elseif mode == "Pendulum" then
+                local swing = math.sin(ultraClock * spd * 2.2) * 1.15
+                for idx, limbId in ipairs(limbs) do
+                    local phase = (idx % 2 == 0) and swing or -swing
+                    local armLen = math.max(S * 0.45, 3)
+                    local pos = rootCF.Position + Vector3.new(math.sin(phase) * armLen, 3 + alt - math.cos(phase) * armLen * 0.5, (idx - 3) * 1.6)
+                    local cf = CFrame.new(pos) * CFrame.Angles(0, 0, -phase)
+                    for _, p in ipairs(getPartsOfGroup(rig, limbId)) do
+                        moveLimb(rig, p, cf, cfMap)
+                        clearPartStretch(p)
+                    end
+                end
+            end
+        end
+
+        -- 5. Accessory / Hat Animator
+        local accs = collectAccessories(rig)
+        if hatCountLbl then
+            hatCountLbl.Text = "Detected accessories: " .. tostring(#accs)
+        end
+        if hCfg.enabled and #accs > 0 then
+            local rad = hCfg.radius or 5
+            local hOff = hCfg.height or 4
+            local hSpd = hCfg.speed or 2.5
+            local mode = hCfg.mode or "Halo Ring"
+            for idx, item in ipairs(accs) do
+                local targetCF = root.CFrame
+                if mode == "Halo Ring" then
+                    local a = ultraClock * hSpd + (idx - 1) * (math.pi * 2 / #accs)
+                    targetCF = CFrame.new(root.Position + Vector3.new(math.cos(a) * rad, hOff + 3, math.sin(a) * rad)) * CFrame.Angles(0, -a, 0)
+                elseif mode == "Orbit Sphere" then
+                    local a = ultraClock * hSpd * 1.3 + idx * 1.7
+                    local b = ultraClock * hSpd * 0.9 + idx * 2.3
+                    targetCF = CFrame.new(root.Position + Vector3.new(math.cos(a) * rad, hOff + math.sin(b) * rad * 0.6, math.sin(a) * rad)) * CFrame.Angles(a, b, 0)
+                elseif mode == "Sky Tower" then
+                    targetCF = CFrame.new(root.Position + Vector3.new(0, hOff + 3 + (idx - 1) * math.max(rad * 0.6, 1.8), 0)) * CFrame.Angles(0, ultraClock * hSpd, 0)
+                elseif mode == "Wing Fan" then
+                    local side = (idx % 2 == 0) and 1 or -1
+                    local tier = math.ceil(idx / 2)
+                    local flap = math.sin(ultraClock * hSpd * 3) * 0.5
+                    targetCF = root.CFrame * CFrame.new(side * (1.5 + tier * (rad * 0.35)), hOff + tier * 0.7, 1.6 + math.abs(flap) * tier * 0.5) * CFrame.Angles(0, side * flap, 0)
+                elseif mode == "Comet Trail" then
+                    local sIdx = math.clamp(idx * 5, 1, math.max(#hatTrailHist, 1))
+                    local hCF = hatTrailHist[sIdx] or root.CFrame
+                    targetCF = hCF * CFrame.new(0, hOff, 0) * CFrame.Angles(0, ultraClock * hSpd, 0)
+                elseif mode == "Waist Shield" then
+                    local a = ultraClock * hSpd * 2 + (idx - 1) * (math.pi * 2 / #accs)
+                    targetCF = CFrame.new(root.Position + Vector3.new(math.cos(a) * rad, hOff - 1.5, math.sin(a) * rad)) * CFrame.Angles(0, -a, 0)
+                end
+
+                if item.weld and item.weld.Part0 then
+                    item.weld.C0 = item.weld.Part0.CFrame:ToObjectSpace(targetCF) * item.weld.C1
+                else
+                    item.handle.CFrame = targetCF
+                end
+            end
+        end
+
+        -- 6. BPM Rhythm Bounce
+        if sCfg.bpmEnabled then
+            local hz = (sCfg.bpm or 128) / 60
+            local beat = math.abs(math.sin(ultraClock * math.pi * hz))
+            local amp = sCfg.bpmAmp or 1.0
+            for _, p in ipairs(getPartsOfGroup(rig, "Head")) do
+                local base = cfMap[p] or p.CFrame
+                moveLimb(rig, p, base * CFrame.new(0, beat * 0.45 * amp, 0) * CFrame.Angles(math.rad(-14 * beat * amp), 0, 0), cfMap)
+            end
+        end
+
+        -- 7. Dynamic Movement Lean / Banking
+        if sCfg.leanEnabled then
+            local localVel = root.CFrame:VectorToObjectSpace(root.AssemblyLinearVelocity)
+            local pitch = math.clamp(localVel.Z * 0.018, -0.45, 0.45) * (sCfg.leanStrength or 1.0)
+            local roll  = math.clamp(-localVel.X * 0.022, -0.45, 0.45) * (sCfg.leanStrength or 1.0)
+            for _, p in ipairs(getPartsOfGroup(rig, "Torso")) do
+                local base = cfMap[p] or p.CFrame
+                moveLimb(rig, p, base * CFrame.Angles(pitch, 0, roll), cfMap)
+            end
+        end
+    end
+
+    local ULTRA_STEP_NAME = "AngoorZenUltraStep"
+    pcall(function() RunService:UnbindFromRenderStep(ULTRA_STEP_NAME) end)
+    pcall(function()
+        RunService:BindToRenderStep(ULTRA_STEP_NAME, Enum.RenderPriority.Camera.Value + 4, stepUltra)
+    end)
+
+    local controller = {
+        morphsPage  = morphsPage,
+        hatsPage    = hatsPage,
+        studioPage  = studioPage,
+        restoreRig  = restoreUltraRig,
+        stopAll     = function()
+            mCfg.enabled = false
+            hCfg.enabled = false
+            sCfg.mimicEnabled = false
+            sCfg.bpmEnabled = false
+            sCfg.leanEnabled = false
+            isRecording = false
+            isPlayingRec = false
+            saveConfig()
+            if mMasterTrack then setSwitchVisual(mMasterTrack, mMasterKnob, mMasterGlow, false, true) end
+            if hMasterTrack then setSwitchVisual(hMasterTrack, hMasterKnob, hMasterGlow, false, true) end
+            restoreUltraRig(getActiveRig())
+        end,
+    }
+    _G._AngoorZenUltra = controller
+    return controller
+end
+
 -- ============================================================================
 -- MAIN BUILDER: buildAngoorReanimTab(hostContainer)
 -- Exact reconstruction of root.73.124 and all 84 child closures (root.73.124.0 .. 84)
 -- ============================================================================
 local buildAngoorReanimTab
 buildAngoorReanimTab = function(hostContainer)
-    _G.buildCocaReanimTab = buildAngoorReanimTab
     _G.buildAngoorReanimTab = buildAngoorReanimTab
 
     -- If executed standalone without a parent container, create a draggable ScreenGui host window
@@ -13596,19 +18716,19 @@ buildAngoorReanimTab = function(hostContainer)
         end
         if not guiParent then return end
 
-        local existingGui = guiParent:FindFirstChild("CocoReanimStandalone")
+        local existingGui = guiParent:FindFirstChild("AngoorZenReanimStandalone")
         if existingGui then
             existingGui:Destroy()
         end
 
         local screenGui = Instance.new("ScreenGui")
-        screenGui.Name = "CocoReanimStandalone"
+        screenGui.Name = "AngoorZenReanimStandalone"
         screenGui.ResetOnSpawn = false
         screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
         screenGui.Parent = guiParent
 
         local standaloneHost = Instance.new("Frame")
-        standaloneHost.Name = "CocoStandaloneHost"
+        standaloneHost.Name = "ZenStandaloneHost"
         standaloneHost.Size = UDim2.new(0, 380, 0, 460)
         standaloneHost.Position = UDim2.new(0.5, -190, 0.5, -230)
         standaloneHost.BackgroundTransparency = 1
@@ -13775,12 +18895,15 @@ buildAngoorReanimTab = function(hostContainer)
             zenApi = modRes
             _G._AngoorZenApi = zenApi
         else
-            warn("Coco Reanim: Failed to load module.lua. Error: " .. tostring(modRes))
+            warn("Zen Reanimations: Failed to load module.lua. Error: " .. tostring(modRes))
             return
         end
     end
 
-    -- Animation Repository & Cache Configuration (root.73.124 @ PC 8295..8365)
+    -- Built-in 20-animation procedural engine (works online & offline)
+    local procEngine = createProceduralAnimEngine(zenApi)
+
+        -- Animation Repository & Cache Configuration (root.73.124 @ PC 8295..8365)
     local allAnimations = type(_G._AngoorZenAnims) == "table" and _G._AngoorZenAnims or {}
     local GITHUB_TREE_URL  = "https://api.github.com/repos/teslapapa50-source/Animations/git/trees/main?recursive=1"
     local RAW_ANIMS_BASE   = "https://raw.githubusercontent.com/teslapapa50-source/Animations/main/"
@@ -13890,10 +19013,33 @@ buildAngoorReanimTab = function(hostContainer)
         speedBinds  = {},
         customAnims = {},
         hiddenLimbs = {},
+        stretch     = {},
+        fx          = {},
+        morphs      = {},
+        hats        = {},
+        studio      = {},
+        twist       = {},
     }
 
-    -- Helper root.73.124.8: Merge customAnims from savedConfig into allAnimations
+    -- Helper root.73.124.8: Merge built-in procedural anims + customAnims into allAnimations
     local function mergeSavedCustomAnims()
+        do
+            local seen = {}
+            for _, item in ipairs(allAnimations) do
+                if item and item.name then seen[tostring(item.name)] = true end
+            end
+            for _, bAnim in ipairs(BUILTIN_PROC_ANIMS) do
+                if not seen[bAnim.name] then
+                    table.insert(allAnimations, {
+                        name     = bAnim.name,
+                        path     = bAnim.path,
+                        category = bAnim.category,
+                        isCustom = false,
+                    })
+                    seen[bAnim.name] = true
+                end
+            end
+        end
         if not savedConfig or not savedConfig.customAnims then return end
         local existing = {}
         for _, item in ipairs(allAnimations) do
@@ -13939,12 +19085,12 @@ buildAngoorReanimTab = function(hostContainer)
             return game:HttpGet(GITHUB_TREE_URL)
         end)
         if not ok or type(res) ~= "string" then
-            warn("[Coco Reanim] Animations repo scan failed: " .. tostring(res))
+            warn("[ANGOOR] Animations repo scan failed: " .. tostring(res))
             return
         end
         local parsed = parseGitHubTreeJson(res)
         if not parsed then
-            warn("[Coco Reanim] Animations repo tree empty/invalid")
+            warn("[ANGOOR] Animations repo tree empty/invalid")
             return
         end
         setSortedAnimations(parsed)
@@ -13953,7 +19099,7 @@ buildAngoorReanimTab = function(hostContainer)
         if type(populateList) == "function" then
             pcall(populateList)
         end
-        print("[Coco Reanim] loaded " .. tostring(#allAnimations) .. " animations from GitHub Animations repo")
+        print("[ANGOOR] loaded " .. tostring(#allAnimations) .. " animations from GitHub Animations repo")
     end
 
     -- Load cached animations & launch background GitHub refresh
@@ -13985,6 +19131,24 @@ buildAngoorReanimTab = function(hostContainer)
                     if type(decoded.speedBinds) == "table" then savedConfig.speedBinds = decoded.speedBinds end
                     if type(decoded.customAnims) == "table" then savedConfig.customAnims = decoded.customAnims end
                     if type(decoded.hiddenLimbs) == "table" then savedConfig.hiddenLimbs = decoded.hiddenLimbs end
+                    if type(decoded.stretch) == "table" then savedConfig.stretch = decoded.stretch end
+                    if type(decoded.fx) == "table" then savedConfig.fx = decoded.fx end
+                    if type(decoded.morphs) == "table" then savedConfig.morphs = decoded.morphs end
+                    if type(decoded.hats) == "table" then savedConfig.hats = decoded.hats end
+                    if type(decoded.studio) == "table" then savedConfig.studio = decoded.studio end
+                    if type(decoded.twist) == "table" then savedConfig.twist = decoded.twist end
+                    -- Upgrade old v1 Reanim presets cleanly to the new Single Limb + Twist v2 presets
+                    if (tonumber(decoded.presetVersion) or 1) < 2 then
+                        savedConfig.presetVersion = 2
+                        savedConfig.stretch = savedConfig.stretch or {}
+                        savedConfig.stretch.mode = "Single Limb"
+                        savedConfig.stretch.enabled = false
+                        savedConfig.twist = savedConfig.twist or {}
+                        savedConfig.twist.preset = "Normal"
+                        savedConfig.twist.enabled = false
+                    else
+                        savedConfig.presetVersion = decoded.presetVersion
+                    end
                 end
             end)
         end
@@ -14001,9 +19165,29 @@ buildAngoorReanimTab = function(hostContainer)
         end
     end
 
-    if type(savedConfig.customAnims) == "table" and #savedConfig.customAnims > 0 then
-        mergeSavedCustomAnims()
+    -- Seed starter entries on first launch so Favs, Custom, and States are never blank
+    if next(savedConfig.favs) == nil then
+        savedConfig.favs["Default Dance [Built-In]"] = true
+        savedConfig.favs["Griddy Groove [Built-In]"] = true
+        savedConfig.favs["T-Pose Float [Built-In]"]  = true
+        savedConfig.favs["Helicopter Spin [Built-In]"] = true
     end
+    if type(savedConfig.customAnims) ~= "table" or #savedConfig.customAnims == 0 then
+        savedConfig.customAnims = {
+            { name = "Custom Power Charge", script = "proc://SuperCharge" },
+            { name = "Custom Vibe Bounce",  script = "proc://VibeBounce" },
+        }
+    end
+    if next(savedConfig.states) == nil then
+        savedConfig.states = {
+            Idle = { name = "Levitate Idle [Built-In]", path = "proc://LevitateIdle" },
+            Walk = { name = "Moonwalk Glide [Built-In]", path = "proc://Moonwalk" },
+            Run  = { name = "Naruto Sprint [Built-In]",  path = "proc://NarutoRun" },
+            Jump = { name = "Jump Tuck Flip [Built-In]", path = "proc://JumpFlip" },
+            Fall = { name = "SkyDive Fall [Built-In]",   path = "proc://SkyDiveFall" },
+        }
+    end
+    mergeSavedCustomAnims()
 
     -- Helper root.73.124.13: Global refresh hook _G._AngoorZenRefreshList
     _G._AngoorZenRefreshList = function()
@@ -14108,7 +19292,7 @@ buildAngoorReanimTab = function(hostContainer)
     creditLabel.Size = UDim2.new(0, 210, 0, 16)
     creditLabel.Position = UDim2.new(0, 12, 0, 4)
     creditLabel.BackgroundTransparency = 1
-    creditLabel.Text = "Coco Reanim · Keyframe Player, Custom Scripts & Limb Hider"
+    creditLabel.Text = "Reanim by Zen  all the credit goes to him!  its his work."
     creditLabel.TextColor3 = Theme.textMuted
     creditLabel.Font = Enum.Font.GothamMedium
     creditLabel.TextSize = 10
@@ -14120,7 +19304,7 @@ buildAngoorReanimTab = function(hostContainer)
     authorCopyBtn.Size = UDim2.new(0, 150, 0, 16)
     authorCopyBtn.Position = UDim2.new(0, 12, 0, 22)
     authorCopyBtn.BackgroundTransparency = 1
-    authorCopyBtn.Text = "Coco Reanim  (ready)"
+    authorCopyBtn.Text = "hor1zxn.  (tap copy)"
     authorCopyBtn.TextColor3 = Theme.accent
     authorCopyBtn.Font = Enum.Font.GothamSemibold
     authorCopyBtn.TextSize = 11
@@ -14186,7 +19370,7 @@ buildAngoorReanimTab = function(hostContainer)
             end)
             if not zenApi or type(zenApi.reanimate) ~= "function" then
                 reanimToggleBtn.Text = "Module missing"
-                warn("Coco Reanim: module API not loaded")
+                warn("Zen Reanimations: module API not loaded")
                 return
             end
         end
@@ -14205,14 +19389,14 @@ buildAngoorReanimTab = function(hostContainer)
                 return zenApi.reanimate(targetState)
             end)
             if not okCall then
-                warn("Coco Reanim crash:", errMsg)
+                warn("Zen Reanimations crash:", errMsg)
                 reanimToggleBtn.Text = "Reanim error"
                 task.wait(1.2)
                 updateReanimBtnVisual()
                 return
             end
             if type(errMsg) == "string" and errMsg ~= "Already reanimated." and errMsg ~= "" then
-                warn("Coco Reanim:", errMsg)
+                warn("Zen Reanimations:", errMsg)
             end
             updateReanimBtnVisual()
             if not targetState then
@@ -14222,6 +19406,15 @@ buildAngoorReanimTab = function(hostContainer)
                 end
                 if type(stopBang) == "function" then
                     pcall(stopBang)
+                end
+                if _G._AngoorZenStretch and type(_G._AngoorZenStretch.restoreVisuals) == "function" then
+                    pcall(_G._AngoorZenStretch.restoreVisuals)
+                end
+                if _G._AngoorZenUltra and type(_G._AngoorZenUltra.restoreRig) == "function" then
+                    pcall(_G._AngoorZenUltra.restoreRig)
+                end
+                if _G._AngoorZenTwist and type(_G._AngoorZenTwist.restoreRig) == "function" then
+                    pcall(_G._AngoorZenTwist.restoreRig)
                 end
             end
         end)
@@ -14246,7 +19439,6 @@ buildAngoorReanimTab = function(hostContainer)
     local dragTarget     = createdStandaloneGui and hostContainer or embedFrame
 
     headerBar.InputBegan:Connect(function(input)
-        if not createdStandaloneGui then return end
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             draggingHeader = true
             dragStartPos = input.Position
@@ -14260,7 +19452,6 @@ buildAngoorReanimTab = function(hostContainer)
     end)
 
     headerBar.InputChanged:Connect(function(input)
-        if not createdStandaloneGui then return end
         if (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) and draggingHeader and dragStartPos and frameStartPos then
             local delta = input.Position - dragStartPos
             dragTarget.Position = UDim2.new(
@@ -14275,7 +19466,7 @@ buildAngoorReanimTab = function(hostContainer)
     -- ========================================================================
     -- SUB-TAB BAR: Fun, Bang, Favs, Custom, Binds, States, Speed, Limbs
     -- ========================================================================
-    local SUB_TABS = { "Fun", "Bang", "Favs", "Custom", "Binds", "States", "Speed", "Limbs" }
+    local SUB_TABS = { "Fun", "Bang", "Favs", "Custom", "Binds", "States", "Speed", "Limbs", "Stretch", "Twist", "Morphs", "Hats", "Studio", "FX" }
     local subTabButtons = {}
     local switchSubTab
 
@@ -14387,6 +19578,15 @@ buildAngoorReanimTab = function(hostContainer)
         tabScroll.CanvasSize = UDim2.new(0, math.max(tabListLayout.AbsoluteContentSize.X + 16, 1), 0, 0)
     end)
 
+    -- Smooth mouse-wheel horizontal scrolling on top SubTabBar
+    tabScroll.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseWheel then
+            local maxScroll = math.max(0, tabScroll.CanvasSize.X.Offset - tabScroll.AbsoluteSize.X)
+            local nextX = math.clamp(tabScroll.CanvasPosition.X - (input.Position.Z * 48), 0, maxScroll)
+            tabScroll.CanvasPosition = Vector2.new(nextX, 0)
+        end
+    end)
+
     -- ========================================================================
     -- BOTTOM NOW-PLAYING BAR (root.73.124 @ PC 8572..9076)
     -- ========================================================================
@@ -14468,6 +19668,7 @@ buildAngoorReanimTab = function(hostContainer)
         if zenApi and type(zenApi.stop_animation) == "function" then
             pcall(zenApi.stop_animation)
         end
+        pcall(procEngine.stop)
         updateNowPlayingUI(nil)
     end)
 
@@ -14613,12 +19814,80 @@ buildAngoorReanimTab = function(hostContainer)
     emptyBindsLabel.Visible = false
     emptyBindsLabel.Parent = bindsPage
 
+    -- Quick Action Hotkeys Card (always visible in Binds tab)
+    local quickActionCard = Instance.new("Frame")
+    quickActionCard.Name = "QuickActionBindsCard"
+    quickActionCard.Size = UDim2.new(1, -6, 0, 136)
+    quickActionCard.BackgroundColor3 = Theme.bgCard
+    quickActionCard.BorderSizePixel = 0
+    quickActionCard.LayoutOrder = 0
+    quickActionCard.Parent = bindsPage
+    addCorner(quickActionCard, 8)
+    addStroke(quickActionCard, Theme.divider, 1, 0)
+
+    local qaTitle = Instance.new("TextLabel", quickActionCard)
+    qaTitle.Size = UDim2.new(1, -16, 0, 18)
+    qaTitle.Position = UDim2.new(0, 8, 0, 6)
+    qaTitle.BackgroundTransparency = 1
+    qaTitle.Text = "QUICK REANIM ACTION HOTKEYS"
+    qaTitle.TextColor3 = Theme.textMuted
+    qaTitle.Font = Enum.Font.GothamBold
+    qaTitle.TextSize = 9.5
+    qaTitle.TextXAlignment = Enum.TextXAlignment.Left
+
+    local QA_ITEMS = {
+        { id = "SkyPillar",   label = "Sky Pillar Stretch", defaultKey = "Z" },
+        { id = "ForwardLine", label = "Single Line Forward", defaultKey = "X" },
+        { id = "AngelWings",  label = "Angel Wings Morph",  defaultKey = "C" },
+        { id = "ResetAll",    label = "Reset All Limbs",    defaultKey = "V" },
+    }
+    savedConfig.quickBinds = type(savedConfig.quickBinds) == "table" and savedConfig.quickBinds or {}
+    for idx, qa in ipairs(QA_ITEMS) do
+        if not savedConfig.quickBinds[qa.id] then
+            savedConfig.quickBinds[qa.id] = qa.defaultKey
+        end
+        local row = Instance.new("Frame", quickActionCard)
+        row.Size = UDim2.new(1, -16, 0, 24)
+        row.Position = UDim2.new(0, 8, 0, 26 + (idx - 1) * 26)
+        row.BackgroundTransparency = 1
+
+        local lbl = Instance.new("TextLabel", row)
+        lbl.Size = UDim2.new(1, -60, 1, 0)
+        lbl.BackgroundTransparency = 1
+        lbl.Text = qa.label
+        lbl.TextColor3 = Theme.text
+        lbl.Font = Enum.Font.GothamMedium
+        lbl.TextSize = 10
+        lbl.TextXAlignment = Enum.TextXAlignment.Left
+
+        local kBtn = Instance.new("TextButton", row)
+        kBtn.Size = UDim2.new(0, 50, 0, 20)
+        kBtn.Position = UDim2.new(1, -50, 0.5, -10)
+        kBtn.BackgroundColor3 = Theme.surface
+        kBtn.Text = "[" .. tostring(savedConfig.quickBinds[qa.id]) .. "]"
+        kBtn.TextColor3 = Theme.accent
+        kBtn.Font = Enum.Font.GothamBold
+        kBtn.TextSize = 9.5
+        addCorner(kBtn, 4)
+        addStroke(kBtn, Theme.divider, 1, 0.3)
+        kBtn.MouseButton1Click:Connect(function()
+            if qa.id == "SkyPillar" and _G._AngoorZenStretch then
+                _G._AngoorZenStretch.setMode("Sky Pillar")
+            elseif qa.id == "ForwardLine" and _G._AngoorZenStretch then
+                _G._AngoorZenStretch.setMode("Forward Line")
+            elseif qa.id == "AngelWings" and _G._AngoorZenUltra then
+                savedConfig.morphs.mode = "Angel Wings"
+                savedConfig.morphs.enabled = true
+            elseif qa.id == "ResetAll" then
+                if _G._AngoorZenStretch then pcall(_G._AngoorZenStretch.stopAll) end
+                if _G._AngoorZenUltra then pcall(_G._AngoorZenUltra.stopAll) end
+                if _G._AngoorZenTwist then pcall(_G._AngoorZenTwist.stopAll) end
+            end
+        end)
+    end
+
     -- 3. SPEED PAGE
     local speedPage = Instance.new("ScrollingFrame")
-    local applyPlaybackSpeed
-    pendingSpeedBindKey = nil
-    speedBindButtons    = {}
-    do
     speedPage.Size = UDim2.new(1, 0, 1, 0)
     speedPage.BackgroundTransparency = 1
     speedPage.BorderSizePixel = 0
@@ -14632,6 +19901,9 @@ buildAngoorReanimTab = function(hostContainer)
     speedLayout.Padding = UDim.new(0, 10)
     speedLayout.SortOrder = Enum.SortOrder.LayoutOrder
     speedLayout.Parent = speedPage
+    speedLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        speedPage.CanvasSize = UDim2.new(0, 0, 0, speedLayout.AbsoluteContentSize.Y + 24)
+    end)
 
     local speedSliderCard = Instance.new("Frame")
     speedSliderCard.Size = UDim2.new(1, 0, 0, 78)
@@ -14699,7 +19971,7 @@ buildAngoorReanimTab = function(hostContainer)
     addStroke(resetSpeedBtn, Theme.divider, 1, 0)
 
     -- Closure root.73.124.33: Apply playback speed
-    applyPlaybackSpeed = function(val)
+    local function applyPlaybackSpeed(val)
         local rounded = math.clamp(math.floor(val * 10) / 10, 0.1, 5)
         currentSpeed = rounded
         savedConfig.speed = currentSpeed
@@ -14710,6 +19982,7 @@ buildAngoorReanimTab = function(hostContainer)
         if zenApi and type(zenApi.set_animation_speed) == "function" then
             pcall(zenApi.set_animation_speed, currentSpeed)
         end
+        pcall(procEngine.setSpeed, currentSpeed)
     end
 
     resetSpeedBtn.MouseButton1Click:Connect(function()
@@ -14832,11 +20105,8 @@ buildAngoorReanimTab = function(hostContainer)
         end)
     end
 
-    end -- end Speed Page local scope
-
     -- 4. STATES PAGE (Idle, Walk, Run, Jump, Fall)
     local statesPage = Instance.new("ScrollingFrame")
-    do
     statesPage.Size = UDim2.new(1, 0, 1, 0)
     statesPage.BackgroundTransparency = 1
     statesPage.BorderSizePixel = 0
@@ -14850,6 +20120,9 @@ buildAngoorReanimTab = function(hostContainer)
     statesLayout.Padding = UDim.new(0, 8)
     statesLayout.SortOrder = Enum.SortOrder.LayoutOrder
     statesLayout.Parent = statesPage
+    statesLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        statesPage.CanvasSize = UDim2.new(0, 0, 0, statesLayout.AbsoluteContentSize.Y + 24)
+    end)
 
     local statesTitleLbl = Instance.new("TextLabel")
     statesTitleLbl.Size = UDim2.new(1, 0, 0, 18)
@@ -15094,12 +20367,9 @@ buildAngoorReanimTab = function(hostContainer)
         end)
     end
 
-    end -- end States Page local scope
-
     -- ========================================================================
     -- ADD CUSTOM ANIMATION MODAL (root.73.124 @ PC 1528..2680)
     -- ========================================================================
-    do
     addCustomModal = Instance.new("Frame")
     addCustomModal.Name = "AddCustomModal"
     addCustomModal.Size = UDim2.new(1, 0, 1, 0)
@@ -15357,16 +20627,13 @@ buildAngoorReanimTab = function(hostContainer)
         end
         customModalStatus.Text = "Added: " .. finalName
         customModalStatus.TextColor3 = Theme.green
-        print("[Coco Reanim] custom anim saved:", finalName, (rawCode:sub(1, 4) == "http") and "(url)" or "(inline)", #rawCode, "chars")
+        print("[ANGOOR] custom anim saved:", finalName, (rawCode:sub(1, 4) == "http") and "(url)" or "(inline)", #rawCode, "chars")
     end)
-
-    end -- end Custom Animation Modal local scope
 
     -- ========================================================================
     -- 5. LIMBS PAGE (Master Limbs Switch + 6 Individual Body Part Switches)
     -- ========================================================================
     local limbsPage = Instance.new("ScrollingFrame")
-    do
     limbsPage.Size = UDim2.new(1, 0, 1, 0)
     limbsPage.BackgroundTransparency = 1
     limbsPage.BorderSizePixel = 0
@@ -15391,6 +20658,9 @@ buildAngoorReanimTab = function(hostContainer)
     limbsLayout.Padding = UDim.new(0, 8)
     limbsLayout.SortOrder = Enum.SortOrder.LayoutOrder
     limbsLayout.Parent = limbsPage
+    limbsLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        limbsPage.CanvasSize = UDim2.new(0, 0, 0, limbsLayout.AbsoluteContentSize.Y + 24)
+    end)
 
     local limbsTitleLbl = Instance.new("TextLabel")
     limbsTitleLbl.Size = UDim2.new(1, 0, 0, 16)
@@ -15658,33 +20928,9 @@ buildAngoorReanimTab = function(hostContainer)
         end
     end
 
-    -- Closure root.73.124.61: Set individual limb group hidden/shown (with immediate visibility restoration on unhide)
-    local function restorePartVisibilityOnModel(model, partName)
-        if not model then return end
-        local part = model:FindFirstChild(partName)
-        if part and part:IsA("BasePart") then
-            part.LocalTransparencyModifier = 0
-            part.Transparency = 0
-        end
-        if partName == "Head" then
-            for _, desc in ipairs(model:GetDescendants()) do
-                if desc:IsA("Decal") then
-                    desc.Transparency = 0
-                elseif desc:IsA("Accessory") then
-                    local handle = desc:FindFirstChild("Handle")
-                    if handle and handle:IsA("BasePart") then
-                        handle.LocalTransparencyModifier = 0
-                        handle.Transparency = 0
-                    end
-                end
-            end
-        end
-    end
-
+    -- Closure root.73.124.61: Set individual limb group hidden/shown
     local function setLimbGroupHidden(group, hideBool, skipMasterUpdate, animate)
         if animate == nil then animate = true end
-        local cloneChar = (zenApi and type(zenApi.get_clone) == "function") and select(2, pcall(zenApi.get_clone)) or nil
-        local realChar = LocalPlayer and LocalPlayer.Character or nil
         for _, partName in ipairs(group.parts) do
             if hideBool then
                 _G.hiddenBodyParts[partName] = true
@@ -15692,8 +20938,6 @@ buildAngoorReanimTab = function(hostContainer)
             else
                 _G.hiddenBodyParts[partName] = nil
                 savedConfig.hiddenLimbs[partName] = nil
-                pcall(restorePartVisibilityOnModel, cloneChar, partName)
-                pcall(restorePartVisibilityOnModel, realChar, partName)
             end
         end
         saveConfig()
@@ -15864,7 +21108,6 @@ buildAngoorReanimTab = function(hostContainer)
     end)
 
     limbsPage.CanvasSize = UDim2.new(0, 0, 0, (#LIMB_GROUPS * 56) + 80)
-    end -- end Limbs Page local scope
 
     -- ========================================================================
     -- ANIMATION LIST POPULATOR & PLAYBACK ENGINE (root.73.124.68 .. 72)
@@ -15876,16 +21119,17 @@ buildAngoorReanimTab = function(hostContainer)
 
     -- Closure root.73.124.68: Play or toggle an animation entry
     local function playOrToggleAnimation(animEntry)
+        local isProcAnim = animEntry and procEngine.isHandledPath(animEntry.path)
         local reanimated = false
         if zenApi and type(zenApi.is_reanimated) == "function" then
             pcall(function() reanimated = zenApi.is_reanimated() end)
         end
-        if not reanimated then
-            warn("Coco Reanim: Enable Reanimation first to play animations!")
+        if not reanimated and not isProcAnim then
+            warn("Zen Reanimations: Enable Reanimation first to play animations!")
             return
         end
         if not animEntry or not animEntry.path then
-            warn("Coco Reanim: Invalid animation entry")
+            warn("Zen Reanimations: Invalid animation entry")
             return
         end
 
@@ -15895,6 +21139,7 @@ buildAngoorReanimTab = function(hostContainer)
             if zenApi and type(zenApi.stop_animation) == "function" then
                 pcall(zenApi.stop_animation)
             end
+            pcall(procEngine.stop)
             selectedAnimName = nil
             updateNowPlayingUI(nil)
             return
@@ -15933,13 +21178,21 @@ buildAngoorReanimTab = function(hostContainer)
                 end
             end
 
-            local okPlay, res = pcall(zenApi.play_animation, playPath, currentSpeed)
-            if not okPlay or type(res) == "string" then
-                warn("Coco Reanim Error:", res)
+            pcall(procEngine.stop)
+            if procEngine.isHandledPath(playPath) then
+                procEngine.play(playPath, currentSpeed)
+                nowPlayingName = animEntry.name
+                selectedAnimName = animEntry.name
+                updateNowPlayingUI(animEntry.name)
+                return
+            end
+            local res = zenApi.play_animation(playPath, currentSpeed)
+            if type(res) == "string" then
+                warn("Zen Reanimations Error:", res)
                 task.wait(0.05)
-                local okRetry, retryRes = pcall(zenApi.play_animation, playPath, currentSpeed)
-                if not okRetry or type(retryRes) == "string" then
-                    warn("Coco Reanim Error (retry):", retryRes)
+                local retryRes = zenApi.play_animation(playPath, currentSpeed)
+                if type(retryRes) == "string" then
+                    warn("Zen Reanimations Error (retry):", retryRes)
                     isPlayingManual = false
                     nowPlayingName = nil
                     selectedAnimName = nil
@@ -16215,7 +21468,7 @@ buildAngoorReanimTab = function(hostContainer)
     -- Closure root.73.124.72: Refresh Binds Tab
     refreshBindsTab = function()
         for _, child in ipairs(bindsPage:GetChildren()) do
-            if child:IsA("Frame") then
+            if child:IsA("Frame") and child.Name ~= "QuickActionBindsCard" then
                 child:Destroy()
             end
         end
@@ -16239,7 +21492,7 @@ buildAngoorReanimTab = function(hostContainer)
         table.sort(bindEntries, function(a, b)
             return a.name:lower() < b.name:lower()
         end)
-        emptyBindsLabel.Visible = (#bindEntries == 0)
+        emptyBindsLabel.Visible = false
 
         for idx, entry in ipairs(bindEntries) do
             local row = Instance.new("Frame")
@@ -16316,16 +21569,13 @@ buildAngoorReanimTab = function(hostContainer)
             end)
         end
 
-        bindsPage.CanvasSize = UDim2.new(0, 0, 0, 26 + (#bindEntries * 42))
+        bindsPage.CanvasSize = UDim2.new(0, 0, 0, 190 + (#bindEntries * 42))
     end
 
     -- ========================================================================
     -- 6. BANG REANIMATION TAB (root.73.124 @ PC 3248..4200, closures 73..80)
     -- ========================================================================
     local bangPage = Instance.new("Frame")
-    local bangLockActive = false
-    local populateBangAnimList
-    do
     bangPage.Size = UDim2.new(1, -20, 1, -90)
     bangPage.Position = UDim2.new(0, 10, 0, 48)
     bangPage.BackgroundTransparency = 1
@@ -16390,7 +21640,7 @@ buildAngoorReanimTab = function(hostContainer)
 
     local selectedBangAnim   = nil
     local lastBangTargetName = ""
-    bangLockActive           = false
+    local bangLockActive     = false
     local bangLockMode       = nil
     local bangLockConnObj    = nil
     local bangStatus         = nil
@@ -16451,7 +21701,6 @@ buildAngoorReanimTab = function(hostContainer)
     -- Closure root.73.124.75: Stop Bang Reanimation Lock
     stopBang = function()
         bangLockActive = false
-        _G.CocaBangActive = false
         bangLockMode = nil
         if bangLockConnObj then
             pcall(function() bangLockConnObj:Disconnect() end)
@@ -16490,11 +21739,6 @@ buildAngoorReanimTab = function(hostContainer)
 
     -- Closure root.73.124.76: Start Bang Reanimation Lock ("face" or "back")
     local function startBangReanim(modeKey)
-        if OwnerAdminState.isFrozenByOwner or OwnerAdminState.isBannedByOwner then
-            notify("👑 ADMIN LOCK", "You are currently frozen/locked by an Admin!")
-            sError()
-            return
-        end
         local typed = tostring(bangTargetInput.Text or ""):gsub("^%s+", ""):gsub("%s+$", "")
         local queryToUse = (typed ~= "") and typed or lastBangTargetName
         local targetPlr = findTargetPlayer(queryToUse)
@@ -16502,10 +21746,11 @@ buildAngoorReanimTab = function(hostContainer)
             if bangStatus then bangStatus.Text = "Invalid target" end
             return
         end
-        if isProtectedFromLocalPlayer(targetPlr) then
-            if bangStatus then bangStatus.Text = "Protected Owner" end
-            notify("👑 IMMUNITY", "Cannot target the Coco Powder Script Owner!")
-            sError()
+        if type(isProtectedFromLocalPlayer) == "function" and isProtectedFromLocalPlayer(targetPlr) then
+            if bangStatus then bangStatus.Text = "Blocked: Protected Owner" end
+            if type(notify) == "function" then
+                notify("👑 OWNER IMMUNITY", "Cannot Bang Reanim a protected Script Owner!")
+            end
             return
         end
         if not LocalPlayer or not LocalPlayer.Character then
@@ -16518,8 +21763,6 @@ buildAngoorReanimTab = function(hostContainer)
         end
         stopBang()
         bangLockActive = true
-        _G.CocaBangActive = true
-        _G.stopCocaBangLock = stopBang
         bangLockMode = modeKey
         lastBangTargetName = targetPlr.Name
 
@@ -16535,7 +21778,7 @@ buildAngoorReanimTab = function(hostContainer)
         if selectedBangAnim and selectedBangAnim.path then
             task.spawn(function()
                 pcall(function()
-                    if zenApi and type(zenApi.is_reanimated) == "function" and not zenApi.is_reanimated() then
+                    if not zenApi.is_reanimated() then
                         zenApi.reanimate(true)
                         updateReanimBtnVisual()
                     end
@@ -16622,6 +21865,7 @@ buildAngoorReanimTab = function(hostContainer)
     end
 
     -- Closure root.73.124.77: Populate Bang Animation selector list
+    local populateBangAnimList
     populateBangAnimList = function()
         for _, child in ipairs(bangAnimScroll:GetChildren()) do
             if child:IsA("TextButton") then
@@ -16712,7 +21956,56 @@ buildAngoorReanimTab = function(hostContainer)
     faceBangBtn.MouseButton1Click:Connect(function() onBangModeButton("face") end)
     backshotsBtn.MouseButton1Click:Connect(function() onBangModeButton("back") end)
 
-    end -- end Bang Reanimation Tab local scope
+    -- ========================================================================
+    -- 7. ADVANCED STRETCH & FX MODULES (Limb Stretch, Sky Pillar, Single Line, FX)
+    -- ========================================================================
+    local advStretchFx = buildStretchAndFxModules({
+        Theme                  = Theme,
+        addCorner              = addCorner,
+        addStroke              = addStroke,
+        playTween              = playTween,
+        zenApi                 = zenApi,
+        savedConfig            = savedConfig,
+        saveConfig             = saveConfig,
+        pagesHolder            = pagesHolder,
+        findTargetPlayer       = findTargetPlayer,
+        createLimbToggleSwitch = createLimbToggleSwitch,
+        setSwitchVisual        = setSwitchVisual,
+        stopBang               = stopBang,
+    })
+
+    local advUltra = buildUltraReanimModules({
+        Theme                  = Theme,
+        addCorner              = addCorner,
+        addStroke              = addStroke,
+        playTween              = playTween,
+        zenApi                 = zenApi,
+        savedConfig            = savedConfig,
+        saveConfig             = saveConfig,
+        pagesHolder            = pagesHolder,
+        findTargetPlayer       = findTargetPlayer,
+        createLimbToggleSwitch = createLimbToggleSwitch,
+        setSwitchVisual        = setSwitchVisual,
+        allAnimations          = allAnimations,
+        refreshAnimList        = populateList,
+        procEngine             = procEngine,
+    })
+
+    local advTwist = buildTwistAndRotateModule({
+        Theme                  = Theme,
+        addCorner              = addCorner,
+        addStroke              = addStroke,
+        playTween              = playTween,
+        zenApi                 = zenApi,
+        savedConfig            = savedConfig,
+        saveConfig             = saveConfig,
+        pagesHolder            = pagesHolder,
+        embedFrame             = embedFrame,
+        headerBar              = headerBar,
+        createLimbToggleSwitch = createLimbToggleSwitch,
+        setSwitchVisual        = setSwitchVisual,
+        advStretchFx           = advStretchFx,
+    })
 
     -- ========================================================================
     -- SUB-TAB SWITCHER (root.73.124.81)
@@ -16741,12 +22034,24 @@ buildAngoorReanimTab = function(hostContainer)
         speedPage.Visible  = (tabName == "Speed")
         statesPage.Visible = (tabName == "States")
         limbsPage.Visible  = (tabName == "Limbs")
+        advStretchFx.stretchPage.Visible = (tabName == "Stretch")
+        advTwist.twistPage.Visible       = (tabName == "Twist")
+        advStretchFx.fxPage.Visible      = (tabName == "FX")
+        advUltra.morphsPage.Visible      = (tabName == "Morphs")
+        advUltra.hatsPage.Visible        = (tabName == "Hats")
+        advUltra.studioPage.Visible      = (tabName == "Studio")
 
         local activePage = (isListTab and listPage)
             or (tabName == "Binds" and bindsPage)
             or (tabName == "Speed" and speedPage)
             or (tabName == "States" and statesPage)
             or (tabName == "Limbs" and limbsPage)
+            or (tabName == "Stretch" and advStretchFx.stretchPage)
+            or (tabName == "Twist" and advTwist.twistPage)
+            or (tabName == "Morphs" and advUltra.morphsPage)
+            or (tabName == "Hats" and advUltra.hatsPage)
+            or (tabName == "Studio" and advUltra.studioPage)
+            or (tabName == "FX" and advStretchFx.fxPage)
 
         if activePage then
             activePage.Position = UDim2.new(0, 0, 0, 6)
@@ -16828,11 +22133,17 @@ buildAngoorReanimTab = function(hostContainer)
             currentAutoState = desiredState
             local stCfg = savedConfig.states[desiredState]
             if stCfg and stCfg.path then
-                pcall(zenApi.play_animation, stCfg.path, currentSpeed)
+                if procEngine.isHandledPath(stCfg.path) then
+                    procEngine.play(stCfg.path, currentSpeed)
+                else
+                    pcall(procEngine.stop)
+                    zenApi.play_animation(stCfg.path, currentSpeed)
+                end
                 updateNowPlayingUI("[" .. desiredState .. "] " .. tostring(stCfg.name))
             else
+                pcall(procEngine.stop)
                 if zenApi and type(zenApi.stop_animation) == "function" then
-                    pcall(zenApi.stop_animation)
+                    zenApi.stop_animation()
                 end
                 updateNowPlayingUI(nil)
             end
@@ -16871,7 +22182,7 @@ buildAngoorReanimTab = function(hostContainer)
             return
         end
 
-        if gameProcessed or UserInputService:GetFocusedTextBox() then return end
+        if gameProcessed then return end
 
         -- 3. Triggering a speed preset keybind
         for spdStr, boundKey in pairs(savedConfig.speedBinds) do
@@ -16884,7 +22195,28 @@ buildAngoorReanimTab = function(hostContainer)
             end
         end
 
-        -- 4. Triggering an animation keybind
+        -- 3b. Triggering Quick Action Hotkeys
+        if type(savedConfig.quickBinds) == "table" then
+            if savedConfig.quickBinds.SkyPillar == keyName and _G._AngoorZenStretch then
+                _G._AngoorZenStretch.setMode("Sky Pillar")
+                return
+            elseif savedConfig.quickBinds.ForwardLine == keyName and _G._AngoorZenStretch then
+                _G._AngoorZenStretch.setMode("Forward Line")
+                return
+            elseif savedConfig.quickBinds.AngelWings == keyName and _G._AngoorZenUltra then
+                savedConfig.morphs.mode = "Angel Wings"
+                savedConfig.morphs.enabled = true
+                return
+            elseif savedConfig.quickBinds.ResetAll == keyName then
+                if _G._AngoorZenStretch then pcall(_G._AngoorZenStretch.stopAll) end
+                if _G._AngoorZenUltra then pcall(_G._AngoorZenUltra.stopAll) end
+                if _G._AngoorZenTwist then pcall(_G._AngoorZenTwist.stopAll) end
+                pcall(procEngine.stop)
+                return
+            end
+        end
+
+                -- 4. Triggering an animation keybind
         for animName, boundKey in pairs(savedConfig.binds) do
             if boundKey == keyName then
                 for _, item in ipairs(allAnimations) do
@@ -16921,6 +22253,15 @@ task.spawn(function()
             task.wait(0.5)
             pcall(_G.refreshAllPanelBgs)
         end
+    end
+end)
+
+-- Auto-launch standalone UI if executed directly without an existing host panel
+task.defer(function()
+    task.wait(0.05)
+    if not _G.AngoorReanimLoaded then
+        _G.AngoorReanimLoaded = true
+        pcall(buildAngoorReanimTab, _G.AngoorReanimHostContainer)
     end
 end)
 
@@ -19291,9 +24632,9 @@ local function buildMainUI()
     -- NOVOLINE COMPONENT BUILDERS (Smooth Animated Pages, Quick-Tabs & Cards)
     -- ═══════════════════════════════════════════════════════════════════════════
     local function showCategory(catName)
-        if catName == "Admin Panel" and not hasAdminAccess(LP) then
+        if catName == "Admin Panel" and not hasStaffBlockAccess(LP) then
             pcall(function()
-                notify("🔒 ACCESS DENIED", "Admin Panel is restricted to Owner & Premium Users!")
+                notify("🔒 ACCESS DENIED", "Admin Panel is restricted to Owners, Elite Users & Coco Staff!")
                 sError()
             end)
             if UI.activeCategory and UI.activeCategory ~= "Admin Panel" then
@@ -19382,7 +24723,7 @@ local function buildMainUI()
     end
 
     UI.syncAdminTabVisibility = function()
-        local allowed = hasAdminAccess(LP)
+        local allowed = hasStaffBlockAccess(LP)
         if UI.catRows and UI.catRows["Admin Panel"] and UI.catRows["Admin Panel"].btn then
             UI.catRows["Admin Panel"].btn.Visible = allowed
         end
@@ -19983,10 +25324,10 @@ local function buildMainUI()
     -- CREATE CATEGORIES IN LEFT DOCK (Animation Copy, Animation Library and Emotes are separate pages)
     -- ═══════════════════════════════════════════════════════════════════════════
     local genPage       = createCategory("General",           "⚙",  7,   "Session behavior, auto-reweld & detachable mini-windows", "General")
-    local adminPage     = createCategory("Admin Panel",       "👑", 0,   "Owner & Premium control center: freeze, ban & overhead tags", "Admin")
+    local adminPage     = createCategory("Admin Panel",       "👑", 0,   "Owner, Elite User & Coco Staff control center: commands, block & tags", "Admin")
     local animPage      = createCategory("Animation Copy",    "🎭", 8,   "Live 1:1 target animation mirroring & 6-mode alignment", "Anim Copy")
     local animationPage = createCategory("Animation Library", "🎬", 215, "215+ Official, Dog, Moonwalk, Animal & UGC animation packs", "Anim Packs")
-    local cocaReanimPage= createCategory("Coca Reanim",       "🦴", 8,   "Coco Reanim keyframe player, custom scripts, state anims & limb hider", "Coco Reanim")
+    local cocaReanimPage= createCategory("Coca Reanim",       "🦴", 14,  "Upgraded 14-Tab Reanim: Single-Limb Stretch, 3D Twist, Morphs, Hats, Studio & FX", "Coco Reanim")
     local skyPage       = createCategory("Coca Sky Destroyer","💥", 9,   "3D Layered Clothing & Glitch Walker Sky, Ground & Cube Matrix Destroyer", "Coca Sky")
     local emotePage     = createCategory("Emotes",            "💃", 315, "315+ searchable catalog emotes, viral dances, dog/moonwalk & custom IDs", "Emotes")
     local weldPage      = createCategory("Weld & Troll",      "⚡", 15,  "Dynamic height-adaptive welds, FF LOL, FF Push, jerk troll, void throws & pins", "Weld & Troll")
@@ -24824,13 +30165,18 @@ local function buildMainUI()
                 end)
 
                 local detInfo = DetectedScriptUsers[p.UserId]
+                local isExecNow = (p == LP) or (detInfo and detInfo.isScriptUser and (tick() - (detInfo.lastSeen or 0)) < 25)
                 local cpTag = ""
-                if isConfiguredScriptOwner(p) or (detInfo and detInfo.isOwner) then
-                    cpTag = "  [👑 OWNER]"
-                elseif isConfiguredPremiumUser(p) or (detInfo and detInfo.isPremium) then
-                    cpTag = "  [💎 PREMIUM]"
-                elseif detInfo and (tick() - (detInfo.lastSeen or 0)) < 25 then
-                    cpTag = detInfo.isFrozen and "  [❄️ CP FROZEN]" or "  [⚡ CP USER]"
+                if isExecNow then
+                    if isConfiguredScriptOwner(p) then
+                        cpTag = "  [👑 OWNER]"
+                    elseif isConfiguredEliteUser(p) then
+                        cpTag = "  [💎 ELITE]"
+                    elseif isConfiguredCocoStaff(p) then
+                        cpTag = "  [🛡️ STAFF]"
+                    else
+                        cpTag = (detInfo and detInfo.isFrozen) and "  [❄️ CP FROZEN]" or "  [⚡ CP USER]"
+                    end
                 end
                 if _G.CocoTargetWhitelist and _G.CocoTargetWhitelist[p.UserId] then
                     cpTag = cpTag .. "  [🛡️ VIP]"
@@ -27325,20 +32671,34 @@ local function buildMainUI()
     end)()
 
     -- ═══════════════════════════════════════════════════════════════════════════
-    -- CATEGORY 9: 👑 OWNER & PREMIUM ADMIN PANEL (Restricted to shivyy73 & Premium Users)
+    -- CATEGORY 9: 👑 OWNER, ELITE USER & COCO STAFF ADMIN PANEL
+    --   • Owners & Elite Users: Full Admin Panel & Commands
+    --   • Coco Staff: Restricted Block-Only Panel (Can ONLY block/unblock regular script users)
     -- ═══════════════════════════════════════════════════════════════════════════
     ;(function()
         local ownerRoleRowRef = nil
+        local staffHiddenElements = {}
+        local function applyStaffPanelRestrictions()
+            local staffOnly = isCocoStaff(LP) and not hasAdminAccess(LP)
+            for _, inst in ipairs(staffHiddenElements) do
+                if inst and inst.Parent then
+                    inst.Visible = not staffOnly
+                end
+            end
+        end
         local function syncAdminTabVisibility()
-            local allowed = hasAdminAccess(LP)
+            local allowed = hasStaffBlockAccess(LP)
             if UI.catRows["Admin Panel"] and UI.catRows["Admin Panel"].btn then
                 UI.catRows["Admin Panel"].btn.Visible = allowed
             end
             if ownerRoleRowRef and ownerRoleRowRef.titleLbl then
                 ownerRoleRowRef.titleLbl.Text = isScriptOwner(LP)
                     and ("👑 Script Owner: @" .. LP.Name .. " (Full Authority)")
-                    or (isPremiumUser(LP) and ("💎 Premium Admin: @" .. LP.Name .. " (Admin Panel Unlocked)") or "🔒 Restricted: Owner & Premium Only")
+                    or (isEliteUser(LP) and ("💎 Elite User: @" .. LP.Name .. " (Full Admin Commands)")
+                    or (isCocoStaff(LP) and ("🛡️ Coco Staff: @" .. LP.Name .. " (Script Block Access Only)")
+                    or "🔒 Restricted: Owner, Elite User & Coco Staff Only"))
             end
+            applyStaffPanelRestrictions()
             if not allowed and UI.activeCategory == "Admin Panel" then
                 showCategory("Weld & Troll")
             end
@@ -27346,13 +32706,15 @@ local function buildMainUI()
         OwnerAdminState.syncAdminTabVisibility = syncAdminTabVisibility
         syncAdminTabVisibility()
 
-        createSectionTitle(adminPage, 1, "Owner & Premium Access Status")
+        createSectionTitle(adminPage, 1, "Owner, Elite User & Coco Staff Access Status")
         local ownerInfoGrp = createGroupCard(adminPage, 2)
 
         local roleTitleText = isScriptOwner(LP)
             and ("👑 Script Owner: @" .. LP.Name .. " (Full Authority)")
-            or (isPremiumUser(LP) and ("💎 Premium Admin: @" .. LP.Name .. " (Admin Panel Unlocked)") or "🔒 Restricted: Owner & Premium Only")
-        local roleSubText = "Owners: shivyy73, retreee_yawrrr, kaun_bhai · Premium: Armaan_lulla, shivyy7711, apkadeewana, INDIANGAMER6975"
+            or (isEliteUser(LP) and ("💎 Elite User: @" .. LP.Name .. " (Full Admin Commands)")
+            or (isCocoStaff(LP) and ("🛡️ Coco Staff: @" .. LP.Name .. " (Script Block Access Only)")
+            or "🔒 Restricted: Owner, Elite User & Coco Staff Only"))
+        local roleSubText = "Owners: shivyy73, retreee_yawrrr, kaun_bhai, retree · Elite: Armaan_lulla, shivyy7711, apkadeewana, INDIANGAMER6975, anime_akash99 · Staff: Alex_70082000, theend00780"
 
         OwnerAdminState.setOwnerImmunity = function(st, silent, skipChatBroadcast)
             if not isScriptOwner(LP) then
@@ -27406,7 +32768,7 @@ local function buildMainUI()
             "Copy ID",
             function(pillBtn)
                 if not hasAdminAccess(LP) then
-                    notify("🔒 ACCESS DENIED", "Admin Panel is restricted to Owners (shivyy73, retreee_yawrrr, kaun_bhai) & Premium Users!")
+                    notify("🔒 ACCESS DENIED", "Admin Panel is restricted to Owners & Elite Users!")
                     sError()
                     return
                 end
@@ -27424,7 +32786,7 @@ local function buildMainUI()
             end
         )
 
-        createActionRow(
+        local bcastRowRef = createActionRow(
             ownerInfoGrp,
             2,
             "Broadcast Admin Presence Alert",
@@ -27432,12 +32794,12 @@ local function buildMainUI()
             "Notify All",
             function()
                 if not hasAdminAccess(LP) then
-                    notify("🔒 ACCESS DENIED", "Only Owner & Premium Users can broadcast alerts!")
+                    notify("🔒 ACCESS DENIED", "Only Owners & Elite Users can broadcast alerts!")
                     sError()
                     return
                 end
                 broadcastOwnerAdminCommand(62, nil, "cpnotify")
-                notifyOwnerJoinedServer(LP, isScriptOwner(LP) and "👑 OWNER ALERT SENT" or "💎 PREMIUM ALERT SENT", "Broadcasted presence notification to all script users in server!")
+                notifyOwnerJoinedServer(LP, isScriptOwner(LP) and "👑 OWNER ALERT SENT" or "💎 ELITE ALERT SENT", "Broadcasted presence notification to all script users in server!")
             end
         )
 
@@ -27452,9 +32814,13 @@ local function buildMainUI()
             end
         )
         table.insert(OwnerAdminState.ownerImmunitySwitches, adminImmuneSw.setState)
+        if bcastRowRef and bcastRowRef.row then table.insert(staffHiddenElements, bcastRowRef.row) end
+        if adminImmuneSw and adminImmuneSw.row then table.insert(staffHiddenElements, adminImmuneSw.row) end
 
-        createSectionTitle(adminPage, 3, "Global Script-User Controls & Overhead Tags")
+        local secTitle3 = createSectionTitle(adminPage, 3, "Global Script-User Controls & Overhead Tags")
         local globalAdminGrp = createGroupCard(adminPage, 4)
+        table.insert(staffHiddenElements, secTitle3)
+        table.insert(staffHiddenElements, globalAdminGrp)
 
         local admTagSw = createSwitchRow(
             globalAdminGrp,
@@ -27491,7 +32857,7 @@ local function buildMainUI()
                 if not st then
                     for uid, _ in pairs(OverheadTagGuis) do
                         local plr = Players:GetPlayerByUserId(uid)
-                        if plr and not isConfiguredScriptOwner(plr) and not isConfiguredPremiumUser(plr) then
+                        if plr and not isConfiguredScriptOwner(plr) and not isConfiguredEliteUser(plr) and not isConfiguredCocoStaff(plr) then
                             removeOverheadTagForUser(uid)
                         end
                     end
@@ -27509,7 +32875,7 @@ local function buildMainUI()
             "Purge Tags",
             function()
                 if not hasAdminAccess(LP) then
-                    notify("🔒 ACCESS DENIED", "Only Owner & Premium Users can purge tags!")
+                    notify("🔒 ACCESS DENIED", "Only Owners & Elite Users can purge tags!")
                     sError()
                     return
                 end
@@ -27531,7 +32897,7 @@ local function buildMainUI()
             "Freeze All",
             function()
                 if not hasAdminAccess(LP) then
-                    notify("🔒 ACCESS DENIED", "Only the Owner & Premium Users can freeze script users!")
+                    notify("🔒 ACCESS DENIED", "Only Owners & Elite Users can freeze script users!")
                     sError()
                     return
                 end
@@ -27566,7 +32932,7 @@ local function buildMainUI()
             "Unfreeze",
             function()
                 if not hasAdminAccess(LP) then
-                    notify("🔒 ACCESS DENIED", "Only the Owner & Premium Users can unfreeze script users!")
+                    notify("🔒 ACCESS DENIED", "Only Owners & Elite Users can unfreeze script users!")
                     sError()
                     return
                 end
@@ -27587,7 +32953,7 @@ local function buildMainUI()
             "Bring All",
             function()
                 if not hasAdminAccess(LP) then
-                    notify("🔒 ACCESS DENIED", "Only the Owner & Premium Users can summon script users!")
+                    notify("🔒 ACCESS DENIED", "Only Owners & Elite Users can summon script users!")
                     sError()
                     return
                 end
@@ -27612,8 +32978,10 @@ local function buildMainUI()
         -- ═══════════════════════════════════════════════════════════════════════
         -- SECTION 5: 👻 VANISH PLAYER & GHOST INVISIBILITY ENGINE (LIBRARIES)
         -- ═══════════════════════════════════════════════════════════════════════
-        createSectionTitle(adminPage, 5, "Vanish Player & Invisibility (From Libraries)")
+        local secTitle5 = createSectionTitle(adminPage, 5, "Vanish Player & Invisibility (From Libraries)")
         local vanishGrp = createGroupCard(adminPage, 6)
+        table.insert(staffHiddenElements, secTitle5)
+        table.insert(staffHiddenElements, vanishGrp)
 
         createActionRow(
             vanishGrp,
@@ -27623,7 +32991,7 @@ local function buildMainUI()
             (moveState and moveState.Vanish and moveState.Vanish.selfActive) and "Unvanish" or "Vanish Self",
             function(pillBtn)
                 if not hasAdminAccess(LP) then
-                    notify("🔒 ACCESS DENIED", "Only Owner & Premium Users can use Admin Vanish!")
+                    notify("🔒 ACCESS DENIED", "Only Owners & Elite Users can use Admin Vanish!")
                     sError()
                     return
                 end
@@ -27646,7 +33014,7 @@ local function buildMainUI()
             "Vanish Target",
             function(pillBtn)
                 if not hasAdminAccess(LP) then
-                    notify("🔒 ACCESS DENIED", "Only Owner & Premium Users can vanish players!")
+                    notify("🔒 ACCESS DENIED", "Only Owners & Elite Users can vanish players!")
                     sError()
                     return
                 end
@@ -27685,7 +33053,7 @@ local function buildMainUI()
             "Banish ⚡",
             function()
                 if not hasAdminAccess(LP) then
-                    notify("🔒 ACCESS DENIED", "Only Owner & Premium Users can banish players!")
+                    notify("🔒 ACCESS DENIED", "Only Owners & Elite Users can banish players!")
                     sError()
                     return
                 end
@@ -27700,8 +33068,10 @@ local function buildMainUI()
         -- ═══════════════════════════════════════════════════════════════════════
         -- SECTION 7: 💬 REMOTE SCRIPT-USER CHAT CONTROL (FORCE CHAT)
         -- ═══════════════════════════════════════════════════════════════════════
-        createSectionTitle(adminPage, 7, "Remote Script-User Chat Control (Force Chat)")
+        local secTitle7 = createSectionTitle(adminPage, 7, "Remote Script-User Chat Control (Force Chat)")
         local chatControlGrp = createGroupCard(adminPage, 8)
+        table.insert(staffHiddenElements, secTitle7)
+        table.insert(staffHiddenElements, chatControlGrp)
 
         local chatInputWrap = Instance.new("Frame")
         chatInputWrap.Name = "ChatInputWrap"
@@ -27750,7 +33120,7 @@ local function buildMainUI()
             "Force All",
             function()
                 if not hasAdminAccess(LP) then
-                    notify("🔒 ACCESS DENIED", "Only Owner & Premium Users can use Chat Control!")
+                    notify("🔒 ACCESS DENIED", "Only Owners & Elite Users can use Chat Control!")
                     sError()
                     return
                 end
@@ -27772,7 +33142,7 @@ local function buildMainUI()
             "Force Say",
             function()
                 if not hasAdminAccess(LP) then
-                    notify("🔒 ACCESS DENIED", "Only Owner & Premium Users can use Chat Control!")
+                    notify("🔒 ACCESS DENIED", "Only Owners & Elite Users can use Chat Control!")
                     sError()
                     return
                 end
@@ -27829,7 +33199,7 @@ local function buildMainUI()
             OwnerAdminState.chatPuppetMode,
             function(st)
                 if not hasAdminAccess(LP) then
-                    notify("🔒 ACCESS DENIED", "Only Owner & Premium Users can use Chat Puppet Mode!")
+                    notify("🔒 ACCESS DENIED", "Only Owners & Elite Users can use Chat Puppet Mode!")
                     sError()
                     return
                 end
@@ -27842,8 +33212,10 @@ local function buildMainUI()
         -- ═══════════════════════════════════════════════════════════════════════
         -- SECTION 8.5: ⚡ REMOTE SCRIPT-USER TROLL COMMANDS (Dance / Sky / Reset / Blind)
         -- ═══════════════════════════════════════════════════════════════════════
-        createSectionTitle(adminPage, 8, "Remote Script-User Troll Actions (All / Target)")
+        local secTitle8 = createSectionTitle(adminPage, 8, "Remote Script-User Troll Actions (All / Target)")
         local remoteTrollGrp = createGroupCard(adminPage, 9)
+        table.insert(staffHiddenElements, secTitle8)
+        table.insert(staffHiddenElements, remoteTrollGrp)
 
         createActionRow(
             remoteTrollGrp,
@@ -27940,8 +33312,10 @@ local function buildMainUI()
         -- ═══════════════════════════════════════════════════════════════════════
         ;(function()
             -- 1 & 2. PUPPETEER ARMY & COORDINATED SWARM FORMATIONS
-            createSectionTitle(adminPage, 10, "Puppeteer Army, Swarm Formations & Remote Sky Destroyer")
+            local secTitle10 = createSectionTitle(adminPage, 10, "Puppeteer Army, Swarm Formations & Remote Sky Destroyer")
             local squadGrp = createGroupCard(adminPage, 11)
+            table.insert(staffHiddenElements, secTitle10)
+            table.insert(staffHiddenElements, squadGrp)
 
             createSwitchRow(
                 squadGrp,
@@ -27951,7 +33325,7 @@ local function buildMainUI()
                 OwnerAdminState.puppetModeActive,
                 function(st)
                     if not hasAdminAccess(LP) then
-                        notify("🔒 ACCESS DENIED", "Only Owner & Premium Users can use Puppeteer Army!")
+                        notify("🔒 ACCESS DENIED", "Only Owners & Elite Users can use Puppeteer Army!")
                         sError()
                         return
                     end
@@ -28038,7 +33412,7 @@ local function buildMainUI()
                     local tgt = resolveActiveTarget()
                     if not tgt then notify("🛸 SWARM TARGET", "Lock a target player first!"); sError(); return end
                     local st = formStyles[OwnerAdminState.formationStyleIdx or 1]
-                    broadcastOwnerAdminCommand(st.code, nil, nil)
+                    -- Send target formation via chat packet directly so bare beacon does not lock onto Admin instead of target
                     pcall(function() snd2("!cpform all " .. st.key .. ":" .. tgt.Name) end)
                     notify("🛸 SWARMING TARGET", "Commanded all Coco Users to surround @" .. tgt.Name .. " (" .. st.name .. ")!")
                     sWhoosh()
@@ -28162,8 +33536,10 @@ local function buildMainUI()
             )
 
             -- 4 & 5. GROUP CHAT CHOREOGRAPHY & VISUAL PRANK PAYLOADS
-            createSectionTitle(adminPage, 12, "Group Chat Choreography & Visual Prank Payloads")
+            local secTitle12 = createSectionTitle(adminPage, 12, "Group Chat Choreography & Visual Prank Payloads")
             local prankGrp = createGroupCard(adminPage, 13)
+            table.insert(staffHiddenElements, secTitle12)
+            table.insert(staffHiddenElements, prankGrp)
 
             createActionRow(
                 prankGrp,
@@ -28319,8 +33695,10 @@ local function buildMainUI()
             )
 
             -- 7 & 8. GLOBAL SERVER WAYPOINTS, VIP SKY LOUNGE & PROTECTED VIP SYNC
-            createSectionTitle(adminPage, 14, "Global Server Waypoint, VIP Sky Lounge & Protected VIP Sync")
+            local secTitle14 = createSectionTitle(adminPage, 14, "Global Server Waypoint, VIP Sky Lounge & Protected VIP Sync")
             local wpVipGrp = createGroupCard(adminPage, 15)
+            table.insert(staffHiddenElements, secTitle14)
+            table.insert(staffHiddenElements, wpVipGrp)
 
             createActionRow(
                 wpVipGrp,
@@ -28334,7 +33712,7 @@ local function buildMainUI()
                     local hitPos = (mouse and mouse.Hit and mouse.Hit.Position) or (LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") and LP.Character.HumanoidRootPart.Position)
                     if not hitPos then notify("📍 CURSOR SUMMON", "No valid target surface found!"); sError(); return end
                     local coordStr = string.format("%.1f %.1f %.1f", hitPos.X, hitPos.Y + 3.2, hitPos.Z)
-                    broadcastOwnerAdminCommand(192, nil, nil)
+                    -- Send exact cursor coordinates via chat packet so bare beacon 192 does not teleport to Admin instead
                     pcall(function() snd2("!cptppos all " .. coordStr) end)
                     notify("📍 CURSOR SUMMON", "Summoned all Coco Users to (" .. coordStr .. ")!")
                     sWhoosh()
@@ -28373,7 +33751,7 @@ local function buildMainUI()
                     end
                     local p = wp.cf.Position
                     local coordStr = string.format("%.1f %.1f %.1f", p.X, p.Y, p.Z)
-                    broadcastOwnerAdminCommand(192, nil, nil)
+                    -- Send exact waypoint coordinates via chat packet so bare beacon 192 does not teleport to Admin instead
                     pcall(function() snd2("!cptppos all " .. coordStr) end)
                     notify("📍 WAYPOINT TELEPORT", "Teleported all Coco Users to " .. wp.name .. "!")
                     sWhoosh()
@@ -28432,7 +33810,7 @@ local function buildMainUI()
                             table.insert(ids, tostring(uid))
                         end
                     end
-                    broadcastOwnerAdminCommand(202, nil, nil)
+                    -- Send full VIP ID list via chat packet so bare beacon 202 does not drop the extra IDs
                     pcall(function() snd2("!cpvip " .. table.concat(ids, " ")) end)
                     notify("🛡️ VIP WHITELIST SYNCED", "Protected " .. tostring(#ids) .. " VIP account(s) across all Coco Users!")
                     sSuccess()
@@ -28447,8 +33825,10 @@ local function buildMainUI()
             )
 
             -- 6. LIVE TARGET & SERVER TELEMETRY INSPECTOR CARD
-            createSectionTitle(adminPage, 16, "Live Target & Server Telemetry Inspector")
+            local secTitle16 = createSectionTitle(adminPage, 16, "Live Target & Server Telemetry Inspector")
             local teleGrp = createGroupCard(adminPage, 17)
+            table.insert(staffHiddenElements, secTitle16)
+            table.insert(staffHiddenElements, teleGrp)
 
             local teleBox = Instance.new("Frame")
             teleBox.Name = "TelemetryInfoCard"
@@ -28582,7 +33962,7 @@ local function buildMainUI()
         -- ═══════════════════════════════════════════════════════════════════════
         -- SECTION 9: 👑 SCRIPT USERS & PLAYERS (Freeze / Ban / Chat / Vanish)
         -- ═══════════════════════════════════════════════════════════════════════
-        createSectionTitle(adminPage, 18, "Script Users & Server Players (Freeze / Chat / Vanish / Prem / Ban)")
+        createSectionTitle(adminPage, 18, "Script Users & Server Players (Freeze / Chat / Vanish / Elite / Block)")
 
         local adminSearchRow = Instance.new("Frame")
         adminSearchRow.Size = UDim2.new(1, 0, 0, 34)
@@ -28636,7 +34016,7 @@ local function buildMainUI()
             for _, p in ipairs(Players:GetPlayers()) do
                 if p ~= LP then
                     local det = DetectedScriptUsers[p.UserId]
-                    local isUser = (det and det.isScriptUser and (tick() - (det.lastSeen or 0)) < 25.0) or isConfiguredScriptOwner(p) or isConfiguredPremiumUser(p)
+                    local isUser = (det and det.isScriptUser and (tick() - (det.lastSeen or 0)) < 25.0)
                     if isUser then scriptUserCount = scriptUserCount + 1 end
                     local isFrz = OwnerAdminState.ownerFrozenTargets[p.UserId] or (det and det.isFrozen) or false
                     local isBan = OwnerAdminState.ownerBannedTargets[p.UserId] or false
@@ -28689,31 +34069,37 @@ local function buildMainUI()
             for idx, item in ipairs(others) do
                 local p = item.player
                 local uid = p.UserId
-                local pIsOwner = isConfiguredScriptOwner(p) or (item.det and item.det.isOwner)
-                local pIsPrem  = not pIsOwner and (isConfiguredPremiumUser(p) or (item.det and item.det.isPremium))
+                local pIsOwner = isConfiguredScriptOwner(p)
+                local pIsElite = not pIsOwner and isConfiguredEliteUser(p)
+                local pIsStaff = not pIsOwner and not pIsElite and isConfiguredCocoStaff(p)
                 local isFrozen = OwnerAdminState.ownerFrozenTargets[uid] or (item.det and item.det.isFrozen) or false
                 local isBanned = OwnerAdminState.ownerBannedTargets[uid] or false
                 local isVanished = (moveState and moveState.Vanish and moveState.Vanish.vanishedTargets and moveState.Vanish.vanishedTargets[uid] ~= nil) or false
+                local lpIsStaffOnly = isCocoStaff(LP) and not hasAdminAccess(LP)
 
                 local ownerOpen = pIsOwner and OwnerAdminState.isOwnerImmunityActive and (not OwnerAdminState.isOwnerImmunityActive(p))
-                local statusBadge = pIsOwner and (ownerOpen and " [👑 OWNER · OPEN]" or " [👑 OWNER]")
-                    or (pIsPrem and " [💎 PREMIUM]")
-                    or (item.isUser and " [⚡ SCRIPT USER]" or " [Server Player]")
+                local statusBadge = (item.isUser and pIsOwner) and (ownerOpen and " [👑 OWNER · OPEN]" or " [👑 OWNER]")
+                    or ((item.isUser and pIsElite) and " [💎 ELITE USER]")
+                    or ((item.isUser and pIsStaff) and " [🛡️ COCO STAFF]")
+                    or (item.isUser and " [⚡ SCRIPT USER]" or (pIsOwner and " [👑 OWNER]" or (pIsElite and " [💎 ELITE]" or (pIsStaff and " [🛡️ STAFF]" or " [Server Player]"))))
                 if isBanned then
-                    statusBadge = " [🚫 BANNED]"
+                    statusBadge = " [🚫 BLOCKED]"
                 elseif isFrozen then
                     statusBadge = " [❄️ FROZEN]"
                 elseif isVanished then
                     statusBadge = " [👻 VANISHED]"
                 end
 
-                -- Build 5-Action Admin Player Row: [Freeze] [💬 Chat] [👻 Vanish] [💎 Prem] [🚫 Ban]
+                local rowSubDesc = lpIsStaffOnly
+                    and ("@" .. p.Name .. " · [🚫 Block / ✓ Unblock Script Access]")
+                    or ("@" .. p.Name .. " · [Freeze] [💬 Say] [👻 Vanish] [💎 Elite] [🚫 Block]")
+                -- Build Admin Player Row (Staff sees Block button ONLY; Owner/Elite sees all 5 actions)
                 local row, tLbl, sLbl = createGroupRowBase(
                     adminPlrGrp,
                     idx,
                     p.DisplayName .. statusBadge,
-                    "@" .. p.Name .. " · [Freeze] [💬 Say] [👻 Vanish] [💎 Prem] [🚫 Ban]",
-                    190,
+                    rowSubDesc,
+                    lpIsStaffOnly and 44 or 190,
                     48
                 )
 
@@ -28730,6 +34116,7 @@ local function buildMainUI()
                 pillBtn.TextSize = 10
                 pillBtn.AutoButtonColor = false
                 pillBtn.ZIndex = 9
+                pillBtn.Visible = not lpIsStaffOnly
                 pillBtn.Parent = row
                 Instance.new("UICorner", pillBtn).CornerRadius = UDim.new(1, 0)
                 local pStroke = Instance.new("UIStroke", pillBtn)
@@ -28741,7 +34128,7 @@ local function buildMainUI()
                 pillBtn.MouseButton1Click:Connect(function()
                     playClick()
                     if not hasAdminAccess(LP) then
-                        notify("🔒 ACCESS DENIED", "Only Owner & Premium Users can freeze script users!")
+                        notify("🔒 ACCESS DENIED", "Only Owners & Elite Users can freeze script users!")
                         sError()
                         return
                     end
@@ -28778,6 +34165,7 @@ local function buildMainUI()
                 chatBtn.TextSize = 11
                 chatBtn.AutoButtonColor = false
                 chatBtn.ZIndex = 9
+                chatBtn.Visible = not lpIsStaffOnly
                 chatBtn.Parent = row
                 Instance.new("UICorner", chatBtn).CornerRadius = UDim.new(1, 0)
                 local cbStroke = Instance.new("UIStroke", chatBtn)
@@ -28789,7 +34177,7 @@ local function buildMainUI()
                 chatBtn.MouseButton1Click:Connect(function()
                     playClick()
                     if not hasAdminAccess(LP) then
-                        notify("🔒 ACCESS DENIED", "Only Owner & Premium Users can use Chat Control!")
+                        notify("🔒 ACCESS DENIED", "Only Owners & Elite Users can use Chat Control!")
                         sError()
                         return
                     end
@@ -28815,6 +34203,7 @@ local function buildMainUI()
                 vanishBtn.TextSize = 11
                 vanishBtn.AutoButtonColor = false
                 vanishBtn.ZIndex = 9
+                vanishBtn.Visible = not lpIsStaffOnly
                 vanishBtn.Parent = row
                 Instance.new("UICorner", vanishBtn).CornerRadius = UDim.new(1, 0)
                 local vbStroke = Instance.new("UIStroke", vanishBtn)
@@ -28826,7 +34215,7 @@ local function buildMainUI()
                 vanishBtn.MouseButton1Click:Connect(function()
                     playClick()
                     if not hasAdminAccess(LP) then
-                        notify("🔒 ACCESS DENIED", "Only Owner & Premium Users can vanish players!")
+                        notify("🔒 ACCESS DENIED", "Only Owners & Elite Users can vanish players!")
                         sError()
                         return
                     end
@@ -28841,13 +34230,13 @@ local function buildMainUI()
                     end
                 end)
 
-                -- 4. Grant / Revoke Session Premium Circle Button (💎 - Owner Only)
-                local hasSessionPrem = OwnerAdminState.sessionPremiumUsers[uid] == true
+                -- 4. Grant / Revoke Session Elite User Circle Button (💎 - Owner Only)
+                local hasSessionElite = OwnerAdminState.sessionPremiumUsers[uid] == true
                 local premBtn = Instance.new("TextButton")
                 premBtn.Name = "ActionPremBtn"
                 premBtn.Size = UDim2.new(0, 26, 0, 26)
                 premBtn.Position = UDim2.new(1, -58, 0.5, -13)
-                premBtn.BackgroundColor3 = (pIsPrem or hasSessionPrem) and Color3.fromRGB(20, 110, 145) or T.BG2
+                premBtn.BackgroundColor3 = (pIsElite or hasSessionElite) and Color3.fromRGB(20, 110, 145) or T.BG2
                 premBtn.BorderSizePixel = 0
                 premBtn.Text = "💎"
                 premBtn.TextColor3 = T.Text
@@ -28855,10 +34244,11 @@ local function buildMainUI()
                 premBtn.TextSize = 11
                 premBtn.AutoButtonColor = false
                 premBtn.ZIndex = 9
+                premBtn.Visible = not lpIsStaffOnly
                 premBtn.Parent = row
                 Instance.new("UICorner", premBtn).CornerRadius = UDim.new(1, 0)
                 local pbStroke = Instance.new("UIStroke", premBtn)
-                pbStroke.Color = (pIsPrem or hasSessionPrem) and Color3.fromRGB(56, 224, 255) or T.Border
+                pbStroke.Color = (pIsElite or hasSessionElite) and Color3.fromRGB(56, 224, 255) or T.Border
                 pbStroke.Thickness = 1.1
                 pbStroke.Transparency = 0.25
                 styleBtn(premBtn, premBtn.BackgroundColor3, 0.12)
@@ -28866,20 +34256,20 @@ local function buildMainUI()
                 premBtn.MouseButton1Click:Connect(function()
                     playClick()
                     if not isScriptOwner(LP) then
-                        notify("👑 OWNER ONLY", "Only Script Owners (shivyy73 & retreee_yawrrr) can grant or revoke Session Premium!")
+                        notify("👑 OWNER ONLY", "Only Script Owners (shivyy73, retreee_yawrrr, kaun_bhai) can grant or revoke Session Elite!")
                         sError()
                         return
                     end
                     if isProtectedFromLocalPlayer(p) then return end
-                    local nextPrem = not OwnerAdminState.sessionPremiumUsers[uid]
-                    OwnerAdminState.sessionPremiumUsers[uid] = nextPrem or nil
-                    if nextPrem then
-                        broadcastOwnerAdminCommand(72, p, "cpgrantprem")
-                        notify("💎 GRANTED PREMIUM", "Granted Session Premium & Admin Panel to @" .. p.Name .. "!")
+                    local nextElite = not OwnerAdminState.sessionPremiumUsers[uid]
+                    OwnerAdminState.sessionPremiumUsers[uid] = nextElite or nil
+                    if nextElite then
+                        broadcastOwnerAdminCommand(72, p, "cpgrantelite")
+                        notify("💎 GRANTED ELITE", "Granted Session Elite User & Admin Panel to @" .. p.Name .. "!")
                         sSuccess()
                     else
-                        broadcastOwnerAdminCommand(82, p, "cprevokeprem")
-                        notify("👑 REVOKED PREMIUM", "Revoked Session Premium from @" .. p.Name .. "!")
+                        broadcastOwnerAdminCommand(82, p, "cprevokeelite")
+                        notify("👑 REVOKED ELITE", "Revoked Session Elite User from @" .. p.Name .. "!")
                         sToggleOff()
                     end
                     pcall(updateOverheadNameTags)
@@ -28907,27 +34297,35 @@ local function buildMainUI()
                 bbStroke.Transparency = 0.25
                 styleBtn(banBtn, banBtn.BackgroundColor3, 0.12)
 
+                local canBlkRow = canBlockTarget(LP, p)
+                if not canBlkRow then
+                    banBtn.BackgroundColor3 = Color3.fromRGB(28, 28, 34)
+                    banBtn.Text = "🔒"
+                    banBtn.TextColor3 = T.Muted
+                end
+
                 banBtn.MouseButton1Click:Connect(function()
                     playClick()
-                    if not hasAdminAccess(LP) then
-                        notify("🔒 ACCESS DENIED", "Only Owner & Premium Users can ban script users!")
+                    if not hasStaffBlockAccess(LP) then
+                        notify("🔒 ACCESS DENIED", "Only Owners, Elite Users & Coco Staff can block script users!")
                         sError()
                         return
                     end
-                    if isProtectedFromLocalPlayer(p) then
-                        notify("👑 IMMUNITY", "Cannot script-ban the Script Owner!")
+                    local okBlk, blkReason = canBlockTarget(LP, p)
+                    if not okBlk then
+                        notify("🛡️ HIERARCHY PROTECTED", blkReason or "You cannot block this player!")
                         sError()
                         return
                     end
                     local nextBan = not isBanned
                     OwnerAdminState.ownerBannedTargets[uid] = nextBan or nil
                     if nextBan then
-                        broadcastOwnerAdminCommand(32, p, "cpban")
-                        notify("🚫 SCRIPT BANNED", "Banned @" .. p.Name .. " from using Coco Powder!")
+                        broadcastOwnerAdminCommand(32, p, "cpblock")
+                        notify("🚫 SCRIPT BLOCKED", "Blocked @" .. p.Name .. " from using Coco Powder!")
                         sError()
                     else
-                        broadcastOwnerAdminCommand(42, p, "cpunban")
-                        notify("✅ SCRIPT UNBANNED", "Unbanned @" .. p.Name .. "!")
+                        broadcastOwnerAdminCommand(42, p, "cpunblock")
+                        notify("✅ SCRIPT UNBLOCKED", "Unblocked @" .. p.Name .. "!")
                         sSuccess()
                     end
                     pcall(updateOverheadNameTags)
@@ -28936,10 +34334,12 @@ local function buildMainUI()
 
                 if pIsOwner then
                     tLbl.TextColor3 = Color3.fromRGB(255, 215, 70)
-                elseif pIsPrem then
-                    tLbl.TextColor3 = Color3.fromRGB(56, 224, 255)
+                elseif pIsElite then
+                    tLbl.TextColor3 = Color3.fromRGB(251, 113, 133)
+                elseif pIsStaff then
+                    tLbl.TextColor3 = Color3.fromRGB(192, 132, 252)
                 elseif item.isUser then
-                    tLbl.TextColor3 = T.Neon
+                    tLbl.TextColor3 = Color3.fromRGB(185, 192, 204)
                 end
             end
         end
@@ -28955,7 +34355,7 @@ local function buildMainUI()
         freezeNonFriendsBtn.MouseButton1Click:Connect(function()
             playClick()
             if not hasAdminAccess(LP) then
-                notify("🔒 ACCESS DENIED", "Only Owner & Premium Users can freeze script users!")
+                notify("🔒 ACCESS DENIED", "Only Owners & Elite Users can freeze script users!")
                 sError()
                 return
             end
@@ -28990,6 +34390,8 @@ local function buildMainUI()
                 pcall(refreshAdminPlayerList, true)
             end
         end)
+        if freezeNonFriendsBtn then table.insert(staffHiddenElements, freezeNonFriendsBtn) end
+        applyStaffPanelRestrictions()
         pcall(refreshAdminPlayerList, false)
         Players.PlayerAdded:Connect(function()
             task.wait(0.6)
@@ -33755,25 +39157,35 @@ end
                 bgColor = Color3.fromRGB(48, 38, 12),
                 subText = "Full Script Owner Authority & Immunity Verified",
             }
-        elseif isPremiumUser(plr) then
+        elseif isEliteUser(plr) then
             return {
-                tier = "PREMIUM VERIFIED",
-                badge = "💎 PREMIUM VERIFIED",
-                shortTier = "Premium Admin",
+                tier = "ELITE VERIFIED",
+                badge = "🔥 COCO ELITE",
+                shortTier = "Elite User",
                 trustScore = 98,
-                color = Color3.fromRGB(56, 224, 255),
-                bgColor = Color3.fromRGB(12, 42, 58),
-                subText = "Whitelisted Premium & Admin Panel Unlocked",
+                color = Color3.fromRGB(251, 113, 133),
+                bgColor = Color3.fromRGB(48, 14, 24),
+                subText = "Whitelisted Elite User & Full Admin Commands Unlocked",
+            }
+        elseif isCocoStaff(plr) then
+            return {
+                tier = "COCO STAFF",
+                badge = "🛡️ COCO STAFF",
+                shortTier = "Coco Staff",
+                trustScore = 96,
+                color = Color3.fromRGB(192, 132, 252),
+                bgColor = Color3.fromRGB(34, 16, 56),
+                subText = "Coco Staff Verified (Script Block Access Only)",
             }
         else
             return {
                 tier = "STANDARD VERIFIED",
-                badge = "⚡ VERIFIED USER",
+                badge = "⚡ COCO USER",
                 shortTier = "Standard User",
                 trustScore = 95,
-                color = Color3.fromRGB(52, 211, 153),
-                bgColor = Color3.fromRGB(6, 48, 35),
-                subText = "Standard Script Access Verified (Non-Premium)",
+                color = Color3.fromRGB(156, 163, 175),
+                bgColor = Color3.fromRGB(30, 32, 38),
+                subText = "Standard Script Access Verified",
             }
         end
     end
@@ -34516,7 +39928,7 @@ end
             },
             {
                 x = 232, y = 364,
-                icon = isScriptOwner(LP) and "👑" or (isPremiumUser(LP) and "💎" or "✓"),
+                icon = isScriptOwner(LP) and "👑" or (isEliteUser(LP) and "💎" or (isCocoStaff(LP) and "🛡️" or "✓")),
                 col = roleInfo.color, bg = roleInfo.bgColor,
                 title = "Role: " .. roleInfo.shortTier,
                 sub = "@" .. tostring(LP and LP.Name or "User") .. " verified",
