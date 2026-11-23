@@ -1,5 +1,5 @@
 -- language: Lua, file: jamun_hub.lua, target: Roblox executor
--- jamun welder · script by akash · v9.10.63 "headtag owner + jamun user label"
+-- jamun welder · script by akash · v10.0 "Riyon Obsidian Premium GUI + Fixed Headtag & Admin"
 
 local P    = game:GetService("Players")
 local RS   = game:GetService("RunService")
@@ -2057,21 +2057,23 @@ end)()
 -- THEME
 -- ============================================================================
 local C = {
-    -- zen dark panel theme (matches reanim hub)
+    -- Riyon V1 obsidian palette (preserved)
     glassBg      = Color3.fromRGB(8, 8, 8),
-    glassTint    = Color3.fromRGB(4, 4, 6),
-    glassTile    = Color3.fromRGB(14, 14, 16),
-    glassInput   = Color3.fromRGB(22, 22, 26),
+    glassTint    = Color3.fromRGB(6, 6, 8),
+    glassTile    = Color3.fromRGB(14, 14, 14),
+    glassInput   = Color3.fromRGB(24, 24, 24),
+    surface      = Color3.fromRGB(20, 20, 20),
+    surfaceHover = Color3.fromRGB(28, 28, 28),
     accent       = Color3.fromRGB(248, 248, 255),
-    accentDim    = Color3.fromRGB(180, 180, 190),
+    accentDim    = Color3.fromRGB(180, 180, 185),
     accentSoft   = Color3.fromRGB(90, 90, 100),
     danger       = Color3.fromRGB(230, 70, 70),
     warn         = Color3.fromRGB(240, 180, 60),
     good         = Color3.fromRGB(80, 220, 140),
-    text         = Color3.fromRGB(225, 225, 235),
-    text2        = Color3.fromRGB(160, 165, 180),
-    text3        = Color3.fromRGB(110, 115, 130),
-    stroke       = Color3.fromRGB(42, 42, 54),
+    text         = Color3.fromRGB(220, 220, 228),
+    text2        = Color3.fromRGB(150, 150, 165),
+    text3        = Color3.fromRGB(100, 100, 115),
+    stroke       = Color3.fromRGB(35, 35, 45),
 }
 C.panel=C.glassBg; C.panel2=C.glassBg; C.panel3=C.glassTile; C.input=C.glassInput
 C.stroke2=C.accent; C.neon=C.accent; C.gd=C.good; C.bd=C.danger; C.wn=C.warn
@@ -8373,156 +8375,727 @@ if not ScreenGui.Parent then
 end
 print("[Jamun Welder] ScreenGui parented to", ScreenGui.Parent.Name)
 
-local Backdrop = Instance.new("Frame"); Backdrop.Size = UDim2.fromScale(1,1)
-Backdrop.BackgroundColor3 = C.glassTint; Backdrop.BackgroundTransparency = 0.55; Backdrop.BorderSizePixel = 0
-Backdrop.Visible = false; Backdrop.Parent = ScreenGui
+local RIYON_BG_IMAGE = "rbxassetid://72660622902200"
 
-local Grad = Instance.new("UIGradient")
-Grad.Color = ColorSequence.new{
-    ColorSequenceKeypoint.new(0.0, Color3.fromRGB(10,10,12)),
-    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(16,16,20)),
-    ColorSequenceKeypoint.new(1.0, Color3.fromRGB(8,8,10)),
-}
-Grad.Rotation = 30; Grad.Parent = Backdrop
-local gradRot = 0
-RS.RenderStepped:Connect(function(dt) if not Backdrop.Visible then return end; gradRot=(gradRot+dt*12)%360; Grad.Rotation=gradRot end)
+local Backdrop = Instance.new("Frame")
+Backdrop.Name = "Backdrop"
+Backdrop.Size = UDim2.fromScale(1, 1)
+Backdrop.BackgroundColor3 = C.glassTint
+Backdrop.BackgroundTransparency = 0.62
+Backdrop.BorderSizePixel = 0
+Backdrop.Visible = false
+Backdrop.Parent = ScreenGui
 
-local W, H = 460, 520
-local Holder = Instance.new("Frame"); Holder.Name = "Holder"; Holder.BackgroundTransparency = 1
-Holder.Size = UDim2.fromScale(1,1); Holder.Position = UDim2.fromOffset(0,0); Holder.Parent = ScreenGui
-local PanelScale = Instance.new("UIScale"); PanelScale.Scale = 1; PanelScale.Parent = Holder
+local W, H = 510, 540
+local Holder = Instance.new("Frame")
+Holder.Name = "Holder"
+Holder.BackgroundTransparency = 1
+Holder.Size = UDim2.fromScale(1, 1)
+Holder.Position = UDim2.fromOffset(0, 0)
+Holder.Parent = ScreenGui
+local PanelScale = Instance.new("UIScale")
+PanelScale.Scale = 1
+PanelScale.Parent = Holder
 
-local Panel = Instance.new("Frame"); Panel.Size = UDim2.fromOffset(W,H)
+-- ── Riyon MainGUI Window ──────────────────────────────────────────────────
+local Panel = Instance.new("Frame")
+Panel.Name = "MainGUI"
+Panel.Size = UDim2.fromOffset(W, H)
 Panel.AnchorPoint = Vector2.new(0.5, 0.5)
-Panel.Position = UDim2.fromScale(0.5, 0.5)  -- centred on all devices incl mobile
-Panel.BackgroundColor3 = C.glassBg; Panel.BackgroundTransparency = G.panelTransparency
-Panel.BorderSizePixel = 0; Panel.Active = true; Panel.Visible = false; Panel.Parent = Holder
-corner(Panel, G.radiusPanel)
-local panelStroke = stroke(Panel, Color3.fromRGB(90, 55, 80), 2.0, 0.08)
--- soft vertical depth + faint accent rim
+Panel.Position = UDim2.fromScale(0.5, 0.52)
+Panel.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+Panel.BackgroundTransparency = 0.02
+Panel.BorderSizePixel = 0
+Panel.Active = true
+Panel.Visible = false
+Panel.ClipsDescendants = true
+Panel.Parent = Holder
+corner(Panel, 16)
+
 local panelGrad = Instance.new("UIGradient")
-panelGrad.Rotation = 148
-panelGrad.Color = ColorSequence.new{
-    ColorSequenceKeypoint.new(0.0,  Color3.fromRGB(26, 16, 26)),
-    ColorSequenceKeypoint.new(0.3,  Color3.fromRGB(14, 11, 16)),
-    ColorSequenceKeypoint.new(0.65, Color3.fromRGB(9,  7,  11)),
-    ColorSequenceKeypoint.new(1.0,  Color3.fromRGB(4,  3,  6)),
-}
+panelGrad.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(24, 24, 24)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(8, 8, 8)),
+})
+panelGrad.Rotation = 90
 panelGrad.Parent = Panel
 
--- layered depth: grain + berry wash + top sheen
-local PanelTex = Instance.new("ImageLabel")
-PanelTex.Name = "PanelGrain"
-PanelTex.Size = UDim2.fromScale(1, 1)
-PanelTex.BackgroundTransparency = 1
-PanelTex.ImageTransparency = 0.86
-PanelTex.ScaleType = Enum.ScaleType.Tile
-PanelTex.TileSize = UDim2.fromOffset(96, 96)
-PanelTex.ZIndex = 0
-PanelTex.Parent = Panel
-pcall(function() PanelTex.Image = "rbxassetid://20406287" end)
-corner(PanelTex, G.radiusPanel)
+local PanelBgImg = Instance.new("ImageLabel")
+PanelBgImg.Name = "BgImage"
+PanelBgImg.Size = UDim2.fromScale(1, 1)
+PanelBgImg.Position = UDim2.fromOffset(0, 0)
+PanelBgImg.BackgroundTransparency = 1
+PanelBgImg.Image = RIYON_BG_IMAGE
+PanelBgImg.ImageColor3 = C.accent
+PanelBgImg.ImageTransparency = 0.58
+PanelBgImg.ScaleType = Enum.ScaleType.Crop
+PanelBgImg.ZIndex = 0
+PanelBgImg.Parent = Panel
+corner(PanelBgImg, 16)
 
-local BerryWash = Instance.new("Frame")
-BerryWash.Name = "BerryWash"
-BerryWash.Size = UDim2.new(0.65, 0, 0.45, 0)
-BerryWash.Position = UDim2.new(1, 0, 0, 0)
-BerryWash.AnchorPoint = Vector2.new(1, 0)
-BerryWash.BackgroundColor3 = Color3.fromRGB(100, 34, 84)
-BerryWash.BackgroundTransparency = 0.9
-BerryWash.BorderSizePixel = 0
-BerryWash.ZIndex = 0
-BerryWash.Parent = Panel
-local berryGrad = Instance.new("UIGradient")
-berryGrad.Rotation = 215
-berryGrad.Transparency = NumberSequence.new{
-    NumberSequenceKeypoint.new(0, 0.15),
-    NumberSequenceKeypoint.new(0.55, 0.65),
-    NumberSequenceKeypoint.new(1, 1),
-}
-berryGrad.Parent = BerryWash
-
-local BottomWash = Instance.new("Frame")
-BottomWash.Size = UDim2.new(1, 0, 0.35, 0)
-BottomWash.Position = UDim2.new(0, 0, 1, 0)
-BottomWash.AnchorPoint = Vector2.new(0, 1)
-BottomWash.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-BottomWash.BackgroundTransparency = 0.55
-BottomWash.BorderSizePixel = 0
-BottomWash.ZIndex = 0
-BottomWash.Parent = Panel
-local botGrad = Instance.new("UIGradient")
-botGrad.Rotation = 90
-botGrad.Transparency = NumberSequence.new{
-    NumberSequenceKeypoint.new(0, 1),
-    NumberSequenceKeypoint.new(0.4, 0.7),
-    NumberSequenceKeypoint.new(1, 0.2),
-}
-botGrad.Parent = BottomWash
-
--- top highlight bar
-local accentLine = Instance.new("Frame")
-accentLine.Size = UDim2.new(1, -2, 0, 1)
-accentLine.Position = UDim2.new(0, 1, 0, 0)
-accentLine.BackgroundColor3 = Color3.fromRGB(220, 180, 210)
-accentLine.BackgroundTransparency = 0.45
-accentLine.BorderSizePixel = 0
-accentLine.ZIndex = 5
-accentLine.Parent = Panel
-corner(accentLine, 1)
-local accentLine2 = Instance.new("Frame")
-accentLine2.Size = UDim2.new(0.35, 0, 0, 2)
-accentLine2.Position = UDim2.new(0, 16, 0, 0)
-accentLine2.BackgroundColor3 = Color3.fromRGB(200, 120, 170)
-accentLine2.BackgroundTransparency = 0.25
-accentLine2.BorderSizePixel = 0
-accentLine2.ZIndex = 6
-accentLine2.Parent = Panel
-corner(accentLine2, 1)
-registerThemed(accentLine, "accent")
-registerThemed(accentLine2, "accent")
-
--- ambient outer glow (soft)
-local ambientGlow = Instance.new("ImageLabel")
-ambientGlow.Name = "JamunAmbientGlow"
-ambientGlow.Size = UDim2.new(1, 48, 1, 48)
-ambientGlow.Position = UDim2.new(0.5, 0, 0.5, 0)
-ambientGlow.AnchorPoint = Vector2.new(0.5, 0.5)
-ambientGlow.BackgroundTransparency = 1
-ambientGlow.Image = "rbxassetid://5028857084"
-ambientGlow.ImageColor3 = Color3.fromRGB(180, 100, 150)
-ambientGlow.ImageTransparency = 0.82
-ambientGlow.ScaleType = Enum.ScaleType.Slice
-ambientGlow.SliceCenter = Rect.new(24, 24, 276, 276)
-ambientGlow.ZIndex = 0
-ambientGlow.Parent = Panel
-pcall(function() ambientGlow.Parent = Holder end)
-
--- shimmer line removed
-
-
--- animated border shimmer: rotates gradient on panelStroke — corner-safe
+local panelStroke = stroke(Panel, C.accent, 1.5, 0)
 local borderShimGrad = Instance.new("UIGradient")
-borderShimGrad.Color = ColorSequence.new{
-    ColorSequenceKeypoint.new(0.0,  Color3.fromRGB(255,210,240)),
-    ColorSequenceKeypoint.new(0.18, Color3.fromRGB(255,255,255)),
-    ColorSequenceKeypoint.new(0.36, Color3.fromRGB(180,120,200)),
-    ColorSequenceKeypoint.new(0.54, Color3.fromRGB(255,210,240)),
-    ColorSequenceKeypoint.new(0.72, Color3.fromRGB(255,255,255)),
-    ColorSequenceKeypoint.new(0.9,  Color3.fromRGB(180,120,200)),
-    ColorSequenceKeypoint.new(1.0,  Color3.fromRGB(255,210,240)),
-}
+borderShimGrad.Transparency = NumberSequence.new({
+    NumberSequenceKeypoint.new(0.0, 1),
+    NumberSequenceKeypoint.new(0.2, 0.6),
+    NumberSequenceKeypoint.new(0.5, 0),
+    NumberSequenceKeypoint.new(0.8, 0.6),
+    NumberSequenceKeypoint.new(1.0, 1),
+})
+borderShimGrad.Rotation = 45
 borderShimGrad.Parent = panelStroke
 task.spawn(function()
-    local angle = 0
+    local angle = 45
     while Panel and Panel.Parent do
-        angle = (angle + 1.6) % 360
-        borderShimGrad.Rotation = angle
-        task.wait(0.016)
+        if Panel.Visible then
+            angle = (angle + 1.2) % 360
+            borderShimGrad.Rotation = angle
+        end
+        task.wait(0.025)
     end
 end)
-registerThemed(panelStroke, "stroke")
+registerThemed(panelStroke, "accent")
 
+-- ── Riyon Title Bar (38px) ────────────────────────────────────────────────
+local TitleBar = Instance.new("Frame")
+TitleBar.Name = "TitleBar"
+TitleBar.Size = UDim2.new(1, 0, 0, 40)
+TitleBar.Position = UDim2.fromOffset(0, 0)
+TitleBar.BackgroundColor3 = Color3.fromRGB(14, 14, 16)
+TitleBar.BackgroundTransparency = 0.35
+TitleBar.BorderSizePixel = 0
+TitleBar.ZIndex = 10
+TitleBar.Parent = Panel
+
+local titleDivider = Instance.new("Frame")
+titleDivider.Size = UDim2.new(1, -24, 0, 1)
+titleDivider.Position = UDim2.new(0, 12, 1, -1)
+titleDivider.BackgroundColor3 = C.stroke
+titleDivider.BackgroundTransparency = 0.35
+titleDivider.BorderSizePixel = 0
+titleDivider.ZIndex = 11
+titleDivider.Parent = TitleBar
+
+local Title = Instance.new("TextLabel")
+Title.Name = "BrandTitle"
+Title.Size = UDim2.new(0, 155, 0, 22)
+Title.Position = UDim2.new(0, 14, 0.5, -11)
+Title.BackgroundTransparency = 1
+Title.Text = "✦  JAMUN WELDER"
+Title.TextColor3 = Color3.fromRGB(245, 245, 250)
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Font = Enum.Font.GothamBlack
+Title.TextSize = 14
+Title.ZIndex = 12
+Title.Parent = TitleBar
+
+local SubTitle = Instance.new("TextLabel")
+SubTitle.Name = "SubTitle"
+SubTitle.Size = UDim2.new(0, 120, 0, 16)
+SubTitle.Position = UDim2.new(0, 172, 0.5, -8)
+SubTitle.BackgroundTransparency = 1
+SubTitle.Text = "v10 · by akash"
+SubTitle.TextColor3 = C.text3
+SubTitle.TextXAlignment = Enum.TextXAlignment.Left
+SubTitle.Font = Enum.Font.GothamMedium
+SubTitle.TextSize = 10
+SubTitle.ZIndex = 12
+SubTitle.Parent = TitleBar
+
+if isJamunOwner(LP) then
+    local ownerChip = Instance.new("TextLabel")
+    ownerChip.Size = UDim2.fromOffset(66, 18)
+    ownerChip.Position = UDim2.new(0, 260, 0.5, -9)
+    ownerChip.BackgroundColor3 = Color3.fromRGB(40, 30, 8)
+    ownerChip.BackgroundTransparency = 0.15
+    ownerChip.Text = "♛ OWNER"
+    ownerChip.TextColor3 = Color3.fromRGB(255, 215, 120)
+    ownerChip.Font = Enum.Font.GothamBlack
+    ownerChip.TextSize = 9
+    ownerChip.ZIndex = 12
+    ownerChip.Parent = TitleBar
+    corner(ownerChip, 100)
+    stroke(ownerChip, Color3.fromRGB(255, 215, 120), 1, 0.35)
+end
+
+local MinBtn = Instance.new("TextButton")
+MinBtn.Name = "MinBtn"
+MinBtn.Size = UDim2.fromOffset(24, 24)
+MinBtn.Position = UDim2.new(1, -60, 0.5, -12)
+MinBtn.BackgroundColor3 = Color3.fromRGB(24, 24, 28)
+MinBtn.BackgroundTransparency = 0.15
+MinBtn.BorderSizePixel = 0
+MinBtn.Text = "—"
+MinBtn.TextColor3 = C.text2
+MinBtn.Font = Enum.Font.GothamBold
+MinBtn.TextSize = 12
+MinBtn.AutoButtonColor = false
+MinBtn.ZIndex = 12
+MinBtn.Parent = TitleBar
+corner(MinBtn, 12)
+stroke(MinBtn, C.stroke, 1, 0.35)
+hov(MinBtn)
+
+local CloseBtn = Instance.new("TextButton")
+CloseBtn.Name = "CloseBtn"
+CloseBtn.Size = UDim2.fromOffset(24, 24)
+CloseBtn.Position = UDim2.new(1, -30, 0.5, -12)
+CloseBtn.BackgroundColor3 = Color3.fromRGB(45, 18, 20)
+CloseBtn.BackgroundTransparency = 0.15
+CloseBtn.BorderSizePixel = 0
+CloseBtn.Text = "×"
+CloseBtn.TextColor3 = Color3.fromRGB(255, 140, 140)
+CloseBtn.Font = Enum.Font.GothamBold
+CloseBtn.TextSize = 15
+CloseBtn.AutoButtonColor = false
+CloseBtn.ZIndex = 12
+CloseBtn.Parent = TitleBar
+corner(CloseBtn, 12)
+stroke(CloseBtn, Color3.fromRGB(160, 55, 55), 1, 0.35)
+
+-- ── Layout Metrics & Content Area ─────────────────────────────────────────
+local PAD = 14
+local HEADER_H = 44
+local DOCK_H = 44
+local innerW = W - PAD * 2
+
+local Content = Instance.new("Frame")
+Content.Name = "ContentArea"
+Content.Size = UDim2.new(1, -PAD * 2, 1, -(HEADER_H + DOCK_H + PAD + 8))
+Content.Position = UDim2.new(0, PAD, 0, HEADER_H + 6)
+Content.BackgroundTransparency = 1
+Content.ClipsDescendants = true
+Content.ZIndex = 2
+Content.Parent = Panel
+
+-- ── Riyon Bottom Navigation Dock ──────────────────────────────────────────
+local TabTrack = Instance.new("Frame")
+TabTrack.Name = "BottomDock"
+TabTrack.Size = UDim2.new(1, -PAD * 2, 0, DOCK_H)
+TabTrack.Position = UDim2.new(0, PAD, 1, -(DOCK_H + 10))
+TabTrack.BackgroundColor3 = Color3.fromRGB(14, 14, 16)
+TabTrack.BackgroundTransparency = 0.08
+TabTrack.BorderSizePixel = 0
+TabTrack.ClipsDescendants = true
+TabTrack.ZIndex = 10
+TabTrack.Parent = Panel
+corner(TabTrack, 14)
+local dockStroke = stroke(TabTrack, C.accent, 1.2, 0.55)
+
+local dockBgImg = Instance.new("ImageLabel")
+dockBgImg.Name = "DockBgImage"
+dockBgImg.Size = UDim2.fromScale(1, 1)
+dockBgImg.BackgroundTransparency = 1
+dockBgImg.Image = RIYON_BG_IMAGE
+dockBgImg.ImageColor3 = C.accent
+dockBgImg.ImageTransparency = 0.68
+dockBgImg.ScaleType = Enum.ScaleType.Crop
+dockBgImg.ZIndex = 10
+dockBgImg.Parent = TabTrack
+corner(dockBgImg, 14)
+
+local TabBar = Instance.new("Frame")
+TabBar.Size = UDim2.new(1, -12, 1, -10)
+TabBar.Position = UDim2.fromOffset(6, 5)
+TabBar.BackgroundTransparency = 1
+TabBar.ZIndex = 11
+TabBar.Parent = TabTrack
+
+local TabList = Instance.new("UIListLayout")
+TabList.FillDirection = Enum.FillDirection.Horizontal
+TabList.HorizontalAlignment = Enum.HorizontalAlignment.Center
+TabList.VerticalAlignment = Enum.VerticalAlignment.Center
+TabList.Padding = UDim.new(0, 6)
+TabList.SortOrder = Enum.SortOrder.LayoutOrder
+TabList.Parent = TabBar
+
+local tabOrder = {"target", "character", "chat", "others", "reanim"}
+local tabName = {
+    target    = "Target",
+    character = "Character",
+    chat      = "Chat",
+    others    = "Others",
+    reanim    = "Reanim",
+}
+local tabs, pages = {}, {}
+local tabW = math.floor((innerW - 12 - 6 * 4) / 5)
+for i, n in ipairs(tabOrder) do
+    local b = BTN(TabBar, tabName[n])
+    b.Size = UDim2.fromOffset(tabW, DOCK_H - 10)
+    b.LayoutOrder = i
+    b.TextSize = 11
+    b.TextColor3 = C.text2
+    b.ZIndex = 12
+    corner(b, 10)
+    tabs[n] = b
+
+    local p
+    if n == "reanim" then
+        p = Instance.new("Frame")
+        p.Size = UDim2.fromScale(1, 1)
+        p.BackgroundTransparency = 1
+        p.BorderSizePixel = 0
+        p.Visible = false
+        p.ClipsDescendants = true
+        p.Parent = Content
+    else
+        p = Instance.new("ScrollingFrame")
+        p.Size = UDim2.fromScale(1, 1)
+        p.BackgroundTransparency = 1
+        p.BorderSizePixel = 0
+        p.Visible = false
+        p.ScrollBarThickness = 3
+        p.ScrollBarImageColor3 = C.accent
+        p.CanvasSize = UDim2.fromOffset(0, 800)
+        p.Parent = Content
+    end
+    pages[n] = p
+end
+
+local built, tabBuilders = {}, {}
+local function selectTab(n)
+    play(SND.tab)
+    for k, v in pairs(tabs) do
+        local on = (k == n)
+        setToggle(v, on)
+        if on then
+            v.TextColor3 = Color3.fromRGB(8, 8, 12)
+        end
+        pcall(function()
+            local font = C.font or Enum.Font.GothamBold
+            v.Font = on and Enum.Font.GothamBold or font
+            if C.fontFace then v.FontFace = C.fontFace end
+        end)
+    end
+    for k, v in pairs(pages) do v.Visible = (k == n) end
+    if not built[n] and tabBuilders[n] then built[n] = true; tabBuilders[n]() end
+end
+for _, n in ipairs(tabOrder) do onClick(tabs[n], function() selectTab(n) end) end
+
+-- ── Riyon Minimized Bottom Capsule ────────────────────────────────────────
+local MinimizedCapsule = Instance.new("TextButton")
+MinimizedCapsule.Name = "MinimizedCapsule"
+MinimizedCapsule.Size = UDim2.fromOffset(210, 38)
+MinimizedCapsule.AnchorPoint = Vector2.new(0.5, 1)
+MinimizedCapsule.Position = UDim2.new(0.5, 0, 1, -16)
+MinimizedCapsule.BackgroundColor3 = Color3.fromRGB(14, 14, 16)
+MinimizedCapsule.BackgroundTransparency = 0.06
+MinimizedCapsule.BorderSizePixel = 0
+MinimizedCapsule.Text = ""
+MinimizedCapsule.AutoButtonColor = false
+MinimizedCapsule.Visible = false
+MinimizedCapsule.ZIndex = 90
+MinimizedCapsule.Parent = ScreenGui
+corner(MinimizedCapsule, 100)
+local minCapStroke = stroke(MinimizedCapsule, C.accent, 1.4, 0.25)
+
+;(function()
+    local mcLayout = Instance.new("UIListLayout", MinimizedCapsule)
+    mcLayout.FillDirection = Enum.FillDirection.Horizontal
+    mcLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    mcLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+    mcLayout.Padding = UDim.new(0, 9)
+    mcLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+    local mcBrand = Instance.new("TextLabel", MinimizedCapsule)
+    mcBrand.Size = UDim2.fromOffset(48, 18)
+    mcBrand.BackgroundTransparency = 1
+    mcBrand.Text = "JAMUN"
+    mcBrand.Font = Enum.Font.GothamBlack
+    mcBrand.TextSize = 11
+    mcBrand.TextColor3 = Color3.fromRGB(245, 245, 250)
+    mcBrand.LayoutOrder = 1
+    mcBrand.ZIndex = 91
+
+    local mcSep = Instance.new("Frame", MinimizedCapsule)
+    mcSep.Size = UDim2.fromOffset(1, 14)
+    mcSep.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    mcSep.BackgroundTransparency = 0.78
+    mcSep.BorderSizePixel = 0
+    mcSep.LayoutOrder = 2
+    mcSep.ZIndex = 91
+
+    local mcAv = Instance.new("ImageLabel", MinimizedCapsule)
+    mcAv.Size = UDim2.fromOffset(22, 22)
+    mcAv.BackgroundTransparency = 1
+    mcAv.LayoutOrder = 3
+    mcAv.ZIndex = 91
+    corner(mcAv, 100)
+    pcall(function()
+        mcAv.Image = "rbxthumb://type=AvatarHeadShot&id=" .. tostring(LP.UserId) .. "&w=150&h=150"
+    end)
+
+    local mcName = Instance.new("TextLabel", MinimizedCapsule)
+    mcName.BackgroundTransparency = 1
+    mcName.Size = UDim2.new(0, 0, 1, 0)
+    mcName.AutomaticSize = Enum.AutomaticSize.X
+    mcName.Text = LP.DisplayName
+    mcName.Font = Enum.Font.GothamMedium
+    mcName.TextSize = 11
+    mcName.TextColor3 = Color3.fromRGB(235, 235, 242)
+    mcName.LayoutOrder = 4
+    mcName.ZIndex = 91
+end)()
+
+-- ── OPEN / CLOSE / MINIMIZE ───────────────────────────────────────────────
+local open = false
+local function setOpen(state, toMinimized)
+    open = state
+    if open then
+        MinimizedCapsule.Visible = false
+        Backdrop.Visible = true
+        Panel.Visible = true
+        Panel.BackgroundTransparency = 0.85
+        TW:Create(Panel, TweenInfo.new(0.22, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), { BackgroundTransparency = 0.02 }):Play()
+        TW:Create(panelStroke, TweenInfo.new(0.22), { Transparency = 0 }):Play()
+    else
+        local tw = TW:Create(Panel, TweenInfo.new(0.18, Enum.EasingStyle.Quint, Enum.EasingDirection.In), { BackgroundTransparency = 1 })
+        TW:Create(panelStroke, TweenInfo.new(0.18), { Transparency = 1 }):Play()
+        tw:Play()
+        tw.Completed:Connect(function()
+            if open then return end
+            Panel.Visible = false
+            Backdrop.Visible = false
+            Panel.BackgroundTransparency = 0.02
+            if toMinimized then
+                MinimizedCapsule.Visible = true
+            end
+        end)
+    end
+end
+
+onClick(MinBtn, function()
+    play(SND.close)
+    setOpen(false, true)
+end)
+onClick(CloseBtn, function()
+    play(SND.close)
+    setOpen(false, false)
+end)
+onClick(MinimizedCapsule, function()
+    play(SND.open)
+    setOpen(true, false)
+end)
+
+-- ── Riyon Floating TopCapsule (Status Bar: Brand · FPS · Ping · Target · Active · TAG) ──
+local TopCapsule, topCapStroke, topCapBgImg
+;(function()
+    TopCapsule = Instance.new("ImageLabel")
+    TopCapsule.Name = "TopCapsule"
+    TopCapsule.AnchorPoint = Vector2.new(0.5, 0)
+    TopCapsule.Size = UDim2.fromOffset(310, 38)
+    TopCapsule.Position = UDim2.new(0.5, 0, 0, 10)
+    TopCapsule.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+    TopCapsule.BackgroundTransparency = 0.22
+    TopCapsule.BorderSizePixel = 0
+    TopCapsule.Image = RIYON_BG_IMAGE
+    TopCapsule.ImageColor3 = C.accent
+    TopCapsule.ImageTransparency = 0.58
+    TopCapsule.ScaleType = Enum.ScaleType.Crop
+    TopCapsule.Active = true
+    TopCapsule.ZIndex = 100
+    TopCapsule.Parent = ScreenGui
+    corner(TopCapsule, 18)
+    topCapBgImg = TopCapsule
+
+    topCapStroke = stroke(TopCapsule, C.accent, 1.8, 0)
+    local tcGrad = Instance.new("UIGradient", topCapStroke)
+    tcGrad.Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0.0, 1),
+        NumberSequenceKeypoint.new(0.2, 0.9),
+        NumberSequenceKeypoint.new(0.4, 0.35),
+        NumberSequenceKeypoint.new(0.5, 0),
+        NumberSequenceKeypoint.new(0.6, 0.35),
+        NumberSequenceKeypoint.new(0.8, 0.9),
+        NumberSequenceKeypoint.new(1.0, 1),
+    })
+    RS.RenderStepped:Connect(function(dt)
+        if tcGrad and tcGrad.Parent and TopCapsule.Visible then
+            tcGrad.Rotation = (tcGrad.Rotation + 45 * dt) % 360
+        end
+    end)
+
+    -- glowing drag handle pill underneath capsule
+    local dragBar = Instance.new("Frame", TopCapsule)
+    dragBar.Size = UDim2.fromOffset(30, 3)
+    dragBar.Position = UDim2.new(0.5, -15, 1, 2)
+    dragBar.BackgroundColor3 = C.accent
+    dragBar.BackgroundTransparency = 0.25
+    dragBar.BorderSizePixel = 0
+    dragBar.ZIndex = 100
+    corner(dragBar, 2)
+    registerThemed(dragBar, "accent")
+
+    local inner = Instance.new("Frame", TopCapsule)
+    inner.Size = UDim2.fromScale(1, 1)
+    inner.BackgroundTransparency = 1
+    inner.ClipsDescendants = true
+    inner.ZIndex = 101
+    corner(inner, 18)
+
+    local tcLayout = Instance.new("UIListLayout", inner)
+    tcLayout.FillDirection = Enum.FillDirection.Horizontal
+    tcLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    tcLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+    tcLayout.Padding = UDim.new(0, 10)
+    tcLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+    local tcPad = Instance.new("UIPadding", inner)
+    tcPad.PaddingLeft = UDim.new(0, 14)
+    tcPad.PaddingRight = UDim.new(0, 14)
+
+    -- Brand toggle button inside TopCapsule
+    local capBrand = Instance.new("TextButton", inner)
+    capBrand.Size = UDim2.fromOffset(52, 22)
+    capBrand.BackgroundTransparency = 1
+    capBrand.Text = "JAMUN"
+    capBrand.Font = Enum.Font.GothamBlack
+    capBrand.TextSize = 11
+    capBrand.TextColor3 = Color3.fromRGB(245, 245, 250)
+    capBrand.AutoButtonColor = false
+    capBrand.LayoutOrder = 1
+    capBrand.ZIndex = 102
+    onClick(capBrand, function()
+        play(open and SND.close or SND.open)
+        setOpen(not open, false)
+    end)
+
+    -- Live FPS label
+    local fpsLbl = Instance.new("TextLabel", inner)
+    fpsLbl.BackgroundTransparency = 1
+    fpsLbl.RichText = true
+    fpsLbl.Text = "FPS: <font color=\"#2ECC71\">60</font>"
+    fpsLbl.Font = Enum.Font.GothamBold
+    fpsLbl.TextSize = 10
+    fpsLbl.TextColor3 = Color3.fromRGB(160, 160, 172)
+    fpsLbl.AutomaticSize = Enum.AutomaticSize.XY
+    fpsLbl.LayoutOrder = 2
+    fpsLbl.ZIndex = 102
+
+    -- Live Ping label
+    local pingLbl = Instance.new("TextLabel", inner)
+    pingLbl.BackgroundTransparency = 1
+    pingLbl.RichText = true
+    pingLbl.Text = "Ping: <font color=\"#2ECC71\">--</font>"
+    pingLbl.Font = Enum.Font.GothamBold
+    pingLbl.TextSize = 10
+    pingLbl.TextColor3 = Color3.fromRGB(160, 160, 172)
+    pingLbl.AutomaticSize = Enum.AutomaticSize.XY
+    pingLbl.LayoutOrder = 3
+    pingLbl.ZIndex = 102
+
+    -- Live Target Pill (auto-hides when no target selected)
+    local tgtPill = Instance.new("Frame", inner)
+    tgtPill.Name = "TargetIndicator"
+    tgtPill.Size = UDim2.new(0, 0, 0, 22)
+    tgtPill.AutomaticSize = Enum.AutomaticSize.X
+    tgtPill.BackgroundColor3 = Color3.fromRGB(32, 16, 18)
+    tgtPill.BackgroundTransparency = 0.2
+    tgtPill.BorderSizePixel = 0
+    tgtPill.Visible = false
+    tgtPill.LayoutOrder = 4
+    tgtPill.ZIndex = 102
+    corner(tgtPill, 11)
+    stroke(tgtPill, Color3.fromRGB(190, 65, 65), 1, 0.45)
+    local tpPad = Instance.new("UIPadding", tgtPill)
+    tpPad.PaddingLeft = UDim.new(0, 6); tpPad.PaddingRight = UDim.new(0, 6)
+    local tpLay = Instance.new("UIListLayout", tgtPill)
+    tpLay.FillDirection = Enum.FillDirection.Horizontal
+    tpLay.VerticalAlignment = Enum.VerticalAlignment.Center
+    tpLay.Padding = UDim.new(0, 5)
+
+    local tpAv = Instance.new("ImageLabel", tgtPill)
+    tpAv.Size = UDim2.fromOffset(15, 15)
+    tpAv.BackgroundTransparency = 1
+    tpAv.ZIndex = 103
+    corner(tpAv, 8)
+
+    local tpTxt = Instance.new("TextLabel", tgtPill)
+    tpTxt.BackgroundTransparency = 1
+    tpTxt.Size = UDim2.new(0, 0, 1, 0)
+    tpTxt.AutomaticSize = Enum.AutomaticSize.X
+    tpTxt.RichText = true
+    tpTxt.Font = Enum.Font.GothamMedium
+    tpTxt.TextSize = 10
+    tpTxt.TextColor3 = Color3.fromRGB(220, 220, 228)
+    tpTxt.ZIndex = 103
+
+    local tpClear = Instance.new("TextButton", tgtPill)
+    tpClear.Size = UDim2.fromOffset(14, 14)
+    tpClear.BackgroundColor3 = Color3.fromRGB(65, 20, 22)
+    tpClear.BorderSizePixel = 0
+    tpClear.Text = "×"
+    tpClear.Font = Enum.Font.GothamBold
+    tpClear.TextSize = 10
+    tpClear.TextColor3 = Color3.fromRGB(255, 150, 150)
+    tpClear.AutoButtonColor = false
+    tpClear.ZIndex = 104
+    corner(tpClear, 7)
+    onClick(tpClear, function()
+        play(SND.off)
+        pcall(stopWeld)
+        _G.__jamunAutoReweld = nil
+        sel, selId, selName, selDisplay = nil, nil, nil, nil
+        tgtPill.Visible = false
+    end)
+
+    -- Active Feature Pill (green pulsing dot)
+    local featPill = Instance.new("Frame", inner)
+    featPill.Name = "ActiveFeaturePill"
+    featPill.Size = UDim2.new(0, 0, 0, 20)
+    featPill.AutomaticSize = Enum.AutomaticSize.X
+    featPill.BackgroundColor3 = Color3.fromRGB(15, 28, 20)
+    featPill.BorderSizePixel = 0
+    featPill.Visible = false
+    featPill.LayoutOrder = 5
+    featPill.ZIndex = 102
+    corner(featPill, 10)
+    stroke(featPill, Color3.fromRGB(60, 180, 100), 1.1, 0.45)
+    local fpPad = Instance.new("UIPadding", featPill)
+    fpPad.PaddingLeft = UDim.new(0, 8); fpPad.PaddingRight = UDim.new(0, 8)
+    local fpLay = Instance.new("UIListLayout", featPill)
+    fpLay.FillDirection = Enum.FillDirection.Horizontal
+    fpLay.VerticalAlignment = Enum.VerticalAlignment.Center
+    fpLay.Padding = UDim.new(0, 5)
+
+    local fpDot = Instance.new("Frame", featPill)
+    fpDot.Size = UDim2.fromOffset(6, 6)
+    fpDot.BackgroundColor3 = Color3.fromRGB(80, 220, 130)
+    fpDot.BorderSizePixel = 0
+    fpDot.ZIndex = 103
+    corner(fpDot, 3)
+
+    local fpLbl = Instance.new("TextLabel", featPill)
+    fpLbl.BackgroundTransparency = 1
+    fpLbl.Size = UDim2.new(0, 0, 1, 0)
+    fpLbl.AutomaticSize = Enum.AutomaticSize.X
+    fpLbl.Font = Enum.Font.GothamBold
+    fpLbl.TextSize = 10
+    fpLbl.TextColor3 = Color3.fromRGB(80, 220, 130)
+    fpLbl.ZIndex = 103
+
+    -- Quick Headtag mini toggle inside TopCapsule (Riyon TAG switch)
+    local tagWrap = Instance.new("Frame", inner)
+    tagWrap.Size = UDim2.fromOffset(72, 20)
+    tagWrap.BackgroundTransparency = 1
+    tagWrap.LayoutOrder = 6
+    tagWrap.ZIndex = 102
+
+    local tagLbl = Instance.new("TextLabel", tagWrap)
+    tagLbl.Size = UDim2.fromOffset(44, 20)
+    tagLbl.Position = UDim2.fromOffset(0, 0)
+    tagLbl.BackgroundTransparency = 1
+    tagLbl.Text = "TAG: ON"
+    tagLbl.Font = Enum.Font.GothamBold
+    tagLbl.TextSize = 9
+    tagLbl.TextColor3 = C.accent
+    tagLbl.TextXAlignment = Enum.TextXAlignment.Left
+    tagLbl.ZIndex = 103
+
+    local tagSw = Instance.new("TextButton", tagWrap)
+    tagSw.Size = UDim2.fromOffset(24, 12)
+    tagSw.Position = UDim2.new(1, -24, 0.5, -6)
+    tagSw.BackgroundColor3 = C.good
+    tagSw.Text = ""
+    tagSw.AutoButtonColor = false
+    tagSw.ZIndex = 103
+    corner(tagSw, 6)
+
+    local tagKnob = Instance.new("Frame", tagSw)
+    tagKnob.Size = UDim2.fromOffset(8, 8)
+    tagKnob.Position = UDim2.new(1, -10, 0.5, -4)
+    tagKnob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    tagKnob.BorderSizePixel = 0
+    tagKnob.ZIndex = 104
+    corner(tagKnob, 4)
+
+    local function syncCapTag()
+        local on = __HT and __HT.Enabled == true
+        tagLbl.Text = on and "TAG: ON" or "TAG: OFF"
+        tagLbl.TextColor3 = on and C.accent or C.text3
+        TW:Create(tagSw, TweenInfo.new(0.16), { BackgroundColor3 = on and C.good or Color3.fromRGB(50, 50, 60) }):Play()
+        TW:Create(tagKnob, TweenInfo.new(0.16), { Position = on and UDim2.new(1, -10, 0.5, -4) or UDim2.new(0, 2, 0.5, -4) }):Play()
+    end
+    onClick(tagSw, function()
+        if __HT then
+            __HT.SetEnabled(not __HT.Enabled)
+            play(__HT.Enabled and SND.on or SND.off)
+        end
+        syncCapTag()
+    end)
+
+    -- Auto-resize TopCapsule width smoothly to fit pills
+    local function resizeCapsule()
+        local w = tcLayout.AbsoluteContentSize.X + tcPad.PaddingLeft.Offset + tcPad.PaddingRight.Offset
+        w = math.max(w, 160)
+        TW:Create(TopCapsule, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+            Size = UDim2.fromOffset(w, 38)
+        }):Play()
+    end
+    tcLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(resizeCapsule)
+    task.defer(resizeCapsule)
+
+    -- Draggable TopCapsule
+    local capDrag, capStart, capPos0 = false, nil, nil
+    TopCapsule.InputBegan:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+            capDrag = true; capStart = i.Position; capPos0 = TopCapsule.Position
+        end
+    end)
+    UIS.InputChanged:Connect(function(i)
+        if capDrag and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
+            local d = i.Position - capStart
+            TopCapsule.Position = UDim2.new(capPos0.X.Scale, capPos0.X.Offset + d.X, capPos0.Y.Scale, capPos0.Y.Offset + d.Y)
+        end
+    end)
+    UIS.InputEnded:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+            capDrag = false
+        end
+    end)
+
+    -- Poll live stats, target, active feature, and tag state
+    local lastCapTargetId = nil
+    registerUIPoller(function()
+        local fCol = (fps_val >= 55 and "#2ECC71") or (fps_val >= 30 and "#F1C40F") or "#E74C3C"
+        fpsLbl.Text = "FPS: <font color=\"" .. fCol .. "\">" .. tostring(fps_val) .. "</font>"
+        local pCol = (ping_val <= 60 and "#2ECC71") or (ping_val <= 120 and "#F1C40F") or "#E74C3C"
+        pingLbl.Text = "Ping: <font color=\"" .. pCol .. "\">" .. tostring(ping_val) .. "ms</font>"
+
+        if sel and sel.Parent == P then
+            if lastCapTargetId ~= sel.UserId then
+                lastCapTargetId = sel.UserId
+                tpTxt.Text = "<font color=\"rgb(255,110,110)\">" .. tostring(sel.DisplayName or sel.Name) .. "</font>"
+                pcall(function()
+                    tpAv.Image = "rbxthumb://type=AvatarHeadShot&id=" .. tostring(sel.UserId) .. "&w=150&h=150"
+                end)
+            end
+            tgtPill.Visible = true
+        else
+            lastCapTargetId = nil
+            tgtPill.Visible = false
+        end
+
+        local activeLabel = nil
+        if CurrentWeld and WeldIntent.presetKey then
+            activeLabel = CLICK_PRESET_LABEL[WeldIntent.presetKey] or WeldIntent.presetKey
+        elseif _G.JamunAnimCopy and _G.JamunAnimCopy.active then
+            activeLabel = "Copy Anim"
+        elseif FLY.active then
+            activeLabel = "Fly"
+        end
+        if activeLabel then
+            fpLbl.Text = activeLabel
+            featPill.Visible = true
+        else
+            featPill.Visible = false
+        end
+        syncCapTag()
+    end)
+    syncCapTag()
+end)()
+
+-- ── Theme Retint & Responsive Mobile Fit ──────────────────────────────────
 retintPanel = function()
     local sdef = SHADERS[currentThemeName] or {}
     local font = sdef.font or C.font or Enum.Font.GothamMedium
@@ -8530,53 +9103,34 @@ retintPanel = function()
     local face = currentFontFace or C.fontFace or fontFaceFrom(font, THEME_FACE_HINTS[currentThemeName])
     C.fontFace = face
     currentFontFace = face
-    -- panel surface
+
     pcall(function()
-        Panel.BackgroundColor3 = C.glassBg
-        Panel.BackgroundTransparency = G.panelTransparency
-        local s = Panel:FindFirstChildOfClass("UIStroke")
-        if s then s.Color = C.stroke end
-        local pg = Panel:FindFirstChildOfClass("UIGradient")
-        if pg then
-            pg.Color = ColorSequence.new{
-                ColorSequenceKeypoint.new(0.0, C.glassTile:Lerp(C.accent, 0.12)),
-                ColorSequenceKeypoint.new(0.45, C.glassBg),
-                ColorSequenceKeypoint.new(1.0, C.glassBg:Lerp(Color3.new(0,0,0), 0.25)),
-            }
-        end
+        panelStroke.Color = C.accent
+        PanelBgImg.ImageColor3 = C.accent
+        panelGrad.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, C.glassTile:Lerp(C.accent, 0.08)),
+            ColorSequenceKeypoint.new(1, C.glassBg),
+        })
+        if dockStroke then dockStroke.Color = C.accent end
+        if dockBgImg then dockBgImg.ImageColor3 = C.accent end
+        if topCapStroke then topCapStroke.Color = C.accent end
+        if topCapBgImg then topCapBgImg.ImageColor3 = C.accent end
+        if minCapStroke then minCapStroke.Color = C.accent end
+        if Backdrop then Backdrop.BackgroundColor3 = C.glassTint end
     end)
-    pcall(function()
-        if Backdrop then
-            Backdrop.BackgroundColor3 = C.glassTint
-            Backdrop.BackgroundTransparency = 0.45
-            local g = Backdrop:FindFirstChildOfClass("UIGradient")
-            if g then
-                g.Color = ColorSequence.new{
-                    ColorSequenceKeypoint.new(0.0, C.glassTint),
-                    ColorSequenceKeypoint.new(0.5, C.glassBg:Lerp(C.accent, 0.08)),
-                    ColorSequenceKeypoint.new(1.0, C.glassTint),
-                }
-            end
-        end
-    end)
-    pcall(function()
-        local berry = Panel:FindFirstChild("BerryWash")
-        if berry then berry.BackgroundColor3 = sdef.wash or C.accent end
-    end)
-    -- side pill (star toggle)
+
     pcall(function()
         local side = ScreenGui:FindFirstChild("JamunSideToggle")
         if side and side:IsA("TextButton") then
-            side.Text = "★"
             side.BackgroundColor3 = C.glassBg
             side.TextColor3 = C.accent
             local st = side:FindFirstChildOfClass("UIStroke")
             if st then st.Color = C.accent end
         end
     end)
-    -- walk entire panel and recolor live
+
     pcall(function()
-        for _,d in ipairs(Panel:GetDescendants()) do
+        for _, d in ipairs(Panel:GetDescendants()) do
             if d:IsA("TextBox") then
                 d.BackgroundColor3 = C.glassInput
                 d.TextColor3 = C.text
@@ -8586,98 +9140,59 @@ retintPanel = function()
                 local selected = d.TextColor3.R < 0.2 and d.TextColor3.G < 0.2 and d.BackgroundTransparency < 0.2
                 if selected then
                     d.BackgroundColor3 = C.accent
-                    d.TextColor3 = Color3.fromRGB(8,8,12)
+                    d.TextColor3 = Color3.fromRGB(8, 8, 12)
                 else
-                    -- don't force every button; only glass-looking ones
-                    if d.BackgroundTransparency <= 0.35 then
+                    if d.BackgroundTransparency <= 0.35 and d.Name ~= "CloseBtn" then
                         d.BackgroundColor3 = C.glassInput
                     end
-                    if d.TextColor3.R > 0.5 then
-                        d.TextColor3 = C.text
-                    elseif d.TextColor3.R > 0.3 then
-                        d.TextColor3 = C.text2
+                    if d.Name ~= "CloseBtn" then
+                        if d.TextColor3.R > 0.5 then d.TextColor3 = C.text
+                        elseif d.TextColor3.R > 0.3 then d.TextColor3 = C.text2 end
                     end
                 end
                 applyTextFont(d, font, face)
                 local st = d:FindFirstChildOfClass("UIStroke")
-                if st and not selected then st.Color = C.stroke end
-                if st and selected then st.Color = C.accent end
+                if st and d.Name ~= "CloseBtn" then
+                    st.Color = selected and C.accent or C.stroke
+                end
             elseif d:IsA("TextLabel") then
                 local tc = d.TextColor3
-                -- remap light labels to theme text
-                if tc.R > 0.7 and tc.G > 0.7 then
-                    d.TextColor3 = C.text
-                elseif tc.R > 0.4 and tc.G > 0.4 then
-                    d.TextColor3 = C.text2
-                elseif tc.R > 0.25 then
-                    d.TextColor3 = C.text3
-                end
+                if tc.R > 0.7 and tc.G > 0.7 then d.TextColor3 = C.text
+                elseif tc.R > 0.4 and tc.G > 0.4 then d.TextColor3 = C.text2
+                elseif tc.R > 0.25 then d.TextColor3 = C.text3 end
                 applyTextFont(d, font, face)
             elseif d:IsA("Frame") then
-                local name = d.Name
-                if name == "BerryWash" then
-                    d.BackgroundColor3 = sdef.wash or C.accent
-                elseif name == "TabTrack" then
+                if d.Name == "BottomDock" then
                     d.BackgroundColor3 = C.glassTile
                 elseif d.BackgroundTransparency <= 0.25 and d.BackgroundTransparency >= 0 then
-                    -- glass tiles / tracks
                     local bc = d.BackgroundColor3
-                    -- only retint dark-ish frames (avoid accent fills)
                     if bc.R < 0.25 and bc.G < 0.25 and bc.B < 0.3 then
                         d.BackgroundColor3 = C.glassTile
                     end
                 end
                 local st = d:FindFirstChildOfClass("UIStroke")
-                if st and st.Thickness <= 1.6 then
-                    st.Color = C.stroke
-                end
+                if st and st.Thickness <= 1.6 then st.Color = C.stroke end
             elseif d:IsA("ScrollingFrame") then
                 d.ScrollBarImageColor3 = C.accent
             end
         end
     end)
-    -- top accent lines
-    pcall(function()
-        for _,ch in ipairs(Panel:GetChildren()) do
-            if ch:IsA("Frame") and ch.Size.Y.Offset <= 3 then
-                ch.BackgroundColor3 = C.accent
-            end
-        end
-    end)
-    -- title / subtitle if present
-    pcall(function()
-        for _,ch in ipairs(Panel:GetChildren()) do
-            if ch:IsA("TextLabel") then
-                if ch.Text == "Jamun Welder" then
-                    ch.TextColor3 = C.text
-                    ch.Font = font
-                elseif ch.Text:find("script by") then
-                    ch.TextColor3 = C.text3
-                    ch.Font = font
-                end
-            end
-        end
-    end)
-    -- reanim embed follows hub theme
-    if type(_G.__jamunRetintReanim) == "function" then
-        pcall(_G.__jamunRetintReanim)
-    end
+
+    if type(_G.__jamunRetintReanim) == "function" then pcall(_G.__jamunRetintReanim) end
 end
 
 applyMobileFit = function()
     if panelSizeUser then return end
     local cam = WS.CurrentCamera
-    local vp = cam and cam.ViewportSize or Vector2.new(1280,720)
-    local pad = 32
-    local sx = (vp.X - pad) / W
-    local sy = (vp.Y - pad) / H
-    local s = math.min(sx, sy)
-    s = math.clamp(s, 0.35, 1.0)
+    local vp = cam and cam.ViewportSize or Vector2.new(1280, 720)
+    local padX, padY = 28, 74
+    local sx = (vp.X - padX) / W
+    local sy = (vp.Y - padY) / H
+    local s = math.clamp(math.min(sx, sy), 0.38, 1.0)
     pcall(function()
         PanelScale.Scale = s
-        -- always keep panel dead-center (mobile + desktop)
         Panel.AnchorPoint = Vector2.new(0.5, 0.5)
-        Panel.Position = UDim2.fromScale(0.5, 0.5)
+        Panel.Position = UDim2.fromScale(0.5, 0.53)
     end)
 end
 
@@ -8700,164 +9215,6 @@ pcall(function()
         end
     end)
 end)
-
-local Highlight = Instance.new("Frame"); Highlight.Size = UDim2.new(1,-2,0,1); Highlight.Position = UDim2.new(0,1,0,1)
-Highlight.BackgroundColor3 = Color3.fromRGB(248,248,255); Highlight.BackgroundTransparency = 0.88; Highlight.BorderSizePixel = 0; Highlight.Parent = Panel
-local HLC = Instance.new("UICorner"); HLC.CornerRadius = UDim.new(1,0); HLC.Parent = Highlight
-
--- jamun mark: berry only (no letter) — deep purple fruit shape + soft highlight
-local Mark = Instance.new("Frame")
-Mark.Size = UDim2.fromOffset(28, 28)
-Mark.Position = UDim2.fromOffset(14, 12)
-Mark.BackgroundColor3 = Color3.fromRGB(92, 30, 78)
-Mark.BorderSizePixel = 0
-Mark.ZIndex = 3
-Mark.Parent = Panel
-corner(Mark, 14)
-stroke(Mark, Color3.fromRGB(200, 120, 170), 1.2, 0.4)
-local markGrad = Instance.new("UIGradient")
-markGrad.Rotation = 140
-markGrad.Color = ColorSequence.new{
-    ColorSequenceKeypoint.new(0,    Color3.fromRGB(210, 95, 170)),
-    ColorSequenceKeypoint.new(0.45, Color3.fromRGB(120, 38, 96)),
-    ColorSequenceKeypoint.new(1,    Color3.fromRGB(55,  16, 46)),
-}
-markGrad.Parent = Mark
--- specular glint
-local MarkGlint = Instance.new("Frame")
-MarkGlint.Size = UDim2.fromOffset(7, 5)
-MarkGlint.Position = UDim2.fromOffset(4, 4)
-MarkGlint.BackgroundColor3 = Color3.fromRGB(255, 230, 245)
-MarkGlint.BackgroundTransparency = 0.35
-MarkGlint.BorderSizePixel = 0
-MarkGlint.ZIndex = 4
-MarkGlint.Parent = Mark
-corner(MarkGlint, 4)
-local glintGrad = Instance.new("UIGradient")
-glintGrad.Transparency = NumberSequence.new{
-    NumberSequenceKeypoint.new(0, 0.1),
-    NumberSequenceKeypoint.new(1, 1),
-}
-glintGrad.Rotation = 90
-glintGrad.Parent = MarkGlint
-
-local Title = Instance.new("TextLabel"); Title.Size = UDim2.new(1,-52,0,22); Title.Position = UDim2.new(0,42,0,10)
-Title.BackgroundTransparency = 1; Title.Text = "✦  Jamun Welder"; Title.TextColor3 = C.text
-Title.TextXAlignment = Enum.TextXAlignment.Left; Title.Font = Enum.Font.GothamBlack; Title.TextSize = 18; Title.ZIndex = 3; Title.Parent = Panel
-local titleGrad=Instance.new("UIGradient"); titleGrad.Color=ColorSequence.new{ColorSequenceKeypoint.new(0,Color3.fromRGB(255,255,255)),ColorSequenceKeypoint.new(0.6,Color3.fromRGB(220,210,235)),ColorSequenceKeypoint.new(1,Color3.fromRGB(175,155,200))}; titleGrad.Parent=Title
-
-local SubTitle = Instance.new("TextLabel"); SubTitle.Size = UDim2.new(1,-52,0,14); SubTitle.Position = UDim2.new(0,42,0,30)
-SubTitle.BackgroundTransparency = 1; SubTitle.Text = "script by akash"; SubTitle.TextColor3 = C.text3
-SubTitle.TextXAlignment = Enum.TextXAlignment.Left; SubTitle.Font = Enum.Font.Gotham; SubTitle.TextSize = 10; SubTitle.ZIndex = 3; SubTitle.Parent = Panel
-
-local PAD = 14; local HEADER_H = 52; local TAB_H = 28; local CONTENT_TOP = HEADER_H + TAB_H + PAD + 4
--- tab track (pill rail)
-local TabTrack = Instance.new("Frame")
-TabTrack.Name = "TabTrack"
-TabTrack.Size = UDim2.new(1,-PAD*2,0,TAB_H+6)
-TabTrack.Position = UDim2.new(0,PAD,0,HEADER_H-2)
-TabTrack.BackgroundColor3 = Color3.fromRGB(16, 14, 18)
-TabTrack.BackgroundTransparency = 0.12
-TabTrack.BorderSizePixel = 0
-TabTrack.ZIndex = 2
-TabTrack.Parent = Panel
-corner(TabTrack, 11)
-stroke(TabTrack, Color3.fromRGB(55, 42, 52), 1, 0.4)
-local tabTrackSheen = Instance.new("UIGradient")
-tabTrackSheen.Rotation = 90
-tabTrackSheen.Color = ColorSequence.new{
-    ColorSequenceKeypoint.new(0, Color3.fromRGB(255,255,255)),
-    ColorSequenceKeypoint.new(1, Color3.fromRGB(180,160,175)),
-}
-tabTrackSheen.Transparency = NumberSequence.new{
-    NumberSequenceKeypoint.new(0, 0.93),
-    NumberSequenceKeypoint.new(1, 0.97),
-}
-tabTrackSheen.Parent = TabTrack
-
-local TabBar = Instance.new("Frame"); TabBar.Size = UDim2.new(1,-8,0,TAB_H); TabBar.Position = UDim2.new(0,4,0,3); TabBar.BackgroundTransparency = 1; TabBar.Parent = TabTrack
-local TabList = Instance.new("UIListLayout"); TabList.FillDirection = Enum.FillDirection.Horizontal; TabList.Padding = UDim.new(0,4); TabList.SortOrder = Enum.SortOrder.LayoutOrder; TabList.Parent = TabBar
-
-local Content = Instance.new("Frame"); Content.Size = UDim2.new(1,-PAD*2,1,-(CONTENT_TOP+PAD)); Content.Position = UDim2.new(0,PAD,0,CONTENT_TOP); Content.BackgroundTransparency = 1; Content.Parent = Panel
-
-local tabOrder = {"target","character","chat","others","reanim"}
-local tabName = {target="Target",character="Character",chat="Chat",others="Others",reanim="Reanim"}
-local tabs, pages = {}, {}
-local innerW = W - PAD*2
-local tabW = math.floor((innerW - 8 - 4*4) / 5)
-for i,n in ipairs(tabOrder) do
-    local b = BTN(TabBar, tabName[n]); b.Size = UDim2.fromOffset(tabW, TAB_H); b.LayoutOrder = i; b.TextSize = 11; b.TextColor3 = C.text2
-    tabs[n] = b
-    local p
-    if n == "reanim" then
-        p = Instance.new("Frame")
-        p.Size = UDim2.fromScale(1,1)
-        p.BackgroundTransparency = 1
-        p.BorderSizePixel = 0
-        p.Visible = false
-        p.ClipsDescendants = true
-        p.Parent = Content
-    else
-        p = Instance.new("ScrollingFrame")
-        p.Size = UDim2.fromScale(1,1)
-        p.BackgroundTransparency = 1
-        p.BorderSizePixel = 0
-        p.Visible = false
-        p.ScrollBarThickness = 3
-        p.ScrollBarImageColor3 = C.accent
-        p.CanvasSize = UDim2.fromOffset(0,800)
-        p.Parent = Content
-    end
-    pages[n] = p
-end
-
-local built, tabBuilders = {}, {}
-local function selectTab(n)
-    play(SND.tab)
-    for k,v in pairs(tabs) do
-        local on = (k==n)
-        setToggle(v, on)
-        -- selected tab text black; font stays on active theme
-        if on then
-            v.TextColor3 = Color3.fromRGB(8, 8, 12)
-        end
-        pcall(function()
-            local font = C.font or Enum.Font.GothamMedium
-            v.Font = font
-            if C.fontFace then v.FontFace = C.fontFace end
-        end)
-    end
-    for k,v in pairs(pages) do v.Visible = (k==n) end
-    if not built[n] and tabBuilders[n] then built[n] = true; tabBuilders[n]() end
-end
-for _,n in ipairs(tabOrder) do onClick(tabs[n], function() selectTab(n) end) end
-
--- ============================================================================
--- OPEN / CLOSE
--- ============================================================================
-local open = false
-local function setOpen(state)
-    open = state
-    if open then
-        Backdrop.Visible = true; Panel.Visible = true
-        local baseT = G.panelTransparency; Panel.BackgroundTransparency = 1
-        local s = Panel:FindFirstChildOfClass("UIStroke"); local s0 = s and s.Transparency or 0.25
-        if s then s.Transparency = 1 end
-        TW:Create(Panel, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = baseT}):Play()
-        if s then TW:Create(s, TweenInfo.new(0.25), {Transparency = s0}):Play() end
-    else
-        local s = Panel:FindFirstChildOfClass("UIStroke"); local s0 = s and s.Transparency or 0.25
-        local tween = TW:Create(Panel, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {BackgroundTransparency = 1})
-        if s then TW:Create(s, TweenInfo.new(0.2), {Transparency = 1}):Play() end
-        tween:Play()
-        tween.Completed:Connect(function()
-            if open then return end
-            Panel.Visible = false; Backdrop.Visible = false
-            Panel.BackgroundTransparency = G.panelTransparency
-            if s then s.Transparency = s0 end
-        end)
-    end
-end
 
 -- ============================================================================
 -- TARGET TAB
@@ -9113,7 +9470,7 @@ tabBuilders.target = function()
         local note = glassTile(copyHost)
         note.Size = UDim2.new(1, 0, 0, 36)
         note.Position = UDim2.fromOffset(0, 0)
-        local noteL = L(note, "select target from weld sec", 11, C.accent)
+        local noteL = L(note, "Mirror target animations live · pick target in Weld tab", 11, C.accent)
         noteL.Size = UDim2.new(1, -16, 1, 0)
         noteL.Position = UDim2.fromOffset(12, 0)
         noteL.Font = Enum.Font.GothamBold
@@ -9285,7 +9642,7 @@ tabBuilders.target = function()
 
     -- Settings: X offset sliders per weld
     do
-        local sTitle = L(settingsHost, "Weld Y Offsets", 13, C.text)
+        local sTitle = L(settingsHost, "Weld Vertical Height (Y Offset)", 13, C.text)
         sTitle.Size = UDim2.new(1,0,0,18); sTitle.Position = UDim2.fromOffset(0,0)
         local sSub = L(settingsHost, "slide vertical offset · updates live while welded", 9, C.text3)
         sSub.Size = UDim2.new(1,0,0,12); sSub.Position = UDim2.fromOffset(0,20)
@@ -9380,7 +9737,7 @@ tabBuilders.target = function()
     end
 
     local fp = weldHost
-    local tTitle = L(fp, "Weld Wrapper", 13, C.text); tTitle.Size = UDim2.new(1,0,0,18); tTitle.Position = UDim2.fromOffset(0,0)
+    local tTitle = L(fp, "Target Weld Actions", 13, C.text); tTitle.Size = UDim2.new(1,0,0,18); tTitle.Position = UDim2.fromOffset(0,0)
     local tStatus = L(fp, "idle", 10, C.text3); tStatus.Size = UDim2.new(1,0,0,14); tStatus.Position = UDim2.fromOffset(0,20)
 
     local fCard = glassTile(fp); fCard.Size = UDim2.new(1,0,0,68); fCard.Position = UDim2.fromOffset(0,40)
@@ -9963,7 +10320,7 @@ tabBuilders.character = function()
     showCharSec("move")
 
     -- ── MOVE: Walkspeed + Fly ──
-    local wsLbl=L(moveHost,"Walk Speed",13,C.text); wsLbl.Size=UDim2.new(1,0,0,18); wsLbl.Position=UDim2.fromOffset(0,0)
+    local wsLbl=L(moveHost,"Walk Speed Modifier",13,C.text); wsLbl.Size=UDim2.new(1,0,0,18); wsLbl.Position=UDim2.fromOffset(0,0)
     local wC=glassTile(moveHost); wC.Size=UDim2.new(1,0,0,72); wC.Position=UDim2.fromOffset(0,24)
     local wL=L(wC,"current · 16",10,C.text3); wL.Size=UDim2.new(1,-16,0,14); wL.Position=UDim2.fromOffset(12,10)
     local wB=B(wC,"speed"); wB.Size=UDim2.fromOffset(70,30); wB.Position=UDim2.fromOffset(12,32); wB.TextSize=11
@@ -10018,7 +10375,7 @@ tabBuilders.character = function()
         play(SND.tab)
     end)
 
-    local fLbl=L(moveHost,"Fly",13,C.text); fLbl.Size=UDim2.new(1,0,0,18); fLbl.Position=UDim2.fromOffset(0,108)
+    local fLbl=L(moveHost,"Superman Fly (Mobile & PC)",13,C.text); fLbl.Size=UDim2.new(1,0,0,18); fLbl.Position=UDim2.fromOffset(0,108)
     local fCard=glassTile(moveHost); fCard.Size=UDim2.new(1,0,0,72); fCard.Position=UDim2.fromOffset(0,132)
     local fL=L(fCard,"hold space · speed box",10,C.text3); fL.Size=UDim2.new(1,-16,0,14); fL.Position=UDim2.fromOffset(12,10)
     local fSpdBox=B(fCard,"spd"); fSpdBox.Size=UDim2.fromOffset(70,30); fSpdBox.Position=UDim2.fromOffset(12,32); fSpdBox.TextSize=11
@@ -10078,7 +10435,7 @@ tabBuilders.character = function()
     end)
 
     -- ── ANTI section ──
-    local antiHead = L(antiHost, "Anti Toggles", 13, C.text)
+    local antiHead = L(antiHost, "Protection & Anti Toggles", 13, C.text)
     antiHead.Size = UDim2.new(1, 0, 0, 18)
     antiHead.Position = UDim2.fromOffset(0, 0)
     local antiSub = L(antiHost, "each switch independent · on / off anytime", 9, C.text3)
@@ -10628,6 +10985,15 @@ tabBuilders.others = function()
     end)
 
     yOff = yOff + 130
+    local admTitle=L(sysHost,"Owner Admin Commands",13,C.text); admTitle.Size=UDim2.new(1,0,0,18); admTitle.Position=UDim2.fromOffset(0,yOff)
+    local admCard=glassTile(sysHost); admCard.Size=UDim2.new(1,0,0,86); admCard.Position=UDim2.fromOffset(0,yOff+22)
+    local admL=L(admCard,"Owner: @anime_akash99 (BBZ_JAMUN) · Prefix: ; ! .",10,C.accent)
+    admL.Size=UDim2.new(1,-20,0,14); admL.Position=UDim2.fromOffset(10,8)
+    local admD=L(admCard,";bring  ;tp  ;to  ;kill  ;freeze  ;sit  ;jump  ;fling  ;void  ;ws  ;jp  ;fly  ;noclip  ;spin  ;orbit  ;follow  ;blind  ;say  ;kick  ;rejoin  ;tag  ;untag  ;users  ;cmds",9,C.text2)
+    admD.Size=UDim2.new(1,-20,0,54); admD.Position=UDim2.fromOffset(10,26)
+    admD.TextWrapped=true; admD.TextYAlignment=Enum.TextYAlignment.Top
+
+    yOff = yOff + 122
     local supportTitle=L(sysHost,"Support",13,C.text); supportTitle.Size=UDim2.new(1,0,0,18); supportTitle.Position=UDim2.fromOffset(0,yOff)
     local supportCard=glassTile(sysHost); supportCard.Size=UDim2.new(1,0,0,110); supportCard.Position=UDim2.fromOffset(0,yOff+22)
     local supportNote=L(supportCard,"thank you for using this script i appreciate your support if theres any glitch in the script contact me on discord - ibame_akash",11,C.text2)
@@ -11017,7 +11383,7 @@ if not okTab then
     -- fallback: still try open empty panel
     pcall(function() setOpen(true) end)
 else
-    print("[Jamun Welder] loaded · v9.10.63 headtag owner + jamun user label")
+    print("[Jamun Welder] loaded · v10.0 Riyon Obsidian GUI + Headtag + Admin")
 end
 
 
