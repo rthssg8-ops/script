@@ -29893,7 +29893,7 @@ local function buildMainUI()
     local emotePage     = createCategory("Emotes",            "💃", 315, "315+ searchable catalog emotes, viral dances, dog/moonwalk & custom IDs", "Emotes")
     local weldPage      = createCategory("Weld & Troll",      "⚡", 15,  "Dynamic height-adaptive welds, FF LOL, FF Push, jerk troll, void throws & pins", "Weld & Troll")
     local cocoChatPage  = createCategory("Coco Chat Spam",    "💬", 3,   "Coco Chat Spam · Normal, Target Roast & Roast/Clan/Message modes", "Coco Chat Spam")
-    local loudPage      = createCategory("One Click Loud",    "🔊", 7,   "COCO LOUD & Mic Up v3.1 · One-click Loud + One-click Remove Loud via remotes", "One Click Loud")
+    local loudPage      = createCategory("One Click Loud",    "🔊", 7,   "COCO LOUD & Mic Up v3.3 · Max Loud + LowShelf 22kHz + One-click Remove Loud via remotes", "One Click Loud")
     createCategory("Spotify",           "🎵", 6,   "Spotify Web API · OAuth PKCE Login, Now Playing, Library, Search, Queue & Devices", "Spotify")
     local targetPage    = createCategory("Target",            "🎯", 1,   "Omnipresent hidden-player seeker & server-wide lock", "Target")
     local movePage      = createCategory("Performance",       "🚀", 11,  "60Hz Chrono-Rewind, WalkSpeed 500 & 4-Phase Flight", "Move & Fly")
@@ -29932,7 +29932,7 @@ local function buildMainUI()
         { key = "covercube",    pillLabel = "CubeMatrix", width = 114 },
         { key = "coverflash",   pillLabel = "SkyFlash",   width = 102 },
         { key = "oneclickloud",     pillLabel = "Coco Loud 🔊",   width = 114 },
-        { key = "oneclickloud_v31", pillLabel = "Loud v3.1 🔊",   width = 114 },
+        { key = "oneclickloud_v31", pillLabel = "Loud v3.3 🔊",   width = 114 },
         { key = "removeloud",       pillLabel = "Remove Loud 🔇", width = 126 },
         { key = "headpat",   pillLabel = "Pat",       width = 82  },
         { key = "headsit",   pillLabel = "Headsit",   width = 104 },
@@ -32246,12 +32246,17 @@ local function buildMainUI()
 
 
     -- ═══════════════════════════════════════════════════════════════════════════
-    -- DEDICATED CATEGORY: 🔊 ONE CLICK LOUD (COCO LOUD · Mic Up Voice Preset v3.0)
+    -- DEDICATED CATEGORY: 🔊 ONE CLICK LOUD (COCO LOUD · Mic Up Voice Preset v3.3.0)
     -- ═══════════════════════════════════════════════════════════════════════════
     do
         local RS = ReplicatedStorage or game:GetService("ReplicatedStorage")
 
-        -- COCO LOUD preset (exact spellings required by Mic Up remotes)
+        -- Mic Up Voice Preset v3.3.0 (from micup_voice_preset (2).lua — max loud + LowShelf 22kHz full-spectrum boost)
+        --   distortion: Level = 1 (max)
+        --   equalizer:  LowGain, MidGain, HighGain all maxed (+10 dB)
+        --   filter:     FilterType = 1 (LowShelf), Frequency = 22000 Hz, Gain = 30 (+30 dB flat across entire spectrum), Q = 0.1
+        --   reverb:     DryLevel & WetLevel maxed (+20 dB each), LowShelfGain maxed (+12 dB),
+        --               DecayTime/DecayRatio/Density/Diffusion/HighCutFrequency maxed, EarlyDelayTime = 0
         local COCO_LOUD_PRESET = {
             {
                 name = "distortion",
@@ -32271,72 +32276,34 @@ local function buildMainUI()
             {
                 name = "flter", -- game spelling
                 props = {
-                    { "FilterType", 0 },
+                    { "FilterType", 1 },
+                    { "Frequency",  22000 },
                     { "Gain",       30 },
-                    { "Q",          10 },
+                    { "Q",          0.1 },
                 },
             },
             {
                 name = "reverb",
                 props = {
+                    { "DecayRatio",         1 },
                     { "DecayTime",          20 },
                     { "Density",            1 },
-                    { "DecayRatio",         1 },
                     { "Diffusion",          1 },
                     { "DryLevel",           20 },
-                    { "WetLevel",           20 },
                     { "EarlyDelayTime",     0 },
                     { "HighCutFrequency",   20000 },
-                    { "LateDelayTime",      0 },
-                    { "LowShelfFrequency",  20000 },
-                    { "LowShelfGain",       12 },
-                    { "ReferenceFrequency", 20000 },
-                },
-            },
-        }
-
-        -- Mic Up Voice Preset v3.1.0 (from micup_voice_preset (1).lua — adjusted to chat loud settings)
-        --   distortion: max
-        --   equalizer:  first 2 max, middle (3rd) zero, last 2 max
-        --   filter:     type = 0, q = 0, gain = max
-        --   reverb:     density, diffusion, dry level, and last 4 max (others untouched at defaults)
-        local MICUP_V31_PRESET = {
-            {
-                name = "distortion",
-                props = {
-                    { "Level", 1 },
-                },
-            },
-            {
-                name = "equalier", -- game spelling
-                props = {
-                    { "LowGain",  10 },
-                    { "MidGain",  10 },
-                    { "HighGain", 0 },
-                    { "MidRange", { min = 20000, max = 20000 } },
-                },
-            },
-            {
-                name = "flter", -- game spelling
-                props = {
-                    { "FilterType", 0 },
-                    { "Gain",       30 },
-                    { "Q",          0 },
-                },
-            },
-            {
-                name = "reverb",
-                props = {
-                    { "Density",            1 },
-                    { "Diffusion",          1 },
-                    { "DryLevel",           20 },
                     { "LateDelayTime",      0.1 },
                     { "LowShelfFrequency",  20000 },
                     { "LowShelfGain",       12 },
                     { "ReferenceFrequency", 20000 },
+                    { "WetLevel",           20 },
                 },
             },
         }
+
+        -- Mic Up Voice Preset v3.3.0 (alias kept for v3.1 button/pill compatibility)
+        local MICUP_V31_PRESET = COCO_LOUD_PRESET
+        local MICUP_V33_PRESET = COCO_LOUD_PRESET
 
         -- Neutral / clean values used by One Click Remove Loud fallback via event_effect_property
         local REMOVE_LOUD_NEUTRAL = {
@@ -32361,6 +32328,7 @@ local function buildMainUI()
                 name = "flter",
                 props = {
                     { "FilterType", 0 },
+                    { "Frequency",  1000 },
                     { "Gain",       0 },
                     { "Q",          1 },
                     { "Enabled",    false },
@@ -32728,30 +32696,31 @@ local function buildMainUI()
 
         local function triggerOneClickLoudV31(reason)
             if loudState.busy then
-                notify("🔊 MIC UP v3.1", "Already firing remotes, please wait...")
+                notify("🔊 MIC UP v3.3", "Already firing remotes, please wait...")
                 return
             end
             loudState.busy = true
             loudState.lastPreset = "v31"
             local prefix = reason and ("[" .. tostring(reason) .. "] ") or ""
-            setLoudStatus(prefix .. "firing Mic Up v3.1 remotes...", T.Warning)
+            setLoudStatus(prefix .. "firing Mic Up v3.3 remotes...", T.Warning)
 
             task.spawn(function()
                 local ok, msg = applyMicUpV31Preset()
                 loudState.busy = false
                 if ok then
-                    setLoudStatus("v3.1 done: " .. tostring(msg), T.Success)
-                    print("[MicUp v3.1] " .. tostring(msg))
-                    notify("🔊 MIC UP v3.1", "Applied Mic Up Voice Preset v3.1!")
+                    setLoudStatus("v3.3 done: " .. tostring(msg), T.Success)
+                    print("[MicUp v3.3] " .. tostring(msg))
+                    notify("🔊 MIC UP v3.3", "Applied Mic Up Voice Preset v3.3 (Max Loud)!")
                     sSuccess()
                 else
-                    setLoudStatus("v3.1 fail: " .. tostring(msg), T.Danger)
-                    notify("🔊 MIC UP v3.1", "Failed: " .. tostring(msg))
+                    setLoudStatus("v3.3 fail: " .. tostring(msg), T.Danger)
+                    notify("🔊 MIC UP v3.3", "Failed: " .. tostring(msg))
                     sError()
                 end
             end)
         end
         _G.CocoApplyOneClickLoudV31 = triggerOneClickLoudV31
+        _G.CocoApplyOneClickLoudV33 = triggerOneClickLoudV31
 
         local function triggerOneClickRemoveLoud()
             if loudState.busy then
@@ -32820,9 +32789,9 @@ local function buildMainUI()
         local loudV31RowInfo = createActionRow(
             loudGrp,
             2,
-            "Mic Up Preset v3.1 (Chat Loud)",
-            "Exact micup_voice_preset v3.1 (distortion max · eq HighGain=0 · filter Q=0 · reverb chat loud) · [⦿] pin pill",
-            "LOUD v3.1",
+            "Mic Up Preset v3.3 (Max Loud)",
+            "Exact micup_voice_preset v3.3 (distortion max · eq all +10 · LowShelf 22kHz +30dB · reverb max) · [⦿] pin pill",
+            "LOUD v3.3",
             function()
                 triggerOneClickLoudV31(nil)
             end,
@@ -32834,7 +32803,7 @@ local function buildMainUI()
             (ActivePills and ActivePills["oneclickloud_v31"]) and "✓" or "⦿"
         )
         if loudV31RowInfo then
-            loudV31RowInfo.defaultLabel = "LOUD v3.1"
+            loudV31RowInfo.defaultLabel = "LOUD v3.3"
             presetActionRows["oneclickloud_v31"] = loudV31RowInfo
             if updatePinBadgeVisual then updatePinBadgeVisual("oneclickloud_v31") end
         end
@@ -32976,7 +32945,7 @@ local function buildMainUI()
             ApplyV31Btn.Position = UDim2.fromOffset(10, 120)
             ApplyV31Btn.BackgroundColor3 = Color3.fromRGB(60, 185, 130)
             ApplyV31Btn.BackgroundTransparency = 0.14
-            ApplyV31Btn.Text = "APPLY MIC UP v3.1 LOUD"
+            ApplyV31Btn.Text = "APPLY MIC UP v3.3 LOUD"
             ApplyV31Btn.TextColor3 = Color3.fromRGB(8, 8, 10)
             ApplyV31Btn.Font = Enum.Font.GothamBold
             ApplyV31Btn.TextSize = 12
@@ -42434,287 +42403,291 @@ end
         stopRoastBtn.MouseButton1Click:Connect(stopRoastSpam)
 
 
-        -- PART 3: COCO CHAT SPAM (ROAST / CLAN / MESSAGE)
+        -- PART 3: JAMUN CHAT SPAMMER (Extracted from jamun.txt · Clan / Message / Roast)
         local cocoSpam3StopFn = nil
         do
             local P   = Players
             local RPS = ReplicatedStorage
             local TC  = TextChatService
-        local CS_D  = 5      -- delay between messages (seconds)
-        local CS_M  = 200    -- max message length
-        local CS_CL = " BETA BOL BUNDBAZZ CLAN ON TOP"
-        local CS_R  = " TMKX MAI "
+            local CS_D  = 5      -- delay between messages (seconds)
+            local CS_M  = 200    -- max message length
+            local CS_CL = " BETA BOL BUNDBAZZ CLAN ON TOP"
+            local CS_R  = " TMKX MAI "
 
-        local CS_W = {
-            "NOOB","ROOKIE","AMATEUR","TRAINEE","BEGINNER","SLOWPOKE","SLEEPY","CLUMSY",
-            "DORK","NERD","GEEK","DWEEB","SQUISHY","WOBBLY","FUZZY","SPARKLY","GIGGLY","WIGGLY",
-            "SNAIL","TURTLE","PANDA","SLOTH","MOOSE","HAMSTER","PUPPY","KITTEN","DUCKLING","PENGUIN",
-            "NARWHAL","PLATYPUS","CAPYBARA","ALPACA","RACCOON","SQUIRREL","OTTER","BEAVER","HEDGEHOG",
-            "MEERKAT","FERRET","BUNNY","CHIPMUNK","PUFFIN","TOUCAN","FLAMINGO","MANATEE","WALRUS",
-            "PELICAN","SEAGULL","PIGEON","SPARROW","ROBIN","FINCH","WREN","MAGPIE","CROW","RAVEN",
-            "STARLING","SWALLOW","MARTIN","SWIFT","DOVE","QUAIL","PHEASANT","TURKEY","DUCK","CHICKEN",
-            "ROOSTER","PARROT","MACAW","COCKATOO","BUDGIE","CANARY",
-        }
+            local CS_W = {
+                "NOOB","ROOKIE","AMATEUR","TRAINEE","BEGINNER","SLOWPOKE","SLEEPY","CLUMSY",
+                "DORK","NERD","GEEK","DWEEB","SQUISHY","WOBBLY","FUZZY","SPARKLY","GIGGLY","WIGGLY",
+                "SNAIL","TURTLE","PANDA","SLOTH","MOOSE","HAMSTER","PUPPY","KITTEN","DUCKLING","PENGUIN",
+                "NARWHAL","PLATYPUS","CAPYBARA","ALPACA","RACCOON","SQUIRREL","OTTER","BEAVER","HEDGEHOG",
+                "MEERKAT","FERRET","BUNNY","CHIPMUNK","PUFFIN","TOUCAN","FLAMINGO","MANATEE","WALRUS",
+                "PELICAN","SEAGULL","PIGEON","SPARROW","ROBIN","FINCH","WREN","MAGPIE","CROW","RAVEN",
+                "STARLING","SWALLOW","MARTIN","SWIFT","DOVE","QUAIL","PHEASANT","TURKEY","DUCK","CHICKEN",
+                "ROOSTER","PARROT","MACAW","COCKATOO","BUDGIE","CANARY",
+            }
 
-        local CS_S = {
-            RANDOM      = {"@","#","$","%","^","&","*","!","?","~","+","=","-","_",".",",",":",";","|","/","\\","<",">","[","]","{","}","(",")"},
-            AT          = {"@"},
-            HASH        = {"#"},
-            DOLLAR      = {"$"},
-            PERCENT     = {"%"},
-            STAR        = {"*"},
-            EXCLAMATION = {"!"},
-            QUESTION    = {"?"},
-            DOT         = {"."},
-            TILDE       = {"~"},
-            BRACKETS    = {"[","]","{","}","(",")","<",">"},
-            SPECIAL     = {"@","#","$","%","&","*","!"},
-            MIXED       = {"@","#","$","%","&","*","!","?"},
-        }
-        local CS_K = {"RANDOM","AT","HASH","DOLLAR","PERCENT","STAR","EXCLAMATION","QUESTION","DOT","TILDE","BRACKETS","SPECIAL","MIXED"}
-        local CS_L = {RANDOM="Random",AT="@",HASH="#",DOLLAR="$",PERCENT="%",STAR="*",EXCLAMATION="!",QUESTION="?",DOT=".",TILDE="~",BRACKETS="Brackets",SPECIAL="Special",MIXED="Mixed"}
+            local CS_S = {
+                RANDOM      = {"@","#","$","%","^","&","*","!","?","~","+","=","-","_",".",",",":",";","|","/","\\","<",">","[","]","{","}","(",")"},
+                AT          = {"@"},
+                HASH        = {"#"},
+                DOLLAR      = {"$"},
+                PERCENT     = {"%"},
+                STAR        = {"*"},
+                EXCLAMATION = {"!"},
+                QUESTION    = {"?"},
+                DOT         = {"."},
+                TILDE       = {"~"},
+                BRACKETS    = {"[","]","{","}","(",")","<",">"},
+                SPECIAL     = {"@","#","$","%","&","*","!"},
+                MIXED       = {"@","#","$","%","&","*","!","?"},
+            }
+            local CS_K = {"RANDOM","AT","HASH","DOLLAR","PERCENT","STAR","EXCLAMATION","QUESTION","DOT","TILDE","BRACKETS","SPECIAL","MIXED"}
+            local CS_L = {RANDOM="Random",AT="@",HASH="#",DOLLAR="$",PERCENT="%",STAR="*",EXCLAMATION="!",QUESTION="?",DOT=".",TILDE="~",BRACKETS="Brackets",SPECIAL="Special",MIXED="Mixed"}
 
-        local CS_E = {"🔥","😂","💀","🗿","😭","😎","🤡","👻","👀","💯","🚨","😍","⚡","💔","🗣️","🧠","🤖","🥶","😈","🤣","💥","✨","🙏","😱"}
-        local CS_EMOJI_S = {
-            NONE   = {},
-            RANDOM = CS_E,
-            LAUGH  = {"😂","🤣","😂"},
-            SKULL  = {"💀","☠️","💀"},
-            FIRE   = {"🔥","🔥","🔥"},
-            PARTY  = {"🎉","✨","🥳","🥳"},
-            CRY    = {"😭","😭","😭"},
-            MIXED  = {"🔥","😂","💀","✨","💯","😎"},
-        }
-        local CS_EMOJI_K = {"NONE","RANDOM","LAUGH","SKULL","FIRE","PARTY","CRY","MIXED"}
-        local CS_EMOJI_L = {NONE="None",RANDOM="Random",LAUGH="😂 Laugh",SKULL="💀 Skull",FIRE="🔥 Fire",PARTY="🎉 Party",CRY="😭 Cry",MIXED="Mixed"}
+            local CS_E = {"🔥","😂","💀","🗿","😭","😎","🤡","👻","👀","💯","🚨","😍","⚡","💔","🗣️","🧠","🤖","🥶","😈","🤣","💥","✨","🙏","😱"}
+            local CS_EMOJI_S = {
+                NONE   = {},
+                RANDOM = CS_E,
+                LAUGH  = {"😂","🤣","😂"},
+                SKULL  = {"💀","☠️","💀"},
+                FIRE   = {"🔥","🔥","🔥"},
+                PARTY  = {"🎉","✨","🥳","🥳"},
+                CRY    = {"😭","😭","😭"},
+                MIXED  = {"🔥","😂","💀","✨","💯","😎"},
+            }
+            local CS_EMOJI_K = {"NONE","RANDOM","LAUGH","SKULL","FIRE","PARTY","CRY","MIXED"}
+            local CS_EMOJI_L = {NONE="None",RANDOM="Random",LAUGH="😂 Laugh",SKULL="💀 Skull",FIRE="🔥 Fire",PARTY="🎉 Party",CRY="😭 Cry",MIXED="Mixed"}
 
-        -- ============================================================================
-        -- STATE
-        -- ============================================================================
-        local csOn    = false
-        local csMode  = "roast"   -- roast | clan | message
-        local csTgt   = ""
-        local csMsg   = ""
-        local csSym   = "AT"
-        local csEmoji = "RANDOM"
-        local csIdx   = 1
-        local csCnt   = 0
-        local csMtd   = "-"
-        local csCh    = nil
-        local csLg    = nil
-        local csGen   = 0
+            -- STATE
+            local csOn    = false
+            local csMode  = "roast"   -- clan | message | roast
+            local csTgt   = ""
+            local csMsg   = ""
+            local csSym   = "AT"
+            local csEmoji = "RANDOM"
+            local csIdx   = 1
+            local csCnt   = 0
+            local csMtd   = "-"
+            local csCh    = nil
+            local csLg    = nil
+            local csGen   = 0
 
-        -- optional: set these if you resolve a Player object elsewhere
-        local sel, selDisplay, selName = nil, nil, nil
+            local sel, selDisplay, selName = nil, nil, nil
+            local onSpamSendUpdate = nil
 
-        -- ============================================================================
-        -- SEND
-        -- ============================================================================
-        local function gC()
-            if TC.ChatVersion ~= Enum.ChatVersion.TextChatService then return nil end
-            local ok, res = pcall(function()
-                local c = TC:FindFirstChild("TextChannels")
-                if not c then return nil end
-                return c:FindFirstChild("RBXGeneral") or c:GetChildren()[1]
-            end)
-            return ok and res or nil
-        end
+            -- SEND (exact from jamun.txt)
+            local function gC()
+                if TC.ChatVersion ~= Enum.ChatVersion.TextChatService then return nil end
+                local ok, res = pcall(function()
+                    local c = TC:FindFirstChild("TextChannels")
+                    if not c then return nil end
+                    return c:FindFirstChild("RBXGeneral") or c:GetChildren()[1]
+                end)
+                return ok and res or nil
+            end
 
-        local function gL()
-            local ok, res = pcall(function()
-                local d = RPS:FindFirstChild("DefaultChatSystemChatEvents")
-                if d and d:FindFirstChild("SayMessageRequest") then
-                    return d.SayMessageRequest
+            local function gL()
+                local ok, res = pcall(function()
+                    local d = RPS:FindFirstChild("DefaultChatSystemChatEvents")
+                    if d and d:FindFirstChild("SayMessageRequest") then
+                        return d.SayMessageRequest
+                    end
+                end)
+                return ok and res or nil
+            end
+
+            local function snd2(tx)
+                if #tx > CS_M then tx = tx:sub(1, CS_M) end
+                if TC.ChatVersion == Enum.ChatVersion.TextChatService then
+                    if not csCh or not csCh.Parent then csCh = gC() end
+                    if csCh then
+                        local ok = pcall(function() csCh:SendAsync(tx) end)
+                        if ok then csMtd = "TextChat"; return true end
+                    end
                 end
-            end)
-            return ok and res or nil
-        end
-
-        local function snd2(tx)
-            if #tx > CS_M then tx = tx:sub(1, CS_M) end
-            if TC.ChatVersion == Enum.ChatVersion.TextChatService then
-                if not csCh or not csCh.Parent then csCh = gC() end
-                if csCh then
-                    local ok = pcall(function() csCh:SendAsync(tx) end)
-                    if ok then csMtd = "TextChat"; return true end
+                if not csLg then csLg = gL() end
+                if csLg then
+                    local ok = pcall(function() csLg:FireServer(tx, "All") end)
+                    if ok then csMtd = "Legacy"; return true end
                 end
+                return false
             end
-            if not csLg then csLg = gL() end
-            if csLg then
-                local ok = pcall(function() csLg:FireServer(tx, "All") end)
-                if ok then csMtd = "Legacy"; return true end
-            end
-            return false
-        end
 
-        -- ============================================================================
-        -- BUILD
-        -- ============================================================================
-        local function gS()
-            local s = CS_S[csSym] or CS_S.RANDOM
-            if csSym == "RANDOM" then
-                local x = s[csIdx]
-                csIdx = csIdx + 1
-                if csIdx > #s then csIdx = 1 end
-                return x
+            -- BUILD (exact from jamun.txt)
+            local function gS()
+                local s = CS_S[csSym] or CS_S.RANDOM
+                if csSym == "RANDOM" then
+                    local x = s[csIdx]
+                    csIdx = csIdx + 1
+                    if csIdx > #s then csIdx = 1 end
+                    return x
+                end
+                return s[math.random(1, #s)]
             end
-            return s[math.random(1, #s)]
-        end
 
-        local function buildSymBlock(n)
-            if n <= 0 then return "" end
-            local set = CS_S[csSym] or CS_S.RANDOM
-            if #set == 1 then
-                return set[1]:rep(n)
-            end
-            if csSym == "RANDOM" then
+            local function buildSymBlock(n)
+                if n <= 0 then return "" end
+                local set = CS_S[csSym] or CS_S.RANDOM
+                if #set == 1 then
+                    return set[1]:rep(n)
+                end
+                if csSym == "RANDOM" then
+                    local out = table.create(n)
+                    for i = 1, n do out[i] = gS() end
+                    return table.concat(out)
+                end
                 local out = table.create(n)
-                for i = 1, n do out[i] = gS() end
+                for i = 1, n do out[i] = set[math.random(1, #set)] end
                 return table.concat(out)
             end
-            local out = table.create(n)
-            for i = 1, n do out[i] = set[math.random(1, #set)] end
-            return table.concat(out)
-        end
 
-        local function resolveTargetDisplay()
-            if sel then
-                local ok, dn = pcall(function() return sel.DisplayName end)
-                if ok and dn and dn ~= "" then return dn end
-                local ok2, nm = pcall(function() return sel.Name end)
-                if ok2 and nm and nm ~= "" then return nm end
-            end
-            if selDisplay and selDisplay ~= "" then return selDisplay end
-            if selName and selName ~= "" then return selName end
-            if csTgt and csTgt ~= "" then return (tostring(csTgt):gsub("^%s*@+%s*", "")) end
-            return nil
-        end
-
-        local function pickEmojis()
-            local set = CS_EMOJI_S[csEmoji] or CS_EMOJI_S.RANDOM
-            if not set or #set == 0 or csEmoji == "NONE" then return "" end
-            if csEmoji == "RANDOM" and math.random() > 0.85 then return "" end
-            local count = math.random(1, math.min(3, #set))
-            local out = ""
-            for i = 1, count do
-                out = out .. set[math.random(1, #set)]
-            end
-            return out
-        end
-
-        local function bld()
-            local c = ""
-            if csMode == "clan" then
-                c = (csTgt .. CS_CL):upper()
-            elseif csMode == "message" then
-                c = csMsg:upper()
-            else
-                local raw = resolveTargetDisplay()
-                if (raw == nil or raw == "") and csTgt and csTgt ~= "" then raw = csTgt end
-                if raw == nil or raw == "" then raw = "everyone" end
-                raw = tostring(raw):gsub("^%s*@+%s*", "")
-                c = ("@" .. raw .. " " .. CS_R .. CS_W[math.random(1, #CS_W)]):upper()
+            local function resolveTargetDisplay()
+                if sel then
+                    local ok, dn = pcall(function() return sel.DisplayName end)
+                    if ok and dn and dn ~= "" then return dn end
+                    local ok2, nm = pcall(function() return sel.Name end)
+                    if ok2 and nm and nm ~= "" then return nm end
+                end
+                if selDisplay and selDisplay ~= "" then return selDisplay end
+                if selName and selName ~= "" then return selName end
+                if csTgt and csTgt ~= "" then return (tostring(csTgt):gsub("^%s*@+%s*", "")) end
+                return nil
             end
 
-            local emojiSuffix = pickEmojis()
-            -- line 1 symbols · line 2 content · line 3 emojis
-            local MIN_SYM, MAX_SYM, nl = 16, 80, 2
-            local budget = CS_M - #emojiSuffix - nl
-            local maxContent = math.max(8, budget - MIN_SYM)
-            if #c > maxContent then c = c:sub(1, maxContent) end
-            local symCount = math.clamp(budget - #c, MIN_SYM, MAX_SYM)
-            local symLine = buildSymBlock(symCount)
-            local out = symLine .. "\n" .. c .. "\n" .. emojiSuffix
-            if #out > CS_M then
-                local room = math.max(0, CS_M - #c - #emojiSuffix - nl)
-                symLine = buildSymBlock(math.min(symCount, room))
-                if #symLine > room then symLine = symLine:sub(1, room) end
-                out = symLine .. "\n" .. c .. "\n" .. emojiSuffix
-                if #out > CS_M then out = out:sub(1, CS_M) end
-            end
-            return out
-        end
-
-        -- ============================================================================
-        -- CONTROL API
-        -- ============================================================================
-        local function start(opts)
-            opts = opts or {}
-            if csOn then return false, "already running" end
-            if opts.mode then csMode = opts.mode end
-            if opts.target then csTgt = tostring(opts.target):gsub("^%s*@+%s*", "") end
-            if opts.message then csMsg = opts.message end
-            if opts.sym and CS_S[opts.sym] then csSym = opts.sym; csIdx = 1 end
-            if opts.emoji and CS_EMOJI_S[opts.emoji] then csEmoji = opts.emoji end
-            if opts.delay then CS_D = math.max(0.5, tonumber(opts.delay) or CS_D) end
-
-            if csMode == "message" and (csMsg == nil or csMsg == "") then
-                return false, "message mode needs opts.message"
-            end
-            if csMode ~= "message" and (csTgt == nil or csTgt == "") then
-                return false, "need opts.target"
+            local function pickEmojis()
+                local set = CS_EMOJI_S[csEmoji] or CS_EMOJI_S.RANDOM
+                if not set or #set == 0 or csEmoji == "NONE" then return "" end
+                if csEmoji == "RANDOM" and math.random() > 0.85 then return "" end
+                local count = math.random(1, math.min(3, #set))
+                local out = ""
+                for i = 1, count do
+                    out = out .. set[math.random(1, #set)]
+                end
+                return out
             end
 
-            csOn = true
-            csGen = csGen + 1
-            csCnt = 0
-            local gen = csGen
-            task.spawn(function()
-                while csOn and csGen == gen do
-                    local m = bld()
-                    if m ~= "" then
-                        if snd2(m) then
-                            csCnt = csCnt + 1
-                            print(string.format("[coco-chat-spam] #%d via %s · %s", csCnt, csMtd, csMode))
-                        else
-                            warn("[coco-chat-spam] send failed")
+            local function bld()
+                local c = ""
+                if csMode == "clan" then
+                    c = (csTgt .. CS_CL):upper()
+                elseif csMode == "message" then
+                    c = csMsg:upper()
+                else
+                    local raw = resolveTargetDisplay()
+                    if (raw == nil or raw == "") and csTgt and csTgt ~= "" then raw = csTgt end
+                    if raw == nil or raw == "" then raw = "everyone" end
+                    raw = tostring(raw):gsub("^%s*@+%s*", "")
+                    c = ("@" .. raw .. " " .. CS_R .. CS_W[math.random(1, #CS_W)]):upper()
+                end
+
+                local emojiSuffix = pickEmojis()
+                -- line 1 symbols · line 2 clan / message / roast text · line 3 emojis
+                local MIN_SYM = 16
+                local MAX_SYM = 80
+                local nl = 2
+                local budget = CS_M - #emojiSuffix - nl
+                local maxContent = math.max(8, budget - MIN_SYM)
+                if #c > maxContent then c = c:sub(1, maxContent) end
+                local symCount = math.clamp(budget - #c, MIN_SYM, MAX_SYM)
+                local symLine = buildSymBlock(symCount)
+                local out = symLine .. "\n" .. c .. "\n" .. emojiSuffix
+                if #out > CS_M then
+                    local room = CS_M - #c - #emojiSuffix - nl
+                    if room < 0 then room = 0 end
+                    symLine = buildSymBlock(math.min(symCount, room))
+                    if #symLine > room then symLine = symLine:sub(1, room) end
+                    out = symLine .. "\n" .. c .. "\n" .. emojiSuffix
+                    if #out > CS_M then out = out:sub(1, CS_M) end
+                end
+                return out
+            end
+
+            -- CONTROL API
+            local function start(opts)
+                opts = opts or {}
+                if csOn then return false, "already running" end
+                if opts.mode then csMode = opts.mode end
+                if opts.target then csTgt = tostring(opts.target):gsub("^%s*@+%s*", "") end
+                if opts.message then csMsg = opts.message end
+                if opts.sym and CS_S[opts.sym] then csSym = opts.sym; csIdx = 1 end
+                if opts.emoji and CS_EMOJI_S[opts.emoji] then csEmoji = opts.emoji end
+                if opts.delay then CS_D = math.max(0.5, tonumber(opts.delay) or CS_D) end
+
+                if csMode == "roast" then
+                    local resolved = resolveTargetDisplay()
+                    if resolved and resolved ~= "" then csTgt = resolved end
+                end
+                if csMode == "message" and (csMsg == nil or csMsg == "") then
+                    return false, "enter a message"
+                end
+                if csMode ~= "message" and (csTgt == nil or csTgt == "") then
+                    return false, "enter a target"
+                end
+
+                csOn = true
+                csGen = csGen + 1
+                csCnt = 0
+                local gen = csGen
+                task.spawn(function()
+                    local cachedDisplay = resolveTargetDisplay()
+                    while csOn and csGen == gen do
+                        cachedDisplay = resolveTargetDisplay() or cachedDisplay
+                        local m = bld()
+                        if m ~= "" then
+                            if snd2(m) then
+                                csCnt = csCnt + 1
+                                if type(onSpamSendUpdate) == "function" then
+                                    pcall(onSpamSendUpdate, true)
+                                end
+                                print(string.format("[coco-chat-spam] #%d via %s · %s", csCnt, csMtd, csMode))
+                            else
+                                if type(onSpamSendUpdate) == "function" then
+                                    pcall(onSpamSendUpdate, false)
+                                end
+                                warn("[coco-chat-spam] send failed")
+                            end
                         end
+                        task.wait(CS_D)
                     end
-                    task.wait(CS_D)
-                end
-            end)
-            return true
-        end
+                end)
+                return true
+            end
 
-        local function stop()
-            csOn = false
-            csGen = csGen + 1
-            print("[coco-chat-spam] stopped · sent", csCnt)
-        end
+            local function stop()
+                csOn = false
+                csGen = csGen + 1
+                print("[coco-chat-spam] stopped · sent", csCnt)
+            end
 
-        -- ============================================================================
-        -- GLOBALS
-        -- ============================================================================
-        _G.CocoChatSpam = {
-            start   = start,
-            stop    = stop,
-            isOn    = function() return csOn end,
-            count   = function() return csCnt end,
-            method  = function() return csMtd end,
-            setMode = function(m) if m == "roast" or m == "clan" or m == "message" then csMode = m end end,
-            setSym  = function(k) if CS_S[k] then csSym = k; csIdx = 1 end end,
-            setEmoji= function(k) if CS_EMOJI_S[k] then csEmoji = k end end,
-            setDelay= function(d) CS_D = math.max(0.5, tonumber(d) or CS_D) end,
-            setTarget = function(t) csTgt = tostring(t or ""):gsub("^%s*@+%s*", "") end,
-            setMessage= function(m) csMsg = tostring(m or "") end,
-            symbols = CS_K,
-            emojis  = CS_EMOJI_K,
-            -- bind a Player for roast display-name resolution
-            setPlayer = function(plr)
-                sel = plr
-                if plr then
-                    selDisplay = plr.DisplayName
-                    selName = plr.Name
-                    csTgt = plr.DisplayName
-                end
-            end,
-        }
+            -- GLOBALS
+            _G.CocoChatSpam = {
+                start      = start,
+                stop       = stop,
+                isOn       = function() return csOn end,
+                count      = function() return csCnt end,
+                method     = function() return csMtd end,
+                setMode    = function(m) if m == "roast" or m == "clan" or m == "message" then csMode = m end end,
+                setSym     = function(k) if CS_S[k] then csSym = k; csIdx = 1 end end,
+                setEmoji   = function(k) if CS_EMOJI_S[k] then csEmoji = k end end,
+                setDelay   = function(d) CS_D = math.max(0.5, tonumber(d) or CS_D) end,
+                setTarget  = function(t) csTgt = tostring(t or ""):gsub("^%s*@+%s*", "") end,
+                setMessage = function(m) csMsg = tostring(m or "") end,
+                symbols    = CS_K,
+                emojis     = CS_EMOJI_K,
+                setPlayer  = function(plr)
+                    sel = plr
+                    if plr then
+                        selDisplay = plr.DisplayName
+                        selName = plr.Name
+                        csTgt = plr.DisplayName
+                    end
+                end,
+            }
             cocoSpam3StopFn = stop
 
-            createSectionTitle(cocoChatPage, 5, "COCO CHAT SPAM · ROAST / CLAN / MESSAGE")
+            createSectionTitle(cocoChatPage, 5, "JAMUN CHAT SPAM · CLAN / MESSAGE / ROAST")
             local cocoSpam3Card = createCocoChatCard(6)
 
-            -- Mode Selector Row (ROAST | CLAN | MESSAGE)
+            -- Mode Selector Row (CLAN | MESSAGE | ROAST — matches jamun.txt)
             local modeRow = Instance.new("Frame")
             modeRow.Size = UDim2.new(1, 0, 0, 30)
             modeRow.BackgroundTransparency = 1
@@ -42728,6 +42701,13 @@ end
             modeLay.Padding = UDim.new(0, 6)
             modeLay.Parent = modeRow
 
+            local jTargetInput = createCocoChatInput(cocoSpam3Card, 2, "TARGET / CLAN NAME", "Leave blank for active target, or type name...", "")
+            local jMsgInput    = createCocoChatInput(cocoSpam3Card, 3, "CUSTOM MESSAGE (MESSAGE MODE)", "Type message for Message mode...", "")
+            local jDelayInput  = createCocoChatInput(cocoSpam3Card, 4, "DELAY (seconds)", "e.g. 5.0  (min 0.5)", "5.0")
+
+            local jTargetWrap = jTargetInput.Parent
+            local jMsgWrap    = jMsgInput.Parent
+
             local modeBtns = {}
             local function syncModeVisual()
                 for mKey, info in pairs(modeBtns) do
@@ -42736,9 +42716,11 @@ end
                     info.btn.TextColor3 = on and Color3.fromRGB(255, 255, 255) or T.Muted
                     info.stroke.Color = on and T.Accent or T.Border
                 end
+                if jTargetWrap then jTargetWrap.Visible = (csMode ~= "message") end
+                if jMsgWrap then jMsgWrap.Visible = (csMode == "message") end
             end
 
-            for idx, mDef in ipairs({ { k = "roast", t = "ROAST" }, { k = "clan", t = "CLAN" }, { k = "message", t = "MESSAGE" } }) do
+            for idx, mDef in ipairs({ { k = "clan", t = "CLAN" }, { k = "message", t = "MESSAGE" }, { k = "roast", t = "ROAST" } }) do
                 local mb = Instance.new("TextButton")
                 mb.Size = UDim2.new(0.32, 0, 1, 0)
                 mb.BackgroundColor3 = T.PanelLt
@@ -42764,74 +42746,163 @@ end
             end
             syncModeVisual()
 
-            local jTargetInput = createCocoChatInput(cocoSpam3Card, 2, "TARGET / CLAN NAME", "Leave blank for active target, or type name...", "")
-            local jMsgInput    = createCocoChatInput(cocoSpam3Card, 3, "CUSTOM MESSAGE (MESSAGE MODE)", "Type message for Message mode...", "")
-            local jDelayInput  = createCocoChatInput(cocoSpam3Card, 4, "DELAY (seconds)", "e.g. 5.0  (min 0.5)", "5.0")
+            -- Character Set Dropdown (matches jamun.txt cSB / cDD)
+            local symOpen, emoOpen = false, false
+            local symDropFrame, emoDropFrame
 
-            -- Symbol & Emoji 1-Click Cyclers
-            local styleRow = Instance.new("Frame")
-            styleRow.Size = UDim2.new(1, 0, 0, 32)
-            styleRow.BackgroundTransparency = 1
-            styleRow.LayoutOrder = 5
-            styleRow.ZIndex = 9
-            styleRow.Parent = cocoSpam3Card
-
-            local symIdx = 2 -- "AT"
-            local emoIdx = 2 -- "RANDOM"
-
-            local symBtn = Instance.new("TextButton")
-            symBtn.Size = UDim2.new(0.48, 0, 1, 0)
-            symBtn.BackgroundColor3 = T.PanelLt
-            symBtn.BorderSizePixel = 0
-            symBtn.Text = "Symbol: " .. (CS_L[csSym] or csSym)
-            symBtn.TextColor3 = T.Text
-            symBtn.Font = Enum.Font.GothamBold
-            symBtn.TextSize = 10
-            symBtn.AutoButtonColor = false
-            symBtn.ZIndex = 10
-            symBtn.Parent = styleRow
-            Instance.new("UICorner", symBtn).CornerRadius = UDim.new(0, 8)
-            local symSt = Instance.new("UIStroke")
+            local symHeaderBtn = Instance.new("TextButton")
+            symHeaderBtn.Size = UDim2.new(1, 0, 0, 32)
+            symHeaderBtn.BackgroundColor3 = T.PanelLt
+            symHeaderBtn.BorderSizePixel = 0
+            symHeaderBtn.Text = "Character Set: " .. (CS_L[csSym] or csSym) .. "  ▾"
+            symHeaderBtn.TextColor3 = T.Text
+            symHeaderBtn.Font = Enum.Font.GothamBold
+            symHeaderBtn.TextSize = 10
+            symHeaderBtn.TextXAlignment = Enum.TextXAlignment.Left
+            symHeaderBtn.AutoButtonColor = false
+            symHeaderBtn.LayoutOrder = 5
+            symHeaderBtn.ZIndex = 10
+            symHeaderBtn.Parent = cocoSpam3Card
+            Instance.new("UICorner", symHeaderBtn).CornerRadius = UDim.new(0, 8)
+            local symHeaderPad = Instance.new("UIPadding", symHeaderBtn)
+            symHeaderPad.PaddingLeft = UDim.new(0, 10)
+            symHeaderPad.PaddingRight = UDim.new(0, 10)
+            local symSt = Instance.new("UIStroke", symHeaderBtn)
             symSt.Color = T.Border
             symSt.Thickness = 1
-            symSt.Parent = symBtn
 
-            local emoBtn = Instance.new("TextButton")
-            emoBtn.Size = UDim2.new(0.48, 0, 1, 0)
-            emoBtn.Position = UDim2.new(0.52, 0, 0, 0)
-            emoBtn.BackgroundColor3 = T.PanelLt
-            emoBtn.BorderSizePixel = 0
-            emoBtn.Text = "Emoji: " .. (CS_EMOJI_L[csEmoji] or csEmoji)
-            emoBtn.TextColor3 = T.Text
-            emoBtn.Font = Enum.Font.GothamBold
-            emoBtn.TextSize = 10
-            emoBtn.AutoButtonColor = false
-            emoBtn.ZIndex = 10
-            emoBtn.Parent = styleRow
-            Instance.new("UICorner", emoBtn).CornerRadius = UDim.new(0, 8)
-            local emoSt = Instance.new("UIStroke")
-            emoSt.Color = T.Border
-            emoSt.Thickness = 1
-            emoSt.Parent = emoBtn
+            symDropFrame = Instance.new("Frame")
+            symDropFrame.Size = UDim2.new(1, 0, 0, 0)
+            symDropFrame.AutomaticSize = Enum.AutomaticSize.Y
+            symDropFrame.BackgroundColor3 = T.BG2
+            symDropFrame.BorderSizePixel = 0
+            symDropFrame.Visible = false
+            symDropFrame.LayoutOrder = 6
+            symDropFrame.ZIndex = 11
+            symDropFrame.Parent = cocoSpam3Card
+            Instance.new("UICorner", symDropFrame).CornerRadius = UDim.new(0, 8)
+            local symDropSt = Instance.new("UIStroke", symDropFrame)
+            symDropSt.Color = T.Border
+            symDropSt.Thickness = 1
+            local symDropPad = Instance.new("UIPadding", symDropFrame)
+            symDropPad.PaddingTop = UDim.new(0, 6)
+            symDropPad.PaddingBottom = UDim.new(0, 6)
+            symDropPad.PaddingLeft = UDim.new(0, 6)
+            symDropPad.PaddingRight = UDim.new(0, 6)
+            local symDropGrid = Instance.new("UIGridLayout", symDropFrame)
+            symDropGrid.CellSize = UDim2.new(0.32, 0, 0, 24)
+            symDropGrid.CellPadding = UDim2.new(0.02, 0, 0, 4)
+            symDropGrid.SortOrder = Enum.SortOrder.LayoutOrder
 
-            symBtn.MouseButton1Click:Connect(function()
-                symIdx = (symIdx % #CS_K) + 1
-                csSym = CS_K[symIdx]
-                csIdx = 1
-                symBtn.Text = "Symbol: " .. (CS_L[csSym] or csSym)
+            local statSymLbl -- forward decl
+            for idx, k in ipairs(CS_K) do
+                local ob = Instance.new("TextButton")
+                ob.BackgroundColor3 = T.PanelLt
+                ob.BorderSizePixel = 0
+                ob.Text = CS_L[k]
+                ob.TextColor3 = T.Text
+                ob.Font = Enum.Font.GothamBold
+                ob.TextSize = 10
+                ob.AutoButtonColor = false
+                ob.LayoutOrder = idx
+                ob.ZIndex = 12
+                ob.Parent = symDropFrame
+                Instance.new("UICorner", ob).CornerRadius = UDim.new(0, 6)
+                ob.MouseButton1Click:Connect(function()
+                    csSym = k
+                    csIdx = 1
+                    symHeaderBtn.Text = "Character Set: " .. (CS_L[k] or k) .. "  ▾"
+                    if statSymLbl then statSymLbl.Text = "Set: " .. csSym end
+                    symOpen = false
+                    symDropFrame.Visible = false
+                    if emoDropFrame then emoOpen = false; emoDropFrame.Visible = false end
+                end)
+            end
+
+            symHeaderBtn.MouseButton1Click:Connect(function()
+                symOpen = not symOpen
+                symDropFrame.Visible = symOpen
+                if symOpen and emoDropFrame then emoOpen = false; emoDropFrame.Visible = false end
             end)
 
-            emoBtn.MouseButton1Click:Connect(function()
-                emoIdx = (emoIdx % #CS_EMOJI_K) + 1
-                csEmoji = CS_EMOJI_K[emoIdx]
-                emoBtn.Text = "Emoji: " .. (CS_EMOJI_L[csEmoji] or csEmoji)
+            -- Emoji Set Dropdown (matches jamun.txt cEB / cEDD)
+            local emoHeaderBtn = Instance.new("TextButton")
+            emoHeaderBtn.Size = UDim2.new(1, 0, 0, 32)
+            emoHeaderBtn.BackgroundColor3 = T.PanelLt
+            emoHeaderBtn.BorderSizePixel = 0
+            emoHeaderBtn.Text = "Emoji Set: " .. (CS_EMOJI_L[csEmoji] or csEmoji) .. "  ▾"
+            emoHeaderBtn.TextColor3 = T.Text
+            emoHeaderBtn.Font = Enum.Font.GothamBold
+            emoHeaderBtn.TextSize = 10
+            emoHeaderBtn.TextXAlignment = Enum.TextXAlignment.Left
+            emoHeaderBtn.AutoButtonColor = false
+            emoHeaderBtn.LayoutOrder = 7
+            emoHeaderBtn.ZIndex = 10
+            emoHeaderBtn.Parent = cocoSpam3Card
+            Instance.new("UICorner", emoHeaderBtn).CornerRadius = UDim.new(0, 8)
+            local emoHeaderPad = Instance.new("UIPadding", emoHeaderBtn)
+            emoHeaderPad.PaddingLeft = UDim.new(0, 10)
+            emoHeaderPad.PaddingRight = UDim.new(0, 10)
+            local emoSt = Instance.new("UIStroke", emoHeaderBtn)
+            emoSt.Color = T.Border
+            emoSt.Thickness = 1
+
+            emoDropFrame = Instance.new("Frame")
+            emoDropFrame.Size = UDim2.new(1, 0, 0, 0)
+            emoDropFrame.AutomaticSize = Enum.AutomaticSize.Y
+            emoDropFrame.BackgroundColor3 = T.BG2
+            emoDropFrame.BorderSizePixel = 0
+            emoDropFrame.Visible = false
+            emoDropFrame.LayoutOrder = 8
+            emoDropFrame.ZIndex = 11
+            emoDropFrame.Parent = cocoSpam3Card
+            Instance.new("UICorner", emoDropFrame).CornerRadius = UDim.new(0, 8)
+            local emoDropSt = Instance.new("UIStroke", emoDropFrame)
+            emoDropSt.Color = T.Border
+            emoDropSt.Thickness = 1
+            local emoDropPad = Instance.new("UIPadding", emoDropFrame)
+            emoDropPad.PaddingTop = UDim.new(0, 6)
+            emoDropPad.PaddingBottom = UDim.new(0, 6)
+            emoDropPad.PaddingLeft = UDim.new(0, 6)
+            emoDropPad.PaddingRight = UDim.new(0, 6)
+            local emoDropGrid = Instance.new("UIGridLayout", emoDropFrame)
+            emoDropGrid.CellSize = UDim2.new(0.48, 0, 0, 24)
+            emoDropGrid.CellPadding = UDim2.new(0.04, 0, 0, 4)
+            emoDropGrid.SortOrder = Enum.SortOrder.LayoutOrder
+
+            for idx, k in ipairs(CS_EMOJI_K) do
+                local ob = Instance.new("TextButton")
+                ob.BackgroundColor3 = T.PanelLt
+                ob.BorderSizePixel = 0
+                ob.Text = CS_EMOJI_L[k]
+                ob.TextColor3 = T.Text
+                ob.Font = Enum.Font.GothamBold
+                ob.TextSize = 10
+                ob.AutoButtonColor = false
+                ob.LayoutOrder = idx
+                ob.ZIndex = 12
+                ob.Parent = emoDropFrame
+                Instance.new("UICorner", ob).CornerRadius = UDim.new(0, 6)
+                ob.MouseButton1Click:Connect(function()
+                    csEmoji = k
+                    emoHeaderBtn.Text = "Emoji Set: " .. (CS_EMOJI_L[k] or k) .. "  ▾"
+                    emoOpen = false
+                    emoDropFrame.Visible = false
+                    if symDropFrame then symOpen = false; symDropFrame.Visible = false end
+                end)
+            end
+
+            emoHeaderBtn.MouseButton1Click:Connect(function()
+                emoOpen = not emoOpen
+                emoDropFrame.Visible = emoOpen
+                if emoOpen and symDropFrame then symOpen = false; symDropFrame.Visible = false end
             end)
 
             -- Start / Stop Row
             local jBtnRow = Instance.new("Frame")
             jBtnRow.Size = UDim2.new(1, 0, 0, 34)
             jBtnRow.BackgroundTransparency = 1
-            jBtnRow.LayoutOrder = 6
+            jBtnRow.LayoutOrder = 9
             jBtnRow.ZIndex = 9
             jBtnRow.Parent = cocoSpam3Card
 
@@ -42874,9 +42945,65 @@ end
             cocoSpam3StatusLbl.Font = Enum.Font.GothamMedium
             cocoSpam3StatusLbl.TextSize = 10
             cocoSpam3StatusLbl.TextXAlignment = Enum.TextXAlignment.Left
-            cocoSpam3StatusLbl.LayoutOrder = 7
+            cocoSpam3StatusLbl.LayoutOrder = 10
             cocoSpam3StatusLbl.ZIndex = 10
             cocoSpam3StatusLbl.Parent = cocoSpam3Card
+
+            -- Live 3-column stats row (Method · Sent · Set — matches jamun.txt cS1/cS2/cS3)
+            local statsRow = Instance.new("Frame")
+            statsRow.Size = UDim2.new(1, 0, 0, 18)
+            statsRow.BackgroundTransparency = 1
+            statsRow.LayoutOrder = 11
+            statsRow.ZIndex = 9
+            statsRow.Parent = cocoSpam3Card
+
+            local statMtdLbl = Instance.new("TextLabel")
+            statMtdLbl.Size = UDim2.new(0.33, 0, 1, 0)
+            statMtdLbl.BackgroundTransparency = 1
+            statMtdLbl.Text = "Method: —"
+            statMtdLbl.TextColor3 = T.Muted
+            statMtdLbl.Font = Enum.Font.GothamMedium
+            statMtdLbl.TextSize = 10
+            statMtdLbl.TextXAlignment = Enum.TextXAlignment.Center
+            statMtdLbl.ZIndex = 10
+            statMtdLbl.Parent = statsRow
+
+            local statCntLbl = Instance.new("TextLabel")
+            statCntLbl.Size = UDim2.new(0.33, 0, 1, 0)
+            statCntLbl.Position = UDim2.new(0.33, 0, 0, 0)
+            statCntLbl.BackgroundTransparency = 1
+            statCntLbl.Text = "Sent: 0"
+            statCntLbl.TextColor3 = T.Muted
+            statCntLbl.Font = Enum.Font.GothamMedium
+            statCntLbl.TextSize = 10
+            statCntLbl.TextXAlignment = Enum.TextXAlignment.Center
+            statCntLbl.ZIndex = 10
+            statCntLbl.Parent = statsRow
+
+            statSymLbl = Instance.new("TextLabel")
+            statSymLbl.Size = UDim2.new(0.34, 0, 1, 0)
+            statSymLbl.Position = UDim2.new(0.66, 0, 0, 0)
+            statSymLbl.BackgroundTransparency = 1
+            statSymLbl.Text = "Set: " .. csSym
+            statSymLbl.TextColor3 = T.Muted
+            statSymLbl.Font = Enum.Font.GothamMedium
+            statSymLbl.TextSize = 10
+            statSymLbl.TextXAlignment = Enum.TextXAlignment.Center
+            statSymLbl.ZIndex = 10
+            statSymLbl.Parent = statsRow
+
+            onSpamSendUpdate = function(ok)
+                if ok then
+                    statCntLbl.Text = "Sent: " .. tostring(csCnt)
+                    statMtdLbl.Text = "Method: " .. tostring(csMtd)
+                    statSymLbl.Text = "Set: " .. tostring(csSym)
+                    cocoSpam3StatusLbl.Text = "Status: RUNNING · " .. tostring(csMtd) .. " (" .. string.upper(csMode) .. ")"
+                    cocoSpam3StatusLbl.TextColor3 = T.Success
+                else
+                    cocoSpam3StatusLbl.Text = "Status: FAILED TO SEND"
+                    cocoSpam3StatusLbl.TextColor3 = T.Danger
+                end
+            end
 
             local function resetCocoSpam3Visual()
                 startCocoSpam3Btn.BackgroundColor3 = T.Accent2
@@ -42893,6 +43020,9 @@ end
                 if typedTgt == "" and activeTgtPlr then
                     _G.CocoChatSpam.setPlayer(activeTgtPlr)
                     typedTgt = activeTgtPlr.DisplayName or activeTgtPlr.Name
+                    jTargetInput.Text = typedTgt
+                elseif activeTgtPlr and (typedTgt == activeTgtPlr.DisplayName or typedTgt == activeTgtPlr.Name) then
+                    _G.CocoChatSpam.setPlayer(activeTgtPlr)
                 else
                     sel = nil; selDisplay = nil; selName = nil
                 end
@@ -42914,6 +43044,7 @@ end
                 startCocoSpam3Btn.BackgroundColor3 = T.Success
                 stopCocoSpam3Btn.BackgroundColor3 = T.Danger
                 stopCocoSpam3Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+                statSymLbl.Text = "Set: " .. tostring(csSym)
                 cocoSpam3StatusLbl.Text = string.format("Status: SPAMMING (%s · %.1fs)", string.upper(csMode), d)
                 cocoSpam3StatusLbl.TextColor3 = T.Success
             end)
@@ -42971,7 +43102,6 @@ end
                 chatTargetSyncAlive = false
             end)
         end
-
         _G.CocoChatStopAll = function()
             stopNormalSpam()
             stopRoastSpam()
