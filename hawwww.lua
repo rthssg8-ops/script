@@ -29893,7 +29893,7 @@ local function buildMainUI()
     local emotePage     = createCategory("Emotes",            "💃", 315, "315+ searchable catalog emotes, viral dances, dog/moonwalk & custom IDs", "Emotes")
     local weldPage      = createCategory("Weld & Troll",      "⚡", 15,  "Dynamic height-adaptive welds, FF LOL, FF Push, jerk troll, void throws & pins", "Weld & Troll")
     local cocoChatPage  = createCategory("Coco Chat Spam",    "💬", 3,   "Coco Chat Spam · Normal, Target Roast & Roast/Clan/Message modes", "Coco Chat Spam")
-    local loudPage      = createCategory("One Click Loud",    "🔊", 9,   "LOUDEST v4.1 Clean Max-Loud · COCO LOUD, Mic Up v3.3 & v3.5 + Remove Loud via remotes", "One Click Loud")
+    local loudPage      = createCategory("One Click Loud",    "🔊", 9,   "LOUDEST v5.0 Lavinho Max Loud · COCO LOUD, Mic Up v3.3 & v3.5 + Remove Loud via remotes", "One Click Loud")
     createCategory("Spotify",           "🎵", 6,   "Spotify Web API · OAuth PKCE Login, Now Playing, Library, Search, Queue & Devices", "Spotify")
     local targetPage    = createCategory("Target",            "🎯", 1,   "Omnipresent hidden-player seeker & server-wide lock", "Target")
     local movePage      = createCategory("Performance",       "🚀", 11,  "60Hz Chrono-Rewind, WalkSpeed 500 & 4-Phase Flight", "Move & Fly")
@@ -29931,7 +29931,7 @@ local function buildMainUI()
         { key = "coversky",     pillLabel = "CoverSky",   width = 104 },
         { key = "covercube",    pillLabel = "CubeMatrix", width = 114 },
         { key = "coverflash",   pillLabel = "SkyFlash",   width = 102 },
-        { key = "oneclickloud_v40", pillLabel = "Loudest v4.1 🔊", width = 128 },
+        { key = "oneclickloud_v40", pillLabel = "Loudest v5.0 🔊", width = 128 },
         { key = "oneclickloud",     pillLabel = "Coco Loud 🔊",   width = 114 },
         { key = "oneclickloud_v31", pillLabel = "Loud v3.3 🔊",   width = 114 },
         { key = "oneclickloud_v35", pillLabel = "Loud v3.5 🔊",   width = 114 },
@@ -32405,16 +32405,16 @@ local function buildMainUI()
         local V35_FLAT_DISTANCE_CURVE = { [0] = 1, [10000] = 1 }
         local V35_FLAT_ANGLE_CURVE    = { [0] = 1, [180] = 1 }
 
-        -- Mic Up Voice Preset v4.1.0 — LOUDEST LOUD (from micup_voice_preset (6).lua)
-        -- Clean max-loud punch chain (EQ -> Vocal-Band Filter -> Distortion -> Tight Punch Reverb + Clean Compressor/Fader/Dry-Echo + mic/emitter boost)
-        local MICUP_V41_PRESET = {
+        -- Mic Up Voice Preset v5.0.0 — LOUDEST LOUD (from micup_voice_preset (7).lua)
+        -- Lavinho Mic Up Max Loud preset + full pure-gain Roblox Audio API attachments (Compressor/Fader/Dry-Echo + Mic/Emitter boost)
+        local MICUP_V50_PRESET = {
             {
                 name = "equalier", -- game spelling
                 props = {
                     { "Bypass",   false },
-                    { "LowGain",  10 },
-                    { "MidGain",  10 },
                     { "HighGain", 10 },
+                    { "LowGain",  10 },
+                    { "MidGain",  0 },
                     { "MidRange", { min = 20000, max = 20000 } },
                 },
             },
@@ -32422,57 +32422,57 @@ local function buildMainUI()
                 name = "flter", -- game spelling
                 props = {
                     { "Bypass",     false },
-                    { "FilterType", 1 },
-                    { "Frequency",  6000 },
-                    { "Gain",       30 },
-                    { "Q",          0.1 },
+                    { "FilterType", 0 },     -- Peak (0)
+                    { "Frequency",  2000 },  -- vocal center default
+                    { "Gain",       30 },    -- max +30 dB
+                    { "Q",          0.1 },   -- min/zero slider = widest vocal boost
                 },
             },
             {
                 name = "distortion",
                 props = {
                     { "Bypass", false },
-                    { "Level",  1 },
+                    { "Level",  1 },         -- max distortion
                 },
             },
             {
                 name = "reverb",
                 props = {
                     { "Bypass",             false },
-                    { "DecayRatio",         1 },
-                    { "DecayTime",          0.25 },
-                    { "Density",            1 },
-                    { "Diffusion",          1 },
-                    { "DryLevel",           20 },
-                    { "EarlyDelayTime",     0 },
-                    { "HighCutFrequency",   3000 },
-                    { "LateDelayTime",      0 },
-                    { "LowShelfFrequency",  3000 },
-                    { "LowShelfGain",       12 },
-                    { "ReferenceFrequency", 3000 },
-                    { "WetLevel",           20 },
+                    { "DecayRatio",         0.5 },   -- default: stops high-freq hiss build-up
+                    { "DecayTime",          1.5 },   -- default: stops 20s static wash
+                    { "Density",            1 },     -- max
+                    { "Diffusion",          1 },     -- max
+                    { "DryLevel",           20 },    -- max +20 dB
+                    { "EarlyDelayTime",     0.02 },  -- default
+                    { "HighCutFrequency",   5000 },  -- default: keeps >5 kHz hiss out
+                    { "LateDelayTime",      0.04 },  -- default
+                    { "LowShelfFrequency",  20000 }, -- last 4 max #1
+                    { "LowShelfGain",       12 },    -- last 4 max #2 (+12 dB)
+                    { "ReferenceFrequency", 20000 }, -- last 4 max #3
+                    { "WetLevel",           20 },    -- last 4 max #4 (+20 dB)
                 },
             },
         }
 
-        -- Extra pure-gain stages for v4.1.0 (zero phase-cancelling modulation, zero echo feedback hiss)
-        local MICUP_V41_EXTRA_PRESET = {
+        -- Extra pure-gain Roblox Audio API attachments for v5.0.0 (safely attempted via pcall if supported by server)
+        local MICUP_V50_EXTRA_PRESET = {
             {
                 name = "compressor",
                 props = {
                     { "Bypass",     false },
-                    { "Threshold",  0 },     -- max threshold so zero peaks get attenuated
-                    { "Ratio",      1 },     -- 1:1 ratio = pure clean gain stage
+                    { "Threshold",  0 },     -- max threshold: zero peak clamping
+                    { "Ratio",      1 },     -- 1:1 ratio: pure clean gain
                     { "Attack",     0.001 },
                     { "Release",    0.01 },
-                    { "MakeupGain", 30 },    -- max +30 dB clean boost
+                    { "MakeupGain", 30 },    -- max +30 dB
                 },
             },
             {
                 name = "fader",
                 props = {
                     { "Bypass", false },
-                    { "Volume", 10 },        -- max 10x multiplier (+20 dB)
+                    { "Volume", 10 },        -- max 10x (+20 dB)
                 },
             },
             {
@@ -32481,19 +32481,19 @@ local function buildMainUI()
                     { "Bypass",    false },
                     { "DelayTime", 0.001 },
                     { "DryLevel",  10 },     -- max +10 dB pure dry gain
-                    { "WetLevel",  -80 },    -- mute delayed wet copy to eliminate comb-filter hiss
+                    { "WetLevel",  -80 },    -- mute wet delay to avoid comb-filter hiss
                     { "Feedback",  0 },      -- zero feedback static
                     { "RampTime",  0 },
                 },
             },
         }
 
-        -- Bypass modulation FX if previously added in the same session
-        local V41_BYPASS_HISS_FX = { "chorus", "flanger" }
+        -- Bypass modulation/limiting FX that cause hiss or cap volume
+        local V50_BYPASS_FX = { "chorus", "flanger", "tremolo", "limiter", "gate" }
 
-        -- Flat distance & angle attenuation curve for v4.1.0 (no rolloff up to 100,000 studs, no wall occlusion)
-        local V41_FLAT_DISTANCE_CURVE = { [0] = 1, [100000] = 1 }
-        local V41_FLAT_ANGLE_CURVE    = { [0] = 1, [180] = 1 }
+        -- Flat distance & angle attenuation curve for v5.0.0 (no rolloff up to 100,000 studs, no wall occlusion)
+        local V50_FLAT_DISTANCE_CURVE = { [0] = 1, [100000] = 1 }
+        local V50_FLAT_ANGLE_CURVE    = { [0] = 1, [180] = 1 }
 
         -- Neutral / clean values used by One Click Remove Loud fallback via event_effect_property
         local REMOVE_LOUD_NEUTRAL = {
@@ -32745,7 +32745,7 @@ local function buildMainUI()
             return true, table.concat(applied, ", ")
         end
 
-        local function boostLocalAudioChainV41()
+        local function boostLocalAudioChainV50()
             local emitters, fxBoosted, inputsBoosted = 0, 0, 0
             local targets = {}
             if LP.Character then table.insert(targets, LP.Character) end
@@ -32762,8 +32762,8 @@ local function buildMainUI()
                             pcall(function()
                                 inst.DistanceAttenuationMode = Enum.DistanceAttenuationMode.Custom
                             end)
-                            inst:SetDistanceAttenuation(V41_FLAT_DISTANCE_CURVE)
-                            inst:SetAngleAttenuation(V41_FLAT_ANGLE_CURVE)
+                            inst:SetDistanceAttenuation(V50_FLAT_DISTANCE_CURVE)
+                            inst:SetAngleAttenuation(V50_FLAT_ANGLE_CURVE)
                             pcall(function()
                                 inst.AcousticSimulationEnabled = false
                             end)
@@ -32777,34 +32777,34 @@ local function buildMainUI()
                     elseif inst:IsA("AudioEqualizer") then
                         if pcall(function()
                             inst.Bypass = false
-                            inst.LowGain = 10
-                            inst.MidGain = 10
                             inst.HighGain = 10
+                            inst.LowGain = 10
+                            inst.MidGain = 0
                             inst.MidRange = NumberRange.new(20000, 20000)
                         end) then fxBoosted = fxBoosted + 1 end
                     elseif inst:IsA("AudioFilter") then
                         if pcall(function()
                             inst.Bypass = false
-                            inst.FilterType = Enum.AudioFilterType.LowShelf
-                            inst.Frequency = 6000
+                            inst.FilterType = Enum.AudioFilterType.Peak
+                            inst.Frequency = 2000
                             inst.Gain = 30
                             inst.Q = 0.1
                         end) then fxBoosted = fxBoosted + 1 end
                     elseif inst:IsA("AudioReverb") then
                         if pcall(function()
                             inst.Bypass = false
-                            inst.DryLevel = 20
-                            inst.WetLevel = 20
-                            inst.LowShelfGain = 12
-                            inst.LowShelfFrequency = 3000
-                            inst.HighCutFrequency = 3000
-                            inst.ReferenceFrequency = 3000
+                            inst.DecayRatio = 0.5
+                            inst.DecayTime = 1.5
                             inst.Density = 1
                             inst.Diffusion = 1
-                            inst.DecayTime = 0.25
-                            inst.DecayRatio = 1
-                            inst.EarlyDelayTime = 0
-                            inst.LateDelayTime = 0
+                            inst.DryLevel = 20
+                            inst.EarlyDelayTime = 0.02
+                            inst.HighCutFrequency = 5000
+                            inst.LateDelayTime = 0.04
+                            inst.LowShelfFrequency = 20000
+                            inst.LowShelfGain = 12
+                            inst.ReferenceFrequency = 20000
+                            inst.WetLevel = 20
                         end) then fxBoosted = fxBoosted + 1 end
                     elseif inst:IsA("AudioFader") then
                         if pcall(function()
@@ -32829,7 +32829,11 @@ local function buildMainUI()
                             inst.Feedback = 0
                             inst.RampTime = 0
                         end) then fxBoosted = fxBoosted + 1 end
-                    elseif inst:IsA("AudioChorus") or inst:IsA("AudioFlanger") then
+                    elseif inst:IsA("AudioChorus")
+                        or inst:IsA("AudioFlanger")
+                        or inst:IsA("AudioTremolo")
+                        or inst:IsA("AudioLimiter")
+                        or inst:IsA("AudioGate") then
                         pcall(function()
                             inst.Bypass = true
                         end)
@@ -32839,7 +32843,7 @@ local function buildMainUI()
             return emitters, fxBoosted, inputsBoosted
         end
 
-        local function reinforceFxListV41(propEv, list)
+        local function reinforceFxListV50(propEv, list)
             for _, fx in ipairs(list) do
                 for _, p in ipairs(fx.props) do
                     pcall(function()
@@ -32850,16 +32854,16 @@ local function buildMainUI()
             end
         end
 
-        local v41LocalRespawnHooked = false
+        local v50LocalRespawnHooked = false
 
-        local function applyMicUpV41Preset()
+        local function applyMicUpV50Preset()
             local addEv, propEv = getLoudRemotes()
             if not addEv or not propEv then
                 return false, "remotes missing (event_effect_add / event_effect_property)"
             end
 
-            -- Bypass any modulation FX left active from earlier runs
-            for _, name in ipairs(V41_BYPASS_HISS_FX) do
+            -- Bypass any hiss/limiting FX if present
+            for _, name in ipairs(V50_BYPASS_FX) do
                 pcall(function()
                     propEv:FireServer(name, "Bypass", true)
                 end)
@@ -32867,18 +32871,18 @@ local function buildMainUI()
             end
 
             local applied = {}
-            -- Pass 1: Gain-staged core chain (EQ -> Vocal-Band Filter -> Distortion -> Tight Punch Reverb)
-            fireFxListV35(addEv, propEv, MICUP_V41_PRESET, applied)
+            -- Pass 1: Exact Lavinho Mic Up core chain (EQ -> Filter -> Distortion -> Reverb)
+            fireFxListV35(addEv, propEv, MICUP_V50_PRESET, applied)
 
-            -- Pass 2: Extra clean gain stages (compressor / fader / dry-only echo)
-            fireFxListV35(addEv, propEv, MICUP_V41_EXTRA_PRESET, nil)
+            -- Pass 2: Extra pure-gain attachments (compressor / fader / dry-only echo)
+            fireFxListV35(addEv, propEv, MICUP_V50_EXTRA_PRESET, nil)
 
             -- Pass 3: Reinforce ALL core + extra properties so none reset during server wiring
-            reinforceFxListV41(propEv, MICUP_V41_PRESET)
-            reinforceFxListV41(propEv, MICUP_V41_EXTRA_PRESET)
+            reinforceFxListV50(propEv, MICUP_V50_PRESET)
+            reinforceFxListV50(propEv, MICUP_V50_EXTRA_PRESET)
 
             -- Pass 4: Local mic input, emitter range (100k studs), and full audio chain reinforcement
-            local emitterCount, fxCount, inputCount = boostLocalAudioChainV41()
+            local emitterCount, fxCount, inputCount = boostLocalAudioChainV50()
             table.insert(applied, "range:" .. (emitterCount > 0 and ("ok(" .. emitterCount .. ")") or "none"))
             if inputCount > 0 then
                 table.insert(applied, "mic:" .. inputCount)
@@ -32887,13 +32891,13 @@ local function buildMainUI()
                 table.insert(applied, "localfx:" .. fxCount)
             end
 
-            -- Keep local mic/emitter/FX chain maxed after respawns when v4.1 is the active preset
-            if not v41LocalRespawnHooked then
-                v41LocalRespawnHooked = true
+            -- Keep local mic/emitter/FX chain maxed after respawns when v5.0 is the active preset
+            if not v50LocalRespawnHooked then
+                v50LocalRespawnHooked = true
                 LP.CharacterAdded:Connect(function()
-                    if loudState.lastPreset ~= "v40" and loudState.lastPreset ~= "v41" then return end
+                    if loudState.lastPreset ~= "v40" and loudState.lastPreset ~= "v41" and loudState.lastPreset ~= "v50" then return end
                     task.wait(1)
-                    boostLocalAudioChainV41()
+                    boostLocalAudioChainV50()
                 end)
             end
 
@@ -33230,31 +33234,32 @@ local function buildMainUI()
 
         local function triggerOneClickLoudV40(reason)
             if loudState.busy then
-                notify("🔊 LOUDEST v4.1", "Already firing remotes, please wait...")
+                notify("🔊 LOUDEST v5.0", "Already firing remotes, please wait...")
                 return
             end
             loudState.busy = true
             loudState.lastPreset = "v40"
             local prefix = reason and ("[" .. tostring(reason) .. "] ") or ""
-            setLoudStatus(prefix .. "firing LOUDEST v4.1 clean max-loud remotes...", T.Warning)
+            setLoudStatus(prefix .. "firing LOUDEST v5.0 Lavinho max-loud remotes...", T.Warning)
 
             task.spawn(function()
-                local ok, msg = applyMicUpV41Preset()
+                local ok, msg = applyMicUpV50Preset()
                 loudState.busy = false
                 if ok then
-                    setLoudStatus("LOUDEST v4.1 done: " .. tostring(msg), T.Success)
-                    print("[MicUp v4.1 LOUDEST] " .. tostring(msg))
-                    notify("🔥 LOUDEST LOUD (v4.1)", "Applied Mic Up v4.1 Clean Max-Loud Punch!")
+                    setLoudStatus("LOUDEST v5.0 done: " .. tostring(msg), T.Success)
+                    print("[MicUp v5.0 LOUDEST] " .. tostring(msg))
+                    notify("🔥 LOUDEST LOUD (v5.0)", "Applied Mic Up v5.0 Lavinho Max Loud!")
                     sSuccess()
                 else
-                    setLoudStatus("LOUDEST v4.1 fail: " .. tostring(msg), T.Danger)
-                    notify("🔥 LOUDEST LOUD (v4.1)", "Failed: " .. tostring(msg))
+                    setLoudStatus("LOUDEST v5.0 fail: " .. tostring(msg), T.Danger)
+                    notify("🔥 LOUDEST LOUD (v5.0)", "Failed: " .. tostring(msg))
                     sError()
                 end
             end)
         end
         _G.CocoApplyOneClickLoudV40 = triggerOneClickLoudV40
         _G.CocoApplyOneClickLoudV41 = triggerOneClickLoudV40
+        _G.CocoApplyOneClickLoudV50 = triggerOneClickLoudV40
         _G.CocoApplyLoudestLoud = triggerOneClickLoudV40
 
         local function triggerOneClickRemoveLoud()
@@ -33306,8 +33311,8 @@ local function buildMainUI()
         local loudV40RowInfo = createActionRow(
             loudGrp,
             1,
-            "🔥 Loudest Loud — Mic Up v4.1 (Clean Max-Loud Punch)",
-            "LOUDEST preset (EQ->6kHz Vocal Filter->Distortion->0.25s Punch Reverb + Clean Comp/Fader/Dry-Echo + zero-hiss bypass + 100k range) · [⦿] pin pill",
+            "🔥 Loudest Loud — Mic Up v5.0 (Lavinho Max Loud)",
+            "LOUDEST preset (Lavinho EQ->2kHz Peak Filter->Distortion->Reverb + Comp/Fader/Dry-Echo + hiss/limiter bypass + 100k range) · [⦿] pin pill",
             "LOUDEST 🔥",
             function()
                 triggerOneClickLoudV40(nil)
@@ -33502,7 +33507,7 @@ local function buildMainUI()
             ApplyV40Btn.Position = UDim2.fromOffset(10, 78)
             ApplyV40Btn.BackgroundColor3 = Color3.fromRGB(255, 130, 55)
             ApplyV40Btn.BackgroundTransparency = 0.08
-            ApplyV40Btn.Text = "🔥 APPLY LOUDEST LOUD (v4.1)"
+            ApplyV40Btn.Text = "🔥 APPLY LOUDEST LOUD (v5.0)"
             ApplyV40Btn.TextColor3 = Color3.fromRGB(10, 10, 12)
             ApplyV40Btn.Font = Enum.Font.GothamBlack
             ApplyV40Btn.TextSize = 12
