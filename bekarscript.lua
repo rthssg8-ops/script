@@ -802,7 +802,7 @@ do
     end
 end
 
-local Anti, moveState, AnimCopySys, RewindSys, CocaSkyDestroyer, hookTargetRespawn, removeOverheadTagForUser, updateOverheadNameTags
+local Anti, moveState, AnimCopySys, EmoteHub, RewindSys, CocaSkyDestroyer, hookTargetRespawn, removeOverheadTagForUser, updateOverheadNameTags
 local recoverCharacterState, safeReturnFromVoid, syncAllActiveIndicators
 
 local StateManager = {}
@@ -1262,12 +1262,20 @@ recoverCharacterState = function(char, safeCF)
     if moveState and moveState.restoreFlyJoints then
         pcall(function() moveState.restoreFlyJoints(char) end)
     end
+    stopDefaultTracks(char)
     local animate = char:FindFirstChild("Animate")
     if animate and animate.Disabled and CurrentWeld == nil and not WeldSeekingTarget and not (moveState and (moveState.fly or moveState.flyLanding)) and (not isReanimActive or isReanimClone) then
         pcall(function() animate.Disabled = false end)
+        pcall(function() animate.Enabled = true end)
     end
     AnimateWasDisabled = false
-    stopDefaultTracks(char)
+    if EmoteHub and EmoteHub.EnsureActivePackAlive and CurrentWeld == nil and not WeldSeekingTarget and not (moveState and (moveState.fly or moveState.flyLanding)) then
+        task.defer(function()
+            if char and char.Parent and CurrentWeld == nil and not WeldSeekingTarget then
+                pcall(function() EmoteHub:EnsureActivePackAlive(char) end)
+            end
+        end)
+    end
     if hum and hum.Health > 0 then
         pcall(function()
             if not hum:GetStateEnabled(Enum.HumanoidStateType.Running) then hum:SetStateEnabled(Enum.HumanoidStateType.Running, true) end
@@ -1777,7 +1785,98 @@ local computeDynamicHeightWeld = function(myChar, myHum, myRoot, targetChar, tar
     return autoY, myScaleY, tScaleY, autoZ
 end
 
+-- Detect if a JointInstance / WeldConstraint / Constraint / SeatWeld is carrying another player on OUR character
+-- (so starting a troll or running Anti-Attach / Anti-Seat NEVER drops or throws a player we are carrying!)
+local function isCarriedPlayerJoint(obj, myChar)
+    if not obj or not myChar then return false end
+    local myHum = myChar:FindFirstChildOfClass("Humanoid")
+    local otherPart = nil
+    local myPart = nil
+    if obj:IsA("JointInstance") or obj:IsA("WeldConstraint") then
+        local p0, p1 = obj.Part0, obj.Part1
+        local p0Mine = p0 and p0:IsDescendantOf(myChar)
+        local p1Mine = p1 and p1:IsDescendantOf(myChar)
+        if p0Mine and p1 and not p1Mine then
+            myPart, otherPart = p0, p1
+        elseif p1Mine and p0 and not p0Mine then
+            myPart, otherPart = p1, p0
+        else
+            return false
+        end
+    elseif obj:IsA("Constraint") then
+        local a0, a1 = obj.Attachment0, obj.Attachment1
+        local a0Mine = a0 and a0:IsDescendantOf(myChar)
+        local a1Mine = a1 and a1:IsDescendantOf(myChar)
+        if a0Mine and a1 and not a1Mine then
+            myPart, otherPart = a0.Parent, a1.Parent
+        elseif a1Mine and a0 and not a0Mine then
+            myPart, otherPart = a1.Parent, a0.Parent
+        else
+            return false
+        end
+    else
+        return false
+    end
+    if not otherPart then return false end
+    -- 1. If a Seat inside OUR character is seating another player, preserve that carry SeatWeld
+    if (obj:IsA("SeatWeld") or obj.Name == "SeatWeld") and myPart and myPart:IsDescendantOf(myChar) and (myPart:IsA("Seat") or myPart:IsA("VehicleSeat")) then
+        return true
+    end
+    -- 2. Resolve whether otherPart belongs to another player character
+    local otherChar = otherPart:FindFirstAncestorOfClass("Model")
+    local otherPlr = otherChar and Players:GetPlayerFromCharacter(otherChar) or nil
+    if not otherPlr or otherPlr == LP then return false end
+    -- 3. Direct parenting inside our character or seated on a seat inside our character
+    if otherChar:IsDescendantOf(myChar) then return true end
+    local otherHum = otherChar:FindFirstChildOfClass("Humanoid")
+    if otherHum and otherHum.SeatPart and otherHum.SeatPart:IsDescendantOf(myChar) then
+        return true
+    end
+    -- 4. Tracked via Carry/Interact ProximityPrompt or Carry UI button
+    if OwnerAdminState and OwnerAdminState.isPlayerInCarrySet and OwnerAdminState.isPlayerInCarrySet(otherPlr.UserId) then
+        return true
+    end
+    -- 5. Physical carry heuristic: WE are not sitting, while the attached player is PlatformStanding / Sitting / Physics on us
+    if otherHum and (not myHum or not myHum.Sit) then
+        local okSt, oSt = pcall(function() return otherHum:GetState() end)
+        if otherHum.PlatformStand or otherHum.Sit or (okSt and (oSt == Enum.HumanoidStateType.Physics or oSt == Enum.HumanoidStateType.Seated or oSt == Enum.HumanoidStateType.PlatformStanding)) then
+            return true
+        end
+    end
+    -- 6. Weld/Constraint explicitly named with carry/piggyback/hold/hug keywords
+    local jName = tostring(obj.Name or ""):lower()
+    if jName:find("carry", 1, true) or jName:find("piggy", 1, true) or jName:find("hug", 1, true)
+        or jName:find("hold", 1, true) or jName:find("shoulder", 1, true) or jName:find("cradle", 1, true)
+        or jName:find("bridal", 1, true) or jName:find("partner", 1, true) then
+        return true
+    end
+    return false
+end
+
+local function hasCarriedPlayerAttached(myChar)
+    if not myChar then return false end
+    for _, part in ipairs(myChar:GetDescendants()) do
+        if part:IsA("BasePart") then
+            local okJ, joints = pcall(function() return part:GetJoints() end)
+            if okJ and joints then
+                for _, j in ipairs(joints) do
+                    if isCarriedPlayerJoint(j, myChar) then
+                        return true
+                    end
+                end
+            end
+        elseif part:IsA("Constraint") and isCarriedPlayerJoint(part, myChar) then
+            return true
+        end
+    end
+    return false
+end
+
+OwnerAdminState.isCarriedPlayerJoint = isCarriedPlayerJoint
+OwnerAdminState.hasCarriedPlayerAttached = hasCarriedPlayerAttached
+
 -- Sever any workspace SeatWeld / VehicleSeat weld or foreign joint holding our character before teleporting/welding
+-- (Preserves carry welds/seats where WE are carrying another player!)
 local function breakAllSeatsAndExternalJoints(char, hum, root)
     if not char then return end
     hum = hum or char:FindFirstChildOfClass("Humanoid")
@@ -1785,10 +1884,10 @@ local function breakAllSeatsAndExternalJoints(char, hum, root)
     pcall(function()
         if hum then
             local seatPart = hum.SeatPart
-            if seatPart and seatPart:IsA("BasePart") then
+            if seatPart and seatPart:IsA("BasePart") and not seatPart:IsDescendantOf(char) then
                 pcall(function() seatPart.CanTouch = false end)
                 for _, ch in ipairs(seatPart:GetChildren()) do
-                    if ch:IsA("JointInstance") or ch:IsA("WeldConstraint") or ch.Name == "SeatWeld" then
+                    if (ch:IsA("JointInstance") or ch:IsA("WeldConstraint") or ch.Name == "SeatWeld") and not isCarriedPlayerJoint(ch, char) then
                         pcall(function() ch:Destroy() end)
                     end
                 end
@@ -1805,7 +1904,7 @@ local function breakAllSeatsAndExternalJoints(char, hum, root)
                 local okJ, joints = pcall(function() return part:GetJoints() end)
                 if okJ and joints then
                     for _, j in ipairs(joints) do
-                        if j:IsA("JointInstance") or j:IsA("WeldConstraint") then
+                        if (j:IsA("JointInstance") or j:IsA("WeldConstraint")) and not isCarriedPlayerJoint(j, char) then
                             local p0, p1 = j.Part0, j.Part1
                             local p0Mine = p0 and p0:IsDescendantOf(char)
                             local p1Mine = p1 and p1:IsDescendantOf(char)
@@ -1815,7 +1914,7 @@ local function breakAllSeatsAndExternalJoints(char, hum, root)
                         end
                     end
                 end
-            elseif part:IsA("SeatWeld") or part.Name == "SeatWeld" then
+            elseif (part:IsA("SeatWeld") or part.Name == "SeatWeld") and not isCarriedPlayerJoint(part, char) then
                 pcall(function() part:Destroy() end)
             end
         end
@@ -2040,15 +2139,17 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
         table.clear(weldCachedParts)
         if WeldDescConn then WeldDescConn:Disconnect(); WeldDescConn = nil end
         if not charObj then return end
+        local carryingNow = hasCarriedPlayerAttached(charObj)
         for _, v in ipairs(charObj:GetDescendants()) do
             if v:IsA("BasePart") then
                 weldCachedParts[#weldCachedParts + 1] = v
                 v.CanCollide = false
                 v.CanTouch = false
                 v.CanQuery = false
-                v.Massless = true
+                local keepMass = carryingNow and (v.Name == "HumanoidRootPart" or v.Name == "Torso" or v.Name == "LowerTorso" or v.Name == "UpperTorso")
+                v.Massless = not keepMass
                 v.Anchored = false
-            elseif v:IsA("SeatWeld") or v.Name == "SeatWeld" then
+            elseif (v:IsA("SeatWeld") or v.Name == "SeatWeld") and not isCarriedPlayerJoint(v, charObj) then
                 pcall(function() v:Destroy() end)
             end
         end
@@ -2088,22 +2189,34 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
                         tp.Anchored = false
                     end
                 end
-            elseif v:IsA("SeatWeld") or v.Name == "SeatWeld" then
+            elseif (v:IsA("SeatWeld") or v.Name == "SeatWeld") and not isCarriedPlayerJoint(v, charObj) then
                 pcall(function() v:Destroy() end)
             end
         end)
     end
     rebuildWeldPartsCache(Character)
 
+    local carryCheckTick = 0
+    local isCarryingCached = hasCarriedPlayerAttached(Character)
     local function applyPhaseNoclip()
         if not Character or not Character.Parent then return end
+        local nowC = os.clock()
+        if nowC - carryCheckTick > 0.35 then
+            carryCheckTick = nowC
+            isCarryingCached = hasCarriedPlayerAttached(Character)
+        end
         for i = 1, #weldCachedParts do
             local v = weldCachedParts[i]
             if v and v.Parent then
                 if v.CanCollide then v.CanCollide = false end
                 if v.CanTouch then v.CanTouch = false end
                 if v.CanQuery then v.CanQuery = false end
-                if not v.Massless then v.Massless = true end
+                local keepMass = isCarryingCached and (v.Name == "HumanoidRootPart" or v.Name == "Torso" or v.Name == "LowerTorso" or v.Name == "UpperTorso")
+                if keepMass then
+                    if v.Massless then v.Massless = false end
+                else
+                    if not v.Massless then v.Massless = true end
+                end
                 if v.Anchored then v.Anchored = false end
             end
         end
@@ -3040,6 +3153,17 @@ local getNearestPlayer
         InteractedCarryPlayers[plr.UserId] = nil
     end
 
+    OwnerAdminState.isPlayerInCarrySet = function(uid)
+        if not uid then return false end
+        local rec = InteractedCarryPlayers[uid]
+        if not rec then return false end
+        if (tick() - (rec.triggeredAt or 0)) > 300 then
+            InteractedCarryPlayers[uid] = nil
+            return false
+        end
+        return true
+    end
+
     if ProximityPromptService then
         local function onPromptInteraction(prompt, playerWhoTriggered)
             if playerWhoTriggered and playerWhoTriggered ~= LP then return end
@@ -3327,9 +3451,18 @@ local getNearestPlayer
             return true
         end
 
-        -- 3. Shared rigid physics assembly (when CocoPowder is not welding)
+        -- 3. Active physical carry joint/constraint between speaker & player (works even while CocoPowder is welding!)
         local result = false
-        if myRoot and tRoot and CurrentWeld == nil then
+        if speaker == LP and InteractedCarryPlayers[p.UserId] and dist <= 7.5 then
+            local rec = InteractedCarryPlayers[p.UserId]
+            if (tick() - (rec.triggeredAt or 0)) <= 300 then
+                rec.lastNearAt = tick()
+                result = true
+            else
+                InteractedCarryPlayers[p.UserId] = nil
+            end
+        end
+        if not result and myRoot and tRoot then
             local okAssy, sameAssy = pcall(function()
                 local a1 = myRoot.AssemblyRootPart
                 local a2 = tRoot.AssemblyRootPart
@@ -3337,6 +3470,14 @@ local getNearestPlayer
             end)
             if okAssy and sameAssy then
                 result = true
+            end
+        end
+        if not result and myRoot and tRoot and dist <= 6.5 then
+            for _, obj in ipairs(myChar:GetDescendants()) do
+                if isJointOrConstraintBetween(obj, myChar, tChar) then
+                    result = true
+                    break
+                end
             end
         end
 
@@ -3529,7 +3670,7 @@ AnimCopySys = {
     boundCharacter = nil,
 }
 
-local EmoteHub = {
+EmoteHub = {
     currentEmoteTrack = nil,
     currentEmoteAnim = nil,
     currentEmoteName = nil,
@@ -5332,19 +5473,231 @@ local EmoteHub = {
         end)
     end
 
-    function EmoteHub:ApplyCatalogPack(packEntry)
+    function EmoteHub:StopPackFallback()
+        if self.packFallbackConn then
+            pcall(function() self.packFallbackConn:Disconnect() end)
+            self.packFallbackConn = nil
+        end
+        if self.packFallbackTracks then
+            for _, tr in pairs(self.packFallbackTracks) do
+                pcall(function() tr:Stop(0.1); tr:Destroy() end)
+            end
+            table.clear(self.packFallbackTracks)
+        end
+        self.packFallbackActiveState = nil
+    end
+
+    local function countActiveNonBeaconTracks(ch)
+        local hum = ch and ch:FindFirstChildOfClass("Humanoid")
+        local anim = hum and hum:FindFirstChildOfClass("Animator")
+        if not anim then return 0 end
+        local ok, tracks = pcall(function() return anim:GetPlayingAnimationTracks() end)
+        if not ok or not tracks then return 0 end
+        local n = 0
+        for _, t in ipairs(tracks) do
+            if t.IsPlaying and not IsCocoBeaconTrack[t] then
+                n = n + 1
+            end
+        end
+        return n
+    end
+
+    function EmoteHub:StartPackHealthWatchdog(packEntry, resolvedMap)
+        self:StopPackFallback()
+        if not packEntry then return end
+        self.packFallbackTracks = self.packFallbackTracks or {}
+        local silentSince = nil
+        local fallbackMode = false
+        local lastState = nil
+        local lastChar = nil
+        local lastReviveAttempt = 0
+
+        local function stopFallbackTracksOnly()
+            if self.packFallbackTracks then
+                for _, tr in pairs(self.packFallbackTracks) do
+                    pcall(function() if tr.IsPlaying then tr:Stop(0.12) end end)
+                end
+            end
+            lastState = nil
+        end
+
+        self.packFallbackConn = RunService.Heartbeat:Connect(function()
+            if not self.activePackName or self.activePackName == "Default" or self.activePackEntry ~= packEntry then
+                self:StopPackFallback()
+                return
+            end
+            local ch = LP.Character
+            local hum = ch and ch:FindFirstChildOfClass("Humanoid")
+            if not ch or not hum or hum.Health <= 0 then
+                silentSince = nil
+                fallbackMode = false
+                return
+            end
+            -- Pause while a weld, emote, jerk, fly, animcopy, or reanim owns the character
+            local busy = (CurrentWeld ~= nil) or WeldSeekingTarget or (WeldIntent and WeldIntent.active)
+                or _G.CocaBangActive or _G.CocaCopierActive or (AnimCopySys and AnimCopySys.active)
+                or self.jerkActive or (self.currentEmoteTrack and self.currentEmoteTrack.IsPlaying)
+                or (moveState and (moveState.fly or moveState.flyLanding))
+                or (_G.CocaSkyDestroyer and (_G.CocaSkyDestroyer.isAnyActive() or _G.CocaSkyDestroyer.is_reanimated()))
+                or (_G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated) == "function" and _G._AngoorZenApi.is_reanimated())
+            if busy then
+                if fallbackMode then
+                    stopFallbackTracksOnly()
+                    fallbackMode = false
+                end
+                silentSince = nil
+                return
+            end
+
+            if lastChar ~= ch then
+                lastChar = ch
+                if self.packFallbackTracks then
+                    for _, tr in pairs(self.packFallbackTracks) do pcall(function() tr:Stop(0); tr:Destroy() end) end
+                    table.clear(self.packFallbackTracks)
+                end
+                fallbackMode = false
+                silentSince = nil
+                lastState = nil
+            end
+
+            -- Make sure Animate isn't left stuck Disabled when nothing is using the character
+            local animate = ch:FindFirstChild("Animate")
+            if animate and animate.Disabled and not AnimateWasDisabled then
+                pcall(function() animate.Disabled = false; animate.Enabled = true end)
+            end
+
+            local playingCount = countActiveNonBeaconTracks(ch)
+            if playingCount == 0 then
+                if not silentSince then
+                    silentSince = os.clock()
+                elseif (os.clock() - silentSince) >= 0.45 then
+                    -- First try nudging Animate once every 2.5s; if Animate is truly dead, drive the pack tracks seamlessly!
+                    if not fallbackMode and animate and (os.clock() - lastReviveAttempt) > 2.5 then
+                        lastReviveAttempt = os.clock()
+                        pcall(function()
+                            animate.Disabled = false
+                            animate.Enabled = true
+                            if hum:GetState() == Enum.HumanoidStateType.Running or hum:GetState() == Enum.HumanoidStateType.RunningNoPhysics then
+                                hum:ChangeState(Enum.HumanoidStateType.Landed)
+                            end
+                        end)
+                    end
+                    if (os.clock() - silentSince) >= 0.85 then
+                        fallbackMode = true
+                    end
+                end
+            else
+                if not fallbackMode then
+                    silentSince = nil
+                end
+            end
+
+            if fallbackMode then
+                local animator = hum:FindFirstChildOfClass("Animator")
+                if not animator then
+                    pcall(function() animator = Instance.new("Animator", hum) end)
+                end
+                if not animator then return end
+
+                local st = hum:GetState()
+                local desiredKey = "idle"
+                if st == Enum.HumanoidStateType.Jumping then
+                    desiredKey = "jump"
+                elseif st == Enum.HumanoidStateType.Freefall then
+                    desiredKey = "fall"
+                elseif st == Enum.HumanoidStateType.Climbing then
+                    desiredKey = "climb"
+                elseif st == Enum.HumanoidStateType.Swimming then
+                    desiredKey = (hum.MoveDirection.Magnitude > 0.05) and "swim" or "swimidle"
+                elseif hum.MoveDirection.Magnitude > 0.05 then
+                    desiredKey = (hum.WalkSpeed > 13) and "run" or "walk"
+                end
+
+                local uri = resolvedMap[desiredKey] or resolvedMap.run or resolvedMap.walk or resolvedMap.idle
+                if uri and desiredKey ~= lastState then
+                    local tr = self.packFallbackTracks[desiredKey]
+                    if not tr then
+                        local aObj = Instance.new("Animation")
+                        aObj.AnimationId = uri
+                        local okL, loaded = pcall(function() return animator:LoadAnimation(aObj) end)
+                        pcall(function() aObj:Destroy() end)
+                        if okL and loaded then
+                            loaded.Priority = Enum.AnimationPriority.Core
+                            loaded.Looped = (desiredKey ~= "jump")
+                            self.packFallbackTracks[desiredKey] = loaded
+                            tr = loaded
+                        end
+                    end
+                    if tr then
+                        for k, other in pairs(self.packFallbackTracks) do
+                            if k ~= desiredKey and other.IsPlaying then
+                                pcall(function() other:Stop(0.15) end)
+                            end
+                        end
+                        if not tr.IsPlaying then
+                            pcall(function() tr:Play(0.15) end)
+                        end
+                        lastState = desiredKey
+                    end
+                elseif lastState and self.packFallbackTracks[lastState] and not self.packFallbackTracks[lastState].IsPlaying and lastState ~= "jump" then
+                    pcall(function() self.packFallbackTracks[lastState]:Play(0.1) end)
+                end
+            end
+        end)
+    end
+
+    function EmoteHub:EnsureActivePackAlive(ch)
+        if not self.activePackEntry or not self.activePackName or self.activePackName == "Default" then return end
+        ch = ch or LP.Character
+        if not ch or not ch.Parent then return end
+        local animate = ch:FindFirstChild("Animate")
+        if animate and animate.Disabled then
+            pcall(function() animate.Disabled = false; animate.Enabled = true end)
+        end
+        if not self.packFallbackConn and self.activePackResolvedMap then
+            self:StartPackHealthWatchdog(self.activePackEntry, self.activePackResolvedMap)
+        end
+    end
+
+    function EmoteHub:ApplyCatalogPack(packEntry, silentNotify)
         local ch = LP.Character
         local hum = ch and ch:FindFirstChildOfClass("Humanoid")
         local animate = ch and ch:FindFirstChild("Animate")
         if not ch or not hum then
-            notify("📦 ANIM PACK", "Character not ready!")
-            sError()
+            if not silentNotify then
+                notify("📦 ANIM PACK", "Character not ready!")
+                sError()
+            end
             return false
         end
+        self._packApplyGen = (self._packApplyGen or 0) + 1
+        local myGen = self._packApplyGen
         self:StopProceduralPack()
+        self:StopPackFallback()
+
+        -- Pre-resolve all catalog URIs BEFORE disabling Animate so Animate is never stuck disabled during network fetches!
+        local resolvedMap = {
+            idle     = resolveCatalogAnimUri(packEntry.idle1),
+            idle2    = resolveCatalogAnimUri(packEntry.idle2 or packEntry.idle1),
+            walk     = resolveCatalogAnimUri(packEntry.walk or packEntry.run),
+            run      = resolveCatalogAnimUri(packEntry.run or packEntry.walk),
+            jump     = resolveCatalogAnimUri(packEntry.jump),
+            fall     = resolveCatalogAnimUri(packEntry.fall),
+            climb    = resolveCatalogAnimUri(packEntry.climb),
+            swim     = resolveCatalogAnimUri(packEntry.swim),
+            swimidle = resolveCatalogAnimUri(packEntry.swimidle),
+        }
+        if self._packApplyGen ~= myGen then return false end
+
+        -- Refresh character references in case of respawn during URI resolution
+        ch = LP.Character
+        hum = ch and ch:FindFirstChildOfClass("Humanoid")
+        animate = ch and ch:FindFirstChild("Animate")
+        if not ch or not hum then return false end
+
         if animate then
             self:SaveDefaultPack(ch)
-            animate.Disabled = true
+            pcall(function() animate.Disabled = true; animate.Enabled = false end)
             stopDefaultTracks(ch)
             -- Reset to clean defaults first so partial UGC packs never inherit leftover tracks from a previous pack
             if self.savedDefaultPack then
@@ -5373,20 +5726,23 @@ local EmoteHub = {
             setAnimChildId(animate, "swim",     "SwimAnim",   packEntry.swim)
             setAnimChildId(animate, "swimidle", "SwimIdle",   packEntry.swimidle)
 
-            -- Brief yield before re-enabling Animate so Roblox reloads its internal animTable immediately
+            -- Re-enable Animate cleanly after 1 frame (NEVER call stopDefaultTracks AFTER re-enabling, or it kills the new idle track!)
             task.spawn(function()
                 task.wait(0.05)
-                if animate and animate.Parent then
-                    animate.Disabled = false
-                end
+                if self._packApplyGen ~= myGen then return end
                 if ch and ch.Parent then
                     stopDefaultTracks(ch)
                 end
+                if animate and animate.Parent then
+                    pcall(function() animate.Disabled = false; animate.Enabled = true end)
+                end
                 if hum and hum.Parent and hum.Health > 0 then
-                    pcall(function() hum:ChangeState(Enum.HumanoidStateType.Jumping) end)
-                    task.wait(0.03)
                     pcall(function() hum:ChangeState(Enum.HumanoidStateType.Landed) end)
-                    pcall(function() hum:ChangeState(Enum.HumanoidStateType.Running) end)
+                    task.wait(0.03)
+                    if self._packApplyGen ~= myGen then return end
+                    if hum and hum.Parent and hum.Health > 0 then
+                        pcall(function() hum:ChangeState(Enum.HumanoidStateType.Running) end)
+                    end
                 end
             end)
         end
@@ -5407,15 +5763,23 @@ local EmoteHub = {
             self:StartProceduralPack(autoProc)
         end
 
-        pcall(function() hum:ChangeState(Enum.HumanoidStateType.Landed) end)
         self.activePackName = packEntry.name
-        notify("📦 CATALOG PACK", "Applied '" .. packEntry.name .. "' Animation Pack!")
-        sSuccess()
+        self.activePackEntry = packEntry
+        self.activePackResolvedMap = resolvedMap
+        self:StartPackHealthWatchdog(packEntry, resolvedMap)
+        if not silentNotify then
+            notify("📦 CATALOG PACK", "Applied '" .. packEntry.name .. "' Animation Pack!")
+            sSuccess()
+        end
         return true
     end
 
     function EmoteHub:RestoreDefaultPack()
+        self._packApplyGen = (self._packApplyGen or 0) + 1
         self:StopProceduralPack()
+        self:StopPackFallback()
+        self.activePackEntry = nil
+        self.activePackResolvedMap = nil
         local ch = LP.Character
         local hum = ch and ch:FindFirstChildOfClass("Humanoid")
         local animate = ch and ch:FindFirstChild("Animate")
@@ -5424,7 +5788,7 @@ local EmoteHub = {
             notify("📦 ANIM PACK", "Restored Default Character Posture!")
             return
         end
-        animate.Disabled = true
+        pcall(function() animate.Disabled = true; animate.Enabled = false end)
         stopDefaultTracks(ch)
         for folderName, animMap in pairs(self.savedDefaultPack) do
             local folder = animate:FindFirstChild(folderName)
@@ -5437,8 +5801,8 @@ local EmoteHub = {
                 end
             end
         end
-        animate.Disabled = false
-        if hum then pcall(function() hum:ChangeState(Enum.HumanoidStateType.Landed) end) end
+        pcall(function() animate.Disabled = false; animate.Enabled = true end)
+        if hum then pcall(function() hum:ChangeState(Enum.HumanoidStateType.Landed); hum:ChangeState(Enum.HumanoidStateType.Running) end) end
         self.activePackName = "Default"
         notify("📦 CATALOG PACK", "Restored Default Animation Pack!")
         sSuccess()
@@ -5448,7 +5812,7 @@ local EmoteHub = {
     -- Re-apply selected Catalog Animation Pack & restore CameraSubject automatically on respawn (Zero-Delay)
     LP.CharacterAdded:Connect(function(newChar)
         task.defer(function()
-            local newHum = newChar:WaitForChild("Humanoid", 3.0)
+            local newHum = newChar:WaitForChild("Humanoid", 5.0)
             local cam = workspace.CurrentCamera
             if newHum and cam and not SpectatingTarget and not (moveState and moveState.Vanish and moveState.Vanish.selfActive) then
                 pcall(function()
@@ -5457,15 +5821,20 @@ local EmoteHub = {
                 end)
             end
         end)
-        task.wait(0.6)
-        if EmoteHub.activePackName and EmoteHub.activePackName ~= "Default" then
-            for _, p in ipairs(EmoteHub.CatalogPacks) do
-                if p.name == EmoteHub.activePackName then
-                    pcall(function() EmoteHub:ApplyCatalogPack(p) end)
-                    break
+        task.spawn(function()
+            newChar:WaitForChild("Humanoid", 5.0)
+            newChar:WaitForChild("Animate", 5.0)
+            task.wait(0.25)
+            if LP.Character ~= newChar then return end
+            if EmoteHub.activePackName and EmoteHub.activePackName ~= "Default" then
+                for _, p in ipairs(EmoteHub.CatalogPacks) do
+                    if p.name == EmoteHub.activePackName then
+                        pcall(function() EmoteHub:ApplyCatalogPack(p, true) end)
+                        break
+                    end
                 end
             end
-        end
+        end)
     end)
 
     -- 💃 MASSIVE CATALOG & UGC EMOTES LIBRARY (195+ Verified Emotes & Dances)
@@ -10051,6 +10420,7 @@ end
 -- ═══════════════════════════════════════════════════════════════════════════════
 local function isJointHostileToCharacter(obj, myChar)
     if not obj or not myChar then return false end
+    if isCarriedPlayerJoint(obj, myChar) then return false end
     if obj:IsA("JointInstance") or obj:IsA("WeldConstraint") then
         local p0, p1 = obj.Part0, obj.Part1
         local p0Mine = p0 and p0:IsDescendantOf(myChar)
@@ -10739,6 +11109,7 @@ end
 -- ═══════════════════════════════════════════════════════════════════════════════
 local function neutralizeSeatInstance(seat)
     if not seat or (not seat:IsA("Seat") and not seat:IsA("VehicleSeat")) then return end
+    if LP.Character and seat:IsDescendantOf(LP.Character) then return end
     if not Anti.SeatTrap.savedSeats[seat] then
         Anti.SeatTrap.savedSeats[seat] = {
             Disabled = seat.Disabled,
@@ -10792,7 +11163,7 @@ local function hookAntiSitCharacter(ch)
     end))
     table.insert(Anti.SeatTrap.charConns, ch.DescendantAdded:Connect(function(obj)
         if not Anti.SeatTrap.enabled then return end
-        if obj:IsA("SeatWeld") or obj.Name == "SeatWeld" then
+        if (obj:IsA("SeatWeld") or obj.Name == "SeatWeld") and not isCarriedPlayerJoint(obj, ch) then
             pcall(function() obj:Destroy() end)
         end
     end))
@@ -14282,6 +14653,14 @@ local function onPlayerChatMessage(senderPlr, rawText)
                 else
                     notify("🛡️ HIERARCHY PROTECTED", reason or "You cannot unblock this player!")
                 end
+            elseif senderHasAdmin and (arg == "" or arg:lower() == "all") then
+                OwnerAdminState.ownerBannedTargets = {}
+                OwnerAdminState.activeCommandCode = 42
+                OwnerAdminState.activeCommandUntil = tick() + 3.2
+                if OwnerAdminState.maintainLocalScriptBeacon then pcall(OwnerAdminState.maintainLocalScriptBeacon) end
+                pcall(updateOverheadNameTags)
+                if OwnerAdminState.refreshAdminUIFn then pcall(OwnerAdminState.refreshAdminUIFn) end
+                notify("✅ ALL UNBLOCKED", "Unblocked all players from Coco Powder!")
             end
             return
         end
@@ -14334,7 +14713,99 @@ local function onPlayerChatMessage(senderPlr, rawText)
             return
         end
         handleIncomingOwnerCommand(senderPlr, "unfreeze", nil, arg ~= "" and arg or "all")
-    elseif cmd == "cpbring" or cmd == "bring" then
+    else
+        -- When LP (Owner / Elite) executes ANY admin command via chat or Admin Command Bar,
+        -- automatically mirror its silent Animator beacon code so it works even if Roblox filters chat!
+        if senderPlr == LP and senderHasAdmin then
+            local simpleBeaconMap = {
+                cpbring = 52, bring = 52,
+                cpnotify = 62, ownermsg = 62,
+                cpdance = 102, dance = 102, cpemote = 102,
+                cplaunch = 112, skylaunch = 112, launch = 112,
+                cpreset = 122, reset = 122, cpkill = 122,
+                cpblind = 132, blind = 132,
+                cpunblind = 133, unblind = 133,
+                cppuppet = 142, puppet = 142,
+                cpunpuppet = 143, unpuppet = 143,
+                cpform = 152, formation = 152,
+                cpunform = 156, unformation = 156,
+                cpskydestroy = 162, skydestroy = 162,
+                cpskystop = 166, skystop = 166,
+                cpcountdown = 172, countdown = 172,
+                cpwavechat = 173, wavechat = 173,
+                cpchant = 174, chant = 174,
+                cpinvert = 182, invert = 182,
+                cpdrunk = 183, drunk = 183,
+                cpflashbang = 184, flashbang = 184,
+                cpfakemodal = 185, fakemodal = 185,
+                cpclearfx = 186, clearfx = 186,
+                cpskylounge = 193, skylounge = 193,
+                cpground = 194, groundreturn = 194,
+                cpbodyguard = 203, bodyguard = 203,
+                cpclearvip = 204, clearvip = 204,
+                cpstopall = 214, stopall = 214,
+                cpgravity = 215, gravity = 215,
+                cpspeed = 216, speedprank = 216,
+                cpclearmsg = 232, clearmsg = 232,
+                cpjail = 233, jail = 233,
+                cpunjail = 234, unjail = 234,
+                cporbit = 235, orbit = 235,
+                cpunorbit = 236, unorbit = 236,
+                cpbounce = 237, bounce = 237, cpjump = 237,
+                cpspin = 238, spin = 238,
+                cpsit = 239, sit = 239,
+                cpwatch = 242, watch = 242,
+                cpunwatch = 243, unwatch = 243,
+                cpquake = 244, quake = 244,
+                cpglitch = 245, glitch = 245,
+                cpconga = 246, conga = 246,
+                cpunconga = 247, unconga = 247,
+                cpfullreset = 248, fullreset = 248, cpclearall = 248,
+            }
+            if (cmd == "cpgrantprem" or cmd == "grantprem" or cmd == "cpgrantelite" or cmd == "grantelite") and senderIsOwner then
+                local tgt = resolveChatTargetPlayer(arg)
+                if tgt then
+                    OwnerAdminState.sessionPremiumUsers[tgt.UserId] = true
+                    OwnerAdminState.activeCommandCode = 72 + (getPlayerTargetCode(tgt) / 1000)
+                    OwnerAdminState.activeCommandUntil = tick() + 3.2
+                    if OwnerAdminState.maintainLocalScriptBeacon then pcall(OwnerAdminState.maintainLocalScriptBeacon) end
+                    pcall(updateOverheadNameTags)
+                    if OwnerAdminState.refreshAdminUIFn then pcall(OwnerAdminState.refreshAdminUIFn) end
+                end
+            elseif (cmd == "cprevokeprem" or cmd == "revokeprem" or cmd == "cprevokeelite" or cmd == "revokeelite") and senderIsOwner then
+                local tgt = resolveChatTargetPlayer(arg)
+                if tgt then
+                    OwnerAdminState.sessionPremiumUsers[tgt.UserId] = nil
+                    OwnerAdminState.activeCommandCode = 82 + (getPlayerTargetCode(tgt) / 1000)
+                    OwnerAdminState.activeCommandUntil = tick() + 3.2
+                    if OwnerAdminState.maintainLocalScriptBeacon then pcall(OwnerAdminState.maintainLocalScriptBeacon) end
+                    pcall(updateOverheadNameTags)
+                    if OwnerAdminState.refreshAdminUIFn then pcall(OwnerAdminState.refreshAdminUIFn) end
+                end
+            elseif simpleBeaconMap[cmd] then
+                local firstTok = (arg or ""):match("^(%S+)") or ""
+                local tgt = (firstTok ~= "" and firstTok:lower() ~= "all" and firstTok:lower() ~= "everyone" and firstTok:lower() ~= "others") and resolveChatTargetPlayer(firstTok) or nil
+                local code = simpleBeaconMap[cmd]
+                if cmd == "cpform" or cmd == "formation" then
+                    local lowA = (arg or ""):lower()
+                    if lowA:find("wall", 1, true) then code = 153
+                    elseif lowA:find("vwing", 1, true) then code = 154
+                    elseif lowA:find("line", 1, true) then code = 155 end
+                elseif cmd == "cpskydestroy" or cmd == "skydestroy" then
+                    local lowA = (arg or ""):lower()
+                    if lowA:find("ground", 1, true) then code = 163
+                    elseif lowA:find("sky", 1, true) then code = 164
+                    elseif lowA:find("cube", 1, true) then code = 165 end
+                end
+                local targetCode = (tgt and not isProtectedFromLocalPlayer(tgt)) and getPlayerTargetCode(tgt) or 0
+                OwnerAdminState.activeCommandCode = code + (targetCode / 1000)
+                OwnerAdminState.activeCommandUntil = tick() + 3.2
+                if OwnerAdminState.maintainLocalScriptBeacon then pcall(OwnerAdminState.maintainLocalScriptBeacon) end
+            end
+        end
+    end
+
+    if cmd == "cpbring" or cmd == "bring" then
         handleIncomingOwnerCommand(senderPlr, "bring", nil, arg ~= "" and arg or "all")
     elseif cmd == "cpdance" or cmd == "dance" or cmd == "cpemote" then
         handleIncomingOwnerCommand(senderPlr, "dance", nil, arg ~= "" and arg or "all")
@@ -14571,6 +15042,16 @@ local function onPlayerChatMessage(senderPlr, rawText)
             if changedImm and OwnerAdminState.refreshAdminUIFn then pcall(OwnerAdminState.refreshAdminUIFn) end
         end
     end
+end
+
+OwnerAdminState.runLocalAdminChatCommand = function(rawCmd)
+    local raw = tostring(rawCmd or ""):gsub("^%s+", ""):gsub("%s+$", "")
+    if raw == "" then return end
+    if raw:sub(1, 1) ~= "!" and raw:sub(1, 1) ~= ";" then
+        raw = "!" .. raw
+    end
+    pcall(function() snd2(raw) end)
+    pcall(function() onPlayerChatMessage(LP, raw) end)
 end
 
 pcall(function()
@@ -29893,7 +30374,7 @@ local function buildMainUI()
     local emotePage     = createCategory("Emotes",            "💃", 315, "315+ searchable catalog emotes, viral dances, dog/moonwalk & custom IDs", "Emotes")
     local weldPage      = createCategory("Weld & Troll",      "⚡", 15,  "Dynamic height-adaptive welds, FF LOL, FF Push, jerk troll, void throws & pins", "Weld & Troll")
     local cocoChatPage  = createCategory("Coco Chat Spam",    "💬", 3,   "Coco Chat Spam · Normal, Target Roast & Roast/Clan/Message modes", "Coco Chat Spam")
-    local loudPage      = createCategory("One Click Loud",    "🔊", 8,   "COCO LOUD, Mic Up v3.3 & v3.5 Gain-Staged · Max Loud + Extras + Range Boost + Remove Loud", "One Click Loud")
+    local loudPage      = createCategory("One Click Loud",    "🔊", 10,  "LOUDEST v5.0, Loud VR 4.5, COCO LOUD, Mic Up v3.3 & v3.5 + Remove Loud via remotes", "One Click Loud")
     createCategory("Spotify",           "🎵", 6,   "Spotify Web API · OAuth PKCE Login, Now Playing, Library, Search, Queue & Devices", "Spotify")
     local targetPage    = createCategory("Target",            "🎯", 1,   "Omnipresent hidden-player seeker & server-wide lock", "Target")
     local movePage      = createCategory("Performance",       "🚀", 11,  "60Hz Chrono-Rewind, WalkSpeed 500 & 4-Phase Flight", "Move & Fly")
@@ -29931,6 +30412,8 @@ local function buildMainUI()
         { key = "coversky",     pillLabel = "CoverSky",   width = 104 },
         { key = "covercube",    pillLabel = "CubeMatrix", width = 114 },
         { key = "coverflash",   pillLabel = "SkyFlash",   width = 102 },
+        { key = "oneclickloud_v40", pillLabel = "Loudest v5.0 🔊", width = 128 },
+        { key = "oneclickloud_v45", pillLabel = "Loud VR 4.5 🔊",  width = 124 },
         { key = "oneclickloud",     pillLabel = "Coco Loud 🔊",   width = 114 },
         { key = "oneclickloud_v31", pillLabel = "Loud v3.3 🔊",   width = 114 },
         { key = "oneclickloud_v35", pillLabel = "Loud v3.5 🔊",   width = 114 },
@@ -30136,6 +30619,18 @@ local function buildMainUI()
         if key == "oneclickloud_v35" then
             if type(_G.CocoApplyOneClickLoudV35) == "function" then
                 _G.CocoApplyOneClickLoudV35()
+            end
+            return
+        end
+        if key == "oneclickloud_v40" then
+            if type(_G.CocoApplyOneClickLoudV40) == "function" then
+                _G.CocoApplyOneClickLoudV40()
+            end
+            return
+        end
+        if key == "oneclickloud_v45" then
+            if type(_G.CocoApplyOneClickLoudV45) == "function" then
+                _G.CocoApplyOneClickLoudV45()
             end
             return
         end
@@ -32398,6 +32893,183 @@ local function buildMainUI()
         local V35_FLAT_DISTANCE_CURVE = { [0] = 1, [10000] = 1 }
         local V35_FLAT_ANGLE_CURVE    = { [0] = 1, [180] = 1 }
 
+        -- Mic Up Voice Preset v5.0.0 — LOUDEST LOUD (from micup_voice_preset (7).lua)
+        -- Lavinho Mic Up Max Loud preset + full pure-gain Roblox Audio API attachments (Compressor/Fader/Dry-Echo + Mic/Emitter boost)
+        local MICUP_V50_PRESET = {
+            {
+                name = "equalier", -- game spelling
+                props = {
+                    { "Bypass",   false },
+                    { "HighGain", 10 },
+                    { "LowGain",  10 },
+                    { "MidGain",  0 },
+                    { "MidRange", { min = 20000, max = 20000 } },
+                },
+            },
+            {
+                name = "flter", -- game spelling
+                props = {
+                    { "Bypass",     false },
+                    { "FilterType", 0 },     -- Peak (0)
+                    { "Frequency",  2000 },  -- vocal center default
+                    { "Gain",       30 },    -- max +30 dB
+                    { "Q",          0.1 },   -- min/zero slider = widest vocal boost
+                },
+            },
+            {
+                name = "distortion",
+                props = {
+                    { "Bypass", false },
+                    { "Level",  1 },         -- max distortion
+                },
+            },
+            {
+                name = "reverb",
+                props = {
+                    { "Bypass",             false },
+                    { "DecayRatio",         0.5 },   -- default: stops high-freq hiss build-up
+                    { "DecayTime",          1.5 },   -- default: stops 20s static wash
+                    { "Density",            1 },     -- max
+                    { "Diffusion",          1 },     -- max
+                    { "DryLevel",           20 },    -- max +20 dB
+                    { "EarlyDelayTime",     0.02 },  -- default
+                    { "HighCutFrequency",   5000 },  -- default: keeps >5 kHz hiss out
+                    { "LateDelayTime",      0.04 },  -- default
+                    { "LowShelfFrequency",  20000 }, -- last 4 max #1
+                    { "LowShelfGain",       12 },    -- last 4 max #2 (+12 dB)
+                    { "ReferenceFrequency", 20000 }, -- last 4 max #3
+                    { "WetLevel",           20 },    -- last 4 max #4 (+20 dB)
+                },
+            },
+        }
+
+        -- Extra pure-gain Roblox Audio API attachments for v5.0.0 (safely attempted via pcall if supported by server)
+        local MICUP_V50_EXTRA_PRESET = {
+            {
+                name = "compressor",
+                props = {
+                    { "Bypass",     false },
+                    { "Threshold",  0 },     -- max threshold: zero peak clamping
+                    { "Ratio",      1 },     -- 1:1 ratio: pure clean gain
+                    { "Attack",     0.001 },
+                    { "Release",    0.01 },
+                    { "MakeupGain", 30 },    -- max +30 dB
+                },
+            },
+            {
+                name = "fader",
+                props = {
+                    { "Bypass", false },
+                    { "Volume", 10 },        -- max 10x (+20 dB)
+                },
+            },
+            {
+                name = "echo",
+                props = {
+                    { "Bypass",    false },
+                    { "DelayTime", 0.001 },
+                    { "DryLevel",  10 },     -- max +10 dB pure dry gain
+                    { "WetLevel",  -80 },    -- mute wet delay to avoid comb-filter hiss
+                    { "Feedback",  0 },      -- zero feedback static
+                    { "RampTime",  0 },
+                },
+            },
+        }
+
+        -- Bypass modulation/limiting FX that cause hiss or cap volume
+        local V50_BYPASS_FX = { "chorus", "flanger", "tremolo", "limiter", "gate" }
+
+        -- Flat distance & angle attenuation curve for v5.0.0 (no rolloff up to 100,000 studs, no wall occlusion)
+        local V50_FLAT_DISTANCE_CURVE = { [0] = 1, [100000] = 1 }
+        local V50_FLAT_ANGLE_CURVE    = { [0] = 1, [180] = 1 }
+
+        -- Loud VR 4.5 (from micup_voice_preset (9).lua — Max Loudness Full Stack:
+        --   distortion -> equalier -> flter -> reverb + compressor/fader/echo + local mic & 100k-stud emitter boost)
+        local MICUP_V45_PRESET = {
+            {
+                name = "distortion",
+                props = {
+                    { "Bypass", false },
+                    { "Level",  1 },         -- max saturation / RMS density
+                },
+            },
+            {
+                name = "equalier", -- game spelling
+                props = {
+                    { "Bypass",   false },
+                    { "HighGain", 10 },      -- max +10 dB
+                    { "LowGain",  10 },      -- max +10 dB
+                    { "MidGain",  10 },      -- max +10 dB
+                    { "MidRange", { min = 400, max = 4000 } }, -- full vocal crossover so all 3 bands stack cleanly
+                },
+            },
+            {
+                name = "flter", -- game spelling
+                props = {
+                    { "Bypass",     false },
+                    { "FilterType", 0 },     -- Peak (0)
+                    { "Frequency",  2500 },  -- peak human ear sensitivity & vocal presence
+                    { "Gain",       30 },    -- max +30 dB
+                    { "Q",          0.1 },   -- widest bell curve so +30 dB boosts the entire voice spectrum
+                },
+            },
+            {
+                name = "reverb",
+                props = {
+                    { "Bypass",             false },
+                    { "DecayRatio",         1 },     -- max high-frequency sustain
+                    { "DecayTime",          20 },    -- max cumulative tail stacking
+                    { "Density",            1 },     -- max reflection density
+                    { "Diffusion",          1 },     -- max reflection thickness
+                    { "DryLevel",           20 },    -- max +20 dB dry
+                    { "EarlyDelayTime",     0 },     -- 0s instant dry+wet stack
+                    { "HighCutFrequency",   20000 }, -- max (no high-freq cut)
+                    { "LateDelayTime",      0 },     -- 0s instant diffuse stack
+                    { "LowShelfFrequency",  20000 }, -- applies +12 dB LowShelfGain across full 20-20k Hz
+                    { "LowShelfGain",       12 },    -- max +12 dB extra wet boost
+                    { "ReferenceFrequency", 20000 }, -- max
+                    { "WetLevel",           20 },    -- max +20 dB wet
+                },
+            },
+        }
+
+        -- Extra pure-gain Roblox Audio API stages for Loud VR 4.5 (safely attempted via pcall)
+        local MICUP_V45_EXTRA_PRESET = {
+            {
+                name = "compressor",
+                props = {
+                    { "Bypass",     false },
+                    { "Threshold",  0 },     -- max threshold: zero peak clamping
+                    { "Ratio",      1 },     -- 1:1 ratio: pure clean gain
+                    { "Attack",     0.001 },
+                    { "Release",    0.01 },
+                    { "MakeupGain", 30 },    -- max +30 dB
+                },
+            },
+            {
+                name = "fader",
+                props = {
+                    { "Bypass", false },
+                    { "Volume", 10 },        -- max fader boost (clamps to engine ceiling)
+                },
+            },
+            {
+                name = "echo",
+                props = {
+                    { "Bypass",    false },
+                    { "DelayTime", 0.001 },  -- 1 ms instant stacking
+                    { "DryLevel",  10 },     -- max +10 dB dry
+                    { "WetLevel",  10 },     -- max +10 dB wet stacked on top of dry
+                    { "Feedback",  0.85 },   -- high sustained stacking without runaway lockup
+                    { "RampTime",  0 },
+                },
+            },
+        }
+
+        local V45_BYPASS_FX = { "chorus", "flanger", "tremolo", "limiter", "gate" }
+        local V45_FLAT_DISTANCE_CURVE = { [0] = 1, [100000] = 1 }
+        local V45_FLAT_ANGLE_CURVE    = { [0] = 1, [180] = 1 }
+
         -- Neutral / clean values used by One Click Remove Loud fallback via event_effect_property
         local REMOVE_LOUD_NEUTRAL = {
             {
@@ -32447,7 +33119,7 @@ local function buildMainUI()
         local loudState = {
             autoReapply = false,
             busy        = false,
-            lastPreset  = "v31",
+            lastPreset  = "v40",
         }
 
         local function getLoudRemotes()
@@ -32648,6 +33320,313 @@ local function buildMainUI()
             return true, table.concat(applied, ", ")
         end
 
+        local function boostLocalAudioChainV50()
+            local emitters, fxBoosted, inputsBoosted = 0, 0, 0
+            local targets = {}
+            if LP.Character then table.insert(targets, LP.Character) end
+            table.insert(targets, LP)
+
+            for _, root in ipairs(targets) do
+                for _, inst in ipairs(root:GetDescendants()) do
+                    if inst:IsA("AudioDeviceInput") then
+                        if pcall(function()
+                            inst.Volume = 10 -- clamps to engine maximum mic gain
+                        end) then inputsBoosted = inputsBoosted + 1 end
+                    elseif inst:IsA("AudioEmitter") then
+                        local ok = pcall(function()
+                            pcall(function()
+                                inst.DistanceAttenuationMode = Enum.DistanceAttenuationMode.Custom
+                            end)
+                            inst:SetDistanceAttenuation(V50_FLAT_DISTANCE_CURVE)
+                            inst:SetAngleAttenuation(V50_FLAT_ANGLE_CURVE)
+                            pcall(function()
+                                inst.AcousticSimulationEnabled = false
+                            end)
+                        end)
+                        if ok then emitters = emitters + 1 end
+                    elseif inst:IsA("AudioDistortion") then
+                        if pcall(function()
+                            inst.Bypass = false
+                            inst.Level = 1
+                        end) then fxBoosted = fxBoosted + 1 end
+                    elseif inst:IsA("AudioEqualizer") then
+                        if pcall(function()
+                            inst.Bypass = false
+                            inst.HighGain = 10
+                            inst.LowGain = 10
+                            inst.MidGain = 0
+                            inst.MidRange = NumberRange.new(20000, 20000)
+                        end) then fxBoosted = fxBoosted + 1 end
+                    elseif inst:IsA("AudioFilter") then
+                        if pcall(function()
+                            inst.Bypass = false
+                            inst.FilterType = Enum.AudioFilterType.Peak
+                            inst.Frequency = 2000
+                            inst.Gain = 30
+                            inst.Q = 0.1
+                        end) then fxBoosted = fxBoosted + 1 end
+                    elseif inst:IsA("AudioReverb") then
+                        if pcall(function()
+                            inst.Bypass = false
+                            inst.DecayRatio = 0.5
+                            inst.DecayTime = 1.5
+                            inst.Density = 1
+                            inst.Diffusion = 1
+                            inst.DryLevel = 20
+                            inst.EarlyDelayTime = 0.02
+                            inst.HighCutFrequency = 5000
+                            inst.LateDelayTime = 0.04
+                            inst.LowShelfFrequency = 20000
+                            inst.LowShelfGain = 12
+                            inst.ReferenceFrequency = 20000
+                            inst.WetLevel = 20
+                        end) then fxBoosted = fxBoosted + 1 end
+                    elseif inst:IsA("AudioFader") then
+                        if pcall(function()
+                            inst.Bypass = false
+                            inst.Volume = 10
+                        end) then fxBoosted = fxBoosted + 1 end
+                    elseif inst:IsA("AudioCompressor") then
+                        if pcall(function()
+                            inst.Bypass = false
+                            inst.Threshold = 0
+                            inst.Ratio = 1
+                            inst.Attack = 0.001
+                            inst.Release = 0.01
+                            inst.MakeupGain = 30
+                        end) then fxBoosted = fxBoosted + 1 end
+                    elseif inst:IsA("AudioEcho") then
+                        if pcall(function()
+                            inst.Bypass = false
+                            inst.DelayTime = 0.001
+                            inst.DryLevel = 10
+                            inst.WetLevel = -80
+                            inst.Feedback = 0
+                            inst.RampTime = 0
+                        end) then fxBoosted = fxBoosted + 1 end
+                    elseif inst:IsA("AudioChorus")
+                        or inst:IsA("AudioFlanger")
+                        or inst:IsA("AudioTremolo")
+                        or inst:IsA("AudioLimiter")
+                        or inst:IsA("AudioGate") then
+                        pcall(function()
+                            inst.Bypass = true
+                        end)
+                    end
+                end
+            end
+            return emitters, fxBoosted, inputsBoosted
+        end
+
+        local function reinforceFxListV50(propEv, list)
+            for _, fx in ipairs(list) do
+                for _, p in ipairs(fx.props) do
+                    pcall(function()
+                        propEv:FireServer(fx.name, p[1], p[2])
+                    end)
+                    task.wait(0.015)
+                end
+            end
+        end
+
+        local v50LocalRespawnHooked = false
+
+        local function applyMicUpV50Preset()
+            local addEv, propEv = getLoudRemotes()
+            if not addEv or not propEv then
+                return false, "remotes missing (event_effect_add / event_effect_property)"
+            end
+
+            -- Bypass any hiss/limiting FX if present
+            for _, name in ipairs(V50_BYPASS_FX) do
+                pcall(function()
+                    propEv:FireServer(name, "Bypass", true)
+                end)
+                task.wait(0.015)
+            end
+
+            local applied = {}
+            -- Pass 1: Exact Lavinho Mic Up core chain (EQ -> Filter -> Distortion -> Reverb)
+            fireFxListV35(addEv, propEv, MICUP_V50_PRESET, applied)
+
+            -- Pass 2: Extra pure-gain attachments (compressor / fader / dry-only echo)
+            fireFxListV35(addEv, propEv, MICUP_V50_EXTRA_PRESET, nil)
+
+            -- Pass 3: Reinforce ALL core + extra properties so none reset during server wiring
+            reinforceFxListV50(propEv, MICUP_V50_PRESET)
+            reinforceFxListV50(propEv, MICUP_V50_EXTRA_PRESET)
+
+            -- Pass 4: Local mic input, emitter range (100k studs), and full audio chain reinforcement
+            local emitterCount, fxCount, inputCount = boostLocalAudioChainV50()
+            table.insert(applied, "range:" .. (emitterCount > 0 and ("ok(" .. emitterCount .. ")") or "none"))
+            if inputCount > 0 then
+                table.insert(applied, "mic:" .. inputCount)
+            end
+            if fxCount > 0 then
+                table.insert(applied, "localfx:" .. fxCount)
+            end
+
+            -- Keep local mic/emitter/FX chain maxed after respawns when v5.0 is the active preset
+            if not v50LocalRespawnHooked then
+                v50LocalRespawnHooked = true
+                LP.CharacterAdded:Connect(function()
+                    if loudState.lastPreset ~= "v40" and loudState.lastPreset ~= "v41" and loudState.lastPreset ~= "v50" then return end
+                    task.wait(1)
+                    boostLocalAudioChainV50()
+                end)
+            end
+
+            return true, table.concat(applied, ", ")
+        end
+
+        local function boostLocalAudioChainV45()
+            local emitters, fxBoosted, inputsBoosted = 0, 0, 0
+            local targets = {}
+            if LP.Character then table.insert(targets, LP.Character) end
+            table.insert(targets, LP)
+
+            for _, root in ipairs(targets) do
+                for _, inst in ipairs(root:GetDescendants()) do
+                    if inst:IsA("AudioDeviceInput") then
+                        if pcall(function()
+                            inst.Volume = 10 -- clamps to engine maximum mic gain
+                        end) then inputsBoosted = inputsBoosted + 1 end
+                    elseif inst:IsA("AudioEmitter") then
+                        local ok = pcall(function()
+                            pcall(function()
+                                inst.DistanceAttenuationMode = Enum.DistanceAttenuationMode.Custom
+                            end)
+                            inst:SetDistanceAttenuation(V45_FLAT_DISTANCE_CURVE)
+                            inst:SetAngleAttenuation(V45_FLAT_ANGLE_CURVE)
+                            pcall(function()
+                                inst.AcousticSimulationEnabled = false
+                            end)
+                        end)
+                        if ok then emitters = emitters + 1 end
+                    elseif inst:IsA("AudioDistortion") then
+                        if pcall(function()
+                            inst.Bypass = false
+                            inst.Level = 1
+                        end) then fxBoosted = fxBoosted + 1 end
+                    elseif inst:IsA("AudioEqualizer") then
+                        if pcall(function()
+                            inst.Bypass = false
+                            inst.HighGain = 10
+                            inst.LowGain = 10
+                            inst.MidGain = 10
+                            inst.MidRange = NumberRange.new(400, 4000)
+                        end) then fxBoosted = fxBoosted + 1 end
+                    elseif inst:IsA("AudioFilter") then
+                        if pcall(function()
+                            inst.Bypass = false
+                            inst.FilterType = Enum.AudioFilterType.Peak
+                            inst.Frequency = 2500
+                            inst.Gain = 30
+                            inst.Q = 0.1
+                        end) then fxBoosted = fxBoosted + 1 end
+                    elseif inst:IsA("AudioReverb") then
+                        if pcall(function()
+                            inst.Bypass = false
+                            inst.DecayRatio = 1
+                            inst.DecayTime = 20
+                            inst.Density = 1
+                            inst.Diffusion = 1
+                            inst.DryLevel = 20
+                            inst.EarlyDelayTime = 0
+                            inst.HighCutFrequency = 20000
+                            inst.LateDelayTime = 0
+                            inst.LowShelfFrequency = 20000
+                            inst.LowShelfGain = 12
+                            inst.ReferenceFrequency = 20000
+                            inst.WetLevel = 20
+                        end) then fxBoosted = fxBoosted + 1 end
+                    elseif inst:IsA("AudioCompressor") then
+                        if pcall(function()
+                            inst.Bypass = false
+                            inst.Threshold = 0
+                            inst.Ratio = 1
+                            inst.Attack = 0.001
+                            inst.Release = 0.01
+                            inst.MakeupGain = 30
+                        end) then fxBoosted = fxBoosted + 1 end
+                    elseif inst:IsA("AudioFader") then
+                        if pcall(function()
+                            inst.Bypass = false
+                            inst.Volume = 10
+                        end) then fxBoosted = fxBoosted + 1 end
+                    elseif inst:IsA("AudioEcho") then
+                        if pcall(function()
+                            inst.Bypass = false
+                            inst.DelayTime = 0.001
+                            inst.DryLevel = 10
+                            inst.WetLevel = 10
+                            inst.Feedback = 0.85
+                            inst.RampTime = 0
+                        end) then fxBoosted = fxBoosted + 1 end
+                    elseif inst:IsA("AudioChorus")
+                        or inst:IsA("AudioFlanger")
+                        or inst:IsA("AudioTremolo")
+                        or inst:IsA("AudioLimiter")
+                        or inst:IsA("AudioGate") then
+                        pcall(function()
+                            inst.Bypass = true
+                        end)
+                    end
+                end
+            end
+            return emitters, fxBoosted, inputsBoosted
+        end
+
+        local v45LocalRespawnHooked = false
+
+        local function applyMicUpV45Preset()
+            local addEv, propEv = getLoudRemotes()
+            if not addEv or not propEv then
+                return false, "remotes missing (event_effect_add / event_effect_property)"
+            end
+
+            -- Bypass any limiting/modulation FX that cap volume
+            for _, name in ipairs(V45_BYPASS_FX) do
+                pcall(function()
+                    propEv:FireServer(name, "Bypass", true)
+                end)
+                task.wait(0.015)
+            end
+
+            local applied = {}
+            -- Pass 1: Core max-loud chain (distortion -> equalier -> flter -> reverb)
+            fireFxListV35(addEv, propEv, MICUP_V45_PRESET, applied)
+
+            -- Pass 2: Extra pure-gain stages (compressor + fader + stacked echo)
+            fireFxListV35(addEv, propEv, MICUP_V45_EXTRA_PRESET, nil)
+
+            -- Pass 3: Reinforce ALL core + extra properties so none reset during server wiring
+            reinforceFxListV50(propEv, MICUP_V45_PRESET)
+            reinforceFxListV50(propEv, MICUP_V45_EXTRA_PRESET)
+
+            -- Pass 4: Local mic input, 100k-stud emitter range, and local audio chain sync
+            local emitterCount, fxCount, inputCount = boostLocalAudioChainV45()
+            table.insert(applied, "range:" .. (emitterCount > 0 and ("ok(" .. emitterCount .. ")") or "none"))
+            if inputCount > 0 then
+                table.insert(applied, "mic:" .. inputCount)
+            end
+            if fxCount > 0 then
+                table.insert(applied, "localfx:" .. fxCount)
+            end
+
+            -- Keep local mic/emitter/FX chain maxed after respawns when Loud VR 4.5 is active
+            if not v45LocalRespawnHooked then
+                v45LocalRespawnHooked = true
+                LP.CharacterAdded:Connect(function()
+                    if loudState.lastPreset ~= "v45" then return end
+                    task.wait(1)
+                    boostLocalAudioChainV45()
+                end)
+            end
+
+            return true, table.concat(applied, ", ")
+        end
+
         -- Bulletproof 3-layer One Click Remove Loud:
         --   Layer 1: Clear/Reset-All remotes (known names + dynamic scan)
         --   Layer 2: Per-effect Remove/Delete/Disable remotes for all voice FX
@@ -32711,7 +33690,7 @@ local function buildMainUI()
                     end
                 end
             end
-            local fxNames = { "distortion", "equalier", "flter", "reverb", "chorus", "compressor", "fader", "echo", "pitch" }
+            local fxNames = { "distortion", "equalier", "flter", "reverb", "chorus", "flanger", "compressor", "fader", "echo", "pitch" }
             if removeEv then
                 local removed = 0
                 for _, n in ipairs(fxNames) do
@@ -32760,14 +33739,19 @@ local function buildMainUI()
                 for _, root in ipairs(containers) do
                     for _, d in ipairs(root:GetDescendants()) do
                         local cn = d.ClassName
-                        if cn == "AudioDistortion" or cn == "AudioEqualizer" or cn == "AudioFilter" or cn == "AudioReverb" or cn == "AudioChorus" or cn == "AudioCompressor" or cn == "AudioEcho" or cn == "AudioFader" then
+                        if cn == "AudioDistortion" or cn == "AudioEqualizer" or cn == "AudioFilter" or cn == "AudioReverb" or cn == "AudioChorus" or cn == "AudioFlanger" or cn == "AudioCompressor" or cn == "AudioEcho" or cn == "AudioFader" then
                             pcall(function() d.Bypass = true end)
                             if cn == "AudioDistortion" then pcall(function() d.Level = 0 end)
                             elseif cn == "AudioEqualizer" then pcall(function() d.LowGain = 0; d.MidGain = 0; d.HighGain = 0 end)
                             elseif cn == "AudioFilter" then pcall(function() d.Gain = 0 end)
                             elseif cn == "AudioReverb" then pcall(function() d.DryLevel = 0; d.WetLevel = -80 end)
                             elseif cn == "AudioCompressor" then pcall(function() d.MakeupGain = 0 end)
-                            elseif cn == "AudioFader" then pcall(function() d.Volume = 1 end) end
+                            elseif cn == "AudioFader" then pcall(function() d.Volume = 1 end)
+                            elseif cn == "AudioEcho" then pcall(function() d.Feedback = 0; d.DryLevel = 0; d.WetLevel = -80 end)
+                            elseif cn == "AudioChorus" or cn == "AudioFlanger" then pcall(function() d.Mix = 0 end) end
+                            localReset = localReset + 1
+                        elseif cn == "AudioDeviceInput" then
+                            pcall(function() d.Volume = 1 end)
                             localReset = localReset + 1
                         end
                     end
@@ -32971,6 +33955,63 @@ local function buildMainUI()
         end
         _G.CocoApplyOneClickLoudV35 = triggerOneClickLoudV35
 
+        local function triggerOneClickLoudV40(reason)
+            if loudState.busy then
+                notify("🔊 LOUDEST v5.0", "Already firing remotes, please wait...")
+                return
+            end
+            loudState.busy = true
+            loudState.lastPreset = "v40"
+            local prefix = reason and ("[" .. tostring(reason) .. "] ") or ""
+            setLoudStatus(prefix .. "firing LOUDEST v5.0 Lavinho max-loud remotes...", T.Warning)
+
+            task.spawn(function()
+                local ok, msg = applyMicUpV50Preset()
+                loudState.busy = false
+                if ok then
+                    setLoudStatus("LOUDEST v5.0 done: " .. tostring(msg), T.Success)
+                    print("[MicUp v5.0 LOUDEST] " .. tostring(msg))
+                    notify("🔥 LOUDEST LOUD (v5.0)", "Applied Mic Up v5.0 Lavinho Max Loud!")
+                    sSuccess()
+                else
+                    setLoudStatus("LOUDEST v5.0 fail: " .. tostring(msg), T.Danger)
+                    notify("🔥 LOUDEST LOUD (v5.0)", "Failed: " .. tostring(msg))
+                    sError()
+                end
+            end)
+        end
+        _G.CocoApplyOneClickLoudV40 = triggerOneClickLoudV40
+        _G.CocoApplyOneClickLoudV41 = triggerOneClickLoudV40
+        _G.CocoApplyOneClickLoudV50 = triggerOneClickLoudV40
+        _G.CocoApplyLoudestLoud = triggerOneClickLoudV40
+
+        local function triggerOneClickLoudV45(reason)
+            if loudState.busy then
+                notify("🔊 LOUD VR 4.5", "Already firing remotes, please wait...")
+                return
+            end
+            loudState.busy = true
+            loudState.lastPreset = "v45"
+            local prefix = reason and ("[" .. tostring(reason) .. "] ") or ""
+            setLoudStatus(prefix .. "firing Loud VR 4.5 full-stack remotes...", T.Warning)
+
+            task.spawn(function()
+                local ok, msg = applyMicUpV45Preset()
+                loudState.busy = false
+                if ok then
+                    setLoudStatus("Loud VR 4.5 done: " .. tostring(msg), T.Success)
+                    print("[MicUp Loud VR 4.5] " .. tostring(msg))
+                    notify("🔊 LOUD VR 4.5", "Applied Loud VR 4.5 (Max Loudness Full Stack)!")
+                    sSuccess()
+                else
+                    setLoudStatus("Loud VR 4.5 fail: " .. tostring(msg), T.Danger)
+                    notify("🔊 LOUD VR 4.5", "Failed: " .. tostring(msg))
+                    sError()
+                end
+            end)
+        end
+        _G.CocoApplyOneClickLoudV45 = triggerOneClickLoudV45
+
         local function triggerOneClickRemoveLoud()
             if loudState.busy then
                 notify("🔇 REMOVE LOUD", "Already firing remotes, please wait...")
@@ -33000,7 +34041,11 @@ local function buildMainUI()
         LP.CharacterAdded:Connect(function()
             if not loudState.autoReapply then return end
             task.wait(1.5)
-            if loudState.lastPreset == "v35" then
+            if loudState.lastPreset == "v40" then
+                triggerOneClickLoudV40("respawn")
+            elseif loudState.lastPreset == "v45" then
+                triggerOneClickLoudV45("respawn")
+            elseif loudState.lastPreset == "v35" then
                 triggerOneClickLoudV35("respawn")
             elseif loudState.lastPreset == "v31" then
                 triggerOneClickLoudV31("respawn")
@@ -33015,9 +34060,53 @@ local function buildMainUI()
         createSectionTitle(loudPage, 2, "COCO LOUD Controls")
         local loudGrp = createGroupCard(loudPage, 3)
 
-        local loudRowInfo = createActionRow(
+        local loudV40RowInfo = createActionRow(
             loudGrp,
             1,
+            "🔥 Loudest Loud — Mic Up v5.0 (Lavinho Max Loud)",
+            "LOUDEST preset (Lavinho EQ->2kHz Peak Filter->Distortion->Reverb + Comp/Fader/Dry-Echo + hiss/limiter bypass + 100k range) · [⦿] pin pill",
+            "LOUDEST 🔥",
+            function()
+                triggerOneClickLoudV40(nil)
+            end,
+            function()
+                if toggleFloatingPill then
+                    toggleFloatingPill("oneclickloud_v40")
+                end
+            end,
+            (ActivePills and ActivePills["oneclickloud_v40"]) and "✓" or "⦿"
+        )
+        if loudV40RowInfo then
+            loudV40RowInfo.defaultLabel = "LOUDEST 🔥"
+            presetActionRows["oneclickloud_v40"] = loudV40RowInfo
+            if updatePinBadgeVisual then updatePinBadgeVisual("oneclickloud_v40") end
+        end
+
+        local loudV45RowInfo = createActionRow(
+            loudGrp,
+            2,
+            "Loud VR 4.5 (Max Loudness Full Stack)",
+            "Exact Loud VR 4.5 (Distortion->EQ 400-4k->2.5kHz Peak Filter->Max Reverb + Comp/Fader/Stacked Echo + 100k range) · [⦿] pin pill",
+            "LOUD VR 4.5",
+            function()
+                triggerOneClickLoudV45(nil)
+            end,
+            function()
+                if toggleFloatingPill then
+                    toggleFloatingPill("oneclickloud_v45")
+                end
+            end,
+            (ActivePills and ActivePills["oneclickloud_v45"]) and "✓" or "⦿"
+        )
+        if loudV45RowInfo then
+            loudV45RowInfo.defaultLabel = "LOUD VR 4.5"
+            presetActionRows["oneclickloud_v45"] = loudV45RowInfo
+            if updatePinBadgeVisual then updatePinBadgeVisual("oneclickloud_v45") end
+        end
+
+        local loudRowInfo = createActionRow(
+            loudGrp,
+            3,
             "Coco Loud",
             "Applies COCO LOUD preset (distortion · eq · filter · reverb via remotes) · Tap [⦿] to pin floating pill",
             "COCO LOUD",
@@ -33039,7 +34128,7 @@ local function buildMainUI()
 
         local loudV31RowInfo = createActionRow(
             loudGrp,
-            2,
+            4,
             "Mic Up Preset v3.3 (Max Loud)",
             "Exact micup_voice_preset v3.3 (distortion max · eq all +10 · LowShelf 22kHz +30dB · reverb max) · [⦿] pin pill",
             "LOUD v3.3",
@@ -33061,7 +34150,7 @@ local function buildMainUI()
 
         local loudV35RowInfo = createActionRow(
             loudGrp,
-            3,
+            5,
             "Mic Up Preset v3.5 (Gain-Staged Max Loud)",
             "Exact micup_voice_preset v3.5 (EQ->Filter->Distortion->Reverb + 2nd pass + Compressor/Fader/Echo + range boost) · [⦿] pin pill",
             "LOUD v3.5",
@@ -33083,7 +34172,7 @@ local function buildMainUI()
 
         local removeLoudRowInfo = createActionRow(
             loudGrp,
-            4,
+            6,
             "One Click Remove Loud",
             "Removes & neutralizes all Mic Up loud effects in 1 click (clear/remove remotes + property reset + local FX) · [⦿] pin pill",
             "REMOVE 🔇",
@@ -33141,8 +34230,8 @@ local function buildMainUI()
             end
 
             local Panel = Instance.new("Frame")
-            Panel.Size = UDim2.fromOffset(266, 254)
-            Panel.Position = UDim2.new(0.5, -133, 0.5, -127)
+            Panel.Size = UDim2.fromOffset(266, 334)
+            Panel.Position = UDim2.new(0.5, -133, 0.5, -167)
             Panel.BackgroundColor3 = C.bg
             Panel.BorderSizePixel = 0
             Panel.Active = true
@@ -33187,9 +34276,47 @@ local function buildMainUI()
             Status.Text = "distortion · eq · filter · reverb\n(via remotes — no menu needed)"
             Status.Parent = Panel
 
+            local ApplyV40Btn = Instance.new("TextButton")
+            ApplyV40Btn.Size = UDim2.new(1, -20, 0, 36)
+            ApplyV40Btn.Position = UDim2.fromOffset(10, 78)
+            ApplyV40Btn.BackgroundColor3 = Color3.fromRGB(255, 130, 55)
+            ApplyV40Btn.BackgroundTransparency = 0.08
+            ApplyV40Btn.Text = "🔥 APPLY LOUDEST LOUD (v5.0)"
+            ApplyV40Btn.TextColor3 = Color3.fromRGB(10, 10, 12)
+            ApplyV40Btn.Font = Enum.Font.GothamBlack
+            ApplyV40Btn.TextSize = 12
+            ApplyV40Btn.BorderSizePixel = 0
+            ApplyV40Btn.AutoButtonColor = false
+            ApplyV40Btn.Parent = Panel
+            corner(ApplyV40Btn, 8)
+            stroke(ApplyV40Btn, Color3.fromRGB(255, 165, 95), 1.2, 0.2)
+
+            ApplyV40Btn.MouseButton1Click:Connect(function()
+                triggerOneClickLoudV40(nil)
+            end)
+
+            local ApplyV45Btn = Instance.new("TextButton")
+            ApplyV45Btn.Size = UDim2.new(1, -20, 0, 34)
+            ApplyV45Btn.Position = UDim2.fromOffset(10, 120)
+            ApplyV45Btn.BackgroundColor3 = Color3.fromRGB(185, 115, 255)
+            ApplyV45Btn.BackgroundTransparency = 0.12
+            ApplyV45Btn.Text = "APPLY LOUD VR 4.5"
+            ApplyV45Btn.TextColor3 = Color3.fromRGB(10, 10, 12)
+            ApplyV45Btn.Font = Enum.Font.GothamBold
+            ApplyV45Btn.TextSize = 12
+            ApplyV45Btn.BorderSizePixel = 0
+            ApplyV45Btn.AutoButtonColor = false
+            ApplyV45Btn.Parent = Panel
+            corner(ApplyV45Btn, 8)
+            stroke(ApplyV45Btn, Color3.fromRGB(185, 115, 255), 1, 0.25)
+
+            ApplyV45Btn.MouseButton1Click:Connect(function()
+                triggerOneClickLoudV45(nil)
+            end)
+
             local ApplyBtn = Instance.new("TextButton")
-            ApplyBtn.Size = UDim2.new(1, -20, 0, 36)
-            ApplyBtn.Position = UDim2.fromOffset(10, 78)
+            ApplyBtn.Size = UDim2.new(1, -20, 0, 34)
+            ApplyBtn.Position = UDim2.fromOffset(10, 160)
             ApplyBtn.BackgroundColor3 = C.accent
             ApplyBtn.BackgroundTransparency = 0.12
             ApplyBtn.Text = "APPLY COCO LOUD"
@@ -33215,7 +34342,7 @@ local function buildMainUI()
 
             local ApplyV31Btn = Instance.new("TextButton")
             ApplyV31Btn.Size = UDim2.new(1, -20, 0, 34)
-            ApplyV31Btn.Position = UDim2.fromOffset(10, 120)
+            ApplyV31Btn.Position = UDim2.fromOffset(10, 200)
             ApplyV31Btn.BackgroundColor3 = Color3.fromRGB(60, 185, 130)
             ApplyV31Btn.BackgroundTransparency = 0.14
             ApplyV31Btn.Text = "APPLY MIC UP v3.3 LOUD"
@@ -33234,7 +34361,7 @@ local function buildMainUI()
 
             local ApplyV35Btn = Instance.new("TextButton")
             ApplyV35Btn.Size = UDim2.new(1, -20, 0, 34)
-            ApplyV35Btn.Position = UDim2.fromOffset(10, 160)
+            ApplyV35Btn.Position = UDim2.fromOffset(10, 240)
             ApplyV35Btn.BackgroundColor3 = Color3.fromRGB(115, 160, 255)
             ApplyV35Btn.BackgroundTransparency = 0.14
             ApplyV35Btn.Text = "APPLY MIC UP v3.5 LOUD"
@@ -33253,7 +34380,7 @@ local function buildMainUI()
 
             local RemoveBtn = Instance.new("TextButton")
             RemoveBtn.Size = UDim2.new(1, -20, 0, 34)
-            RemoveBtn.Position = UDim2.fromOffset(10, 200)
+            RemoveBtn.Position = UDim2.fromOffset(10, 280)
             RemoveBtn.BackgroundColor3 = C.danger
             RemoveBtn.BackgroundTransparency = 0.14
             RemoveBtn.Text = "🔇 REMOVE LOUD (1-CLICK)"
@@ -33305,7 +34432,7 @@ local function buildMainUI()
 
         createActionRow(
             loudGrp,
-            5,
+            7,
             "Standalone Floating Coco Loud Panel",
             "Toggle draggable COCO LOUD floating overlay (one-click apply via remotes)",
             "Toggle UI",
@@ -33324,7 +34451,7 @@ local function buildMainUI()
 
         loudUiHooks.autoSwitch = createSwitchRow(
             loudGrp,
-            6,
+            8,
             "Auto-Reapply on Respawn",
             "Automatically re-fires COCO LOUD 1.5s after CharacterAdded",
             loudState.autoReapply,
@@ -33336,7 +34463,7 @@ local function buildMainUI()
 
         createActionRow(
             loudGrp,
-            7,
+            9,
             "Scan Audio / Effect Remotes",
             "Scans ReplicatedStorage for effect, audio, voice, mic & gain remotes",
             "Scan",
@@ -33358,7 +34485,7 @@ local function buildMainUI()
 
         createActionRow(
             loudGrp,
-            8,
+            10,
             "Clear Mic Up Effects",
             "Clears or removes active voice effects via clear/remove remotes",
             "Clear FX",
@@ -38370,8 +39497,13 @@ end
             end
             if ch and FlyAnimateWasDisabled and CurrentWeld == nil then
                 local animScript = ch:FindFirstChild("Animate")
-                if animScript then animScript.Disabled = false end
+                if animScript then
+                    pcall(function() animScript.Disabled = false; animScript.Enabled = true end)
+                end
                 FlyAnimateWasDisabled = false
+                if EmoteHub and EmoteHub.EnsureActivePackAlive then
+                    task.defer(function() pcall(function() EmoteHub:EnsureActivePackAlive(ch) end) end)
+                end
             end
             if hum then
                 hum.PlatformStand = false
@@ -39526,7 +40658,11 @@ end
             local raw = tostring(overrideCmd or topCmdBox.Text or ""):gsub("^%s+", ""):gsub("%s+$", "")
             if raw == "" then return end
             if raw:sub(1, 1) ~= "!" and raw:sub(1, 1) ~= ";" then raw = "!" .. raw end
-            pcall(function() snd2(raw) end)
+            if OwnerAdminState.runLocalAdminChatCommand then
+                OwnerAdminState.runLocalAdminChatCommand(raw)
+            else
+                pcall(function() snd2(raw) end)
+            end
             OwnerAdminState.pushAdminAudit("Cmd: " .. raw:sub(1, 44))
             notify("⚡ ADMIN COMMAND", "Executed: " .. raw)
             sSuccess()
@@ -41383,10 +42519,10 @@ end
                 function()
                     if not hasAdminAccess(LP) then return end
                     broadcastOwnerAdminCommand(52, nil, "cpbring")
-                    task.delay(0.35, function()
+                    task.delay(0.85, function()
                         broadcastOwnerAdminCommand(152, nil, "cpform")
                     end)
-                    task.delay(0.7, function()
+                    task.delay(1.70, function()
                         OwnerAdminState.broadcastCustomAdminMessage(nil, "ROYAL ARRIVAL", "@" .. LP.Name .. " has entered the arena — all Coco Users stand by!", "cinema", 8)
                     end)
                     OwnerAdminState.pushAdminAudit("Combo: Royal Entrance")
@@ -41394,9 +42530,9 @@ end
                 function()
                     if not hasAdminAccess(LP) then return end
                     broadcastOwnerAdminCommand(183, nil, "cpdrunk")
-                    task.delay(0.25, function() broadcastOwnerAdminCommand(215, nil, "cpgravity") end)
-                    task.delay(0.5, function() broadcastOwnerAdminCommand(244, nil, "cpquake") end)
-                    task.delay(0.75, function()
+                    task.delay(0.85, function() broadcastOwnerAdminCommand(215, nil, "cpgravity") end)
+                    task.delay(1.70, function() broadcastOwnerAdminCommand(244, nil, "cpquake") end)
+                    task.delay(2.55, function()
                         OwnerAdminState.broadcastCustomAdminMessage(nil, "CHAOS MODE", "Admin @" .. LP.Name .. " unleashed Total Chaos Mode!", "alert", 8)
                     end)
                     OwnerAdminState.pushAdminAudit("Combo: Total Chaos Mode")
@@ -41474,7 +42610,11 @@ end
                 if raw:sub(1, 1) ~= "!" and raw:sub(1, 1) ~= ";" then
                     raw = "!" .. raw
                 end
-                pcall(function() snd2(raw) end)
+                if OwnerAdminState.runLocalAdminChatCommand then
+                    OwnerAdminState.runLocalAdminChatCommand(raw)
+                else
+                    pcall(function() snd2(raw) end)
+                end
                 OwnerAdminState.pushAdminAudit("Runner: " .. raw:sub(1, 42))
                 notify("⚡ COMMAND SENT", "Executed: " .. raw)
                 sSuccess()
