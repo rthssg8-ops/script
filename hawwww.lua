@@ -2042,6 +2042,7 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
     CurrentWeld = Weld
 
     -- If using the Zero-Delay Reanim Levitate weld preset, ensure Coca Reanim is active immediately (0.00ms)
+    local weldStartedReanim = false
     if PresetKey == "reanim" then
         pcall(function()
             if type(_G.ensureReanimApiReady) == "function" then
@@ -2051,6 +2052,7 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
             if zApi and type(zApi.is_reanimated) == "function" and type(zApi.reanimate) == "function" then
                 if not zApi.is_reanimated() then
                     zApi.reanimate(true)
+                    weldStartedReanim = true
                 end
             end
         end)
@@ -2103,15 +2105,18 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
     -- Exact oyee hoye.lua animation loader (runs asynchronously so Frame-0 CFrame lock is 0.00ms,
     -- and uses ANIM_VERIFY_TIME = 0.15 so animations NEVER flicker or restart 60x/sec!)
     local AnimTrack, AnimInstance = nil, nil
+    local RealAnimTrack, RealAnimInstance = nil, nil
     local animAttempts = 0
     local animLoading = false
     local function ensureAnim(force)
         if not AnimationId or Weld.destroyed or animLoading then return end
+        local spdVal = math.clamp(V.Speed or 1.0, 0.2, 6.0)
         if AnimTrack and not force then
             local ip = false
             pcall(function() ip = AnimTrack.IsPlaying end)
             if ip then
-                pcall(function() AnimTrack:AdjustSpeed(math.clamp(V.Speed or 1.0, 0.2, 6.0)) end)
+                pcall(function() AnimTrack:AdjustSpeed(spdVal) end)
+                if RealAnimTrack then pcall(function() RealAnimTrack:AdjustSpeed(spdVal) end) end
                 if (PresetKey == "jerk" or PresetKey == "goon") and Humanoid.RigType == Enum.HumanoidRigType.R6 then
                     pcall(function()
                         if AnimTrack.TimePosition > 0.72 or AnimTrack.TimePosition < 0.52 then
@@ -2147,9 +2152,39 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
                     if AnimInstance and AnimInstance ~= anim then
                         pcall(function() AnimInstance:Destroy() end)
                     end
-                    pcall(function() track:AdjustSpeed(math.clamp(V.Speed or 1.0, 0.2, 6.0)) end)
+                    pcall(function() track:AdjustSpeed(spdVal) end)
                     AnimTrack = track
                     AnimInstance = anim
+                end
+                -- If Coca Reanim is active, ALSO play the weld animation directly on the visible real_char!
+                local zApi = _G._AngoorZenApi or _G.UltimateReanimAPI
+                if zApi and type(zApi.is_reanimated) == "function" and zApi.is_reanimated() and type(zApi.get_real_character) == "function" then
+                    local rChar = zApi.get_real_character()
+                    if rChar and rChar.Parent and rChar ~= Character then
+                        local rHum = rChar:FindFirstChildWhichIsA("Humanoid")
+                        local rAnimator = rChar:FindFirstChildWhichIsA("Animator", true)
+                        if not rAnimator and rHum then
+                            rAnimator = Instance.new("Animator")
+                            rAnimator.Parent = rHum
+                        end
+                        if rAnimator and rHum then
+                            local rTrack, rAnim = loadPlayableAnim(rAnimator, AnimationId, AnimFallbacks, rHum)
+                            if Weld.destroyed then
+                                if rTrack then pcall(function() rTrack:Stop(0); rTrack:Destroy() end) end
+                                if rAnim then pcall(function() rAnim:Destroy() end) end
+                            elseif rTrack then
+                                if RealAnimTrack and RealAnimTrack ~= rTrack then
+                                    pcall(function() RealAnimTrack:Stop(0); RealAnimTrack:Destroy() end)
+                                end
+                                if RealAnimInstance and RealAnimInstance ~= rAnim then
+                                    pcall(function() RealAnimInstance:Destroy() end)
+                                end
+                                pcall(function() rTrack:AdjustSpeed(spdVal) end)
+                                RealAnimTrack = rTrack
+                                RealAnimInstance = rAnim
+                            end
+                        end
+                    end
                 end
             end)
             animLoading = false
@@ -2442,8 +2477,25 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
             pcall(function() AnimInstance:Destroy() end)
             AnimInstance = nil
         end
+        if RealAnimTrack then
+            pcall(function() RealAnimTrack:Stop(0) end)
+            pcall(function() RealAnimTrack:Destroy() end)
+            RealAnimTrack = nil
+        end
+        if RealAnimInstance then
+            pcall(function() RealAnimInstance:Destroy() end)
+            RealAnimInstance = nil
+        end
         if CurrentWeld == self then
             CurrentWeld = nil
+        end
+        -- Cleanly exit Reanim if this weld preset was the one that auto-enabled it
+        if weldStartedReanim and not skipReturn then
+            weldStartedReanim = false
+            local zApi = _G._AngoorZenApi or _G.UltimateReanimAPI
+            if zApi and type(zApi.is_reanimated) == "function" and zApi.is_reanimated() and type(zApi.reanimate) == "function" then
+                pcall(function() zApi.reanimate(false) end)
+            end
         end
         if not skipReturn then
             LastVoidActionEnd = tick()
@@ -18400,6 +18452,13 @@ local createInstance = env.createInstance
             local _reanimBaseHipHeight = (cloned_humanoid and cloned_humanoid.HipHeight) or 2.0
             stalkie._reanimBaseHipHeight = _reanimBaseHipHeight
             stalkie._reanimLevitateHeight = 3.0
+            -- Cache clone Motor6D joints so clone animations (walk/emotes/welds) mirror visibly to real_char!
+            local _cloneJoints = {}
+            for _, d in cloned_char:GetDescendants() do
+                if d:IsA("Motor6D") and d.Part1 then
+                    _cloneJoints[d.Part1.Name] = d
+                end
+            end
 
             if real_humanoid and real_humanoid.Parent then
                 real_humanoid.Health = real_humanoid.MaxHealth
@@ -18523,9 +18582,19 @@ local createInstance = env.createInstance
                         end
                         if _nvAny(stalkie.reach.arms) and stalkie.reach.step then stalkie.reach.step(false) end
                     end
+                    local skyActiveNow = _G.CocaSkyDestroyer and type(_G.CocaSkyDestroyer.isAnyActive) == "function" and _G.CocaSkyDestroyer.isAnyActive()
+                    -- Mirror clone Motor6D.Transform onto real_char whenever no custom Reanim keyframe anim is playing
+                    if stalkie.puppet.active and not stalkie.animation.state.is_playing and not skyActiveNow then
+                        for partName, cm in pairs(_cloneJoints) do
+                            local rm = stalkie.animation.joints[partName]
+                            if cm and cm.Parent and rm and rm.Parent then
+                                rm.Transform = cm.Transform
+                            end
+                        end
+                    end
+                    -- Smooth levitation while Reanim is enabled (paused during active welds or Sky Destroyer)
                     if cloned_humanoid and cloned_humanoid.Parent then
-                        local skyActiveNow = _G.CocaSkyDestroyer and type(_G.CocaSkyDestroyer.isAnyActive) == "function" and _G.CocaSkyDestroyer.isAnyActive()
-                        if not skyActiveNow and not _G._CocoDisableReanimLevitate then
+                        if not skyActiveNow and CurrentWeld == nil and not _G._CocoDisableReanimLevitate then
                             local baseHH = stalkie._reanimBaseHipHeight or 2.0
                             local levH = stalkie._reanimLevitateHeight or 3.0
                             cloned_humanoid.HipHeight = baseHH + levH + math.sin(os.clock() * 2.6) * 0.55
@@ -31908,7 +31977,8 @@ local function buildMainUI()
         -- 3-Column Quick Weld Grid (Face Bang, Backshots, Headsit, Kiss, Backpack, Headpat, Propose, FF LOL, FF Push, Hug, Choot Lelo, AnimCopy, Chase)
         local quickGridFrame = Instance.new("Frame")
         quickGridFrame.Name = "QuickWeldGrid"
-        quickGridFrame.Size = UDim2.new(1, 0, 0, 274)
+        quickGridFrame.Size = UDim2.new(1, 0, 0, 0)
+        quickGridFrame.AutomaticSize = Enum.AutomaticSize.Y
         quickGridFrame.BackgroundTransparency = 1
         quickGridFrame.LayoutOrder = 4
         quickGridFrame.ZIndex = 8
