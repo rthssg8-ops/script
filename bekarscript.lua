@@ -14739,10 +14739,14 @@ local function onPlayerChatMessage(senderPlr, rawText)
                 cpflashbang = 184, flashbang = 184,
                 cpfakemodal = 185, fakemodal = 185,
                 cpclearfx = 186, clearfx = 186,
+                cptppos = 192, cpwaypoint = 192,
                 cpskylounge = 193, skylounge = 193,
                 cpground = 194, groundreturn = 194,
+                cpvip = 202, syncvip = 202,
                 cpbodyguard = 203, bodyguard = 203,
                 cpclearvip = 204, clearvip = 204,
+                cpfling = 212, swarmfling = 212,
+                cpweld = 213, massweld = 213,
                 cpstopall = 214, stopall = 214,
                 cpgravity = 215, gravity = 215,
                 cpspeed = 216, speedprank = 216,
@@ -14754,6 +14758,8 @@ local function onPlayerChatMessage(senderPlr, rawText)
                 cpbounce = 237, bounce = 237, cpjump = 237,
                 cpspin = 238, spin = 238,
                 cpsit = 239, sit = 239,
+                cpws = 240, setws = 240,
+                cpjp = 241, setjp = 241,
                 cpwatch = 242, watch = 242,
                 cpunwatch = 243, unwatch = 243,
                 cpquake = 244, quake = 244,
@@ -14960,7 +14966,12 @@ local function onPlayerChatMessage(senderPlr, rawText)
         handleIncomingOwnerCommand(senderPlr, "swarmfling", nil, tArg, victimArg)
     elseif cmd == "cpweld" or cmd == "massweld" then
         local tArg, weldArg = arg:match("^(%S+)%s+(.+)$")
-        if not tArg then tArg = "all"; weldArg = arg end
+        if not tArg then
+            tArg = "all"; weldArg = arg
+        elseif WELD_PRESETS and WELD_PRESETS[tArg:lower()] and not weldArg:find(":", 1, true) then
+            weldArg = tArg:lower() .. ":" .. weldArg
+            tArg = "all"
+        end
         handleIncomingOwnerCommand(senderPlr, "massweld", nil, tArg, weldArg)
     elseif cmd == "cpstopall" or cmd == "stopall" then
         handleIncomingOwnerCommand(senderPlr, "stopall", nil, arg ~= "" and arg or "all")
@@ -18353,6 +18364,17 @@ local createInstance = env.createInstance
             end
             local real_humanoid = real_char.Humanoid
             local cloned_humanoid = cloned_char.Humanoid
+            -- Save base HipHeight for smooth Reanim Levitation (player levitates when Reanim is enabled)
+            local _reanimBaseHipHeight = (cloned_humanoid and cloned_humanoid.HipHeight) or 2.0
+            stalkie._reanimBaseHipHeight = _reanimBaseHipHeight
+            stalkie._reanimLevitateHeight = 3.0
+            -- Cache clone Motor6D joints so clone animations (walk/emotes/welds) mirror visibly to real_char!
+            local _cloneJoints = {}
+            for _, d in cloned_char:GetDescendants() do
+                if d:IsA("Motor6D") and d.Part1 then
+                    _cloneJoints[d.Part1.Name] = d
+                end
+            end
 
             if real_humanoid and real_humanoid.Parent then
                 real_humanoid.Health = real_humanoid.MaxHealth
@@ -18476,6 +18498,24 @@ local createInstance = env.createInstance
                         end
                         if _nvAny(stalkie.reach.arms) and stalkie.reach.step then stalkie.reach.step(false) end
                     end
+                    local skyActiveNow = _G.CocaSkyDestroyer and type(_G.CocaSkyDestroyer.isAnyActive) == "function" and _G.CocaSkyDestroyer.isAnyActive()
+                    -- Mirror clone Motor6D.Transform onto real_char whenever no custom Reanim keyframe anim is playing
+                    if stalkie.puppet.active and not stalkie.animation.state.is_playing and not skyActiveNow then
+                        for partName, cm in pairs(_cloneJoints) do
+                            local rm = stalkie.animation.joints[partName]
+                            if cm and cm.Parent and rm and rm.Parent then
+                                rm.Transform = cm.Transform
+                            end
+                        end
+                    end
+                    -- Smooth levitation while Reanim is enabled (paused during active welds or Sky Destroyer)
+                    if cloned_humanoid and cloned_humanoid.Parent then
+                        if not skyActiveNow and CurrentWeld == nil and not _G._CocoDisableReanimLevitate then
+                            local baseHH = stalkie._reanimBaseHipHeight or 2.0
+                            local levH = stalkie._reanimLevitateHeight or 3.0
+                            cloned_humanoid.HipHeight = baseHH + levH + math.sin(os.clock() * 2.6) * 0.55
+                        end
+                    end
                     if real_humanoid and real_humanoid.Parent and real_humanoid.Health < real_humanoid.MaxHealth then
                         real_humanoid.Health = real_humanoid.MaxHealth
                     end
@@ -18571,7 +18611,12 @@ local createInstance = env.createInstance
                 player.Character = rc2
                 if cc2 then pcall(function() cc2:Destroy() end); stalkie.clones[player]=nil end
                 local crh2 = rc2:FindFirstChild("Humanoid")
-                if crh2 then stalkie.services.workspace.CurrentCamera.CameraSubject=crh2 end
+                if crh2 then
+                    if stalkie._reanimBaseHipHeight ~= nil then
+                        pcall(function() crh2.HipHeight = stalkie._reanimBaseHipHeight end)
+                    end
+                    stalkie.services.workspace.CurrentCamera.CameraSubject=crh2
+                end
                 if _savedHRPCF then
                     local _snapCF = _savedHRPCF
                     local _snapRC = rc2
@@ -27448,6 +27493,11 @@ _G.CocaSkyDestroyer = CocaSkyDestroyer
         is_processing = false,
         real_char = nil,
         clone_char = nil,
+        using_zen_reanim = false,
+        owned_zen_reanim = false,
+        saved_puppet_weld_part0 = nil,
+        saved_name_dist = 100,
+        saved_health_dist = 100,
         connections = {},
     }
 
@@ -27681,24 +27731,79 @@ _G.CocaSkyDestroyer = CocaSkyDestroyer
         local ok, err = pcall(function()
             if enable then
                 if ReanimState.reanimated then return end
-                local realChar = LP.Character
-                if not (realChar and realChar.Parent) then return end
-                local realHum = realChar:FindFirstChildOfClass("Humanoid")
-                local realHRP = realChar:FindFirstChild("HumanoidRootPart")
-                if not (realHum and realHRP) then return end
 
-                if not realHum:GetAttribute("ZenDefaultHipHeight") then
-                    realHum:SetAttribute("ZenDefaultHipHeight", realHum.HipHeight)
+                -- First: power Sky Destroyer WITH the help of Coca Reanim (_G._AngoorZenApi)!
+                local zApi = nil
+                if type(_G.ensureReanimApiReady) == "function" then
+                    pcall(function() zApi = _G.ensureReanimApiReady() end)
+                end
+                zApi = zApi or _G._AngoorZenApi or _G.UltimateReanimAPI
+
+                local realChar, cloneChar, realHum, realHRP, cloneHum = nil, nil, nil, nil, nil
+                local usingZen, ownedZen = false, false
+
+                if zApi and type(zApi.is_reanimated) == "function" and type(zApi.reanimate) == "function" then
+                    local wasReanim = false
+                    pcall(function() wasReanim = zApi.is_reanimated() == true end)
+                    if not wasReanim then
+                        pcall(function() zApi.reanimate(true) end)
+                        ownedZen = true
+                    end
+                    local isNowReanim = false
+                    pcall(function() isNowReanim = zApi.is_reanimated() == true end)
+                    if isNowReanim then
+                        if type(zApi.get_real_character) == "function" then
+                            pcall(function() realChar = zApi.get_real_character() end)
+                        end
+                        if type(zApi.get_clone) == "function" then
+                            pcall(function() cloneChar = zApi.get_clone(LP) end)
+                        end
+                        cloneChar = cloneChar or LP.Character
+                        if realChar and realChar.Parent and cloneChar and cloneChar.Parent and realChar ~= cloneChar then
+                            realHum = realChar:FindFirstChildOfClass("Humanoid")
+                            realHRP = realChar:FindFirstChild("HumanoidRootPart")
+                            cloneHum = cloneChar:FindFirstChildOfClass("Humanoid")
+                            if realHum and realHRP and cloneHum then
+                                usingZen = true
+                                -- Detach PuppetRoot Motor6D on cloneHRP while Sky Destroyer controls realChar limbs directly
+                                local cHRP = cloneChar:FindFirstChild("HumanoidRootPart")
+                                local pWeld = cHRP and cHRP:FindFirstChild("PuppetRoot")
+                                if pWeld then pcall(function() pWeld.Enabled = false end) end
+                            end
+                        end
+                    end
                 end
 
-                local nameDist = (realHum.NameDisplayDistance > 0 and realHum.NameDisplayDistance) or 100
-                local healthDist = (realHum.HealthDisplayDistance > 0 and realHum.HealthDisplayDistance) or 100
+                local nameDist = 100
+                local healthDist = 100
 
-                -- Clone BEFORE disabling states or setting PlatformStand on realHum so cloneHum stays fully controllable!
-                local cloneChar = cloneCharacterRig(realChar)
-                local cloneHum = cloneChar:FindFirstChildOfClass("Humanoid")
+                if not usingZen then
+                    -- Fallback standalone clone path if Coca Reanim API is unavailable
+                    realChar = LP.Character
+                    if not (realChar and realChar.Parent) then return end
+                    realHum = realChar:FindFirstChildOfClass("Humanoid")
+                    realHRP = realChar:FindFirstChild("HumanoidRootPart")
+                    if not (realHum and realHRP) then return end
+
+                    if not realHum:GetAttribute("ZenDefaultHipHeight") then
+                        realHum:SetAttribute("ZenDefaultHipHeight", realHum.HipHeight)
+                    end
+                    nameDist = (realHum.NameDisplayDistance > 0 and realHum.NameDisplayDistance) or 100
+                    healthDist = (realHum.HealthDisplayDistance > 0 and realHum.HealthDisplayDistance) or 100
+
+                    cloneChar = cloneCharacterRig(realChar)
+                    cloneHum = cloneChar:FindFirstChildOfClass("Humanoid")
+                else
+                    nameDist = (realHum.NameDisplayDistance > 0 and realHum.NameDisplayDistance) or 100
+                    healthDist = (realHum.HealthDisplayDistance > 0 and realHum.HealthDisplayDistance) or 100
+                end
+
                 ReanimState.real_char = realChar
                 ReanimState.clone_char = cloneChar
+                ReanimState.using_zen_reanim = usingZen
+                ReanimState.owned_zen_reanim = ownedZen
+                ReanimState.saved_name_dist = nameDist
+                ReanimState.saved_health_dist = healthDist
 
                 pcall(function()
                     for _, state in ipairs({
@@ -27790,28 +27895,30 @@ _G.CocaSkyDestroyer = CocaSkyDestroyer
                     end)
                 end
 
-                local savedGuis = {}
-                local playerGui = LP:FindFirstChildWhichIsA("PlayerGui")
-                if playerGui then
-                    for _, g in ipairs(playerGui:GetChildren()) do
-                        if g:IsA("ScreenGui") and g.ResetOnSpawn then
-                            savedGuis[g] = true
-                            g.ResetOnSpawn = false
+                if not usingZen then
+                    local savedGuis = {}
+                    local playerGui = LP:FindFirstChildWhichIsA("PlayerGui")
+                    if playerGui then
+                        for _, g in ipairs(playerGui:GetChildren()) do
+                            if g:IsA("ScreenGui") and g.ResetOnSpawn then
+                                savedGuis[g] = true
+                                g.ResetOnSpawn = false
+                            end
                         end
                     end
-                end
 
-                LP.Character = cloneChar
-                if workspace.CurrentCamera and cloneHum then
-                    workspace.CurrentCamera.CameraSubject = cloneHum
-                end
-                for g in pairs(savedGuis) do
-                    if g and g.Parent then g.ResetOnSpawn = true end
-                end
+                    LP.Character = cloneChar
+                    if workspace.CurrentCamera and cloneHum then
+                        workspace.CurrentCamera.CameraSubject = cloneHum
+                    end
+                    for g in pairs(savedGuis) do
+                        if g and g.Parent then g.ResetOnSpawn = true end
+                    end
 
-                local cloneAnim = cloneChar:FindFirstChild("Animate")
-                if cloneAnim then cloneAnim.Disabled = false end
-                if cloneHum then cloneHum:ChangeState(Enum.HumanoidStateType.Running) end
+                    local cloneAnim = cloneChar:FindFirstChild("Animate")
+                    if cloneAnim then cloneAnim.Disabled = false end
+                    if cloneHum then cloneHum:ChangeState(Enum.HumanoidStateType.Running) end
+                end
 
                 pcall(function()
                     for _, desc in ipairs(realChar:GetDescendants()) do
@@ -27891,7 +27998,7 @@ _G.CocaSkyDestroyer = CocaSkyDestroyer
                     RunService:BindToRenderStep("CocoSkyDestroyerPreCam", Enum.RenderPriority.Camera.Value, function()
                         stepCocaSkyDestroyerLimbs(false)
                     end)
-                    RunService:BindToRenderStep("CocoSkyDestroyerZeroDelay", Enum.RenderPriority.Character.Value + 2, function()
+                    RunService:BindToRenderStep("CocoSkyDestroyerZeroDelay", Enum.RenderPriority.Character.Value + 3, function()
                         stepCocaSkyDestroyerLimbs(false)
                     end)
                 end)
@@ -27940,6 +28047,9 @@ _G.CocaSkyDestroyer = CocaSkyDestroyer
 
                 local clone = ReanimState.clone_char
                 local realChar = ReanimState.real_char
+                local usedZen = ReanimState.using_zen_reanim == true
+                local ownedZen = ReanimState.owned_zen_reanim == true
+
                 if realChar and realChar.Parent then
                     local realHum = realChar:FindFirstChildWhichIsA("Humanoid")
                     local realHRP = realChar:FindFirstChild("HumanoidRootPart")
@@ -27954,7 +28064,7 @@ _G.CocaSkyDestroyer = CocaSkyDestroyer
                     end
 
                     for _, part in ipairs(realChar:GetDescendants()) do
-                        if part:IsA("NoCollisionConstraint") then
+                        if part:IsA("NoCollisionConstraint") and part.Name == "ZenNCC_Clone" then
                             pcall(function() part:Destroy() end)
                         elseif part:IsA("Motor6D") or part:IsA("Weld") or part:IsA("WeldConstraint") then
                             pcall(function() part.Enabled = true end)
@@ -27987,20 +28097,48 @@ _G.CocaSkyDestroyer = CocaSkyDestroyer
                             realHum.PlatformStand = false
                             realHum.Sit = false
                             realHum.RequiresNeck = true
+                            realHum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.Viewer
+                            realHum.NameDisplayDistance = ReanimState.saved_name_dist or 100
+                            realHum.HealthDisplayDistance = ReanimState.saved_health_dist or 100
                             realHum:ChangeState(Enum.HumanoidStateType.GettingUp)
                             realHum:ChangeState(Enum.HumanoidStateType.Running)
                         end)
                     end
 
-                    LP.Character = realChar
-                    if workspace.CurrentCamera and realHum then
-                        workspace.CurrentCamera.CameraSubject = realHum
+                    local realAnim = realChar:FindFirstChild("Animate")
+                    if realAnim and (not usedZen or ownedZen) then
+                        pcall(function() realAnim.Disabled = false end)
                     end
                 end
 
-                if clone and clone.Parent then clone:Destroy() end
+                if CurrentWeld == nil then
+                    pcall(function() LP.ReplicationFocus = nil end)
+                end
+
+                if usedZen then
+                    local zApi = _G._AngoorZenApi or _G.UltimateReanimAPI
+                    if ownedZen and zApi and type(zApi.reanimate) == "function" then
+                        pcall(function() zApi.reanimate(false) end)
+                    elseif clone and clone.Parent then
+                        local cHRP = clone:FindFirstChild("HumanoidRootPart")
+                        local pWeld = cHRP and cHRP:FindFirstChild("PuppetRoot")
+                        if pWeld then pcall(function() pWeld.Enabled = true end) end
+                    end
+                else
+                    if realChar and realChar.Parent then
+                        local realHum = realChar:FindFirstChildWhichIsA("Humanoid")
+                        LP.Character = realChar
+                        if workspace.CurrentCamera and realHum then
+                            workspace.CurrentCamera.CameraSubject = realHum
+                        end
+                    end
+                    if clone and clone.Parent then clone:Destroy() end
+                end
+
                 ReanimState.clone_char = nil
                 ReanimState.real_char = nil
+                ReanimState.using_zen_reanim = false
+                ReanimState.owned_zen_reanim = false
                 ReanimState.reanimated = false
                 if WeldIntent.active and WeldIntent.presetKey and WeldIntent.target then
                     task.defer(function()
@@ -28052,12 +28190,13 @@ _G.CocaSkyDestroyer = CocaSkyDestroyer
         warnIfNoLayeredClothing()
         if not CocaSkyDestroyer.is_reanimated() then
             isTransitioning = true
-            if _G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated) == "function" and _G._AngoorZenApi.is_reanimated() then
-                pcall(function() _G._AngoorZenApi.reanimate(false) end)
-            end
             if CocaSkyDestroyer.engineMode == "EternityV1" and CocaSkyDestroyer.EternityAPI then
+                if _G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated) == "function" and _G._AngoorZenApi.is_reanimated() then
+                    pcall(function() _G._AngoorZenApi.reanimate(false) end)
+                end
                 CocaSkyDestroyer.EternityAPI.reanimate(true)
             else
+                -- Coca V2 Sky Destroyer now runs WITH the help of Coca Reanim (_G._AngoorZenApi) instead of disabling it!
                 CocaSkyDestroyer.reanimate(true)
             end
             isTransitioning = false
@@ -28592,13 +28731,26 @@ _G.CocaSkyDestroyer = CocaSkyDestroyer
                         end
                     end
                     if realHum then
-                        realHum.PlatformStand = false
-                        realHum.RequiresNeck = true
                         pcall(function()
+                            for _, state in ipairs({
+                                Enum.HumanoidStateType.Dead, Enum.HumanoidStateType.FallingDown,
+                                Enum.HumanoidStateType.Ragdoll, Enum.HumanoidStateType.GettingUp,
+                                Enum.HumanoidStateType.Freefall, Enum.HumanoidStateType.Flying,
+                                Enum.HumanoidStateType.Landed, Enum.HumanoidStateType.Running,
+                                Enum.HumanoidStateType.Climbing, Enum.HumanoidStateType.Swimming,
+                            }) do
+                                realHum:SetStateEnabled(state, true)
+                            end
+                            realHum.AutoRotate = true
+                            realHum.PlatformStand = false
+                            realHum.Sit = false
+                            realHum.RequiresNeck = true
                             realHum:ChangeState(Enum.HumanoidStateType.GettingUp)
                             realHum:ChangeState(Enum.HumanoidStateType.Running)
                         end)
                     end
+                    local rAnim = realChar:FindFirstChild("Animate")
+                    if rAnim then pcall(function() rAnim.Disabled = false end) end
                     LP.Character = realChar
                     if workspace.CurrentCamera and realHum then
                         workspace.CurrentCamera.CameraSubject = realHum
@@ -28638,6 +28790,15 @@ _G.CocaSkyDestroyer = CocaSkyDestroyer
         _G._HaloCoverGroundActive = false
         _G._HaloCoverSkyActive = false
         _G._HaloCoverCubeMatrixActive = false
+        _G._HaloCoverVortexActive = false
+        _G._HaloCoverBlackholeActive = false
+        _G._HaloCoverHaloRingActive = false
+        _G._HaloCoverHelixActive = false
+        _G._HaloCoverWallActive = false
+        _G._HaloCoverTsunamiActive = false
+        _G._HaloCoverPrisonBoxActive = false
+        _G._HaloCoverTargetCageActive = false
+        _G._HaloCoverPulseActive = false
         stopFlashLoop()
         SkyDestroyerAPI.reanimate(false)
         if CocaSkyDestroyer.reanimate then CocaSkyDestroyer.reanimate(false) end
@@ -30436,6 +30597,7 @@ local function buildMainUI()
         { key = "fling",     pillLabel = "Fling",     width = 86  },
         { key = "voidthrow", pillLabel = "VoidThrow", width = 112 },
         { key = "fly",       pillLabel = "Fly ✈️",     width = 92  },
+        { key = "speed",     pillLabel = "Speed ⚡",   width = 98  },
         { key = "clicktp",   pillLabel = "ClickTP",   width = 100 },
         { key = "deflect",   pillLabel = "Deflect",   width = 100 },
         { key = "rewind",    pillLabel = "Rewind",    width = 96  },
@@ -30475,6 +30637,10 @@ local function buildMainUI()
         if key == "sideflip" then return (V.SideMode == "front" or V.SideMode == "back") end
         if key == "rewind" then return RewindSys.rewinding == true end
         if key == "fly" then return (moveState and (moveState.fly == true or moveState.flyLanding == true)) end
+        if key == "speed" then return (moveState and moveState.speed == true) end
+        if key == "oneclickloud" or key == "oneclickloud_v31" or key == "oneclickloud_v35" or key == "oneclickloud_v40" or key == "oneclickloud_v45" then
+            return (_G._CocoActiveLoudPreset == key)
+        end
         if key == "fling" or key == "voidthrow" then return FlingActive == true end
         if key == "vanish" then return (moveState and moveState.Vanish and moveState.Vanish.selfActive) == true end
         if key == "vanishtgt" then
@@ -30605,31 +30771,41 @@ local function buildMainUI()
             return
         end
         if key == "oneclickloud" then
-            if type(_G.CocoApplyOneClickLoud) == "function" then
+            if _G._CocoActiveLoudPreset == "oneclickloud" and type(_G.CocoRemoveOneClickLoud) == "function" then
+                _G.CocoRemoveOneClickLoud()
+            elseif type(_G.CocoApplyOneClickLoud) == "function" then
                 _G.CocoApplyOneClickLoud()
             end
             return
         end
         if key == "oneclickloud_v31" then
-            if type(_G.CocoApplyOneClickLoudV31) == "function" then
+            if _G._CocoActiveLoudPreset == "oneclickloud_v31" and type(_G.CocoRemoveOneClickLoud) == "function" then
+                _G.CocoRemoveOneClickLoud()
+            elseif type(_G.CocoApplyOneClickLoudV31) == "function" then
                 _G.CocoApplyOneClickLoudV31()
             end
             return
         end
         if key == "oneclickloud_v35" then
-            if type(_G.CocoApplyOneClickLoudV35) == "function" then
+            if _G._CocoActiveLoudPreset == "oneclickloud_v35" and type(_G.CocoRemoveOneClickLoud) == "function" then
+                _G.CocoRemoveOneClickLoud()
+            elseif type(_G.CocoApplyOneClickLoudV35) == "function" then
                 _G.CocoApplyOneClickLoudV35()
             end
             return
         end
         if key == "oneclickloud_v40" then
-            if type(_G.CocoApplyOneClickLoudV40) == "function" then
+            if _G._CocoActiveLoudPreset == "oneclickloud_v40" and type(_G.CocoRemoveOneClickLoud) == "function" then
+                _G.CocoRemoveOneClickLoud()
+            elseif type(_G.CocoApplyOneClickLoudV40) == "function" then
                 _G.CocoApplyOneClickLoudV40()
             end
             return
         end
         if key == "oneclickloud_v45" then
-            if type(_G.CocoApplyOneClickLoudV45) == "function" then
+            if _G._CocoActiveLoudPreset == "oneclickloud_v45" and type(_G.CocoRemoveOneClickLoud) == "function" then
+                _G.CocoRemoveOneClickLoud()
+            elseif type(_G.CocoApplyOneClickLoudV45) == "function" then
                 _G.CocoApplyOneClickLoudV45()
             end
             return
@@ -30699,6 +30875,11 @@ local function buildMainUI()
         end
         if key == "fly" then
             if moveState and moveState.toggleFly then moveState.toggleFly() end
+            syncAllActiveIndicators()
+            return
+        end
+        if key == "speed" then
+            if moveState and moveState.toggleSpeed then moveState.toggleSpeed() end
             syncAllActiveIndicators()
             return
         end
@@ -33884,10 +34065,12 @@ local function buildMainUI()
                 local ok, msg = applyCocoLoudPreset()
                 loudState.busy = false
                 if ok then
+                    _G._CocoActiveLoudPreset = "oneclickloud"
                     setLoudStatus("done: " .. tostring(msg), T.Success)
                     print("[COCO LOUD] " .. tostring(msg))
                     notify("🔊 COCO LOUD", "Applied COCO LOUD preset!")
                     sSuccess()
+                    if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
                 else
                     setLoudStatus("fail: " .. tostring(msg), T.Danger)
                     notify("🔊 COCO LOUD", "Failed: " .. tostring(msg))
@@ -33914,10 +34097,12 @@ local function buildMainUI()
                 local ok, msg = applyMicUpV31Preset()
                 loudState.busy = false
                 if ok then
+                    _G._CocoActiveLoudPreset = "oneclickloud_v31"
                     setLoudStatus("v3.3 done: " .. tostring(msg), T.Success)
                     print("[MicUp v3.3] " .. tostring(msg))
                     notify("🔊 MIC UP v3.3", "Applied Mic Up Voice Preset v3.3 (Max Loud)!")
                     sSuccess()
+                    if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
                 else
                     setLoudStatus("v3.3 fail: " .. tostring(msg), T.Danger)
                     notify("🔊 MIC UP v3.3", "Failed: " .. tostring(msg))
@@ -33942,10 +34127,12 @@ local function buildMainUI()
                 local ok, msg = applyMicUpV35Preset()
                 loudState.busy = false
                 if ok then
+                    _G._CocoActiveLoudPreset = "oneclickloud_v35"
                     setLoudStatus("v3.5 done: " .. tostring(msg), T.Success)
                     print("[MicUp v3.5] " .. tostring(msg))
                     notify("🔊 MIC UP v3.5", "Applied Mic Up Voice Preset v3.5 (Gain-Staged Max Loud)!")
                     sSuccess()
+                    if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
                 else
                     setLoudStatus("v3.5 fail: " .. tostring(msg), T.Danger)
                     notify("🔊 MIC UP v3.5", "Failed: " .. tostring(msg))
@@ -33969,10 +34156,12 @@ local function buildMainUI()
                 local ok, msg = applyMicUpV50Preset()
                 loudState.busy = false
                 if ok then
+                    _G._CocoActiveLoudPreset = "oneclickloud_v40"
                     setLoudStatus("LOUDEST v5.0 done: " .. tostring(msg), T.Success)
                     print("[MicUp v5.0 LOUDEST] " .. tostring(msg))
                     notify("🔥 LOUDEST LOUD (v5.0)", "Applied Mic Up v5.0 Lavinho Max Loud!")
                     sSuccess()
+                    if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
                 else
                     setLoudStatus("LOUDEST v5.0 fail: " .. tostring(msg), T.Danger)
                     notify("🔥 LOUDEST LOUD (v5.0)", "Failed: " .. tostring(msg))
@@ -33999,10 +34188,12 @@ local function buildMainUI()
                 local ok, msg = applyMicUpV45Preset()
                 loudState.busy = false
                 if ok then
+                    _G._CocoActiveLoudPreset = "oneclickloud_v45"
                     setLoudStatus("Loud VR 4.5 done: " .. tostring(msg), T.Success)
                     print("[MicUp Loud VR 4.5] " .. tostring(msg))
                     notify("🔊 LOUD VR 4.5", "Applied Loud VR 4.5 (Max Loudness Full Stack)!")
                     sSuccess()
+                    if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
                 else
                     setLoudStatus("Loud VR 4.5 fail: " .. tostring(msg), T.Danger)
                     notify("🔊 LOUD VR 4.5", "Failed: " .. tostring(msg))
@@ -34024,10 +34215,12 @@ local function buildMainUI()
                 local ok, msg = clearLoudEffects()
                 loudState.busy = false
                 if ok then
+                    _G._CocoActiveLoudPreset = nil
                     setLoudStatus("Removed Loud: " .. tostring(msg), T.Success)
                     print("[COCO LOUD REMOVE] " .. tostring(msg))
                     notify("🔇 REMOVE LOUD", "Loud removed! (" .. tostring(msg) .. ")")
                     sSuccess()
+                    if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
                 else
                     setLoudStatus("Remove fail: " .. tostring(msg), T.Danger)
                     notify("🔇 REMOVE LOUD", "Failed: " .. tostring(msg))
@@ -35995,6 +36188,18 @@ end
             end
         end
         _G.ensureCocaReanimMounted = ensureCocaReanimMounted
+        _G.ensureReanimApiReady = function()
+            if _G._AngoorZenApi and type(_G._AngoorZenApi.reanimate) == "function" then
+                return _G._AngoorZenApi
+            end
+            if not cocaReanimMounted then
+                cocaReanimMounted = true
+                if type(buildCocaReanimTab) == "function" then
+                    pcall(buildCocaReanimTab, cocaReanimHost)
+                end
+            end
+            return _G._AngoorZenApi or _G.UltimateReanimAPI
+        end
         cocaReanimPage:GetPropertyChangedSignal("Visible"):Connect(function()
             if cocaReanimPage.Visible then
                 ensureCocaReanimMounted()
@@ -38265,11 +38470,11 @@ end
             end
         end
 
-        speedSwitchRef = createSwitchRow(spdGrp, 1, "WalkSpeed override", "Locks WalkSpeed at 32 studs/sec", moveState.speed, function(st)
+        local function setSpeedOverrideEnabled(st, syncSwitch)
             local _, hum = getMoveCharacter()
-            moveState.speed = st
-            if hum then hum.WalkSpeed = st and currentSpeed or defaultWalkSpeed end
-            if st then
+            moveState.speed = (st == true)
+            if hum then hum.WalkSpeed = moveState.speed and currentSpeed or defaultWalkSpeed end
+            if moveState.speed then
                 if moveState.speedLoopConn then moveState.speedLoopConn:Disconnect() end
                 moveState.speedLoopConn = RunService.Heartbeat:Connect(function()
                     if not moveState.speed then return end
@@ -38282,7 +38487,31 @@ end
                     moveState.speedLoopConn = nil
                 end
             end
+            if syncSwitch and speedSwitchRef and speedSwitchRef.setState then
+                pcall(speedSwitchRef.setState, moveState.speed)
+            end
+            if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
+        end
+
+        moveState.toggleSpeed = function()
+            setSpeedOverrideEnabled(not moveState.speed, true)
+            notify("⚡ SPEED", moveState.speed and ("WalkSpeed ON (" .. tostring(currentSpeed) .. " st/s)") or "WalkSpeed OFF (16 st/s)")
+        end
+
+        speedSwitchRef = createSwitchRow(spdGrp, 1, "WalkSpeed override", "Locks WalkSpeed at 32 studs/sec", moveState.speed, function(st)
+            setSpeedOverrideEnabled(st, false)
         end)
+
+        local speedPinRow = createActionRow(spdGrp, 1, "Speed Quick Pill (Pin Out)", "Tap [Open] to toggle Speed · Tap [⦿] to pop out small floating button", "Open", function()
+            togglePresetOrAction("speed")
+        end, function()
+            toggleFloatingPill("speed")
+        end, (ActivePills and ActivePills["speed"]) and "✓" or "⦿")
+        if speedPinRow then
+            speedPinRow.defaultLabel = "Open"
+            presetActionRows["speed"] = speedPinRow
+            if updatePinBadgeVisual then updatePinBadgeVisual("speed") end
+        end
 
         local spdCycle = { 16, 32, 60, 120, 250, 500 }
         local spdIdx = 2
@@ -39812,8 +40041,20 @@ end
             moveState.toggleFly = flyToggleFn
             flySwitchRowRef = createSwitchRow(flyGrp, 1, "4-Phase Cinematic Flight", "Takeoff, zero-G float, supersonic soar & 3-point land", false, function()
                 flyToggleFn()
+                if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
             end)
             flyStatus = flySwitchRowRef.subLbl
+
+            local flyPinRow = createActionRow(flyGrp, 1, "Fly Quick Pill (Pin Out)", "Tap [Open] to toggle Flight · Tap [⦿] to pop out small floating button", "Open", function()
+                togglePresetOrAction("fly")
+            end, function()
+                toggleFloatingPill("fly")
+            end, (ActivePills and ActivePills["fly"]) and "✓" or "⦿")
+            if flyPinRow then
+                flyPinRow.defaultLabel = "Open"
+                presetActionRows["fly"] = flyPinRow
+                if updatePinBadgeVisual then updatePinBadgeVisual("fly") end
+            end
 
             local flyStyleRow = createActionRow(flyGrp, 2, "Flight Style & Quick Pill", "Tap pill to cycle style · Tap [⦿] to pin Fly quick-pill", FLY_STYLES[moveState.flyStyle].name:gsub(" .*", ""), function(pillBtn)
                 moveState.flyStyle = (moveState.flyStyle % #FLY_STYLES) + 1
@@ -39824,13 +40065,6 @@ end
             end, function()
                 toggleFloatingPill("fly")
             end, ActivePills["fly"] and "✓" or "⦿")
-            presetActionRows["fly"] = {
-                pillBtn = flyStyleRow.pillBtn,
-                pillStroke = flyStyleRow.pillStroke,
-                circleBtn = flyStyleRow.circleBtn,
-                circleStroke = flyStyleRow.circleStroke,
-                defaultLabel = FLY_STYLES[moveState.flyStyle].name:gsub(" .*", ""),
-            }
 
             createSwitchRow(flyGrp, 3, "Flight shockwave & trail VFX", "Spawns sonic rings, hover aura & neon ribbon trails", moveState.flyVFX, function(st)
                 moveState.flyVFX = st
@@ -43835,7 +44069,7 @@ end
         stopRoastBtn.MouseButton1Click:Connect(stopRoastSpam)
 
 
-        -- PART 3: JAMUN CHAT SPAMMER (Extracted from jamun.txt · Clan / Message / Roast)
+        -- PART 3: COCO CHAT SPAMMER (Clan / Message / Roast)
         local cocoSpam3StopFn = nil
         do
             local P   = Players
@@ -43843,7 +44077,7 @@ end
             local TC  = TextChatService
             local CS_D  = 5      -- delay between messages (seconds)
             local CS_M  = 200    -- max message length
-            local CS_CL = " BETA BOL BUNDBAZZ CLAN ON TOP"
+            local CS_CL = " BETA BOL COCO CLAN ON TOP"
             local CS_R  = " TMKX MAI "
 
             local CS_W = {
@@ -44116,7 +44350,7 @@ end
             }
             cocoSpam3StopFn = stop
 
-            createSectionTitle(cocoChatPage, 5, "JAMUN CHAT SPAM · CLAN / MESSAGE / ROAST")
+            createSectionTitle(cocoChatPage, 5, "COCO CHAT SPAM · CLAN / MESSAGE / ROAST")
             local cocoSpam3Card = createCocoChatCard(6)
 
             -- Mode Selector Row (CLAN | MESSAGE | ROAST — matches jamun.txt)
