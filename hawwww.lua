@@ -2041,33 +2041,6 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
     local Weld = { destroyed = false, presetKey = PresetKey }
     CurrentWeld = Weld
 
-    -- If using the Zero-Delay Reanim Levitate weld preset, ensure Coca Reanim is active immediately (0.00ms)
-    local weldStartedReanim = false
-    if PresetKey == "reanim" then
-        pcall(function()
-            if type(_G.ensureReanimApiReady) == "function" then
-                _G.ensureReanimApiReady()
-            end
-            local zApi = _G._AngoorZenApi or _G.UltimateReanimAPI
-            if zApi and type(zApi.is_reanimated) == "function" and type(zApi.reanimate) == "function" then
-                if not zApi.is_reanimated() then
-                    zApi.reanimate(true)
-                    weldStartedReanim = true
-                end
-            end
-        end)
-        local liveChar = LP and LP.Character
-        if liveChar and liveChar.Parent and liveChar ~= Character then
-            local liveRoot = liveChar:FindFirstChild("HumanoidRootPart") or liveChar:FindFirstChildWhichIsA("BasePart")
-            local liveHum = liveChar:FindFirstChildWhichIsA("Humanoid")
-            if liveRoot and liveHum then
-                Character = liveChar
-                Root = liveRoot
-                Humanoid = liveHum
-            end
-        end
-    end
-
     -- Cleanse any active Emote / Procedural Pack Motor6D C0 overrides so animations never conflict
     pcall(function()
         if EmoteHub then
@@ -2105,18 +2078,15 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
     -- Exact oyee hoye.lua animation loader (runs asynchronously so Frame-0 CFrame lock is 0.00ms,
     -- and uses ANIM_VERIFY_TIME = 0.15 so animations NEVER flicker or restart 60x/sec!)
     local AnimTrack, AnimInstance = nil, nil
-    local RealAnimTrack, RealAnimInstance = nil, nil
     local animAttempts = 0
     local animLoading = false
     local function ensureAnim(force)
         if not AnimationId or Weld.destroyed or animLoading then return end
-        local spdVal = math.clamp(V.Speed or 1.0, 0.2, 6.0)
         if AnimTrack and not force then
             local ip = false
             pcall(function() ip = AnimTrack.IsPlaying end)
             if ip then
-                pcall(function() AnimTrack:AdjustSpeed(spdVal) end)
-                if RealAnimTrack then pcall(function() RealAnimTrack:AdjustSpeed(spdVal) end) end
+                pcall(function() AnimTrack:AdjustSpeed(math.clamp(V.Speed or 1.0, 0.2, 6.0)) end)
                 if (PresetKey == "jerk" or PresetKey == "goon") and Humanoid.RigType == Enum.HumanoidRigType.R6 then
                     pcall(function()
                         if AnimTrack.TimePosition > 0.72 or AnimTrack.TimePosition < 0.52 then
@@ -2152,39 +2122,9 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
                     if AnimInstance and AnimInstance ~= anim then
                         pcall(function() AnimInstance:Destroy() end)
                     end
-                    pcall(function() track:AdjustSpeed(spdVal) end)
+                    pcall(function() track:AdjustSpeed(math.clamp(V.Speed or 1.0, 0.2, 6.0)) end)
                     AnimTrack = track
                     AnimInstance = anim
-                end
-                -- If Coca Reanim is active, ALSO play the weld animation directly on the visible real_char!
-                local zApi = _G._AngoorZenApi or _G.UltimateReanimAPI
-                if zApi and type(zApi.is_reanimated) == "function" and zApi.is_reanimated() and type(zApi.get_real_character) == "function" then
-                    local rChar = zApi.get_real_character()
-                    if rChar and rChar.Parent and rChar ~= Character then
-                        local rHum = rChar:FindFirstChildWhichIsA("Humanoid")
-                        local rAnimator = rChar:FindFirstChildWhichIsA("Animator", true)
-                        if not rAnimator and rHum then
-                            rAnimator = Instance.new("Animator")
-                            rAnimator.Parent = rHum
-                        end
-                        if rAnimator and rHum then
-                            local rTrack, rAnim = loadPlayableAnim(rAnimator, AnimationId, AnimFallbacks, rHum)
-                            if Weld.destroyed then
-                                if rTrack then pcall(function() rTrack:Stop(0); rTrack:Destroy() end) end
-                                if rAnim then pcall(function() rAnim:Destroy() end) end
-                            elseif rTrack then
-                                if RealAnimTrack and RealAnimTrack ~= rTrack then
-                                    pcall(function() RealAnimTrack:Stop(0); RealAnimTrack:Destroy() end)
-                                end
-                                if RealAnimInstance and RealAnimInstance ~= rAnim then
-                                    pcall(function() RealAnimInstance:Destroy() end)
-                                end
-                                pcall(function() rTrack:AdjustSpeed(spdVal) end)
-                                RealAnimTrack = rTrack
-                                RealAnimInstance = rAnim
-                            end
-                        end
-                    end
                 end
             end)
             animLoading = false
@@ -2403,14 +2343,6 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
             else
                 attachCF = flatHeadCF * CFrame.new(0, 2.35, -0.85) * CFrame.Angles(0, extraYaw, 0) * customAdjust
             end
-        elseif PresetKey == "reanim" then
-            -- Zero-Delay Reanim Levitation Lock: hovers smoothly above target with mystic float bobbing
-            local flatCF = getFlatYawCFrame(TargetPart.CFrame, TargetPart.Position)
-            local hoverBob = math.sin(clock * 2.6) * 0.65
-            local swayRoll = math.rad(math.sin(clock * 1.8) * 4.0)
-            local swayPitch = math.rad(-5.5 + math.cos(clock * 1.5) * 2.5)
-            local levOffset = localOffset * CFrame.new(0, hoverBob, 0) * CFrame.Angles(swayPitch, 0, swayRoll)
-            attachCF = flatCF * levOffset
         elseif sideMode ~= "auto" or PresetKey == "selfanim" or PresetKey == "finger" or TargetPart.Name ~= "HumanoidRootPart" then
             attachCF = getFlatYawCFrame(TargetPart.CFrame, TargetPart.Position) * localOffset
         else
@@ -2426,9 +2358,10 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
         pcall(function() LP.ReplicationFocus = TargetPart end)
         if sethiddenproperty then
             pcall(function()
-                -- Keep PhysicsRepRootPart nil to prevent 2x world-coordinate sky/void flings on Delta/Roblox
-                sethiddenproperty(Root, "PhysicsRepRootPart", nil)
-                sethiddenproperty(Root, "PhysicsRepRootRef", nil)
+                sethiddenproperty(Root, "PhysicsRepRootPart", TargetPart)
+                if InstanceHandleNew then
+                    sethiddenproperty(Root, "PhysicsRepRootRef", InstanceHandleNew(TargetPart))
+                end
                 sethiddenproperty(Root, "NetworkIsSleeping", false)
             end)
         end
@@ -2477,25 +2410,8 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
             pcall(function() AnimInstance:Destroy() end)
             AnimInstance = nil
         end
-        if RealAnimTrack then
-            pcall(function() RealAnimTrack:Stop(0) end)
-            pcall(function() RealAnimTrack:Destroy() end)
-            RealAnimTrack = nil
-        end
-        if RealAnimInstance then
-            pcall(function() RealAnimInstance:Destroy() end)
-            RealAnimInstance = nil
-        end
         if CurrentWeld == self then
             CurrentWeld = nil
-        end
-        -- Cleanly exit Reanim if this weld preset was the one that auto-enabled it
-        if weldStartedReanim and not skipReturn then
-            weldStartedReanim = false
-            local zApi = _G._AngoorZenApi or _G.UltimateReanimAPI
-            if zApi and type(zApi.is_reanimated) == "function" and zApi.is_reanimated() and type(zApi.reanimate) == "function" then
-                pcall(function() zApi.reanimate(false) end)
-            end
         end
         if not skipReturn then
             LastVoidActionEnd = tick()
@@ -2853,16 +2769,6 @@ WELD_PRESETS.finger = {
     osc = nil,
     refMode = "torso",
     label = "Finger"
-}
-WELD_PRESETS.reanim = {
-    offset = CFrame.new(0, 3.2, -2.1) * CFrame.Angles(0, math.rad(180), 0),
-    anim15 = 616006778,
-    anim6  = 313762630,
-    animFallbacks = { 616006778, 3337994105, 10147815602, 9178377686, 616008087, 507771019 },
-    animFallbacks6 = { 313762630, 616006778, 180435571 },
-    osc = nil,
-    refMode = "torso",
-    label = "Reanim Levitate"
 }
 end -- end WELD_PRESETS scope
 
@@ -4481,8 +4387,10 @@ EmoteHub = {
                     pcall(function() LP.ReplicationFocus = fastTR end)
                     if sethiddenproperty then
                         pcall(function()
-                            sethiddenproperty(myRoot, "PhysicsRepRootPart", nil)
-                            sethiddenproperty(myRoot, "PhysicsRepRootRef", nil)
+                            sethiddenproperty(myRoot, "PhysicsRepRootPart", fastTR)
+                            if InstanceHandleNew then
+                                sethiddenproperty(myRoot, "PhysicsRepRootRef", InstanceHandleNew(fastTR))
+                            end
                             sethiddenproperty(myRoot, "NetworkIsSleeping", false)
                         end)
                     end
@@ -4626,8 +4534,10 @@ EmoteHub = {
                 pcall(function() LP.ReplicationFocus = tr end)
                 if sethiddenproperty then
                     pcall(function()
-                        sethiddenproperty(root, "PhysicsRepRootPart", nil)
-                        sethiddenproperty(root, "PhysicsRepRootRef", nil)
+                        sethiddenproperty(root, "PhysicsRepRootPart", tr)
+                        if InstanceHandleNew then
+                            sethiddenproperty(root, "PhysicsRepRootRef", InstanceHandleNew(tr))
+                        end
                         sethiddenproperty(root, "NetworkIsSleeping", false)
                     end)
                 end
@@ -4652,8 +4562,10 @@ EmoteHub = {
                     pcall(function() LP.ReplicationFocus = tRoot end)
                     if sethiddenproperty then
                         pcall(function()
-                            sethiddenproperty(myRoot, "PhysicsRepRootPart", nil)
-                            sethiddenproperty(myRoot, "PhysicsRepRootRef", nil)
+                            sethiddenproperty(myRoot, "PhysicsRepRootPart", tRoot)
+                            if InstanceHandleNew then
+                                sethiddenproperty(myRoot, "PhysicsRepRootRef", InstanceHandleNew(tRoot))
+                            end
                             sethiddenproperty(myRoot, "NetworkIsSleeping", false)
                         end)
                     end
@@ -4925,8 +4837,10 @@ EmoteHub = {
                     markIntentionalTeleport(desiredCF)
                     if sethiddenproperty then
                         pcall(function()
-                            sethiddenproperty(root, "PhysicsRepRootPart", nil)
-                            sethiddenproperty(root, "PhysicsRepRootRef", nil)
+                            sethiddenproperty(root, "PhysicsRepRootPart", focusPart)
+                            if InstanceHandleNew then
+                                sethiddenproperty(root, "PhysicsRepRootRef", InstanceHandleNew(focusPart))
+                            end
                             sethiddenproperty(root, "NetworkIsSleeping", false)
                         end)
                     end
@@ -12142,8 +12056,10 @@ OwnerAdminState.startAdminFormation = function(modeName, centerPlr)
             pcall(function() LP.ReplicationFocus = lRoot end)
             if sethiddenproperty then
                 pcall(function()
-                    sethiddenproperty(myRoot, "PhysicsRepRootPart", nil)
-                    sethiddenproperty(myRoot, "PhysicsRepRootRef", nil)
+                    sethiddenproperty(myRoot, "PhysicsRepRootPart", lRoot)
+                    if InstanceHandleNew then
+                        sethiddenproperty(myRoot, "PhysicsRepRootRef", InstanceHandleNew(lRoot))
+                    end
                     sethiddenproperty(myRoot, "NetworkIsSleeping", false)
                 end)
             end
@@ -25790,71 +25706,45 @@ buildAngoorReanimTab = function(hostContainer)
             local liveTarget = Players:FindFirstChild(lastBangTargetName) or targetPlr
             if not liveTarget or not liveTarget.Character then return end
             local targetRoot = liveTarget.Character:FindFirstChild("HumanoidRootPart")
-                or liveTarget.Character:FindFirstChild("UpperTorso")
-                or liveTarget.Character:FindFirstChild("Torso")
-            if not targetRoot or not targetRoot.Parent then return end
+            if not targetRoot then return end
 
             local posOffset = CFrame.new(0, offsetY, offsetZ)
             local rotOffset = CFrame.Angles(0, math.rad(yawDeg), 0)
             local desiredCF = (targetRoot.CFrame * posOffset) * rotOffset
-            local tVel = targetRoot.AssemblyLinearVelocity
-            local microWake = Vector3.new(0, math.sin(os.clock() * 24) * 0.03, 0)
-            pcall(function() LocalPlayer.ReplicationFocus = targetRoot end)
 
             for _, entry in ipairs(collectLocalRoots()) do
-                if entry.root and entry.root.Parent then
-                    entry.root.Anchored = false
-                    entry.root.CanCollide = false
-                    entry.root.CFrame = desiredCF
-                    entry.root.AssemblyLinearVelocity = (tVel.Magnitude < 350 and (tVel * 0.85) or Vector3.zero) + microWake
-                    entry.root.AssemblyAngularVelocity = Vector3.zero
-                    if sethiddenproperty then
+                entry.root.CFrame = desiredCF
+                entry.root.AssemblyLinearVelocity = targetRoot.AssemblyLinearVelocity
+                entry.root.AssemblyAngularVelocity = Vector3.zero
+                safeSyncPhysicsStep(entry.root, targetRoot)
+                if entry.char then
+                    local hum = entry.char:FindFirstChildWhichIsA("Humanoid")
+                    if hum then
                         pcall(function()
-                            sethiddenproperty(entry.root, "PhysicsRepRootPart", nil)
-                            sethiddenproperty(entry.root, "PhysicsRepRootRef", nil)
-                            sethiddenproperty(entry.root, "NetworkIsSleeping", false)
+                            hum.PlatformStand = true
+                            hum.AutoRotate = false
+                            hum.WalkSpeed = 0
+                            hum:ChangeState(Enum.HumanoidStateType.Physics)
                         end)
                     end
-                    safeSyncPhysicsStep(entry.root, targetRoot)
-                    if entry.char then
-                        local hum = entry.char:FindFirstChildWhichIsA("Humanoid")
-                        if hum then
-                            pcall(function()
-                                hum.PlatformStand = true
-                                hum.AutoRotate = false
-                                hum.WalkSpeed = 0
-                                hum:ChangeState(Enum.HumanoidStateType.Physics)
-                            end)
-                        end
-                    end
                 end
-            end
-            if type(_G.CocoSyncReanimRoots) == "function" then
-                pcall(_G.CocoSyncReanimRoots, desiredCF, nil)
             end
         end
 
         stepLock()
         local stepName = "ZenBangLock"
-        local preCamName = "ZenBangLockPreCam"
         pcall(function() RunService:UnbindFromRenderStep(stepName) end)
-        pcall(function() RunService:UnbindFromRenderStep(preCamName) end)
-        local stepConn = RunService.Stepped:Connect(stepLock)
         local hbConn = RunService.Heartbeat:Connect(stepLock)
         local rsConn = RunService.RenderStepped:Connect(stepLock)
         pcall(function()
-            RunService:BindToRenderStep(preCamName, Enum.RenderPriority.Camera.Value - 1, stepLock)
-            RunService:BindToRenderStep(stepName, Enum.RenderPriority.Character.Value + 1, stepLock)
+            RunService:BindToRenderStep(stepName, Enum.RenderPriority.Camera.Value + 1, stepLock)
         end)
 
         bangLockConnObj = {
             Disconnect = function()
-                pcall(function() stepConn:Disconnect() end)
                 pcall(function() hbConn:Disconnect() end)
                 pcall(function() rsConn:Disconnect() end)
                 pcall(function() RunService:UnbindFromRenderStep(stepName) end)
-                pcall(function() RunService:UnbindFromRenderStep(preCamName) end)
-                pcall(function() LocalPlayer.ReplicationFocus = nil end)
             end,
         }
     end
@@ -30673,7 +30563,6 @@ local function buildMainUI()
     ;(function()
     local PILL_CATALOG = {
         { key = "all",          pillLabel = "All Players 🔄", width = 118 },
-        { key = "reanim",       pillLabel = "Reanim 🪽",   width = 108 },
         { key = "animcopy",     pillLabel = "AnimCopy",   width = 112 },
         { key = "jerktroll",    pillLabel = "JerkTroll",  width = 108 },
         { key = "selfanim",     pillLabel = "Self",       width = 86  },
@@ -31977,8 +31866,7 @@ local function buildMainUI()
         -- 3-Column Quick Weld Grid (Face Bang, Backshots, Headsit, Kiss, Backpack, Headpat, Propose, FF LOL, FF Push, Hug, Choot Lelo, AnimCopy, Chase)
         local quickGridFrame = Instance.new("Frame")
         quickGridFrame.Name = "QuickWeldGrid"
-        quickGridFrame.Size = UDim2.new(1, 0, 0, 0)
-        quickGridFrame.AutomaticSize = Enum.AutomaticSize.Y
+        quickGridFrame.Size = UDim2.new(1, 0, 0, 274)
         quickGridFrame.BackgroundTransparency = 1
         quickGridFrame.LayoutOrder = 4
         quickGridFrame.ZIndex = 8
@@ -31992,7 +31880,6 @@ local function buildMainUI()
 
         local QUICK_GRID_ITEMS = {
             { key = "all",       label = "All Players 🔄" },
-            { key = "reanim",    label = "Reanim 🪽"    },
             { key = "goon",      label = "Goon (Exact)" },
             { key = "poop",      label = "Poop 💩"      },
             { key = "rizz",      label = "Rizz"         },
@@ -32758,7 +32645,6 @@ local function buildMainUI()
                 _G.CocoAdvanceAllPlayersCycle(true)
             end
         end, "⏭️")
-        addPresetRow(sigGrp, 1, "reanim",    "Reanim Levitate Weld (0.00ms)", "Zero-delay reanim preset weld — auto-enables Reanim & levitates smoothly above target")
         addPresetRow(sigGrp, 1, "animcopy",  "Copy Animation (Side-by-Side)", "Locks side-by-side & mirrors all target animations 1:1")
         addPresetRow(sigGrp, 2, "jerktroll", "Jerk Troll (R15 & R6)",         "Rapid arm stroke choreography + animation (or tap ⦿ for pill)")
         createActionRow(sigGrp, 3, "Give 'Jerk Off' Backpack Tool", "Spawns equippable Jerk Troll tool in your Backpack", "Get Tool", function()
