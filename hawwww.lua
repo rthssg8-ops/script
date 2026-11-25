@@ -2041,6 +2041,31 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
     local Weld = { destroyed = false, presetKey = PresetKey }
     CurrentWeld = Weld
 
+    -- If using the Zero-Delay Reanim Levitate weld preset, ensure Coca Reanim is active immediately (0.00ms)
+    if PresetKey == "reanim" then
+        pcall(function()
+            if type(_G.ensureReanimApiReady) == "function" then
+                _G.ensureReanimApiReady()
+            end
+            local zApi = _G._AngoorZenApi or _G.UltimateReanimAPI
+            if zApi and type(zApi.is_reanimated) == "function" and type(zApi.reanimate) == "function" then
+                if not zApi.is_reanimated() then
+                    zApi.reanimate(true)
+                end
+            end
+        end)
+        local liveChar = LP and LP.Character
+        if liveChar and liveChar.Parent and liveChar ~= Character then
+            local liveRoot = liveChar:FindFirstChild("HumanoidRootPart") or liveChar:FindFirstChildWhichIsA("BasePart")
+            local liveHum = liveChar:FindFirstChildWhichIsA("Humanoid")
+            if liveRoot and liveHum then
+                Character = liveChar
+                Root = liveRoot
+                Humanoid = liveHum
+            end
+        end
+    end
+
     -- Cleanse any active Emote / Procedural Pack Motor6D C0 overrides so animations never conflict
     pcall(function()
         if EmoteHub then
@@ -2343,6 +2368,14 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
             else
                 attachCF = flatHeadCF * CFrame.new(0, 2.35, -0.85) * CFrame.Angles(0, extraYaw, 0) * customAdjust
             end
+        elseif PresetKey == "reanim" then
+            -- Zero-Delay Reanim Levitation Lock: hovers smoothly above target with mystic float bobbing
+            local flatCF = getFlatYawCFrame(TargetPart.CFrame, TargetPart.Position)
+            local hoverBob = math.sin(clock * 2.6) * 0.65
+            local swayRoll = math.rad(math.sin(clock * 1.8) * 4.0)
+            local swayPitch = math.rad(-5.5 + math.cos(clock * 1.5) * 2.5)
+            local levOffset = localOffset * CFrame.new(0, hoverBob, 0) * CFrame.Angles(swayPitch, 0, swayRoll)
+            attachCF = flatCF * levOffset
         elseif sideMode ~= "auto" or PresetKey == "selfanim" or PresetKey == "finger" or TargetPart.Name ~= "HumanoidRootPart" then
             attachCF = getFlatYawCFrame(TargetPart.CFrame, TargetPart.Position) * localOffset
         else
@@ -2358,10 +2391,9 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
         pcall(function() LP.ReplicationFocus = TargetPart end)
         if sethiddenproperty then
             pcall(function()
-                sethiddenproperty(Root, "PhysicsRepRootPart", TargetPart)
-                if InstanceHandleNew then
-                    sethiddenproperty(Root, "PhysicsRepRootRef", InstanceHandleNew(TargetPart))
-                end
+                -- Keep PhysicsRepRootPart nil to prevent 2x world-coordinate sky/void flings on Delta/Roblox
+                sethiddenproperty(Root, "PhysicsRepRootPart", nil)
+                sethiddenproperty(Root, "PhysicsRepRootRef", nil)
                 sethiddenproperty(Root, "NetworkIsSleeping", false)
             end)
         end
@@ -2769,6 +2801,16 @@ WELD_PRESETS.finger = {
     osc = nil,
     refMode = "torso",
     label = "Finger"
+}
+WELD_PRESETS.reanim = {
+    offset = CFrame.new(0, 3.2, -2.1) * CFrame.Angles(0, math.rad(180), 0),
+    anim15 = 616006778,
+    anim6  = 313762630,
+    animFallbacks = { 616006778, 3337994105, 10147815602, 9178377686, 616008087, 507771019 },
+    animFallbacks6 = { 313762630, 616006778, 180435571 },
+    osc = nil,
+    refMode = "torso",
+    label = "Reanim Levitate"
 }
 end -- end WELD_PRESETS scope
 
@@ -4387,10 +4429,8 @@ EmoteHub = {
                     pcall(function() LP.ReplicationFocus = fastTR end)
                     if sethiddenproperty then
                         pcall(function()
-                            sethiddenproperty(myRoot, "PhysicsRepRootPart", fastTR)
-                            if InstanceHandleNew then
-                                sethiddenproperty(myRoot, "PhysicsRepRootRef", InstanceHandleNew(fastTR))
-                            end
+                            sethiddenproperty(myRoot, "PhysicsRepRootPart", nil)
+                            sethiddenproperty(myRoot, "PhysicsRepRootRef", nil)
                             sethiddenproperty(myRoot, "NetworkIsSleeping", false)
                         end)
                     end
@@ -4534,10 +4574,8 @@ EmoteHub = {
                 pcall(function() LP.ReplicationFocus = tr end)
                 if sethiddenproperty then
                     pcall(function()
-                        sethiddenproperty(root, "PhysicsRepRootPart", tr)
-                        if InstanceHandleNew then
-                            sethiddenproperty(root, "PhysicsRepRootRef", InstanceHandleNew(tr))
-                        end
+                        sethiddenproperty(root, "PhysicsRepRootPart", nil)
+                        sethiddenproperty(root, "PhysicsRepRootRef", nil)
                         sethiddenproperty(root, "NetworkIsSleeping", false)
                     end)
                 end
@@ -4562,10 +4600,8 @@ EmoteHub = {
                     pcall(function() LP.ReplicationFocus = tRoot end)
                     if sethiddenproperty then
                         pcall(function()
-                            sethiddenproperty(myRoot, "PhysicsRepRootPart", tRoot)
-                            if InstanceHandleNew then
-                                sethiddenproperty(myRoot, "PhysicsRepRootRef", InstanceHandleNew(tRoot))
-                            end
+                            sethiddenproperty(myRoot, "PhysicsRepRootPart", nil)
+                            sethiddenproperty(myRoot, "PhysicsRepRootRef", nil)
                             sethiddenproperty(myRoot, "NetworkIsSleeping", false)
                         end)
                     end
@@ -4837,10 +4873,8 @@ EmoteHub = {
                     markIntentionalTeleport(desiredCF)
                     if sethiddenproperty then
                         pcall(function()
-                            sethiddenproperty(root, "PhysicsRepRootPart", focusPart)
-                            if InstanceHandleNew then
-                                sethiddenproperty(root, "PhysicsRepRootRef", InstanceHandleNew(focusPart))
-                            end
+                            sethiddenproperty(root, "PhysicsRepRootPart", nil)
+                            sethiddenproperty(root, "PhysicsRepRootRef", nil)
                             sethiddenproperty(root, "NetworkIsSleeping", false)
                         end)
                     end
@@ -12056,10 +12090,8 @@ OwnerAdminState.startAdminFormation = function(modeName, centerPlr)
             pcall(function() LP.ReplicationFocus = lRoot end)
             if sethiddenproperty then
                 pcall(function()
-                    sethiddenproperty(myRoot, "PhysicsRepRootPart", lRoot)
-                    if InstanceHandleNew then
-                        sethiddenproperty(myRoot, "PhysicsRepRootRef", InstanceHandleNew(lRoot))
-                    end
+                    sethiddenproperty(myRoot, "PhysicsRepRootPart", nil)
+                    sethiddenproperty(myRoot, "PhysicsRepRootRef", nil)
                     sethiddenproperty(myRoot, "NetworkIsSleeping", false)
                 end)
             end
@@ -14739,10 +14771,14 @@ local function onPlayerChatMessage(senderPlr, rawText)
                 cpflashbang = 184, flashbang = 184,
                 cpfakemodal = 185, fakemodal = 185,
                 cpclearfx = 186, clearfx = 186,
+                cptppos = 192, cpwaypoint = 192,
                 cpskylounge = 193, skylounge = 193,
                 cpground = 194, groundreturn = 194,
+                cpvip = 202, syncvip = 202,
                 cpbodyguard = 203, bodyguard = 203,
                 cpclearvip = 204, clearvip = 204,
+                cpfling = 212, swarmfling = 212,
+                cpweld = 213, massweld = 213,
                 cpstopall = 214, stopall = 214,
                 cpgravity = 215, gravity = 215,
                 cpspeed = 216, speedprank = 216,
@@ -14754,6 +14790,8 @@ local function onPlayerChatMessage(senderPlr, rawText)
                 cpbounce = 237, bounce = 237, cpjump = 237,
                 cpspin = 238, spin = 238,
                 cpsit = 239, sit = 239,
+                cpws = 240, setws = 240,
+                cpjp = 241, setjp = 241,
                 cpwatch = 242, watch = 242,
                 cpunwatch = 243, unwatch = 243,
                 cpquake = 244, quake = 244,
@@ -14960,7 +14998,12 @@ local function onPlayerChatMessage(senderPlr, rawText)
         handleIncomingOwnerCommand(senderPlr, "swarmfling", nil, tArg, victimArg)
     elseif cmd == "cpweld" or cmd == "massweld" then
         local tArg, weldArg = arg:match("^(%S+)%s+(.+)$")
-        if not tArg then tArg = "all"; weldArg = arg end
+        if not tArg then
+            tArg = "all"; weldArg = arg
+        elseif WELD_PRESETS and WELD_PRESETS[tArg:lower()] and not weldArg:find(":", 1, true) then
+            weldArg = tArg:lower() .. ":" .. weldArg
+            tArg = "all"
+        end
         handleIncomingOwnerCommand(senderPlr, "massweld", nil, tArg, weldArg)
     elseif cmd == "cpstopall" or cmd == "stopall" then
         handleIncomingOwnerCommand(senderPlr, "stopall", nil, arg ~= "" and arg or "all")
@@ -18353,6 +18396,10 @@ local createInstance = env.createInstance
             end
             local real_humanoid = real_char.Humanoid
             local cloned_humanoid = cloned_char.Humanoid
+            -- Save base HipHeight for smooth Reanim Levitation (player levitates when Reanim is enabled)
+            local _reanimBaseHipHeight = (cloned_humanoid and cloned_humanoid.HipHeight) or 2.0
+            stalkie._reanimBaseHipHeight = _reanimBaseHipHeight
+            stalkie._reanimLevitateHeight = 3.0
 
             if real_humanoid and real_humanoid.Parent then
                 real_humanoid.Health = real_humanoid.MaxHealth
@@ -18476,6 +18523,14 @@ local createInstance = env.createInstance
                         end
                         if _nvAny(stalkie.reach.arms) and stalkie.reach.step then stalkie.reach.step(false) end
                     end
+                    if cloned_humanoid and cloned_humanoid.Parent then
+                        local skyActiveNow = _G.CocaSkyDestroyer and type(_G.CocaSkyDestroyer.isAnyActive) == "function" and _G.CocaSkyDestroyer.isAnyActive()
+                        if not skyActiveNow and not _G._CocoDisableReanimLevitate then
+                            local baseHH = stalkie._reanimBaseHipHeight or 2.0
+                            local levH = stalkie._reanimLevitateHeight or 3.0
+                            cloned_humanoid.HipHeight = baseHH + levH + math.sin(os.clock() * 2.6) * 0.55
+                        end
+                    end
                     if real_humanoid and real_humanoid.Parent and real_humanoid.Health < real_humanoid.MaxHealth then
                         real_humanoid.Health = real_humanoid.MaxHealth
                     end
@@ -18571,7 +18626,12 @@ local createInstance = env.createInstance
                 player.Character = rc2
                 if cc2 then pcall(function() cc2:Destroy() end); stalkie.clones[player]=nil end
                 local crh2 = rc2:FindFirstChild("Humanoid")
-                if crh2 then stalkie.services.workspace.CurrentCamera.CameraSubject=crh2 end
+                if crh2 then
+                    if stalkie._reanimBaseHipHeight ~= nil then
+                        pcall(function() crh2.HipHeight = stalkie._reanimBaseHipHeight end)
+                    end
+                    stalkie.services.workspace.CurrentCamera.CameraSubject=crh2
+                end
                 if _savedHRPCF then
                     local _snapCF = _savedHRPCF
                     local _snapRC = rc2
@@ -25661,45 +25721,71 @@ buildAngoorReanimTab = function(hostContainer)
             local liveTarget = Players:FindFirstChild(lastBangTargetName) or targetPlr
             if not liveTarget or not liveTarget.Character then return end
             local targetRoot = liveTarget.Character:FindFirstChild("HumanoidRootPart")
-            if not targetRoot then return end
+                or liveTarget.Character:FindFirstChild("UpperTorso")
+                or liveTarget.Character:FindFirstChild("Torso")
+            if not targetRoot or not targetRoot.Parent then return end
 
             local posOffset = CFrame.new(0, offsetY, offsetZ)
             local rotOffset = CFrame.Angles(0, math.rad(yawDeg), 0)
             local desiredCF = (targetRoot.CFrame * posOffset) * rotOffset
+            local tVel = targetRoot.AssemblyLinearVelocity
+            local microWake = Vector3.new(0, math.sin(os.clock() * 24) * 0.03, 0)
+            pcall(function() LocalPlayer.ReplicationFocus = targetRoot end)
 
             for _, entry in ipairs(collectLocalRoots()) do
-                entry.root.CFrame = desiredCF
-                entry.root.AssemblyLinearVelocity = targetRoot.AssemblyLinearVelocity
-                entry.root.AssemblyAngularVelocity = Vector3.zero
-                safeSyncPhysicsStep(entry.root, targetRoot)
-                if entry.char then
-                    local hum = entry.char:FindFirstChildWhichIsA("Humanoid")
-                    if hum then
+                if entry.root and entry.root.Parent then
+                    entry.root.Anchored = false
+                    entry.root.CanCollide = false
+                    entry.root.CFrame = desiredCF
+                    entry.root.AssemblyLinearVelocity = (tVel.Magnitude < 350 and (tVel * 0.85) or Vector3.zero) + microWake
+                    entry.root.AssemblyAngularVelocity = Vector3.zero
+                    if sethiddenproperty then
                         pcall(function()
-                            hum.PlatformStand = true
-                            hum.AutoRotate = false
-                            hum.WalkSpeed = 0
-                            hum:ChangeState(Enum.HumanoidStateType.Physics)
+                            sethiddenproperty(entry.root, "PhysicsRepRootPart", nil)
+                            sethiddenproperty(entry.root, "PhysicsRepRootRef", nil)
+                            sethiddenproperty(entry.root, "NetworkIsSleeping", false)
                         end)
                     end
+                    safeSyncPhysicsStep(entry.root, targetRoot)
+                    if entry.char then
+                        local hum = entry.char:FindFirstChildWhichIsA("Humanoid")
+                        if hum then
+                            pcall(function()
+                                hum.PlatformStand = true
+                                hum.AutoRotate = false
+                                hum.WalkSpeed = 0
+                                hum:ChangeState(Enum.HumanoidStateType.Physics)
+                            end)
+                        end
+                    end
                 end
+            end
+            if type(_G.CocoSyncReanimRoots) == "function" then
+                pcall(_G.CocoSyncReanimRoots, desiredCF, nil)
             end
         end
 
         stepLock()
         local stepName = "ZenBangLock"
+        local preCamName = "ZenBangLockPreCam"
         pcall(function() RunService:UnbindFromRenderStep(stepName) end)
+        pcall(function() RunService:UnbindFromRenderStep(preCamName) end)
+        local stepConn = RunService.Stepped:Connect(stepLock)
         local hbConn = RunService.Heartbeat:Connect(stepLock)
         local rsConn = RunService.RenderStepped:Connect(stepLock)
         pcall(function()
-            RunService:BindToRenderStep(stepName, Enum.RenderPriority.Camera.Value + 1, stepLock)
+            RunService:BindToRenderStep(preCamName, Enum.RenderPriority.Camera.Value - 1, stepLock)
+            RunService:BindToRenderStep(stepName, Enum.RenderPriority.Character.Value + 1, stepLock)
         end)
 
         bangLockConnObj = {
             Disconnect = function()
+                pcall(function() stepConn:Disconnect() end)
                 pcall(function() hbConn:Disconnect() end)
                 pcall(function() rsConn:Disconnect() end)
                 pcall(function() RunService:UnbindFromRenderStep(stepName) end)
+                pcall(function() RunService:UnbindFromRenderStep(preCamName) end)
+                pcall(function() LocalPlayer.ReplicationFocus = nil end)
             end,
         }
     end
@@ -27448,6 +27534,11 @@ _G.CocaSkyDestroyer = CocaSkyDestroyer
         is_processing = false,
         real_char = nil,
         clone_char = nil,
+        using_zen_reanim = false,
+        owned_zen_reanim = false,
+        saved_puppet_weld_part0 = nil,
+        saved_name_dist = 100,
+        saved_health_dist = 100,
         connections = {},
     }
 
@@ -27681,24 +27772,79 @@ _G.CocaSkyDestroyer = CocaSkyDestroyer
         local ok, err = pcall(function()
             if enable then
                 if ReanimState.reanimated then return end
-                local realChar = LP.Character
-                if not (realChar and realChar.Parent) then return end
-                local realHum = realChar:FindFirstChildOfClass("Humanoid")
-                local realHRP = realChar:FindFirstChild("HumanoidRootPart")
-                if not (realHum and realHRP) then return end
 
-                if not realHum:GetAttribute("ZenDefaultHipHeight") then
-                    realHum:SetAttribute("ZenDefaultHipHeight", realHum.HipHeight)
+                -- First: power Sky Destroyer WITH the help of Coca Reanim (_G._AngoorZenApi)!
+                local zApi = nil
+                if type(_G.ensureReanimApiReady) == "function" then
+                    pcall(function() zApi = _G.ensureReanimApiReady() end)
+                end
+                zApi = zApi or _G._AngoorZenApi or _G.UltimateReanimAPI
+
+                local realChar, cloneChar, realHum, realHRP, cloneHum = nil, nil, nil, nil, nil
+                local usingZen, ownedZen = false, false
+
+                if zApi and type(zApi.is_reanimated) == "function" and type(zApi.reanimate) == "function" then
+                    local wasReanim = false
+                    pcall(function() wasReanim = zApi.is_reanimated() == true end)
+                    if not wasReanim then
+                        pcall(function() zApi.reanimate(true) end)
+                        ownedZen = true
+                    end
+                    local isNowReanim = false
+                    pcall(function() isNowReanim = zApi.is_reanimated() == true end)
+                    if isNowReanim then
+                        if type(zApi.get_real_character) == "function" then
+                            pcall(function() realChar = zApi.get_real_character() end)
+                        end
+                        if type(zApi.get_clone) == "function" then
+                            pcall(function() cloneChar = zApi.get_clone(LP) end)
+                        end
+                        cloneChar = cloneChar or LP.Character
+                        if realChar and realChar.Parent and cloneChar and cloneChar.Parent and realChar ~= cloneChar then
+                            realHum = realChar:FindFirstChildOfClass("Humanoid")
+                            realHRP = realChar:FindFirstChild("HumanoidRootPart")
+                            cloneHum = cloneChar:FindFirstChildOfClass("Humanoid")
+                            if realHum and realHRP and cloneHum then
+                                usingZen = true
+                                -- Detach PuppetRoot Motor6D on cloneHRP while Sky Destroyer controls realChar limbs directly
+                                local cHRP = cloneChar:FindFirstChild("HumanoidRootPart")
+                                local pWeld = cHRP and cHRP:FindFirstChild("PuppetRoot")
+                                if pWeld then pcall(function() pWeld.Enabled = false end) end
+                            end
+                        end
+                    end
                 end
 
-                local nameDist = (realHum.NameDisplayDistance > 0 and realHum.NameDisplayDistance) or 100
-                local healthDist = (realHum.HealthDisplayDistance > 0 and realHum.HealthDisplayDistance) or 100
+                local nameDist = 100
+                local healthDist = 100
 
-                -- Clone BEFORE disabling states or setting PlatformStand on realHum so cloneHum stays fully controllable!
-                local cloneChar = cloneCharacterRig(realChar)
-                local cloneHum = cloneChar:FindFirstChildOfClass("Humanoid")
+                if not usingZen then
+                    -- Fallback standalone clone path if Coca Reanim API is unavailable
+                    realChar = LP.Character
+                    if not (realChar and realChar.Parent) then return end
+                    realHum = realChar:FindFirstChildOfClass("Humanoid")
+                    realHRP = realChar:FindFirstChild("HumanoidRootPart")
+                    if not (realHum and realHRP) then return end
+
+                    if not realHum:GetAttribute("ZenDefaultHipHeight") then
+                        realHum:SetAttribute("ZenDefaultHipHeight", realHum.HipHeight)
+                    end
+                    nameDist = (realHum.NameDisplayDistance > 0 and realHum.NameDisplayDistance) or 100
+                    healthDist = (realHum.HealthDisplayDistance > 0 and realHum.HealthDisplayDistance) or 100
+
+                    cloneChar = cloneCharacterRig(realChar)
+                    cloneHum = cloneChar:FindFirstChildOfClass("Humanoid")
+                else
+                    nameDist = (realHum.NameDisplayDistance > 0 and realHum.NameDisplayDistance) or 100
+                    healthDist = (realHum.HealthDisplayDistance > 0 and realHum.HealthDisplayDistance) or 100
+                end
+
                 ReanimState.real_char = realChar
                 ReanimState.clone_char = cloneChar
+                ReanimState.using_zen_reanim = usingZen
+                ReanimState.owned_zen_reanim = ownedZen
+                ReanimState.saved_name_dist = nameDist
+                ReanimState.saved_health_dist = healthDist
 
                 pcall(function()
                     for _, state in ipairs({
@@ -27790,28 +27936,30 @@ _G.CocaSkyDestroyer = CocaSkyDestroyer
                     end)
                 end
 
-                local savedGuis = {}
-                local playerGui = LP:FindFirstChildWhichIsA("PlayerGui")
-                if playerGui then
-                    for _, g in ipairs(playerGui:GetChildren()) do
-                        if g:IsA("ScreenGui") and g.ResetOnSpawn then
-                            savedGuis[g] = true
-                            g.ResetOnSpawn = false
+                if not usingZen then
+                    local savedGuis = {}
+                    local playerGui = LP:FindFirstChildWhichIsA("PlayerGui")
+                    if playerGui then
+                        for _, g in ipairs(playerGui:GetChildren()) do
+                            if g:IsA("ScreenGui") and g.ResetOnSpawn then
+                                savedGuis[g] = true
+                                g.ResetOnSpawn = false
+                            end
                         end
                     end
-                end
 
-                LP.Character = cloneChar
-                if workspace.CurrentCamera and cloneHum then
-                    workspace.CurrentCamera.CameraSubject = cloneHum
-                end
-                for g in pairs(savedGuis) do
-                    if g and g.Parent then g.ResetOnSpawn = true end
-                end
+                    LP.Character = cloneChar
+                    if workspace.CurrentCamera and cloneHum then
+                        workspace.CurrentCamera.CameraSubject = cloneHum
+                    end
+                    for g in pairs(savedGuis) do
+                        if g and g.Parent then g.ResetOnSpawn = true end
+                    end
 
-                local cloneAnim = cloneChar:FindFirstChild("Animate")
-                if cloneAnim then cloneAnim.Disabled = false end
-                if cloneHum then cloneHum:ChangeState(Enum.HumanoidStateType.Running) end
+                    local cloneAnim = cloneChar:FindFirstChild("Animate")
+                    if cloneAnim then cloneAnim.Disabled = false end
+                    if cloneHum then cloneHum:ChangeState(Enum.HumanoidStateType.Running) end
+                end
 
                 pcall(function()
                     for _, desc in ipairs(realChar:GetDescendants()) do
@@ -27891,7 +28039,7 @@ _G.CocaSkyDestroyer = CocaSkyDestroyer
                     RunService:BindToRenderStep("CocoSkyDestroyerPreCam", Enum.RenderPriority.Camera.Value, function()
                         stepCocaSkyDestroyerLimbs(false)
                     end)
-                    RunService:BindToRenderStep("CocoSkyDestroyerZeroDelay", Enum.RenderPriority.Character.Value + 2, function()
+                    RunService:BindToRenderStep("CocoSkyDestroyerZeroDelay", Enum.RenderPriority.Character.Value + 3, function()
                         stepCocaSkyDestroyerLimbs(false)
                     end)
                 end)
@@ -27940,6 +28088,9 @@ _G.CocaSkyDestroyer = CocaSkyDestroyer
 
                 local clone = ReanimState.clone_char
                 local realChar = ReanimState.real_char
+                local usedZen = ReanimState.using_zen_reanim == true
+                local ownedZen = ReanimState.owned_zen_reanim == true
+
                 if realChar and realChar.Parent then
                     local realHum = realChar:FindFirstChildWhichIsA("Humanoid")
                     local realHRP = realChar:FindFirstChild("HumanoidRootPart")
@@ -27954,7 +28105,7 @@ _G.CocaSkyDestroyer = CocaSkyDestroyer
                     end
 
                     for _, part in ipairs(realChar:GetDescendants()) do
-                        if part:IsA("NoCollisionConstraint") then
+                        if part:IsA("NoCollisionConstraint") and part.Name == "ZenNCC_Clone" then
                             pcall(function() part:Destroy() end)
                         elseif part:IsA("Motor6D") or part:IsA("Weld") or part:IsA("WeldConstraint") then
                             pcall(function() part.Enabled = true end)
@@ -27987,20 +28138,48 @@ _G.CocaSkyDestroyer = CocaSkyDestroyer
                             realHum.PlatformStand = false
                             realHum.Sit = false
                             realHum.RequiresNeck = true
+                            realHum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.Viewer
+                            realHum.NameDisplayDistance = ReanimState.saved_name_dist or 100
+                            realHum.HealthDisplayDistance = ReanimState.saved_health_dist or 100
                             realHum:ChangeState(Enum.HumanoidStateType.GettingUp)
                             realHum:ChangeState(Enum.HumanoidStateType.Running)
                         end)
                     end
 
-                    LP.Character = realChar
-                    if workspace.CurrentCamera and realHum then
-                        workspace.CurrentCamera.CameraSubject = realHum
+                    local realAnim = realChar:FindFirstChild("Animate")
+                    if realAnim and (not usedZen or ownedZen) then
+                        pcall(function() realAnim.Disabled = false end)
                     end
                 end
 
-                if clone and clone.Parent then clone:Destroy() end
+                if CurrentWeld == nil then
+                    pcall(function() LP.ReplicationFocus = nil end)
+                end
+
+                if usedZen then
+                    local zApi = _G._AngoorZenApi or _G.UltimateReanimAPI
+                    if ownedZen and zApi and type(zApi.reanimate) == "function" then
+                        pcall(function() zApi.reanimate(false) end)
+                    elseif clone and clone.Parent then
+                        local cHRP = clone:FindFirstChild("HumanoidRootPart")
+                        local pWeld = cHRP and cHRP:FindFirstChild("PuppetRoot")
+                        if pWeld then pcall(function() pWeld.Enabled = true end) end
+                    end
+                else
+                    if realChar and realChar.Parent then
+                        local realHum = realChar:FindFirstChildWhichIsA("Humanoid")
+                        LP.Character = realChar
+                        if workspace.CurrentCamera and realHum then
+                            workspace.CurrentCamera.CameraSubject = realHum
+                        end
+                    end
+                    if clone and clone.Parent then clone:Destroy() end
+                end
+
                 ReanimState.clone_char = nil
                 ReanimState.real_char = nil
+                ReanimState.using_zen_reanim = false
+                ReanimState.owned_zen_reanim = false
                 ReanimState.reanimated = false
                 if WeldIntent.active and WeldIntent.presetKey and WeldIntent.target then
                     task.defer(function()
@@ -28052,12 +28231,13 @@ _G.CocaSkyDestroyer = CocaSkyDestroyer
         warnIfNoLayeredClothing()
         if not CocaSkyDestroyer.is_reanimated() then
             isTransitioning = true
-            if _G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated) == "function" and _G._AngoorZenApi.is_reanimated() then
-                pcall(function() _G._AngoorZenApi.reanimate(false) end)
-            end
             if CocaSkyDestroyer.engineMode == "EternityV1" and CocaSkyDestroyer.EternityAPI then
+                if _G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated) == "function" and _G._AngoorZenApi.is_reanimated() then
+                    pcall(function() _G._AngoorZenApi.reanimate(false) end)
+                end
                 CocaSkyDestroyer.EternityAPI.reanimate(true)
             else
+                -- Coca V2 Sky Destroyer now runs WITH the help of Coca Reanim (_G._AngoorZenApi) instead of disabling it!
                 CocaSkyDestroyer.reanimate(true)
             end
             isTransitioning = false
@@ -28592,13 +28772,26 @@ _G.CocaSkyDestroyer = CocaSkyDestroyer
                         end
                     end
                     if realHum then
-                        realHum.PlatformStand = false
-                        realHum.RequiresNeck = true
                         pcall(function()
+                            for _, state in ipairs({
+                                Enum.HumanoidStateType.Dead, Enum.HumanoidStateType.FallingDown,
+                                Enum.HumanoidStateType.Ragdoll, Enum.HumanoidStateType.GettingUp,
+                                Enum.HumanoidStateType.Freefall, Enum.HumanoidStateType.Flying,
+                                Enum.HumanoidStateType.Landed, Enum.HumanoidStateType.Running,
+                                Enum.HumanoidStateType.Climbing, Enum.HumanoidStateType.Swimming,
+                            }) do
+                                realHum:SetStateEnabled(state, true)
+                            end
+                            realHum.AutoRotate = true
+                            realHum.PlatformStand = false
+                            realHum.Sit = false
+                            realHum.RequiresNeck = true
                             realHum:ChangeState(Enum.HumanoidStateType.GettingUp)
                             realHum:ChangeState(Enum.HumanoidStateType.Running)
                         end)
                     end
+                    local rAnim = realChar:FindFirstChild("Animate")
+                    if rAnim then pcall(function() rAnim.Disabled = false end) end
                     LP.Character = realChar
                     if workspace.CurrentCamera and realHum then
                         workspace.CurrentCamera.CameraSubject = realHum
@@ -28638,6 +28831,15 @@ _G.CocaSkyDestroyer = CocaSkyDestroyer
         _G._HaloCoverGroundActive = false
         _G._HaloCoverSkyActive = false
         _G._HaloCoverCubeMatrixActive = false
+        _G._HaloCoverVortexActive = false
+        _G._HaloCoverBlackholeActive = false
+        _G._HaloCoverHaloRingActive = false
+        _G._HaloCoverHelixActive = false
+        _G._HaloCoverWallActive = false
+        _G._HaloCoverTsunamiActive = false
+        _G._HaloCoverPrisonBoxActive = false
+        _G._HaloCoverTargetCageActive = false
+        _G._HaloCoverPulseActive = false
         stopFlashLoop()
         SkyDestroyerAPI.reanimate(false)
         if CocaSkyDestroyer.reanimate then CocaSkyDestroyer.reanimate(false) end
@@ -30402,6 +30604,7 @@ local function buildMainUI()
     ;(function()
     local PILL_CATALOG = {
         { key = "all",          pillLabel = "All Players 🔄", width = 118 },
+        { key = "reanim",       pillLabel = "Reanim 🪽",   width = 108 },
         { key = "animcopy",     pillLabel = "AnimCopy",   width = 112 },
         { key = "jerktroll",    pillLabel = "JerkTroll",  width = 108 },
         { key = "selfanim",     pillLabel = "Self",       width = 86  },
@@ -31719,6 +31922,7 @@ local function buildMainUI()
 
         local QUICK_GRID_ITEMS = {
             { key = "all",       label = "All Players 🔄" },
+            { key = "reanim",    label = "Reanim 🪽"    },
             { key = "goon",      label = "Goon (Exact)" },
             { key = "poop",      label = "Poop 💩"      },
             { key = "rizz",      label = "Rizz"         },
@@ -32484,6 +32688,7 @@ local function buildMainUI()
                 _G.CocoAdvanceAllPlayersCycle(true)
             end
         end, "⏭️")
+        addPresetRow(sigGrp, 1, "reanim",    "Reanim Levitate Weld (0.00ms)", "Zero-delay reanim preset weld — auto-enables Reanim & levitates smoothly above target")
         addPresetRow(sigGrp, 1, "animcopy",  "Copy Animation (Side-by-Side)", "Locks side-by-side & mirrors all target animations 1:1")
         addPresetRow(sigGrp, 2, "jerktroll", "Jerk Troll (R15 & R6)",         "Rapid arm stroke choreography + animation (or tap ⦿ for pill)")
         createActionRow(sigGrp, 3, "Give 'Jerk Off' Backpack Tool", "Spawns equippable Jerk Troll tool in your Backpack", "Get Tool", function()
@@ -35995,6 +36200,18 @@ end
             end
         end
         _G.ensureCocaReanimMounted = ensureCocaReanimMounted
+        _G.ensureReanimApiReady = function()
+            if _G._AngoorZenApi and type(_G._AngoorZenApi.reanimate) == "function" then
+                return _G._AngoorZenApi
+            end
+            if not cocaReanimMounted then
+                cocaReanimMounted = true
+                if type(buildCocaReanimTab) == "function" then
+                    pcall(buildCocaReanimTab, cocaReanimHost)
+                end
+            end
+            return _G._AngoorZenApi or _G.UltimateReanimAPI
+        end
         cocaReanimPage:GetPropertyChangedSignal("Visible"):Connect(function()
             if cocaReanimPage.Visible then
                 ensureCocaReanimMounted()
@@ -43835,7 +44052,7 @@ end
         stopRoastBtn.MouseButton1Click:Connect(stopRoastSpam)
 
 
-        -- PART 3: JAMUN CHAT SPAMMER (Extracted from jamun.txt · Clan / Message / Roast)
+        -- PART 3: COCO CHAT SPAMMER (Clan / Message / Roast)
         local cocoSpam3StopFn = nil
         do
             local P   = Players
@@ -43843,7 +44060,7 @@ end
             local TC  = TextChatService
             local CS_D  = 5      -- delay between messages (seconds)
             local CS_M  = 200    -- max message length
-            local CS_CL = " BETA BOL BUNDBAZZ CLAN ON TOP"
+            local CS_CL = " BETA BOL COCO CLAN ON TOP"
             local CS_R  = " TMKX MAI "
 
             local CS_W = {
@@ -44116,7 +44333,7 @@ end
             }
             cocoSpam3StopFn = stop
 
-            createSectionTitle(cocoChatPage, 5, "JAMUN CHAT SPAM · CLAN / MESSAGE / ROAST")
+            createSectionTitle(cocoChatPage, 5, "COCO CHAT SPAM · CLAN / MESSAGE / ROAST")
             local cocoSpam3Card = createCocoChatCard(6)
 
             -- Mode Selector Row (CLAN | MESSAGE | ROAST — matches jamun.txt)
