@@ -29893,7 +29893,7 @@ local function buildMainUI()
     local emotePage     = createCategory("Emotes",            "💃", 315, "315+ searchable catalog emotes, viral dances, dog/moonwalk & custom IDs", "Emotes")
     local weldPage      = createCategory("Weld & Troll",      "⚡", 15,  "Dynamic height-adaptive welds, FF LOL, FF Push, jerk troll, void throws & pins", "Weld & Troll")
     local cocoChatPage  = createCategory("Coco Chat Spam",    "💬", 3,   "Coco Chat Spam · Normal, Target Roast & Roast/Clan/Message modes", "Coco Chat Spam")
-    local loudPage      = createCategory("One Click Loud",    "🔊", 9,   "LOUDEST v5.0 Lavinho Max Loud · COCO LOUD, Mic Up v3.3 & v3.5 + Remove Loud via remotes", "One Click Loud")
+    local loudPage      = createCategory("One Click Loud",    "🔊", 10,  "LOUDEST v5.0, Loud VR 4.5, COCO LOUD, Mic Up v3.3 & v3.5 + Remove Loud via remotes", "One Click Loud")
     createCategory("Spotify",           "🎵", 6,   "Spotify Web API · OAuth PKCE Login, Now Playing, Library, Search, Queue & Devices", "Spotify")
     local targetPage    = createCategory("Target",            "🎯", 1,   "Omnipresent hidden-player seeker & server-wide lock", "Target")
     local movePage      = createCategory("Performance",       "🚀", 11,  "60Hz Chrono-Rewind, WalkSpeed 500 & 4-Phase Flight", "Move & Fly")
@@ -29932,6 +29932,7 @@ local function buildMainUI()
         { key = "covercube",    pillLabel = "CubeMatrix", width = 114 },
         { key = "coverflash",   pillLabel = "SkyFlash",   width = 102 },
         { key = "oneclickloud_v40", pillLabel = "Loudest v5.0 🔊", width = 128 },
+        { key = "oneclickloud_v45", pillLabel = "Loud VR 4.5 🔊",  width = 124 },
         { key = "oneclickloud",     pillLabel = "Coco Loud 🔊",   width = 114 },
         { key = "oneclickloud_v31", pillLabel = "Loud v3.3 🔊",   width = 114 },
         { key = "oneclickloud_v35", pillLabel = "Loud v3.5 🔊",   width = 114 },
@@ -30143,6 +30144,12 @@ local function buildMainUI()
         if key == "oneclickloud_v40" then
             if type(_G.CocoApplyOneClickLoudV40) == "function" then
                 _G.CocoApplyOneClickLoudV40()
+            end
+            return
+        end
+        if key == "oneclickloud_v45" then
+            if type(_G.CocoApplyOneClickLoudV45) == "function" then
+                _G.CocoApplyOneClickLoudV45()
             end
             return
         end
@@ -32495,6 +32502,93 @@ local function buildMainUI()
         local V50_FLAT_DISTANCE_CURVE = { [0] = 1, [100000] = 1 }
         local V50_FLAT_ANGLE_CURVE    = { [0] = 1, [180] = 1 }
 
+        -- Loud VR 4.5 (from micup_voice_preset (9).lua — Max Loudness Full Stack:
+        --   distortion -> equalier -> flter -> reverb + compressor/fader/echo + local mic & 100k-stud emitter boost)
+        local MICUP_V45_PRESET = {
+            {
+                name = "distortion",
+                props = {
+                    { "Bypass", false },
+                    { "Level",  1 },         -- max saturation / RMS density
+                },
+            },
+            {
+                name = "equalier", -- game spelling
+                props = {
+                    { "Bypass",   false },
+                    { "HighGain", 10 },      -- max +10 dB
+                    { "LowGain",  10 },      -- max +10 dB
+                    { "MidGain",  10 },      -- max +10 dB
+                    { "MidRange", { min = 400, max = 4000 } }, -- full vocal crossover so all 3 bands stack cleanly
+                },
+            },
+            {
+                name = "flter", -- game spelling
+                props = {
+                    { "Bypass",     false },
+                    { "FilterType", 0 },     -- Peak (0)
+                    { "Frequency",  2500 },  -- peak human ear sensitivity & vocal presence
+                    { "Gain",       30 },    -- max +30 dB
+                    { "Q",          0.1 },   -- widest bell curve so +30 dB boosts the entire voice spectrum
+                },
+            },
+            {
+                name = "reverb",
+                props = {
+                    { "Bypass",             false },
+                    { "DecayRatio",         1 },     -- max high-frequency sustain
+                    { "DecayTime",          20 },    -- max cumulative tail stacking
+                    { "Density",            1 },     -- max reflection density
+                    { "Diffusion",          1 },     -- max reflection thickness
+                    { "DryLevel",           20 },    -- max +20 dB dry
+                    { "EarlyDelayTime",     0 },     -- 0s instant dry+wet stack
+                    { "HighCutFrequency",   20000 }, -- max (no high-freq cut)
+                    { "LateDelayTime",      0 },     -- 0s instant diffuse stack
+                    { "LowShelfFrequency",  20000 }, -- applies +12 dB LowShelfGain across full 20-20k Hz
+                    { "LowShelfGain",       12 },    -- max +12 dB extra wet boost
+                    { "ReferenceFrequency", 20000 }, -- max
+                    { "WetLevel",           20 },    -- max +20 dB wet
+                },
+            },
+        }
+
+        -- Extra pure-gain Roblox Audio API stages for Loud VR 4.5 (safely attempted via pcall)
+        local MICUP_V45_EXTRA_PRESET = {
+            {
+                name = "compressor",
+                props = {
+                    { "Bypass",     false },
+                    { "Threshold",  0 },     -- max threshold: zero peak clamping
+                    { "Ratio",      1 },     -- 1:1 ratio: pure clean gain
+                    { "Attack",     0.001 },
+                    { "Release",    0.01 },
+                    { "MakeupGain", 30 },    -- max +30 dB
+                },
+            },
+            {
+                name = "fader",
+                props = {
+                    { "Bypass", false },
+                    { "Volume", 10 },        -- max fader boost (clamps to engine ceiling)
+                },
+            },
+            {
+                name = "echo",
+                props = {
+                    { "Bypass",    false },
+                    { "DelayTime", 0.001 },  -- 1 ms instant stacking
+                    { "DryLevel",  10 },     -- max +10 dB dry
+                    { "WetLevel",  10 },     -- max +10 dB wet stacked on top of dry
+                    { "Feedback",  0.85 },   -- high sustained stacking without runaway lockup
+                    { "RampTime",  0 },
+                },
+            },
+        }
+
+        local V45_BYPASS_FX = { "chorus", "flanger", "tremolo", "limiter", "gate" }
+        local V45_FLAT_DISTANCE_CURVE = { [0] = 1, [100000] = 1 }
+        local V45_FLAT_ANGLE_CURVE    = { [0] = 1, [180] = 1 }
+
         -- Neutral / clean values used by One Click Remove Loud fallback via event_effect_property
         local REMOVE_LOUD_NEUTRAL = {
             {
@@ -32904,6 +32998,154 @@ local function buildMainUI()
             return true, table.concat(applied, ", ")
         end
 
+        local function boostLocalAudioChainV45()
+            local emitters, fxBoosted, inputsBoosted = 0, 0, 0
+            local targets = {}
+            if LP.Character then table.insert(targets, LP.Character) end
+            table.insert(targets, LP)
+
+            for _, root in ipairs(targets) do
+                for _, inst in ipairs(root:GetDescendants()) do
+                    if inst:IsA("AudioDeviceInput") then
+                        if pcall(function()
+                            inst.Volume = 10 -- clamps to engine maximum mic gain
+                        end) then inputsBoosted = inputsBoosted + 1 end
+                    elseif inst:IsA("AudioEmitter") then
+                        local ok = pcall(function()
+                            pcall(function()
+                                inst.DistanceAttenuationMode = Enum.DistanceAttenuationMode.Custom
+                            end)
+                            inst:SetDistanceAttenuation(V45_FLAT_DISTANCE_CURVE)
+                            inst:SetAngleAttenuation(V45_FLAT_ANGLE_CURVE)
+                            pcall(function()
+                                inst.AcousticSimulationEnabled = false
+                            end)
+                        end)
+                        if ok then emitters = emitters + 1 end
+                    elseif inst:IsA("AudioDistortion") then
+                        if pcall(function()
+                            inst.Bypass = false
+                            inst.Level = 1
+                        end) then fxBoosted = fxBoosted + 1 end
+                    elseif inst:IsA("AudioEqualizer") then
+                        if pcall(function()
+                            inst.Bypass = false
+                            inst.HighGain = 10
+                            inst.LowGain = 10
+                            inst.MidGain = 10
+                            inst.MidRange = NumberRange.new(400, 4000)
+                        end) then fxBoosted = fxBoosted + 1 end
+                    elseif inst:IsA("AudioFilter") then
+                        if pcall(function()
+                            inst.Bypass = false
+                            inst.FilterType = Enum.AudioFilterType.Peak
+                            inst.Frequency = 2500
+                            inst.Gain = 30
+                            inst.Q = 0.1
+                        end) then fxBoosted = fxBoosted + 1 end
+                    elseif inst:IsA("AudioReverb") then
+                        if pcall(function()
+                            inst.Bypass = false
+                            inst.DecayRatio = 1
+                            inst.DecayTime = 20
+                            inst.Density = 1
+                            inst.Diffusion = 1
+                            inst.DryLevel = 20
+                            inst.EarlyDelayTime = 0
+                            inst.HighCutFrequency = 20000
+                            inst.LateDelayTime = 0
+                            inst.LowShelfFrequency = 20000
+                            inst.LowShelfGain = 12
+                            inst.ReferenceFrequency = 20000
+                            inst.WetLevel = 20
+                        end) then fxBoosted = fxBoosted + 1 end
+                    elseif inst:IsA("AudioCompressor") then
+                        if pcall(function()
+                            inst.Bypass = false
+                            inst.Threshold = 0
+                            inst.Ratio = 1
+                            inst.Attack = 0.001
+                            inst.Release = 0.01
+                            inst.MakeupGain = 30
+                        end) then fxBoosted = fxBoosted + 1 end
+                    elseif inst:IsA("AudioFader") then
+                        if pcall(function()
+                            inst.Bypass = false
+                            inst.Volume = 10
+                        end) then fxBoosted = fxBoosted + 1 end
+                    elseif inst:IsA("AudioEcho") then
+                        if pcall(function()
+                            inst.Bypass = false
+                            inst.DelayTime = 0.001
+                            inst.DryLevel = 10
+                            inst.WetLevel = 10
+                            inst.Feedback = 0.85
+                            inst.RampTime = 0
+                        end) then fxBoosted = fxBoosted + 1 end
+                    elseif inst:IsA("AudioChorus")
+                        or inst:IsA("AudioFlanger")
+                        or inst:IsA("AudioTremolo")
+                        or inst:IsA("AudioLimiter")
+                        or inst:IsA("AudioGate") then
+                        pcall(function()
+                            inst.Bypass = true
+                        end)
+                    end
+                end
+            end
+            return emitters, fxBoosted, inputsBoosted
+        end
+
+        local v45LocalRespawnHooked = false
+
+        local function applyMicUpV45Preset()
+            local addEv, propEv = getLoudRemotes()
+            if not addEv or not propEv then
+                return false, "remotes missing (event_effect_add / event_effect_property)"
+            end
+
+            -- Bypass any limiting/modulation FX that cap volume
+            for _, name in ipairs(V45_BYPASS_FX) do
+                pcall(function()
+                    propEv:FireServer(name, "Bypass", true)
+                end)
+                task.wait(0.015)
+            end
+
+            local applied = {}
+            -- Pass 1: Core max-loud chain (distortion -> equalier -> flter -> reverb)
+            fireFxListV35(addEv, propEv, MICUP_V45_PRESET, applied)
+
+            -- Pass 2: Extra pure-gain stages (compressor + fader + stacked echo)
+            fireFxListV35(addEv, propEv, MICUP_V45_EXTRA_PRESET, nil)
+
+            -- Pass 3: Reinforce ALL core + extra properties so none reset during server wiring
+            reinforceFxListV50(propEv, MICUP_V45_PRESET)
+            reinforceFxListV50(propEv, MICUP_V45_EXTRA_PRESET)
+
+            -- Pass 4: Local mic input, 100k-stud emitter range, and local audio chain sync
+            local emitterCount, fxCount, inputCount = boostLocalAudioChainV45()
+            table.insert(applied, "range:" .. (emitterCount > 0 and ("ok(" .. emitterCount .. ")") or "none"))
+            if inputCount > 0 then
+                table.insert(applied, "mic:" .. inputCount)
+            end
+            if fxCount > 0 then
+                table.insert(applied, "localfx:" .. fxCount)
+            end
+
+            -- Keep local mic/emitter/FX chain maxed after respawns when Loud VR 4.5 is active
+            if not v45LocalRespawnHooked then
+                v45LocalRespawnHooked = true
+                LP.CharacterAdded:Connect(function()
+                    if loudState.lastPreset ~= "v45" then return end
+                    task.wait(1)
+                    boostLocalAudioChainV45()
+                end)
+            end
+
+            return true, table.concat(applied, ", ")
+        end
+
         -- Bulletproof 3-layer One Click Remove Loud:
         --   Layer 1: Clear/Reset-All remotes (known names + dynamic scan)
         --   Layer 2: Per-effect Remove/Delete/Disable remotes for all voice FX
@@ -33262,6 +33504,33 @@ local function buildMainUI()
         _G.CocoApplyOneClickLoudV50 = triggerOneClickLoudV40
         _G.CocoApplyLoudestLoud = triggerOneClickLoudV40
 
+        local function triggerOneClickLoudV45(reason)
+            if loudState.busy then
+                notify("🔊 LOUD VR 4.5", "Already firing remotes, please wait...")
+                return
+            end
+            loudState.busy = true
+            loudState.lastPreset = "v45"
+            local prefix = reason and ("[" .. tostring(reason) .. "] ") or ""
+            setLoudStatus(prefix .. "firing Loud VR 4.5 full-stack remotes...", T.Warning)
+
+            task.spawn(function()
+                local ok, msg = applyMicUpV45Preset()
+                loudState.busy = false
+                if ok then
+                    setLoudStatus("Loud VR 4.5 done: " .. tostring(msg), T.Success)
+                    print("[MicUp Loud VR 4.5] " .. tostring(msg))
+                    notify("🔊 LOUD VR 4.5", "Applied Loud VR 4.5 (Max Loudness Full Stack)!")
+                    sSuccess()
+                else
+                    setLoudStatus("Loud VR 4.5 fail: " .. tostring(msg), T.Danger)
+                    notify("🔊 LOUD VR 4.5", "Failed: " .. tostring(msg))
+                    sError()
+                end
+            end)
+        end
+        _G.CocoApplyOneClickLoudV45 = triggerOneClickLoudV45
+
         local function triggerOneClickRemoveLoud()
             if loudState.busy then
                 notify("🔇 REMOVE LOUD", "Already firing remotes, please wait...")
@@ -33293,6 +33562,8 @@ local function buildMainUI()
             task.wait(1.5)
             if loudState.lastPreset == "v40" then
                 triggerOneClickLoudV40("respawn")
+            elseif loudState.lastPreset == "v45" then
+                triggerOneClickLoudV45("respawn")
             elseif loudState.lastPreset == "v35" then
                 triggerOneClickLoudV35("respawn")
             elseif loudState.lastPreset == "v31" then
@@ -33330,9 +33601,31 @@ local function buildMainUI()
             if updatePinBadgeVisual then updatePinBadgeVisual("oneclickloud_v40") end
         end
 
-        local loudRowInfo = createActionRow(
+        local loudV45RowInfo = createActionRow(
             loudGrp,
             2,
+            "Loud VR 4.5 (Max Loudness Full Stack)",
+            "Exact Loud VR 4.5 (Distortion->EQ 400-4k->2.5kHz Peak Filter->Max Reverb + Comp/Fader/Stacked Echo + 100k range) · [⦿] pin pill",
+            "LOUD VR 4.5",
+            function()
+                triggerOneClickLoudV45(nil)
+            end,
+            function()
+                if toggleFloatingPill then
+                    toggleFloatingPill("oneclickloud_v45")
+                end
+            end,
+            (ActivePills and ActivePills["oneclickloud_v45"]) and "✓" or "⦿"
+        )
+        if loudV45RowInfo then
+            loudV45RowInfo.defaultLabel = "LOUD VR 4.5"
+            presetActionRows["oneclickloud_v45"] = loudV45RowInfo
+            if updatePinBadgeVisual then updatePinBadgeVisual("oneclickloud_v45") end
+        end
+
+        local loudRowInfo = createActionRow(
+            loudGrp,
+            3,
             "Coco Loud",
             "Applies COCO LOUD preset (distortion · eq · filter · reverb via remotes) · Tap [⦿] to pin floating pill",
             "COCO LOUD",
@@ -33354,7 +33647,7 @@ local function buildMainUI()
 
         local loudV31RowInfo = createActionRow(
             loudGrp,
-            3,
+            4,
             "Mic Up Preset v3.3 (Max Loud)",
             "Exact micup_voice_preset v3.3 (distortion max · eq all +10 · LowShelf 22kHz +30dB · reverb max) · [⦿] pin pill",
             "LOUD v3.3",
@@ -33376,7 +33669,7 @@ local function buildMainUI()
 
         local loudV35RowInfo = createActionRow(
             loudGrp,
-            4,
+            5,
             "Mic Up Preset v3.5 (Gain-Staged Max Loud)",
             "Exact micup_voice_preset v3.5 (EQ->Filter->Distortion->Reverb + 2nd pass + Compressor/Fader/Echo + range boost) · [⦿] pin pill",
             "LOUD v3.5",
@@ -33398,7 +33691,7 @@ local function buildMainUI()
 
         local removeLoudRowInfo = createActionRow(
             loudGrp,
-            5,
+            6,
             "One Click Remove Loud",
             "Removes & neutralizes all Mic Up loud effects in 1 click (clear/remove remotes + property reset + local FX) · [⦿] pin pill",
             "REMOVE 🔇",
@@ -33456,8 +33749,8 @@ local function buildMainUI()
             end
 
             local Panel = Instance.new("Frame")
-            Panel.Size = UDim2.fromOffset(266, 294)
-            Panel.Position = UDim2.new(0.5, -133, 0.5, -147)
+            Panel.Size = UDim2.fromOffset(266, 334)
+            Panel.Position = UDim2.new(0.5, -133, 0.5, -167)
             Panel.BackgroundColor3 = C.bg
             Panel.BorderSizePixel = 0
             Panel.Active = true
@@ -33521,9 +33814,28 @@ local function buildMainUI()
                 triggerOneClickLoudV40(nil)
             end)
 
+            local ApplyV45Btn = Instance.new("TextButton")
+            ApplyV45Btn.Size = UDim2.new(1, -20, 0, 34)
+            ApplyV45Btn.Position = UDim2.fromOffset(10, 120)
+            ApplyV45Btn.BackgroundColor3 = Color3.fromRGB(185, 115, 255)
+            ApplyV45Btn.BackgroundTransparency = 0.12
+            ApplyV45Btn.Text = "APPLY LOUD VR 4.5"
+            ApplyV45Btn.TextColor3 = Color3.fromRGB(10, 10, 12)
+            ApplyV45Btn.Font = Enum.Font.GothamBold
+            ApplyV45Btn.TextSize = 12
+            ApplyV45Btn.BorderSizePixel = 0
+            ApplyV45Btn.AutoButtonColor = false
+            ApplyV45Btn.Parent = Panel
+            corner(ApplyV45Btn, 8)
+            stroke(ApplyV45Btn, Color3.fromRGB(185, 115, 255), 1, 0.25)
+
+            ApplyV45Btn.MouseButton1Click:Connect(function()
+                triggerOneClickLoudV45(nil)
+            end)
+
             local ApplyBtn = Instance.new("TextButton")
             ApplyBtn.Size = UDim2.new(1, -20, 0, 34)
-            ApplyBtn.Position = UDim2.fromOffset(10, 120)
+            ApplyBtn.Position = UDim2.fromOffset(10, 160)
             ApplyBtn.BackgroundColor3 = C.accent
             ApplyBtn.BackgroundTransparency = 0.12
             ApplyBtn.Text = "APPLY COCO LOUD"
@@ -33549,7 +33861,7 @@ local function buildMainUI()
 
             local ApplyV31Btn = Instance.new("TextButton")
             ApplyV31Btn.Size = UDim2.new(1, -20, 0, 34)
-            ApplyV31Btn.Position = UDim2.fromOffset(10, 160)
+            ApplyV31Btn.Position = UDim2.fromOffset(10, 200)
             ApplyV31Btn.BackgroundColor3 = Color3.fromRGB(60, 185, 130)
             ApplyV31Btn.BackgroundTransparency = 0.14
             ApplyV31Btn.Text = "APPLY MIC UP v3.3 LOUD"
@@ -33568,7 +33880,7 @@ local function buildMainUI()
 
             local ApplyV35Btn = Instance.new("TextButton")
             ApplyV35Btn.Size = UDim2.new(1, -20, 0, 34)
-            ApplyV35Btn.Position = UDim2.fromOffset(10, 200)
+            ApplyV35Btn.Position = UDim2.fromOffset(10, 240)
             ApplyV35Btn.BackgroundColor3 = Color3.fromRGB(115, 160, 255)
             ApplyV35Btn.BackgroundTransparency = 0.14
             ApplyV35Btn.Text = "APPLY MIC UP v3.5 LOUD"
@@ -33587,7 +33899,7 @@ local function buildMainUI()
 
             local RemoveBtn = Instance.new("TextButton")
             RemoveBtn.Size = UDim2.new(1, -20, 0, 34)
-            RemoveBtn.Position = UDim2.fromOffset(10, 240)
+            RemoveBtn.Position = UDim2.fromOffset(10, 280)
             RemoveBtn.BackgroundColor3 = C.danger
             RemoveBtn.BackgroundTransparency = 0.14
             RemoveBtn.Text = "🔇 REMOVE LOUD (1-CLICK)"
@@ -33639,7 +33951,7 @@ local function buildMainUI()
 
         createActionRow(
             loudGrp,
-            6,
+            7,
             "Standalone Floating Coco Loud Panel",
             "Toggle draggable COCO LOUD floating overlay (one-click apply via remotes)",
             "Toggle UI",
@@ -33658,7 +33970,7 @@ local function buildMainUI()
 
         loudUiHooks.autoSwitch = createSwitchRow(
             loudGrp,
-            7,
+            8,
             "Auto-Reapply on Respawn",
             "Automatically re-fires COCO LOUD 1.5s after CharacterAdded",
             loudState.autoReapply,
@@ -33670,7 +33982,7 @@ local function buildMainUI()
 
         createActionRow(
             loudGrp,
-            8,
+            9,
             "Scan Audio / Effect Remotes",
             "Scans ReplicatedStorage for effect, audio, voice, mic & gain remotes",
             "Scan",
@@ -33692,7 +34004,7 @@ local function buildMainUI()
 
         createActionRow(
             loudGrp,
-            9,
+            10,
             "Clear Mic Up Effects",
             "Clears or removes active voice effects via clear/remove remotes",
             "Clear FX",
