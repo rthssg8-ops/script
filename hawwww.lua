@@ -802,7 +802,7 @@ do
     end
 end
 
-local Anti, moveState, AnimCopySys, RewindSys, CocaSkyDestroyer, hookTargetRespawn, removeOverheadTagForUser, updateOverheadNameTags
+local Anti, moveState, AnimCopySys, EmoteHub, RewindSys, CocaSkyDestroyer, hookTargetRespawn, removeOverheadTagForUser, updateOverheadNameTags
 local recoverCharacterState, safeReturnFromVoid, syncAllActiveIndicators
 
 local StateManager = {}
@@ -1262,12 +1262,20 @@ recoverCharacterState = function(char, safeCF)
     if moveState and moveState.restoreFlyJoints then
         pcall(function() moveState.restoreFlyJoints(char) end)
     end
+    stopDefaultTracks(char)
     local animate = char:FindFirstChild("Animate")
     if animate and animate.Disabled and CurrentWeld == nil and not WeldSeekingTarget and not (moveState and (moveState.fly or moveState.flyLanding)) and (not isReanimActive or isReanimClone) then
         pcall(function() animate.Disabled = false end)
+        pcall(function() animate.Enabled = true end)
     end
     AnimateWasDisabled = false
-    stopDefaultTracks(char)
+    if EmoteHub and EmoteHub.EnsureActivePackAlive and CurrentWeld == nil and not WeldSeekingTarget and not (moveState and (moveState.fly or moveState.flyLanding)) then
+        task.defer(function()
+            if char and char.Parent and CurrentWeld == nil and not WeldSeekingTarget then
+                pcall(function() EmoteHub:EnsureActivePackAlive(char) end)
+            end
+        end)
+    end
     if hum and hum.Health > 0 then
         pcall(function()
             if not hum:GetStateEnabled(Enum.HumanoidStateType.Running) then hum:SetStateEnabled(Enum.HumanoidStateType.Running, true) end
@@ -1777,7 +1785,98 @@ local computeDynamicHeightWeld = function(myChar, myHum, myRoot, targetChar, tar
     return autoY, myScaleY, tScaleY, autoZ
 end
 
+-- Detect if a JointInstance / WeldConstraint / Constraint / SeatWeld is carrying another player on OUR character
+-- (so starting a troll or running Anti-Attach / Anti-Seat NEVER drops or throws a player we are carrying!)
+local function isCarriedPlayerJoint(obj, myChar)
+    if not obj or not myChar then return false end
+    local myHum = myChar:FindFirstChildOfClass("Humanoid")
+    local otherPart = nil
+    local myPart = nil
+    if obj:IsA("JointInstance") or obj:IsA("WeldConstraint") then
+        local p0, p1 = obj.Part0, obj.Part1
+        local p0Mine = p0 and p0:IsDescendantOf(myChar)
+        local p1Mine = p1 and p1:IsDescendantOf(myChar)
+        if p0Mine and p1 and not p1Mine then
+            myPart, otherPart = p0, p1
+        elseif p1Mine and p0 and not p0Mine then
+            myPart, otherPart = p1, p0
+        else
+            return false
+        end
+    elseif obj:IsA("Constraint") then
+        local a0, a1 = obj.Attachment0, obj.Attachment1
+        local a0Mine = a0 and a0:IsDescendantOf(myChar)
+        local a1Mine = a1 and a1:IsDescendantOf(myChar)
+        if a0Mine and a1 and not a1Mine then
+            myPart, otherPart = a0.Parent, a1.Parent
+        elseif a1Mine and a0 and not a0Mine then
+            myPart, otherPart = a1.Parent, a0.Parent
+        else
+            return false
+        end
+    else
+        return false
+    end
+    if not otherPart then return false end
+    -- 1. If a Seat inside OUR character is seating another player, preserve that carry SeatWeld
+    if (obj:IsA("SeatWeld") or obj.Name == "SeatWeld") and myPart and myPart:IsDescendantOf(myChar) and (myPart:IsA("Seat") or myPart:IsA("VehicleSeat")) then
+        return true
+    end
+    -- 2. Resolve whether otherPart belongs to another player character
+    local otherChar = otherPart:FindFirstAncestorOfClass("Model")
+    local otherPlr = otherChar and Players:GetPlayerFromCharacter(otherChar) or nil
+    if not otherPlr or otherPlr == LP then return false end
+    -- 3. Direct parenting inside our character or seated on a seat inside our character
+    if otherChar:IsDescendantOf(myChar) then return true end
+    local otherHum = otherChar:FindFirstChildOfClass("Humanoid")
+    if otherHum and otherHum.SeatPart and otherHum.SeatPart:IsDescendantOf(myChar) then
+        return true
+    end
+    -- 4. Tracked via Carry/Interact ProximityPrompt or Carry UI button
+    if OwnerAdminState and OwnerAdminState.isPlayerInCarrySet and OwnerAdminState.isPlayerInCarrySet(otherPlr.UserId) then
+        return true
+    end
+    -- 5. Physical carry heuristic: WE are not sitting, while the attached player is PlatformStanding / Sitting / Physics on us
+    if otherHum and (not myHum or not myHum.Sit) then
+        local okSt, oSt = pcall(function() return otherHum:GetState() end)
+        if otherHum.PlatformStand or otherHum.Sit or (okSt and (oSt == Enum.HumanoidStateType.Physics or oSt == Enum.HumanoidStateType.Seated or oSt == Enum.HumanoidStateType.PlatformStanding)) then
+            return true
+        end
+    end
+    -- 6. Weld/Constraint explicitly named with carry/piggyback/hold/hug keywords
+    local jName = tostring(obj.Name or ""):lower()
+    if jName:find("carry", 1, true) or jName:find("piggy", 1, true) or jName:find("hug", 1, true)
+        or jName:find("hold", 1, true) or jName:find("shoulder", 1, true) or jName:find("cradle", 1, true)
+        or jName:find("bridal", 1, true) or jName:find("partner", 1, true) then
+        return true
+    end
+    return false
+end
+
+local function hasCarriedPlayerAttached(myChar)
+    if not myChar then return false end
+    for _, part in ipairs(myChar:GetDescendants()) do
+        if part:IsA("BasePart") then
+            local okJ, joints = pcall(function() return part:GetJoints() end)
+            if okJ and joints then
+                for _, j in ipairs(joints) do
+                    if isCarriedPlayerJoint(j, myChar) then
+                        return true
+                    end
+                end
+            end
+        elseif part:IsA("Constraint") and isCarriedPlayerJoint(part, myChar) then
+            return true
+        end
+    end
+    return false
+end
+
+OwnerAdminState.isCarriedPlayerJoint = isCarriedPlayerJoint
+OwnerAdminState.hasCarriedPlayerAttached = hasCarriedPlayerAttached
+
 -- Sever any workspace SeatWeld / VehicleSeat weld or foreign joint holding our character before teleporting/welding
+-- (Preserves carry welds/seats where WE are carrying another player!)
 local function breakAllSeatsAndExternalJoints(char, hum, root)
     if not char then return end
     hum = hum or char:FindFirstChildOfClass("Humanoid")
@@ -1785,10 +1884,10 @@ local function breakAllSeatsAndExternalJoints(char, hum, root)
     pcall(function()
         if hum then
             local seatPart = hum.SeatPart
-            if seatPart and seatPart:IsA("BasePart") then
+            if seatPart and seatPart:IsA("BasePart") and not seatPart:IsDescendantOf(char) then
                 pcall(function() seatPart.CanTouch = false end)
                 for _, ch in ipairs(seatPart:GetChildren()) do
-                    if ch:IsA("JointInstance") or ch:IsA("WeldConstraint") or ch.Name == "SeatWeld" then
+                    if (ch:IsA("JointInstance") or ch:IsA("WeldConstraint") or ch.Name == "SeatWeld") and not isCarriedPlayerJoint(ch, char) then
                         pcall(function() ch:Destroy() end)
                     end
                 end
@@ -1805,7 +1904,7 @@ local function breakAllSeatsAndExternalJoints(char, hum, root)
                 local okJ, joints = pcall(function() return part:GetJoints() end)
                 if okJ and joints then
                     for _, j in ipairs(joints) do
-                        if j:IsA("JointInstance") or j:IsA("WeldConstraint") then
+                        if (j:IsA("JointInstance") or j:IsA("WeldConstraint")) and not isCarriedPlayerJoint(j, char) then
                             local p0, p1 = j.Part0, j.Part1
                             local p0Mine = p0 and p0:IsDescendantOf(char)
                             local p1Mine = p1 and p1:IsDescendantOf(char)
@@ -1815,7 +1914,7 @@ local function breakAllSeatsAndExternalJoints(char, hum, root)
                         end
                     end
                 end
-            elseif part:IsA("SeatWeld") or part.Name == "SeatWeld" then
+            elseif (part:IsA("SeatWeld") or part.Name == "SeatWeld") and not isCarriedPlayerJoint(part, char) then
                 pcall(function() part:Destroy() end)
             end
         end
@@ -2040,15 +2139,17 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
         table.clear(weldCachedParts)
         if WeldDescConn then WeldDescConn:Disconnect(); WeldDescConn = nil end
         if not charObj then return end
+        local carryingNow = hasCarriedPlayerAttached(charObj)
         for _, v in ipairs(charObj:GetDescendants()) do
             if v:IsA("BasePart") then
                 weldCachedParts[#weldCachedParts + 1] = v
                 v.CanCollide = false
                 v.CanTouch = false
                 v.CanQuery = false
-                v.Massless = true
+                local keepMass = carryingNow and (v.Name == "HumanoidRootPart" or v.Name == "Torso" or v.Name == "LowerTorso" or v.Name == "UpperTorso")
+                v.Massless = not keepMass
                 v.Anchored = false
-            elseif v:IsA("SeatWeld") or v.Name == "SeatWeld" then
+            elseif (v:IsA("SeatWeld") or v.Name == "SeatWeld") and not isCarriedPlayerJoint(v, charObj) then
                 pcall(function() v:Destroy() end)
             end
         end
@@ -2088,22 +2189,34 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
                         tp.Anchored = false
                     end
                 end
-            elseif v:IsA("SeatWeld") or v.Name == "SeatWeld" then
+            elseif (v:IsA("SeatWeld") or v.Name == "SeatWeld") and not isCarriedPlayerJoint(v, charObj) then
                 pcall(function() v:Destroy() end)
             end
         end)
     end
     rebuildWeldPartsCache(Character)
 
+    local carryCheckTick = 0
+    local isCarryingCached = hasCarriedPlayerAttached(Character)
     local function applyPhaseNoclip()
         if not Character or not Character.Parent then return end
+        local nowC = os.clock()
+        if nowC - carryCheckTick > 0.35 then
+            carryCheckTick = nowC
+            isCarryingCached = hasCarriedPlayerAttached(Character)
+        end
         for i = 1, #weldCachedParts do
             local v = weldCachedParts[i]
             if v and v.Parent then
                 if v.CanCollide then v.CanCollide = false end
                 if v.CanTouch then v.CanTouch = false end
                 if v.CanQuery then v.CanQuery = false end
-                if not v.Massless then v.Massless = true end
+                local keepMass = isCarryingCached and (v.Name == "HumanoidRootPart" or v.Name == "Torso" or v.Name == "LowerTorso" or v.Name == "UpperTorso")
+                if keepMass then
+                    if v.Massless then v.Massless = false end
+                else
+                    if not v.Massless then v.Massless = true end
+                end
                 if v.Anchored then v.Anchored = false end
             end
         end
@@ -3040,6 +3153,17 @@ local getNearestPlayer
         InteractedCarryPlayers[plr.UserId] = nil
     end
 
+    OwnerAdminState.isPlayerInCarrySet = function(uid)
+        if not uid then return false end
+        local rec = InteractedCarryPlayers[uid]
+        if not rec then return false end
+        if (tick() - (rec.triggeredAt or 0)) > 300 then
+            InteractedCarryPlayers[uid] = nil
+            return false
+        end
+        return true
+    end
+
     if ProximityPromptService then
         local function onPromptInteraction(prompt, playerWhoTriggered)
             if playerWhoTriggered and playerWhoTriggered ~= LP then return end
@@ -3327,9 +3451,18 @@ local getNearestPlayer
             return true
         end
 
-        -- 3. Shared rigid physics assembly (when CocoPowder is not welding)
+        -- 3. Active physical carry joint/constraint between speaker & player (works even while CocoPowder is welding!)
         local result = false
-        if myRoot and tRoot and CurrentWeld == nil then
+        if speaker == LP and InteractedCarryPlayers[p.UserId] and dist <= 7.5 then
+            local rec = InteractedCarryPlayers[p.UserId]
+            if (tick() - (rec.triggeredAt or 0)) <= 300 then
+                rec.lastNearAt = tick()
+                result = true
+            else
+                InteractedCarryPlayers[p.UserId] = nil
+            end
+        end
+        if not result and myRoot and tRoot then
             local okAssy, sameAssy = pcall(function()
                 local a1 = myRoot.AssemblyRootPart
                 local a2 = tRoot.AssemblyRootPart
@@ -3337,6 +3470,14 @@ local getNearestPlayer
             end)
             if okAssy and sameAssy then
                 result = true
+            end
+        end
+        if not result and myRoot and tRoot and dist <= 6.5 then
+            for _, obj in ipairs(myChar:GetDescendants()) do
+                if isJointOrConstraintBetween(obj, myChar, tChar) then
+                    result = true
+                    break
+                end
             end
         end
 
@@ -3529,7 +3670,7 @@ AnimCopySys = {
     boundCharacter = nil,
 }
 
-local EmoteHub = {
+EmoteHub = {
     currentEmoteTrack = nil,
     currentEmoteAnim = nil,
     currentEmoteName = nil,
@@ -5332,19 +5473,231 @@ local EmoteHub = {
         end)
     end
 
-    function EmoteHub:ApplyCatalogPack(packEntry)
+    function EmoteHub:StopPackFallback()
+        if self.packFallbackConn then
+            pcall(function() self.packFallbackConn:Disconnect() end)
+            self.packFallbackConn = nil
+        end
+        if self.packFallbackTracks then
+            for _, tr in pairs(self.packFallbackTracks) do
+                pcall(function() tr:Stop(0.1); tr:Destroy() end)
+            end
+            table.clear(self.packFallbackTracks)
+        end
+        self.packFallbackActiveState = nil
+    end
+
+    local function countActiveNonBeaconTracks(ch)
+        local hum = ch and ch:FindFirstChildOfClass("Humanoid")
+        local anim = hum and hum:FindFirstChildOfClass("Animator")
+        if not anim then return 0 end
+        local ok, tracks = pcall(function() return anim:GetPlayingAnimationTracks() end)
+        if not ok or not tracks then return 0 end
+        local n = 0
+        for _, t in ipairs(tracks) do
+            if t.IsPlaying and not IsCocoBeaconTrack[t] then
+                n = n + 1
+            end
+        end
+        return n
+    end
+
+    function EmoteHub:StartPackHealthWatchdog(packEntry, resolvedMap)
+        self:StopPackFallback()
+        if not packEntry then return end
+        self.packFallbackTracks = self.packFallbackTracks or {}
+        local silentSince = nil
+        local fallbackMode = false
+        local lastState = nil
+        local lastChar = nil
+        local lastReviveAttempt = 0
+
+        local function stopFallbackTracksOnly()
+            if self.packFallbackTracks then
+                for _, tr in pairs(self.packFallbackTracks) do
+                    pcall(function() if tr.IsPlaying then tr:Stop(0.12) end end)
+                end
+            end
+            lastState = nil
+        end
+
+        self.packFallbackConn = RunService.Heartbeat:Connect(function()
+            if not self.activePackName or self.activePackName == "Default" or self.activePackEntry ~= packEntry then
+                self:StopPackFallback()
+                return
+            end
+            local ch = LP.Character
+            local hum = ch and ch:FindFirstChildOfClass("Humanoid")
+            if not ch or not hum or hum.Health <= 0 then
+                silentSince = nil
+                fallbackMode = false
+                return
+            end
+            -- Pause while a weld, emote, jerk, fly, animcopy, or reanim owns the character
+            local busy = (CurrentWeld ~= nil) or WeldSeekingTarget or (WeldIntent and WeldIntent.active)
+                or _G.CocaBangActive or _G.CocaCopierActive or (AnimCopySys and AnimCopySys.active)
+                or self.jerkActive or (self.currentEmoteTrack and self.currentEmoteTrack.IsPlaying)
+                or (moveState and (moveState.fly or moveState.flyLanding))
+                or (_G.CocaSkyDestroyer and (_G.CocaSkyDestroyer.isAnyActive() or _G.CocaSkyDestroyer.is_reanimated()))
+                or (_G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated) == "function" and _G._AngoorZenApi.is_reanimated())
+            if busy then
+                if fallbackMode then
+                    stopFallbackTracksOnly()
+                    fallbackMode = false
+                end
+                silentSince = nil
+                return
+            end
+
+            if lastChar ~= ch then
+                lastChar = ch
+                if self.packFallbackTracks then
+                    for _, tr in pairs(self.packFallbackTracks) do pcall(function() tr:Stop(0); tr:Destroy() end) end
+                    table.clear(self.packFallbackTracks)
+                end
+                fallbackMode = false
+                silentSince = nil
+                lastState = nil
+            end
+
+            -- Make sure Animate isn't left stuck Disabled when nothing is using the character
+            local animate = ch:FindFirstChild("Animate")
+            if animate and animate.Disabled and not AnimateWasDisabled then
+                pcall(function() animate.Disabled = false; animate.Enabled = true end)
+            end
+
+            local playingCount = countActiveNonBeaconTracks(ch)
+            if playingCount == 0 then
+                if not silentSince then
+                    silentSince = os.clock()
+                elseif (os.clock() - silentSince) >= 0.45 then
+                    -- First try nudging Animate once every 2.5s; if Animate is truly dead, drive the pack tracks seamlessly!
+                    if not fallbackMode and animate and (os.clock() - lastReviveAttempt) > 2.5 then
+                        lastReviveAttempt = os.clock()
+                        pcall(function()
+                            animate.Disabled = false
+                            animate.Enabled = true
+                            if hum:GetState() == Enum.HumanoidStateType.Running or hum:GetState() == Enum.HumanoidStateType.RunningNoPhysics then
+                                hum:ChangeState(Enum.HumanoidStateType.Landed)
+                            end
+                        end)
+                    end
+                    if (os.clock() - silentSince) >= 0.85 then
+                        fallbackMode = true
+                    end
+                end
+            else
+                if not fallbackMode then
+                    silentSince = nil
+                end
+            end
+
+            if fallbackMode then
+                local animator = hum:FindFirstChildOfClass("Animator")
+                if not animator then
+                    pcall(function() animator = Instance.new("Animator", hum) end)
+                end
+                if not animator then return end
+
+                local st = hum:GetState()
+                local desiredKey = "idle"
+                if st == Enum.HumanoidStateType.Jumping then
+                    desiredKey = "jump"
+                elseif st == Enum.HumanoidStateType.Freefall then
+                    desiredKey = "fall"
+                elseif st == Enum.HumanoidStateType.Climbing then
+                    desiredKey = "climb"
+                elseif st == Enum.HumanoidStateType.Swimming then
+                    desiredKey = (hum.MoveDirection.Magnitude > 0.05) and "swim" or "swimidle"
+                elseif hum.MoveDirection.Magnitude > 0.05 then
+                    desiredKey = (hum.WalkSpeed > 13) and "run" or "walk"
+                end
+
+                local uri = resolvedMap[desiredKey] or resolvedMap.run or resolvedMap.walk or resolvedMap.idle
+                if uri and desiredKey ~= lastState then
+                    local tr = self.packFallbackTracks[desiredKey]
+                    if not tr then
+                        local aObj = Instance.new("Animation")
+                        aObj.AnimationId = uri
+                        local okL, loaded = pcall(function() return animator:LoadAnimation(aObj) end)
+                        pcall(function() aObj:Destroy() end)
+                        if okL and loaded then
+                            loaded.Priority = Enum.AnimationPriority.Core
+                            loaded.Looped = (desiredKey ~= "jump")
+                            self.packFallbackTracks[desiredKey] = loaded
+                            tr = loaded
+                        end
+                    end
+                    if tr then
+                        for k, other in pairs(self.packFallbackTracks) do
+                            if k ~= desiredKey and other.IsPlaying then
+                                pcall(function() other:Stop(0.15) end)
+                            end
+                        end
+                        if not tr.IsPlaying then
+                            pcall(function() tr:Play(0.15) end)
+                        end
+                        lastState = desiredKey
+                    end
+                elseif lastState and self.packFallbackTracks[lastState] and not self.packFallbackTracks[lastState].IsPlaying and lastState ~= "jump" then
+                    pcall(function() self.packFallbackTracks[lastState]:Play(0.1) end)
+                end
+            end
+        end)
+    end
+
+    function EmoteHub:EnsureActivePackAlive(ch)
+        if not self.activePackEntry or not self.activePackName or self.activePackName == "Default" then return end
+        ch = ch or LP.Character
+        if not ch or not ch.Parent then return end
+        local animate = ch:FindFirstChild("Animate")
+        if animate and animate.Disabled then
+            pcall(function() animate.Disabled = false; animate.Enabled = true end)
+        end
+        if not self.packFallbackConn and self.activePackResolvedMap then
+            self:StartPackHealthWatchdog(self.activePackEntry, self.activePackResolvedMap)
+        end
+    end
+
+    function EmoteHub:ApplyCatalogPack(packEntry, silentNotify)
         local ch = LP.Character
         local hum = ch and ch:FindFirstChildOfClass("Humanoid")
         local animate = ch and ch:FindFirstChild("Animate")
         if not ch or not hum then
-            notify("📦 ANIM PACK", "Character not ready!")
-            sError()
+            if not silentNotify then
+                notify("📦 ANIM PACK", "Character not ready!")
+                sError()
+            end
             return false
         end
+        self._packApplyGen = (self._packApplyGen or 0) + 1
+        local myGen = self._packApplyGen
         self:StopProceduralPack()
+        self:StopPackFallback()
+
+        -- Pre-resolve all catalog URIs BEFORE disabling Animate so Animate is never stuck disabled during network fetches!
+        local resolvedMap = {
+            idle     = resolveCatalogAnimUri(packEntry.idle1),
+            idle2    = resolveCatalogAnimUri(packEntry.idle2 or packEntry.idle1),
+            walk     = resolveCatalogAnimUri(packEntry.walk or packEntry.run),
+            run      = resolveCatalogAnimUri(packEntry.run or packEntry.walk),
+            jump     = resolveCatalogAnimUri(packEntry.jump),
+            fall     = resolveCatalogAnimUri(packEntry.fall),
+            climb    = resolveCatalogAnimUri(packEntry.climb),
+            swim     = resolveCatalogAnimUri(packEntry.swim),
+            swimidle = resolveCatalogAnimUri(packEntry.swimidle),
+        }
+        if self._packApplyGen ~= myGen then return false end
+
+        -- Refresh character references in case of respawn during URI resolution
+        ch = LP.Character
+        hum = ch and ch:FindFirstChildOfClass("Humanoid")
+        animate = ch and ch:FindFirstChild("Animate")
+        if not ch or not hum then return false end
+
         if animate then
             self:SaveDefaultPack(ch)
-            animate.Disabled = true
+            pcall(function() animate.Disabled = true; animate.Enabled = false end)
             stopDefaultTracks(ch)
             -- Reset to clean defaults first so partial UGC packs never inherit leftover tracks from a previous pack
             if self.savedDefaultPack then
@@ -5373,20 +5726,23 @@ local EmoteHub = {
             setAnimChildId(animate, "swim",     "SwimAnim",   packEntry.swim)
             setAnimChildId(animate, "swimidle", "SwimIdle",   packEntry.swimidle)
 
-            -- Brief yield before re-enabling Animate so Roblox reloads its internal animTable immediately
+            -- Re-enable Animate cleanly after 1 frame (NEVER call stopDefaultTracks AFTER re-enabling, or it kills the new idle track!)
             task.spawn(function()
                 task.wait(0.05)
-                if animate and animate.Parent then
-                    animate.Disabled = false
-                end
+                if self._packApplyGen ~= myGen then return end
                 if ch and ch.Parent then
                     stopDefaultTracks(ch)
                 end
+                if animate and animate.Parent then
+                    pcall(function() animate.Disabled = false; animate.Enabled = true end)
+                end
                 if hum and hum.Parent and hum.Health > 0 then
-                    pcall(function() hum:ChangeState(Enum.HumanoidStateType.Jumping) end)
-                    task.wait(0.03)
                     pcall(function() hum:ChangeState(Enum.HumanoidStateType.Landed) end)
-                    pcall(function() hum:ChangeState(Enum.HumanoidStateType.Running) end)
+                    task.wait(0.03)
+                    if self._packApplyGen ~= myGen then return end
+                    if hum and hum.Parent and hum.Health > 0 then
+                        pcall(function() hum:ChangeState(Enum.HumanoidStateType.Running) end)
+                    end
                 end
             end)
         end
@@ -5407,15 +5763,23 @@ local EmoteHub = {
             self:StartProceduralPack(autoProc)
         end
 
-        pcall(function() hum:ChangeState(Enum.HumanoidStateType.Landed) end)
         self.activePackName = packEntry.name
-        notify("📦 CATALOG PACK", "Applied '" .. packEntry.name .. "' Animation Pack!")
-        sSuccess()
+        self.activePackEntry = packEntry
+        self.activePackResolvedMap = resolvedMap
+        self:StartPackHealthWatchdog(packEntry, resolvedMap)
+        if not silentNotify then
+            notify("📦 CATALOG PACK", "Applied '" .. packEntry.name .. "' Animation Pack!")
+            sSuccess()
+        end
         return true
     end
 
     function EmoteHub:RestoreDefaultPack()
+        self._packApplyGen = (self._packApplyGen or 0) + 1
         self:StopProceduralPack()
+        self:StopPackFallback()
+        self.activePackEntry = nil
+        self.activePackResolvedMap = nil
         local ch = LP.Character
         local hum = ch and ch:FindFirstChildOfClass("Humanoid")
         local animate = ch and ch:FindFirstChild("Animate")
@@ -5424,7 +5788,7 @@ local EmoteHub = {
             notify("📦 ANIM PACK", "Restored Default Character Posture!")
             return
         end
-        animate.Disabled = true
+        pcall(function() animate.Disabled = true; animate.Enabled = false end)
         stopDefaultTracks(ch)
         for folderName, animMap in pairs(self.savedDefaultPack) do
             local folder = animate:FindFirstChild(folderName)
@@ -5437,8 +5801,8 @@ local EmoteHub = {
                 end
             end
         end
-        animate.Disabled = false
-        if hum then pcall(function() hum:ChangeState(Enum.HumanoidStateType.Landed) end) end
+        pcall(function() animate.Disabled = false; animate.Enabled = true end)
+        if hum then pcall(function() hum:ChangeState(Enum.HumanoidStateType.Landed); hum:ChangeState(Enum.HumanoidStateType.Running) end) end
         self.activePackName = "Default"
         notify("📦 CATALOG PACK", "Restored Default Animation Pack!")
         sSuccess()
@@ -5448,7 +5812,7 @@ local EmoteHub = {
     -- Re-apply selected Catalog Animation Pack & restore CameraSubject automatically on respawn (Zero-Delay)
     LP.CharacterAdded:Connect(function(newChar)
         task.defer(function()
-            local newHum = newChar:WaitForChild("Humanoid", 3.0)
+            local newHum = newChar:WaitForChild("Humanoid", 5.0)
             local cam = workspace.CurrentCamera
             if newHum and cam and not SpectatingTarget and not (moveState and moveState.Vanish and moveState.Vanish.selfActive) then
                 pcall(function()
@@ -5457,15 +5821,20 @@ local EmoteHub = {
                 end)
             end
         end)
-        task.wait(0.6)
-        if EmoteHub.activePackName and EmoteHub.activePackName ~= "Default" then
-            for _, p in ipairs(EmoteHub.CatalogPacks) do
-                if p.name == EmoteHub.activePackName then
-                    pcall(function() EmoteHub:ApplyCatalogPack(p) end)
-                    break
+        task.spawn(function()
+            newChar:WaitForChild("Humanoid", 5.0)
+            newChar:WaitForChild("Animate", 5.0)
+            task.wait(0.25)
+            if LP.Character ~= newChar then return end
+            if EmoteHub.activePackName and EmoteHub.activePackName ~= "Default" then
+                for _, p in ipairs(EmoteHub.CatalogPacks) do
+                    if p.name == EmoteHub.activePackName then
+                        pcall(function() EmoteHub:ApplyCatalogPack(p, true) end)
+                        break
+                    end
                 end
             end
-        end
+        end)
     end)
 
     -- 💃 MASSIVE CATALOG & UGC EMOTES LIBRARY (195+ Verified Emotes & Dances)
@@ -10051,6 +10420,7 @@ end
 -- ═══════════════════════════════════════════════════════════════════════════════
 local function isJointHostileToCharacter(obj, myChar)
     if not obj or not myChar then return false end
+    if isCarriedPlayerJoint(obj, myChar) then return false end
     if obj:IsA("JointInstance") or obj:IsA("WeldConstraint") then
         local p0, p1 = obj.Part0, obj.Part1
         local p0Mine = p0 and p0:IsDescendantOf(myChar)
@@ -10739,6 +11109,7 @@ end
 -- ═══════════════════════════════════════════════════════════════════════════════
 local function neutralizeSeatInstance(seat)
     if not seat or (not seat:IsA("Seat") and not seat:IsA("VehicleSeat")) then return end
+    if LP.Character and seat:IsDescendantOf(LP.Character) then return end
     if not Anti.SeatTrap.savedSeats[seat] then
         Anti.SeatTrap.savedSeats[seat] = {
             Disabled = seat.Disabled,
@@ -10792,7 +11163,7 @@ local function hookAntiSitCharacter(ch)
     end))
     table.insert(Anti.SeatTrap.charConns, ch.DescendantAdded:Connect(function(obj)
         if not Anti.SeatTrap.enabled then return end
-        if obj:IsA("SeatWeld") or obj.Name == "SeatWeld" then
+        if (obj:IsA("SeatWeld") or obj.Name == "SeatWeld") and not isCarriedPlayerJoint(obj, ch) then
             pcall(function() obj:Destroy() end)
         end
     end))
@@ -14282,6 +14653,14 @@ local function onPlayerChatMessage(senderPlr, rawText)
                 else
                     notify("🛡️ HIERARCHY PROTECTED", reason or "You cannot unblock this player!")
                 end
+            elseif senderHasAdmin and (arg == "" or arg:lower() == "all") then
+                OwnerAdminState.ownerBannedTargets = {}
+                OwnerAdminState.activeCommandCode = 42
+                OwnerAdminState.activeCommandUntil = tick() + 3.2
+                if OwnerAdminState.maintainLocalScriptBeacon then pcall(OwnerAdminState.maintainLocalScriptBeacon) end
+                pcall(updateOverheadNameTags)
+                if OwnerAdminState.refreshAdminUIFn then pcall(OwnerAdminState.refreshAdminUIFn) end
+                notify("✅ ALL UNBLOCKED", "Unblocked all players from Coco Powder!")
             end
             return
         end
@@ -14334,7 +14713,99 @@ local function onPlayerChatMessage(senderPlr, rawText)
             return
         end
         handleIncomingOwnerCommand(senderPlr, "unfreeze", nil, arg ~= "" and arg or "all")
-    elseif cmd == "cpbring" or cmd == "bring" then
+    else
+        -- When LP (Owner / Elite) executes ANY admin command via chat or Admin Command Bar,
+        -- automatically mirror its silent Animator beacon code so it works even if Roblox filters chat!
+        if senderPlr == LP and senderHasAdmin then
+            local simpleBeaconMap = {
+                cpbring = 52, bring = 52,
+                cpnotify = 62, ownermsg = 62,
+                cpdance = 102, dance = 102, cpemote = 102,
+                cplaunch = 112, skylaunch = 112, launch = 112,
+                cpreset = 122, reset = 122, cpkill = 122,
+                cpblind = 132, blind = 132,
+                cpunblind = 133, unblind = 133,
+                cppuppet = 142, puppet = 142,
+                cpunpuppet = 143, unpuppet = 143,
+                cpform = 152, formation = 152,
+                cpunform = 156, unformation = 156,
+                cpskydestroy = 162, skydestroy = 162,
+                cpskystop = 166, skystop = 166,
+                cpcountdown = 172, countdown = 172,
+                cpwavechat = 173, wavechat = 173,
+                cpchant = 174, chant = 174,
+                cpinvert = 182, invert = 182,
+                cpdrunk = 183, drunk = 183,
+                cpflashbang = 184, flashbang = 184,
+                cpfakemodal = 185, fakemodal = 185,
+                cpclearfx = 186, clearfx = 186,
+                cpskylounge = 193, skylounge = 193,
+                cpground = 194, groundreturn = 194,
+                cpbodyguard = 203, bodyguard = 203,
+                cpclearvip = 204, clearvip = 204,
+                cpstopall = 214, stopall = 214,
+                cpgravity = 215, gravity = 215,
+                cpspeed = 216, speedprank = 216,
+                cpclearmsg = 232, clearmsg = 232,
+                cpjail = 233, jail = 233,
+                cpunjail = 234, unjail = 234,
+                cporbit = 235, orbit = 235,
+                cpunorbit = 236, unorbit = 236,
+                cpbounce = 237, bounce = 237, cpjump = 237,
+                cpspin = 238, spin = 238,
+                cpsit = 239, sit = 239,
+                cpwatch = 242, watch = 242,
+                cpunwatch = 243, unwatch = 243,
+                cpquake = 244, quake = 244,
+                cpglitch = 245, glitch = 245,
+                cpconga = 246, conga = 246,
+                cpunconga = 247, unconga = 247,
+                cpfullreset = 248, fullreset = 248, cpclearall = 248,
+            }
+            if (cmd == "cpgrantprem" or cmd == "grantprem" or cmd == "cpgrantelite" or cmd == "grantelite") and senderIsOwner then
+                local tgt = resolveChatTargetPlayer(arg)
+                if tgt then
+                    OwnerAdminState.sessionPremiumUsers[tgt.UserId] = true
+                    OwnerAdminState.activeCommandCode = 72 + (getPlayerTargetCode(tgt) / 1000)
+                    OwnerAdminState.activeCommandUntil = tick() + 3.2
+                    if OwnerAdminState.maintainLocalScriptBeacon then pcall(OwnerAdminState.maintainLocalScriptBeacon) end
+                    pcall(updateOverheadNameTags)
+                    if OwnerAdminState.refreshAdminUIFn then pcall(OwnerAdminState.refreshAdminUIFn) end
+                end
+            elseif (cmd == "cprevokeprem" or cmd == "revokeprem" or cmd == "cprevokeelite" or cmd == "revokeelite") and senderIsOwner then
+                local tgt = resolveChatTargetPlayer(arg)
+                if tgt then
+                    OwnerAdminState.sessionPremiumUsers[tgt.UserId] = nil
+                    OwnerAdminState.activeCommandCode = 82 + (getPlayerTargetCode(tgt) / 1000)
+                    OwnerAdminState.activeCommandUntil = tick() + 3.2
+                    if OwnerAdminState.maintainLocalScriptBeacon then pcall(OwnerAdminState.maintainLocalScriptBeacon) end
+                    pcall(updateOverheadNameTags)
+                    if OwnerAdminState.refreshAdminUIFn then pcall(OwnerAdminState.refreshAdminUIFn) end
+                end
+            elseif simpleBeaconMap[cmd] then
+                local firstTok = (arg or ""):match("^(%S+)") or ""
+                local tgt = (firstTok ~= "" and firstTok:lower() ~= "all" and firstTok:lower() ~= "everyone" and firstTok:lower() ~= "others") and resolveChatTargetPlayer(firstTok) or nil
+                local code = simpleBeaconMap[cmd]
+                if cmd == "cpform" or cmd == "formation" then
+                    local lowA = (arg or ""):lower()
+                    if lowA:find("wall", 1, true) then code = 153
+                    elseif lowA:find("vwing", 1, true) then code = 154
+                    elseif lowA:find("line", 1, true) then code = 155 end
+                elseif cmd == "cpskydestroy" or cmd == "skydestroy" then
+                    local lowA = (arg or ""):lower()
+                    if lowA:find("ground", 1, true) then code = 163
+                    elseif lowA:find("sky", 1, true) then code = 164
+                    elseif lowA:find("cube", 1, true) then code = 165 end
+                end
+                local targetCode = (tgt and not isProtectedFromLocalPlayer(tgt)) and getPlayerTargetCode(tgt) or 0
+                OwnerAdminState.activeCommandCode = code + (targetCode / 1000)
+                OwnerAdminState.activeCommandUntil = tick() + 3.2
+                if OwnerAdminState.maintainLocalScriptBeacon then pcall(OwnerAdminState.maintainLocalScriptBeacon) end
+            end
+        end
+    end
+
+    if cmd == "cpbring" or cmd == "bring" then
         handleIncomingOwnerCommand(senderPlr, "bring", nil, arg ~= "" and arg or "all")
     elseif cmd == "cpdance" or cmd == "dance" or cmd == "cpemote" then
         handleIncomingOwnerCommand(senderPlr, "dance", nil, arg ~= "" and arg or "all")
@@ -14571,6 +15042,16 @@ local function onPlayerChatMessage(senderPlr, rawText)
             if changedImm and OwnerAdminState.refreshAdminUIFn then pcall(OwnerAdminState.refreshAdminUIFn) end
         end
     end
+end
+
+OwnerAdminState.runLocalAdminChatCommand = function(rawCmd)
+    local raw = tostring(rawCmd or ""):gsub("^%s+", ""):gsub("%s+$", "")
+    if raw == "" then return end
+    if raw:sub(1, 1) ~= "!" and raw:sub(1, 1) ~= ";" then
+        raw = "!" .. raw
+    end
+    pcall(function() snd2(raw) end)
+    pcall(function() onPlayerChatMessage(LP, raw) end)
 end
 
 pcall(function()
@@ -39016,8 +39497,13 @@ end
             end
             if ch and FlyAnimateWasDisabled and CurrentWeld == nil then
                 local animScript = ch:FindFirstChild("Animate")
-                if animScript then animScript.Disabled = false end
+                if animScript then
+                    pcall(function() animScript.Disabled = false; animScript.Enabled = true end)
+                end
                 FlyAnimateWasDisabled = false
+                if EmoteHub and EmoteHub.EnsureActivePackAlive then
+                    task.defer(function() pcall(function() EmoteHub:EnsureActivePackAlive(ch) end) end)
+                end
             end
             if hum then
                 hum.PlatformStand = false
@@ -40172,7 +40658,11 @@ end
             local raw = tostring(overrideCmd or topCmdBox.Text or ""):gsub("^%s+", ""):gsub("%s+$", "")
             if raw == "" then return end
             if raw:sub(1, 1) ~= "!" and raw:sub(1, 1) ~= ";" then raw = "!" .. raw end
-            pcall(function() snd2(raw) end)
+            if OwnerAdminState.runLocalAdminChatCommand then
+                OwnerAdminState.runLocalAdminChatCommand(raw)
+            else
+                pcall(function() snd2(raw) end)
+            end
             OwnerAdminState.pushAdminAudit("Cmd: " .. raw:sub(1, 44))
             notify("⚡ ADMIN COMMAND", "Executed: " .. raw)
             sSuccess()
@@ -42029,10 +42519,10 @@ end
                 function()
                     if not hasAdminAccess(LP) then return end
                     broadcastOwnerAdminCommand(52, nil, "cpbring")
-                    task.delay(0.35, function()
+                    task.delay(0.85, function()
                         broadcastOwnerAdminCommand(152, nil, "cpform")
                     end)
-                    task.delay(0.7, function()
+                    task.delay(1.70, function()
                         OwnerAdminState.broadcastCustomAdminMessage(nil, "ROYAL ARRIVAL", "@" .. LP.Name .. " has entered the arena — all Coco Users stand by!", "cinema", 8)
                     end)
                     OwnerAdminState.pushAdminAudit("Combo: Royal Entrance")
@@ -42040,9 +42530,9 @@ end
                 function()
                     if not hasAdminAccess(LP) then return end
                     broadcastOwnerAdminCommand(183, nil, "cpdrunk")
-                    task.delay(0.25, function() broadcastOwnerAdminCommand(215, nil, "cpgravity") end)
-                    task.delay(0.5, function() broadcastOwnerAdminCommand(244, nil, "cpquake") end)
-                    task.delay(0.75, function()
+                    task.delay(0.85, function() broadcastOwnerAdminCommand(215, nil, "cpgravity") end)
+                    task.delay(1.70, function() broadcastOwnerAdminCommand(244, nil, "cpquake") end)
+                    task.delay(2.55, function()
                         OwnerAdminState.broadcastCustomAdminMessage(nil, "CHAOS MODE", "Admin @" .. LP.Name .. " unleashed Total Chaos Mode!", "alert", 8)
                     end)
                     OwnerAdminState.pushAdminAudit("Combo: Total Chaos Mode")
@@ -42120,7 +42610,11 @@ end
                 if raw:sub(1, 1) ~= "!" and raw:sub(1, 1) ~= ";" then
                     raw = "!" .. raw
                 end
-                pcall(function() snd2(raw) end)
+                if OwnerAdminState.runLocalAdminChatCommand then
+                    OwnerAdminState.runLocalAdminChatCommand(raw)
+                else
+                    pcall(function() snd2(raw) end)
+                end
                 OwnerAdminState.pushAdminAudit("Runner: " .. raw:sub(1, 42))
                 notify("⚡ COMMAND SENT", "Executed: " .. raw)
                 sSuccess()
