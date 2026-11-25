@@ -1457,13 +1457,19 @@ local function getSafeVoidFloorY()
 end
 
 local function isPartInSafeWorldBounds(p)
-    if not (p and p.Parent and p:IsA("BasePart")) then return false, nil end
+    if not (p and p.Parent and p:IsA("BasePart") and p:IsDescendantOf(workspace)) then return false, nil end
     local okCF, cf = pcall(function() return p.CFrame end)
     if not okCF or not cf then return false, nil end
     local okV, vel = pcall(function() return p.AssemblyLinearVelocity end)
-    if isLethalVoidCF(cf, okV and vel or nil) then return false, nil end
+    local v = okV and vel or nil
+    if isLethalVoidCF(cf, v) then return false, nil end
     local pos = cf.Position
+    local safeFloor = getSafeVoidFloorY() + 24
+    if pos.Y <= safeFloor then return false, nil end
+    -- Reject FE-Invisibility / Vanish / Reanim skybox & far-out-of-bounds hide pockets
+    if pos.Y > 4500 or math.abs(pos.X) > 25000 or math.abs(pos.Z) > 25000 then return false, nil end
     if math.abs(pos.Y - 85000) < 1500 then return false, nil end
+    if v and v.Magnitude > 900 then return false, nil end
     return true, pos
 end
 
@@ -2280,15 +2286,64 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
         return false
     end
 
+    local function clearWeldRepFocusAndHoldSafe()
+        pcall(function() LP.ReplicationFocus = nil end)
+        if Root and Root.Parent then
+            if sethiddenproperty then
+                pcall(function()
+                    sethiddenproperty(Root, "PhysicsRepRootPart", nil)
+                    sethiddenproperty(Root, "PhysicsRepRootRef", nil)
+                end)
+            end
+            Root.AssemblyLinearVelocity = Vector3.zero
+            Root.AssemblyAngularVelocity = Vector3.zero
+            if LastKnownSafeCF and isSafePlayableCF and isSafePlayableCF(LastKnownSafeCF) then
+                local rPos = Root.Position
+                if rPos.Y <= (getSafeVoidFloorY() + 24) or rPos.Y > 4500 or math.abs(rPos.X) > 25000 or math.abs(rPos.Z) > 25000 then
+                    Root.CFrame = LastKnownSafeCF
+                    syncAllActiveReanimRoots(LastKnownSafeCF, Root)
+                    markIntentionalTeleport(LastKnownSafeCF)
+                end
+            end
+        end
+    end
+
     -- Zero-Delay CFrame + Velocity-Matched Anti-Sleep + PhysicsRepRootPart Lock (Frame-0, BindToRenderStep, Stepped, RenderStepped, Heartbeat)
     local function stepExactOyeeHoyeWeld()
         if Weld.destroyed then return end
         if Character ~= LP.Character then
             checkAndHotSwapReanimCharacter()
         end
-        if not Root or not Root.Parent or not TargetPart or not TargetPart.Parent then return end
+        if not Root or not Root.Parent then return end
+        if not TargetPart or not TargetPart.Parent or not TargetPart:IsDescendantOf(workspace) or (isRefPartValid and not isRefPartValid(TargetPart, TargetChar)) then
+            -- Target part vanished, reanimated, or jumped to an invisible/void/skybox pocket: try rescuing a safe body part first
+            local rescued = nil
+            if TargetChar and TargetChar.Parent and pickTargetRef then
+                rescued = pickTargetRef(TargetChar, RefMode or "torso")
+            end
+            if (not rescued or not isRefPartValid(rescued, TargetChar)) and TargetPlayer and findTargetReanimModel then
+                local altChar = findTargetReanimModel(TargetPlayer)
+                if altChar and altChar.Parent then
+                    local altPart = pickTargetRef(altChar, RefMode or "torso")
+                    if altPart and isRefPartValid(altPart, altChar) then
+                        TargetChar = altChar
+                        TargetHum = altChar:FindFirstChildOfClass("Humanoid")
+                        rescued = altPart
+                    end
+                end
+            end
+            if rescued and rescued.Parent and isRefPartValid(rescued, TargetChar) then
+                TargetPart = rescued
+            else
+                clearWeldRepFocusAndHoldSafe()
+                return
+            end
+        end
         local tVel = TargetPart.AssemblyLinearVelocity
-        if isLethalVoidCF(TargetPart.CFrame, tVel) then return end
+        if isLethalVoidCF(TargetPart.CFrame, tVel) or not isPartInSafeWorldBounds(TargetPart) then
+            clearWeldRepFocusAndHoldSafe()
+            return
+        end
 
         local customAdjust = getStaticPresetAdjust()
         local sideMode = V.SideMode or "auto"
@@ -2348,6 +2403,11 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
         else
             attachCF = TargetPart.CFrame * localOffset
         end
+        local aPos = attachCF.Position
+        if isLethalVoidCF(attachCF, tVel) or aPos.Y <= (getSafeVoidFloorY() + 18) or aPos.Y > 4500 or math.abs(aPos.X) > 25000 or math.abs(aPos.Z) > 25000 then
+            clearWeldRepFocusAndHoldSafe()
+            return
+        end
         Root.Anchored = false
         Root.CFrame = attachCF
         local microWake = Vector3.new(0, math.sin(clock * 24) * 0.03, 0)
@@ -2355,15 +2415,28 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
         Root.AssemblyAngularVelocity = Vector3.zero
         syncAllActiveReanimRoots(attachCF, Root)
         markIntentionalTeleport(attachCF)
-        pcall(function() LP.ReplicationFocus = TargetPart end)
-        if sethiddenproperty then
-            pcall(function()
-                sethiddenproperty(Root, "PhysicsRepRootPart", TargetPart)
-                if InstanceHandleNew then
-                    sethiddenproperty(Root, "PhysicsRepRootRef", InstanceHandleNew(TargetPart))
-                end
-                sethiddenproperty(Root, "NetworkIsSleeping", false)
-            end)
+        -- Only bind ReplicationFocus & PhysicsRepRootPart when TargetPart is visibly grounded & not reanim/invis-desynced
+        local safeForRepRoot = TargetPart:IsDescendantOf(workspace) and tVel.Magnitude < 220 and (TargetPart.Name == "HumanoidRootPart" or TargetPart.Transparency < 0.98)
+        if safeForRepRoot then
+            pcall(function() LP.ReplicationFocus = TargetPart end)
+            if sethiddenproperty then
+                pcall(function()
+                    sethiddenproperty(Root, "PhysicsRepRootPart", TargetPart)
+                    if InstanceHandleNew then
+                        sethiddenproperty(Root, "PhysicsRepRootRef", InstanceHandleNew(TargetPart))
+                    end
+                    sethiddenproperty(Root, "NetworkIsSleeping", false)
+                end)
+            end
+        else
+            pcall(function() LP.ReplicationFocus = nil end)
+            if sethiddenproperty then
+                pcall(function()
+                    sethiddenproperty(Root, "PhysicsRepRootPart", nil)
+                    sethiddenproperty(Root, "PhysicsRepRootRef", nil)
+                    sethiddenproperty(Root, "NetworkIsSleeping", false)
+                end)
+            end
         end
     end
 
@@ -2554,14 +2627,20 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
                     -- Target is in an unstreamed hiding spot or mid-reanim swap! Stream & follow their pivot/cached location!
                     missingFrames = missingFrames + 1
                     local hiddenCF = getBestTargetCFrame(TargetPlayer)
-                    if hiddenCF and not isLethalVoidCF(hiddenCF) then
+                    if hiddenCF and isValidTargetWorldCF(hiddenCF) and hiddenCF.Position.Y > (getSafeVoidFloorY() + 24) and hiddenCF.Position.Y <= 4500 then
                         pcall(function() LP:RequestStreamAroundAsync(hiddenCF.Position, 1) end)
                         local destCF = hiddenCF * Offset
-                        Root.CFrame = destCF
-                        Root.AssemblyLinearVelocity = Vector3.zero
-                        Root.AssemblyAngularVelocity = Vector3.zero
-                        syncAllActiveReanimRoots(destCF, Root)
-                        markIntentionalTeleport(Root.CFrame)
+                        if not isLethalVoidCF(destCF) and destCF.Position.Y > (getSafeVoidFloorY() + 18) and destCF.Position.Y <= 4500 then
+                            Root.CFrame = destCF
+                            Root.AssemblyLinearVelocity = Vector3.zero
+                            Root.AssemblyAngularVelocity = Vector3.zero
+                            syncAllActiveReanimRoots(destCF, Root)
+                            markIntentionalTeleport(Root.CFrame)
+                        else
+                            clearWeldRepFocusAndHoldSafe()
+                        end
+                    else
+                        clearWeldRepFocusAndHoldSafe()
                     end
                     if missingFrames > 240 then
                         WeldIntent.waitingForSpawn = true
@@ -2677,10 +2756,10 @@ WELD_PRESETS = {
                   anim15 = RIZZ_ANIM_ID, anim6 = RIZZ_ANIM_ID,
                   animFallbacks = RIZZ_FALLBACKS_R15, animFallbacks6 = RIZZ_FALLBACKS_R6,
                   osc = nil, refMode = "torso", label = "Rizz (Wall Lean)" },
-    facebang  = { offset = CFrame.new(0, 2.5, -3.8) * CFrame.Angles(0, math.rad(180), 0),
+    facebang  = { offset = CFrame.new(0, 0.45, -3.1) * CFrame.Angles(0, math.rad(180), 0),
                   anim15 = BANG_ANIM_ID, anim6 = BANG_ANIM_ID,
                   animFallbacks = BANG_FALLBACKS_R15, animFallbacks6 = BANG_FALLBACKS_R6,
-                  osc = {distance = 2.9, period = 0.22}, refMode = "head", label = "Face Bang" },
+                  osc = {distance = 2.3, period = 0.22}, refMode = "head", label = "Face Bang" },
     backshots = { offset = CFrame.new(0, 0, 3.2),
                   anim15 = BANG_ANIM_ID, anim6 = BANG_ANIM_ID,
                   animFallbacks = BANG_FALLBACKS_R15, animFallbacks6 = BANG_FALLBACKS_R6,
@@ -4518,7 +4597,16 @@ EmoteHub = {
             local tr = tc and pickTargetRef(tc, "root")
             local th = tc and tc:FindFirstChildOfClass("Humanoid")
             local isCopyReanim = (tc and isCharacterNetlessReanimated(tc)) or (findTargetReanimModel(self.target) ~= nil)
-            if not tc or not tr or not tr.Parent or (not isCopyReanim and (not th or th.Health <= 0)) then return end
+            if not tc or not tr or not tr.Parent or not isPartInSafeWorldBounds(tr) or (not isCopyReanim and (not th or th.Health <= 0)) then
+                pcall(function() LP.ReplicationFocus = nil end)
+                if root and sethiddenproperty then
+                    pcall(function()
+                        sethiddenproperty(root, "PhysicsRepRootPart", nil)
+                        sethiddenproperty(root, "PhysicsRepRootRef", nil)
+                    end)
+                end
+                return
+            end
             local tVel = tr.AssemblyLinearVelocity
             if isLethalVoidCF(tr.CFrame, tVel) then return end
             local desiredCF = computeExactSideBySideCF(tr, hum, th, self.sideMode, self.sideDistance or 3.2)
