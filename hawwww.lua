@@ -30597,6 +30597,7 @@ local function buildMainUI()
         { key = "fling",     pillLabel = "Fling",     width = 86  },
         { key = "voidthrow", pillLabel = "VoidThrow", width = 112 },
         { key = "fly",       pillLabel = "Fly ✈️",     width = 92  },
+        { key = "speed",     pillLabel = "Speed ⚡",   width = 98  },
         { key = "clicktp",   pillLabel = "ClickTP",   width = 100 },
         { key = "deflect",   pillLabel = "Deflect",   width = 100 },
         { key = "rewind",    pillLabel = "Rewind",    width = 96  },
@@ -30636,6 +30637,10 @@ local function buildMainUI()
         if key == "sideflip" then return (V.SideMode == "front" or V.SideMode == "back") end
         if key == "rewind" then return RewindSys.rewinding == true end
         if key == "fly" then return (moveState and (moveState.fly == true or moveState.flyLanding == true)) end
+        if key == "speed" then return (moveState and moveState.speed == true) end
+        if key == "oneclickloud" or key == "oneclickloud_v31" or key == "oneclickloud_v35" or key == "oneclickloud_v40" or key == "oneclickloud_v45" then
+            return (_G._CocoActiveLoudPreset == key)
+        end
         if key == "fling" or key == "voidthrow" then return FlingActive == true end
         if key == "vanish" then return (moveState and moveState.Vanish and moveState.Vanish.selfActive) == true end
         if key == "vanishtgt" then
@@ -30766,31 +30771,41 @@ local function buildMainUI()
             return
         end
         if key == "oneclickloud" then
-            if type(_G.CocoApplyOneClickLoud) == "function" then
+            if _G._CocoActiveLoudPreset == "oneclickloud" and type(_G.CocoRemoveOneClickLoud) == "function" then
+                _G.CocoRemoveOneClickLoud()
+            elseif type(_G.CocoApplyOneClickLoud) == "function" then
                 _G.CocoApplyOneClickLoud()
             end
             return
         end
         if key == "oneclickloud_v31" then
-            if type(_G.CocoApplyOneClickLoudV31) == "function" then
+            if _G._CocoActiveLoudPreset == "oneclickloud_v31" and type(_G.CocoRemoveOneClickLoud) == "function" then
+                _G.CocoRemoveOneClickLoud()
+            elseif type(_G.CocoApplyOneClickLoudV31) == "function" then
                 _G.CocoApplyOneClickLoudV31()
             end
             return
         end
         if key == "oneclickloud_v35" then
-            if type(_G.CocoApplyOneClickLoudV35) == "function" then
+            if _G._CocoActiveLoudPreset == "oneclickloud_v35" and type(_G.CocoRemoveOneClickLoud) == "function" then
+                _G.CocoRemoveOneClickLoud()
+            elseif type(_G.CocoApplyOneClickLoudV35) == "function" then
                 _G.CocoApplyOneClickLoudV35()
             end
             return
         end
         if key == "oneclickloud_v40" then
-            if type(_G.CocoApplyOneClickLoudV40) == "function" then
+            if _G._CocoActiveLoudPreset == "oneclickloud_v40" and type(_G.CocoRemoveOneClickLoud) == "function" then
+                _G.CocoRemoveOneClickLoud()
+            elseif type(_G.CocoApplyOneClickLoudV40) == "function" then
                 _G.CocoApplyOneClickLoudV40()
             end
             return
         end
         if key == "oneclickloud_v45" then
-            if type(_G.CocoApplyOneClickLoudV45) == "function" then
+            if _G._CocoActiveLoudPreset == "oneclickloud_v45" and type(_G.CocoRemoveOneClickLoud) == "function" then
+                _G.CocoRemoveOneClickLoud()
+            elseif type(_G.CocoApplyOneClickLoudV45) == "function" then
                 _G.CocoApplyOneClickLoudV45()
             end
             return
@@ -30860,6 +30875,11 @@ local function buildMainUI()
         end
         if key == "fly" then
             if moveState and moveState.toggleFly then moveState.toggleFly() end
+            syncAllActiveIndicators()
+            return
+        end
+        if key == "speed" then
+            if moveState and moveState.toggleSpeed then moveState.toggleSpeed() end
             syncAllActiveIndicators()
             return
         end
@@ -34045,10 +34065,12 @@ local function buildMainUI()
                 local ok, msg = applyCocoLoudPreset()
                 loudState.busy = false
                 if ok then
+                    _G._CocoActiveLoudPreset = "oneclickloud"
                     setLoudStatus("done: " .. tostring(msg), T.Success)
                     print("[COCO LOUD] " .. tostring(msg))
                     notify("🔊 COCO LOUD", "Applied COCO LOUD preset!")
                     sSuccess()
+                    if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
                 else
                     setLoudStatus("fail: " .. tostring(msg), T.Danger)
                     notify("🔊 COCO LOUD", "Failed: " .. tostring(msg))
@@ -34075,10 +34097,12 @@ local function buildMainUI()
                 local ok, msg = applyMicUpV31Preset()
                 loudState.busy = false
                 if ok then
+                    _G._CocoActiveLoudPreset = "oneclickloud_v31"
                     setLoudStatus("v3.3 done: " .. tostring(msg), T.Success)
                     print("[MicUp v3.3] " .. tostring(msg))
                     notify("🔊 MIC UP v3.3", "Applied Mic Up Voice Preset v3.3 (Max Loud)!")
                     sSuccess()
+                    if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
                 else
                     setLoudStatus("v3.3 fail: " .. tostring(msg), T.Danger)
                     notify("🔊 MIC UP v3.3", "Failed: " .. tostring(msg))
@@ -34103,10 +34127,12 @@ local function buildMainUI()
                 local ok, msg = applyMicUpV35Preset()
                 loudState.busy = false
                 if ok then
+                    _G._CocoActiveLoudPreset = "oneclickloud_v35"
                     setLoudStatus("v3.5 done: " .. tostring(msg), T.Success)
                     print("[MicUp v3.5] " .. tostring(msg))
                     notify("🔊 MIC UP v3.5", "Applied Mic Up Voice Preset v3.5 (Gain-Staged Max Loud)!")
                     sSuccess()
+                    if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
                 else
                     setLoudStatus("v3.5 fail: " .. tostring(msg), T.Danger)
                     notify("🔊 MIC UP v3.5", "Failed: " .. tostring(msg))
@@ -34130,10 +34156,12 @@ local function buildMainUI()
                 local ok, msg = applyMicUpV50Preset()
                 loudState.busy = false
                 if ok then
+                    _G._CocoActiveLoudPreset = "oneclickloud_v40"
                     setLoudStatus("LOUDEST v5.0 done: " .. tostring(msg), T.Success)
                     print("[MicUp v5.0 LOUDEST] " .. tostring(msg))
                     notify("🔥 LOUDEST LOUD (v5.0)", "Applied Mic Up v5.0 Lavinho Max Loud!")
                     sSuccess()
+                    if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
                 else
                     setLoudStatus("LOUDEST v5.0 fail: " .. tostring(msg), T.Danger)
                     notify("🔥 LOUDEST LOUD (v5.0)", "Failed: " .. tostring(msg))
@@ -34160,10 +34188,12 @@ local function buildMainUI()
                 local ok, msg = applyMicUpV45Preset()
                 loudState.busy = false
                 if ok then
+                    _G._CocoActiveLoudPreset = "oneclickloud_v45"
                     setLoudStatus("Loud VR 4.5 done: " .. tostring(msg), T.Success)
                     print("[MicUp Loud VR 4.5] " .. tostring(msg))
                     notify("🔊 LOUD VR 4.5", "Applied Loud VR 4.5 (Max Loudness Full Stack)!")
                     sSuccess()
+                    if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
                 else
                     setLoudStatus("Loud VR 4.5 fail: " .. tostring(msg), T.Danger)
                     notify("🔊 LOUD VR 4.5", "Failed: " .. tostring(msg))
@@ -34185,10 +34215,12 @@ local function buildMainUI()
                 local ok, msg = clearLoudEffects()
                 loudState.busy = false
                 if ok then
+                    _G._CocoActiveLoudPreset = nil
                     setLoudStatus("Removed Loud: " .. tostring(msg), T.Success)
                     print("[COCO LOUD REMOVE] " .. tostring(msg))
                     notify("🔇 REMOVE LOUD", "Loud removed! (" .. tostring(msg) .. ")")
                     sSuccess()
+                    if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
                 else
                     setLoudStatus("Remove fail: " .. tostring(msg), T.Danger)
                     notify("🔇 REMOVE LOUD", "Failed: " .. tostring(msg))
@@ -38438,11 +38470,11 @@ end
             end
         end
 
-        speedSwitchRef = createSwitchRow(spdGrp, 1, "WalkSpeed override", "Locks WalkSpeed at 32 studs/sec", moveState.speed, function(st)
+        local function setSpeedOverrideEnabled(st, syncSwitch)
             local _, hum = getMoveCharacter()
-            moveState.speed = st
-            if hum then hum.WalkSpeed = st and currentSpeed or defaultWalkSpeed end
-            if st then
+            moveState.speed = (st == true)
+            if hum then hum.WalkSpeed = moveState.speed and currentSpeed or defaultWalkSpeed end
+            if moveState.speed then
                 if moveState.speedLoopConn then moveState.speedLoopConn:Disconnect() end
                 moveState.speedLoopConn = RunService.Heartbeat:Connect(function()
                     if not moveState.speed then return end
@@ -38455,7 +38487,31 @@ end
                     moveState.speedLoopConn = nil
                 end
             end
+            if syncSwitch and speedSwitchRef and speedSwitchRef.setState then
+                pcall(speedSwitchRef.setState, moveState.speed)
+            end
+            if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
+        end
+
+        moveState.toggleSpeed = function()
+            setSpeedOverrideEnabled(not moveState.speed, true)
+            notify("⚡ SPEED", moveState.speed and ("WalkSpeed ON (" .. tostring(currentSpeed) .. " st/s)") or "WalkSpeed OFF (16 st/s)")
+        end
+
+        speedSwitchRef = createSwitchRow(spdGrp, 1, "WalkSpeed override", "Locks WalkSpeed at 32 studs/sec", moveState.speed, function(st)
+            setSpeedOverrideEnabled(st, false)
         end)
+
+        local speedPinRow = createActionRow(spdGrp, 1, "Speed Quick Pill (Pin Out)", "Tap [Open] to toggle Speed · Tap [⦿] to pop out small floating button", "Open", function()
+            togglePresetOrAction("speed")
+        end, function()
+            toggleFloatingPill("speed")
+        end, (ActivePills and ActivePills["speed"]) and "✓" or "⦿")
+        if speedPinRow then
+            speedPinRow.defaultLabel = "Open"
+            presetActionRows["speed"] = speedPinRow
+            if updatePinBadgeVisual then updatePinBadgeVisual("speed") end
+        end
 
         local spdCycle = { 16, 32, 60, 120, 250, 500 }
         local spdIdx = 2
@@ -39985,8 +40041,20 @@ end
             moveState.toggleFly = flyToggleFn
             flySwitchRowRef = createSwitchRow(flyGrp, 1, "4-Phase Cinematic Flight", "Takeoff, zero-G float, supersonic soar & 3-point land", false, function()
                 flyToggleFn()
+                if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
             end)
             flyStatus = flySwitchRowRef.subLbl
+
+            local flyPinRow = createActionRow(flyGrp, 1, "Fly Quick Pill (Pin Out)", "Tap [Open] to toggle Flight · Tap [⦿] to pop out small floating button", "Open", function()
+                togglePresetOrAction("fly")
+            end, function()
+                toggleFloatingPill("fly")
+            end, (ActivePills and ActivePills["fly"]) and "✓" or "⦿")
+            if flyPinRow then
+                flyPinRow.defaultLabel = "Open"
+                presetActionRows["fly"] = flyPinRow
+                if updatePinBadgeVisual then updatePinBadgeVisual("fly") end
+            end
 
             local flyStyleRow = createActionRow(flyGrp, 2, "Flight Style & Quick Pill", "Tap pill to cycle style · Tap [⦿] to pin Fly quick-pill", FLY_STYLES[moveState.flyStyle].name:gsub(" .*", ""), function(pillBtn)
                 moveState.flyStyle = (moveState.flyStyle % #FLY_STYLES) + 1
@@ -39997,13 +40065,6 @@ end
             end, function()
                 toggleFloatingPill("fly")
             end, ActivePills["fly"] and "✓" or "⦿")
-            presetActionRows["fly"] = {
-                pillBtn = flyStyleRow.pillBtn,
-                pillStroke = flyStyleRow.pillStroke,
-                circleBtn = flyStyleRow.circleBtn,
-                circleStroke = flyStyleRow.circleStroke,
-                defaultLabel = FLY_STYLES[moveState.flyStyle].name:gsub(" .*", ""),
-            }
 
             createSwitchRow(flyGrp, 3, "Flight shockwave & trail VFX", "Spawns sonic rings, hover aura & neon ribbon trails", moveState.flyVFX, function(st)
                 moveState.flyVFX = st
