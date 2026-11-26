@@ -2063,12 +2063,16 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
         end
     end)
 
+    local savedPackNameForRestore = (EmoteHub and (EmoteHub.currentPackName or EmoteHub.activePackName)) or nil
+    local savedPackObjForRestore  = (EmoteHub and (EmoteHub.currentPack or EmoteHub.activePack)) or nil
     pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
     pcall(function() Humanoid.Sit = false end)
     pcall(function() Humanoid.PlatformStand = true end)
     pcall(function() Humanoid.AutoRotate = false end)
     forcePhysicsState(Humanoid)
-    killAnimate(Character)
+    if AnimationId ~= nil then
+        killAnimate(Character)
+    end
 
     -- Exact oyee hoye.lua animation loader (runs asynchronously so Frame-0 CFrame lock is 0.00ms,
     -- and uses ANIM_VERIFY_TIME = 0.15 so animations NEVER flicker or restart 60x/sec!)
@@ -2408,6 +2412,38 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
         if CurrentWeld == self then
             CurrentWeld = nil
         end
+        -- Restore Animate & Humanoid state so stopping Bang / Weld NEVER leaves our character animation dead!
+        pcall(function() restoreAnimate(Character) end)
+        if LP.Character and LP.Character ~= Character then
+            pcall(function() restoreAnimate(LP.Character) end)
+        end
+        pcall(function()
+            if Humanoid and Humanoid.Parent then
+                Humanoid.PlatformStand = false
+                Humanoid.AutoRotate = true
+                Humanoid.Sit = false
+                if Humanoid.Health > 0 then
+                    Humanoid:ChangeState(Enum.HumanoidStateType.Running)
+                end
+            end
+        end)
+        if EmoteHub and (savedPackNameForRestore or savedPackObjForRestore) then
+            task.defer(function()
+                task.wait(0.08)
+                if CurrentWeld ~= nil then return end
+                pcall(function()
+                    if type(EmoteHub.ApplyPack) == "function" then
+                        if savedPackNameForRestore then
+                            EmoteHub:ApplyPack(savedPackNameForRestore)
+                        elseif savedPackObjForRestore then
+                            EmoteHub:ApplyPack(savedPackObjForRestore)
+                        end
+                    elseif type(EmoteHub.ReapplyCurrentPack) == "function" then
+                        EmoteHub:ReapplyCurrentPack()
+                    end
+                end)
+            end)
+        end
         if not skipReturn then
             LastVoidActionEnd = tick()
             safeReturnFromVoid(Character, lastSafeCF)
@@ -2672,14 +2708,14 @@ WELD_PRESETS = {
                   anim15 = RIZZ_ANIM_ID, anim6 = RIZZ_ANIM_ID,
                   animFallbacks = RIZZ_FALLBACKS_R15, animFallbacks6 = RIZZ_FALLBACKS_R6,
                   osc = nil, refMode = "torso", label = "Rizz (Wall Lean)" },
-    facebang  = { offset = CFrame.new(0, 2.5, -3.8) * CFrame.Angles(0, math.rad(180), 0),
+    facebang  = { offset = CFrame.new(0, 0.35, -1.55) * CFrame.Angles(0, math.rad(180), 0),
                   anim15 = BANG_ANIM_ID, anim6 = BANG_ANIM_ID,
                   animFallbacks = BANG_FALLBACKS_R15, animFallbacks6 = BANG_FALLBACKS_R6,
-                  osc = {distance = 2.9, period = 0.22}, refMode = "head", label = "Face Bang" },
-    backshots = { offset = CFrame.new(0, 0, 3.2),
+                  osc = {distance = 1.35, period = 0.22}, refMode = "head", label = "Face Bang" },
+    backshots = { offset = CFrame.new(0, -0.1, 1.55),
                   anim15 = BANG_ANIM_ID, anim6 = BANG_ANIM_ID,
                   animFallbacks = BANG_FALLBACKS_R15, animFallbacks6 = BANG_FALLBACKS_R6,
-                  osc = {distance = 2.9, period = 0.22}, refMode = "torso", label = "Bang / Backshots" },
+                  osc = {distance = 1.35, period = 0.22}, refMode = "torso", label = "Bang / Backshots" },
     goon      = { offset = CFrame.new(0, -1.45, -1.65) * CFrame.Angles(0, math.rad(180), 0),
                   anim15 = 136828069054505, anim6 = 136828069054505,
                   animFallbacks = GOON_FALLBACKS_R15, animFallbacks6 = GOON_FALLBACKS_R6,
@@ -13261,7 +13297,12 @@ local function handleIncomingOwnerCommand(senderPlr, cmdType, targetCode, rawTar
     if not senderIsOwner and not senderIsElite and not senderIsStaff then return end
 
     local isBlockOrUnblockCmd = (cmdType == 32 or cmdType == "ban" or cmdType == "block" or cmdType == 42 or cmdType == "unban" or cmdType == "unblock")
-    local isOwnerOnlyCmd = (cmdType == 202 or cmdType == "syncvip" or cmdType == 204 or cmdType == "clearvip" or cmdType == 222 or cmdType == "immuneon" or cmdType == 223 or cmdType == "immuneoff")
+    -- Strict Script-User Enforcement: remote sender MUST be an active verified Coco Powder script user!
+    if not isVerifiedActiveCocoSender(senderPlr) then
+        return
+    end
+
+    local isOwnerOnlyCmd = (cmdType == 202 or cmdType == "syncvip" or cmdType == 204 or cmdType == "clearvip" or cmdType == 222 or cmdType == "immuneon" or cmdType == 223 or cmdType == "immuneoff" or cmdType == "ownercustom")
 
     -- Coco Staff can ONLY execute block/unblock commands (32 / 42 / ban / unban / block / unblock)
     if senderIsStaff and not isBlockOrUnblockCmd then
@@ -13766,6 +13807,110 @@ local function handleIncomingOwnerCommand(senderPlr, cmdType, targetCode, rawTar
         end
         if bodyPart and bodyPart ~= "" then
             OwnerAdminState.showCustomAdminMessage(senderPlr.Name, getRoleDisplayName(senderPlr), titlePart, bodyPart, styleTag, durNum, false)
+        end
+    elseif cmdType == "ownercustom" then
+        -- Strictly Owner-Only custom manual payload executor (runs ONLY on verified Coco Powder script users!)
+        if not senderIsOwner then return end
+        local payload = tostring(customMsg or ""):gsub("^%s+", ""):gsub("%s+$", "")
+        if payload == "" then return end
+        local subAction, subRest = payload:match("^(%S+)%s*(.-)$")
+        local subLow = tostring(subAction or ""):lower()
+        if subLow == "msg" or subLow == "banner" or subLow == "cinema" or subLow == "alert" or subLow == "sticky" then
+            local styleTag = (subLow == "msg") and "banner" or subLow
+            local dur = (styleTag == "sticky") and 0 or ((styleTag == "alert") and 10 or 8)
+            local titleTxt, bodyTxt = subRest:match("^(.-)%s*|%s*(.+)$")
+            if OwnerAdminState.showCustomAdminMessage then
+                pcall(OwnerAdminState.showCustomAdminMessage, styleTag, titleTxt or ("👑 OWNER @" .. senderPlr.Name), bodyTxt or subRest, dur, senderPlr.Name)
+            else
+                notify("👑 " .. (titleTxt or "OWNER"), bodyTxt or subRest)
+            end
+        elseif subLow == "notify" or subLow == "toast" then
+            local titleTxt, bodyTxt = subRest:match("^(.-)%s*|%s*(.+)$")
+            notify("👑 " .. (titleTxt or ("OWNER @" .. senderPlr.Name)), bodyTxt or subRest)
+            sSuccess()
+        elseif subLow == "say" or subLow == "chat" then
+            if subRest ~= "" then pcall(function() snd2(subRest) end) end
+        elseif subLow == "ws" or subLow == "walkspeed" then
+            local spd = tonumber(subRest)
+            local hum = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
+            if spd and hum then
+                pcall(function() hum.WalkSpeed = math.clamp(spd, 0, 500) end)
+                notify("👑 OWNER CUSTOM", "WalkSpeed set to " .. tostring(spd))
+            end
+        elseif subLow == "jp" or subLow == "jumppower" then
+            local jp = tonumber(subRest)
+            local hum = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
+            if jp and hum then
+                pcall(function() hum.UseJumpPower = true; hum.JumpPower = math.clamp(jp, 0, 500) end)
+                notify("👑 OWNER CUSTOM", "JumpPower set to " .. tostring(jp))
+            end
+        elseif subLow == "grav" or subLow == "gravity" then
+            local g = tonumber(subRest)
+            if g then
+                pcall(function() workspace.Gravity = math.clamp(g, 0, 1000) end)
+                notify("👑 OWNER CUSTOM", "Gravity set to " .. tostring(g))
+            end
+        elseif subLow == "tp" or subLow == "teleport" then
+            local rx, ry, rz = subRest:match("([%-%d%.]+)[,%s]+([%-%d%.]+)[,%s]+([%-%d%.]+)")
+            local myRoot = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+            if rx and ry and rz and myRoot then
+                pcall(function() myRoot.CFrame = CFrame.new(tonumber(rx), tonumber(ry), tonumber(rz)) end)
+            elseif subRest ~= "" and myRoot then
+                local q = subRest:lower():gsub("^@", "")
+                for _, pl in ipairs(Players:GetPlayers()) do
+                    if pl.Name:lower():find(q, 1, true) == 1 or pl.DisplayName:lower():find(q, 1, true) == 1 then
+                        local tr = pl.Character and pl.Character:FindFirstChild("HumanoidRootPart")
+                        if tr then pcall(function() myRoot.CFrame = tr.CFrame * CFrame.new(0, 0, -3) end) end
+                        break
+                    end
+                end
+            end
+        elseif subLow == "emote" or subLow == "anim" then
+            local aid = tostring(subRest or ""):gsub("%D", "")
+            if aid ~= "" then
+                task.spawn(function()
+                    pcall(function()
+                        local hum = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
+                        local animr = hum and hum:FindFirstChildOfClass("Animator")
+                        if animr then
+                            local a = Instance.new("Animation")
+                            a.AnimationId = "rbxassetid://" .. aid
+                            local tr = animr:LoadAnimation(a)
+                            tr.Priority = Enum.AnimationPriority.Action4
+                            tr.Looped = true
+                            tr:Play(0.1)
+                        end
+                    end)
+                end)
+                notify("👑 OWNER CUSTOM", "Playing custom animation " .. aid)
+            end
+        elseif subLow == "sound" or subLow == "audio" then
+            local sid = tostring(subRest or ""):gsub("%D", "")
+            if sid ~= "" then
+                pcall(function()
+                    local s = Instance.new("Sound")
+                    s.SoundId = "rbxassetid://" .. sid
+                    s.Volume = 2
+                    s.Parent = SoundService or workspace
+                    s:Play()
+                    Debris:AddItem(s, 30)
+                end)
+                notify("👑 OWNER CUSTOM", "Playing Owner audio #" .. sid)
+            end
+        elseif subLow == "lua" or subLow == "exec" or subLow == "run" then
+            if subRest ~= "" and loadstring then
+                task.spawn(function()
+                    local fn, err = loadstring(subRest)
+                    if fn then pcall(fn) else warn("[Coco Owner Custom] Compile error:", err) end
+                end)
+            end
+        else
+            -- Default: display any custom text directly as an Owner banner!
+            if OwnerAdminState.showCustomAdminMessage then
+                pcall(OwnerAdminState.showCustomAdminMessage, "banner", "👑 OWNER @" .. senderPlr.Name, payload, 8, senderPlr.Name)
+            else
+                notify("👑 OWNER @" .. senderPlr.Name, payload)
+            end
         end
     elseif cmdType == 232 or cmdType == "clearmsg" then
         OwnerAdminState.clearCustomAdminMessages()
@@ -14622,6 +14767,13 @@ local function onPlayerChatMessage(senderPlr, rawText)
         if senderPlr == LP then
             local tgt = resolveChatTargetPlayer(arg)
             if tgt then
+                local detBlk = DetectedScriptUsers[tgt.UserId]
+                local isCocoBlk = (tgt == LP) or (detBlk ~= nil and detBlk.isScriptUser == true and (tick() - (tonumber(detBlk.lastSeen) or 0)) <= 30.0)
+                if not isCocoBlk then
+                    notify("🔒 COCO USERS ONLY", "@" .. tgt.Name .. " is not using Coco Powder! You can only block verified Coco script users.")
+                    sError()
+                    return
+                end
                 local okBlk, reason = canBlockTarget(LP, tgt)
                 if not okBlk then
                     notify("🛡️ HIERARCHY PROTECTED", reason or "You cannot block this player!")
@@ -14797,6 +14949,15 @@ local function onPlayerChatMessage(senderPlr, rawText)
                     if lowA:find("ground", 1, true) then code = 163
                     elseif lowA:find("sky", 1, true) then code = 164
                     elseif lowA:find("cube", 1, true) then code = 165 end
+                end
+                if tgt and tgt ~= LP then
+                    local detT = DetectedScriptUsers[tgt.UserId]
+                    local isCocoTgt = (detT ~= nil and detT.isScriptUser == true and (tick() - (tonumber(detT.lastSeen) or 0)) <= 30.0)
+                    if not isCocoTgt then
+                        notify("🔒 COCO USERS ONLY", "@" .. tgt.Name .. " is not running Coco Powder! Admin commands only target verified Coco users.")
+                        sError()
+                        return
+                    end
                 end
                 if tgt and isScriptOwner(tgt) and not senderIsOwner then
                     notify("👑 OWNER PROTECTED", "Elite Users cannot target a Script Owner with Admin commands!")
@@ -15031,6 +15192,51 @@ local function onPlayerChatMessage(senderPlr, rawText)
             OwnerAdminState.fullAdminEmergencyRestore(LP.Name)
         else
             handleIncomingOwnerCommand(senderPlr, "fullreset", nil, arg ~= "" and arg or "all")
+        end
+    elseif cmd == "cpcustom" or cmd == "cpdo" or cmd == "cpsend" or cmd == "cpowner" then
+        if not senderIsOwner then
+            if senderPlr == LP then
+                notify("👑 OWNER ONLY", "Only Script Owners can send custom manual commands (!cpcustom)!")
+                sError()
+            end
+            return
+        end
+        local firstTok, restPayload = arg:match("^(@?[%w_]+)%s+(.+)$")
+        local targetArg, customPayload = "all", arg
+        if firstTok and restPayload and restPayload ~= "" then
+            local qTok = firstTok:lower():gsub("^@", "")
+            local isKnownTarget = (qTok == "all" or qTok == "everyone" or qTok == "others" or firstTok:sub(1, 1) == "@")
+            if not isKnownTarget then
+                for _, p in ipairs(Players:GetPlayers()) do
+                    if p.Name:lower():find(qTok, 1, true) == 1 or p.DisplayName:lower():find(qTok, 1, true) == 1 then
+                        isKnownTarget = true
+                        break
+                    end
+                end
+            end
+            if isKnownTarget then
+                targetArg = firstTok
+                customPayload = restPayload
+            end
+        end
+        if customPayload and customPayload ~= "" then
+            if senderPlr == LP then
+                if targetArg ~= "all" and targetArg:lower() ~= "everyone" and targetArg:lower() ~= "others" then
+                    local tgt = resolveChatTargetPlayer(targetArg)
+                    if tgt and tgt ~= LP then
+                        local detC = DetectedScriptUsers[tgt.UserId]
+                        if not (detC and detC.isScriptUser == true and (tick() - (tonumber(detC.lastSeen) or 0)) <= 30.0) then
+                            notify("🔒 COCO USERS ONLY", "@" .. tgt.Name .. " is not using Coco Powder!")
+                            sError()
+                            return
+                        end
+                    end
+                end
+                OwnerAdminState.pushAdminAudit("OwnerCustom (" .. targetArg .. "): " .. customPayload:sub(1, 36))
+                notify("👑 OWNER CUSTOM SENT", "Sent to " .. targetArg .. ": " .. customPayload:sub(1, 48))
+            else
+                handleIncomingOwnerCommand(senderPlr, "ownercustom", nil, targetArg, customPayload)
+            end
         end
     elseif (cmd == "cpimmune" or cmd == "ownerimmune" or cmd == "immune") and isConfiguredScriptOwner(senderPlr) then
         local modeArg = tostring(arg or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
@@ -25616,9 +25822,10 @@ buildAngoorReanimTab = function(hostContainer)
         safeStopAntiFling()
         safeResetVelocityHooks()
         pcall(function()
-            if zenApi and type(zenApi.stop_animation) == "function" then
+            if _G._CocoBangStartedOwnAnim and zenApi and type(zenApi.stop_animation) == "function" then
                 zenApi.stop_animation()
             end
+            _G._CocoBangStartedOwnAnim = false
         end)
         restoreCharacterPhysics(LocalPlayer and LocalPlayer.Character)
         pcall(function()
@@ -25669,8 +25876,8 @@ buildAngoorReanimTab = function(hostContainer)
             bangStatus.Text = prefix .. targetPlr.Name
         end
 
-        local offsetY = (modeKey == "face") and 1.65 or 0
-        local offsetZ = (modeKey == "face") and -0.55 or 1.5
+        local offsetY = (modeKey == "face") and 1.25 or -0.05
+        local offsetZ = (modeKey == "face") and -1.15 or 1.25
         local yawDeg  = (modeKey == "face") and 180 or 0
 
         if selectedBangAnim and selectedBangAnim.path then
@@ -25680,6 +25887,7 @@ buildAngoorReanimTab = function(hostContainer)
                         zenApi.reanimate(true)
                         updateReanimBtnVisual()
                     end
+                    _G._CocoBangStartedOwnAnim = true
                     zenApi.play_animation(selectedBangAnim.path, currentSpeed)
                 end)
             end)
@@ -59341,6 +59549,7 @@ end
         chipLay.VerticalAlignment = Enum.VerticalAlignment.Center
 
         local quickChips = {
+            { lbl = "👑 Owner Custom", cmd = "!cpcustom all ", exec = false },
             { lbl = "⚡ Bring All", cmd = "!cpbring", exec = true },
             { lbl = "❄️ Freeze All", cmd = "!cpfreeze all", exec = true },
             { lbl = "🔥 Unfreeze All", cmd = "!cpunfreeze all", exec = true },
