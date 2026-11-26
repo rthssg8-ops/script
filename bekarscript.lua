@@ -43,8 +43,8 @@ print("[COCO POWDER] V36.7 Zero-Delay Troll Restoration & Cosmic Defense bootstr
 -- 👑 SCRIPT OWNER & ADMIN CONFIGURATION
 --    • Put your Roblox UserId(s) or Username(s) in SCRIPT_OWNERS below so every
 --      player running your script automatically recognizes you as the Owner!
---    • You can also set _G.COCO_OWNER_ID = 123456789 before running the script,
---      or use the "👑 Admin Panel" tab inside the UI to copy your Owner ID.
+--    • Role authority is strictly hardcoded to SCRIPT_OWNERS, ELITE_USERS, and
+--      COCO_STAFF_USERS only (no _G spoofing or third-party runtime admin grants).
 -- ═══════════════════════════════════════════════════════════════════════════════
 local SCRIPT_OWNERS = {
     UserIds = {
@@ -421,7 +421,7 @@ do
         if n then OWNER_UID_SET[n] = true end
     end
     for _, nm in ipairs(SCRIPT_OWNERS.Usernames) do
-        local clean = tostring(nm):lower():gsub("^%s*@+%s*", "")
+        local clean = tostring(nm):lower():gsub("^%s*@+%s*", ""):gsub("^%s+", ""):gsub("%s+$", "")
         if clean ~= "" then OWNER_NAME_SET[clean] = true end
     end
 
@@ -431,7 +431,7 @@ do
         if n then ELITE_UID_SET[n] = true end
     end
     for _, nm in ipairs(ELITE_USERS.Usernames) do
-        local clean = tostring(nm):lower():gsub("^%s*@+%s*", "")
+        local clean = tostring(nm):lower():gsub("^%s*@+%s*", ""):gsub("^%s+", ""):gsub("%s+$", "")
         if clean ~= "" then ELITE_NAME_SET[clean] = true end
     end
 
@@ -441,12 +441,12 @@ do
         if n then STAFF_UID_SET[n] = true end
     end
     for _, nm in ipairs(COCO_STAFF_USERS.Usernames) do
-        local clean = tostring(nm):lower():gsub("^%s*@+%s*", "")
+        local clean = tostring(nm):lower():gsub("^%s*@+%s*", ""):gsub("^%s+", ""):gsub("%s+$", "")
         if clean ~= "" then STAFF_NAME_SET[clean] = true end
     end
 
 isConfiguredScriptOwner = function(plr)
-    if not plr or typeof(plr) ~= "Instance" or not plr:IsA("Player") then return false end
+    if not plr or typeof(plr) ~= "Instance" or not plr:IsA("Player") or plr.Parent ~= Players then return false end
     local uid = tonumber(plr.UserId)
     if uid and OWNER_UID_SET[uid] then return true end
     -- Strictly verify exact Roblox Account Username (plr.Name), never DisplayName or _G globals!
@@ -455,13 +455,13 @@ isConfiguredScriptOwner = function(plr)
     return false
 end
 
--- Elite User (Former Premium tier — full Admin commands, cannot block Owners)
+-- Elite User (Former Premium tier — full Admin commands, strictly hardcoded ELITE_USERS only, cannot target/block Owners)
 isConfiguredEliteUser = function(plr)
-    if not plr or typeof(plr) ~= "Instance" or not plr:IsA("Player") then return false end
+    if not plr or typeof(plr) ~= "Instance" or not plr:IsA("Player") or plr.Parent ~= Players then return false end
     if isConfiguredScriptOwner(plr) then return true end
     local uid = tonumber(plr.UserId)
-    -- Strictly check hardcoded allowlist or verified Owner-granted session token (no _G global spoofing!)
-    if uid and (ELITE_UID_SET[uid] or (OwnerAdminState.sessionPremiumUsers and OwnerAdminState.sessionPremiumUsers[uid] == true)) then
+    -- Strictly hardcoded ELITE_USERS allowlist only (no _G global spoofing and no runtime session promotion!)
+    if uid and ELITE_UID_SET[uid] then
         return true
     end
     local uname = tostring(plr.Name or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
@@ -470,9 +470,9 @@ isConfiguredEliteUser = function(plr)
 end
 isConfiguredPremiumUser = isConfiguredEliteUser -- Alias for backwards compatibility
 
--- Coco Staff (Former Elite tier — script block/unblock ONLY, cannot block Elite Users or Owners)
+-- Coco Staff (Former Elite tier — script block/unblock ONLY, strictly hardcoded COCO_STAFF_USERS only)
 isConfiguredCocoStaff = function(plr)
-    if not plr or typeof(plr) ~= "Instance" or not plr:IsA("Player") then return false end
+    if not plr or typeof(plr) ~= "Instance" or not plr:IsA("Player") or plr.Parent ~= Players then return false end
     if isConfiguredScriptOwner(plr) or isConfiguredEliteUser(plr) then return false end
     local uid = tonumber(plr.UserId)
     if uid and STAFF_UID_SET[uid] then return true end
@@ -543,12 +543,7 @@ canBlockTarget = function(actorPlr, targetPlr)
         return false, "Only Owners, Elite Users, and Coco Staff can block players!"
     end
     if targetRank >= 4 then
-        if actorRank < 4 then
-            return false, "Elite Users and Coco Staff cannot block the Script Owner!"
-        end
-        if OwnerAdminState.isOwnerImmunityActive and OwnerAdminState.isOwnerImmunityActive(targetPlr) then
-            return false, "Cannot block a Script Owner while their Owner Immunity is ON!"
-        end
+        return false, "Script Owners can never be blocked from Coco Powder!"
     end
     if actorRank == 2 then
         if targetRank >= 3 then
@@ -11630,19 +11625,22 @@ broadcastOwnerAdminCommand = function(cmdPrefixNumber, targetPlrOrNil, chatCmdNa
             sError()
             return false
         end
-        if targetPlrOrNil and isProtectedFromLocalPlayer(targetPlrOrNil) then
-            notify("👑 OWNER IMMUNITY", "You cannot use Admin commands on the Script Owner!")
+        if targetPlrOrNil and ((isScriptOwner(targetPlrOrNil) and not isScriptOwner(LP)) or isProtectedFromLocalPlayer(targetPlrOrNil)) then
+            notify("👑 OWNER PROTECTED", "Elite Users and Coco Staff cannot use Admin commands on a Script Owner!")
             sError()
             return false
         end
     end
-    -- Strict Owner-only check for Session Elite Grant/Revoke (72 / 82)
-    if (cmdPrefixNumber == 72 or cmdPrefixNumber == 82) and not isScriptOwner(LP) then
-        notify("👑 OWNER ONLY", "Only Script Owners (shivyy73, retreee_yawrrr, kaun_bhai) can grant or revoke Session Elite!")
+    -- Disable dynamic runtime Elite promotion/revocation (72 / 82): Admin roles are strictly hardcoded!
+    if cmdPrefixNumber == 72 or cmdPrefixNumber == 82 then
+        notify("🔒 HARDCODED ROLES ONLY", "Admin access is strictly locked to Owner, Elite User & Coco Staff allowlists!")
         sError()
         return false
     end
-    if (cmdPrefixNumber == 72 or cmdPrefixNumber == 82) and not targetPlrOrNil then
+    -- Strict Owner-only check for VIP Whitelist Sync / Clear (202 / 204) and Owner Immunity (222 / 223)
+    if (cmdPrefixNumber == 202 or cmdPrefixNumber == 204 or cmdPrefixNumber == 222 or cmdPrefixNumber == 223) and not isScriptOwner(LP) then
+        notify("👑 OWNER ONLY", "Only Script Owners can run this command!")
+        sError()
         return false
     end
     local targetCode = targetPlrOrNil and getPlayerTargetCode(targetPlrOrNil) or 0
@@ -11677,8 +11675,8 @@ OwnerAdminState.broadcastOwnerChatCommand = function(targetPlrOrNil, message)
         sError()
         return
     end
-    if targetPlrOrNil and isProtectedFromLocalPlayer(targetPlrOrNil) then
-        notify("👑 OWNER IMMUNITY", "You cannot control the Script Owner's chat!")
+    if targetPlrOrNil and ((isScriptOwner(targetPlrOrNil) and not isScriptOwner(LP)) or isProtectedFromLocalPlayer(targetPlrOrNil)) then
+        notify("👑 OWNER PROTECTED", "You cannot control a Script Owner's chat!")
         sError()
         return
     end
@@ -11822,6 +11820,7 @@ end
 
 -- Inspect a player's Animator tracks with strict zero-false-positive multi-signature checks
 inspectPlayerBeaconTracks = function(plr)
+    if not plr or plr == LP or typeof(plr) ~= "Instance" or not plr:IsA("Player") or plr.Parent ~= Players then return nil end
     local ch = plr.Character
     local hum = ch and ch:FindFirstChildOfClass("Humanoid")
     local animator = hum and hum:FindFirstChildOfClass("Animator")
@@ -11896,9 +11895,11 @@ inspectPlayerBeaconTracks = function(plr)
                     or (baseCmd >= 222 and baseCmd <= 223)
                     or (baseCmd >= 232 and baseCmd <= 249) then
                     local rem = math.floor(((spd - baseCmd) * 1000) + 0.5)
-                    -- Commands 72 (grantelite) & 82 (revokeelite) are strictly Owner-only and NEVER accept rem == 0 ("all")!
-                    if (baseCmd == 72 or baseCmd == 82) then
-                        if cfgOwner and rem >= 100 and rem <= 998 then
+                    -- Commands 72/82 (runtime session elite) are disabled: roles are strictly hardcoded allowlists only!
+                    if baseCmd == 72 or baseCmd == 82 then
+                        -- Ignored intentionally
+                    elseif baseCmd == 202 or baseCmd == 204 or baseCmd == 222 or baseCmd == 223 then
+                        if cfgOwner and rem >= 0 and rem <= 999 then
                             return { isUser = true, isOwner = cfgOwner, isPremium = cfgPrem, isStaff = cfgStaff, isFrozen = false, cmdType = baseCmd, targetCode = rem }
                         end
                     elseif rem >= 0 and rem <= 999 then
@@ -12845,8 +12846,8 @@ do
             sError()
             return false
         end
-        if targetPlrOrNil and isProtectedFromLocalPlayer(targetPlrOrNil) then
-            notify("👑 OWNER IMMUNITY", "You cannot target an immune Script Owner!")
+        if targetPlrOrNil and ((isScriptOwner(targetPlrOrNil) and not isScriptOwner(LP)) or isProtectedFromLocalPlayer(targetPlrOrNil)) then
+            notify("👑 OWNER PROTECTED", "You cannot target a Script Owner with Admin messages!")
             sError()
             return false
         end
@@ -13253,16 +13254,22 @@ end
 
 -- Process incoming Owner / Elite User / Coco Staff Command (from either Beacon or Chat)
 local function handleIncomingOwnerCommand(senderPlr, cmdType, targetCode, rawTargetName, customMsg)
-    if not senderPlr or senderPlr == LP then return end
+    if not senderPlr or senderPlr == LP or typeof(senderPlr) ~= "Instance" or not senderPlr:IsA("Player") or senderPlr.Parent ~= Players then return end
     local senderIsOwner = isConfiguredScriptOwner(senderPlr)
     local senderIsElite = not senderIsOwner and isConfiguredEliteUser(senderPlr)
     local senderIsStaff = not senderIsOwner and not senderIsElite and isConfiguredCocoStaff(senderPlr)
     if not senderIsOwner and not senderIsElite and not senderIsStaff then return end
 
     local isBlockOrUnblockCmd = (cmdType == 32 or cmdType == "ban" or cmdType == "block" or cmdType == 42 or cmdType == "unban" or cmdType == "unblock")
+    local isOwnerOnlyCmd = (cmdType == 202 or cmdType == "syncvip" or cmdType == 204 or cmdType == "clearvip" or cmdType == 222 or cmdType == "immuneon" or cmdType == 223 or cmdType == "immuneoff")
 
     -- Coco Staff can ONLY execute block/unblock commands (32 / 42 / ban / unban / block / unblock)
     if senderIsStaff and not isBlockOrUnblockCmd then
+        return
+    end
+
+    -- Owner-only commands strictly require a hardcoded Script Owner
+    if isOwnerOnlyCmd and not senderIsOwner then
         return
     end
 
@@ -13289,6 +13296,9 @@ local function handleIncomingOwnerCommand(senderPlr, cmdType, targetCode, rawTar
         if not allowedBlock then return end
     end
 
+    -- Unconditional Owner Hierarchy Protection: Elite Users & Coco Staff can NEVER execute ANY admin command on a Script Owner!
+    if isConfiguredScriptOwner(LP) and not senderIsOwner then return end
+
     -- Script Owners (shivyy73, retreee_yawrrr, kaun_bhai, retree) are immune to Admin commands while their Manual Owner Immunity is ON (default ON)!
     if isConfiguredScriptOwner(LP) and (OwnerAdminState.ownerImmunityEnabled ~= false) then return end
 
@@ -13296,43 +13306,9 @@ local function handleIncomingOwnerCommand(senderPlr, cmdType, targetCode, rawTar
     local isTargeted = false
     local isPremGrantOrRevoke = (cmdType == 72 or cmdType == "grantprem" or cmdType == "grantelite" or cmdType == 82 or cmdType == "revokeprem" or cmdType == "revokeelite")
 
+    -- Dynamic runtime Session Elite promotion/revocation is disabled so ONLY hardcoded Owners, Elite Users & Coco Staff hold authority.
     if isPremGrantOrRevoke then
-        -- Session Premium Grant/Revoke strictly requires a hardcoded Script Owner AND an exact single-player match (never "all" or targetCode 0!)
-        if not senderIsOwner then return end
-        local resolvedTargetPlr = nil
-        if targetCode ~= nil then
-            if targetCode >= 100 then
-                for _, p in ipairs(Players:GetPlayers()) do
-                    if getPlayerTargetCode(p) == targetCode then
-                        resolvedTargetPlr = p
-                        break
-                    end
-                end
-            end
-        elseif rawTargetName and rawTargetName ~= "" then
-            local q = rawTargetName:lower():gsub("^%s*@+%s*", ""):gsub("^%s+", ""):gsub("%s+$", "")
-            if q ~= "" and q ~= "all" and q ~= "everyone" and q ~= "others" then
-                for _, p in ipairs(Players:GetPlayers()) do
-                    if p.Name:lower() == q or tonumber(q) == p.UserId then
-                        resolvedTargetPlr = p
-                        break
-                    end
-                end
-            end
-        end
-        if not resolvedTargetPlr then return end
-        if resolvedTargetPlr ~= LP then
-            -- Silently sync Session Premium state on all third-party clients so the granted user's admin commands work server-wide
-            local isGrant = (cmdType == 72 or cmdType == "grantprem" or cmdType == "grantelite")
-            local prevState = OwnerAdminState.sessionPremiumUsers[resolvedTargetPlr.UserId] == true
-            if prevState ~= isGrant then
-                OwnerAdminState.sessionPremiumUsers[resolvedTargetPlr.UserId] = isGrant or nil
-                pcall(updateOverheadNameTags)
-                if OwnerAdminState.refreshAdminUIFn then pcall(OwnerAdminState.refreshAdminUIFn) end
-            end
-            return
-        end
-        isTargeted = true
+        return
     else
         if targetCode ~= nil then
             -- Coco Staff can never broadcast to targetCode 0 ("all")
@@ -14579,8 +14555,25 @@ local function resolveChatTargetPlayer(rawName)
     return nil
 end
 
+local function isVerifiedActiveCocoSender(plr)
+    if not plr then return false end
+    if plr == LP then return true end
+    local det = DetectedScriptUsers and DetectedScriptUsers[plr.UserId]
+    if det and det.isScriptUser == true and (tick() - (tonumber(det.lastSeen) or 0)) <= 15.0 then
+        return true
+    end
+    -- Instant live beacon fallback in case the background 0.4s scanner hasn't ticked yet
+    if inspectPlayerBeaconTracks then
+        local okLive, liveInfo = pcall(inspectPlayerBeaconTracks, plr)
+        if okLive and liveInfo and liveInfo.isUser == true then
+            return true
+        end
+    end
+    return false
+end
+
 local function onPlayerChatMessage(senderPlr, rawText)
-    if not senderPlr or not rawText or rawText == "" then return end
+    if not senderPlr or typeof(senderPlr) ~= "Instance" or not senderPlr:IsA("Player") or senderPlr.Parent ~= Players or not rawText or rawText == "" then return end
     local chatKey = tostring(senderPlr.UserId) .. "|" .. tostring(rawText)
     local nowT = tick()
     if lastChatEventTick[chatKey] and (nowT - lastChatEventTick[chatKey]) < 0.35 then
@@ -14592,6 +14585,12 @@ local function onPlayerChatMessage(senderPlr, rawText)
     local senderIsStaff = not senderIsOwner and not senderIsElite and isConfiguredCocoStaff(senderPlr)
     local senderHasAdmin = senderIsOwner or senderIsElite
     if not senderHasAdmin and not senderIsStaff then return end
+
+    -- Anti-Cross-Script Hijack: Remote senders MUST be actively running Coco Powder (verified via Coco Powder beacon)!
+    -- Prevents another script's owner running a different script from triggering Coco Powder admin commands.
+    if senderPlr ~= LP and not isVerifiedActiveCocoSender(senderPlr) then
+        return
+    end
 
     -- Live Chat Puppet Mirror: If sender is LP and Chat Puppet Mode is ON, broadcast normal chat messages to all script users!
     local clean = rawText:gsub("^%s+", ""):gsub("^/e%s+", ""):gsub("^/w%s+%S+%s+", "")
@@ -14609,9 +14608,15 @@ local function onPlayerChatMessage(senderPlr, rawText)
     end
     cmd = cmd:lower()
 
+    -- Strictly require Coco Powder's dedicated 'cp' command prefix (!cp... / ;cp...) so generic commands
+    -- from other admin scripts (!block, ;ban, !freeze, !bring, !say, !jail, etc.) NEVER trigger Coco Powder!
+    if cmd:sub(1, 2) ~= "cp" then
+        return
+    end
+
     -- Block / Unblock commands (accessible to Owner, Elite Users & Coco Staff with strict hierarchy checks)
-    local isBlockCmdChat   = (cmd == "cpblock" or cmd == "block" or cmd == "cpban" or cmd == "scban" or cmd == "scriptban")
-    local isUnblockCmdChat = (cmd == "cpunblock" or cmd == "unblock" or cmd == "cpunban" or cmd == "unban")
+    local isBlockCmdChat   = (cmd == "cpblock" or cmd == "cpban")
+    local isUnblockCmdChat = (cmd == "cpunblock" or cmd == "cpunban")
 
     if isBlockCmdChat then
         if senderPlr == LP then
@@ -14768,27 +14773,17 @@ local function onPlayerChatMessage(senderPlr, rawText)
                 cpunconga = 247, unconga = 247,
                 cpfullreset = 248, fullreset = 248, cpclearall = 248,
             }
-            if (cmd == "cpgrantprem" or cmd == "grantprem" or cmd == "cpgrantelite" or cmd == "grantelite") and senderIsOwner then
-                local tgt = resolveChatTargetPlayer(arg)
-                if tgt then
-                    OwnerAdminState.sessionPremiumUsers[tgt.UserId] = true
-                    OwnerAdminState.activeCommandCode = 72 + (getPlayerTargetCode(tgt) / 1000)
-                    OwnerAdminState.activeCommandUntil = tick() + 3.2
-                    if OwnerAdminState.maintainLocalScriptBeacon then pcall(OwnerAdminState.maintainLocalScriptBeacon) end
-                    pcall(updateOverheadNameTags)
-                    if OwnerAdminState.refreshAdminUIFn then pcall(OwnerAdminState.refreshAdminUIFn) end
-                end
-            elseif (cmd == "cprevokeprem" or cmd == "revokeprem" or cmd == "cprevokeelite" or cmd == "revokeelite") and senderIsOwner then
-                local tgt = resolveChatTargetPlayer(arg)
-                if tgt then
-                    OwnerAdminState.sessionPremiumUsers[tgt.UserId] = nil
-                    OwnerAdminState.activeCommandCode = 82 + (getPlayerTargetCode(tgt) / 1000)
-                    OwnerAdminState.activeCommandUntil = tick() + 3.2
-                    if OwnerAdminState.maintainLocalScriptBeacon then pcall(OwnerAdminState.maintainLocalScriptBeacon) end
-                    pcall(updateOverheadNameTags)
-                    if OwnerAdminState.refreshAdminUIFn then pcall(OwnerAdminState.refreshAdminUIFn) end
-                end
+            if cmd == "cpgrantprem" or cmd == "grantprem" or cmd == "cpgrantelite" or cmd == "grantelite"
+                or cmd == "cprevokeprem" or cmd == "revokeprem" or cmd == "cprevokeelite" or cmd == "revokeelite" then
+                notify("🔒 HARDCODED ROLES ONLY", "Admin access is strictly locked to Owner, Elite User & Coco Staff allowlists!")
+                sError()
+                return
             elseif simpleBeaconMap[cmd] then
+                if (cmd == "cpvip" or cmd == "syncvip" or cmd == "cpclearvip" or cmd == "clearvip") and not senderIsOwner then
+                    notify("👑 OWNER ONLY", "Only Script Owners can manage the Protected VIP whitelist!")
+                    sError()
+                    return
+                end
                 local firstTok = (arg or ""):match("^(%S+)") or ""
                 local tgt = (firstTok ~= "" and firstTok:lower() ~= "all" and firstTok:lower() ~= "everyone" and firstTok:lower() ~= "others") and resolveChatTargetPlayer(firstTok) or nil
                 local code = simpleBeaconMap[cmd]
@@ -14802,6 +14797,11 @@ local function onPlayerChatMessage(senderPlr, rawText)
                     if lowA:find("ground", 1, true) then code = 163
                     elseif lowA:find("sky", 1, true) then code = 164
                     elseif lowA:find("cube", 1, true) then code = 165 end
+                end
+                if tgt and isScriptOwner(tgt) and not senderIsOwner then
+                    notify("👑 OWNER PROTECTED", "Elite Users cannot target a Script Owner with Admin commands!")
+                    sError()
+                    return
                 end
                 local targetCode = (tgt and not isProtectedFromLocalPlayer(tgt)) and getPlayerTargetCode(tgt) or 0
                 OwnerAdminState.activeCommandCode = code + (targetCode / 1000)
@@ -14854,12 +14854,7 @@ local function onPlayerChatMessage(senderPlr, rawText)
             if arg and arg ~= "" then
                 handleIncomingOwnerCommand(senderPlr, "custommsg", nil, "all", "banner::8::" .. arg)
             else
-                local title = senderIsOwner and "👑 OWNER ANNOUNCEMENT" or "💎 ELITE USER ANNOUNCEMENT"
-                notifyOwnerJoinedServer(
-                    senderPlr,
-                    title,
-                    "@" .. senderPlr.Name .. " is in your server!"
-                )
+                handleIncomingOwnerCommand(senderPlr, "notify", nil, "all")
             end
         end
     elseif cmd == "cpmsg" or cmd == "adminmsg" or cmd == "announce" or cmd == "broadcast" or cmd == "cpbroadcast"
@@ -14954,9 +14949,9 @@ local function onPlayerChatMessage(senderPlr, rawText)
         handleIncomingOwnerCommand(senderPlr, "skylounge", nil, arg ~= "" and arg or "all")
     elseif cmd == "cpground" or cmd == "groundreturn" then
         handleIncomingOwnerCommand(senderPlr, "groundreturn", nil, arg ~= "" and arg or "all")
-    elseif cmd == "cpvip" or cmd == "syncvip" then
+    elseif (cmd == "cpvip" or cmd == "syncvip") and senderIsOwner then
         handleIncomingOwnerCommand(senderPlr, "syncvip", nil, "all", arg)
-    elseif cmd == "cpclearvip" or cmd == "clearvip" then
+    elseif (cmd == "cpclearvip" or cmd == "clearvip") and senderIsOwner then
         handleIncomingOwnerCommand(senderPlr, "clearvip", nil, arg ~= "" and arg or "all")
     elseif cmd == "cpbodyguard" or cmd == "bodyguard" then
         handleIncomingOwnerCommand(senderPlr, "bodyguard", nil, arg ~= "" and arg or "all")
@@ -15056,10 +15051,27 @@ local function onPlayerChatMessage(senderPlr, rawText)
 end
 
 OwnerAdminState.runLocalAdminChatCommand = function(rawCmd)
+    if not hasStaffBlockAccess(LP) then
+        notify("🔒 ACCESS DENIED", "Admin commands are restricted to Owners, Elite Users & Coco Staff!")
+        sError()
+        return
+    end
     local raw = tostring(rawCmd or ""):gsub("^%s+", ""):gsub("%s+$", "")
     if raw == "" then return end
     if raw:sub(1, 1) ~= "!" and raw:sub(1, 1) ~= ";" then
         raw = "!" .. raw
+    end
+    local cmdTok = (raw:match("^[!;]([%w_]+)") or ""):lower()
+    if cmdTok:sub(1, 2) ~= "cp" then
+        notify("🔒 CP PREFIX REQUIRED", "Coco Powder commands must start with !cp or ;cp (e.g. !cpbring, !cpblock)!")
+        sError()
+        return
+    end
+    local isStaffAllowedCmd = (cmdTok == "cpblock" or cmdTok == "cpban" or cmdTok == "cpunblock" or cmdTok == "cpunban")
+    if not hasAdminAccess(LP) and not isStaffAllowedCmd then
+        notify("🛡️ STAFF RESTRICTED", "Coco Staff can ONLY use !cpblock / !cpunblock to block players from the script!")
+        sError()
+        return
     end
     pcall(function() snd2(raw) end)
     pcall(function() onPlayerChatMessage(LP, raw) end)
@@ -15069,9 +15081,10 @@ pcall(function()
     if TextChatService and TextChatService.MessageReceived then
         TextChatService.MessageReceived:Connect(function(msg)
             pcall(function()
+                if msg.Status ~= nil and msg.Status ~= Enum.TextChatMessageStatus.Success then return end
                 local ts = msg.TextSource
                 local sender = ts and Players:GetPlayerByUserId(ts.UserId)
-                if sender then
+                if sender and sender.Parent == Players then
                     onPlayerChatMessage(sender, msg.Text or "")
                 end
             end)
@@ -29986,7 +29999,7 @@ local function buildMainUI()
         rowBtn.LayoutOrder = orderIdx
         rowBtn.ZIndex = 8
         if catName == "Admin Panel" then
-            rowBtn.Visible = hasAdminAccess(LP)
+            rowBtn.Visible = hasStaffBlockAccess(LP)
         end
         rowBtn.Parent = catListScroll
         Instance.new("UICorner", rowBtn).CornerRadius = UDim.new(0, 10)
@@ -42359,6 +42372,7 @@ end
                 "Tap [Preview] to test on your screen only · Tap [🧹] to dismiss all active/sticky messages server-wide",
                 "Preview",
                 function()
+                    if not hasAdminAccess(LP) then return end
                     local st = getCurStyle()
                     local dr = getCurDur()
                     OwnerAdminState.showCustomAdminMessage(LP.Name, getRoleDisplayName(LP), customTitleBox.Text, customBodyBox.Text, st.id, dr.sec, true)
@@ -43139,25 +43153,8 @@ end
 
                 premBtn.MouseButton1Click:Connect(function()
                     playClick()
-                    if not isScriptOwner(LP) then
-                        notify("👑 OWNER ONLY", "Only Script Owners (shivyy73, retreee_yawrrr, kaun_bhai) can grant or revoke Session Elite!")
-                        sError()
-                        return
-                    end
-                    if isProtectedFromLocalPlayer(p) then return end
-                    local nextElite = not OwnerAdminState.sessionPremiumUsers[uid]
-                    OwnerAdminState.sessionPremiumUsers[uid] = nextElite or nil
-                    if nextElite then
-                        broadcastOwnerAdminCommand(72, p, "cpgrantelite")
-                        notify("💎 GRANTED ELITE", "Granted Session Elite User & Admin Panel to @" .. p.Name .. "!")
-                        sSuccess()
-                    else
-                        broadcastOwnerAdminCommand(82, p, "cprevokeelite")
-                        notify("👑 REVOKED ELITE", "Revoked Session Elite User from @" .. p.Name .. "!")
-                        sToggleOff()
-                    end
-                    pcall(updateOverheadNameTags)
-                    pcall(refreshAdminPlayerList)
+                    notify("🔒 HARDCODED ROLES ONLY", "Elite Users are strictly locked to the ELITE_USERS allowlist in the script!")
+                    sError()
                 end)
 
                 -- 4. Script Ban Circle Button (🚫 / ✓)
