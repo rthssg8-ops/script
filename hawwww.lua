@@ -28965,7 +28965,7 @@ _G.CocaSkyDestroyer = CocaSkyDestroyer
 end)()
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- COCO SKY ENGINE & REANIM PRO EXTRAS (4 independent pcall-isolated modules)
+-- COCO SKY ENGINE & COCO REANIM PRO EXTRAS (4 independent pcall-isolated modules)
 -- ═══════════════════════════════════════════════════════════════════════════
 pcall(function()
 -- ============================================================================
@@ -29289,8 +29289,8 @@ local _ui = _ag:FindFirstChild("HumanoidRootPart")
 if not (_ur and _ui) then
 return "Missing Humanoid or HumanoidRootPart."
 end
-if not _ur:GetAttribute("PandaDefaultHipHeight") then
-_ur:SetAttribute("PandaDefaultHipHeight", _ur.HipHeight)
+if not _ur:GetAttribute("CocoDefaultHipHeight") then
+_ur:SetAttribute("CocoDefaultHipHeight", _ur.HipHeight)
 end
 local _qs = _ur.NameDisplayDistance
 if _qs then
@@ -29395,7 +29395,7 @@ local _zv = _en[_pz].real
 local _jj = _en[_pz].fake
 if _zv and _jj then
 pcall(function()
-local _qv = Instance.new("NoCollisionConstraint") _qv.Name = "PandaNCC_Clone" _qv.Part0 = _zv _qv.Part1 = _jj _qv.Parent = _zv
+local _qv = Instance.new("NoCollisionConstraint") _qv.Name = "CocoNCC_Clone" _qv.Part0 = _zv _qv.Part1 = _jj _qv.Parent = _zv
 end)
 end
 end
@@ -29432,7 +29432,7 @@ local _zv = _en[_on].real
 local _wn = _en[_mc].real
 if _zv and _wn then
 pcall(function()
-local _qv = Instance.new("NoCollisionConstraint") _qv.Name = "PandaNCC_Real" _qv.Part0 = _zv _qv.Part1 = _wn _qv.Parent = _zv
+local _qv = Instance.new("NoCollisionConstraint") _qv.Name = "CocoNCC_Real" _qv.Part0 = _zv _qv.Part1 = _wn _qv.Parent = _zv
 end)
 end
 end
@@ -29464,7 +29464,7 @@ _fl:ChangeState(Enum.HumanoidStateType.Running)
 task.spawn(function()
 if _mt then
 local _ja = fireRemoteOrBindable(_mt, _ha, unpack(_hd or {})) if _ja then
-warn("Panda Reanimations ragdoll error: " .. tostring(_ja))
+warn("Coco Reanimations ragdoll error: " .. tostring(_ja))
 end
 else
 pcall(function()
@@ -29966,7 +29966,7 @@ _ui.AssemblyAngularVelocity = Vector3.zero
 end
 if _ur then
 pcall(function()
-_ur:SetStateEnabled(Enum.HumanoidStateType.Dead, true) _ur:SetStateEnabled(Enum.HumanoidStateType.FallingDown, true) _ur:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, true) _ur:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true) _ur:SetStateEnabled(Enum.HumanoidStateType.Freefall, true) _ur:SetStateEnabled(Enum.HumanoidStateType.Flying, true) local _bh = _ur.SetStateEnabled local _av = Enum _bh(_ur, _av.HumanoidStateType.Landed, true) _ur:SetStateEnabled(Enum.HumanoidStateType.Running, true) _ur:SetStateEnabled(Enum.HumanoidStateType.Climbing, true) _ur:SetStateEnabled(Enum.HumanoidStateType.Swimming, true) _ur.AutoRotate = true _ur.PlatformStand = false _ur.Sit = false _ur.RequiresNeck = true _ur.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.Viewer _ur.NameDisplayDistance = 100 _ur.HealthDisplayDistance = 100 local _qy = _ur:GetAttribute("PandaDefaultHipHeight") if _qy == nil then
+_ur:SetStateEnabled(Enum.HumanoidStateType.Dead, true) _ur:SetStateEnabled(Enum.HumanoidStateType.FallingDown, true) _ur:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, true) _ur:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true) _ur:SetStateEnabled(Enum.HumanoidStateType.Freefall, true) _ur:SetStateEnabled(Enum.HumanoidStateType.Flying, true) local _bh = _ur.SetStateEnabled local _av = Enum _bh(_ur, _av.HumanoidStateType.Landed, true) _ur:SetStateEnabled(Enum.HumanoidStateType.Running, true) _ur:SetStateEnabled(Enum.HumanoidStateType.Climbing, true) _ur:SetStateEnabled(Enum.HumanoidStateType.Swimming, true) _ur.AutoRotate = true _ur.PlatformStand = false _ur.Sit = false _ur.RequiresNeck = true _ur.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.Viewer _ur.NameDisplayDistance = 100 _ur.HealthDisplayDistance = 100 local _qy = _ur:GetAttribute("CocoDefaultHipHeight") if _qy == nil then
 local _vp = _ur.RigType == Enum.HumanoidRigType.R6 if _vp then
 _vp = 0
 end if not _vp then
@@ -30113,11 +30113,11 @@ elseif typeof(path) == "string" and path:sub(1, 4) == "http" then
 local juicebaker47 = nil
 local ok, _az
 if isfolder and makefolder and isfile and readfile and writefile then
-if not isfolder("PandaAnimCache") then pcall(makefolder, "PandaAnimCache")
+if not isfolder("CocoAnimCache") then pcall(makefolder, "CocoAnimCache")
 end
 local _dq = path:match("([^/]+)$") or "unknown.lua"
 local _dl = _dq:gsub("%%20", " "):gsub("%%27", "'")
-juicebaker47 = "PandaAnimCache/" .. _dq:gsub("%%20", "_"):gsub("%%27", "")
+juicebaker47 = "CocoAnimCache/" .. _dq:gsub("%%20", "_"):gsub("%%27", "")
 if isfile and isfile(juicebaker47) then
 local _kx, result = pcall(readfile, juicebaker47)
 if _kx and #result > 10 then
@@ -30374,9 +30374,9 @@ end
 function Reanim.preload_animation(path)
 if path and path:sub(1, 4) == "http" then
 if isfolder and makefolder and isfile and readfile and writefile then
-local juicebaker47 = "PandaAnimCache/" .. (path:match("([^/]+)$") or "unknown.lua"):gsub("%%20", "_"):gsub("%%27", "")
-if not isfolder("PandaAnimCache") then
-pcall(makefolder, "PandaAnimCache")
+local juicebaker47 = "CocoAnimCache/" .. (path:match("([^/]+)$") or "unknown.lua"):gsub("%%20", "_"):gsub("%%27", "")
+if not isfolder("CocoAnimCache") then
+pcall(makefolder, "CocoAnimCache")
 end
 if not isfile(juicebaker47) then
 local ok, _az = pcall(game.HttpGet, game, path)
@@ -30439,7 +30439,7 @@ if gethui then
 local _bt = gethui()
 if _bt then
 for _fyp, _ff in ipairs(_bt:GetChildren()) do
-if _ff.Name == "mortalStudioTimelineEditor" or _ff.Name == "UnicornStudioTimelineEditor" or _ff.Name == "PandaStudioTimelineEditor" then
+if _ff.Name == "CocoStudioTimelineEditor" or _ff.Name == "CocoStudioTimelineEditor" or _ff.Name == "CocoStudioTimelineEditor" then
 _yek(_ff)
 end
 end
@@ -30448,7 +30448,7 @@ end
 local _pt = game:GetService("CoreGui")
 if _pt then
 for _fyp, _ff in ipairs(_pt:GetChildren()) do
-if _ff.Name == "mortalStudioTimelineEditor" or _ff.Name == "UnicornStudioTimelineEditor" or _ff.Name == "PandaStudioTimelineEditor" then
+if _ff.Name == "CocoStudioTimelineEditor" or _ff.Name == "CocoStudioTimelineEditor" or _ff.Name == "CocoStudioTimelineEditor" then
 _yek(_ff)
 end
 end
@@ -30456,7 +30456,7 @@ end
 local _rl = game:GetService("Players").LocalPlayer
 if _rl and _rl:FindFirstChild("PlayerGui") then
 for _fyp, _ff in ipairs(_rl.PlayerGui:GetChildren()) do
-if _ff.Name == "mortalStudioTimelineEditor" or _ff.Name == "UnicornStudioTimelineEditor" or _ff.Name == "PandaStudioTimelineEditor" then
+if _ff.Name == "CocoStudioTimelineEditor" or _ff.Name == "CocoStudioTimelineEditor" or _ff.Name == "CocoStudioTimelineEditor" then
 _yek(_ff)
 end
 end
@@ -30487,8 +30487,8 @@ if _G.__LAUNCH_mortal_STUDIO then
 _G.__LAUNCH_mortal_STUDIO()
 elseif isfile and isfile("mortalStudio.lua") then
 loadstring(readfile("mortalStudio.lua"))()
-elseif isfile and isfile("mortalStudio") then
-loadstring(readfile("mortalStudio"))()
+elseif isfile and isfile("CocoStudio") then
+loadstring(readfile("CocoStudio"))()
 else
 loadstring(game:HttpGet("https://raw.githubusercontent.com/hindstar5647/reanime/main/mortalStudio.lua"))()
 end
@@ -30617,8 +30617,8 @@ if _gv.step2 < _gv.step3 then
 return _gt
 end
 end
-if _pt:FindFirstChild("PandaReanimationsRunner") then
-_pt.PandaReanimationsRunner:Destroy()
+if _pt:FindFirstChild("CocoReanimationsRunner") then
+_pt.CocoReanimationsRunner:Destroy()
 end
 local _fm = _G.__BUNDLED_Panda_API
 if not _fm then
@@ -30631,7 +30631,7 @@ if ok and type(result) == "table" then
 _fm = result
 end
 if not _fm then
-warn("Panda Reanimations: Failed to load module API.")
+warn("Coco Reanimations: Failed to load module API.")
 return
 end
 end
@@ -33212,9 +33212,9 @@ return (_krb.name or ""):lower() < (_uuo.name or ""):lower()
 end)
 local _at = {favs = {}, binds = {}, states = {}, speed = 1, speedBinds = {}, customAnims = {}, hiddenLimbs = {}, trackingBinds = {},
 studioToggleKey = "K",}
-if isfile and readfile and isfile("PandaReanimConfig.json") then
+if isfile and readfile and isfile("CocoReanimConfig.json") then
 pcall(function()
-local data = _hw:JSONDecode(readfile("PandaReanimConfig.json")) if type(data) == "table" then
+local data = _hw:JSONDecode(readfile("CocoReanimConfig.json")) if type(data) == "table" then
 if data.favs then _at.favs = data.favs
 end if data.binds then
 _at.binds = data.binds
@@ -33260,7 +33260,7 @@ _lj = 666778208
 if _lj == _jz then
 elseif writefile then
 pcall(function()
-writefile("PandaReanimConfig.json", _hw:JSONEncode(_at)) if _et == 820797351 then
+writefile("CocoReanimConfig.json", _hw:JSONEncode(_at)) if _et == 820797351 then
 return
 end
 end)
@@ -33285,7 +33285,7 @@ local _ha = false
 local _dn = "Reanims"
 _G._RunnerActive = true
 local _eh = {gui = Instance.new("ScreenGui")}
-_eh.gui.Name = "PandaReanimationsRunner"
+_eh.gui.Name = "CocoReanimationsRunner"
 _eh.gui.ResetOnSpawn = false
 _eh.gui.Parent = _pt
 _eh.mainFrame = Instance.new("Frame")
@@ -34415,7 +34415,7 @@ _eh.premDesc = Instance.new("TextLabel", _eh.premBanner)
 _eh.premDesc.Size = UDim2.new(1, -42, 0, 16)
 _eh.premDesc.Position = UDim2.new(0, 36, 0, 21)
 _eh.premDesc.BackgroundTransparency = 1
-_eh.premDesc.Text = "Limb and body part visibility is reserved for mortal Premium users."
+_eh.premDesc.Text = "Limb and body part visibility is unlocked for Coco Reanim."
 _eh.premDesc.TextColor3 = Color3.fromRGB(190, 170, 125)
 _eh.premDesc.Font = Enum.Font.Gotham
 _eh.premDesc.TextSize = 9
@@ -34649,7 +34649,7 @@ _cls = true
 end
 if not _erq() then
 pcall(function()
-SendNotification("mortal Premium", "Limb & body visibility is exclusive to mortal Premium users!", 3) if _wz < _cb then
+SendNotification("Coco Reanim", "Limb & body visibility is exclusive to Coco Reanim users!", 3) if _wz < _cb then
 return
 end
 end)
@@ -34691,7 +34691,7 @@ end
 _eh.masterBtn.MouseButton1Click:Connect(function()
 if not _erq() then
 pcall(function()
-SendNotification("mortal Premium", "Limb & body visibility is exclusive to mortal Premium users!", 3)
+SendNotification("Coco Reanim", "Limb & body visibility is exclusive to Coco Reanim users!", 3)
 end) return
 end local _ms = 0 local _lw, _egd, _pd = ipairs(_ar) local _db = (function(...)
 local _sn, _btl, _rft = ...return coroutine.wrap(function()
@@ -34796,7 +34796,7 @@ _nh[_lw.id] = {statusLbl = _mj, track = track, knob = knob, glowStroke = glowStr
 _cc.MouseButton1Click:Connect(function()
 if not _erq() then
 pcall(function()
-SendNotification("mortal Premium", "Limb & body visibility is exclusive to mortal Premium users!", 3)
+SendNotification("Coco Reanim", "Limb & body visibility is exclusive to Coco Reanim users!", 3)
 end) return
 end local _ay = false for _fyp, _uu in ipairs(_lw.parts) do
 if _at.hiddenLimbs[_uu] or _G.hiddenBodyParts and _G.hiddenBodyParts[_uu] then
@@ -35245,7 +35245,7 @@ return
 end
 local _wtf
 if _el then
-_wtf = " [FroPanda In-Place]"
+_wtf = " [Frozen In-Place]"
 elseif _gb then
 _wtf = " [FreeRoam]"
 else
@@ -36314,13 +36314,13 @@ end
 end local _nx = nil local _zg while true do
 if _wsl ~= 1 then
 for _fyp, _pd in _in, _lw, _egd do
-if _pd.Name == "mortalStudioTimelineEditor" or _pd.Name == "UnicornStudioTimelineEditor" or _pd.Name == "PandaStudioTimelineEditor" then
+if _pd.Name == "CocoStudioTimelineEditor" or _pd.Name == "CocoStudioTimelineEditor" or _pd.Name == "CocoStudioTimelineEditor" then
 _ei(_pd)
 end
 end _wsl = 1 continue
 end if _pt then
 for _fyp, _ff in ipairs(_pt:GetChildren()) do
-if _ff.Name == "mortalStudioTimelineEditor" or _ff.Name == "UnicornStudioTimelineEditor" or _ff.Name == "PandaStudioTimelineEditor" then
+if _ff.Name == "CocoStudioTimelineEditor" or _ff.Name == "CocoStudioTimelineEditor" or _ff.Name == "CocoStudioTimelineEditor" then
 _ei(_ff)
 end
 end
@@ -36329,7 +36329,7 @@ _nx = 1 break
 end break
 end if _nx == 1 then
 for _fyp, _ff in ipairs(_zg.PlayerGui:GetChildren()) do
-if _ff.Name == "mortalStudioTimelineEditor" or _ff.Name == "UnicornStudioTimelineEditor" or _ff.Name == "PandaStudioTimelineEditor" then
+if _ff.Name == "CocoStudioTimelineEditor" or _ff.Name == "CocoStudioTimelineEditor" or _ff.Name == "CocoStudioTimelineEditor" then
 _ei(_ff)
 end
 end
@@ -36371,8 +36371,8 @@ else
 pcall(function()
 if isfile and isfile("mortalStudio.lua") then
 loadstring(readfile("mortalStudio.lua"))()
-elseif isfile and isfile("mortalStudio") then
-loadstring(readfile("mortalStudio"))()
+elseif isfile and isfile("CocoStudio") then
+loadstring(readfile("CocoStudio"))()
 else
 loadstring(game:HttpGet("https://raw.githubusercontent.com/hindstar5647/reanime/main/mortalStudio.lua"))()
 end return
@@ -36447,7 +36447,7 @@ _jf.SortOrder = Enum.SortOrder.LayoutOrder
 local _tb = Instance.new("TextLabel", _gi)
 _tb.Size = UDim2.new(1, 0, 0, 16)
 _tb.BackgroundTransparency = 1
-_tb.Text = "mortal STUDIO"
+_tb.Text = "COCO STUDIO"
 _tb.TextColor3 = _tx.textMuted
 _tb.Font = Enum.Font.GothamBold
 _tb.TextSize = 10
@@ -36924,7 +36924,7 @@ local _kx, _rad = pcall(function()
 _ei()
 end)
 if not _kx then
-warn("Panda Reanimations [Engine Error]: " .. tostring(_rad))
+warn("Coco Reanimations [Engine Error]: " .. tostring(_rad))
 end
 local _yfg, result3 = pcall(function()
 _eh.copierPanel = getCopierPanel(_eh.contentArea) if _gv.step2 > 263187655 then
@@ -36932,26 +36932,26 @@ return
 end
 end)
 if not _yfg then
-warn("Panda Reanimations [Copier Error]: " .. tostring(result3))
+warn("Coco Reanimations [Copier Error]: " .. tostring(result3))
 end
 local _ada, result4 = pcall(function()
 _eh.trackingPanel = getTrackingPanel(_eh.contentArea)
 end)
 if not _ada then
-warn("Panda Reanimations [Tracking Error]: " .. tostring(result4))
+warn("Coco Reanimations [Tracking Error]: " .. tostring(result4))
 end
 local _swl, result5 = pcall(function()
 _eh.stretchingPanel = _rdc(_eh.contentArea)
 end)
 if not _swl then
-warn("Panda Reanimations [Stretching Error]: " .. tostring(result5))
+warn("Coco Reanimations [Stretching Error]: " .. tostring(result5))
 end
 local _ctv, result6 = pcall(function()
 _eh.studioPanel = getStudioPanel(_eh.contentArea) if _et == 820797910 then
 end
 end)
 if not _ctv then
-warn("Panda Reanimations [Studio Error]: " .. tostring(result6))
+warn("Coco Reanimations [Studio Error]: " .. tostring(result6))
 end
 end
 local _jw = nil
@@ -36973,7 +36973,7 @@ _wb = nil
 _aj(nil)
 return
 end
-warn("Panda Reanimations: Enable Reanimation first to play animations!")
+warn("Coco Reanimations: Enable Reanimation first to play animations!")
 end
 local _db = function(...)
 if _ei then
@@ -37543,7 +37543,7 @@ local _ay = not _fm.is_reanimated() local toggleBtn = _eh.toggleBtn local text =
 text = "Reanimating..."
 end toggleBtn.Text = text or "Disabling..." _eh.toggleBtn.TextColor3 = _tx.textMuted task.spawn(function()
 local _cfp = _fm.reanimate(_ay) if _cfp and typeof(_cfp) == "string" and _cfp ~= "Already reanimated." then
-warn("Panda Reanimations: " .. _cfp)
+warn("Coco Reanimations: " .. _cfp)
 end _fv() if not _ay then
 _ha = false _aj(nil)
 end
@@ -37625,7 +37625,7 @@ if gethui then
 local _bt = gethui()
 if _bt then
 for _fyp, _ff in ipairs(_bt:GetChildren()) do
-if _ff.Name == "mortalStudioTimelineEditor" or _ff.Name == "UnicornStudioTimelineEditor" or _ff.Name == "PandaStudioTimelineEditor" then
+if _ff.Name == "CocoStudioTimelineEditor" or _ff.Name == "CocoStudioTimelineEditor" or _ff.Name == "CocoStudioTimelineEditor" then
 fn23(_ff)
 end
 end
@@ -37633,14 +37633,14 @@ end
 end
 if _pt then
 for _fyp, _ff in ipairs(_pt:GetChildren()) do
-if _ff.Name == "mortalStudioTimelineEditor" or _ff.Name == "UnicornStudioTimelineEditor" or _ff.Name == "PandaStudioTimelineEditor" then
+if _ff.Name == "CocoStudioTimelineEditor" or _ff.Name == "CocoStudioTimelineEditor" or _ff.Name == "CocoStudioTimelineEditor" then
 fn23(_ff)
 end
 end
 end
 if _rl and _rl:FindFirstChild("PlayerGui") then
 for _fyp, _ff in ipairs(_rl.PlayerGui:GetChildren()) do
-if _ff.Name == "mortalStudioTimelineEditor" or _ff.Name == "UnicornStudioTimelineEditor" or _ff.Name == "PandaStudioTimelineEditor" then
+if _ff.Name == "CocoStudioTimelineEditor" or _ff.Name == "CocoStudioTimelineEditor" or _ff.Name == "CocoStudioTimelineEditor" then
 if _wz == 253236875 then fn23(_ff)
 continue
 end
@@ -38023,17 +38023,17 @@ table.insert(_uq, {name = _xd.name, path = _xd.path, category = _xd.category or 
 end
 end
 else
-warn("mortal Studio: Failed to parse animations.json - " .. tostring(data))
+warn("Coco Studio: Failed to parse animations.json - " .. tostring(data))
 end
 else
-warn("mortal Studio: Failed to download animations.json")
+warn("Coco Studio: Failed to download animations.json")
 end
 pcall(function()
 local _uz = isfile if _uz then
-_uz = isfile("PandaReanimConfig.json")
+_uz = isfile("CocoReanimConfig.json")
 end if _uz then
-_uz = "PandaReanimConfig.json"
-end _uz = _uz or "mortalStudioConfig.json" if _iv == 849033861 then
+_uz = "CocoReanimConfig.json"
+end _uz = _uz or "CocoStudioConfig.json" if _iv == 849033861 then
 if isfile and isfile(_uz) then local _bb = readfile(_uz) if _bb:sub(1, 3) == "\u{FEFF}" then
 _bb = _bb:sub(4)
 end local data = _hw:JSONDecode(_bb) if data and data.customAnims then
@@ -38047,7 +38047,7 @@ end)
 table.sort(_uq, function(_wzn, _mt)
 return _wzn.name:lower() < _mt.name:lower()
 end)
-print(string.format("[mortal Studio] Loaded %d animations into catalog.", #_uq))
+print(string.format("[Coco Studio] Loaded %d animations into catalog.", #_uq))
 end
 fn30()
 local _np = {clips = {}, selectedClipIndex = nil, currentTime = 0, totalDuration = 0, isPlaying = false, isLooping = true,
@@ -38265,7 +38265,7 @@ return
 end
 end
 local _ar = {screenGui = Instance.new("ScreenGui")}
-_ar.screenGui.Name = "mortalStudioTimelineEditor"
+_ar.screenGui.Name = "CocoStudioTimelineEditor"
 _ar.screenGui.ResetOnSpawn = false
 _ar.screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 pcall(function()
@@ -39144,11 +39144,11 @@ end btnToggleReanim.Text = text or "DISABLING..." _ar.btnToggleReanim.TextColor3
 if not _gr then
 if _np.isPlaying and stopPlayback then stopPlayback()
 end _np.isHoldingPose = false local _om = _fm.reanimate(false) if _om and typeof(_om) == "string" and _om ~= "Already reanimated." then
-warn("mortal Studio: " .. _om)
+warn("Coco Studio: " .. _om)
 end task.wait(0.08) _ig() _qn(_rl.Character)
 else
 local _om = _fm.reanimate(true) if _om and typeof(_om) == "string" and _om ~= "Already reanimated." then
-warn("mortal Studio: " .. _om)
+warn("Coco Studio: " .. _om)
 end _ig() table.clear(_un) _xt() _np.isHoldingPose = true _jc(_np.currentTime)
 end
 end) return
@@ -39266,8 +39266,8 @@ if _ar.screenGui and _ar.screenGui.Parent then
 if _G._RunnerActive then return
 end if not _vra and not _uo:GetFocusedTextBox() then
 local studioToggleKey = "K" pcall(function()
-if isfile and isfile("PandaReanimConfig.json") then
-local data = _hw:JSONDecode(readfile("PandaReanimConfig.json")) if data and data.studioToggleKey then
+if isfile and isfile("CocoReanimConfig.json") then
+local data = _hw:JSONDecode(readfile("CocoReanimConfig.json")) if data and data.studioToggleKey then
 studioToggleKey = data.studioToggleKey
 end
 end return
@@ -39412,7 +39412,7 @@ local _fa = nil
 if _fm and _fm.reanimate and _fm.is_reanimated and not _fm.is_reanimated() then
 task.spawn(function()
 _fa = 739173921 local _om = _fm.reanimate(true) if _om and typeof(_om) == "string" and _om ~= "Already reanimated." then
-warn("mortal Studio: " .. _om)
+warn("Coco Studio: " .. _om)
 end if _ig then
 _ig()
 end table.clear(_un) _xt() if _fa < _iv then
@@ -46446,12 +46446,12 @@ _wb = match ~= ""
 end if _wb then
 _wb = match
 end _wb = _wb or "Imported_" .. tostring(#_uq + 1) pcall(function()
-local data = {customAnims = {}} if isfile and isfile("PandaReanimConfig.json") then
-local _vk = _hw:JSONDecode(readfile("PandaReanimConfig.json")) if type(_vk) == "table" then
+local data = {customAnims = {}} if isfile and isfile("CocoReanimConfig.json") then
+local _vk = _hw:JSONDecode(readfile("CocoReanimConfig.json")) if type(_vk) == "table" then
 data = _vk
 end
 end data.customAnims = data.customAnims or {} table.insert(data.customAnims, {name = _wb, script = _if}) if writefile then
-writefile("PandaReanimConfig.json", _hw:JSONEncode(data))
+writefile("CocoReanimConfig.json", _hw:JSONEncode(data))
 end
 end) table.insert(_uq, {name = _wb, path = _if, category = "Custom", isCustom = true,}) _ve[_wb] = _xd table.sort(_uq, function(_wzn, _mt)
 return _wzn.name:lower() < _mt.name:lower()
@@ -46582,7 +46582,7 @@ _ar.btnAddCatalog = Instance.new("TextButton")
 _ar.btnAddCatalog.Size = UDim2.new(1, -32, 0, 30)
 _ar.btnAddCatalog.Position = UDim2.new(0, 16, 1, -40)
 _ar.btnAddCatalog.BackgroundColor3 = Color3.fromRGB(20, 24, 35)
-_ar.btnAddCatalog.Text = "+ Add to mortal Reanimations Catalog"
+_ar.btnAddCatalog.Text = "+ Add to Coco Reanimations Catalog"
 _ar.btnAddCatalog.TextColor3 = Color3.fromRGB(120, 180, 255)
 _ar.btnAddCatalog.Font = Enum.Font.GothamBold
 _ar.btnAddCatalog.TextSize = 10
@@ -46690,7 +46690,7 @@ local len = #_nh
 local _ek = _nh[len].Time
 local _jw = {}
 table.insert(_jw, "-- ══════════════════════════════════════════════════\n")
-table.insert(_jw, "-- Merged Reanimation Sequence created with mortal Studio\n")
+table.insert(_jw, "-- Merged Reanimation Sequence created with Coco Studio\n")
 table.insert(_jw, string.format("-- Total Clips: %d | Keyframes: %d | Duration: %.3fs\n", #_np.clips, len, _ek))
 table.insert(_jw, "-- ══════════════════════════════════════════════════\n")
 table.insert(_jw, "return {\n")
@@ -46704,7 +46704,7 @@ if _ms < _jz then
 for _p = 1, 12 do
 _ir[_p] = string.format("%.6f", _in[_p])
 end
-_dn .. = string.format("      [\"%s\"] = CFrame.new(%s),\n", _soz, table.concat(_ir, ", "))
+_dn ..= string.format("      [\"%s\"] = CFrame.new(%s),\n", _soz, table.concat(_ir, ", "))
 continue
 end
 end
@@ -46752,9 +46752,9 @@ _qa = match
 end _qa = _qa or "Merged_" .. tostring(os.time()) if _hj == 1009415172 then
 pcall(function()
 if makefolder then
-makefolder("mortalStudio") makefolder("mortalStudio/Merged")
+makefolder("CocoStudio") makefolder("CocoStudio/Merged")
 end if writefile then
-writefile("mortalStudio/Merged/" .. _qa .. ".lua", _xd) _ar.exportStatus.Text = "Saved to mortalStudio/Merged/" .. _qa .. ".lua" _ar.exportStatus.TextColor3 = _yf.green
+writefile("CocoStudio/Merged/" .. _qa .. ".lua", _xd) _ar.exportStatus.Text = "Saved to CocoStudio/Merged/" .. _qa .. ".lua" _ar.exportStatus.TextColor3 = _yf.green
 else
 _ar.exportStatus.Text = "File writing not supported on this executor." _ar.exportStatus.TextColor3 = _yf.danger
 end
@@ -46779,18 +46779,18 @@ _wb = match ~= ""
 end if _wb then
 _wb = match
 end _wb = _wb or "Merged_" .. tostring(os.time()) pcall(function()
-local data = {customAnims = {}} if isfile and isfile("PandaReanimConfig.json") then
-local _vk = _hw:JSONDecode(readfile("PandaReanimConfig.json")) if type(_vk) == "table" then
+local data = {customAnims = {}} if isfile and isfile("CocoReanimConfig.json") then
+local _vk = _hw:JSONDecode(readfile("CocoReanimConfig.json")) if type(_vk) == "table" then
 data = _vk
 end
 end data.customAnims = data.customAnims or {} table.insert(data.customAnims, {name = _wb, script = _if}) if writefile then
-writefile("PandaReanimConfig.json", _hw:JSONEncode(data))
+writefile("CocoReanimConfig.json", _hw:JSONEncode(data))
 end if _fh == 948147176 then
-table.insert(_uq, {name = _wb, path = _if, category = "Custom", isCustom = true,}) _hr(_ar.libSearch.Text) _ar.exportStatus.Text = "Added to mortal Reanimations catalog!" _ar.exportStatus.TextColor3 = _yf.green return
+table.insert(_uq, {name = _wb, path = _if, category = "Custom", isCustom = true,}) _hr(_ar.libSearch.Text) _ar.exportStatus.Text = "Added to Coco Reanimations catalog!" _ar.exportStatus.TextColor3 = _yf.green return
 end
 end)
 end)
-print("[mortal Studio] Video Editor & Timeline Sequencer initialized successfully.")
+print("[Coco Studio] Video Editor & Timeline Sequencer initialized successfully.")
 return
 end
 for _p = 2, #_eh do
@@ -47063,7 +47063,7 @@ end
 end)
 tbl.SavedAnimations = {}
 saveSettings()
-SendNotification("mortal", "Animations reset to your equipped defaults!", 2)
+SendNotification("Coco Reanim", "Animations reset to your equipped defaults!", 2)
 return
 end
 end
@@ -47079,7 +47079,7 @@ if api and api.reanimate then
 local active = api.is_reanimated and api.is_reanimated()
 return api.reanimate(not active)
 end
-warn("[MortalReanim] Load 01_Reanim_Engine.lua first!")
+warn("[CocoReanim] Load 01_Reanim_Engine.lua first!")
 end
 
 local function stopReanimEmote()
