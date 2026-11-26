@@ -39530,12 +39530,18 @@ end
         end
 
         local mobileHudInputConn = nil
+        local defaultJumpBtnConns = {}
+        local defaultJumpHeld = false
         local activeUpInput, activeDownInput = nil, nil
 
         local function removeMobileFlyHUD()
             if mobileHudInputConn then
                 mobileHudInputConn:Disconnect()
                 mobileHudInputConn = nil
+            end
+            for i = #defaultJumpBtnConns, 1, -1 do
+                pcall(function() defaultJumpBtnConns[i]:Disconnect() end)
+                defaultJumpBtnConns[i] = nil
             end
             if mobileFlyHUD then
                 pcall(function() mobileFlyHUD:Destroy() end)
@@ -39544,123 +39550,37 @@ end
             end
             activeUpInput = nil
             activeDownInput = nil
+            defaultJumpHeld = false
             mobileFlyUp = false
             mobileFlyDown = false
         end
 
+        -- Uses Roblox's default game controls (thumbstick/WASD + camera look + default Jump button) — no awkward Ascend/Land HUD
         local function createMobileFlyHUD()
             removeMobileFlyHUD()
-            if not gui or not gui.Parent then return end
             pcall(function()
-                mobileFlyHUD = Instance.new("Frame")
-                mobileFlyHUD.Name = "CocoMobileFlyHUD"
-                mobileFlyHUD.Size = UDim2.new(0, 76, 0, 162)
-                mobileFlyHUD.Position = UDim2.new(1, -90, 0.5, -81)
-                mobileFlyHUD.BackgroundColor3 = T.BG2
-                mobileFlyHUD.BackgroundTransparency = 0.16
-                mobileFlyHUD.BorderSizePixel = 0
-                mobileFlyHUD.ZIndex = 200
-                mobileFlyHUD.Parent = gui
-                Instance.new("UICorner", mobileFlyHUD).CornerRadius = UDim.new(0, 12)
-
-                local mStroke = Instance.new("UIStroke")
-                mStroke.Color = T.Accent
-                mStroke.Thickness = 1.4
-                mStroke.Transparency = 0.2
-                mStroke.Parent = mobileFlyHUD
-
-                local hudTitle = Instance.new("TextLabel")
-                hudTitle.Size = UDim2.new(1, 0, 0, 18)
-                hudTitle.Position = UDim2.new(0, 0, 0, 2)
-                hudTitle.BackgroundTransparency = 1
-                hudTitle.Text = "FLIGHT HUD"
-                hudTitle.TextColor3 = T.Neon
-                hudTitle.Font = Enum.Font.GothamBold
-                hudTitle.TextSize = 8
-                hudTitle.ZIndex = 201
-                hudTitle.Parent = mobileFlyHUD
-
-                mobilePhaseLbl = Instance.new("TextLabel")
-                mobilePhaseLbl.Size = UDim2.new(1, -8, 0, 16)
-                mobilePhaseLbl.Position = UDim2.new(0, 4, 0, 18)
-                mobilePhaseLbl.BackgroundColor3 = T.Panel
-                mobilePhaseLbl.Text = "FLOATING"
-                mobilePhaseLbl.TextColor3 = T.Success
-                mobilePhaseLbl.Font = Enum.Font.GothamBold
-                mobilePhaseLbl.TextSize = 8
-                mobilePhaseLbl.ZIndex = 201
-                mobilePhaseLbl.Parent = mobileFlyHUD
-                Instance.new("UICorner", mobilePhaseLbl).CornerRadius = UDim.new(0, 5)
-
-                local btnUp = Instance.new("TextButton")
-                btnUp.Name = "AscendBtn"
-                btnUp.Size = UDim2.new(1, -12, 0, 54)
-                btnUp.Position = UDim2.new(0, 6, 0, 38)
-                btnUp.BackgroundColor3 = T.Panel
-                btnUp.Text = "▲\nASCEND"
-                btnUp.TextColor3 = Color3.new(1, 1, 1)
-                btnUp.Font = Enum.Font.GothamBold
-                btnUp.TextSize = 10
-                btnUp.ZIndex = 201
-                btnUp.AutoButtonColor = false
-                btnUp.Parent = mobileFlyHUD
-                Instance.new("UICorner", btnUp).CornerRadius = UDim.new(0, 8)
-
-                local btnDown = Instance.new("TextButton")
-                btnDown.Name = "DescendBtn"
-                btnDown.Size = UDim2.new(1, -12, 0, 54)
-                btnDown.Position = UDim2.new(0, 6, 0, 100)
-                btnDown.BackgroundColor3 = T.Panel
-                btnDown.Text = "▼\nLAND / DOWN"
-                btnDown.TextColor3 = Color3.new(1, 1, 1)
-                btnDown.Font = Enum.Font.GothamBold
-                btnDown.TextSize = 9
-                btnDown.ZIndex = 201
-                btnDown.AutoButtonColor = false
-                btnDown.Parent = mobileFlyHUD
-                Instance.new("UICorner", btnDown).CornerRadius = UDim.new(0, 8)
-
-                btnUp.InputBegan:Connect(function(inp)
-                    if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
-                        activeUpInput = inp
-                        mobileFlyUp = true
-                        btnUp.BackgroundColor3 = T.Accent2
-                    end
-                end)
-                btnUp.InputEnded:Connect(function(inp)
-                    if inp == activeUpInput or inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
-                        activeUpInput = nil
-                        mobileFlyUp = false
-                        btnUp.BackgroundColor3 = T.Panel
-                    end
-                end)
-
-                btnDown.InputBegan:Connect(function(inp)
-                    if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
-                        activeDownInput = inp
-                        mobileFlyDown = true
-                        btnDown.BackgroundColor3 = T.Accent2
-                    end
-                end)
-                btnDown.InputEnded:Connect(function(inp)
-                    if inp == activeDownInput or inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
-                        activeDownInput = nil
-                        mobileFlyDown = false
-                        btnDown.BackgroundColor3 = T.Panel
-                    end
-                end)
-
-                -- Global InputEnded safeguard so dragging a thumb off the button on Mobile never sticks Ascend/Descend
+                local pg = LP:FindFirstChildOfClass("PlayerGui")
+                local touchGui = pg and pg:FindFirstChild("TouchGui")
+                local touchFrame = touchGui and touchGui:FindFirstChild("TouchControlFrame")
+                local jumpBtn = touchFrame and touchFrame:FindFirstChild("JumpButton")
+                if jumpBtn then
+                    table.insert(defaultJumpBtnConns, jumpBtn.InputBegan:Connect(function(inp)
+                        if inp.UserInputType == Enum.UserInputType.Touch or inp.UserInputType == Enum.UserInputType.MouseButton1 then
+                            activeUpInput = inp
+                            defaultJumpHeld = true
+                        end
+                    end))
+                    table.insert(defaultJumpBtnConns, jumpBtn.InputEnded:Connect(function(inp)
+                        if inp == activeUpInput or inp.UserInputType == Enum.UserInputType.Touch or inp.UserInputType == Enum.UserInputType.MouseButton1 then
+                            activeUpInput = nil
+                            defaultJumpHeld = false
+                        end
+                    end))
+                end
                 mobileHudInputConn = UIS.InputEnded:Connect(function(inp)
-                    if inp == activeUpInput or (inp.UserInputType == Enum.UserInputType.MouseButton1) then
+                    if inp == activeUpInput then
                         activeUpInput = nil
-                        mobileFlyUp = false
-                        if btnUp and btnUp.Parent then btnUp.BackgroundColor3 = T.Panel end
-                    end
-                    if inp == activeDownInput or (inp.UserInputType == Enum.UserInputType.MouseButton1) then
-                        activeDownInput = nil
-                        mobileFlyDown = false
-                        if btnDown and btnDown.Parent then btnDown.BackgroundColor3 = T.Panel end
+                        defaultJumpHeld = false
                     end
                 end)
             end)
@@ -39774,16 +39694,16 @@ end
 
                 local bv = Instance.new("BodyVelocity")
                 bv.Name = "CocoFlyVelocity"
-                bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
-                bv.P = 2.5e4
+                bv.MaxForce = Vector3.new(1e7, 1e7, 1e7)
+                bv.P = 3.5e4
                 bv.Velocity = Vector3.zero
                 bv.Parent = root
 
                 local bg = Instance.new("BodyGyro")
                 bg.Name = "CocoFlyGyro"
-                bg.MaxTorque = Vector3.new(1e6, 1e6, 1e6)
-                bg.P = 1.8e4
-                bg.D = 550
+                bg.MaxTorque = Vector3.new(1e7, 1e7, 1e7)
+                bg.P = 2.4e4
+                bg.D = 680
                 bg.CFrame = root.CFrame
                 bg.Parent = root
 
@@ -39845,32 +39765,20 @@ end
                         if not hum.PlatformStand then hum.PlatformStand = true end
                     end
 
-                    -- Verify mobile touch hold inputs haven't ended off-button
+                    -- Verify default mobile JumpButton touch hold hasn't ended off-button
                     if activeUpInput and (activeUpInput.UserInputState == Enum.UserInputState.End or activeUpInput.UserInputState == Enum.UserInputState.Cancel) then
                         activeUpInput = nil
-                        mobileFlyUp = false
-                    end
-                    if activeDownInput and (activeDownInput.UserInputState == Enum.UserInputState.End or activeDownInput.UserInputState == Enum.UserInputState.Cancel) then
-                        activeDownInput = nil
-                        mobileFlyDown = false
+                        defaultJumpHeld = false
                     end
 
                     local dir = Vector3.zero
+                    local inputStrength = 0
                     local camLook = c.CFrame.LookVector
                     local camRight = c.CFrame.RightVector
 
-                    -- PC Keyboard controls
-                    if not UIS:GetFocusedTextBox() then
-                        if UIS:IsKeyDown(Enum.KeyCode.W) then dir = dir + camLook end
-                        if UIS:IsKeyDown(Enum.KeyCode.S) then dir = dir - camLook end
-                        if UIS:IsKeyDown(Enum.KeyCode.D) then dir = dir + camRight end
-                        if UIS:IsKeyDown(Enum.KeyCode.A) then dir = dir - camRight end
-                        if UIS:IsKeyDown(Enum.KeyCode.Space) then dir = dir + Vector3.yAxis end
-                        if UIS:IsKeyDown(Enum.KeyCode.LeftControl) or UIS:IsKeyDown(Enum.KeyCode.C) then dir = dir - Vector3.yAxis end
-                    end
-
-                    -- Android / Mobile Virtual Thumbstick (hum.MoveDirection)
-                    if hum.MoveDirection.Magnitude > 0.05 then
+                    -- Default Roblox game controls (Mobile Thumbstick / PC WASD / Gamepad via hum.MoveDirection)
+                    local moveMag = hum.MoveDirection.Magnitude
+                    if moveMag > 0.03 then
                         local flatLook = Vector3.new(camLook.X, 0, camLook.Z)
                         local flatRight = Vector3.new(camRight.X, 0, camRight.Z)
                         flatLook = (flatLook.Magnitude > 0.01) and flatLook.Unit or Vector3.new(0, 0, -1)
@@ -39878,19 +39786,32 @@ end
                         local fDot = hum.MoveDirection:Dot(flatLook)
                         local rDot = hum.MoveDirection:Dot(flatRight)
                         dir = dir + ((camLook * fDot) + (camRight * rDot))
+                        inputStrength = math.clamp(moveMag, 0, 1)
+                    elseif not UIS:GetFocusedTextBox() then
+                        -- Fallback direct WASD if game disables default PlayerModule MoveDirection
+                        if UIS:IsKeyDown(Enum.KeyCode.W) then dir = dir + camLook; inputStrength = 1 end
+                        if UIS:IsKeyDown(Enum.KeyCode.S) then dir = dir - camLook; inputStrength = 1 end
+                        if UIS:IsKeyDown(Enum.KeyCode.D) then dir = dir + camRight; inputStrength = 1 end
+                        if UIS:IsKeyDown(Enum.KeyCode.A) then dir = dir - camRight; inputStrength = 1 end
                     end
 
-                    -- Mobile Touch HUD Buttons (Ascend / Descend)
-                    if mobileFlyUp then dir = dir + Vector3.yAxis end
-                    if mobileFlyDown then dir = dir - Vector3.yAxis end
+                    -- Default Jump button (Mobile JumpButton or PC Space) rises smoothly; Ctrl/C descends on PC
+                    if defaultJumpHeld then
+                        dir = dir + Vector3.yAxis
+                        inputStrength = 1
+                    end
+                    if not UIS:GetFocusedTextBox() then
+                        if UIS:IsKeyDown(Enum.KeyCode.Space) then dir = dir + Vector3.yAxis; inputStrength = 1 end
+                        if UIS:IsKeyDown(Enum.KeyCode.LeftControl) or UIS:IsKeyDown(Enum.KeyCode.C) then dir = dir - Vector3.yAxis; inputStrength = 1 end
+                    end
 
                     local now = tick()
                     local elapsedSinceStart = now - flyStartTime
                     local styleCfg = FLY_STYLES[moveState.flyStyle] or FLY_STYLES[1]
-                    local moving = dir.Magnitude > 0.05
+                    local moving = dir.Magnitude > 0.03
                     local unitDir = moving and dir.Unit or Vector3.zero
                     local flySpeed = (moveState.useCustomFlySpeed ~= false and moveState.flySpeed) or math.max(28, currentSpeed)
-                    local speedNorm = math.clamp(flySpeed / 120, 0.35, 1.4)
+                    local speedNorm = math.clamp((flySpeed * math.max(inputStrength, 0.25)) / 120, 0.35, 1.4)
 
                     -- Check solid ground proximity for dynamic Takeoff / Touchdown Landing transitions
                     local gHit, gNorm, gDist = checkGroundBelow(ch, root, 10)
@@ -39943,23 +39864,23 @@ end
                         end
                     end
 
-                    -- Compute target velocity with closed-loop hover altitude lock (prevents any upward levitation drift)
+                    -- Compute target velocity with analog throttle & framerate-independent exponential smoothing
                     hoverClock = hoverClock + dt
                     local targetVel = Vector3.zero
                     if moving then
-                        targetVel = unitDir * flySpeed
+                        local throttle = math.clamp(inputStrength > 0 and inputStrength or 1, 0.2, 1.0)
+                        targetVel = unitDir * (flySpeed * throttle)
                         -- Prevent burying underground during touchdown
                         if gHit and gDist <= (standH + 0.35) and targetVel.Y < 0 then
                             targetVel = Vector3.new(targetVel.X, 0, targetVel.Z)
                         end
                         hoverAnchorY = root.Position.Y
                     else
-                        -- Closed-loop altitude hold around hoverAnchorY with subtle zero-G breathing bob
-                        local bobOffset = math.sin(hoverClock * styleCfg.hoverFreq) * math.min(styleCfg.hoverAmplitude * 0.25, 0.45)
+                        -- Rock-solid zero-G altitude hold around hoverAnchorY with gentle breathing bob (zero sideways drift)
+                        local bobOffset = math.sin(hoverClock * styleCfg.hoverFreq) * math.min(styleCfg.hoverAmplitude * 0.22, 0.38)
                         local desiredY = hoverAnchorY + bobOffset
-                        local yVel = math.clamp((desiredY - root.Position.Y) * 6.5, -16, 16)
-                        local hoverDriftX = math.cos(hoverClock * (styleCfg.hoverFreq * 0.6)) * 0.25
-                        targetVel = Vector3.new(hoverDriftX, yVel, 0)
+                        local yVel = math.clamp((desiredY - root.Position.Y) * 7.5, -18, 18)
+                        targetVel = Vector3.new(0, yVel, 0)
 
                         if moveState.flyVFX and (now - lastAuraPulse > 1.35) then
                             lastAuraPulse = now
@@ -39967,7 +39888,8 @@ end
                         end
                     end
 
-                    smoothedVel = smoothedVel:Lerp(targetVel, math.clamp(dt * 14, 0.12, 1.0))
+                    local velAlpha = 1 - math.exp(-(moving and 15 or 10) * dt)
+                    smoothedVel = smoothedVel:Lerp(targetVel, velAlpha)
                     bv.Velocity = smoothedVel
 
                     -- Compute 3D Aerodynamic Pitch, Dive & Roll Banking on BodyGyro
@@ -40017,7 +39939,8 @@ end
 
                     local baseYawCF = CFrame.new(root.Position) * CFrame.Angles(0, camYaw, 0)
                     local desiredGyroCF = baseYawCF * CFrame.Angles(targetPitch, 0, targetRoll)
-                    bg.CFrame = bg.CFrame:Lerp(desiredGyroCF, math.clamp(dt * 12, 0.08, 1.0))
+                    local gyroAlpha = 1 - math.exp(-13 * dt)
+                    bg.CFrame = bg.CFrame:Lerp(desiredGyroCF, gyroAlpha)
 
                     -- Switch/maintain replicated Tesla Flight AnimationTracks (Moving: 99148979036185 | Idle: 16 Tesla Presets)
                     pcall(function()
