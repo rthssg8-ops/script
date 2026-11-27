@@ -1603,8 +1603,11 @@ local VoiceTagAnchorCache = {} -- [userId] = { part = BasePart, model = Model, c
 local function resolvePartFromBillboardAdornee(adornee)
     if not adornee or not adornee.Parent then return nil, nil end
     if adornee:IsA("BasePart") then
+        local m = adornee:FindFirstAncestorOfClass("Model")
+        local mh = m and m:FindFirstChildOfClass("Humanoid")
+        if mh and mh.Health <= 0 then return nil, nil end
         if isPartInSafeWorldBounds(adornee) then
-            return adornee, adornee:FindFirstAncestorOfClass("Model")
+            return adornee, m
         end
         return nil, nil
     elseif adornee:IsA("Attachment") then
@@ -1723,13 +1726,16 @@ findPlayerVoiceTagAnchor = function(targetPlr, fallbackChar)
         end
     end
 
-    -- 4. Roblox's default Voice Tag host is ALWAYS Head (never real body HRP/Torso which Limb Remover / Reanim voids)
+    -- 4. Roblox's default Voice Tag host is Head — ONLY if the character is ALIVE (never lock onto a dead corpse!)
     if not foundPart then
         local ch = fallbackChar or targetPlr.Character
         if ch and ch.Parent then
-            local head = ch:FindFirstChild("Head") or ch:FindFirstChild("head", true)
-            if head and head:IsA("BasePart") and isPartInSafeWorldBounds(head) then
-                foundPart, foundModel = head, ch
+            local chHum = ch:FindFirstChildOfClass("Humanoid")
+            if not chHum or chHum.Health > 0 then
+                local head = ch:FindFirstChild("Head") or ch:FindFirstChild("head", true)
+                if head and head:IsA("BasePart") and isPartInSafeWorldBounds(head) and not isPartDetachedOrThrown(head, ch) then
+                    foundPart, foundModel = head, ch
+                end
             end
         end
     end
@@ -1865,16 +1871,33 @@ end
 
 isCharacterNetlessReanimated = function(char)
     if not (char and char.Parent) then return false end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    -- If Humanoid is alive, it's a normal live character (not permadeath netless reanim)
+    if hum and hum.Health > 0 then return false end
+    -- Local player's own reanimation APIs
+    if LP and char == LP.Character then
+        if (_G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated) == "function" and _G._AngoorZenApi.is_reanimated())
+            or (_G.CocaSkyDestroyer and (_G.CocaSkyDestroyer.isAnyActive() or _G.CocaSkyDestroyer.is_reanimated())) then
+            return true
+        end
+    end
+    -- For remote dead characters (Health <= 0): ONLY treat as netless reanim if a body part is actively
+    -- netless-driven (BodyMover/AlignPosition/LinearVelocity or netless velocity Y >= 18), NOT a dead corpse on the floor!
     local cands = {
         char:FindFirstChild("UpperTorso"),
         char:FindFirstChild("Torso"),
-        char:FindFirstChild("Head"),
         char:FindFirstChild("LowerTorso"),
-        char.PrimaryPart,
+        char:FindFirstChild("HumanoidRootPart"),
     }
     for _, part in ipairs(cands) do
-        if part and part:IsA("BasePart") and isRefPartValid(part, char) then
-            return true
+        if part and part:IsA("BasePart") and isPartInSafeWorldBounds(part) then
+            if part:FindFirstChildOfClass("AlignPosition") or part:FindFirstChildOfClass("BodyPosition") or part:FindFirstChildOfClass("LinearVelocity") or part:FindFirstChildOfClass("BodyVelocity") then
+                return true
+            end
+            local okV, vel = pcall(function() return part.AssemblyLinearVelocity end)
+            if okV and vel and vel.Y >= 18 and vel.Y <= 60 and vel.Magnitude <= 120 then
+                return true
+            end
         end
     end
     return false
@@ -2650,6 +2673,10 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
             checkAndHotSwapReanimCharacter()
         end
         if not Root or not Root.Parent then return end
+        -- Never keep locking onto a dead target's corpse inside a room!
+        if TargetHum and TargetHum.Parent and TargetHum.Health <= 0 and not (isCharacterNetlessReanimated and isCharacterNetlessReanimated(TargetChar)) then
+            return
+        end
         local targetPartUnsafe = (not TargetPart or not TargetPart.Parent or not isPartInSafeWorldBounds(TargetPart) or isPartDetachedOrThrown(TargetPart, TargetChar))
         if targetPartUnsafe then
             -- Target threw their Head or limb toward the void! Immediately switch to their safe on-map body/HRP/VoiceTag!
@@ -3008,6 +3035,17 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
                     return
                 end
             else
+                -- Target got killed! Escape the death spot cleanly (never stay stuck inside the room where they died!)
+                local deathPos = (TargetPart and TargetPart.Parent and TargetPart.Position) or (Root and Root.Position)
+                if deathPos and PreSeekSafeCF and typeof(PreSeekSafeCF) == "CFrame" and (PreSeekSafeCF.Position - deathPos).Magnitude < 14 then
+                    -- PreSeekSafeCF was ALSO inside the same room where target died; return to open SpawnLocation instead!
+                    local sp = workspace:FindFirstChildWhichIsA("SpawnLocation", true)
+                    if sp and sp.Parent and isSafePlayableCF(sp.CFrame) then
+                        PreSeekSafeCF = sp.CFrame + Vector3.new(0, 4, 0)
+                        lastSafeCF = PreSeekSafeCF
+                        LastKnownSafeCF = PreSeekSafeCF
+                    end
+                end
                 WeldIntent.waitingForSpawn = true
                 WeldIntent.topStatusText = "target respawning · waiting"
                 WeldIntent.topStatusColor = T.Warning
