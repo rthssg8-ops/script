@@ -773,10 +773,57 @@ do
         end
         if LP then
             LP.CharacterAdded:Connect(function(newChar)
+                -- Immediately clear stale pre-respawn snap caches so Anti-Bring / Anti-Fling NEVER rubberband you back!
+                WeldSeekingTarget = false
+                deflectBusy = false
+                pcall(function() LP.ReplicationFocus = nil end)
+                if moveState then moveState.lastTeleportTick = tick() end
+                if Anti then
+                    if Anti.Bring then
+                        Anti.Bring.lastCF = nil
+                        Anti.Bring.lastChar = newChar
+                    end
+                    if Anti.FlingShield then
+                        Anti.FlingShield.preStepCF = nil
+                        Anti.FlingShield.lastChar = newChar
+                    end
+                end
                 task.spawn(function()
-                    local r = newChar:WaitForChild("HumanoidRootPart", 3)
-                    if r and isSafePlayableCF(r.CFrame) then
-                        LastKnownSafeCF = r.CFrame
+                    local r = newChar:WaitForChild("HumanoidRootPart", 4)
+                    local h = newChar:FindFirstChildOfClass("Humanoid") or newChar:WaitForChild("Humanoid", 4)
+                    if moveState then moveState.lastTeleportTick = tick() end
+                    if r and r.Parent then
+                        if not (OwnerAdminState and OwnerAdminState.isFrozenByOwner) then
+                            for _, bp in ipairs(newChar:GetDescendants()) do
+                                if bp:IsA("BasePart") and bp.Anchored then
+                                    pcall(function() bp.Anchored = false end)
+                                end
+                            end
+                            if sethiddenproperty then
+                                pcall(function() sethiddenproperty(r, "PhysicsRepRootPart", nil) end)
+                                pcall(function() sethiddenproperty(r, "PhysicsRepRootRef", nil) end)
+                            end
+                            pcall(function()
+                                r.AssemblyLinearVelocity = Vector3.zero
+                                r.AssemblyAngularVelocity = Vector3.zero
+                            end)
+                        end
+                        if isSafePlayableCF(r.CFrame) then
+                            LastKnownSafeCF = r.CFrame
+                            if Anti and Anti.Bring then Anti.Bring.lastCF = r.CFrame; Anti.Bring.lastChar = newChar end
+                            if Anti and Anti.FlingShield then Anti.FlingShield.preStepCF = r.CFrame; Anti.FlingShield.lastChar = newChar end
+                        end
+                    end
+                    if h and h.Parent and not (OwnerAdminState and OwnerAdminState.isFrozenByOwner) then
+                        pcall(function()
+                            h.PlatformStand = false
+                            h.Sit = false
+                            h.AutoRotate = true
+                            if h.Health > 0 then
+                                h:ChangeState(Enum.HumanoidStateType.GettingUp)
+                                h:ChangeState(Enum.HumanoidStateType.Running)
+                            end
+                        end)
                     end
                 end)
             end)
@@ -1325,6 +1372,28 @@ safeReturnFromVoid = function(char, preferredCF)
         or ((root and isSafePlayableCF(root.CFrame)) and root.CFrame or findFallbackSafeCF())
     local pos = resolvedCF.Position
     local _, yYaw, _ = resolvedCF:ToEulerAnglesYXZ()
+    -- Anti-stuck geometry clearance: if destination is embedded inside a solid wall/floor/ceiling, nudge upward cleanly
+    pcall(function()
+        local ovParams = OverlapParams.new()
+        ovParams.FilterType = Enum.RaycastFilterType.Exclude
+        ovParams.FilterDescendantsInstances = { char }
+        local probePos = pos + Vector3.new(0, 1.2, 0)
+        for attempt = 1, 4 do
+            local hits = workspace:GetPartBoundsInBox(CFrame.new(probePos), Vector3.new(1.8, 3.2, 1.8), ovParams)
+            local blocked = false
+            for _, hp in ipairs(hits) do
+                if hp and hp:IsA("BasePart") and hp.CanCollide and not hp:IsDescendantOf(char) then
+                    blocked = true
+                    break
+                end
+            end
+            if not blocked then
+                pos = probePos - Vector3.new(0, 1.2, 0)
+                break
+            end
+            probePos = probePos + Vector3.new(0, 3.2, 0)
+        end
+    end)
     local cleanCF = CFrame.new(pos + Vector3.new(0, 1.2, 0)) * CFrame.Angles(0, yYaw, 0)
 
     recoverCharacterState(char, cleanCF)
@@ -1334,10 +1403,10 @@ safeReturnFromVoid = function(char, preferredCF)
     local myRescueGen = RescueGeneration
 
     task.spawn(function()
-        pcall(function()
+        local okRescue = pcall(function()
             root.Anchored = true
             for _ = 1, 4 do
-                if not root.Parent or myRescueGen ~= RescueGeneration or CurrentWeld ~= nil or WeldSeekingTarget or FlingActive or _G.CocaBangActive or _G.CocaCopierActive or (AnimCopySys and AnimCopySys.active) then
+                if not root.Parent or char ~= LP.Character or myRescueGen ~= RescueGeneration or CurrentWeld ~= nil or WeldSeekingTarget or FlingActive or _G.CocaBangActive or _G.CocaCopierActive or (AnimCopySys and AnimCopySys.active) then
                     break
                 end
                 root.AssemblyLinearVelocity = Vector3.zero
@@ -1369,6 +1438,10 @@ safeReturnFromVoid = function(char, preferredCF)
                 end
             end
         end)
+        -- Guaranteed unanchor failsafe so root is NEVER left anchored if rescue aborted or threw!
+        if root and root.Parent and not (OwnerAdminState and OwnerAdminState.isFrozenByOwner) then
+            pcall(function() root.Anchored = false end)
+        end
         local reanimStillOn = (_G.CocaSkyDestroyer and (_G.CocaSkyDestroyer.isAnyActive() or _G.CocaSkyDestroyer.is_reanimated()))
             or (_G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated) == "function" and _G._AngoorZenApi.is_reanimated())
         if not reanimStillOn and not (Anti and Anti.Void and Anti.Void.enabled) and not (Anti and Anti.Kill and Anti.Kill.enabled) and not WeldIntent.active and CurrentWeld == nil and not WeldSeekingTarget and not FlingActive then
@@ -2813,9 +2886,10 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
         end
         if not skipReturn then
             LastVoidActionEnd = tick()
-            safeReturnFromVoid(Character, lastSafeCF)
+            local returnCF = (PreSeekSafeCF and typeof(PreSeekSafeCF) == "CFrame" and isSafePlayableCF(PreSeekSafeCF)) and PreSeekSafeCF or lastSafeCF
+            safeReturnFromVoid(Character, returnCF)
             if LP.Character and LP.Character ~= Character then
-                safeReturnFromVoid(LP.Character, lastSafeCF)
+                safeReturnFromVoid(LP.Character, returnCF)
             end
         end
     end
@@ -8691,7 +8765,8 @@ Anti = {
     VCV2        = { enabled = false, running = false, muted = true, statusText = "Status: Ready (V2)", rowSubLbl = nil, startFn = nil, stopFn = nil, toggleMuteFn = nil },
     Redirect    = { enabled = false },
     PauseTrap   = { enabled = false },
-    FlingShield = { enabled = false, steppedConn = nil, heartbeatConn = nil, preStepCF = nil, blockedFlings = 0 },
+    FlingShield = { enabled = false, autoDeflect = true, steppedConn = nil, heartbeatConn = nil, preStepCF = nil, blockedFlings = 0, deflectedFlings = 0 },
+    Bang        = { enabled = false, autoDeflect = true, blockedBangs = 0, deflectedBangs = 0 },
     -- ADVANCED MULTI-LAYER ANTI-SYSTEMS V3:
     Ragdoll     = { enabled = false, steppedConn = nil, stateConn = nil, descConn = nil, charAdded = nil, recoveries = 0 },
     Anchor      = { enabled = false, steppedConn = nil, descConn = nil, charAdded = nil, partConns = setmetatable({}, {__mode = "k"}), purgedMovers = 0 },
@@ -9200,7 +9275,7 @@ end
 -- ═══════════════════════════════════════════════════════════════════════════════
 local avStart, avStop, akStart, akStop, agpStart, agpStop, afkStart, afkStop, vcStart, vcStop
 local ragdollStart, ragdollStop, anchorStart, anchorStop, attachStart, attachStop, blindStart, blindStop
-local bringStart, bringStop, flingShieldStart, flingShieldStop, redirectStart, redirectStop, pauseTrapStart, pauseTrapStop
+local bringStart, bringStop, flingShieldStart, flingShieldStop, antiBangStart, antiBangStop, redirectStart, redirectStop, pauseTrapStart, pauseTrapStop
 local defenceTrollStart, defenceTrollStop, enableAllAntiSystems, disableAllAntiSystems
 ;(function() -- Scoped block for internal Anti helper functions (frees 35+ top-level local registers)
 -- 1. ADVANCED ANTI-VOID V4 (Zero-Levitation Predictive Void Catch + Undying State Guard)
@@ -11203,6 +11278,13 @@ bringStart = function()
         local hum = ch and ch:FindFirstChildOfClass("Humanoid")
         if not r or not hum or hum.Health <= 0 then return end
 
+        -- Reset cached position on character respawn so Anti-Bring NEVER snaps you back to where you died!
+        if Anti.Bring.lastChar ~= ch then
+            Anti.Bring.lastChar = ch
+            Anti.Bring.lastCF = isSafePlayableCF(r.CFrame) and r.CFrame or nil
+            return
+        end
+
         if Anti.Bring.lastCF then
             local lastPos = Anti.Bring.lastCF.Position
             local curPos = r.Position
@@ -11309,6 +11391,11 @@ flingShieldStart = function()
         local myChar = LP.Character
         local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
         if not myRoot then return end
+        if Anti.FlingShield.lastChar ~= myChar then
+            Anti.FlingShield.lastChar = myChar
+            Anti.FlingShield.preStepCF = isSafePlayableCF(myRoot.CFrame) and myRoot.CFrame or nil
+            return
+        end
         if WeldIntent.active or CurrentWeld ~= nil or WeldSeekingTarget or (AnimCopySys and AnimCopySys.active) or (moveState and moveState.Vanish and moveState.Vanish.selfActive) or _G.CocaBangActive or _G.CocaCopierActive or (OwnerAdminState and OwnerAdminState.formationMode) or (_G.CocaSkyDestroyer and (_G.CocaSkyDestroyer.isAnyActive() or _G.CocaSkyDestroyer.is_reanimated())) or (_G._AngoorZenApi and type(_G._AngoorZenApi.is_reanimated) == "function" and _G._AngoorZenApi.is_reanimated()) or FlingActive or deflectBusy or (RewindSys and RewindSys.rewinding) then
             if isSafePlayableCF(myRoot.CFrame) then
                 Anti.FlingShield.preStepCF = myRoot.CFrame
@@ -11318,20 +11405,27 @@ flingShieldStart = function()
 
         dampHostileFlingImpulse(myChar, myRoot)
 
-        -- Proactive Fling Collision Nullifier: only strips collisions on genuinely hostile spinners (>85 vel / >45 rot)
-        -- and NEVER mutates Massless or strips ground collisions on normal/target players!
+        -- Proactive Fling & Bang Collision Nullifier: strips CanCollide + CanTouch on hostile spinners/flingers/bangers
+        -- (catches WalkFling, TouchFling, Reanim-Fling & CFrame-snap spinners) without affecting normal/target players!
         local nowTick = os.clock()
-        if nowTick - (Anti.FlingShield.lastNullifyScan or 0) > 0.15 then
+        if nowTick - (Anti.FlingShield.lastNullifyScan or 0) > 0.08 then
             Anti.FlingShield.lastNullifyScan = nowTick
             for _, otherPlr in ipairs(Players:GetPlayers()) do
                 if otherPlr ~= LP and otherPlr ~= selectedPlayer and otherPlr ~= CurrentTarget and otherPlr ~= (WeldIntent and WeldIntent.target) and otherPlr.Character then
-                    local otherRoot = otherPlr.Character:FindFirstChild("HumanoidRootPart")
-                    if otherRoot and (otherRoot.Position - myRoot.Position).Magnitude < 28 then
-                        local isHostileSpinner = (otherRoot.AssemblyLinearVelocity.Magnitude > 85 or otherRoot.AssemblyAngularVelocity.Magnitude > 45)
-                        if isHostileSpinner then
-                            for _, p in ipairs(otherPlr.Character:GetChildren()) do
-                                if p:IsA("BasePart") and p.CanCollide then
-                                    p.CanCollide = false
+                    local otherRoot = otherPlr.Character:FindFirstChild("HumanoidRootPart") or otherPlr.Character:FindFirstChild("UpperTorso") or otherPlr.Character:FindFirstChild("Torso")
+                    if otherRoot then
+                        local d = (otherRoot.Position - myRoot.Position).Magnitude
+                        if d < 28 then
+                            local vMag = otherRoot.AssemblyLinearVelocity.Magnitude
+                            local aMag = otherRoot.AssemblyAngularVelocity.Magnitude
+                            local isHostileSpinner = (vMag > 75 or aMag > 32) or (d < 9 and (vMag > 52 or aMag > 22))
+                            local isCloseBanger = Anti.Bang.enabled and (d < 5.0)
+                            if isHostileSpinner or isCloseBanger then
+                                for _, p in ipairs(otherPlr.Character:GetChildren()) do
+                                    if p:IsA("BasePart") then
+                                        if p.CanCollide then p.CanCollide = false end
+                                        if isHostileSpinner and p.CanTouch then p.CanTouch = false end
+                                    end
                                 end
                             end
                         end
@@ -11574,10 +11668,41 @@ local function executeDeflectAction(attacker, threatReason)
     if updateDefenceStatsUI then pcall(updateDefenceStatsUI) end
 end
 
--- Omni-Threat Radar: Detects Spinners, Weld/Backshot/Facebang Trolls, High-Speed Rams & Hostile Joints (throttled to 20Hz)
+-- Known Bang / Facebang / Backshots / Jerk / Poop Troll Animation IDs for Anti-Bang detection
+local KNOWN_BANG_ANIM_IDS = {
+    ["148840371"] = true, ["5918726674"] = true, ["116235062592344"] = true,
+    ["128342454196913"] = true, ["4555808220"] = true, ["109168916859109"] = true,
+    ["85194549268064"] = true, ["72042024"] = true, ["136828069054505"] = true,
+    ["110110691026962"] = true, ["124127012123232"] = true, ["178130996"] = true,
+}
+local bangTrackState = {} -- [userId] = { lastDist, lastDir, flips, flipResetAt, glueTime, lastRelVec }
+
+local function isPlayingBangAnim(hum)
+    if not hum then return false end
+    local animator = hum:FindFirstChildOfClass("Animator")
+    if not animator then return false end
+    local ok, tracks = pcall(function() return animator:GetPlayingAnimationTracks() end)
+    if not ok or not tracks then return false end
+    for i = 1, #tracks do
+        local tr = tracks[i]
+        local aObj = tr and tr.Animation
+        local aId = aObj and tostring(aObj.AnimationId or "")
+        if aId and aId ~= "" then
+            local numId = aId:match("(%d+)")
+            if numId and KNOWN_BANG_ANIM_IDS[numId] then
+                return true
+            end
+        end
+    end
+    return false
+end
+
+-- Omni-Threat Radar V3: Detects Flingers (Spinners/WalkFling/TouchFling) AND Bang/Facebang/Backshots/Headsit/CFrame-Weld Trolls -> Instant Deflect!
 local lastRadarTick = 0
 RunService.Heartbeat:Connect(function(dt)
-    if not DefenceTroll.enabled and not Anti.Redirect.enabled and not Anti.PauseTrap.enabled then
+    local antiFlingDeflectOn = Anti.FlingShield.enabled and (Anti.FlingShield.autoDeflect ~= false)
+    local antiBangOn = Anti.Bang.enabled
+    if not DefenceTroll.enabled and not Anti.Redirect.enabled and not Anti.PauseTrap.enabled and not antiFlingDeflectOn and not antiBangOn then
         return
     end
     local nowClock = os.clock()
@@ -11588,7 +11713,7 @@ RunService.Heartbeat:Connect(function(dt)
     if WeldIntent.active or CurrentWeld ~= nil or (AnimCopySys and AnimCopySys.active) or _G.CocaBangActive or (EmoteHub and EmoteHub.jerkActive) or (_G.CocaSkyDestroyer and _G.CocaSkyDestroyer.isAnyActive()) or FlingActive or deflectBusy or (tick() - (moveState.lastTeleportTick or 0) < 1.2) then
         for _, p in ipairs(Players:GetPlayers()) do
             if p ~= LP and p.Character then
-                local tr = pickTargetRef(p.Character, "torso")
+                local tr = pickTargetRef(p.Character, "torso", p)
                 if tr then attackerLastPos[p.UserId] = tr.Position end
             end
         end
@@ -11597,19 +11722,23 @@ RunService.Heartbeat:Connect(function(dt)
 
     local myChar = LP.Character
     local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+    local myHead = myChar and myChar:FindFirstChild("Head")
     local myHum  = myChar and myChar:FindFirstChildOfClass("Humanoid")
     if not myRoot or not myHum or myHum.Health <= 0 then return end
 
-    local baseRange = DefenceTroll.enabled and (DefenceTroll.range or 7.5) or 6.5
+    local baseRange = DefenceTroll.enabled and (DefenceTroll.range or 7.5) or 7.0
+    local mySpeed = myRoot.AssemblyLinearVelocity.Magnitude
     local now = tick()
 
     for _, p in ipairs(Players:GetPlayers()) do
         local isFriendlyTarget = (p == selectedPlayer) or (p == CurrentTarget) or (p == WeldIntent.target) or (AnimCopySys and p == AnimCopySys.target) or (OwnerAdminState.isPlayerCarriedOrInteracting and OwnerAdminState.isPlayerCarriedOrInteracting(p, LP))
         if p ~= LP and not isFriendlyTarget and p.Character and not isProtectedFromLocalPlayer(p) then
-            local tRoot = pickTargetRef(p.Character, "torso")
+            local tRoot = pickTargetRef(p.Character, "torso", p)
             local tHum  = p.Character:FindFirstChildOfClass("Humanoid")
             if tRoot and (not tHum or tHum.Health > 0) then
-                local dist = (tRoot.Position - myRoot.Position).Magnitude
+                local distRoot = (tRoot.Position - myRoot.Position).Magnitude
+                local distHead = myHead and (tRoot.Position - myHead.Position).Magnitude or distRoot
+                local dist = math.min(distRoot, distHead)
                 local vel = tRoot.AssemblyLinearVelocity
                 local velMag = vel.Magnitude
                 local angMag = tRoot.AssemblyAngularVelocity.Magnitude
@@ -11621,20 +11750,91 @@ RunService.Heartbeat:Connect(function(dt)
                 attackerLastPos[p.UserId] = tRoot.Position
                 local stepDelta = prevPos and (tRoot.Position - prevPos).Magnitude or 0
 
-                local isSpinnerThreat = (velMag > 135 or angMag > 58) and dist <= (baseRange * 1.8) and closingSpeed > 25
+                -- 1. Anti-Fling Threat Detection (Spinners, WalkFling, TouchFling, Reanim-Fling — even if spinning in place on top of you!)
+                local isSpinnerThreat = (
+                    ((velMag > 110 or angMag > 42) and dist <= (baseRange * 1.8) and (closingSpeed > 15 or dist <= 9.5))
+                    or ((velMag > 72 or angMag > 28) and dist <= 6.0)
+                )
+
+                -- 2. Anti-Bang / Facebang / Backshots / Headsit / CFrame-Weld Detection
+                local isBangThreat = false
+                local bangReason = "Anti-Bang Deflect"
+                if dist <= 4.8 and (antiBangOn or DefenceTroll.enabled or Anti.Redirect.enabled or Anti.PauseTrap.enabled) then
+                    local st = bangTrackState[p.UserId]
+                    if not st then
+                        st = { lastDist = dist, lastDir = 0, flips = 0, flipResetAt = now, glueTime = 0, lastRelVec = tRoot.Position - myRoot.Position }
+                        bangTrackState[p.UserId] = st
+                    end
+                    -- Signal A: Playing known Bang / Facebang / Jerk / Poop animation right on top of us
+                    if dist <= 4.4 and isPlayingBangAnim(tHum) then
+                        isBangThreat = true
+                        bangReason = "Bang/Troll Anim"
+                    end
+                    -- Signal B: Rapid inward/outward oscillation (classic bang/facebang/backshots CFrame thrust!)
+                    local dDelta = dist - (st.lastDist or dist)
+                    if math.abs(dDelta) >= 0.14 then
+                        local dir = (dDelta > 0) and 1 or -1
+                        if st.lastDir ~= 0 and dir ~= st.lastDir then
+                            if (now - st.flipResetAt) > 1.1 then
+                                st.flips = 1
+                                st.flipResetAt = now
+                            else
+                                st.flips = st.flips + 1
+                            end
+                        end
+                        st.lastDir = dir
+                    end
+                    st.lastDist = dist
+                    if st.flips >= 3 and (now - st.flipResetAt) <= 1.1 then
+                        isBangThreat = true
+                        bangReason = "Bang Oscillation"
+                    end
+                    -- Signal C: Glued / CFrame-welded to our Head or Back (PlatformStand/Physics or matching our movement 1:1)
+                    local relVec = tRoot.Position - myRoot.Position
+                    local relDrift = st.lastRelVec and (relVec - st.lastRelVec).Magnitude or 99
+                    st.lastRelVec = relVec
+                    local okSt, humSt = pcall(function() return tHum and tHum:GetState() end)
+                    local isPhysLock = tHum and (tHum.PlatformStand or (okSt and humSt == Enum.HumanoidStateType.Physics))
+                    if dist <= 3.8 and (isPhysLock or (mySpeed > 4.5 and relDrift < 0.85)) then
+                        st.glueTime = st.glueTime + dt
+                        if st.glueTime >= 0.22 then
+                            isBangThreat = true
+                            bangReason = isPhysLock and "Weld/Bang Lock" or "CFrame Weld Lock"
+                        end
+                    else
+                        st.glueTime = math.max(0, st.glueTime - dt * 2)
+                    end
+                elseif bangTrackState[p.UserId] then
+                    bangTrackState[p.UserId].flips = 0
+                    bangTrackState[p.UserId].glueTime = 0
+                end
+
                 local isWeldTrollState = dist <= 3.6 and (
                     (tHum and (tHum.PlatformStand or tHum:GetState() == Enum.HumanoidStateType.Physics))
                     and (closingSpeed > 18 or stepDelta > 2.2)
                 )
 
-                if isSpinnerThreat or isWeldTrollState then
-                    local weight = isSpinnerThreat and 5.0 or 3.8
-                    local reason = isSpinnerThreat and "Fling Spinner" or "Weld/Troll Lock"
+                local shouldDeflectFling = isSpinnerThreat and (antiFlingDeflectOn or DefenceTroll.enabled or Anti.Redirect.enabled or Anti.PauseTrap.enabled)
+                local shouldDeflectBang  = (isBangThreat or isWeldTrollState) and (antiBangOn or DefenceTroll.enabled or Anti.Redirect.enabled or Anti.PauseTrap.enabled)
+
+                if shouldDeflectFling or shouldDeflectBang then
+                    local weight = shouldDeflectFling and 6.0 or 5.0
+                    local reason = shouldDeflectFling and "Anti-Fling Deflect" or (isBangThreat and bangReason or "Weld/Troll Lock")
                     contactTimers[p.UserId] = (contactTimers[p.UserId] or 0) + dt * weight
                     local lastCd = deflectCooldowns[p.UserId] or 0
-                    if (contactTimers[p.UserId] >= 0.10 or isSpinnerThreat) and (now - lastCd) > 0.65 then
+                    if (contactTimers[p.UserId] >= 0.08 or shouldDeflectFling or isBangThreat) and (now - lastCd) > 0.70 then
                         deflectCooldowns[p.UserId] = now
                         contactTimers[p.UserId] = 0
+                        if bangTrackState[p.UserId] then
+                            bangTrackState[p.UserId].flips = 0
+                            bangTrackState[p.UserId].glueTime = 0
+                        end
+                        if shouldDeflectBang then
+                            Anti.Bang.blockedBangs = (Anti.Bang.blockedBangs or 0) + 1
+                            Anti.Bang.deflectedBangs = (Anti.Bang.deflectedBangs or 0) + 1
+                        else
+                            Anti.FlingShield.deflectedFlings = (Anti.FlingShield.deflectedFlings or 0) + 1
+                        end
                         task.spawn(function() executeDeflectAction(p, reason) end)
                         break
                     end
@@ -11689,6 +11889,30 @@ defenceTrollStop = function()
     if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
     if syncAllAntiButtons then pcall(syncAllAntiButtons) end
     notify("COCO POWDER", "Defence Troll Matrix OFF")
+    sToggleOff()
+end
+
+antiBangStart = function(silent)
+    if Anti.Bang.enabled then return end
+    Anti.Bang.enabled = true
+    if not Anti.FlingShield.enabled then
+        flingShieldStart()
+    end
+    if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
+    if syncAllAntiButtons then pcall(syncAllAntiButtons) end
+    if not silent then
+        notify("COCO POWDER", "🛡️ Anti-Bang & Weld Deflect ON (auto-deflects Bang/Facebang/Backshots trolls!)")
+        sToggleOn()
+    end
+end
+
+antiBangStop = function()
+    if not Anti.Bang.enabled then return end
+    Anti.Bang.enabled = false
+    table.clear(bangTrackState)
+    if syncAllActiveIndicators then pcall(syncAllActiveIndicators) end
+    if syncAllAntiButtons then pcall(syncAllAntiButtons) end
+    notify("COCO POWDER", "Anti-Bang & Weld Deflect disabled")
     sToggleOff()
 end
 
@@ -11941,6 +12165,7 @@ enableAllAntiSystems = function()
     avStart()
     akStart()
     flingShieldStart()
+    antiBangStart(true)
     ragdollStart()
     anchorStart()
     attachStart()
@@ -11968,6 +12193,7 @@ disableAllAntiSystems = function()
     end
     akStop()
     flingShieldStop()
+    antiBangStop()
     ragdollStop()
     anchorStop()
     attachStop()
@@ -59688,7 +59914,8 @@ end
             table.insert(antiToggleRegistry, { sw = sw, getState = getState })
         end
 
-        registerAntiSwitch(shieldGrp, 1,  "Anti-Fling v3 (Zero-Impulse)",    "Pre/post-physics velocity clamp + spinner collision nullifier", function() return Anti.FlingShield.enabled end, flingShieldStart, flingShieldStop)
+        registerAntiSwitch(shieldGrp, 1,  "Anti-Fling v4 + Auto-Deflect",    "Zero-impulse clamp + WalkFling/TouchFling nullifier & counter-deflect", function() return Anti.FlingShield.enabled end, flingShieldStart, flingShieldStop)
+        registerAntiSwitch(shieldGrp, 1,  "Anti-Bang & Weld Deflect",        "Detects Bang/Facebang/Backshots/Weld trolls & auto-deflects them",     function() return Anti.Bang.enabled end, antiBangStart, antiBangStop)
         registerAntiSwitch(shieldGrp, 2,  "Anti-Void v3 (Predictive Catch)", "Velocity trajectory catch + ForceField safety floor",          function() return Anti.Void.enabled end, avStart, avStop)
         registerAntiSwitch(shieldGrp, 3,  "Immortal God-Core v4 (Anti-Kill)", "Undying health + Neck/Motor6D resurrection + KillBrick & blast immunity", function() return Anti.Kill.enabled end, akStart, akStop)
         registerAntiSwitch(shieldGrp, 4,  "Anti-Seat & Couch-Kidnap",        "Disables Seats/VehicleSeats & blocks couch/cart void traps",   function() return Anti.SeatTrap.enabled end, function() Anti.SeatTrap.startFn() end, function() Anti.SeatTrap.stopFn() end)
