@@ -252,7 +252,7 @@ local function isR15(player)
     return hum ~= nil and hum.RigType == Enum.HumanoidRigType.R15
 end
 
-local V = { X = 0, Y = 0, Z = 1.3, RX = 0, RY = 0, RZ = 0, Speed = 1.0, AutoHeight = true, LastAutoY = 0, SideMode = "auto", DistAdd = 0, Spin = false }
+local V = { X = 0, Y = 0, Z = 1.3, RX = 0, RY = 0, RZ = 0, Speed = 1.0, AutoHeight = true, LastAutoY = 0, SideMode = "auto", DistAdd = 0, Spin = false, ConnectMode = "body" }
 
 local CurrentWeld         = nil
 local CurrentTarget       = nil
@@ -1472,6 +1472,55 @@ local function isPartInSafeWorldBounds(p)
     return true, pos
 end
 
+-- Detects when a target using Reanim / Limb Remover throws their Head (or a limb) off their body toward the void!
+-- Catches detached/falling Heads on Frame 0 (before they ever hit FallenPartsDestroyHeight) so you stay locked
+-- right where the player is standing on the map instead of getting teleported into the void with their Head!
+local function isPartDetachedOrThrown(part, char)
+    if not (part and part.Parent and part:IsA("BasePart")) then return true end
+    local okB, pos = isPartInSafeWorldBounds(part)
+    if not okB or not pos then return true end
+    local okV, vel = pcall(function() return part.AssemblyLinearVelocity end)
+    local m = char or part:FindFirstAncestorOfClass("Model")
+    if m and part.Name ~= "HumanoidRootPart" then
+        local hrp = m:FindFirstChild("HumanoidRootPart")
+        local torso = m:FindFirstChild("UpperTorso") or m:FindFirstChild("Torso") or m:FindFirstChild("LowerTorso")
+        local bodyAnchor = nil
+        local bodyPos = nil
+        if hrp and hrp ~= part then
+            local okH, hPos = isPartInSafeWorldBounds(hrp)
+            if okH and hPos then
+                local okHV, hVel = pcall(function() return hrp.AssemblyLinearVelocity end)
+                if not (okHV and hVel and (hVel.Y < -85 or hVel.Magnitude > 220)) then
+                    bodyAnchor, bodyPos = hrp, hPos
+                end
+            end
+        end
+        if not bodyAnchor and torso and torso ~= part then
+            local okT, tPos = isPartInSafeWorldBounds(torso)
+            if okT and tPos then
+                local okTV, tVel = pcall(function() return torso.AssemblyLinearVelocity end)
+                if not (okTV and tVel and (tVel.Y < -85 or tVel.Magnitude > 220)) then
+                    bodyAnchor, bodyPos = torso, tPos
+                end
+            end
+        end
+        if bodyAnchor and bodyPos then
+            -- If Head/limb separated >5.5 studs from the player's safe body, or dropped below their body, it was thrown/removed!
+            if (pos - bodyPos).Magnitude > 5.5 then
+                return true
+            end
+            if part.Name == "Head" and pos.Y < (bodyPos.Y - 3.0) then
+                return true
+            end
+        end
+        -- Also reject a Head/limb plunging downward fast even if HRP is already missing
+        if okV and vel and (vel.Y < -85 or vel.Magnitude > 260) then
+            return true
+        end
+    end
+    return false
+end
+
 -- 🎙️ VOICE TAG ANCHOR RESOLVER (Reanim & Limb-Remover Void-Proof!)
 -- Locates the EXACT BasePart where the target player's Roblox Voice Chat tag (BillboardGui / AudioEmitter)
 -- is visibly rendered — NOT their real body (HumanoidRootPart / Torso / limbs), which Reanimation or
@@ -1635,24 +1684,44 @@ findPlayerVoiceTagAnchor = function(targetPlr, fallbackChar)
     return nil, nil
 end
 
--- Compensate vertical height cleanly when a torso/root preset attaches to Head (where Voice Tag is visible)
+-- Compensate vertical height cleanly so:
+--   1. Head presets (facebang, headsit, goon, poop) ALWAYS stay at exact Head height even if anchored to HRP/Torso/VoiceTag
+--   2. Torso presets stay at exact Torso/Pelvis height when anchored to Head (Voice Tag)
 getVoiceTagHeightDropY = function(targetPart, targetChar, refMode, presetKey)
     if not targetPart or not targetPart:IsA("BasePart") then return 0 end
-    if refMode == "head" or presetKey == "rizz" or presetKey == "goon" or presetKey == "poop" or presetKey == "facebang" or presetKey == "headsit" then
+    if presetKey == "rizz" or presetKey == "goon" or presetKey == "poop" then
         return 0
     end
-    if targetPart.Name == "Head" then
-        local scaleY = 1.0
-        local hum = targetChar and targetChar:FindFirstChildOfClass("Humanoid")
-        if hum then
-            local bhs = hum:FindFirstChild("BodyHeightScale")
-            if bhs and bhs:IsA("NumberValue") and bhs.Value > 0.2 and bhs.Value < 4.5 then
-                scaleY = bhs.Value
-            end
+    local scaleY = 1.0
+    local hum = targetChar and targetChar:FindFirstChildOfClass("Humanoid")
+    if hum then
+        local bhs = hum:FindFirstChild("BodyHeightScale")
+        if bhs and bhs:IsA("NumberValue") and bhs.Value > 0.2 and bhs.Value < 4.5 then
+            scaleY = bhs.Value
         end
-        if scaleY == 1.0 and targetPart.Size.Y > 0.25 and targetPart.Size.Y < 4.0 then
+    end
+    if scaleY == 1.0 then
+        local hd = targetChar and targetChar:FindFirstChild("Head")
+        if hd and hd:IsA("BasePart") and hd.Size.Y > 0.25 and hd.Size.Y < 4.0 then
+            scaleY = hd.Size.Y
+        elseif targetPart.Name == "Head" and targetPart.Size.Y > 0.25 and targetPart.Size.Y < 4.0 then
             scaleY = targetPart.Size.Y
         end
+    end
+    local isHeadPreset = (refMode == "head" or presetKey == "facebang" or presetKey == "headsit")
+    if isHeadPreset then
+        if targetPart.Name == "Head" then
+            return 0
+        elseif targetPart.Name == "UpperTorso" then
+            return 1.05 * scaleY
+        elseif targetPart.Name == "LowerTorso" then
+            return 1.95 * scaleY
+        else
+            -- HumanoidRootPart / Torso / generic Voice Tag anchor: lift up to exact Head level!
+            return 1.5 * scaleY
+        end
+    end
+    if targetPart.Name == "Head" then
         return -1.5 * scaleY
     end
     return 0
@@ -1708,10 +1777,13 @@ isRefPartValid = function(part, char, targetPlr)
             end
         end
     end
+    if isPartDetachedOrThrown(part, char) then
+        return false
+    end
     if char and part.Name == "HumanoidRootPart" then
-        local headOrUpper = char:FindFirstChild("Head") or char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso")
+        local headOrUpper = char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso") or char:FindFirstChild("Head")
         local okUpper, upperPos = isPartInSafeWorldBounds(headOrUpper)
-        if okUpper and (pos - upperPos).Magnitude > 6.0 then
+        if okUpper and not isPartDetachedOrThrown(headOrUpper, char) and (pos - upperPos).Magnitude > 6.0 then
             return false
         end
     end
@@ -2494,48 +2566,73 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
         return false
     end
 
-    -- Zero-Delay CFrame + Voice-Tag Anchor + Void-Proof PhysicsRepRootPart Lock
+    -- Track the last verified on-map anchor CFrame of the target so if they throw their Head/body into the void,
+    -- we stay connected RIGHT THERE on the map instead of ever being dragged into the void!
+    local lastTargetSafeAnchorCF = (TargetPart and TargetPart.Parent and isPartInSafeWorldBounds(TargetPart) and not isPartDetachedOrThrown(TargetPart, TargetChar)) and TargetPart.CFrame or nil
+
+    -- Zero-Delay CFrame + Anti-Head-Void-Throw + Voice-Tag Anchor + Void-Proof PhysicsRepRootPart Lock
     local function stepExactOyeeHoyeWeld()
         if Weld.destroyed then return end
         if Character ~= LP.Character then
             checkAndHotSwapReanimCharacter()
         end
         if not Root or not Root.Parent then return end
-        if not TargetPart or not TargetPart.Parent or not isPartInSafeWorldBounds(TargetPart) then
-            -- Immediately try to hot-swap to the player's visible Voice Tag anchor before skipping frame!
-            if TargetPlayer then
+        local targetPartUnsafe = (not TargetPart or not TargetPart.Parent or not isPartInSafeWorldBounds(TargetPart) or isPartDetachedOrThrown(TargetPart, TargetChar))
+        if targetPartUnsafe then
+            -- Target threw their Head or limb toward the void! Immediately switch to their safe on-map body/HRP/VoiceTag!
+            local rescued = nil
+            if TargetChar and TargetChar.Parent then
+                rescued = pickTargetRef(TargetChar, RefMode or "torso", TargetPlayer)
+                if rescued and (rescued == TargetPart or isPartDetachedOrThrown(rescued, TargetChar)) then
+                    rescued = nil
+                end
+            end
+            if not rescued and TargetPlayer then
                 local vPart, vModel = findPlayerVoiceTagAnchor(TargetPlayer, TargetChar)
-                if vPart and vPart.Parent and isPartInSafeWorldBounds(vPart) then
-                    TargetPart = vPart
+                if vPart and vPart.Parent and isPartInSafeWorldBounds(vPart) and not isPartDetachedOrThrown(vPart, vModel or TargetChar) then
+                    rescued = vPart
                     if vModel and vModel.Parent then
                         TargetChar = vModel
                         TargetHum = vModel:FindFirstChildOfClass("Humanoid")
                     end
-                else
-                    -- Never follow a voided/limb-removed real body into the void; hold safely!
-                    if sethiddenproperty then
-                        pcall(function() sethiddenproperty(Root, "PhysicsRepRootPart", nil) end)
-                        pcall(function() sethiddenproperty(Root, "PhysicsRepRootRef", nil) end)
-                    end
-                    if lastSafeCF and isSafePlayableCF(lastSafeCF) then
+                end
+            end
+            if rescued and rescued.Parent and isPartInSafeWorldBounds(rescued) then
+                TargetPart = rescued
+                cachedRizzChar = nil
+            else
+                -- All target parts are momentarily in void/thrown: STAY CONNECTED RIGHT THERE at lastTargetSafeAnchorCF!
+                if sethiddenproperty then
+                    pcall(function() sethiddenproperty(Root, "PhysicsRepRootPart", nil) end)
+                    pcall(function() sethiddenproperty(Root, "PhysicsRepRootRef", nil) end)
+                end
+                local holdAnchor = (lastTargetSafeAnchorCF and isSafePlayableCF(lastTargetSafeAnchorCF)) and lastTargetSafeAnchorCF
+                    or (lastSafeCF and isSafePlayableCF(lastSafeCF) and lastSafeCF)
+                if holdAnchor then
+                    local holdCF = getFlatYawCFrame(holdAnchor, holdAnchor.Position) * Offset * getStaticPresetAdjust()
+                    if not isLethalVoidCF(holdCF) then
+                        Root.Anchored = false
+                        Root.CFrame = holdCF
                         Root.AssemblyLinearVelocity = Vector3.zero
                         Root.AssemblyAngularVelocity = Vector3.zero
-                        Root.CFrame = lastSafeCF
-                        syncAllActiveReanimRoots(lastSafeCF, Root)
+                        syncAllActiveReanimRoots(holdCF, Root)
+                        markIntentionalTeleport(holdCF)
                     end
-                    return
                 end
-            else
                 return
             end
         end
         local tVel = TargetPart.AssemblyLinearVelocity
-        if isLethalVoidCF(TargetPart.CFrame, tVel) then
+        if isLethalVoidCF(TargetPart.CFrame, tVel) or isPartDetachedOrThrown(TargetPart, TargetChar) then
             if sethiddenproperty then
                 pcall(function() sethiddenproperty(Root, "PhysicsRepRootPart", nil) end)
                 pcall(function() sethiddenproperty(Root, "PhysicsRepRootRef", nil) end)
             end
             return
+        end
+        -- Record last verified safe on-map anchor CFrame (only when stable & non-falling)
+        if isSafePlayableCF(TargetPart.CFrame) and math.abs(tVel.Y) < 45 and tVel.Magnitude < 160 then
+            lastTargetSafeAnchorCF = TargetPart.CFrame
         end
 
         local customAdjust = getStaticPresetAdjust()
@@ -2563,10 +2660,12 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
         end
         local attachCF
         if PresetKey == "goon" and sideMode == "auto" then
-            -- Exact Face-to-Face Lock: stays completely upright (flat yaw) and faces target player's face eye-to-eye
-            local tHead = (isPartInSafeWorldBounds(TargetPart) and TargetPart.Name == "Head" and TargetPart)
-                or (TargetChar and TargetChar:FindFirstChild("Head")) or TargetPart
-            local flatHeadCF = getFlatYawCFrame(tHead.CFrame, tHead.Position)
+            -- Exact Face-to-Face Lock: uses safe Head if attached, or virtual Head above safe body if Head was thrown into void!
+            local rawHead = TargetChar and TargetChar:FindFirstChild("Head")
+            local safeHead = (rawHead and isPartInSafeWorldBounds(rawHead) and not isPartDetachedOrThrown(rawHead, TargetChar)) and rawHead or nil
+            local tHead = safeHead or TargetPart
+            local headPos = safeHead and safeHead.Position or (TargetPart.Position + Vector3.new(0, 1.5, 0))
+            local flatHeadCF = getFlatYawCFrame(tHead.CFrame, headPos)
             local myHead = Character and Character:FindFirstChild("Head")
             local myHeadToRootY = 1.45
             if myHead and Root then
@@ -2582,10 +2681,12 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
                 attachCF = flatHeadCF * CFrame.new(0, -myHeadToRootY, -1.65) * CFrame.Angles(0, math.rad(180) + extraYaw, 0) * customAdjust
             end
         elseif PresetKey == "poop" and sideMode == "auto" then
-            -- Directly Above & In Front of Target's Head, facing BACKWARDS (180° away from target player)
-            local tHead = (isPartInSafeWorldBounds(TargetPart) and TargetPart.Name == "Head" and TargetPart)
-                or (TargetChar and TargetChar:FindFirstChild("Head")) or TargetPart
-            local flatHeadCF = getFlatYawCFrame(tHead.CFrame, tHead.Position)
+            -- Directly Above & In Front of Target's Head, facing BACKWARDS (uses virtual Head if real Head was thrown into void!)
+            local rawHead = TargetChar and TargetChar:FindFirstChild("Head")
+            local safeHead = (rawHead and isPartInSafeWorldBounds(rawHead) and not isPartDetachedOrThrown(rawHead, TargetChar)) and rawHead or nil
+            local tHead = safeHead or TargetPart
+            local headPos = safeHead and safeHead.Position or (TargetPart.Position + Vector3.new(0, 1.5, 0))
+            local flatHeadCF = getFlatYawCFrame(tHead.CFrame, headPos)
             local poopPos = (flatHeadCF * CFrame.new(0, 2.35, -math.max(0.2, 0.85 + distAdd)) * customAdjust).Position
             local lookPt = Vector3.new(tHead.Position.X, poopPos.Y, tHead.Position.Z)
             local extraYaw = math.rad((V.RY or 0) + (V.Spin and ((clock * 180) % 360) or 0))
@@ -2846,17 +2947,28 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
             end
         end
 
-        -- 3b. VOICE-TAG PRIORITY LOCK: If target's visible Voice Tag anchor differs from TargetPart
-        --     (e.g. target activated Reanim or Limb Remover mid-weld), switch immediately to the Voice Tag!
+        -- 3b. CONNECT MODE LOCK (Voice Tag Connect vs Normal Safe Body/Head):
+        --     • In Voice Tag mode (V.ConnectMode == "voicetag" or RefMode == "voicetag"): strictly lock to Voice Tag anchor!
+        --     • In Normal Body mode (default): keep exact Head for head presets (e.g. facebang) & exact safe Body for torso presets,
+        --       while still instantly switching to Voice Tag / Head if TargetPart ever drops into void or desyncs!
         if TargetPlayer then
-            local liveVoicePart, liveVoiceModel = findPlayerVoiceTagAnchor(TargetPlayer, TargetChar)
-            if liveVoicePart and liveVoicePart.Parent and liveVoicePart ~= TargetPart and isPartInSafeWorldBounds(liveVoicePart) then
-                TargetPart = liveVoicePart
-                if liveVoiceModel and liveVoiceModel.Parent then
-                    TargetChar = liveVoiceModel
-                    TargetHum  = liveVoiceModel:FindFirstChildOfClass("Humanoid")
+            local wantVoiceTag = (RefMode == "voicetag") or (V and V.ConnectMode == "voicetag")
+            if wantVoiceTag then
+                local liveVoicePart, liveVoiceModel = findPlayerVoiceTagAnchor(TargetPlayer, TargetChar)
+                if liveVoicePart and liveVoicePart.Parent and liveVoicePart ~= TargetPart and isPartInSafeWorldBounds(liveVoicePart) then
+                    TargetPart = liveVoicePart
+                    if liveVoiceModel and liveVoiceModel.Parent then
+                        TargetChar = liveVoiceModel
+                        TargetHum  = liveVoiceModel:FindFirstChildOfClass("Humanoid")
+                    end
+                    cachedRizzChar = nil
                 end
-                cachedRizzChar = nil
+            elseif RefMode == "head" and TargetPart and TargetPart.Name ~= "Head" and TargetChar then
+                local exactHead = TargetChar:FindFirstChild("Head") or TargetChar:FindFirstChild("head", true)
+                if exactHead and exactHead:IsA("BasePart") and isPartInSafeWorldBounds(exactHead) and not isPartDetachedOrThrown(exactHead, TargetChar) then
+                    TargetPart = exactHead
+                    cachedRizzChar = nil
+                end
             end
         end
 
@@ -2928,16 +3040,22 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
             missingFrames = 0
         end
 
-        -- 5. VOID PROTECTION (Voice-Tag, Reanim & Limb-Remover Safe):
-        --    If TargetPart enters lethal void or fling-dump, immediately switch to Voice Tag / safe body part
-        --    before detaching cleanly back to lastSafeCF!
+        -- 5. ANTI-HEAD-VOID-THROW & STAY-CONNECTED PROTECTION:
+        --    If TargetPart (e.g. Head thrown into void by Limb Remover / Reanim) detaches or enters void,
+        --    immediately switch to the player's safe on-map body/HRP/Voice Tag and KEEP WELD CONNECTED RIGHT THERE!
         local tVel = TargetPart.AssemblyLinearVelocity
-        if not isPartInSafeWorldBounds(TargetPart) or isLethalVoidCF(TargetPart.CFrame, tVel) then
-            local rescuePart = TargetPlayer and select(1, findPlayerVoiceTagAnchor(TargetPlayer, TargetChar))
-            if not rescuePart or rescuePart == TargetPart or not isPartInSafeWorldBounds(rescuePart) then
-                rescuePart = TargetChar and pickTargetRef(TargetChar, RefMode or "torso", TargetPlayer)
+        if not isPartInSafeWorldBounds(TargetPart) or isLethalVoidCF(TargetPart.CFrame, tVel) or isPartDetachedOrThrown(TargetPart, TargetChar) then
+            local rescuePart = TargetChar and pickTargetRef(TargetChar, RefMode or "torso", TargetPlayer)
+            if rescuePart and (rescuePart == TargetPart or isPartDetachedOrThrown(rescuePart, TargetChar)) then
+                rescuePart = nil
             end
-            if (not rescuePart or rescuePart == TargetPart or not isPartInSafeWorldBounds(rescuePart)) and TargetPlayer then
+            if not rescuePart and TargetPlayer then
+                local vP = select(1, findPlayerVoiceTagAnchor(TargetPlayer, TargetChar))
+                if vP and vP ~= TargetPart and isPartInSafeWorldBounds(vP) and not isPartDetachedOrThrown(vP, TargetChar) then
+                    rescuePart = vP
+                end
+            end
+            if not rescuePart and TargetPlayer then
                 local altChar = findTargetReanimModel and findTargetReanimModel(TargetPlayer)
                 if altChar and altChar.Parent then
                     TargetChar = altChar
@@ -2945,12 +3063,24 @@ local function WeldTo(TargetPart, Offset, Speaker, AnimationId, Osc, AnimFallbac
                     rescuePart = pickTargetRef(altChar, RefMode or "torso", TargetPlayer)
                 end
             end
-            if rescuePart and rescuePart.Parent and isPartInSafeWorldBounds(rescuePart) then
+            if rescuePart and rescuePart.Parent and isPartInSafeWorldBounds(rescuePart) and not isPartDetachedOrThrown(rescuePart, TargetChar) then
                 TargetPart = rescuePart
                 tVel = TargetPart.AssemblyLinearVelocity
+                cachedRizzChar = nil
+            elseif lastTargetSafeAnchorCF and isSafePlayableCF(lastTargetSafeAnchorCF) then
+                -- Stay connected right there at their safe map position instead of following their Head into the void!
+                if sethiddenproperty then
+                    pcall(function() sethiddenproperty(Root, "PhysicsRepRootPart", nil) end)
+                    pcall(function() sethiddenproperty(Root, "PhysicsRepRootRef", nil) end)
+                end
+                local speedMult = math.clamp(V.Speed or 1.0, 0.2, 6.0)
+                clock = clock + (dt * speedMult)
+                stepExactOyeeHoyeWeld()
+                pcall(function() ensureAnim(false) end)
+                return
             else
                 Weld:Destroy(false)
-                notify("COCO POWDER", "Target body dropped into Void — stayed safe & detached!")
+                notify("COCO POWDER", "Target dropped into Void — stayed safe & detached!")
                 return
             end
         end
@@ -3104,6 +3234,16 @@ WELD_PRESETS.chase = {
     label = "Auto-Chase (Follow)"
 }
 
+WELD_PRESETS.voicetag = {
+    offset = CFrame.new(0, 0, 2.2),
+    anim15 = nil,
+    anim6  = nil,
+    animFallbacks = {},
+    osc = nil,
+    refMode = "voicetag",
+    label = "Voice Tag Connect"
+}
+
 WELD_PRESETS.selfanim = {
     offset = CFrame.new(0, 0, 2.2),
     anim15 = 98982064034152,
@@ -3179,52 +3319,71 @@ findPlayerCharacterAnywhere = function(plr, skipDeepSearch)
     return plr.Character
 end
 
--- 🎙️ Voice-Tag First & Void-Proof reference part resolver (Reanim, Limb Remover, FE Invisibility & Hat-Reanim Aware)
--- ALWAYS locks onto where the player's Voice Tag is visible (BillboardGui Adornee / AudioEmitter / Head)
--- instead of their real body (HumanoidRootPart / Torso / limbs), and NEVER returns a voided part!
+-- 🎙️ Dual-Mode Void-Proof reference part resolver (Exact Head / Safe Body / Voice Tag Connect)
+--   • mode == "voicetag" or V.ConnectMode == "voicetag": locks strictly onto the player's visible Voice Tag anchor!
+--   • mode == "head" (facebang, goon, poop, headsit): locks onto exact safe Head first so height is 100% exact!
+--   • Normal body/torso mode: locks onto safe HRP/Torso (automatically rejecting voided or >6-stud desynced parts)
+--     and falls back to safe Head / Voice Tag if the real body was dropped into the void by Reanim or Limb Remover!
+--   • NEVER returns an unsafe/voided part!
 pickTargetRef = function(char, mode, targetPlr)
     if not char then return nil end
     local function isSafePart(p)
-        return p and p:IsA("BasePart") and p.Parent and isPartInSafeWorldBounds(p)
+        return p and p:IsA("BasePart") and p.Parent and isPartInSafeWorldBounds(p) and not isPartDetachedOrThrown(p, char)
     end
 
     local plr = targetPlr or Players:GetPlayerFromCharacter(char)
-
-    -- 1. HIGHEST PRIORITY: Exact BasePart where the player's Voice Tag is visibly rendered!
-    if plr and plr ~= LP and findPlayerVoiceTagAnchor then
-        local vPart = findPlayerVoiceTagAnchor(plr, char)
-        if isSafePart(vPart) then
-            return vPart
-        end
-    end
-
-    -- 2. SECOND PRIORITY: Head (Roblox's default Voice Tag host — stays safe even when Limb Remover / Reanim voids real body!)
-    local head = char:FindFirstChild("Head") or char:FindFirstChild("head", true)
-    if isSafePart(head) then
-        return head
-    end
-
-    -- 3. Check external reanim model's Head if real character's Head is missing/voided
-    if plr and plr ~= LP and findTargetReanimModel then
-        local rModel = findTargetReanimModel(plr)
-        if rModel and rModel ~= char and rModel.Parent then
-            local rHead = rModel:FindFirstChild("Head") or rModel:FindFirstChild("head", true)
-            if isSafePart(rHead) then return rHead end
-        end
-    end
-
-    -- 4. Safe fallback to torso / HRP / limbs / accessories ONLY if Head & Voice Tag are absent (NEVER returns voided parts!)
+    local wantVoiceTag = (mode == "voicetag") or (V and V.ConnectMode == "voicetag")
+    local head  = char:FindFirstChild("Head") or char:FindFirstChild("head", true)
     local torso = char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso") or char:FindFirstChild("LowerTorso")
     local hrp   = char:FindFirstChild("HumanoidRootPart") or char.PrimaryPart
-    if isSafePart(torso) then return torso end
+
+    -- 1. VOICE TAG CONNECT MODE: strictly attach to where the player's Voice Tag is visible!
+    if wantVoiceTag then
+        if plr and plr ~= LP and findPlayerVoiceTagAnchor then
+            local vPart = findPlayerVoiceTagAnchor(plr, char)
+            if isSafePart(vPart) then
+                return vPart
+            end
+        end
+        if isSafePart(head) then return head end
+    end
+
+    -- 2. HEAD PRESETS (Facebang, Goon, Poop, Headsit): ALWAYS lock onto exact safe Head first!
+    if mode == "head" then
+        if isSafePart(head) then
+            return head
+        end
+        if plr and plr ~= LP and findPlayerVoiceTagAnchor then
+            local vPart = findPlayerVoiceTagAnchor(plr, char)
+            if isSafePart(vPart) then return vPart end
+        end
+    end
+
+    -- 3. NORMAL BODY / TORSO MODE (Void-Proof & Reanim/Limb-Remover Safe):
+    --    Use safe HRP if not desynced >6 studs from Head/Torso; otherwise use safe Torso/Head/Voice Tag!
     if isSafePart(hrp) then
         if hrp.Name == "HumanoidRootPart" then
-            local bodyRef = (isSafePart(torso) and torso) or (isSafePart(head) and head)
+            local bodyRef = (isSafePart(head) and head) or (isSafePart(torso) and torso)
             if bodyRef and (hrp.Position - bodyRef.Position).Magnitude > 6.0 then
-                return bodyRef
+                return (isSafePart(torso) and (torso.Position - bodyRef.Position).Magnitude <= 6.0) and torso or bodyRef
             end
         end
         return hrp
+    end
+    if isSafePart(torso) then return torso end
+    if isSafePart(head) then return head end
+
+    -- 4. Voice Tag / Reanim Model rescue if real body parts were removed or dropped into void
+    if plr and plr ~= LP and findPlayerVoiceTagAnchor then
+        local vPart = findPlayerVoiceTagAnchor(plr, char)
+        if isSafePart(vPart) then return vPart end
+    end
+    if plr and plr ~= LP and findTargetReanimModel then
+        local rModel = findTargetReanimModel(plr)
+        if rModel and rModel ~= char and rModel.Parent then
+            local rRef = rModel:FindFirstChild("Head") or rModel:FindFirstChild("UpperTorso") or rModel:FindFirstChild("Torso") or rModel:FindFirstChild("HumanoidRootPart")
+            if isSafePart(rRef) then return rRef end
+        end
     end
     for _, partName in ipairs({ "UpperTorso", "Torso", "LowerTorso", "Head", "RightUpperArm", "LeftUpperArm", "Right Arm", "Left Arm" }) do
         local p = char:FindFirstChild(partName)
@@ -6859,9 +7018,10 @@ local function weldToTarget(target, speaker, offset, animId, osc, refMode, animF
     local fastMyHum  = fastMyChar and fastMyChar:FindFirstChildOfClass("Humanoid")
     local fastTChar  = findPlayerCharacterAnywhere(TPlayer, false)
     local fastTHum   = fastTChar and fastTChar:FindFirstChildOfClass("Humanoid")
+    local wantVoiceFast = (refMode == "voicetag") or (V and V.ConnectMode == "voicetag")
     local fastVPart  = findPlayerVoiceTagAnchor and select(1, findPlayerVoiceTagAnchor(TPlayer, fastTChar)) or nil
     local fastTAliveOrReanim = (fastVPart ~= nil) or (not fastTHum) or (fastTHum.Health > 0) or (isCharacterNetlessReanimated and isCharacterNetlessReanimated(fastTChar))
-    local fastTRoot  = fastTAliveOrReanim and ((fastVPart and isPartInSafeWorldBounds(fastVPart) and fastVPart) or (fastTChar and pickTargetRef(fastTChar, refMode or "torso", TPlayer))) or nil
+    local fastTRoot  = fastTAliveOrReanim and ((wantVoiceFast and fastVPart and isPartInSafeWorldBounds(fastVPart) and fastVPart) or (fastTChar and pickTargetRef(fastTChar, refMode or "torso", TPlayer))) or nil
     if fastMyChar and fastMyRoot and isLocalCharAliveOrReanimated(fastMyChar, fastMyHum) and fastTRoot and fastTRoot.Parent and isPartInSafeWorldBounds(fastTRoot) then
         pcall(function() workspace.FallenPartsDestroyHeight = 0/0 end)
         RescueGeneration = RescueGeneration + 1
@@ -51633,6 +51793,7 @@ local function buildMainUI()
         createSectionTitle(weldPage, 4, "Pursuit, Void & Time Weapons")
         local voidGrp = createGroupCard(weldPage, 5)
         addPresetRow(voidGrp, 1, "chase",     "Auto-Chase Everywhere", "Streams & pursues target across teleporters & rooms")
+        addPresetRow(voidGrp, 1, "voicetag",  "Voice Tag Connect",     "Connects strictly to player's visible Voice Tag (Reanim & Limb-Remover safe)")
         addPresetRow(voidGrp, 2, "voidthrow", "Void Throw v2",         "Sub-floor bury + catapult + sinkhole drag")
         addPresetRow(voidGrp, 3, "fling",     "Nebula Fling & Modes",  "100-density vortex fling modal selector", function() promptNebulaFling() end)
         addPresetRow(voidGrp, 4, nil,         "Void Lock (Until Dead)","Relentless void sinkhole trap until target dies", function()
@@ -51651,6 +51812,14 @@ local function buildMainUI()
 
         local speedCycle = { 0.5, 1.0, 1.8, 3.0, 4.5 }
         addPresetRow(tuneGrp, 0, "sideflip", "1-Click Front / Back Flip", "Toggle active troll/weld between Front, Back & Auto (or pin ⦿ for floating button)")
+        createActionRow(tuneGrp, 0, "Weld Connect Anchor", "Switch between Safe Body/Head (exact Facebang) or Voice Tag anchor", "Body (Safe)", function(pillBtn)
+            V.ConnectMode = (V.ConnectMode == "voicetag") and "body" or "voicetag"
+            pillBtn.Text = (V.ConnectMode == "voicetag") and "Voice Tag" or "Body (Safe)"
+            notify("COCO POWDER", "Weld Connect Mode: " .. ((V.ConnectMode == "voicetag") and "🎙️ VOICE TAG ANCHOR" or "🎯 SAFE BODY / EXACT HEAD"))
+            if WeldIntent and WeldIntent.active and WeldIntent.target and WeldIntent.presetKey and WeldIntent.presetKey ~= "animcopy" then
+                pcall(function() applyWeldPreset(WeldIntent.presetKey, WeldIntent.target) end)
+            end
+        end)
         local speedIdx = 2
         createActionRow(tuneGrp, 1, "Animation Speed", "Cycle weld oscillation & track multiplier", "1.0x", function(pillBtn)
             speedIdx = (speedIdx % #speedCycle) + 1
